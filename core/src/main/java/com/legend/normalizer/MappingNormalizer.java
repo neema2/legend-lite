@@ -835,9 +835,18 @@ public final class MappingNormalizer {
             if (ad == null) continue;
             for (AssociationPropertyMapping apm : rel.propertyMappings()) {
                 if (!(apm.body() instanceof PropertyMapping.Join join)) continue;
-                if (join.joins().size() < 2) continue;   // single-hop -> predicate path
+                if (join.joins().size() < 2) {
+                    continue;   // single-hop -> predicate path
+                }
                 String owner = associationOwnerClass(ad, apm.propertyName());
                 if (owner == null) continue;
+                if (apm.sourceSetId() != null
+                        && unionForClass(md, model, owner) != null) {
+                    // per-pair entries on a UNION-mapped owner land on their
+                    // member set at union synthesis instead
+                    // (collectPairAssociationEntries, include-closure aware)
+                    continue;
+                }
                 injected.computeIfAbsent(owner, k -> new ArrayList<>()).add(join);
             }
         }
@@ -858,6 +867,51 @@ public final class MappingNormalizer {
             }
         }
         return md.withClassMappings(rewritten);
+    }
+
+    /**
+     * SET-QUALIFIED per-pair AssociationMapping entries
+     * ({@code y[x1, y1]: [db]@X1_A > @A_Y1} — multipleChainedJoins) whose
+     * OWNING end is union class {@code classFqn}, gathered across the
+     * INCLUDE CLOSURE (the entries, the members and the union operation
+     * may live in different mapping definitions), keyed by the owning
+     * member's set id with the target route stamped on the Join.
+     */
+    private static void collectPairAssociationEntries(LegacyMappingDefinition md,
+            ModelBuilder model, String classFqn,
+            Map<String, List<PropertyMapping.Join>> out, Set<String> seen) {
+        if (!seen.add(md.qualifiedName())) {
+            return;
+        }
+        for (AssociationMapping am : md.associationMappings()) {
+            if (!(am instanceof AssociationMapping.Relational rel)) continue;
+            AssociationDefinition ad =
+                    model.findAssociation(am.associationName()).orElse(null);
+            if (ad == null) continue;
+            for (AssociationPropertyMapping apm : rel.propertyMappings()) {
+                if (!(apm.body() instanceof PropertyMapping.Join join)
+                        || apm.sourceSetId() == null) {
+                    continue;
+                }
+                String owner = associationOwnerClass(ad, apm.propertyName());
+                if (owner == null || !owner.equals(classFqn)) {
+                    continue;
+                }
+                PropertyMapping.Join stamped = join.targetSetId() == null
+                        ? new PropertyMapping.Join(join.propertyName(),
+                                join.database(), join.joins(), apm.targetSetId())
+                        : join;
+                out.computeIfAbsent(apm.sourceSetId(), k -> new ArrayList<>())
+                        .add(stamped);
+            }
+        }
+        for (com.legend.parser.element.MappingInclude inc : md.includes()) {
+            LegacyMappingDefinition inner =
+                    model.findLegacyMapping(inc.mappingPath()).orElse(null);
+            if (inner != null) {
+                collectPairAssociationEntries(inner, model, classFqn, out, seen);
+            }
+        }
     }
 
     /**
@@ -1377,6 +1431,34 @@ public final class MappingNormalizer {
             }
             memberSets.add(member);
         }
+        // per-pair AssociationMapping entries ([sourceSet, targetSet]) land
+        // on their owning MEMBER set as routed class-typed Join PMs — the
+        // engine dispatches union navigation per member pair
+        Map<String, List<PropertyMapping.Join>> pairEntries = new LinkedHashMap<>();
+        collectPairAssociationEntries(md, model, u.className(), pairEntries,
+                new HashSet<>());
+        if (!pairEntries.isEmpty()) {
+            for (int i = 0; i < memberSets.size(); i++) {
+                if (!(memberSets.get(i) instanceof ClassMapping.Relational mr)) {
+                    continue;
+                }
+                List<PropertyMapping.Join> add = pairEntries.get(setIdOf(mr));
+                if (add == null) {
+                    continue;
+                }
+                List<PropertyMapping> pms = new ArrayList<>(mr.propertyMappings());
+                for (PropertyMapping.Join j : add) {
+                    if (pms.stream().noneMatch(p ->
+                            pmIdentity(p).equals(pmIdentity(j)))) {
+                        pms.add(j);
+                    }
+                }
+                memberSets.set(i, new ClassMapping.Relational(mr.className(),
+                        mr.setId(), mr.extendsSetId(), mr.root(), mr.mainTable(),
+                        mr.filter(), mr.distinct(), mr.groupBy(), mr.primaryKey(),
+                        pms, mr.sourceUrl(), mr.propertyTargetSets()));
+            }
+        }
         return synthMemberUnion(md, u.className(), memberSets, model);
     }
 
@@ -1626,10 +1708,15 @@ public final class MappingNormalizer {
         // ordinal -> (base column -> suffixed name): the source keys each
         // member thread projects (its own reads; typed NULL elsewhere)
         Map<Integer, Map<String, String>> srcKeysByOrdinal = new LinkedHashMap<>();
+        Map<Integer, List<LiftChain>> chainsByOrdinal = new LinkedHashMap<>();
         for (NavLift lf : lifts) {
             for (var en : lf.srcKeysByOrdinal().entrySet()) {
                 srcKeysByOrdinal.computeIfAbsent(en.getKey(),
                         k -> new LinkedHashMap<>()).putAll(en.getValue());
+            }
+            for (var en : lf.chainsByOrdinal().entrySet()) {
+                chainsByOrdinal.computeIfAbsent(en.getKey(),
+                        k -> new ArrayList<>()).addAll(en.getValue());
             }
         }
         // keys demanded by EXTERNAL routed navigations INTO this union
@@ -1692,8 +1779,56 @@ public final class MappingNormalizer {
                             List.of(pp.rowBind()), List.of(read)), null));
                 }
             }
+            // CHAINED entries: the owning thread wraps its pipeline in the
+            // MID-hop joins and reads the final hop's source keys via the
+            // last mid slot; other threads project a typed NULL of the mid
+            // table's column kind (engine 3-sets golden: fk1_1 from a_0)
+            ValueSpecification threadPipe = pp.pipeline();
+            for (LiftChain ch : chainsByOrdinal.getOrDefault(ordinal,
+                    Collections.emptyList())) {
+                for (LiftMidStep st : ch.steps()) {
+                    threadPipe = new AppliedFunction("join", List.of(threadPipe,
+                            new ColSpec(st.alias(), new LambdaFunction(List.of(),
+                                    List.of(new AppliedFunction("tableReference",
+                                            List.of(new PackageableElementPtr(st.db()),
+                                                    new CString(st.table()))))),
+                                    null),
+                            st.cond()));
+                }
+            }
+            for (var en : chainsByOrdinal.entrySet()) {
+                for (LiftChain ch : en.getValue()) {
+                    for (var key : ch.keys().entrySet()) {
+                        ValueSpecification read;
+                        if (en.getKey() == ordinal) {
+                            read = new AppliedProperty(new AppliedProperty(
+                                    pp.rowBind(), ch.keyAlias()), key.getKey());
+                        } else {
+                            DatabaseDefinition.ColumnDefinition cd =
+                                    findPhysicalColumn(ch.keyDb(), ch.keyTable(),
+                                            key.getKey(), model);
+                            String kind = cd == null ? null
+                                    : pureKindOf(cd.dataType());
+                            if (kind == null) {
+                                throw new com.legend.error.NotImplementedException(
+                                        "chained union key column '" + key.getKey()
+                                        + "' has no derivable pure kind on table '"
+                                        + ch.keyTable() + "'; mapping="
+                                        + md.qualifiedName());
+                            }
+                            read = new AppliedFunction("cast", List.of(
+                                    new PureCollection(List.of()),
+                                    new com.legend.parser.spec.TypeAnnotation.Named(
+                                            new TypeExpression.NameRef(kind))));
+                        }
+                        read = new AppliedFunction("toOne", List.of(read));
+                        cols.add(new ColSpec(key.getValue(), new LambdaFunction(
+                                List.of(pp.rowBind()), List.of(read)), null));
+                    }
+                }
+            }
             ValueSpecification projected = new AppliedFunction("project",
-                    List.of(pp.pipeline(), new ColSpecArray(cols)));
+                    List.of(threadPipe, new ColSpecArray(cols)));
             union = union == null ? projected
                     : new AppliedFunction("concatenate", List.of(union, projected));
         }
@@ -1731,7 +1866,23 @@ public final class MappingNormalizer {
      */
     private record NavLift(String property, String targetClassFqn,
             ValueSpecification targetRows, LambdaFunction condition,
-            Map<Integer, Map<String, String>> srcKeysByOrdinal) {
+            Map<Integer, Map<String, String>> srcKeysByOrdinal,
+            Map<Integer, List<LiftChain>> chainsByOrdinal) {
+    }
+
+    /** One physical MID hop of a CHAINED lift entry, wrapped around the
+     * owning member's thread pipeline ({@code join(pipe, ~alias:
+     * tableReference, cond)} — engine: mid tables join INSIDE the member
+     * thread, 3-sets golden). */
+    private record LiftMidStep(String alias, String db, String table,
+            LambdaFunction cond) {
+    }
+
+    /** A chained entry's per-member material: the mid steps plus the FINAL
+     * hop's source-key columns (on the LAST mid table, read via its slot
+     * and projected member-suffixed — engine {@code fk1_1}). */
+    private record LiftChain(List<LiftMidStep> steps, String keyAlias,
+            String keyDb, String keyTable, Map<String, String> keys) {
     }
 
     /** Collect the member class-typed Join PMs liftable onto the union. */
@@ -1792,11 +1943,6 @@ public final class MappingNormalizer {
             // here poisoned scalar-only union queries.
             String skipReason = null;
             for (PropertyMapping.Join j0 : joins.get(prop)) {
-                if (j0.joins().size() != 1) {
-                    skipReason = "a CHAINED member join — per-member chained"
-                            + " joins over unions are not supported yet";
-                    break;
-                }
                 if (j0.targetSetId() != null && (targetUnion == null
                         || memberOrdinalOf(targetUnion.memberSetIds(), md,
                                 model, j0.targetSetId()) < 0)) {
@@ -1873,12 +2019,55 @@ public final class MappingNormalizer {
             String landingDb = null;
             String landingTable = null;
             Map<Integer, Map<String, String>> srcKeys = new LinkedHashMap<>();
+            Map<Integer, List<LiftChain>> chains = new LinkedHashMap<>();
             List<int[]> ords = found.get(prop);
             List<PropertyMapping.Join> js = joins.get(prop);
             for (int k = 0; k < js.size(); k++) {
                 int memberOrd = ords.get(k)[0];
                 PropertyMapping.Join j = js.get(k);
-                JoinChainElement hop = j.joins().get(0);
+                String srcTable = ((ClassMapping.Relational)
+                        members.get(memberOrd)).mainTable().table();
+                // MID hops (all but the last): physical join steps around
+                // the owning member's thread (engine: mids join INSIDE the
+                // thread; the final hop is the union-level navigation)
+                List<LiftMidStep> midSteps = new ArrayList<>();
+                String prevTable = srcTable;
+                String prevAlias = null;
+                for (int h = 0; h + 1 < j.joins().size(); h++) {
+                    JoinChainElement midHop = j.joins().get(h);
+                    String midDb = midHop.databaseName() != null
+                            ? midHop.databaseName() : j.database();
+                    DatabaseDefinition.JoinDefinition mjd =
+                            model.findJoin(midDb, midHop.joinName()).orElseThrow(() ->
+                                    new com.legend.error.ModelException(
+                                            com.legend.error.LegendCompileException
+                                                    .Phase.NORMALIZE,
+                                            "Join '" + midHop.joinName() + "' not"
+                                            + " found in db '" + midDb + "'; PM='"
+                                            + prop + "', mapping="
+                                            + md.qualifiedName()));
+                    String midTgt = determineTargetTable(mjd.operation(),
+                            prevTable, midHop.joinName(), prop, h + 1,
+                            md.qualifiedName());
+                    Variable ms = new Variable("s");
+                    Variable mt = new Variable("t");
+                    Map<String, ValueSpecification> midScope = new LinkedHashMap<>();
+                    midScope.put(prevTable, prevAlias == null ? ms
+                            : new AppliedProperty(ms, prevAlias));
+                    if (!midTgt.equals(prevTable)) {
+                        midScope.put(midTgt, mt);
+                    }
+                    ValueSpecification midCond = RelOpTranslator.translate(
+                            mjd.operation(), midScope, mt, null,
+                            RelOpTranslator.PipelineView.NONE);
+                    String midAlias = "nl__" + prop + "__" + midHop.joinName();
+                    midSteps.add(new LiftMidStep(midAlias, midDb, midTgt,
+                            new LambdaFunction(List.of(ms, mt),
+                                    List.of(midCond))));
+                    prevTable = midTgt;
+                    prevAlias = midAlias;
+                }
+                JoinChainElement hop = j.joins().get(j.joins().size() - 1);
                 String hopDb = hop.databaseName() != null ? hop.databaseName()
                         : j.database();
                 DatabaseDefinition.JoinDefinition jd =
@@ -1889,17 +2078,16 @@ public final class MappingNormalizer {
                                         "Join '" + hop.joinName() + "' not found"
                                         + " in db '" + hopDb + "'; PM='" + prop
                                         + "', mapping=" + md.qualifiedName()));
-                String srcTable = ((ClassMapping.Relational)
-                        members.get(memberOrd)).mainTable().table();
-                String tgtTable = determineTargetTable(jd.operation(), srcTable,
-                        hop.joinName(), prop, 1, md.qualifiedName());
+                String tgtTable = determineTargetTable(jd.operation(), prevTable,
+                        hop.joinName(), prop, j.joins().size(),
+                        md.qualifiedName());
                 if (landingTable == null) {
                     landingDb = hopDb;
                     landingTable = tgtTable;
                 }
                 Map<String, ValueSpecification> scope = new LinkedHashMap<>();
-                scope.put(srcTable, s);
-                if (!tgtTable.equals(srcTable)) {
+                scope.put(prevTable, s);
+                if (!tgtTable.equals(prevTable)) {
                     scope.put(tgtTable, t);
                 }
                 ValueSpecification cond = RelOpTranslator.translate(
@@ -1907,8 +2095,15 @@ public final class MappingNormalizer {
                         RelOpTranslator.PipelineView.NONE);
                 Map<String, String> srcOut = new LinkedHashMap<>();
                 cond = suffixTargetReads(cond, s, memberOrd, srcOut);
-                srcKeys.computeIfAbsent(memberOrd, x -> new LinkedHashMap<>())
-                        .putAll(srcOut);
+                if (midSteps.isEmpty()) {
+                    srcKeys.computeIfAbsent(memberOrd, x -> new LinkedHashMap<>())
+                            .putAll(srcOut);
+                } else {
+                    chains.computeIfAbsent(memberOrd, x -> new ArrayList<>())
+                            .add(new LiftChain(midSteps, prevAlias,
+                                    midSteps.get(midSteps.size() - 1).db(),
+                                    prevTable, srcOut));
+                }
                 Integer tgtOrd = j.targetSetId() != null && targetUnion != null
                         && !liftTargetMerged
                         ? memberOrdinalOf(targetUnion.memberSetIds(), md,
@@ -1939,7 +2134,8 @@ public final class MappingNormalizer {
                         List.of(targetRows, new ColSpecArray(keySpecs)));
             }
             lifts.add(new NavLift(prop, targetClassFqn, targetRows,
-                    new LambdaFunction(List.of(s, t), List.of(orCond)), srcKeys));
+                    new LambdaFunction(List.of(s, t), List.of(orCond)), srcKeys,
+                    chains));
         }
         return lifts;
     }
@@ -1986,6 +2182,45 @@ public final class MappingNormalizer {
                         continue;   // routes into Relation(~func) members
                                     // have no physical key table (loud at
                                     // navigation if demanded)
+                    }
+                    String memberTable = routedMember.mainTable().table();
+                    java.util.Set<String> cols = new LinkedHashSet<>();
+                    collectColumnsOfTable(jd.operation(), memberTable, cols);
+                    for (String c : cols) {
+                        sink.computeIfAbsent(ord, k -> new LinkedHashMap<>())
+                                .put(c, c + "_" + ord);
+                    }
+                }
+            }
+            // per-pair ASSOCIATION entries route INTO this union too: the
+            // FINAL hop's target-side columns (on the routed member's main
+            // table) ride suffixed — the lifted navigation's condition
+            // reads them (multipleChainedJoins: t.fk_1)
+            for (AssociationMapping am : m.associationMappings()) {
+                if (!(am instanceof AssociationMapping.Relational rel)) {
+                    continue;
+                }
+                for (AssociationPropertyMapping apm : rel.propertyMappings()) {
+                    if (!(apm.body() instanceof PropertyMapping.Join j)) {
+                        continue;
+                    }
+                    String tgtSet = j.targetSetId() != null
+                            ? j.targetSetId() : apm.targetSetId();
+                    if (tgtSet == null) {
+                        continue;
+                    }
+                    int ord = memberOrdinalOf(memberIds, md, model, tgtSet);
+                    if (ord < 0 || !(members.get(ord)
+                            instanceof ClassMapping.Relational routedMember)) {
+                        continue;
+                    }
+                    JoinChainElement hop = j.joins().get(j.joins().size() - 1);
+                    String db = hop.databaseName() != null
+                            ? hop.databaseName() : j.database();
+                    DatabaseDefinition.JoinDefinition jd =
+                            model.findJoin(db, hop.joinName()).orElse(null);
+                    if (jd == null) {
+                        continue;   // loud at the route's own emission
                     }
                     String memberTable = routedMember.mainTable().table();
                     java.util.Set<String> cols = new LinkedHashSet<>();
