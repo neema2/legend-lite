@@ -90,9 +90,46 @@ public final class Runner {
     /** Zero-arg setup-function bodies across every scanned file. */
     private final Map<String, String> setupFnBodies = new LinkedHashMap<>();
 
+    // Phase D: setup functions as PARSED definitions — their bodies
+    // EXECUTE through the platform (TestBody.runSetup), no literal
+    // extraction. beforePackagesParsed: {pkg, fqn} by STEREOTYPE.
+    private final Map<String, java.util.List<com.legend.model.spec.ValueSpecification>>
+            setupFnAsts = new LinkedHashMap<>();
+    private final List<String[]> beforePackagesParsed = new ArrayList<>();
+    private final java.util.Set<String> bpSeen = new java.util.HashSet<>();
+
     public void addBeforePackages(String source) {
         beforePackages.addAll(Corpus.beforePackages(source));
         Corpus.functionBodies(source).forEach(setupFnBodies::putIfAbsent);
+        collectSetups(source);
+    }
+
+    /** Parse a source and collect zero-arg function ASTs + BeforePackage
+     * stereotyped functions (Phase D discovery — no regex). */
+    private void collectSetups(String source) {
+        com.legend.model.ParsedModel unit;
+        try {
+            unit = com.legend.parser.ElementParser.parse(source);
+        } catch (RuntimeException e) {
+            return;   // unparseable file: its tests are walled anyway
+        }
+        for (com.legend.model.PackageableElement el : unit.elements()) {
+            if (!(el instanceof com.legend.model.FunctionDefinition f)
+                    || !f.parameters().isEmpty()) {
+                continue;
+            }
+            setupFnAsts.putIfAbsent(f.qualifiedName(), f.body());
+            boolean isBp = f.stereotypes().stream().anyMatch(st ->
+                    st.profileName().substring(st.profileName().lastIndexOf(':') + 1)
+                            .equals("test")
+                            && st.stereotypeName().equals("BeforePackage"));
+            if (isBp && bpSeen.add(f.qualifiedName())) {
+                String fqn = f.qualifiedName();
+                int cut = fqn.lastIndexOf("::");
+                beforePackagesParsed.add(new String[]{
+                        cut > 0 ? fqn.substring(0, cut) : "", fqn});
+            }
+        }
     }
 
     private final Map<String, List<String>> fileSeeds = new LinkedHashMap<>();
@@ -150,9 +187,11 @@ public final class Runner {
         }
         for (String src : setupSources) {
             Corpus.functionBodies(src).forEach(setupFnBodies::putIfAbsent);
+            collectSetups(src);
         }
         for (String src : modelOnlySources) {
             Corpus.functionBodies(src).forEach(setupFnBodies::putIfAbsent);
+            collectSetups(src);
         }
         List<String> sql = new ArrayList<>();
         if (parentFamilyKey != null) {
@@ -201,6 +240,7 @@ public final class Runner {
         }
         fileRaw.put(key, new com.legend.Compiler.ModelSource(key, source));
         Corpus.functionBodies(source).forEach(setupFnBodies::putIfAbsent);
+        collectSetups(source);
         List<String> sql = new ArrayList<>();
         var seedTypes3 = Corpus.seedColumnTypes(source);
         for (var defs : Corpus.tableDefsAll(source).values()) {
@@ -434,7 +474,7 @@ public final class Runner {
                     st.execute("SET TimeZone='UTC'");
                 }
                 List<String> failedSeeds = replaySeeds(t.fqn(),
-                        calledSimpleNames(t.fn().body()), conn);
+                        calledSimpleNames(t.fn().body()), ctx, conn);
                 seedFailures.addAll(failedSeeds);
                 com.legend.TestBody.Outcome o = com.legend.TestBody.run(
                         ctx, t.fn().body(), importScopeOf(t), "rcorpus::Rt",
@@ -557,51 +597,16 @@ public final class Runner {
         return out;
     }
 
-    /** Seed replay: ALL DDL first, then data (audit A2), one statement per execute. */
+    /** Seed replay: ALL DDL first, then shared data, then the SETUP
+     * FUNCTIONS execute through the platform (Phase D — the engine's own
+     * seeding code runs via TestBody.runSetup; no literal extraction). */
     private List<String> replaySeeds(String fqn,
-            java.util.Set<String> calledNames, Connection conn) {
+            java.util.Set<String> calledNames,
+            com.legend.compiler.element.ModelContext ctx, Connection conn) {
         List<String> allSeeds = new ArrayList<>(ddlSeeds);
         allSeeds.addAll(familySeeds.getOrDefault(currentFamilyKey, List.of()));
         allSeeds.addAll(fileSeeds.getOrDefault(currentFileKey, List.of()));
         allSeeds.addAll(dataSeeds);
-        java.util.Set<String> expanded = new java.util.HashSet<>(sharedSeededFns);
-        for (Corpus.BeforePackage bp : beforePackages) {
-            if (fqn.startsWith(bp.pkg() + "::")) {
-                boolean includeBody = expanded.add(bp.fqn());
-                allSeeds.addAll(Corpus.expandSeeds(bp.body(), bp.pkg(),
-                        setupFnBodies, expanded, includeBody));
-            }
-        }
-        // TEST-BODY setup calls (modelJoin's setupTestData(...)): a
-        // statement calling a KNOWN function replays that function's seeds
-        // here; TestBody then skips the statement by name
-        // (harnessSetupNames covers every known fn). The contains-probe is
-        // deliberately coarse — extra seeding is idempotent DDL/inserts.
-        for (Map.Entry<String, String> en
-                : new ArrayList<>(setupFnBodies.entrySet())) {
-            String simple = en.getKey().substring(
-                    en.getKey().lastIndexOf(':') + 1);
-            // token-boundary + package-scoped (audit 16 F3b): the raw
-            // substring probe matched "fillDb(" inside
-            // "createTablesAndFillDb(" and pulled same-named setups from
-            // FOREIGN families, whose create-table seeds silently replaced
-            // the current family's filled tables
-            String fnPkg = en.getKey().contains("::")
-                    ? en.getKey().substring(0, en.getKey().lastIndexOf("::"))
-                    : "";
-            boolean inScope = fnPkg.isEmpty()
-                    || fqn.startsWith(fnPkg + "::");
-            // STRUCTURAL call detection (Phase C): the AST walk's collected
-            // simple names replace the token-boundary text probe
-            if (inScope && calledNames.contains(simple)) {
-                boolean includeBody = expanded.add(en.getKey());
-                String pkg = en.getKey().contains("::")
-                        ? en.getKey().substring(0, en.getKey().lastIndexOf("::"))
-                        : "";
-                allSeeds.addAll(Corpus.expandSeeds(en.getValue(), pkg,
-                        setupFnBodies, expanded, includeBody));
-            }
-        }
         List<String> failedSeeds = new ArrayList<>();
         // resolve dropAndCreate markers (emitted IN CALL ORDER by
         // Corpus.seedSql) to the family's CREATE statements at replay
@@ -628,7 +633,88 @@ public final class Runner {
                 }
             }
         }
+        // PHASE D: BeforePackage + test-called setup functions EXECUTE
+        // through the platform (TestBody.runSetup) — the engine's own
+        // seeding code runs; no literal extraction. Order matches the
+        // legacy replay: shared DDL, family/file DDL, shared data, then
+        // per-package setups, then setups the TEST BODY calls.
+        java.util.Set<String> executed = new java.util.HashSet<>(sharedSeededFns);
+        com.legend.TestBody.SetupIo io = setupIo(conn, failedSeeds);
+        com.legend.model.ImportScope none =
+                new com.legend.model.ImportScope(List.of(), Map.of());
+        for (String[] bp : beforePackagesParsed) {
+            if (fqn.startsWith(bp[0] + "::") && executed.add(bp[1])) {
+                List<com.legend.model.spec.ValueSpecification> body =
+                        setupFnAsts.get(bp[1]);
+                if (body != null) {
+                    com.legend.TestBody.runSetup(ctx, body, none,
+                            "rcorpus::Rt", conn, setupFnAsts, executed, io,
+                            bp[0]);
+                }
+            }
+        }
+        for (Map.Entry<String, java.util.List<com.legend.model.spec.ValueSpecification>> en
+                : new ArrayList<>(setupFnAsts.entrySet())) {
+            String simple = en.getKey().substring(
+                    en.getKey().lastIndexOf(':') + 1);
+            String fnPkg = en.getKey().contains("::")
+                    ? en.getKey().substring(0, en.getKey().lastIndexOf("::"))
+                    : "";
+            boolean inScope = fnPkg.isEmpty()
+                    || fqn.startsWith(fnPkg + "::");
+            if (inScope && calledNames.contains(simple)
+                    && executed.add(en.getKey())) {
+                com.legend.TestBody.runSetup(ctx, en.getValue(), none,
+                        "rcorpus::Rt", conn, setupFnAsts, executed, io, fnPkg);
+            }
+        }
         return failedSeeds;
+    }
+
+    /** The JDBC boundary for platform-executed setups: dialect-normalize
+     * and run each executeInDb literal; dropAndCreateTableInDb re-runs the
+     * family's model-derived CREATE (schema-qualified). */
+    private com.legend.TestBody.SetupIo setupIo(Connection conn,
+            List<String> failedSeeds) {
+        return new com.legend.TestBody.SetupIo() {
+            @Override
+            public void executeSql(String rawSql) {
+                String normalized = Corpus.quoteInsertColumns(rawSql)
+                        .replaceAll("(?i)\\bCURRENT_TIMESTAMP\\(\\)",
+                                "CURRENT_TIMESTAMP");
+                for (String stmt : splitStatements(normalized)) {
+                    try (var st = conn.prepareStatement(stmt)) {
+                        st.execute();
+                    } catch (Exception e) {
+                        failedSeeds.add(stmt.strip().split("\\n")[0] + " => "
+                                + String.valueOf(e.getMessage()).split("\\n")[0]);
+                    }
+                }
+            }
+
+            @Override
+            public void dropAndCreate(String dbFqn, String table) {
+                List<String> creates = familyCreatesOf(table);
+                if (creates.isEmpty()) {
+                    failedSeeds.add("dropAndCreateTableInDb " + table
+                            + " => no model CREATE found");
+                    return;
+                }
+                for (String c : creates) {
+                    try (var st = conn.prepareStatement(c)) {
+                        st.execute();
+                    } catch (Exception e) {
+                        failedSeeds.add(c.strip().split("\\n")[0] + " => "
+                                + String.valueOf(e.getMessage()).split("\\n")[0]);
+                    }
+                }
+            }
+
+            @Override
+            public void failure(String detail) {
+                failedSeeds.add("setup statement => " + detail);
+            }
+        };
     }
 
     /**

@@ -419,6 +419,216 @@ public final class TestBody {
         return null;
     }
 
+    // ===== Phase D: setup-function EXECUTION through the platform =====
+
+    /**
+     * The harness's JDBC boundary for {@link #runSetup}: the engine's own
+     * setup vocabulary bottoms out in these two effects, implemented by
+     * the caller (who owns the connection, the dialect normalization and
+     * the failure ledger).
+     */
+    public interface SetupIo {
+        /** An {@code executeInDb('...')} literal — normalize, split, run, collect. */
+        void executeSql(String rawSql);
+
+        /** A {@code dropAndCreateTableInDb(Db, 'Table', conn)} — recreate from the model. */
+        void dropAndCreate(String dbFqn, String table);
+
+        /** A setup statement that failed to evaluate — the caller's ledger
+         * (feeds the failed-seed emptiness guard). */
+        void failure(String detail);
+    }
+
+    /**
+     * Execute a {@code <<test.BeforePackage>>} / setup-function BODY for
+     * its side effects — the engine's own seeding code runs THROUGH the
+     * platform instead of having its string literals regex-scraped:
+     * {@code let}s bind lazily and evaluate through the ordinary pipeline
+     * (string concatenation is a real query over {@code conn}); calls to
+     * OTHER zero-arg setup functions recurse with run-once semantics;
+     * the two JDBC-boundary calls dispatch to {@link SetupIo}. Connection
+     * plumbing ({@code testRuntime(...).connectionByElement(...)}) binds
+     * as an opaque let — {@code executeInDb}'s connection argument is the
+     * harness's connection by construction and is never evaluated.
+     * Unrecognized statements SKIP, exactly like the literal-extraction
+     * replay this replaces (setup bodies contain engine-runtime calls we
+     * do not model); a skipped statement can only UNDER-seed, which the
+     * failed-seed emptiness guard already covers.
+     */
+    public static void runSetup(ModelContext ctx, List<ValueSpecification> body,
+            ImportScope imports, String runtimeFqn, Connection conn,
+            Map<String, List<ValueSpecification>> setupFns,
+            java.util.Set<String> executed, SetupIo io, String callerPkg) {
+        Map<String, ValueSpecification> lets = new LinkedHashMap<>();
+        for (ValueSpecification stmt : body) {
+            try {
+                runSetupStatement(stmt, lets, ctx, imports, runtimeFqn, conn,
+                        setupFns, executed, io, callerPkg);
+            } catch (Exception e) {
+                io.failure(String.valueOf(e.getMessage()).split("\n")[0]);
+            }
+        }
+    }
+
+    private static void runSetupStatement(ValueSpecification stmt,
+            Map<String, ValueSpecification> lets, ModelContext ctx,
+            ImportScope imports, String runtimeFqn, Connection conn,
+            Map<String, List<ValueSpecification>> setupFns,
+            java.util.Set<String> executed, SetupIo io, String callerPkg)
+            throws Exception {
+        if (stmt instanceof AppliedFunction let
+                && let.function().equals("letFunction")
+                && let.parameters().size() == 2
+                && let.parameters().get(0) instanceof CString name) {
+            lets.put(name.value(), let.parameters().get(1));
+            return;
+        }
+        if (stmt instanceof AppliedFunction af) {
+            String simple = simpleName(af.function());
+            if (simple.startsWith("executeInDb") && !af.parameters().isEmpty()) {
+                Object sql = evalScalar(af.parameters().get(0), lets,
+                        new LinkedHashMap<>(), ctx, imports, runtimeFqn, conn);
+                if (sql instanceof String str) {
+                    io.executeSql(str);
+                }
+                return;
+            }
+            if (simple.equals("dropAndCreateTableInDb")
+                    && af.parameters().size() >= 2) {
+                String dbFqn = af.parameters().get(0)
+                        instanceof PackageableElementPtr ptr
+                        ? ptr.fullPath() : null;
+                Object table = evalScalar(af.parameters().get(1), lets,
+                        new LinkedHashMap<>(), ctx, imports, runtimeFqn, conn);
+                if (table instanceof String t) {
+                    io.dropAndCreate(dbFqn, t);
+                }
+                return;
+            }
+            // a bare call to another SETUP function: recurse, run-once
+            String called = af.function();
+            List<ValueSpecification> calledBody = setupFns.get(called);
+            if (calledBody == null) {
+                // simple-name spellings resolve by PACKAGE PROXIMITY to the
+                // caller — the corpus holds same-named setups in many
+                // families and an arbitrary-first pick executed a FOREIGN
+                // family's seeder (wrong rows, sweep-only)
+                int best = -1;
+                int bestLen = Integer.MAX_VALUE;
+                for (Map.Entry<String, List<ValueSpecification>> en
+                        : setupFns.entrySet()) {
+                    if (!simpleName(en.getKey()).equals(simple)) {
+                        continue;
+                    }
+                    int shared = sharedPkgPrefix(en.getKey(), callerPkg);
+                    if (shared > best
+                            || (shared == best && en.getKey().length() < bestLen)) {
+                        best = shared;
+                        bestLen = en.getKey().length();
+                        called = en.getKey();
+                        calledBody = en.getValue();
+                    }
+                }
+            }
+            if (calledBody != null && af.parameters().isEmpty()) {
+                if (executed.add(called)) {
+                    String calleePkg = called.contains("::")
+                            ? called.substring(0, called.lastIndexOf("::")) : "";
+                    runSetup(ctx, calledBody, imports, runtimeFqn, conn,
+                            setupFns, executed, io, calleePkg);
+                }
+                return;
+            }
+        }
+        // Unrecognized statement SHAPE (loops, ifs, engine-runtime calls):
+        // walk its subtree and run every executeInDb/dropAndCreate whose
+        // arguments are STATICALLY evaluable (constant or let-bound) — the
+        // literal-extraction replay this replaces was shape-insensitive
+        // and picked those up; a loop-computed argument was unfoldable
+        // there too and skips here identically.
+        fallbackWalk(stmt, lets, ctx, imports, runtimeFqn, conn, io);
+    }
+
+    private static void fallbackWalk(ValueSpecification v,
+            Map<String, ValueSpecification> lets, ModelContext ctx,
+            ImportScope imports, String runtimeFqn, Connection conn,
+            SetupIo io) {
+        if (v instanceof AppliedFunction af) {
+            String simple = simpleName(af.function());
+            if (simple.startsWith("executeInDb") && !af.parameters().isEmpty()
+                    && freeVarsBound(af.parameters().get(0), lets)) {
+                try {
+                    Object sql = evalScalar(af.parameters().get(0), lets,
+                            new LinkedHashMap<>(), ctx, imports, runtimeFqn, conn);
+                    if (sql instanceof String str) {
+                        io.executeSql(str);
+                    }
+                } catch (Exception e) {
+                    // unfoldable argument: the legacy extraction skipped too
+                }
+                return;
+            }
+            if (simple.equals("dropAndCreateTableInDb")
+                    && af.parameters().size() >= 2
+                    && freeVarsBound(af.parameters().get(1), lets)) {
+                try {
+                    Object table = evalScalar(af.parameters().get(1), lets,
+                            new LinkedHashMap<>(), ctx, imports, runtimeFqn, conn);
+                    String dbFqn = af.parameters().get(0)
+                            instanceof PackageableElementPtr ptr
+                            ? ptr.fullPath() : null;
+                    if (table instanceof String t) {
+                        io.dropAndCreate(dbFqn, t);
+                    }
+                } catch (Exception e) {
+                    // unfoldable: skip, legacy parity
+                }
+                return;
+            }
+            af.parameters().forEach(x ->
+                    fallbackWalk(x, lets, ctx, imports, runtimeFqn, conn, io));
+        } else if (v instanceof AppliedProperty ap) {
+            fallbackWalk(ap.receiver(), lets, ctx, imports, runtimeFqn, conn, io);
+        } else if (v instanceof LambdaFunction lf) {
+            lf.body().forEach(x ->
+                    fallbackWalk(x, lets, ctx, imports, runtimeFqn, conn, io));
+        } else if (v instanceof PureCollection pc) {
+            pc.values().forEach(x ->
+                    fallbackWalk(x, lets, ctx, imports, runtimeFqn, conn, io));
+        }
+    }
+
+    /** Shared whole-segment package prefix — the legacy expansion's
+     * closest-package scoring, kept exactly. */
+    private static int sharedPkgPrefix(String a, String b) {
+        String[] as = a.split("::");
+        String[] bs = b == null ? new String[0] : b.split("::");
+        int i = 0;
+        while (i < as.length && i < bs.length && as[i].equals(bs[i])) {
+            i++;
+        }
+        return i;
+    }
+
+    /** Every free variable of {@code v} is let-bound (statically evaluable). */
+    private static boolean freeVarsBound(ValueSpecification v,
+            Map<String, ValueSpecification> lets) {
+        if (v instanceof Variable var) {
+            return lets.containsKey(var.name());
+        }
+        if (v instanceof AppliedFunction af) {
+            return af.parameters().stream().allMatch(x -> freeVarsBound(x, lets));
+        }
+        if (v instanceof AppliedProperty ap) {
+            return freeVarsBound(ap.receiver(), lets);
+        }
+        if (v instanceof PureCollection pc) {
+            return pc.values().stream().allMatch(x -> freeVarsBound(x, lets));
+        }
+        return true;
+    }
+
+
     /** One CSV seed block: {@code schema\ntable\nHEADER\nrows...} —
      * DROP + CREATE from the model's OWN table definition (engine
      * setUpDataSQLsV2 semantics: the test connection holds exactly the
