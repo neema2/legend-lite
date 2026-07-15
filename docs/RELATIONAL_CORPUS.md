@@ -160,7 +160,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/modelJoin | 47 | 0 | 0 | 0 | 47 |
 | tests/mapping/multigrain | 5 | 0 | 0 | 5 | 0 |
 | tests/mapping/propertyfunc | 6 | 0 | 0 | 6 | 0 |
-| tests/mapping/relation | 93 | 28 | 1 | 21 | 43 |
+| tests/mapping/relation | 93 | 35 | 1 | 14 | 43 |
 | tests/mapping/relation/aggregation | 9 | 0 | 0 | 0 | 9 |
 | tests/mapping/selfJoin | 3 | 0 | 0 | 3 | 0 |
 | tests/mapping/sqlFunction | 72 | 57 | 0 | 3 | 12 |
@@ -172,7 +172,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **721** | 24 | 706 | 841 |
+| **total** | 2292 | **728** | 24 | 699 | 841 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1659,13 +1659,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMixedTemporalMapping [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
 - ERROR testMixedTemporalMappingWithAllVersionsInRange1 [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
 - ERROR testMixedTemporalMappingWithAllVersionsInRange2 [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testInlineEmbeddedRelationMapping [tests/mapping/relation]: property 'address' of class 'meta::relational::tests::mapping::relation::PersonWithAddress' is not mapped in mapping 'meta::relational::tests::mapping::relation::InlineEmbeddedRelationMapping'
-- ERROR testInlineEmbeddedRelationMappingWithFilter [tests/mapping/relation]: property 'address' of class 'meta::relational::tests::mapping::relation::PersonWithAddress' is not mapped in mapping 'meta::relational::tests::mapping::relation::InlineEmbeddedRelationMapping'
-- ERROR testInlineEmbeddedRelationMappingWithComplexFilter [tests/mapping/relation]: property 'address' of class 'meta::relational::tests::mapping::relation::PersonWithAddress' is not mapped in mapping 'meta::relational::tests::mapping::relation::InlineEmbeddedRelationMapping'
-- ERROR testInlineEmbeddedRelationMappingWithFilterOnMultipleProperties [tests/mapping/relation]: property 'address' of class 'meta::relational::tests::mapping::relation::PersonWithAddress' is not mapped in mapping 'meta::relational::tests::mapping::relation::InlineEmbeddedRelationMapping'
-- ERROR testInlineEmbeddedRelationMappingGroupBy [tests/mapping/relation]: property 'address' of class 'meta::relational::tests::mapping::relation::PersonWithAddress' is not mapped in mapping 'meta::relational::tests::mapping::relation::InlineEmbeddedRelationMapping'
-- ERROR testInlineEmbeddedRelationMappingWithAssociation [tests/mapping/relation]: property 'address' of class 'meta::relational::tests::mapping::relation::PersonWithAddressAndFirm' is not mapped in mapping 'meta::relational::tests::mapping::relation::InlineEmbeddedWithAssociationRelationMapping'
-- ERROR testInlineEmbeddedRelationMappingWithAssociationAndFilter [tests/mapping/relation]: property 'address' of class 'meta::relational::tests::mapping::relation::PersonWithAddressAndFirm' is not mapped in mapping 'meta::relational::tests::mapping::relation::InlineEmbeddedWithAssociationRelationMapping'
 - SHAPE testSubAggregationOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
 - SHAPE testSubAggregationOnRelationMappingWithSimpleProperty [tests/mapping/relation/aggregation]: no execute(|...) call
 - SHAPE testTwoSubAggregationOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call

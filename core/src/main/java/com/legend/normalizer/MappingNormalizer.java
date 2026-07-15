@@ -769,9 +769,32 @@ public final class MappingNormalizer {
                 continue;
             }
             if (c.inlineSetId() != null) {
-                // INLINE-embedded (prop () Inline [set]): no binding emitted —
-                // a demanded read fails loud ('not mapped'); the sibling-set
-                // delegation is its own roadmap rung
+                // INLINE-embedded (prop () Inline [set]): the SIBLING set's
+                // column list gives the sub-object's shape; its bindings
+                // read THIS row (engine inline semantics: reuse the set's
+                // mapping shape in place)
+                ClassMapping.RelationFunction sibling = null;
+                for (ClassMapping cm : md.classMappings()) {
+                    if (cm instanceof ClassMapping.RelationFunction rf2
+                            && c.inlineSetId().equals(setIdOf(rf2))) {
+                        sibling = rf2;
+                        break;
+                    }
+                }
+                if (sibling == null) {
+                    throw new ModelException(
+                            LegendCompileException.Phase.NORMALIZE,
+                            "inline-embedded property '" + c.property()
+                            + "' names set '" + c.inlineSetId()
+                            + "' which is not a Relation set of mapping "
+                            + md.qualifiedName());
+                }
+                Map<String, KeyExpression> inner = new LinkedHashMap<>();
+                putRelationCols(inner, sibling.columns(), row,
+                        sibling.className(), md, model);
+                fields.put(c.property(), new KeyExpression(
+                        buildNewInstanceToOne(sibling.className(), inner, model),
+                        false, false));
                 continue;
             }
             if (c.isEmbedded()) {
