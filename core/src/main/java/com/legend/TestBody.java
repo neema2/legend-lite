@@ -15,6 +15,7 @@ import com.legend.model.spec.CBoolean;
 import com.legend.model.spec.CInteger;
 import com.legend.model.spec.CString;
 import com.legend.model.spec.LambdaFunction;
+import com.legend.model.spec.NewInstance;
 import com.legend.model.spec.PackageableElementPtr;
 import com.legend.model.spec.PureCollection;
 import com.legend.model.spec.ValueSpecification;
@@ -1054,6 +1055,16 @@ public final class TestBody {
     }
 
     private static boolean wireEquals(Object e, Object a) {
+        // the null-cell wire sentinel: an expected ^TDSNull() (or a TDS-grid
+        // 'TDSNull' cell) equals an actual NULL cell — 'TDSNull' is never a
+        // genuine string payload (established: real pure parses it as the
+        // instance, our literals decode it to SQL NULL)
+        if ("TDSNull".equals(e) && a == null) {
+            return true;
+        }
+        if ("TDSNull".equals(a) && e == null) {
+            return true;
+        }
         if (e == null || a == null) {
             return e == a;
         }
@@ -1177,6 +1188,22 @@ public final class TestBody {
     private static ValueSpecification substitute(ValueSpecification v,
             Map<String, ValueSpecification> lets, Map<String, ExecHandle> handles,
             String runtimeFqn) {
+        // ^TDSNull() in a TEST literal is the engine's null-cell INSTANCE
+        // (a real value, not a pure empty — an empty would VANISH from
+        // [^TDSNull(), 5.0] and break the comparison): it travels as the
+        // wire sentinel, which wireEquals equates with an actual null cell
+        if (v instanceof NewInstance tn
+                && (tn.className().equals("TDSNull")
+                        || tn.className().equals("meta::pure::tds::TDSNull"))) {
+            return new CString("TDSNull");
+        }
+        if (v instanceof AppliedFunction nf && nf.function().equals("new")
+                && nf.parameters().size() == 2
+                && nf.parameters().get(1) instanceof NewInstance tn2
+                && (tn2.className().equals("TDSNull")
+                        || tn2.className().equals("meta::pure::tds::TDSNull"))) {
+            return new CString("TDSNull");
+        }
         // $r.values → spliced query (with mapping context attached)
         if (v instanceof AppliedProperty ap
                 && ap.receiver() instanceof Variable var

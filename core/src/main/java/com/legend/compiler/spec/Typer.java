@@ -354,9 +354,14 @@ final class Typer {
             case NEW -> {
                 if (af.parameters().size() == 2
                         && af.parameters().get(1) instanceof NewInstance ni) {
+                    // the non-copy branch routes through synth's NewInstance
+                    // case so BOTH spellings share its arms — the direct
+                    // NewChecker call bypassed the ^TDSNull() short-circuit
+                    // (41 corpus tests: user-written ^TDSNull() desugars to
+                    // new(...) and died at 'unknown class')
                     yield af.parameters().get(0) instanceof com.legend.model.spec.Variable
                             ? NewChecker.checkCopy(this, af.parameters().get(0), ni, env)
-                            : NewChecker.check(this, ni, env);
+                            : synth(ni, env);
                 }
                 yield applyGeneric(af, env);
             }

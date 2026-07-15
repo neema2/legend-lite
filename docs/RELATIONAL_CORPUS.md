@@ -116,9 +116,9 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 0 | 0 | 87 | 5 |
 | executionPlan/tests | 109 | 0 | 0 | 8 | 101 |
-| functions/tests | 241 | 91 | 4 | 109 | 37 |
+| functions/tests | 241 | 101 | 4 | 99 | 37 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
-| functions/tests/projection | 154 | 64 | 5 | 58 | 27 |
+| functions/tests/projection | 154 | 69 | 5 | 53 | 27 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
@@ -138,7 +138,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 265 | 106 | 1 | 102 | 56 |
+| tds/tests | 265 | 116 | 1 | 92 | 56 |
 | testDataGeneration/tests | 40 | 0 | 0 | 0 | 40 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 67 | 8 | 0 | 37 | 22 |
@@ -155,14 +155,14 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
 | tests/mapping/inheritance | 47 | 10 | 0 | 37 | 0 |
-| tests/mapping/join | 28 | 15 | 2 | 11 | 0 |
+| tests/mapping/join | 28 | 18 | 2 | 8 | 0 |
 | tests/mapping/merge | 1 | 0 | 0 | 0 | 1 |
 | tests/mapping/modelJoin | 47 | 10 | 1 | 36 | 0 |
 | tests/mapping/multigrain | 5 | 0 | 0 | 5 | 0 |
 | tests/mapping/propertyfunc | 6 | 0 | 0 | 6 | 0 |
 | tests/mapping/relation | 93 | 42 | 1 | 7 | 43 |
 | tests/mapping/relation/aggregation | 9 | 0 | 0 | 0 | 9 |
-| tests/mapping/selfJoin | 3 | 0 | 0 | 3 | 0 |
+| tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 72 | 57 | 0 | 3 | 12 |
 | tests/mapping/tree | 12 | 0 | 0 | 12 | 0 |
 | tests/mapping/union | 124 | 53 | 1 | 52 | 18 |
@@ -172,7 +172,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **753** | 26 | 736 | 777 |
+| **total** | 2292 | **782** | 28 | 705 | 777 |
 
 ### mapping walls (dropped at assembly)
 
@@ -269,16 +269,15 @@ runner does not yet recognize (accounted, not skipped silently).
 
 ### top error buckets
 
-- 41x unknown class 'TDSNull' in ^TDSNull(…)
-- 21x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- 24x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 21x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 18x a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - 14x a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
 - 13x navigation through class-typed slot property 'address' is not supported yet
 - 12x expected at most one value, got many ([*])
+- 11x class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::relational::tests::simpleRelationalMapping)
 - 11x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - 11x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[function=if, parameters=[AppliedFunction[function=equal, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=active], CString[value=Y]]], LambdaFunction[parameters=[], body=[CString[value=true]]], LambdaFunction[parameters=[], body=[CString[value=false]]]]]]])
-- 10x class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::relational::tests::simpleRelationalMapping)
 - 10x class query under TypedMap is not resolvable yet (H2 vocabulary)
 - 9x lowering not yet implemented for TypedNativeCall
 - 8x [3247:0] unsupported top-level keyword: PAREN_CLOSE (')')
@@ -298,6 +297,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 5x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 5x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - 5x unknown function 'conditionRightTable'
+- 5x in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6) (value: AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=dec])
 - 5x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 
 ### per-test outcomes (non-passing)
@@ -541,7 +541,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testConcatenateClass [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testConcatenateClassMerge [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testConcatenateClassAgg [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testConcatenateClassJoin [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
+- ERROR testConcatenateClassJoin [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -619,21 +619,11 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSubAggregationMultiLevelJoinString [functions/tests]: no overload of 'meta::pure::functions::string::joinStrings' accepts 1 argument(s)
 - ERROR testSubAggregationUsingIf [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - SHAPE testSequenceMapWithConfusingSetImplementation [functions/tests]: unsupported statement: meta::relational::tests::mapping::filter::model::store::createTablesAndFillDb
-- ERROR testSimple [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testStdDevSample [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testStdDevPopulation [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testVarianceSample [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testVariancePopulation [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testSimpleOneAggInAnArray [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testSimpleTwoAggs [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testMax [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testMin [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testUsingAMultiplyInTheAggregation [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testUsingAFunctionInTheMapLambdaAndAMultiplyInTheAggregation [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testUsingAnAssociationInTheMapFunction [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
+- ERROR testUsingAFunctionInTheMapLambdaAndAMultiplyInTheAggregation [functions/tests]: unknown function 'subFunction'
+- ERROR testUsingAnAssociationInTheMapFunction [functions/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::rel
 - ERROR testUsingAnAssociationInTheMapFunctionNestedInAFunctionAndTwoGroupBysUsingOneAssociation [functions/tests]: unknown function 'subFunction2'
 - ERROR testUsingFunctionInMapLambdaTakingAParameter [functions/tests]: no overload of 'subFunction3' matches 2 argument(s) of these shapes
-- ERROR testUsingFunctionInMapLambdaTakingAFirstParameterThatMustBeProcessed [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
+- ERROR testUsingFunctionInMapLambdaTakingAFirstParameterThatMustBeProcessed [functions/tests]: unknown function 'subFunction5'
 - ERROR testSimpleWithFilter [functions/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::rel
 - ERROR testUsingFunctionInMapLambdaTakingAPathParameterPartial [functions/tests]: no overload of 'subFunction6' matches 2 argument(s) of these shapes
 - ERROR testUsingFunctionInMapLambdaTakingAParameterPartial [functions/tests]: no overload of 'subFunction6' matches 2 argument(s) of these shapes
@@ -655,7 +645,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testReprocessGroupByAlias [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testUniqueValueOnly1 [functions/tests]: unknown function 'uniqueValueOnly'
 - ERROR testUniqueValueOnly2 [functions/tests]: unknown function 'uniqueValueOnly'
-- ERROR testUniqueValueOnly3 [functions/tests]: unknown class 'TDSNull' in ^TDSNull(…)
+- ERROR testUniqueValueOnly3 [functions/tests]: unknown function 'uniqueValueOnly'
 - ERROR testUniqueValueOnly4 [functions/tests]: unknown function 'uniqueValueOnly'
 - ERROR testAggFunctionUsingMultipleSetImplementation [functions/tests]: expected at most one value, got many ([*])
 - ERROR testGroupByIsDistinct [functions/tests]: expected at most one value, got many ([*])
@@ -727,10 +717,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testIsolatioWhereNoConstaintsAndInnerJoin [functions/tests/projection]: 'meta::relational::tests::mapping::join::model::mapping::chainedJoinsInner' is not a known class, mapping, runtime, connection, or database
 - ERROR testIsolationOfFiltersWithoutAlias [functions/tests/projection]: 'meta::relational::tests::mapping::join::model::mapping::MappingWithLiteral' is not a known class, mapping, runtime, connection, or database
 - ERROR testIsolationOfFiltersWithoutAliasWithChainedJoins [functions/tests/projection]: 'meta::relational::tests::mapping::join::model::mapping::MappingWithLiteral' is not a known class, mapping, runtime, connection, or database
-- ERROR testWeekOfYearWithZeroToOne [functions/tests/projection]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testMonthNumberZeroToOne [functions/tests/projection]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testYearZeroToOne [functions/tests/projection]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testDateDiffZeroToOne [functions/tests/projection]: unknown class 'TDSNull' in ^TDSNull(…)
 - SHAPE testNestedPlusFunctionAndMappingDynaFunction [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testNestedPlusFunctionAndNestedMappingDynaFunction [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testSameBehaviorForNestedAddAndPlus [functions/tests/projection]: sql-only: 2 advisory golden-SQL assert(s), no row verification
@@ -755,9 +741,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testNestedIfWithIsEmpty [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testNestedIfWithIsEmptyCanReturnNull [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testQualifierWithFilterWithDataTypeResult [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testQualifierFunctionConsistencyWithDataTypeProperty [functions/tests/projection]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testQualifierFunctionConsistencyWithComplexTypeProperty [functions/tests/projection]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testFilterInQualifierWithFilterInMappingInProjectGroupBy [functions/tests/projection]: unknown class 'TDSNull' in ^TDSNull(…)
+- ERROR testQualifierFunctionConsistencyWithDataTypeProperty [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierFunctionConsistencyWithComplexTypeProperty [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - FAIL testQualifierWithVariableArg [functions/tests/projection]: assertEquals: expected [Firm X~ , Firm A~ , Firm B~ , Firm C~ ], got [Firm X~TDSNull, Firm A~TDSNull, Firm B~TDSNull, Firm C~TDSNull]
 - FAIL testQualifierWithVariableArgReferencedFirstInFilterEqualCriteria [functions/tests/projection]: assertEquals: expected [Firm X~ , Firm A~ , Firm B~ , Firm C~ ], got [Firm X~TDSNull, Firm A~TDSNull, Firm B~TDSNull, Firm C~TDSNull]
 - ERROR testQualifierWithVariableArgWithComplexTypeProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
@@ -1054,18 +1039,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR simpleGroupDistinctCount [tds/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
 - ERROR simpleGroupDistinctCountWithExtendedPrimitives [tds/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
 - ERROR simpleFilterWithGroupByWithDistinct [tds/tests]: unknown function 'meta::pure::tds::distinct'
-- ERROR simpleGroupBySum [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR simpleGroupConstantAggregates [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR simpleGroupByAggFuncAsLambdaWithTake [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR simpleGroupByAverage [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR simpleGroupByTwo [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR simpleGroupByMax [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR simpleGroupByMin [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR simpleGroupByAnd [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::and'
 - ERROR simpleGroupByOr [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::or'
-- ERROR GroupByWithMapFnConstant [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR GroupByWithMapFnColumns [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR GroupByWithIfInMap [tds/tests]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR simpleGroupByWithJoinStrings [tds/tests]: lowering not yet implemented for TypedNativeCall
 - ERROR simpleGroupByWithAssociationWithJoinStrings [tds/tests]: lowering not yet implemented for TypedNativeCall
 - ERROR groupByAfterASortOnColumnInGroupBy [tds/tests]: lowering not yet implemented for TypedNativeCall
@@ -1346,7 +1321,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSimpleTypeMappingProject [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
 - ERROR testSimpleTypeMappingNulls [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
 - ERROR testSimpleTypeMappingBooleanFalse [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
-- ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: unknown class 'TDSNull' in ^TDSNull(…)
+- ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
 - ERROR testProject [tests/injection]: property 'productDate' of class 'meta::relational::tests::injection::model::Trade' has no binding in mapping 'meta::relational::tests::injection::mapping::myMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testProjectThroughAssociation [tests/injection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - ERROR testProjectThroughAssociationAutoMap [tests/injection]: in call to 'meta::relational::tests::injection::model::Trade$prop$productAtTimeOfTrade', argument 1: expected at most one value, got many ([*])
@@ -1507,9 +1482,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterDeepWithJoinInMappingInMiddle [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - FAIL testMultipleJoinsInPropertyMappingWithDatesInClass [tests/mapping/join]: assertSameElements: expected [Row1, Row2, Row3, Row1, Row2, Row3], got [Row1, Row2, Row3]
 - ERROR testMultipleJoinsInPropertyMappingWithDateInJoin [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::advancedRelationalMapping2$class$meta::relational::tests::mapping::join::model::domain::TypeBuiltOutOfMultipleJoins': no overload of 'meta::pure::functions::boolean::lessThanEqual' structurally matches the argument types
-- ERROR testChainedOuterJoinsMerge [tests/mapping/join]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testChainedInnerJoinsMerge [tests/mapping/join]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testChainedInnerJoinsWithFilterMerge [tests/mapping/join]: unknown class 'TDSNull' in ^TDSNull(…)
 - ERROR testConvertToStringH2 [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::MappingForAccountAndTrade$class$meta::relational::tests::model::simple::Trade': property 'quantity' of 'meta::relational::tests::model::simple::Trade': expected Float, got Integer (value: AppliedFunction[function=toOne, parameters=
 - ERROR testChainedOuterJoinsWithFilterInproject [tests/mapping/join]: Binder Error: Referenced table "t3" not found! | Candidate tables: "t0" |  | LINE 4: ... AS Person_MiddleTable__MiddleTable_PersonExtension_EXTRAINFO, t3.NUMBER AS Person_MiddleTable__MiddleTable_PersonExtensio... |                                                                           ^
 - ERROR testChainedOuterJoinsWithQualifierInproject [tests/mapping/join]: Binder Error: Referenced table "t3" not found! | Candidate tables: "t0" |  | LINE 4: ... AS Person_MiddleTable__MiddleTable_PersonExtension_EXTRAINFO, t3.NUMBER AS Person_MiddleTable__MiddleTable_PersonExtensio... |                                                                           ^
@@ -1624,9 +1596,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testSubAggregationCountOnlyOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
 - SHAPE testSubAggregationWithIfOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
 - SHAPE testSubAggregationJoinStringsOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
-- ERROR testSelfJoinPropertyMapping [tests/mapping/selfJoin]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testSelfJoinPropertyMappingOverlap [tests/mapping/selfJoin]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testSelfJoinPropertyMappingWithDynaFunction [tests/mapping/selfJoin]: unknown class 'TDSNull' in ^TDSNull(…)
+- FAIL testSelfJoinPropertyMappingOverlap [tests/mapping/selfJoin]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
+- FAIL testSelfJoinPropertyMappingWithDynaFunction [tests/mapping/selfJoin]: assertEquals: expected [ROOT, TDSNull, TDSNull, true], got [Banking_c1_c1, Firm X, ROOT, false]
 - SHAPE testTriminNotSybaseASE [tests/mapping/sqlFunction]: no execute(|...) call
 - ERROR testProject [tests/mapping/sqlFunction]: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[], VARCHAR, [ANY...]) -> ANY |  |  | LINE 1: SELECT list_aggregate(t0.int1, 'stddev_samp') AS stdDev
 - ERROR testProject [tests/mapping/sqlFunction]: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[], VARCHAR, [ANY...]) -> ANY |  |  | LINE 1: SELECT list_aggregate(t0.int1, 'stddev_pop') AS stdDevP
@@ -1689,8 +1660,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testSQLQueryMergingForProjectionsDeep [tests/mapping/union]: Binder Error: Referenced table "t21" not found! |  | LINE 1: ... t17.fk_0 = t20.fk OR t17.fk_1 = t20.fk ) AS t21 ON t14.fk_0 = t21.fk OR t14.fk_1 = t21.fk ) AS t22 ON t11.fk_0 = t22.fk... |                                                                           ^
 - ERROR testSQLQueryMergingForFiltersAndProjections [tests/mapping/union]: Binder Error: Referenced table "t18" not found! |  | LINE 1: ... t14.fk_0 = t17.fk OR t14.fk_1 = t17.fk ) AS t18 ON t11.fk_0 = t18.fk OR t11.fk_1 = t18.fk WHERE t11.pk = 1 AND t18.pk... |                                                                           ^
 - ERROR testSQLQueryMergingForFiltersAndProjectionsDeep [tests/mapping/union]: Binder Error: Referenced table "t21" not found! |  | LINE 1: ... t17.fk_0 = t20.fk OR t17.fk_1 = t20.fk ) AS t21 ON t14.fk_0 = t21.fk OR t14.fk_1 = t21.fk ) AS t22 ON t11.fk_0 = t22.fk... |                                                                           ^
-- ERROR testSQLQueryMergingForInnerJoins [tests/mapping/union]: unknown class 'TDSNull' in ^TDSNull(…)
-- ERROR testSQLQueryMergingForInnerJoins2 [tests/mapping/union]: unknown class 'TDSNull' in ^TDSNull(…)
+- ERROR testSQLQueryMergingForInnerJoins [tests/mapping/union]: null
+- ERROR testSQLQueryMergingForInnerJoins2 [tests/mapping/union]: null
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_AddressIdKey [tests/mapping/union]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_FirmIdKey_Unmapped [tests/mapping/union]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_FirmIdKey_Mapped [tests/mapping/union]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
