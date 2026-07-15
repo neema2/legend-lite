@@ -1627,6 +1627,288 @@ public final class StoreResolver {
 
     }
 
+    /** PHASE 2b-i output: the root pipeline materialized (demanded
+     * slots -> prefixed LEFT joins, un-demanded slots CANCELLED), every
+     * milestoned join alias stamped by the ambient context, and the root
+     * fetch's own milestoning filter applied. */
+    private record RootPipe(Pipelines.Materialized m,
+            TypedSpec materializedPipe) {}
+
+    /** PHASE 2b-i — materialize the root pipeline and stamp it: slot
+     * demand -> Pipelines.materialize; the join-walk applies the ambient
+     * temporal context per alias (class-governed nav targets, chained-PM
+     * mid tables by their OWN milestoning, physical slots); then the
+     * fetch's own point/pair/range filter. */
+    private RootPipe materializeRoot(ClassSource cs, TypedGetAll g,
+            Set<String> demanded, Set<String> demandedNavs,
+            Map<String, NavMat> navMats, Map<String, String> navHeadByAlias) {
+        TypedSpec csPipe = cs.pipeline();
+        Pipelines.Materialized m = Pipelines.materialize(
+                csPipe, demanded, demandedNavs, cs.classFqn(),
+                (alias, targetClass) -> navMats.containsKey(alias)
+                        ? navMats.get(alias).pipeline()
+                        : Pipelines.materialize(
+                                sources.get(cs.mappingFqn(), targetClass).pipeline(),
+                                Set.of(), targetClass).pipeline());
+        Map<String, String> navPrefixToClass = new java.util.LinkedHashMap<>();
+        Map<String, String> navPrefixToChain = new java.util.LinkedHashMap<>();
+        Map<String, String> midPrefixToChain = new java.util.LinkedHashMap<>();
+        Map<String, String> midPrefixToDim = new java.util.LinkedHashMap<>();
+        Set<String> slotAliases = Pipelines.slotAliases(cs.pipeline());
+        for (var navE : Pipelines.navSteps(cs.pipeline()).entrySet()) {
+            if (navE.getValue().target()
+                    instanceof com.legend.compiler.spec.typed.TypedGetAll tg2) {
+                String chain = navHeadByAlias.getOrDefault(navE.getKey(),
+                        navE.getKey());
+                navPrefixToClass.put(navE.getKey() + "_", tg2.classFqn());
+                navPrefixToChain.put(navE.getKey() + "_", chain);
+                // MID slots of a CHAINED PM (@J1 > @J2): the nav condition
+                // reads their sub-rows — a milestoned mid table filters by
+                // its OWN milestoning against the CHAIN's context (engine
+                // applyMilestoningFilters stamps every milestoned join-tree
+                // node with the ambient date; the TARGET class's temporality
+                // never governs the mid table — audit 14 F1: keying mid
+                // slots by target class left them unstamped for
+                // non-temporal targets). Two chains claiming one slot with
+                // DIFFERENT specs is loud — first-writer-wins would stamp
+                // the second chain's rows with the wrong date.
+                for (TypedSpec b : navE.getValue().predicate().body()) {
+                    for (String slot : slotAliases) {
+                        if (Pipelines.referencesAliasOn(b,
+                                navE.getValue().predicate().parameters().get(0),
+                                Set.of(slot))) {
+                            String priorChain = midPrefixToChain
+                                    .putIfAbsent(slot + "_", chain);
+                            if (priorChain != null && !priorChain.equals(chain)
+                                    && !java.util.Objects.equals(
+                                            temporalByHead.get(priorChain),
+                                            temporalByHead.get(chain))) {
+                                throw new NotImplementedException(
+                                        "physical slot '" + slot + "' is shared"
+                                        + " by chains '" + priorChain + "' and '"
+                                        + chain + "' carrying different"
+                                        + " milestoning dates — per-chain mid"
+                                        + " joins are not supported yet");
+                            }
+                            midPrefixToDim.putIfAbsent(slot + "_",
+                                    temporalStrategy(tg2.classFqn()));
+                        }
+                    }
+                }
+            }
+        }
+        final TypedSpec basePipe =
+                applyJoinTemporalFilters(m.pipeline(), cs, navPrefixToClass,
+                        navPrefixToChain, midPrefixToChain, midPrefixToDim);
+        m = new Pipelines.Materialized(basePipe, m.slotPrefixes(), m.stripped());
+        final TypedSpec materializedPipe;
+        if (g.versionSweep()) {
+            // allVersions(): the RAW extent — every version row, no filter.
+            // allVersionsInRange(s, e): versions whose validity window
+            // overlaps the range (engine getTemporalMilestoneRangeFilter).
+            materializedPipe = g.milestoning().isEmpty() ? basePipe
+                    : rangeMilestonedPipe(basePipe, g.milestoning().get(0),
+                            g.milestoning().get(1), g.classFqn());
+        } else if (g.milestoning().size() == 2
+                && "bitemporal".equals(temporalStrategy(g.classFqn()))) {
+            // BI-TEMPORAL fetch: .all(processingDate, businessDate) — real
+            // pure's getAll(Class, processingDate, businessDate) signature;
+            // both dimensions filter.
+            materializedPipe = milestonedPipeByStrategy(
+                    milestonedPipeByStrategy(basePipe, g.milestoning().get(0),
+                            "processingtemporal", g.classFqn()),
+                    g.milestoning().get(1), "businesstemporal", g.classFqn());
+        } else if (g.milestoning().size() == 2) {
+            // SINGLE-dimension class with two dates: the RANGE fetch —
+            // engine getAll(Class, start, end), same filter as
+            // allVersionsInRange
+            materializedPipe = rangeMilestonedPipe(basePipe,
+                    g.milestoning().get(0), g.milestoning().get(1), g.classFqn());
+        } else {
+            materializedPipe = g.milestoning().isEmpty()
+                    ? basePipe
+                    : milestonedPipe(basePipe, g.milestoning().get(0), g.classFqn());
+        }
+
+        return new RootPipe(m, materializedPipe);
+    }
+
+
+    /** PHASE 2b-ii output: the pipeline with association joins folded
+     * (descriptor -> emission, first-demand order) plus the aggregated-
+     * navigation materials the fold and substitution both consume. */
+    private record JoinedPipe(Pipelines.Materialized m,
+            java.util.List<AssocJoin> aggAssocJoins,
+            Map<TypedSpec, Substitution.AggRead> aggReads) {}
+
+    /** PHASE 2b-ii — fold the association joins and the aggregated-
+     * navigation grouped subselects onto the materialized pipeline. */
+    private JoinedPipe foldAssociationJoins(ClassSource cs,
+            Pipelines.Materialized m, TypedSpec keyWidenedPipe,
+            java.util.List<AssocJoin> assocJoins,
+            Map<String, AssocJoin> aggMaterials,
+            Map<String, java.util.List<AggDemand>> aggDemands) {
+        // 2b. Materialize the association joins (descriptor -> emission,
+        //     first-demand order) onto the pipeline.
+        TypedSpec withJoins = keyWidenedPipe;
+        for (AssocJoin aj : assocJoins) {
+            com.legend.compiler.element.type.Type.RelationType leftRow =
+                    (com.legend.compiler.element.type.Type.RelationType)
+                            withJoins.info().type();
+            java.util.List<com.legend.compiler.element.type.Type.Column> cols =
+                    new ArrayList<>(leftRow.columns());
+            for (com.legend.compiler.element.type.Type.Column c
+                    : aj.targetRow().columns()) {
+                cols.add(new com.legend.compiler.element.type.Type.Column(
+                        aj.prefix() + c.name(), c.type(), c.multiplicity()));
+            }
+            withJoins = new com.legend.compiler.spec.typed.TypedJoin(withJoins,
+                    aj.targetPipeline(), leftKind(), aj.condition(),
+                    java.util.Optional.of(aj.prefix()),
+                    new com.legend.compiler.element.type.ExprType(
+                            new com.legend.compiler.element.type.Type.RelationType(cols),
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        }
+        // 2c. AGGREGATED navigations (the engine's subAggregation shape):
+        // per to-many head, ONE grouped subselect — the target pipeline
+        // grouped by the association's target-side equi-key columns (names
+        // preserved, so the association condition joins it VERBATIM), one
+        // aggregate column per demand. Each aggregate node then reads its
+        // column off the joined row; no row explosion reaches the
+        // projection, and the aggregate itself runs IN the database.
+        java.util.Map<TypedSpec, Substitution.AggRead> aggReads =
+                new java.util.IdentityHashMap<>();
+        java.util.List<AssocJoin> aggAssocJoins = new ArrayList<>();
+        for (var entry : aggDemands.entrySet()) {
+            String head = entry.getKey();
+            Set<String> leaves = new java.util.LinkedHashSet<>();
+            for (AggDemand d : entry.getValue()) {
+                leaves.add(d.leaf());
+            }
+            AssocJoin aj = aggMaterials.get(head);
+            aggAssocJoins.add(aj);
+            java.util.List<String> keyCols = targetEquiKeys(aj.condition(), head);
+            java.util.List<com.legend.compiler.spec.typed.TypedGroupBy.GroupKey>
+                    keys = new ArrayList<>();
+            java.util.List<com.legend.compiler.element.type.Type.Column>
+                    subCols = new ArrayList<>();
+            for (String k : keyCols) {
+                var col = aj.targetRow().columns().stream()
+                        .filter(c -> c.name().equals(k)).findFirst()
+                        .orElseThrow(() -> new IllegalStateException(
+                                "resolver bug: equi-key column '" + k
+                                        + "' missing from the target row"));
+                keys.add(new com.legend.compiler.spec.typed.TypedGroupBy.GroupKey(
+                        k, java.util.Optional.empty()));
+                subCols.add(col);
+            }
+            java.util.List<com.legend.compiler.spec.typed.TypedAggCol> aggs =
+                    new ArrayList<>();
+            int ord = 0;
+            var targetRowType = new com.legend.compiler.element.type.ExprType(
+                    aj.targetRow(), com.legend.compiler.element.type.Multiplicity
+                            .Bounded.ONE);
+            for (AggDemand d : entry.getValue()) {
+                TypedSpec leafBinding = aj.target().bindings().get(d.leaf());
+                if (leafBinding == null) {
+                    throw new MappingResolutionException("property '" + d.leaf()
+                            + "' of class '" + aj.target().classFqn()
+                            + "' has no binding in mapping '" + cs.mappingFqn()
+                            + "' (aggregated navigation leaf)",
+                            aj.target().classFqn());
+                }
+                String alias = "agg_" + ord++;
+                TypedLambda map = new TypedLambda(
+                        java.util.List.of(aj.target().rowVar()),
+                        java.util.List.of(leafBinding),
+                        new com.legend.compiler.element.type.ExprType(
+                                new com.legend.compiler.element.type.Type.FunctionType(
+                                        java.util.List.of(new com.legend.compiler
+                                                .element.type.Type.Param(aj.targetRow(),
+                                                com.legend.compiler.element.type
+                                                        .Multiplicity.Bounded.ONE)),
+                                        new com.legend.compiler.element.type.Type.Param(
+                                                leafBinding.info().type(),
+                                                leafBinding.info().multiplicity())),
+                                com.legend.compiler.element.type.Multiplicity
+                                        .Bounded.ONE));
+                String yv = "_y";
+                java.util.List<TypedSpec> reduceArgs = new ArrayList<>();
+                reduceArgs.add(new com.legend.compiler.spec.typed.TypedVariable(yv,
+                        new com.legend.compiler.element.type.ExprType(
+                                leafBinding.info().type(),
+                                com.legend.compiler.element.type.Multiplicity
+                                        .Bounded.ZERO_MANY)));
+                for (int i = 1; i < d.node().args().size(); i++) {
+                    TypedSpec extra = d.node().args().get(i);
+                    if (referencesVar(extra, aj.target().rowVar())) {
+                        throw new NotImplementedException("aggregate '"
+                                + d.node().callee().qualifiedName()
+                                + "' over navigation '" + head + "' with an"
+                                + " instance-dependent extra argument is not"
+                                + " supported");
+                    }
+                    reduceArgs.add(extra);
+                }
+                TypedSpec reduceCall = new com.legend.compiler.spec.typed
+                        .TypedNativeCall(d.node().callee(), reduceArgs,
+                        d.node().info());
+                TypedLambda reduce = new TypedLambda(java.util.List.of(yv),
+                        java.util.List.of(reduceCall),
+                        new com.legend.compiler.element.type.ExprType(
+                                new com.legend.compiler.element.type.Type.FunctionType(
+                                        java.util.List.of(new com.legend.compiler
+                                                .element.type.Type.Param(
+                                                leafBinding.info().type(),
+                                                com.legend.compiler.element.type
+                                                        .Multiplicity.Bounded.ZERO_MANY)),
+                                        new com.legend.compiler.element.type.Type.Param(
+                                                d.node().info().type(),
+                                                d.node().info().multiplicity())),
+                                com.legend.compiler.element.type.Multiplicity
+                                        .Bounded.ONE));
+                aggs.add(new com.legend.compiler.spec.typed.TypedAggCol(alias,
+                        map, reduce));
+                subCols.add(new com.legend.compiler.element.type.Type.RelationType
+                        .Column(alias, d.node().info().type(),
+                        com.legend.compiler.element.type.Multiplicity
+                                .Bounded.ZERO_ONE));
+            }
+            var subRow = new com.legend.compiler.element.type.Type.RelationType(subCols);
+            TypedSpec sub = new com.legend.compiler.spec.typed.TypedGroupBy(
+                    aj.targetPipeline(), keys, aggs,
+                    new com.legend.compiler.element.type.ExprType(subRow,
+                            com.legend.compiler.element.type.Multiplicity
+                                    .Bounded.ONE));
+            String prefix = prefixFor(head + "_agg", cs);
+            com.legend.compiler.element.type.Type.RelationType leftRow =
+                    (com.legend.compiler.element.type.Type.RelationType)
+                            withJoins.info().type();
+            java.util.List<com.legend.compiler.element.type.Type.Column>
+                    cols = new ArrayList<>(leftRow.columns());
+            for (var c : subRow.columns()) {
+                cols.add(new com.legend.compiler.element.type.Type.RelationType
+                        .Column(prefix + c.name(), c.type(), c.multiplicity()));
+            }
+            withJoins = new com.legend.compiler.spec.typed.TypedJoin(withJoins,
+                    sub, leftKind(), aj.condition(),
+                    java.util.Optional.of(prefix),
+                    new com.legend.compiler.element.type.ExprType(
+                            new com.legend.compiler.element.type.Type.RelationType(cols),
+                            com.legend.compiler.element.type.Multiplicity
+                                    .Bounded.ONE));
+            ord = 0;
+            for (AggDemand d : entry.getValue()) {
+                aggReads.put(d.node(), new Substitution.AggRead(
+                        prefix + "agg_" + ord++, isCountFamily(d.node())));
+            }
+        }
+        m = new Pipelines.Materialized(withJoins, m.slotPrefixes(), m.stripped());
+
+        return new JoinedPipe(m, aggAssocJoins, aggReads);
+    }
+
+
     /** PHASE — to-many/navigate heads under exists/isEmpty: the
      * correlated-EXISTS material per head (target pipeline + oriented
      * condition, NO join emitted; the positional rule table §133). */
@@ -2203,93 +2485,10 @@ public final class StoreResolver {
         // whenever the projection is not injective on the distinct tuple
         // (corpus testDistinctMappingSimpleProjectSelectOneOfTheDistinct-
         // Properties: name-only projection must keep BOTH 'IF 2' rows).
-        TypedSpec csPipe = cs.pipeline();
-        Pipelines.Materialized m = Pipelines.materialize(
-                csPipe, demanded, demandedNavs, cs.classFqn(),
-                (alias, targetClass) -> navMats.containsKey(alias)
-                        ? navMats.get(alias).pipeline()
-                        : Pipelines.materialize(
-                                sources.get(cs.mappingFqn(), targetClass).pipeline(),
-                                Set.of(), targetClass).pipeline());
-        Map<String, String> navPrefixToClass = new java.util.LinkedHashMap<>();
-        Map<String, String> navPrefixToChain = new java.util.LinkedHashMap<>();
-        Map<String, String> midPrefixToChain = new java.util.LinkedHashMap<>();
-        Map<String, String> midPrefixToDim = new java.util.LinkedHashMap<>();
-        Set<String> slotAliases = Pipelines.slotAliases(cs.pipeline());
-        for (var navE : Pipelines.navSteps(cs.pipeline()).entrySet()) {
-            if (navE.getValue().target()
-                    instanceof com.legend.compiler.spec.typed.TypedGetAll tg2) {
-                String chain = navHeadByAlias.getOrDefault(navE.getKey(),
-                        navE.getKey());
-                navPrefixToClass.put(navE.getKey() + "_", tg2.classFqn());
-                navPrefixToChain.put(navE.getKey() + "_", chain);
-                // MID slots of a CHAINED PM (@J1 > @J2): the nav condition
-                // reads their sub-rows — a milestoned mid table filters by
-                // its OWN milestoning against the CHAIN's context (engine
-                // applyMilestoningFilters stamps every milestoned join-tree
-                // node with the ambient date; the TARGET class's temporality
-                // never governs the mid table — audit 14 F1: keying mid
-                // slots by target class left them unstamped for
-                // non-temporal targets). Two chains claiming one slot with
-                // DIFFERENT specs is loud — first-writer-wins would stamp
-                // the second chain's rows with the wrong date.
-                for (TypedSpec b : navE.getValue().predicate().body()) {
-                    for (String slot : slotAliases) {
-                        if (Pipelines.referencesAliasOn(b,
-                                navE.getValue().predicate().parameters().get(0),
-                                Set.of(slot))) {
-                            String priorChain = midPrefixToChain
-                                    .putIfAbsent(slot + "_", chain);
-                            if (priorChain != null && !priorChain.equals(chain)
-                                    && !java.util.Objects.equals(
-                                            temporalByHead.get(priorChain),
-                                            temporalByHead.get(chain))) {
-                                throw new NotImplementedException(
-                                        "physical slot '" + slot + "' is shared"
-                                        + " by chains '" + priorChain + "' and '"
-                                        + chain + "' carrying different"
-                                        + " milestoning dates — per-chain mid"
-                                        + " joins are not supported yet");
-                            }
-                            midPrefixToDim.putIfAbsent(slot + "_",
-                                    temporalStrategy(tg2.classFqn()));
-                        }
-                    }
-                }
-            }
-        }
-        final TypedSpec basePipe =
-                applyJoinTemporalFilters(m.pipeline(), cs, navPrefixToClass,
-                        navPrefixToChain, midPrefixToChain, midPrefixToDim);
-        m = new Pipelines.Materialized(basePipe, m.slotPrefixes(), m.stripped());
-        final TypedSpec materializedPipe;
-        if (g.versionSweep()) {
-            // allVersions(): the RAW extent — every version row, no filter.
-            // allVersionsInRange(s, e): versions whose validity window
-            // overlaps the range (engine getTemporalMilestoneRangeFilter).
-            materializedPipe = g.milestoning().isEmpty() ? basePipe
-                    : rangeMilestonedPipe(basePipe, g.milestoning().get(0),
-                            g.milestoning().get(1), g.classFqn());
-        } else if (g.milestoning().size() == 2
-                && "bitemporal".equals(temporalStrategy(g.classFqn()))) {
-            // BI-TEMPORAL fetch: .all(processingDate, businessDate) — real
-            // pure's getAll(Class, processingDate, businessDate) signature;
-            // both dimensions filter.
-            materializedPipe = milestonedPipeByStrategy(
-                    milestonedPipeByStrategy(basePipe, g.milestoning().get(0),
-                            "processingtemporal", g.classFqn()),
-                    g.milestoning().get(1), "businesstemporal", g.classFqn());
-        } else if (g.milestoning().size() == 2) {
-            // SINGLE-dimension class with two dates: the RANGE fetch —
-            // engine getAll(Class, start, end), same filter as
-            // allVersionsInRange
-            materializedPipe = rangeMilestonedPipe(basePipe,
-                    g.milestoning().get(0), g.milestoning().get(1), g.classFqn());
-        } else {
-            materializedPipe = g.milestoning().isEmpty()
-                    ? basePipe
-                    : milestonedPipe(basePipe, g.milestoning().get(0), g.classFqn());
-        }
+        RootPipe rootPipe = materializeRoot(cs, g, demanded, demandedNavs,
+                navMats, navHeadByAlias);
+        Pipelines.Materialized m = rootPipe.m();
+        final TypedSpec materializedPipe = rootPipe.materializedPipe();
 
         Map<String, Substitution.ExistsSub> existsSubs =
                 registerExistsSubs(cs, paths, filterPaths, ops, context);
@@ -2340,162 +2539,11 @@ public final class StoreResolver {
         registerDottedExistsSubs(cs, ops, top, tree, context, assocs,
                 existsSubs);
 
-        // 2b. Materialize the association joins (descriptor -> emission,
-        //     first-demand order) onto the pipeline.
-        TypedSpec withJoins = keyWidenedPipe;
-        for (AssocJoin aj : assocJoins) {
-            com.legend.compiler.element.type.Type.RelationType leftRow =
-                    (com.legend.compiler.element.type.Type.RelationType)
-                            withJoins.info().type();
-            java.util.List<com.legend.compiler.element.type.Type.Column> cols =
-                    new ArrayList<>(leftRow.columns());
-            for (com.legend.compiler.element.type.Type.Column c
-                    : aj.targetRow().columns()) {
-                cols.add(new com.legend.compiler.element.type.Type.Column(
-                        aj.prefix() + c.name(), c.type(), c.multiplicity()));
-            }
-            withJoins = new com.legend.compiler.spec.typed.TypedJoin(withJoins,
-                    aj.targetPipeline(), leftKind(), aj.condition(),
-                    java.util.Optional.of(aj.prefix()),
-                    new com.legend.compiler.element.type.ExprType(
-                            new com.legend.compiler.element.type.Type.RelationType(cols),
-                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-        }
-        // 2c. AGGREGATED navigations (the engine's subAggregation shape):
-        // per to-many head, ONE grouped subselect — the target pipeline
-        // grouped by the association's target-side equi-key columns (names
-        // preserved, so the association condition joins it VERBATIM), one
-        // aggregate column per demand. Each aggregate node then reads its
-        // column off the joined row; no row explosion reaches the
-        // projection, and the aggregate itself runs IN the database.
-        java.util.Map<TypedSpec, Substitution.AggRead> aggReads =
-                new java.util.IdentityHashMap<>();
-        java.util.List<AssocJoin> aggAssocJoins = new ArrayList<>();
-        for (var entry : aggDemands.entrySet()) {
-            String head = entry.getKey();
-            Set<String> leaves = new java.util.LinkedHashSet<>();
-            for (AggDemand d : entry.getValue()) {
-                leaves.add(d.leaf());
-            }
-            AssocJoin aj = aggMaterials.get(head);
-            aggAssocJoins.add(aj);
-            java.util.List<String> keyCols = targetEquiKeys(aj.condition(), head);
-            java.util.List<com.legend.compiler.spec.typed.TypedGroupBy.GroupKey>
-                    keys = new ArrayList<>();
-            java.util.List<com.legend.compiler.element.type.Type.Column>
-                    subCols = new ArrayList<>();
-            for (String k : keyCols) {
-                var col = aj.targetRow().columns().stream()
-                        .filter(c -> c.name().equals(k)).findFirst()
-                        .orElseThrow(() -> new IllegalStateException(
-                                "resolver bug: equi-key column '" + k
-                                        + "' missing from the target row"));
-                keys.add(new com.legend.compiler.spec.typed.TypedGroupBy.GroupKey(
-                        k, java.util.Optional.empty()));
-                subCols.add(col);
-            }
-            java.util.List<com.legend.compiler.spec.typed.TypedAggCol> aggs =
-                    new ArrayList<>();
-            int ord = 0;
-            var targetRowType = new com.legend.compiler.element.type.ExprType(
-                    aj.targetRow(), com.legend.compiler.element.type.Multiplicity
-                            .Bounded.ONE);
-            for (AggDemand d : entry.getValue()) {
-                TypedSpec leafBinding = aj.target().bindings().get(d.leaf());
-                if (leafBinding == null) {
-                    throw new MappingResolutionException("property '" + d.leaf()
-                            + "' of class '" + aj.target().classFqn()
-                            + "' has no binding in mapping '" + cs.mappingFqn()
-                            + "' (aggregated navigation leaf)",
-                            aj.target().classFqn());
-                }
-                String alias = "agg_" + ord++;
-                TypedLambda map = new TypedLambda(
-                        java.util.List.of(aj.target().rowVar()),
-                        java.util.List.of(leafBinding),
-                        new com.legend.compiler.element.type.ExprType(
-                                new com.legend.compiler.element.type.Type.FunctionType(
-                                        java.util.List.of(new com.legend.compiler
-                                                .element.type.Type.Param(aj.targetRow(),
-                                                com.legend.compiler.element.type
-                                                        .Multiplicity.Bounded.ONE)),
-                                        new com.legend.compiler.element.type.Type.Param(
-                                                leafBinding.info().type(),
-                                                leafBinding.info().multiplicity())),
-                                com.legend.compiler.element.type.Multiplicity
-                                        .Bounded.ONE));
-                String yv = "_y";
-                java.util.List<TypedSpec> reduceArgs = new ArrayList<>();
-                reduceArgs.add(new com.legend.compiler.spec.typed.TypedVariable(yv,
-                        new com.legend.compiler.element.type.ExprType(
-                                leafBinding.info().type(),
-                                com.legend.compiler.element.type.Multiplicity
-                                        .Bounded.ZERO_MANY)));
-                for (int i = 1; i < d.node().args().size(); i++) {
-                    TypedSpec extra = d.node().args().get(i);
-                    if (referencesVar(extra, aj.target().rowVar())) {
-                        throw new NotImplementedException("aggregate '"
-                                + d.node().callee().qualifiedName()
-                                + "' over navigation '" + head + "' with an"
-                                + " instance-dependent extra argument is not"
-                                + " supported");
-                    }
-                    reduceArgs.add(extra);
-                }
-                TypedSpec reduceCall = new com.legend.compiler.spec.typed
-                        .TypedNativeCall(d.node().callee(), reduceArgs,
-                        d.node().info());
-                TypedLambda reduce = new TypedLambda(java.util.List.of(yv),
-                        java.util.List.of(reduceCall),
-                        new com.legend.compiler.element.type.ExprType(
-                                new com.legend.compiler.element.type.Type.FunctionType(
-                                        java.util.List.of(new com.legend.compiler
-                                                .element.type.Type.Param(
-                                                leafBinding.info().type(),
-                                                com.legend.compiler.element.type
-                                                        .Multiplicity.Bounded.ZERO_MANY)),
-                                        new com.legend.compiler.element.type.Type.Param(
-                                                d.node().info().type(),
-                                                d.node().info().multiplicity())),
-                                com.legend.compiler.element.type.Multiplicity
-                                        .Bounded.ONE));
-                aggs.add(new com.legend.compiler.spec.typed.TypedAggCol(alias,
-                        map, reduce));
-                subCols.add(new com.legend.compiler.element.type.Type.RelationType
-                        .Column(alias, d.node().info().type(),
-                        com.legend.compiler.element.type.Multiplicity
-                                .Bounded.ZERO_ONE));
-            }
-            var subRow = new com.legend.compiler.element.type.Type.RelationType(subCols);
-            TypedSpec sub = new com.legend.compiler.spec.typed.TypedGroupBy(
-                    aj.targetPipeline(), keys, aggs,
-                    new com.legend.compiler.element.type.ExprType(subRow,
-                            com.legend.compiler.element.type.Multiplicity
-                                    .Bounded.ONE));
-            String prefix = prefixFor(head + "_agg", cs);
-            com.legend.compiler.element.type.Type.RelationType leftRow =
-                    (com.legend.compiler.element.type.Type.RelationType)
-                            withJoins.info().type();
-            java.util.List<com.legend.compiler.element.type.Type.Column>
-                    cols = new ArrayList<>(leftRow.columns());
-            for (var c : subRow.columns()) {
-                cols.add(new com.legend.compiler.element.type.Type.RelationType
-                        .Column(prefix + c.name(), c.type(), c.multiplicity()));
-            }
-            withJoins = new com.legend.compiler.spec.typed.TypedJoin(withJoins,
-                    sub, leftKind(), aj.condition(),
-                    java.util.Optional.of(prefix),
-                    new com.legend.compiler.element.type.ExprType(
-                            new com.legend.compiler.element.type.Type.RelationType(cols),
-                            com.legend.compiler.element.type.Multiplicity
-                                    .Bounded.ONE));
-            ord = 0;
-            for (AggDemand d : entry.getValue()) {
-                aggReads.put(d.node(), new Substitution.AggRead(
-                        prefix + "agg_" + ord++, isCountFamily(d.node())));
-            }
-        }
-        m = new Pipelines.Materialized(withJoins, m.slotPrefixes(), m.stripped());
+        JoinedPipe joined = foldAssociationJoins(cs, m, keyWidenedPipe,
+                assocJoins, aggMaterials, aggDemands);
+        m = joined.m();
+        java.util.List<AssocJoin> aggAssocJoins = joined.aggAssocJoins();
+        Map<TypedSpec, Substitution.AggRead> aggReads = joined.aggReads();
 
         // Association-end names for honest bare-head errors (audit R3).
         Set<String> assocEnds = new java.util.LinkedHashSet<>(assocs.keySet());
