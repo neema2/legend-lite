@@ -53,7 +53,23 @@ public final class Runner {
     /** Element keys (kind::fqn) of the SHARED base model — dedup floor. */
     private final java.util.Set<String> sharedSeen = new java.util.HashSet<>();
 
+    // ===== MODULE assembly (Phase B): raw sources through the real
+    // parser — the text-extraction path below it is being retired =====
+    private final List<com.legend.Compiler.ModelSource> sharedRaw = new ArrayList<>();
+    private final Map<String, List<com.legend.Compiler.ModelSource>> familyRaw =
+            new LinkedHashMap<>();
+    private final Map<String, com.legend.Compiler.ModelSource> fileRaw =
+            new LinkedHashMap<>();
+    private final Map<String, String> familyParent = new LinkedHashMap<>();
+    private final Map<String, com.legend.Compiler.BuiltModule> moduleCache =
+            new LinkedHashMap<>();
+    private final java.util.Set<String> reportedModuleWalls = new java.util.HashSet<>();
+
     public Runner(List<String> sharedSources, List<String> seedSources) {
+        for (int i = 0; i < sharedSources.size(); i++) {
+            sharedRaw.add(new com.legend.Compiler.ModelSource(
+                    "shared-" + i + ".pure", sharedSources.get(i)));
+        }
         StringBuilder mandatory = new StringBuilder();
         List<String[]> mappings = new ArrayList<>();
         for (String src : sharedSources) {
@@ -149,6 +165,20 @@ public final class Runner {
         currentFamilyKey = familyKey;
         if (familyModels.containsKey(familyKey)) {
             return;
+        }
+        List<com.legend.Compiler.ModelSource> raw = new ArrayList<>();
+        int rawIx = 0;
+        for (String src : setupSources) {
+            raw.add(new com.legend.Compiler.ModelSource(
+                    familyKey + "/setup-" + rawIx++ + ".pure", src));
+        }
+        for (String src : modelOnlySources) {
+            raw.add(new com.legend.Compiler.ModelSource(
+                    familyKey + "/sibling-" + rawIx++ + ".pure", src));
+        }
+        familyRaw.put(familyKey, raw);
+        if (parentFamilyKey != null) {
+            familyParent.put(familyKey, parentFamilyKey);
         }
         for (String src : setupSources) {
             Corpus.functionBodies(src).forEach(setupFnBodies::putIfAbsent);
@@ -322,6 +352,7 @@ public final class Runner {
         if (fileModels.containsKey(key)) {
             return;
         }
+        fileRaw.put(key, new com.legend.Compiler.ModelSource(key, source));
         Corpus.functionBodies(source).forEach(setupFnBodies::putIfAbsent);
         StringBuilder extension = new StringBuilder();
         List<String[]> fileMappings = new ArrayList<>();
@@ -503,6 +534,11 @@ public final class Runner {
             return new Outcome(fn.fqn(), Status.SHAPE, "no execute(|...) call");
         }
         try {
+            // MODULE path (moduleContextFor) is DARK-LAUNCHED: the
+            // equivalence sweep showed 699 vs 881 — function bodies now
+            // enter the model and integrity walls cascade through helper
+            // functions the mappings depend on (the old text path STRIPPED
+            // bodies). Flip back after the wall-cascade triage (task #54).
             String familyExt = familyModels.getOrDefault(currentFamilyKey, "");
             String fileExt = fileModels.getOrDefault(currentFileKey, "");
             String modelText = model + familyExt + fileExt;
@@ -553,6 +589,77 @@ public final class Runner {
 
     private com.legend.compiler.element.ModelContext contextFor(String fullModel) {
         return ctxCache.computeIfAbsent(fullModel, com.legend.Compiler::compileModel);
+    }
+
+    /**
+     * MODULE-assembled context (Phase B): the shared + parent + family +
+     * test-file RAW sources compile TOGETHER through the real parser —
+     * per-file import sections, structured per-element walls, no text
+     * extraction. The synthesized Runtime is one more source unit; its
+     * connections come from the module's own parsed Database elements.
+     */
+    private com.legend.compiler.element.ModelContext moduleContextFor() {
+        String cacheKey = currentFamilyKey + "|" + currentFileKey;
+        com.legend.Compiler.BuiltModule cached = moduleCache.get(cacheKey);
+        if (cached != null) {
+            return cached.context();
+        }
+        List<com.legend.Compiler.ModelSource> sources = new ArrayList<>(sharedRaw);
+        String parent = familyParent.get(currentFamilyKey);
+        if (parent != null && familyRaw.containsKey(parent)) {
+            sources.addAll(familyRaw.get(parent));
+        }
+        sources.addAll(familyRaw.getOrDefault(currentFamilyKey, List.of()));
+        com.legend.Compiler.ModelSource file = fileRaw.get(currentFileKey);
+        if (file != null) {
+            sources.add(file);
+        }
+        // per-source tolerant PARSE: an unparseable file is a FILE wall,
+        // never a family poison
+        List<com.legend.Compiler.ModelSource> parseable = new ArrayList<>(sources.size());
+        for (com.legend.Compiler.ModelSource src : sources) {
+            try {
+                com.legend.parser.ElementParser.parse(src.text());
+                parseable.add(src);
+            } catch (RuntimeException e) {
+                wallOnce("file " + src.name() + " => "
+                        + String.valueOf(e.getMessage()).split("\n")[0]);
+            }
+        }
+        com.legend.Compiler.ParsedModule pre =
+                com.legend.Compiler.parseSources(parseable);
+        // the Runtime references every Database the MODULE declares —
+        // enumerated from parsed elements, not regex
+        StringBuilder conns = new StringBuilder();
+        for (com.legend.model.PackageableElement el : pre.model().elements()) {
+            if (el instanceof com.legend.model.DatabaseDefinition db) {
+                if (conns.length() > 0) {
+                    conns.append(", ");
+                }
+                conns.append(db.qualifiedName()).append(": [ c: rcorpus::Conn ]");
+            }
+        }
+        parseable.add(new com.legend.Compiler.ModelSource("rcorpus-runtime.pure",
+                "RelationalDatabaseConnection rcorpus::Conn { type: DuckDB;"
+                        + " specification: InMemory { }; auth: NoAuth { }; }\n"
+                        + "Runtime rcorpus::Rt { mappings: []; connections: [ "
+                        + conns + " ] }\n"));
+        com.legend.Compiler.ParsedModule module =
+                com.legend.Compiler.parseSources(parseable);
+        module.duplicateElements().forEach(d ->
+                wallOnce(currentFamilyKey + " duplicate " + d));
+        com.legend.Compiler.BuiltModule built =
+                com.legend.Compiler.buildModule(module.model());
+        built.walls().forEach((fqn, msg) ->
+                wallOnce(currentFamilyKey + " " + fqn + " => " + msg));
+        moduleCache.put(cacheKey, built);
+        return built.context();
+    }
+
+    private void wallOnce(String wall) {
+        if (reportedModuleWalls.add(wall)) {
+            walls.add(wall);
+        }
     }
 
     /** Setup-function names (FQN + simple) whose effects the seed replay applied. */
