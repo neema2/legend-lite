@@ -189,17 +189,13 @@ final class AssociationSynthesis {
                 .orElse(null);
         if (am instanceof AssociationMapping.ModelJoin mj && ad0 != null) {
             return MappingNormalizer.synthesizeModelJoinMapping(md, mj, model,
-                    associationEndClass(ad0.property1().targetClass(),
-                            "association '" + am.associationName() + "' end1"),
-                    associationEndClass(ad0.property2().targetClass(),
-                            "association '" + am.associationName() + "' end2"));
+                    ad0.property1().targetClassFqn(),
+                    ad0.property2().targetClassFqn());
         }
         if (am instanceof AssociationMapping.Cross xs && ad0 != null) {
             return MappingNormalizer.synthesizeXStoreMapping(md, xs, model,
-                    associationEndClass(ad0.property1().targetClass(),
-                            "association '" + am.associationName() + "' end1"),
-                    associationEndClass(ad0.property2().targetClass(),
-                            "association '" + am.associationName() + "' end2"));
+                    ad0.property1().targetClassFqn(),
+                    ad0.property2().targetClassFqn());
         }
         if (!(am instanceof AssociationMapping.Relational rel)) {
             throw new NotImplementedException(
@@ -210,10 +206,8 @@ final class AssociationSynthesis {
                 .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE, 
                         "AssociationMapping references unknown association '"
                       + am.associationName() + "'; mapping=" + md.qualifiedName()));
-        String classA = associationEndClass(ad.property1().targetClass(),
-                "association '" + am.associationName() + "' end1");
-        String classB = associationEndClass(ad.property2().targetClass(),
-                "association '" + am.associationName() + "' end2");
+        String classA = ad.property1().targetClassFqn();
+        String classB = ad.property2().targetClassFqn();
 
         if (rel.propertyMappings().isEmpty()) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
@@ -355,10 +349,4 @@ final class AssociationSynthesis {
               + "Mapping=" + md.qualifiedName());
     }
 
-    static String associationEndClass(TypeExpression t, String context) {
-        if (t instanceof TypeExpression.NameRef nr) return nr.name();
-        throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
-                context + " has non-NameRef target class type: "
-              + t.getClass().getSimpleName());
-    }
 }

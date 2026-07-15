@@ -13,7 +13,6 @@ import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.MappingResolutionException;
 import com.legend.error.NotImplementedException;
-import com.legend.parser.TypeExpression;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -170,14 +169,12 @@ final class AssociationJoins {
         // A CONCRETE end joins: to-one flat, to-many with ROW EXPLOSION
         // (projection semantics — engine/V1/plangen unanimous). A
         // Parameter-multiplicity end stays denied (unknown cardinality).
-        if (!forExists
-                && !(end.multiplicity() instanceof com.legend.parser.Multiplicity.Concrete)) {
+        if (!forExists && !end.isConcrete()) {
             throw new NotImplementedException("navigation of association end '$"
                     + head + "' with non-concrete multiplicity "
                     + end.multiplicity() + " is not supported");
         }
-        String targetClass = ((TypeExpression.NameRef)
-                end.targetClass()).name();
+        String targetClass = end.targetClassFqn();
         ClassSource target = sources.get(cs.mappingFqn(), targetClass);
         // The TARGET's own join slots materialize on demand too: a demanded
         // leaf whose binding reads a slot ($p.firm.country where country is

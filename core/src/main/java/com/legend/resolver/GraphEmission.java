@@ -300,9 +300,7 @@ final class GraphEmission {
         var assoc = ctx.findAssociationOf(cs.classFqn(), node.property()).orElseThrow();
         var end = assoc.property1().propertyName().equals(node.property())
                 ? assoc.property1() : assoc.property2();
-        boolean toMany = !(end.multiplicity()
-                instanceof com.legend.parser.Multiplicity.Concrete emc
-                && Integer.valueOf(1).equals(emc.upperBound()));
+        boolean toMany = !end.isToOne();
         return correlatedGraphChild(aj.target(), aj.targetPipeline(), aj.targetRow(),
                 aj.condition(), toMany, node, parentRowVar, parentRowType, context);
     }

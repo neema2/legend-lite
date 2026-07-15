@@ -42,7 +42,7 @@ final class Pipeline {
     // columns may substitute the physical expressions even when the view
     // carries filter/distinct/groupBy — those row semantics already live
     // in the class pipeline; any OTHER non-plain view stays a wall.
-    String backingView;
+    final String backingView;
     /** Routed class-typed navigations: property -> per-PM route entries
      * (target union-member ordinal + join), classified from each PM's
      * OWN {@code Join.targetSetId} (audit 11: the name-keyed map lost
@@ -54,7 +54,14 @@ final class Pipeline {
      * unsupported route shape — reason on the poison ledger). Their PMs
      * emit nothing and bind no field; demand fails loudly. */
     final Set<String> droppedRoutedProps = new HashSet<>();
-    Pipeline(ValueSpecification expr) { this.expr = expr; }
+    Pipeline(ValueSpecification expr) {
+        this(expr, null);
+    }
+
+    Pipeline(ValueSpecification expr, String backingView) {
+        this.expr = expr;
+        this.backingView = backingView;
+    }
 
     /** The translator-facing view of this pipeline (seam b). */
     RelOpTranslator.PipelineView view() {

@@ -1410,9 +1410,7 @@ public final class StoreResolver {
             var assocEnd = assocOpt.get().property1().propertyName()
                     .equals(SyntheticHeads.realHead(head))
                     ? assocOpt.get().property1() : assocOpt.get().property2();
-            boolean isToMany = !(assocEnd.multiplicity()
-                    instanceof com.legend.parser.Multiplicity.Concrete emc
-                    && Integer.valueOf(1).equals(emc.upperBound()));
+            boolean isToMany = !assocEnd.isToOne();
             // the SCALAR (slot-undemanded) pipeline serves value-position
             // consumers (filteredNavLeafRead): other consumers' slot demand
             // must not fan a single-row subquery out (audit 13 B3)

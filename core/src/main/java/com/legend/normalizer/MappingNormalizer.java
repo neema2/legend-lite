@@ -403,10 +403,8 @@ public final class MappingNormalizer {
                 .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE, 
                         "inline association predicate references unknown association '"
                       + ab.associationFqn() + "'; mapping=" + md.qualifiedName()));
-        String classA = AssociationSynthesis.associationEndClass(ad.property1().targetClass(),
-                "association '" + ab.associationFqn() + "' end1");
-        String classB = AssociationSynthesis.associationEndClass(ad.property2().targetClass(),
-                "association '" + ab.associationFqn() + "' end2");
+        String classA = ad.property1().targetClassFqn();
+        String classB = ad.property2().targetClassFqn();
         Variable p0 = lam.parameters().get(0);
         Variable p1 = lam.parameters().get(1);
         var paramA = new FunctionDefinition.ParameterDefinition(
@@ -1725,8 +1723,8 @@ public final class MappingNormalizer {
         // the table a string — the same shapes #>{db.TABLE}# produces, so
         // TableReferenceChecker serves both surfaces.
         Pipeline p = new Pipeline(new AppliedFunction("tableReference",
-                List.of(new PackageableElementPtr(mainDb), new CString(mainTable))));
-        p.backingView = backingView;
+                List.of(new PackageableElementPtr(mainDb), new CString(mainTable))),
+                backingView);
         UnionSynthesis.classifyUnionRoutes(md, rcm, model, p);
 
         // Pass 1: structural chain emission (Join, JoinTerminalColumn,

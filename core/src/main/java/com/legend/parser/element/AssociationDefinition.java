@@ -69,5 +69,33 @@ public record AssociationDefinition(
             Objects.requireNonNull(targetClass, "Target class cannot be null");
             Objects.requireNonNull(multiplicity, "End multiplicity cannot be null");
         }
+
+        /**
+         * The end's target class FQN. Name resolution guarantees a resolved
+         * {@link TypeExpression.NameRef} on every end that leaves the
+         * normalizer — anything else here is a normalizer bug. This is the
+         * ONE extraction site (audit 15: three independent copies, one an
+         * unguarded cast, had divergent failure modes).
+         */
+        public String targetClassFqn() {
+            if (targetClass instanceof TypeExpression.NameRef nr) {
+                return nr.name();
+            }
+            throw new IllegalStateException("association end '" + propertyName
+                    + "' has unresolved target class type "
+                    + targetClass.getClass().getSimpleName()
+                    + " — normalizer bug");
+        }
+
+        /** Known-bounds multiplicity? Parameter multiplicities are not. */
+        public boolean isConcrete() {
+            return multiplicity instanceof Multiplicity.Concrete;
+        }
+
+        /** Upper bound exactly 1. False for to-many AND non-concrete ends. */
+        public boolean isToOne() {
+            return multiplicity instanceof Multiplicity.Concrete c
+                    && Integer.valueOf(1).equals(c.upperBound());
+        }
     }
 }

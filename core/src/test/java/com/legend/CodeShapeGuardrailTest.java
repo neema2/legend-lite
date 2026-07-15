@@ -58,14 +58,42 @@ class CodeShapeGuardrailTest {
             "SyntheticHeads.count", "Lowerer.tdsCounter", "Lowerer.aliasCounter",
             "UserCallInliner.fresh", "Bindings.contravariantDepth",
             // render mode toggle + import memo
-            "AnsiSqlRenderer.inlineMode", "ModelOrchestrator.cachedImports");
+            "AnsiSqlRenderer.inlineMode", "ModelOrchestrator.cachedImports",
+            // normalizer emission frame: Pipeline IS the frame object; expr
+            // is the accumulating pipeline AST
+            "Pipeline.expr",
+            // regex artifact, NOT mutable: implicitly public-static-final
+            // interface constant (interfaces cannot spell 'final' on fields)
+            "TokenStreamCursor.IDENTIFIER_TOKENS",
+            // nested-class cursors: ExecJson JSON reader, PureDateLiteral
+            // date parser (keys are filename-scoped)
+            "TestBody.i", "PureDateLiteral.pos");
 
     private static final Pattern SIG = Pattern.compile(
             "^    (?! )(?:private |public |protected |static |final |synchronized )*"
             + "[\\w.<>\\[\\], ?]+ (\\w+)\\(");
 
+    /** Class-level non-final instance fields, ANY visibility — package-
+     * private has no keyword, so the visibility group is optional (audit 15:
+     * the private-only pattern let two refactors widen mutable fields out
+     * of the scan unaudited). */
     private static final Pattern MUTABLE_FIELD = Pattern.compile(
-            "^    private (?!static|final|record)[\\w.<>\\[\\], ?]+ (\\w+)( =.*)?;");
+            "^    (?! )(?:(?:private|protected|public) )?"
+            + "(?!static |final |private |protected |public |record |class"
+            + " |interface |enum |abstract |sealed |non-sealed )(?! )"
+            + "[\\w.<>\\[\\], ?]+ (\\w+)( =.*)?;");
+
+    /** Nested-class fields (8-space indent). A visibility modifier is
+     * REQUIRED here to distinguish fields from method locals — declare
+     * nested-class fields private/protected/public, never package-private. */
+    private static final Pattern NESTED_MUTABLE_FIELD = Pattern.compile(
+            "^        (?! )(?:private|protected|public) (?!static |final )(?! )"
+            + "[\\w.<>\\[\\], ?]+ (\\w+)( =.*)?;");
+
+    /** Static mutable state is banned outright — NO allowlist. */
+    private static final Pattern STATIC_MUTABLE_FIELD = Pattern.compile(
+            "^\\s*(?:(?:private|protected|public) )?static (?!final )"
+            + "[\\w.<>\\[\\], ?]+ (\\w+)( =.*)?;");
 
     /** Strip string/char literals and comments so braces inside them
      * never skew the counts (parseDerivedProperty false-positived at
@@ -167,12 +195,40 @@ class CodeShapeGuardrailTest {
             String cls = p.getFileName().toString().replace(".java", "");
             for (String ln : Files.readAllLines(p)) {
                 Matcher m = MUTABLE_FIELD.matcher(ln);
-                if (m.find()
-                        && !MUTABLE_FIELD_ALLOWLIST.contains(cls + "." + m.group(1))) {
+                if (!m.find()) {
+                    m = NESTED_MUTABLE_FIELD.matcher(ln);
+                    if (!m.find()) {
+                        continue;
+                    }
+                }
+                // an enum-constant list (EQ, NEQ, GTE;) is commas outside
+                // generics — a field's type only holds commas inside <>
+                String beforeName = ln.substring(0, m.start(1));
+                if (beforeName.contains(",") && !beforeName.contains("<")) {
+                    continue;
+                }
+                if (!MUTABLE_FIELD_ALLOWLIST.contains(cls + "." + m.group(1))) {
                     violations.add(cls + "." + m.group(1)
                             + " is a mutable instance field — make it final,"
                             + " move it into an explicit frame object, or"
                             + " allowlist it WITH the reason");
+                }
+            }
+        }
+        assertTrue(violations.isEmpty(), String.join("\n", violations));
+    }
+
+    @Test
+    void noStaticMutableState() throws IOException {
+        List<String> violations = new ArrayList<>();
+        for (Path p : mainSources()) {
+            String cls = p.getFileName().toString().replace(".java", "");
+            for (String ln : Files.readAllLines(p)) {
+                Matcher m = STATIC_MUTABLE_FIELD.matcher(ln);
+                if (m.find()) {
+                    violations.add(cls + "." + m.group(1)
+                            + " is STATIC MUTABLE state — no allowlist for"
+                            + " this one; make it final or design it away");
                 }
             }
         }

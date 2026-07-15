@@ -147,6 +147,137 @@ final class ArchitectureTest {
             .check(CORE_PROD_CLASSES);
     }
 
+    /**
+     * <strong>Invariant 6 — the pipeline's actual layer walls</strong>
+     * (audit 15: all measured true, now pinned).
+     */
+    @Test
+    void sqlLayerIsFullyStandalone() {
+        // stronger than Invariant 3's blacklist: sql depends on NOTHING
+        // in com.legend outside itself (measured true — keep it so)
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes()
+            .that().resideInAPackage("com.legend.sql..")
+            .should().onlyDependOnClassesThat()
+            .resideInAnyPackage("com.legend.sql..", "java..")
+            .as("Invariant 6a: com.legend.sql depends only on itself and the JDK")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    @Test
+    void typedHirIsParserFree() {
+        noClasses()
+            .that().resideInAPackage("com.legend.compiler.spec.typed")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                    "com.legend.parser..", "com.legend.lexer..",
+                    "com.legend.normalizer..")
+            .as("Invariant 6b: the typed HIR never references the frontend")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * The resolver consumes the NORMALIZED MODEL (today homed in
+     * parser.element — the com.legend.model move is the roadmap) and the
+     * typed HIR; it must never touch parse machinery: the untyped AST,
+     * the lexer, grammar cursors, or parser-top types (TypeExpression,
+     * parser.Multiplicity — audit 15 removed the last four call sites).
+     */
+    @Test
+    void resolverNeverSeesParseMachinery() {
+        noClasses()
+            .that().resideInAPackage("com.legend.resolver")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                    "com.legend.parser.spec..", "com.legend.lexer..",
+                    "com.legend.normalizer..", "com.legend.ide..")
+            .orShould().dependOnClassesThat().resideInAPackage("com.legend.parser")
+            .as("Invariant 6c: the resolver is parse-machinery-free — model"
+              + " records (parser.element) arrive via the ModelContext facade")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    @Test
+    void execIsABackend() {
+        noClasses()
+            .that().resideInAPackage("com.legend.exec")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                    "com.legend.parser..", "com.legend.lexer..",
+                    "com.legend.normalizer..", "com.legend.resolver..",
+                    "com.legend.lowering..", "com.legend.builtin..")
+            .as("Invariant 6d: exec consumes SQL + result shapes, never the"
+              + " frontend or middle-end")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /** Only the root driver may drive the back half of the pipeline. */
+    @Test
+    void stageFunnelOnlyTheDriverDrivesResolverLoweringExec() {
+        noClasses()
+            .that().resideInAnyPackage(
+                    "com.legend.parser..", "com.legend.normalizer..",
+                    "com.legend.compiler..", "com.legend.builtin..",
+                    "com.legend.ide..", "com.legend.sql..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                    "com.legend.resolver..", "com.legend.lowering..",
+                    "com.legend.exec..")
+            .as("Invariant 6e: resolver/lowering/exec are driven only by the"
+              + " root driver — no phase reaches forward into them")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    @Test
+    void lexerIsPrivateToTheParser() {
+        noClasses()
+            .that().resideOutsideOfPackages(
+                    "com.legend.lexer..", "com.legend.parser..",
+                    "com.legend.ide..")
+            .should().dependOnClassesThat().resideInAPackage("com.legend.lexer..")
+            .as("Invariant 6f: only parser + ide read the token stream")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    @Test
+    void leavesStayLeaves() {
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes()
+            .that().resideInAnyPackage(
+                    "com.legend.values", "com.legend.error", "com.legend.cache")
+            .should().onlyDependOnClassesThat().resideInAnyPackage(
+                    "com.legend.values", "com.legend.error", "com.legend.cache",
+                    "java..")
+            .as("Invariant 6g: values/error/cache import nothing from the pipeline")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /** Invariant 5 as an ALLOWLIST: lowering's whole dependency surface. */
+    @Test
+    void loweringDependencySurfaceIsPinned() {
+        com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes()
+            .that().resideInAPackage("com.legend.lowering")
+            .should().onlyDependOnClassesThat().resideInAnyPackage(
+                    "com.legend.lowering", "com.legend.compiler.spec.typed",
+                    "com.legend.compiler.element", "com.legend.compiler.element.type",
+                    "com.legend.builtin", "com.legend.sql..", "com.legend.values",
+                    "com.legend.error", "java..")
+            .as("Invariant 6h: lowering consumes typed HIR + kernel + sql — "
+              + "nothing else, ever")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /** Grammar cursors and section parsers are parse-time machinery. */
+    @Test
+    void parseMachineryIsUsedOnlyWhereSanctioned() {
+        noClasses()
+            .that().resideOutsideOfPackages(
+                    "com.legend.parser..", "com.legend.ide..",
+                    "com.legend.builtin", "com.legend")
+            .should().dependOnClassesThat().haveNameMatching(
+                    "com\\.legend\\.parser\\.(ElementParser|SpecParser"
+                    + "|MappingGrammarParser|RelationalGrammarParser"
+                    + "|TokenStreamCursor)(\\$.*)?")
+            .as("Invariant 6i: grammar parsers/cursors live and die at parse"
+              + " time (builtin's bootstrap parse + the driver are the two"
+              + " sanctioned exceptions)")
+            .check(CORE_PROD_CLASSES);
+    }
+
     @Test
     void cachesAreFunneledToContentAddressedStore() {
         noClasses()
