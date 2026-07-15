@@ -672,6 +672,41 @@ public final class MappingNormalizer {
     // Class mapping synthesis (top-level dispatch)
     // ====================================================================
 
+    /** Orientation-normal form for XStore conditions: {@code ==} is
+     * commutative — the two direction lines write the SAME predicate with
+     * swapped operands ({@code $this.id == $that.firmId} vs
+     * {@code $this.firmId == $that.id}); put the {@code srcRow}-rooted
+     * operand first so equal directions COMPARE equal (audit: the
+     * direction-specific wall fired on pure commutation). */
+    private static ValueSpecification canonicalizeEqualOperands(
+            ValueSpecification v, String srcVar) {
+        if (v instanceof AppliedFunction af) {
+            List<ValueSpecification> ps = af.parameters().stream()
+                    .map(x -> canonicalizeEqualOperands(x, srcVar)).toList();
+            if (("equal".equals(af.function()) || "==".equals(af.function()))
+                    && ps.size() == 2
+                    && !rootedAt(ps.get(0), srcVar)
+                    && rootedAt(ps.get(1), srcVar)) {
+                ps = List.of(ps.get(1), ps.get(0));
+            }
+            return new AppliedFunction(af.function(), ps);
+        }
+        return v;
+    }
+
+    private static boolean rootedAt(ValueSpecification v, String var) {
+        if (v instanceof Variable x) {
+            return x.name().equals(var);
+        }
+        if (v instanceof AppliedProperty ap) {
+            return rootedAt(ap.receiver(), var);
+        }
+        if (v instanceof AppliedFunction af && af.parameters().size() == 1) {
+            return rootedAt(af.parameters().get(0), var);
+        }
+        return false;
+    }
+
     private static FunctionDefinition synthesizeClassMapping(LegacyMappingDefinition md,
                                                             ClassMapping cm,
                                                             ModelBuilder model) {
@@ -863,8 +898,10 @@ public final class MappingNormalizer {
             Variable thisRow = thatRow == srcRow ? tgtRow : srcRow;
             ClassMapping.RelationFunction thatRf = isProp1 ? rfA : rfB;
             ClassMapping.RelationFunction thisRf = isProp1 ? rfB : rfA;
-            conds.add(rewriteXStoreReads(cand.expression(),
-                    thisRow, thisRf, thatRow, thatRf, xs.associationName(), md));
+            conds.add(canonicalizeEqualOperands(rewriteXStoreReads(
+                    cand.expression(),
+                    thisRow, thisRf, thatRow, thatRf, xs.associationName(), md),
+                    srcRow.name()));
         }
         // the engine compiles each direction's expression independently;
         // our single-predicate emission requires them to AGREE — loud when

@@ -2669,11 +2669,14 @@ final class Scalars {
     /** Literal cell of a TDS row → typed SQL literal, by the column's Pure type. */
     static SqlExpr tdsCell(String cell, Type type) {
         if (cell == null || cell.isEmpty()
+                || cell.equals("TDSNull")
                 || (cell.equals("null") && !PlatformTypes.isVariant(type))) {
             // A bare 'null' cell is SQL NULL for EVERY non-variant type —
             // String included (a 'null' name must vanish from joinStrings
             // window collections, pure's empty semantics). A VARIANT 'null'
-            // is the JSON null VALUE (variant arm below).
+            // is the JSON null VALUE (variant arm below). 'TDSNull' is real
+            // pure's TDS null-cell INSTANCE (^TDSNull) — SQL NULL for every
+            // type; it is never a string payload in a TDS literal.
             return new SqlExpr.NullLit();
         }
         if (type == Type.Primitive.INTEGER) {

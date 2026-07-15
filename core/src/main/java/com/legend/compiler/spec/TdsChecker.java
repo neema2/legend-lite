@@ -160,7 +160,7 @@ final class TdsChecker {
             // 'null' cells are NEUTRAL — they fit every type, so a later
             // JSON-shaped cell may still make the column Variant (the
             // "null" / "[1,2,3]" mixed-payload PCT shape).
-            if (v.isEmpty() || v.equals("null")) {
+            if (v.isEmpty() || v.equals("null") || v.equals("TDSNull")) {
                 continue;
             }
             if (v.matches("[+-]?\\d+")) {

@@ -1484,6 +1484,17 @@ public final class StoreResolver {
                     parentPrefix = known.prefix();
                     continue;
                 }
+                if (hop > 0 && synthetics.hasPred(path.get(hop))) {
+                    // a FILTERED navigation as a chained MID hop
+                    // ($x.firm.employees->filter(...).leaf): the engine's
+                    // expected rows for this shape disagree with plain
+                    // in-target pred placement (relation-family golden) —
+                    // needs its own golden-comparison cycle; loud until then
+                    throw new com.legend.error.NotImplementedException(
+                            "filtered navigation as a chained association"
+                            + " hop ('" + SyntheticHeads.realHead(path.get(hop))
+                            + "' at '" + chainKey + "') is not supported yet");
+                }
                 AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(temporal, parent, path.get(hop), context, false,
                         leavesByChain.getOrDefault(chainKey, Set.of()), chainKey);
                 if (hop > 0 && containsConcatenate(aj.targetPipeline())) {

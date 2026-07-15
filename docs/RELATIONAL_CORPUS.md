@@ -160,7 +160,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/modelJoin | 47 | 0 | 0 | 0 | 47 |
 | tests/mapping/multigrain | 5 | 0 | 0 | 5 | 0 |
 | tests/mapping/propertyfunc | 6 | 0 | 0 | 6 | 0 |
-| tests/mapping/relation | 93 | 17 | 1 | 32 | 43 |
+| tests/mapping/relation | 93 | 28 | 1 | 21 | 43 |
 | tests/mapping/relation/aggregation | 9 | 0 | 0 | 0 | 9 |
 | tests/mapping/selfJoin | 3 | 0 | 0 | 3 | 0 |
 | tests/mapping/sqlFunction | 72 | 57 | 0 | 3 | 12 |
@@ -172,7 +172,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **710** | 24 | 717 | 841 |
+| **total** | 2292 | **721** | 24 | 706 | 841 |
 
 ### mapping walls (dropped at assembly)
 
@@ -269,13 +269,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::union::UnionBothSidesMapping => XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolves to 2 Relation(~func) set(s) in 'meta::relational::tests::mapping::modelJoin::union::UnionBothSidesMapping'
 - tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::union::UnionPropertyInConditionMapping => XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolves to 0 Relation(~func) set(s) in 'meta::relational::tests::mapping::modelJoin::union::UnionPropertyInConditionMapping'
 - tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::union::UnionWithSubtypeQueryMapping => XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolves to 0 Relation(~func) set(s) in 'meta::relational::tests::mapping::modelJoin::union::UnionWithSubtypeQueryMapping'
-- tests/mapping/relation meta::relational::tests::mapping::relation::SimpleMapping => XStore association 'meta::relational::tests::mapping::relation::Person_Firm' has direction-specific conditions; a single shared predicate is required for now (mapping=meta::relational::tests::mapping::relation::SimpleMapping)
 - tests/mapping/relation meta::relational::tests::mapping::relation::MixedMapping => XStore/ModelJoin association end class 'meta::relational::tests::mapping::relation::Firm' resolves to 0 Relation(~func) set(s) for set id 'firm' in 'meta::relational::tests::mapping::relation::MixedMapping'
-- tests/mapping/relation meta::relational::tests::mapping::relation::SnapshotMilestonedMapping => XStore association 'meta::relational::tests::mapping::relation::ProcessingTemporalPerson_ProcessingTemporalFirm' has direction-specific conditions; a single shared predicate is required for now (mapping=meta::relational::tests::mapping::relation::SnapshotMilestonedMapping)
 - tests/mapping/relation meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping => XStore/ModelJoin association end class 'meta::relational::tests::mapping::relation::BusinessTemporalPerson' resolves to 0 Relation(~func) set(s) for set id 'biztPerson' in 'meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping'
-- tests/mapping/relation meta::relational::tests::mapping::relation::TemporalMilestonedMapping => XStore association 'meta::relational::tests::mapping::relation::ProcessingTemporalPerson_ProcessingTemporalFirm' has direction-specific conditions; a single shared predicate is required for now (mapping=meta::relational::tests::mapping::relation::TemporalMilestonedMapping)
-- tests/mapping/relation meta::relational::tests::mapping::relation::EmbeddedWithAssociationRelationMapping => XStore association 'meta::relational::tests::mapping::relation::PersonWithAddressAndFirm_Firm' has direction-specific conditions; a single shared predicate is required for now (mapping=meta::relational::tests::mapping::relation::EmbeddedWithAssociationRelationMapping)
-- tests/mapping/relation meta::relational::tests::mapping::relation::InlineEmbeddedWithAssociationRelationMapping => XStore association 'meta::relational::tests::mapping::relation::PersonWithAddressAndFirm_Firm' has direction-specific conditions; a single shared predicate is required for now (mapping=meta::relational::tests::mapping::relation::InlineEmbeddedWithAssociationRelationMapping)
 - tests/mapping/relation meta::relational::tests::mapping::relation::MixedCaseAssociationChainMapping => XStore/ModelJoin association end class 'meta::relational::tests::mapping::relation::Person' resolves to 0 Relation(~func) set(s) for set id 'person' in 'meta::relational::tests::mapping::relation::MixedCaseAssociationChainMapping'
 - tests/mapping/union/relation meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithFirm => XStore/ModelJoin association end class 'meta::relational::tests::model::simple::Person' resolves to 2 Relation(~func) set(s) in 'meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithFirm'
 - tests/mapping/union/relation meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithSubAggregation => XStore/ModelJoin association end class 'meta::relational::tests::model::simple::Person' resolves to 2 Relation(~func) set(s) in 'meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithSubAggregation'
@@ -324,7 +319,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 5x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - 5x unknown function 'conditionRightTable'
 - 5x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
-- 5x 'meta::relational::tests::mapping::relation::SimpleMapping' is not a known class, mapping, runtime, connection, or database
+- 5x 'meta::relational::tests::mapping::relation::MixedMapping' is not a known class, mapping, runtime, connection, or database
 
 ### per-test outcomes (non-passing)
 
@@ -1649,11 +1644,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testAutoInferPKThroughComposedFilter [tests/mapping/relation]: no execute(|...) call
 - SHAPE testAutoInferPKThroughComposedJoin [tests/mapping/relation]: no execute(|...) call
 - SHAPE testAutoInferPKThroughComposedGroupBy [tests/mapping/relation]: no execute(|...) call
-- ERROR testSimpleMappingQuery [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::SimpleMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testSimpleMappingWithAssociation [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::SimpleMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testSimpleMappingQueryWithPreFilter [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::SimpleMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testSimpleMappingQueryWithFilterInProject [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::SimpleMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testSimpleMappingQueryWithObjectGroupByAndTdsProject [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::SimpleMapping' is not a known class, mapping, runtime, connection, or database
+- ERROR testSimpleMappingQueryWithFilterInProject [tests/mapping/relation]: filtered navigation as a chained association hop ('employees' at 'firm.employees#f0') is not supported yet
 - ERROR testMixedMapping [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedMapping' is not a known class, mapping, runtime, connection, or database
 - ERROR testMixedMappingWithAssociation [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedMapping' is not a known class, mapping, runtime, connection, or database
 - ERROR testMixedCaseMappingThroughAssociationChain [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedCaseAssociationChainMapping' is not a known class, mapping, runtime, connection, or database
@@ -1661,27 +1652,20 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testMixedMappingWithFilterInProject [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedMapping' is not a known class, mapping, runtime, connection, or database
 - ERROR testMixedMappingWithObjectGroupByAndTdsProject [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedMapping' is not a known class, mapping, runtime, connection, or database
 - FAIL testMappingWithWindowColumn [tests/mapping/relation]: assertEquals: expected [David, Group D, 1, Fabrice, Group C, 1, John, Group A, 2, Oliver, Group C, 2], got [David, Group D, 1, Fabrice, Group C, 1, John, Group A, 1, Oliver, Group C, 2]
-- ERROR testMappingWithProcessingSnapshotMilestoning [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::SnapshotMilestonedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testMappingWithProcessingSnapshotMilestoningAllVersionsInRange [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::SnapshotMilestonedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testMappingWithBusinessSnapshotMilestoning [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::SnapshotMilestonedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testMappingWithBusinessSnapshotMilestoningAllVersionsInRange [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::SnapshotMilestonedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testMappingWithProcessingTemporalMilestoning [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::TemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testMappingWithProcessingTemporalMilestoningAllVersionsInRange [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::TemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testMappingWithBusinessTemporalMilestoning [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::TemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testMappingWithBusinessTemporalMilestoningAllVersionsInRange [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::TemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testMappingWithBiTemporalMilestoning [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::TemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
+- ERROR testMappingWithProcessingSnapshotMilestoningAllVersionsInRange [tests/mapping/relation]: milestoning column 'SNAPSHOTDATE' is not on the pipeline row of 'meta::relational::tests::mapping::relation::ProcessingTemporalPerson'
+- ERROR testMappingWithBusinessSnapshotMilestoningAllVersionsInRange [tests/mapping/relation]: milestoning column 'SNAPSHOTDATE' is not on the pipeline row of 'meta::relational::tests::mapping::relation::BusinessTemporalPerson'
+- ERROR testMappingWithProcessingTemporalMilestoningAllVersionsInRange [tests/mapping/relation]: milestoning column 'IN_Z' is not on the pipeline row of 'meta::relational::tests::mapping::relation::ProcessingTemporalPerson'
+- ERROR testMappingWithBusinessTemporalMilestoningAllVersionsInRange [tests/mapping/relation]: milestoning column 'FROM_Z' is not on the pipeline row of 'meta::relational::tests::mapping::relation::BusinessTemporalPerson'
 - ERROR testMixedTemporalMapping [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
 - ERROR testMixedTemporalMappingWithAllVersionsInRange1 [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
 - ERROR testMixedTemporalMappingWithAllVersionsInRange2 [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testEmbeddedRelationMappingWithAssociation [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::EmbeddedWithAssociationRelationMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testEmbeddedRelationMappingWithAssociationAndFilter [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::EmbeddedWithAssociationRelationMapping' is not a known class, mapping, runtime, connection, or database
 - ERROR testInlineEmbeddedRelationMapping [tests/mapping/relation]: property 'address' of class 'meta::relational::tests::mapping::relation::PersonWithAddress' is not mapped in mapping 'meta::relational::tests::mapping::relation::InlineEmbeddedRelationMapping'
 - ERROR testInlineEmbeddedRelationMappingWithFilter [tests/mapping/relation]: property 'address' of class 'meta::relational::tests::mapping::relation::PersonWithAddress' is not mapped in mapping 'meta::relational::tests::mapping::relation::InlineEmbeddedRelationMapping'
 - ERROR testInlineEmbeddedRelationMappingWithComplexFilter [tests/mapping/relation]: property 'address' of class 'meta::relational::tests::mapping::relation::PersonWithAddress' is not mapped in mapping 'meta::relational::tests::mapping::relation::InlineEmbeddedRelationMapping'
 - ERROR testInlineEmbeddedRelationMappingWithFilterOnMultipleProperties [tests/mapping/relation]: property 'address' of class 'meta::relational::tests::mapping::relation::PersonWithAddress' is not mapped in mapping 'meta::relational::tests::mapping::relation::InlineEmbeddedRelationMapping'
 - ERROR testInlineEmbeddedRelationMappingGroupBy [tests/mapping/relation]: property 'address' of class 'meta::relational::tests::mapping::relation::PersonWithAddress' is not mapped in mapping 'meta::relational::tests::mapping::relation::InlineEmbeddedRelationMapping'
-- ERROR testInlineEmbeddedRelationMappingWithAssociation [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::InlineEmbeddedWithAssociationRelationMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testInlineEmbeddedRelationMappingWithAssociationAndFilter [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::InlineEmbeddedWithAssociationRelationMapping' is not a known class, mapping, runtime, connection, or database
+- ERROR testInlineEmbeddedRelationMappingWithAssociation [tests/mapping/relation]: property 'address' of class 'meta::relational::tests::mapping::relation::PersonWithAddressAndFirm' is not mapped in mapping 'meta::relational::tests::mapping::relation::InlineEmbeddedWithAssociationRelationMapping'
+- ERROR testInlineEmbeddedRelationMappingWithAssociationAndFilter [tests/mapping/relation]: property 'address' of class 'meta::relational::tests::mapping::relation::PersonWithAddressAndFirm' is not mapped in mapping 'meta::relational::tests::mapping::relation::InlineEmbeddedWithAssociationRelationMapping'
 - SHAPE testSubAggregationOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
 - SHAPE testSubAggregationOnRelationMappingWithSimpleProperty [tests/mapping/relation/aggregation]: no execute(|...) call
 - SHAPE testTwoSubAggregationOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
