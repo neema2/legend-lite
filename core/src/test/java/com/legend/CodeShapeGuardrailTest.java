@@ -39,8 +39,7 @@ class CodeShapeGuardrailTest {
     private static final Map<String, Integer> METHOD_ALLOWLIST = Map.of();
 
     /** Known oversized FILES, pending their planned splits. */
-    private static final Map<String, Integer> FILE_ALLOWLIST = Map.of(
-            "ElementParser.java", 3600);              // 3509: grammar sections split planned
+    private static final Map<String, Integer> FILE_ALLOWLIST = Map.of();
 
     /** Mutable instance fields that are DELIBERATE: hand-rolled parser
      * cursors (Lexer/ElementParser/SpecParser walk positions and scope
