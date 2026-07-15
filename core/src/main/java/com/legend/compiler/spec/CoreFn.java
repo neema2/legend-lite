@@ -77,6 +77,7 @@ public enum CoreFn {
     AS_OF_JOIN("asOfJoin"),
     /** {@code cast(@T)} &mdash; type conversion at the source's multiplicity ({@code T[m]}). */
     CAST("cast"),
+    TYPE_AS_DECLARED("typeAsDeclared"),
     /** {@code to(@T)} &mdash; nullable conversion ({@code T[0..1]}). */
     TO("to"),
     /** {@code toMany(@T)} &mdash; widening conversion ({@code T[*]}). */

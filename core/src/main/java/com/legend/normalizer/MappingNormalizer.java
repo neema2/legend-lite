@@ -2091,6 +2091,35 @@ public final class MappingNormalizer {
      * emit NO cast; unknown columns and non-primitive declarations pass
      * through (the type checker stays the loud arbiter).
      */
+    /** {@code typeAsDeclared(read, @Declared)} when the terminal column's
+     * physical kind differs from the declared platform kind — the TYPE-ONLY
+     * assertion (no SQL); matching kinds pass through untouched. */
+    private static ValueSpecification declaredAssertion(ValueSpecification read,
+            PropertyMapping.JoinTerminalColumn jtc, String ownerClassFqn,
+            ModelBuilder model) {
+        String declared = declaredPlatformKind(jtc.propertyName(),
+                ownerClassFqn, model);
+        if (declared == null
+                || !(jtc.terminalColumn()
+                        instanceof RelationalOperation.ColumnRef cr)) {
+            return read;
+        }
+        String db = cr.databaseName() != null ? cr.databaseName()
+                : jtc.database();
+        if (db == null) {
+            return read;
+        }
+        DatabaseDefinition.ColumnDefinition cd = findPhysicalColumn(
+                db, cr.table(), cr.column(), model);
+        String colKind = cd == null ? null : pureKindOf(cd.dataType());
+        if (colKind == null || colKind.equals(declared)) {
+            return read;
+        }
+        return new AppliedFunction("typeAsDeclared", List.of(read,
+                new TypeAnnotation.Named(
+                        new TypeExpression.NameRef(declared))));
+    }
+
     private static ValueSpecification coerceColumnToDeclared(ValueSpecification read,
             PropertyMapping.Column col,
             String ownerClassFqn, ModelBuilder model) {
@@ -2291,7 +2320,13 @@ public final class MappingNormalizer {
                                 ? translateEnumeratedSource(jtc.propertyName(),
                                         jtc.enumMappingId(), read, md,
                                         ownerClassFqn, model)
-                                : read,
+                                // engine parity: a binding read TYPES AS
+                                // the DECLARED property with NO SQL cast
+                                // (Integer property over a DOUBLE column —
+                                // the engine's rows are the raw doubles);
+                                // wrapped only on a genuine kind mismatch
+                                : declaredAssertion(read, jtc,
+                                        ownerClassFqn, model),
                         false);
             }
             case PropertyMapping.LocalProperty lp -> {

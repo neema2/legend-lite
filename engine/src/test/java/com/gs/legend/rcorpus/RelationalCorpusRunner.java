@@ -107,6 +107,33 @@ class RelationalCorpusRunner {
                     familySources.add(0, src);
                 }
             }
+            // STORE-ONLY parent files (calendarAggregation/calendarStore
+            // .pure): a parent-directory source defining ONLY Database
+            // elements is the family's store — inheriting it cannot
+            // conflict (the reverted ancestor experiment tripped on
+            // parent CLASS models, never stores)
+            if (!p.getParent().equals(Corpus.RELATIONAL)) {
+                try (var sib = Files.list(p.getParent())) {
+                    for (Path f2 : sib.filter(x ->
+                            x.toString().endsWith(".pure")
+                            && Files.isRegularFile(x)).sorted().toList()) {
+                        if (f2.equals(parentSetup)) {
+                            continue;
+                        }
+                        String src2 = Files.readString(f2);
+                        boolean storeOnly = Corpus.testFunctions(src2).isEmpty()
+                                && src2.lines().anyMatch(l ->
+                                        l.startsWith("Database "))
+                                && src2.lines().noneMatch(l ->
+                                        l.startsWith("Class ")
+                                        || l.startsWith("function ")
+                                        || l.startsWith("Mapping "));
+                        if (storeOnly) {
+                            familySources.add(0, src2);
+                        }
+                    }
+                }
+            }
             List<String> modelOnly = new ArrayList<>(testSources.values());
             // DEEP subfamilies reference their parent family's elements
             // (union/relation ~func bodies read union's myDB) — the engine

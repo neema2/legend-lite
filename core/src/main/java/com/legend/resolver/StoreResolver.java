@@ -411,6 +411,15 @@ public final class StoreResolver {
                     new TypedNativeCall(nc.callee(),
                             nc.args().stream().map(a2 -> resolveNode(a2, context))
                                     .toList(), nc.info());
+            // collection literal whose ELEMENTS carry class chains
+            // (assert args, 3-arg groupBy key/agg arrays): each element
+            // resolves independently, structurally
+            case com.legend.compiler.spec.typed.TypedCollection col
+                    when containsGetAll(col) ->
+                    new com.legend.compiler.spec.typed.TypedCollection(
+                            col.elements().stream()
+                                    .map(e2 -> resolveNode(e2, context))
+                                    .toList(), col.info());
             default -> {
                 if (containsGetAll(n)) {
                     throw new NotImplementedException("class query under "

@@ -726,6 +726,31 @@ public final class TestBody {
         // rendering is a wire concern, not a query. A tail whose receiver
         // turns out non-relational falls back to the original expression.
         boolean csv = false;
+        // toCSV(tds)->replace(a, b): render the grid to CSV text, apply the
+        // replace LITERALLY, compare as a string (the calendar family's
+        // one-line assert spelling)
+        if (spliced instanceof AppliedFunction rep
+                && simpleName(rep.function()).equals("replace")
+                && rep.parameters().size() == 3
+                && rep.parameters().get(0) instanceof AppliedFunction innerCsv
+                && simpleName(innerCsv.function()).equals("toCSV")
+                && innerCsv.parameters().size() == 1
+                && rep.parameters().get(1) instanceof CString from
+                && "\n".equals(from.value())
+                && rep.parameters().get(2) instanceof CString to) {
+            com.legend.exec.ExecutionResult stripped2 = evalSpliced(
+                    innerCsv.parameters().get(0), ctx, imports, runtimeFqn, conn);
+            if (stripped2 instanceof com.legend.exec.ExecutionResult.Tabular tab2) {
+                // structured compare: keep the TABULAR and the joined-line
+                // separator — string-exact comparison broke on ROW ORDER
+                // (unordered groupBy) and float ULPs (5.72 vs 5.7199...);
+                // csvJoinedEquals below applies the header/multiset/
+                // tolerant-cell policy instead
+                return new Eval(stripped2,
+                        endsInSort(innerCsv.parameters().get(0)), false,
+                        "CSVJOIN:" + to.value());
+            }
+        }
         if (spliced instanceof AppliedFunction tail
                 && (simpleName(tail.function()).equals("toCSV")
                         || simpleName(tail.function()).equals("toString"))
@@ -778,6 +803,18 @@ public final class TestBody {
     // ===== comparison (both sides share ONE wire convention — strict) =====
 
     private static boolean compare(Eval expected, Eval actual, boolean ordered) {
+        // toCSV(..)->replace('\n', SEP) actual vs a string-literal expected:
+        // header EXACT, rows as an (un)ordered multiset, CELLS via the
+        // tolerant wire comparison (numeric ULP policy included)
+        if (actual.joinSep() != null && actual.joinSep().startsWith("CSVJOIN:")
+                && actual.result()
+                        instanceof com.legend.exec.ExecutionResult.Tabular tj
+                && expected.values().size() == 1
+                && expected.values().get(0) instanceof String es) {
+            return csvJoinedEquals(es,
+                    actual.joinSep().substring("CSVJOIN:".length()), tj,
+                    ordered && actual.sortedChain());
+        }
         // TDS grids compare STRUCTURALLY: column names ordered, rows under
         // the order policy — both sides evaluated by the same pipeline
         if (expected.result() instanceof com.legend.exec.ExecutionResult.Tabular te
@@ -959,6 +996,125 @@ public final class TestBody {
     }
 
     /** toCSV wire rendering vs an expected CSV string (header pinned). */
+    /** {@code toCSV->replace('\n', sep)} against a string literal: tokens
+     * split on {@code sep}; the first nCols are the HEADER (exact); the
+     * rest group into rows of nCols compared as a multiset (ordered when
+     * the chain sorts) with wireEquals cells (numeric tolerance). */
+    private static boolean csvJoinedEquals(String expected, String sep,
+            com.legend.exec.ExecutionResult.Tabular t, boolean ordered) {
+        int n = t.columns().size();
+        if (n == 0 || sep.isEmpty()) {
+            return false;
+        }
+        List<String> tokens = new ArrayList<>(
+                List.of(expected.split(java.util.regex.Pattern.quote(sep), -1)));
+        // a trailing separator leaves one empty tail token
+        if (!tokens.isEmpty() && tokens.get(tokens.size() - 1).isEmpty()) {
+            tokens.remove(tokens.size() - 1);
+        }
+        if (tokens.size() < n || tokens.size() % n != 0) {
+            return false;
+        }
+        for (int i = 0; i < n; i++) {
+            if (!t.columns().get(i).name().equals(tokens.get(i))) {
+                return false;
+            }
+        }
+        List<List<String>> expRows = new ArrayList<>();
+        for (int i = n; i < tokens.size(); i += n) {
+            expRows.add(tokens.subList(i, i + n));
+        }
+        List<List<Object>> actRows = new ArrayList<>();
+        t.rows().forEach(r -> actRows.add(r.values()));
+        if (expRows.size() != actRows.size()) {
+            return false;
+        }
+        if (ordered) {
+            for (int i = 0; i < expRows.size(); i++) {
+                if (!csvRowEquals(expRows.get(i), actRows.get(i))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        List<List<Object>> pool = new ArrayList<>(actRows);
+        for (List<String> er : expRows) {
+            int hit = -1;
+            for (int i = 0; i < pool.size(); i++) {
+                if (csvRowEquals(er, pool.get(i))) {
+                    hit = i;
+                    break;
+                }
+            }
+            if (hit < 0) {
+                return false;
+            }
+            pool.remove(hit);
+        }
+        return true;
+    }
+
+    private static boolean csvRowEquals(List<String> expected, List<Object> actual) {
+        for (int i = 0; i < expected.size(); i++) {
+            String e = expected.get(i);
+            Object a = actual.get(i);
+            String aCell = csvCell(a);
+            if (e.equals(aCell)) {
+                continue;
+            }
+            // numeric cells: the expected CSV prints ROUNDED (the engine
+            // truncates to ~12 significant digits — 0.383333333333 vs our
+            // 0.38333333333333336) — equal iff the actual rounds to the
+            // expected at the EXPECTED's own printed precision
+            try {
+                double ev = Double.parseDouble(e);
+                double av = a instanceof Number num ? num.doubleValue()
+                        : Double.parseDouble(aCell);
+                int dp = e.contains(".")
+                        ? e.length() - e.indexOf('.') - 1 : 0;
+                // half-ulp at the expected's PRINTED precision, floored by
+                // a relative epsilon for FLOAT-ACCUMULATION order: H2 and
+                // DuckDB sum the same doubles in different orders and
+                // addition is not associative — the engine's own 12th
+                // significant digit moves (testPwaValue). The dialect-
+                // arithmetic leniency wireEquals already grants ULPs; this
+                // extends it to printed SUM goldens, nothing else.
+                double tol = Math.max(0.5 * Math.pow(10, -dp),
+                        Math.abs(ev) * 1e-11);
+                if (Math.abs(av - ev) > tol) {
+                    return false;
+                }
+            } catch (NumberFormatException nfe) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** The toCSV wire text: header line + one line per row, every line
+     * newline-terminated (the engine's Result->toCSV convention). */
+    private static String csvText(com.legend.exec.ExecutionResult.Tabular t) {
+        StringBuilder header = new StringBuilder();
+        for (var c : t.columns()) {
+            if (header.length() > 0) {
+                header.append(',');
+            }
+            header.append(c.name());
+        }
+        StringBuilder out = new StringBuilder(header).append('\n');
+        for (var r : t.rows()) {
+            StringBuilder line = new StringBuilder();
+            for (Object v : r.values()) {
+                if (line.length() > 0) {
+                    line.append(',');
+                }
+                line.append(csvCell(v));
+            }
+            out.append(line).append('\n');
+        }
+        return out.toString();
+    }
+
     private static boolean csvEquals(String expected,
             com.legend.exec.ExecutionResult.Tabular actual, boolean sorted) {
         StringBuilder header = new StringBuilder();

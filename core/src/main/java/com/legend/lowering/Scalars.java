@@ -391,6 +391,12 @@ final class Scalars {
         }
         // adjust(d, n, unit) / timeBucket(d, n, unit): the DurationUnit enum
         // literal selects DuckDB's interval-constructor function.
+        // typeAsDeclared: type-only assertion — the VALUE passes through
+        // (the mapping's declared-type coercion emits no SQL, engine parity)
+        for (String f : Pure.nativeKeysAt("meta::legend::lite::typeAsDeclared")) {
+            RULES.put(f, (n, args) -> args.get(0));
+        }
+
         for (String f : Pure.nativeKeysAt("adjust")) {
             RULES.put(f, (n, args) -> {
                 SqlExpr added = new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
