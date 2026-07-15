@@ -2493,6 +2493,19 @@ public final class MappingNormalizer {
         if (terminalTable != null) scope.putIfAbsent(terminalTable, terminalRow);
         ValueSpecification cond = RelOpTranslator.translate(fd.condition(), scope, terminalRow,
                 rowBind, p.view());
+        // The absorption theory (LEFT slot + WHERE ≡ INNER) was REFUTED by
+        // the corpus referee: an (INNER) filter through a TO-MANY chain
+        // ROW-EXPLODES the parent (testInnerJoinClassMappingFilterWith-
+        // ChainedJoins expects Firm X x4 — one per matching Person row);
+        // our slot emission keeps one row per parent. Loud until the
+        // row-exploding emission is built.
+        if (jm.joinType() != null) {
+            throw new NotImplementedException("mapping ~filter with an"
+                    + " explicit (" + jm.joinType() + ") join type"
+                    + " row-explodes through to-many chains — not built yet;"
+                    + " class=" + rcm.className() + ", mapping="
+                    + md.qualifiedName());
+        }
         return new AppliedFunction("filter", List.of(source,
                 new LambdaFunction(List.of(rowBind), List.of(cond))));
     }

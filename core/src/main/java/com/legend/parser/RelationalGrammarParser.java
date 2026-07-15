@@ -357,6 +357,14 @@ final class RelationalGrammarParser {
             firstDb = p.parseQualifiedName();
             p.expect(TokenType.BRACKET_CLOSE);
         }
+        // optional JOIN TYPE for the join-mediated form:
+        // ~filter [DB] (INNER) @Join | F (engine's FilterMapping joinType)
+        String joinType = null;
+        if (p.peek() == TokenType.PAREN_OPEN) {
+            p.advance();
+            joinType = p.parseIdentifier();
+            p.expect(TokenType.PAREN_CLOSE);
+        }
         if (p.peek() == TokenType.AT) {
             // Join-mediated form: firstDb is the source db (required by grammar)
             if (firstDb == null) {
@@ -365,7 +373,13 @@ final class RelationalGrammarParser {
             List<JoinChainElement> joins = parseJoinChain(firstDb);
             p.expect(TokenType.PIPE);
             FilterPointer target = parseFilterPointer();
-            return new FilterMapping.JoinMediated(firstDb, joins, target);
+            return new FilterMapping.JoinMediated(firstDb, joins, target,
+                    joinType);
+        }
+        if (joinType != null) {
+            throw p.error("a (" + joinType + ") filter join type requires the"
+                    + " join-mediated form: ~filter [DB] (" + joinType
+                    + ") @Join | F");
         }
         // Direct form: firstDb (possibly null) qualifies the filter name itself.
         String name = p.parseIdentifier();

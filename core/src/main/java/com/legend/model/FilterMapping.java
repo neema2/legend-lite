@@ -51,7 +51,15 @@ public sealed interface FilterMapping permits FilterMapping.Direct, FilterMappin
     record JoinMediated(
             String sourceDb,
             List<JoinChainElement> joins,
-            FilterPointer filter) implements FilterMapping {
+            FilterPointer filter,
+            String joinType) implements FilterMapping {
+
+        /** Default join type (engine: LEFT OUTER navigation semantics). */
+        public JoinMediated(String sourceDb, List<JoinChainElement> joins,
+                FilterPointer filter) {
+            this(sourceDb, joins, filter, null);
+        }
+
         public JoinMediated {
             Objects.requireNonNull(sourceDb, "Source database cannot be null for join-mediated filter");
             Objects.requireNonNull(joins, "Joins cannot be null");

@@ -1007,7 +1007,11 @@ public final class NameResolver {
                 List<JoinChainElement> joins = resolveJoinChain(jm.joins(), scope);
                 FilterPointer fp = resolveFilterPointer(jm.filter(), scope);
                 if (src.equals(jm.sourceDb()) && joins == jm.joins() && fp == jm.filter()) yield jm;
-                yield new FilterMapping.JoinMediated(src, joins, fp);
+                // joinType MUST ride the rebuild (the compat-ctor
+                // field-wipe family: this exact line silently dropped the
+                // (INNER) annotation and un-walled wrong rows)
+                yield new FilterMapping.JoinMediated(src, joins, fp,
+                        jm.joinType());
             }
         };
     }
