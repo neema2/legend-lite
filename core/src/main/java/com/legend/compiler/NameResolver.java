@@ -204,9 +204,12 @@ public final class NameResolver {
                 // drop-and-wall works on structured identities, never on
                 // message text
                 if (wallSink != null) {
-                    wallSink.put(el.qualifiedName(),
+                    // POISON-NOT-DROP: the element stays, UNRESOLVED as
+                    // parsed — downstream lazy compilation fails loudly if
+                    // anything actually uses it; mere references survive
+                    wallSink.putIfAbsent(el.qualifiedName(),
                             String.valueOf(e.getMessage()).split("\n")[0]);
-                    changed = true;   // the element is EXCLUDED
+                    resolved.add(el);
                     continue;
                 }
                 throw new com.legend.error.ModelException(

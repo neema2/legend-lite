@@ -534,16 +534,10 @@ public final class Runner {
             return new Outcome(fn.fqn(), Status.SHAPE, "no execute(|...) call");
         }
         try {
-            // MODULE path (moduleContextFor) is DARK-LAUNCHED: the
-            // equivalence sweep showed 699 vs 881 — function bodies now
-            // enter the model and integrity walls cascade through helper
-            // functions the mappings depend on (the old text path STRIPPED
-            // bodies). Flip back after the wall-cascade triage (task #54).
-            String familyExt = familyModels.getOrDefault(currentFamilyKey, "");
-            String fileExt = fileModels.getOrDefault(currentFileKey, "");
-            String modelText = model + familyExt + fileExt;
-            String fullModel = modelText + runtimeBlock(modelText, mappingRefs);
-            com.legend.compiler.element.ModelContext ctx = contextFor(fullModel);
+            // MODULE path: shared + parent + family + file RAW sources
+            // through the real parser; poison-not-drop walls (a broken
+            // element fails only what actually USES it)
+            com.legend.compiler.element.ModelContext ctx = moduleContextFor(mappingRefs);
             try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
                 try (var st = conn.createStatement()) {
                     st.execute("SET TimeZone='UTC'");
@@ -598,8 +592,13 @@ public final class Runner {
      * extraction. The synthesized Runtime is one more source unit; its
      * connections come from the module's own parsed Database elements.
      */
-    private com.legend.compiler.element.ModelContext moduleContextFor() {
-        String cacheKey = currentFamilyKey + "|" + currentFileKey;
+    private com.legend.compiler.element.ModelContext moduleContextFor(
+            List<String> mappingRefs) {
+        // the runtime's mappings list matters: NESTED getAll resolution
+        // routes through runtime->mappings when no explicit from() context
+        // reaches it — the test's own execute() mapping refs go in
+        String cacheKey = currentFamilyKey + "|" + currentFileKey + "|"
+                + String.join(",", mappingRefs);
         com.legend.Compiler.BuiltModule cached = moduleCache.get(cacheKey);
         if (cached != null) {
             return cached.context();
@@ -642,8 +641,9 @@ public final class Runner {
         parseable.add(new com.legend.Compiler.ModelSource("rcorpus-runtime.pure",
                 "RelationalDatabaseConnection rcorpus::Conn { type: DuckDB;"
                         + " specification: InMemory { }; auth: NoAuth { }; }\n"
-                        + "Runtime rcorpus::Rt { mappings: []; connections: [ "
-                        + conns + " ] }\n"));
+                        + "Runtime rcorpus::Rt { mappings: [ "
+                        + String.join(", ", mappingRefs)
+                        + " ]; connections: [ " + conns + " ] }\n"));
         com.legend.Compiler.ParsedModule module =
                 com.legend.Compiler.parseSources(parseable);
         module.duplicateElements().forEach(d ->

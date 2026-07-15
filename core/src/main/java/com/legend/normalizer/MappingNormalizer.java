@@ -183,7 +183,7 @@ public final class MappingNormalizer {
                     if (wallSink == null || e.element() == null) {
                         throw e;
                     }
-                    wallSink.put(e.element(),
+                    wallSink.putIfAbsent(e.element(),
                             String.valueOf(e.getMessage()).split("\n")[0]);
                 }
             } else if (el instanceof MappingDefinition canonical) {
@@ -197,7 +197,7 @@ public final class MappingNormalizer {
                     if (wallSink == null || e.element() == null) {
                         throw e;
                     }
-                    wallSink.put(e.element(),
+                    wallSink.putIfAbsent(e.element(),
                             String.valueOf(e.getMessage()).split("\n")[0]);
                 }
             } else {

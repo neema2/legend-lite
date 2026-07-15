@@ -181,52 +181,26 @@ public final class Compiler {
     }
 
     /**
-     * Tolerant module build: per-element resolve/normalize failures are
-     * WALLED and excluded in batched passes; downstream integrity failures
-     * (dependents of walled elements) drop one per round until fixpoint.
-     * Unattributed failures still throw — a genuine bug must fail the
-     * build, never silently wall an element away.
+     * Tolerant module build — POISON, DON'T DROP: every element stays in
+     * the model; the walls map records each broken element's FIRST failure
+     * reason (eager DIAGNOSIS over the whole module). A broken element
+     * harms nothing that merely references it — the failure fires at USE
+     * time (compiling the function on call, materializing the binding),
+     * loudly, when something actually enters the quarantine. Dropping
+     * instead cascaded: removing a walled helper failed every element
+     * referencing it, and every test touching THOSE — 182 corpus tests
+     * died in the blast radius of functions they never called.
+     * One exception: a mapping that fails to NORMALIZE has no canonical
+     * form to keep and is excluded (its absence is walled; the legacy
+     * per-family harness behaved identically). Unattributed failures
+     * still throw — a genuine bug must fail the build.
      */
     public static BuiltModule buildModule(ParsedModel parsed) {
         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
-        java.util.Set<String> dropped = new java.util.HashSet<>();
-        for (int round = 0; round < 64; round++) {
-            List<com.legend.model.PackageableElement> els = parsed.elements().stream()
-                    .filter(e -> !dropped.contains(e.qualifiedName())).toList();
-            ParsedModel m = new ParsedModel(els, parsed.imports(), parsed.source(),
-                    parsed.elementOffsets(), parsed.elementImports(),
-                    parsed.elementSources());
-            java.util.Map<String, String> roundWalls = new java.util.LinkedHashMap<>();
-            try {
-                ParsedModel resolved = NameResolver.resolve(m, roundWalls);
-                NormalizedModel normalized =
-                        ModelNormalizer.normalize(resolved, roundWalls);
-                // integrity runs TOLERANT too — dependents of walled
-                // elements batch-collect instead of one-per-round; the
-                // context from a round with ANY walls is discarded (its
-                // caches may hold half-checked elements)
-                PureModelContext ctx =
-                        PureModelContext.from(normalized, roundWalls);
-                if (roundWalls.isEmpty()) {
-                    return new BuiltModule(ctx, walls);
-                }
-            } catch (com.legend.error.ModelException e) {
-                if (e.element() == null || dropped.contains(e.element())) {
-                    throw e;
-                }
-                roundWalls.put(e.element(),
-                        String.valueOf(e.getMessage()).split("\n")[0]);
-            }
-            if (roundWalls.isEmpty()) {
-                throw new IllegalStateException(
-                        "module build made no progress (resolver bug)");
-            }
-            walls.putAll(roundWalls);
-            dropped.addAll(roundWalls.keySet());
-        }
-        throw new IllegalStateException(
-                "module build did not converge in 64 rounds; walls so far: "
-                        + walls.size());
+        ParsedModel resolved = NameResolver.resolve(parsed, walls);
+        NormalizedModel normalized = ModelNormalizer.normalize(resolved, walls);
+        PureModelContext ctx = PureModelContext.from(normalized, walls);
+        return new BuiltModule(ctx, walls);
     }
 
     /**

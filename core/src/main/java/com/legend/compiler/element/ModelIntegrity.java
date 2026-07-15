@@ -57,7 +57,9 @@ final class ModelIntegrity {
             work.run();
         } catch (com.legend.error.ModelException e) {
             if (wallSink != null) {
-                wallSink.put(e.element() != null ? e.element() : elementFqn,
+                // POISON-NOT-DROP: record the first reason and keep the
+                // element — use-time compilation re-fails loudly
+                wallSink.putIfAbsent(e.element() != null ? e.element() : elementFqn,
                         String.valueOf(e.getMessage()).split("\n")[0]);
                 return;
             }
