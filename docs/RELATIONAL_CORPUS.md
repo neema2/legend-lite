@@ -269,6 +269,8 @@ runner does not yet recognize (accounted, not skipped silently).
 
 ### top error buckets
 
+- 49x class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- 36x unknown function 'toCSV'
 - 24x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 21x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 18x a bare lambda has no type outside a call position (lambdas type against their call's signature)
@@ -287,7 +289,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - 7x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' (property 'vehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; the property is dropped from this synthesis; property 'roadVehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; the property is dropped from this synthesis)
 - 7x a scalar query has no row scope for $_r0.personTableToOrgTreeOptimizationTable_ancestor
-- 6x unknown function 'ytd'
 - 6x class meta::relational::tests::model::simple::Address has no property 'values'
 - 6x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - 6x ~name_length: mapped/aggregate column specifications need an enclosing call to type against
@@ -298,7 +299,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - 5x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - 5x unknown function 'conditionRightTable'
 - 5x in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6) (value: AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=dec])
-- 5x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 
 ### per-test outcomes (non-passing)
 
@@ -331,91 +331,91 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testRewriteProjectColMulti [aggregationAware/test/rewrite/NOP]: no execute(|...) call
 - SHAPE testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: no execute(|...) call
 - SHAPE testClassesAssociationsAndMappingFromDatabase [autogeneration/tests]: no execute(|...) call
-- ERROR testAnnualizedDateRange [calendarAggregation/tests]: unknown function 'annualized'
-- ERROR testCmeDateRange [calendarAggregation/tests]: unknown function 'cme'
-- ERROR testCwDateRange [calendarAggregation/tests]: unknown function 'cw'
-- ERROR testCw_FmDateRange [calendarAggregation/tests]: unknown function 'cw_fm'
-- ERROR testCyminus2DateRange [calendarAggregation/tests]: unknown function 'CYMinus2'
-- ERROR testCyminus3DateRange [calendarAggregation/tests]: unknown function 'CYMinus3'
-- ERROR testMtdDateRange [calendarAggregation/tests]: unknown function 'mtd'
-- ERROR testP12WaDateRange [calendarAggregation/tests]: unknown function 'p12wa'
-- ERROR testP12WtdDateRange [calendarAggregation/tests]: unknown function 'p12wtd'
-- ERROR testP4WaDateRange [calendarAggregation/tests]: unknown function 'p4wa'
-- ERROR testP4WtdDateRange [calendarAggregation/tests]: unknown function 'p4wtd'
-- ERROR testP52WtdDateRange [calendarAggregation/tests]: unknown function 'p52wtd'
-- ERROR testP52WaDateRange [calendarAggregation/tests]: unknown function 'p52wa'
-- ERROR testP12MtdDateRange [calendarAggregation/tests]: unknown function 'p12mtd'
-- ERROR testPmaDateRange [calendarAggregation/tests]: unknown function 'pma'
-- ERROR testPmtdDateRange [calendarAggregation/tests]: unknown function 'pmtd'
-- ERROR testPqtdDateRange [calendarAggregation/tests]: unknown function 'pqtd'
-- ERROR testPriordayDateRange [calendarAggregation/tests]: unknown function 'priorDay'
-- ERROR testPrioryearDateRange [calendarAggregation/tests]: unknown function 'priorYear'
-- ERROR testPwDateRange [calendarAggregation/tests]: unknown function 'pw'
-- ERROR testPw_FmDateRange [calendarAggregation/tests]: unknown function 'pw_fm'
-- ERROR testPwaDateRange [calendarAggregation/tests]: unknown function 'pwa'
-- ERROR testPwtdDateRange [calendarAggregation/tests]: unknown function 'pwtd'
-- ERROR testPymtdDateRange [calendarAggregation/tests]: unknown function 'pymtd'
-- ERROR testPyqtdDateRange [calendarAggregation/tests]: unknown function 'pyqtd'
-- ERROR testPytdDateRange [calendarAggregation/tests]: unknown function 'pytd'
+- ERROR testAnnualizedDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testCmeDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testCwDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testCw_FmDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testCyminus2DateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testCyminus3DateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testMtdDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testP12WaDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testP12WtdDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testP4WaDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testP4WtdDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testP52WtdDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testP52WaDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testP12MtdDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPmaDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPmtdDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPqtdDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPriordayDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPrioryearDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPwDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPw_FmDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPwaDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPwtdDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPymtdDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPyqtdDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPytdDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
 - SHAPE testPywaDateRange [calendarAggregation/tests]: assert form 'assertEquals/2' is not supported yet
-- ERROR testPywtdDateRange [calendarAggregation/tests]: unknown function 'pywtd'
-- ERROR testQtdDateRange [calendarAggregation/tests]: unknown function 'qtd'
-- ERROR testReportenddayDateRange [calendarAggregation/tests]: unknown function 'reportEndDay'
-- ERROR testWtdDateRange [calendarAggregation/tests]: unknown function 'wtd'
-- ERROR testYtdDateRange [calendarAggregation/tests]: unknown function 'ytd'
-- ERROR testAnnualizedValue [calendarAggregation/tests]: unknown function 'annualized'
-- ERROR testCmeValue [calendarAggregation/tests]: unknown function 'cme'
-- ERROR testCwValue [calendarAggregation/tests]: unknown function 'cw'
-- ERROR testCw_FmValue [calendarAggregation/tests]: unknown function 'cw_fm'
-- ERROR testCyminus2Value [calendarAggregation/tests]: unknown function 'CYMinus2'
-- ERROR testCyminus3Value [calendarAggregation/tests]: unknown function 'CYMinus3'
-- ERROR testMtdValue [calendarAggregation/tests]: unknown function 'mtd'
-- ERROR testP12WaValue [calendarAggregation/tests]: unknown function 'p12wa'
-- ERROR testP12WtdValue [calendarAggregation/tests]: unknown function 'p12wtd'
-- ERROR testP4WaValue [calendarAggregation/tests]: unknown function 'p4wa'
-- ERROR testP4WtdValue [calendarAggregation/tests]: unknown function 'p4wtd'
-- ERROR testP52WtdValue [calendarAggregation/tests]: unknown function 'p52wtd'
-- ERROR testP52WaValue [calendarAggregation/tests]: unknown function 'p52wa'
-- ERROR testP12MtdValue [calendarAggregation/tests]: unknown function 'p12mtd'
-- ERROR testPmaValue [calendarAggregation/tests]: unknown function 'pma'
-- ERROR testPmtdValue [calendarAggregation/tests]: unknown function 'pmtd'
-- ERROR testPqtdValue [calendarAggregation/tests]: unknown function 'pqtd'
-- ERROR testPriordayValue [calendarAggregation/tests]: unknown function 'priorDay'
-- ERROR testPrioryearValue [calendarAggregation/tests]: unknown function 'priorYear'
-- ERROR testPwValue [calendarAggregation/tests]: unknown function 'pw'
-- ERROR testPw_FmValue [calendarAggregation/tests]: unknown function 'pw_fm'
-- ERROR testPwaValue [calendarAggregation/tests]: unknown function 'pwa'
-- ERROR testPwtdValue [calendarAggregation/tests]: unknown function 'pwtd'
-- ERROR testPymtdValue [calendarAggregation/tests]: unknown function 'pymtd'
-- ERROR testPyqtdValue [calendarAggregation/tests]: unknown function 'pyqtd'
-- ERROR testPytdValue [calendarAggregation/tests]: unknown function 'pytd'
-- ERROR testPywaValue [calendarAggregation/tests]: unknown function 'pywa'
-- ERROR testPywtdValue [calendarAggregation/tests]: unknown function 'pywtd'
-- ERROR testQtdValue [calendarAggregation/tests]: unknown function 'qtd'
-- ERROR testReportenddayValue [calendarAggregation/tests]: unknown function 'reportEndDay'
-- ERROR testWtdValue [calendarAggregation/tests]: unknown function 'wtd'
-- ERROR testYtdValue [calendarAggregation/tests]: unknown function 'ytd'
-- ERROR testCwDateRangeOnSaturday [calendarAggregation/tests]: unknown function 'cw'
-- ERROR testCw_FmDateRangeOnSaturday [calendarAggregation/tests]: unknown function 'cw_fm'
-- ERROR testPwDateRangeOnSaturday [calendarAggregation/tests]: unknown function 'pw'
-- ERROR testPw_FmDateRangeOnSaturday [calendarAggregation/tests]: unknown function 'pw_fm'
-- ERROR testCwDateRangeOnSunday [calendarAggregation/tests]: unknown function 'cw'
-- ERROR testCw_FmDateRangeOnSunday [calendarAggregation/tests]: unknown function 'cw_fm'
-- ERROR testPriordayDateRangeOnSunday [calendarAggregation/tests]: unknown function 'priorDay'
-- ERROR testPwDateRangeOnSunday [calendarAggregation/tests]: unknown function 'pw'
-- ERROR testPw_FmDateRangeOnSunday [calendarAggregation/tests]: unknown function 'pw_fm'
-- ERROR testPmaDateRangeOnStartYear [calendarAggregation/tests]: unknown function 'pma'
-- ERROR testPmtdDateRangeOnStartYear [calendarAggregation/tests]: unknown function 'pmtd'
-- ERROR testPqtdDateRangeOnStartYear [calendarAggregation/tests]: unknown function 'pqtd'
-- ERROR testPwaDateRangeOnStartYear [calendarAggregation/tests]: unknown function 'pwa'
-- ERROR testPywaDateRangeOnStartYear [calendarAggregation/tests]: unknown function 'pywa'
-- ERROR testPmaValueOnStartYear [calendarAggregation/tests]: unknown function 'pma'
-- ERROR testPwaValueOnStartYear [calendarAggregation/tests]: unknown function 'pwa'
-- ERROR testPywaValueOnStartYear [calendarAggregation/tests]: unknown function 'pywa'
-- ERROR testFilterBeforeCalendar [calendarAggregation/tests]: unknown function 'ytd'
-- ERROR testGroupbyAfterCalendar [calendarAggregation/tests]: unknown function 'ytd'
-- ERROR testJoinAfterCalendar [calendarAggregation/tests]: unknown function 'ytd'
-- ERROR testNestedAttributeCalendar [calendarAggregation/tests]: unknown function 'ytd'
+- ERROR testPywtdDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testQtdDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testReportenddayDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testWtdDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testYtdDateRange [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testAnnualizedValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testCmeValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testCwValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testCw_FmValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testCyminus2Value [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testCyminus3Value [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testMtdValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testP12WaValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testP12WtdValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testP4WaValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testP4WtdValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testP52WtdValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testP52WaValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testP12MtdValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testPmaValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testPmtdValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testPqtdValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testPriordayValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testPrioryearValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testPwValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testPw_FmValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testPwaValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testPwtdValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testPymtdValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testPyqtdValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testPytdValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testPywaValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testPywtdValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testQtdValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testReportenddayValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testWtdValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testYtdValue [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testCwDateRangeOnSaturday [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testCw_FmDateRangeOnSaturday [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPwDateRangeOnSaturday [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPw_FmDateRangeOnSaturday [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testCwDateRangeOnSunday [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testCw_FmDateRangeOnSunday [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPriordayDateRangeOnSunday [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPwDateRangeOnSunday [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPw_FmDateRangeOnSunday [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPmaDateRangeOnStartYear [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPmtdDateRangeOnStartYear [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPqtdDateRangeOnStartYear [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPwaDateRangeOnStartYear [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPywaDateRangeOnStartYear [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testPmaValueOnStartYear [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testPwaValueOnStartYear [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testPywaValueOnStartYear [calendarAggregation/tests]: unknown function 'toCSV'
+- ERROR testFilterBeforeCalendar [calendarAggregation/tests]: class query under TypedCollection is not resolvable yet (H2 vocabulary)
+- ERROR testGroupbyAfterCalendar [calendarAggregation/tests]: no overload of 'meta::pure::tds::groupBy' matches the argument types
+- ERROR testJoinAfterCalendar [calendarAggregation/tests]: the column 'id' already exists in the relation (id:Integer[1], ytd:Number[1])
+- ERROR testNestedAttributeCalendar [calendarAggregation/tests]: unknown function 'toCSV'
 - SHAPE testDifferentCalendar [calendarAggregation/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDifferentEndDates [calendarAggregation/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testSubclassDate [calendarAggregation/tests]: no overload of 'groupBy' matches the argument types

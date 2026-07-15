@@ -550,7 +550,15 @@ public final class Lowerer {
         return foldOrIsolate(base, "groupBy", b -> buildGroupBy(b, g));
     }
 
-    private SqlSelect buildGroupBy(SqlSelect base, TypedGroupBy g) {
+    private SqlSelect buildGroupBy(SqlSelect base0, TypedGroupBy g) {
+        // CALENDAR AGGREGATIONS (task G1): calendar natives in agg maps
+        // LEFT-join the fiscal calendar table (twice per distinct
+        // date/end/type) before the aggs lower over it
+        java.util.Map<TypedAggCol, CalendarAgg.Ctx> calCtx =
+                new java.util.IdentityHashMap<>();
+        SqlSelect base = CalendarAgg.joinCalendars(base0, g.aggs(), calCtx,
+                spec -> scalar(spec, (v, name) -> resolveOrThrow(base0, name)),
+                () -> aliasCounter++);
         List<SqlExpr> keys = new ArrayList<>(g.keys().size());
         List<SqlSelect.Projection> ps = new ArrayList<>();
         for (TypedGroupBy.GroupKey k : g.keys()) {
@@ -562,7 +570,8 @@ public final class Lowerer {
                     e instanceof SqlExpr.Column c && c.name().equals(k.column()) ? null : k.column()));
         }
         for (TypedAggCol a : g.aggs()) {
-            ps.add(new SqlSelect.Projection(aggValue(base, a), a.name()));
+            ps.add(new SqlSelect.Projection(
+                    aggValue(base, a, calCtx.get(a)), a.name()));
         }
         return base.withGroupBy(keys).withProjections(ps, outputsOf(g.info()));
     }
@@ -710,6 +719,11 @@ public final class Lowerer {
     }
 
     private SqlExpr aggValue(SqlSelect base, TypedAggCol a) {
+        return aggValue(base, a, null);
+    }
+
+    private SqlExpr aggValue(SqlSelect base, TypedAggCol a,
+            CalendarAgg.Ctx calendar) {
         TypedSpec reduceBody = last(a.reduce());
         // A cast WRAPPING the reducer (y|$y->plus()->cast(@Integer)) rides
         // AROUND the SQL aggregate: unwrap, lower the inner reducer, re-wrap
@@ -822,6 +836,17 @@ public final class Lowerer {
         }
         if (mapBody instanceof TypedVariable && extra.isEmpty()) {
             return new SqlAgg.Reducer(fn, List.of(), false);
+        }
+        // CALENDAR native in map position: the value is the CASE over the
+        // pre-joined calendar aliases; the fn's VALUE argument aggregates
+        if (calendar != null
+                && CalendarAgg.calendarCallOf(mapBody)
+                        instanceof TypedNativeCall calCall) {
+            SqlExpr calVal = scalar(calCall.args().get(3),
+                    (v, name) -> resolveOrThrow(base, name));
+            return new SqlAgg.Reducer(fn,
+                    List.of(CalendarAgg.caseValue(calCall, calendar, calVal)),
+                    false);
         }
         SqlExpr value = scalar(mapBody, (v, name) -> resolveOrThrow(base, name));
         if (valueCast != null) {

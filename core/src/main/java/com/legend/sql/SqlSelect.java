@@ -51,6 +51,11 @@ public record SqlSelect(List<Projection> projections, boolean distinct, SqlSourc
 
     // ----- clause copiers: the fold policy's fingers -----
 
+    public SqlSelect withFrom(SqlSource f) {
+        return new SqlSelect(projections, distinct, f, where, groupBy, having,
+                qualify, orderBy, limit, offset, outputs);
+    }
+
     public SqlSelect withProjections(List<Projection> p, List<OutputCol> out) {
         return new SqlSelect(p, distinct, from, where, groupBy, having, qualify, orderBy, limit, offset, out);
     }
