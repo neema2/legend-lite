@@ -2421,7 +2421,6 @@ public final class StoreResolver {
      * and strategy flow to SAME-STRATEGY targets navigated through temporal
      * parents (engine: milestoning context does NOT propagate through
      * non-temporal intermediates). Set at each getAll resolution entry. */
-    private java.util.Map<String, TemporalFrame.TemporalSpec> temporalByHead = java.util.Map.of();
 
 
 
@@ -2538,14 +2537,7 @@ public final class StoreResolver {
             collectParamPathHeads(ch, param, out);
         }
     }
-
-
-
-
-
-
-
-
+    
     /** Whether the pipeline contains a UNION (concatenate) anywhere. */
     static boolean containsConcatenate(TypedSpec pipeline) {
         if (pipeline instanceof com.legend.compiler.spec.typed.TypedConcatenate) {
@@ -2571,10 +2563,6 @@ public final class StoreResolver {
         }
         return false;
     }
-
-
-
-
 
     /** Column names a join condition reads off its SOURCE param (param 0). */
     private static void collectParamColumnReads(TypedLambda cond, Set<String> out) {
@@ -2631,10 +2619,6 @@ public final class StoreResolver {
                         temporal.headTemporalDates()),
                 filterPosition, false));
     }
-
-
-
-
 
     /** Any registered equal overload — membership-crossing emission. */
     private com.legend.compiler.element.TypedFunction equalCallee() {
