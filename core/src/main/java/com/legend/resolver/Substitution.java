@@ -369,34 +369,11 @@ final class Substitution {
         return out;
     }
 
-    private TypedSpec rewrite(TypedSpec n) {
-        // AGGREGATE over a to-many navigation (identity-registered by the
-        // demand scan): the whole call reads its grouped-subselect column —
-        // same ExprType as the node it replaces (discipline, plan risk #1).
-        AggRead aggRead = target.aggReads().get(n);
-        if (aggRead != null) {
-            TypedSpec read = new TypedPropertyAccess(
-                    new TypedVariable(target.freshRowVar(),
-                            new ExprType(target.rowType(), Multiplicity.Bounded.ONE)),
-                    aggRead.column(), n.info());
-            if (!aggRead.zeroWhenEmpty()) {
-                return read;
-            }
-            return new TypedIf(
-                    new TypedNativeCall(target.isNotEmptyCallee(), List.of(read),
-                            new ExprType(Type.Primitive.BOOLEAN,
-                                    Multiplicity.Bounded.ONE)),
-                    read,
-                    java.util.Optional.of(new com.legend.compiler.spec.typed
-                            .TypedCInteger(0L, new ExprType(Type.Primitive.INTEGER,
-                                    Multiplicity.Bounded.ONE))),
-                    n.info());
-        }
-        // TO-MANY navigation under an emptiness call: correlated EXISTS —
-        // the target pipeline filtered by the association condition (parent
-        // reads become the FREE outer row var, resolved through the
-        // lowerer's enclosing-scope channel), the user predicate substituted
-        // over the target's bindings. §133's single form.
+    /** The CALL-position arms (emptiness/exists family, membership
+     * contains/in, negation isolation) — null when none matches and
+     * the walk continues (their original fall-through). Order within
+     * is load-bearing. */
+    private TypedSpec rewriteCallArms(TypedSpec n) {
         if (n instanceof TypedNativeCall call && !call.args().isEmpty()) {
             java.util.List<String> headPath = pathOf(call.args().get(0), target.userVar());
             // exists over an EMBEDDED (same-row) head whose predicate reads
@@ -517,11 +494,13 @@ final class Substitution {
                                 Multiplicity.Bounded.ONE));
             }
         }
-        java.util.List<String> path = pathOf(n, target.userVar());
-        if (path != null && path.size() == 2) {
-            return rewritePath(path.get(0), path.get(1), n);
-        }
-        if (path != null && path.size() > 2) {
+        return null;
+    }
+
+    /** A MULTI-HOP path read (size > 2): milestone structs, the
+     * hop-agnostic SubNav walk, chained association leaves, embedded
+     * ctor drills — always resolves or throws loud. */
+    private TypedSpec rewriteMultiHop(java.util.List<String> path, TypedSpec n) {
             // EMBEDDED milestone struct: the embedded instance SHARES the
             // owner's row — $p.embedded.milestoning.from reads the OWNER
             // table's milestone column
@@ -633,8 +612,12 @@ final class Substitution {
             throw new NotImplementedException("multi-hop navigation "
                     + String.join(".", path) + " through an embedded/slot head"
                     + " is not supported yet");
-        }
-        String prop = propertyOnUserVar(n, target.userVar());
+    }
+
+    /** A 1-HOP head read: bindings, generated temporal dates, honest
+     * bare-head errors — resolves, throws loud, or (no match) NULL to
+     * continue the walk. */
+    private TypedSpec rewriteHeadProp(String prop, TypedSpec n) {
         if (prop != null) {
             TypedSpec binding = target.bindings().get(prop);
             if (binding != null) {
@@ -693,6 +676,55 @@ final class Substitution {
                         target.classFqn());
             }
             return renameRowVar(binding);
+        }
+        return null;
+    }
+
+    private TypedSpec rewrite(TypedSpec n) {
+        // AGGREGATE over a to-many navigation (identity-registered by the
+        // demand scan): the whole call reads its grouped-subselect column —
+        // same ExprType as the node it replaces (discipline, plan risk #1).
+        AggRead aggRead = target.aggReads().get(n);
+        if (aggRead != null) {
+            TypedSpec read = new TypedPropertyAccess(
+                    new TypedVariable(target.freshRowVar(),
+                            new ExprType(target.rowType(), Multiplicity.Bounded.ONE)),
+                    aggRead.column(), n.info());
+            if (!aggRead.zeroWhenEmpty()) {
+                return read;
+            }
+            return new TypedIf(
+                    new TypedNativeCall(target.isNotEmptyCallee(), List.of(read),
+                            new ExprType(Type.Primitive.BOOLEAN,
+                                    Multiplicity.Bounded.ONE)),
+                    read,
+                    java.util.Optional.of(new com.legend.compiler.spec.typed
+                            .TypedCInteger(0L, new ExprType(Type.Primitive.INTEGER,
+                                    Multiplicity.Bounded.ONE))),
+                    n.info());
+        }
+        // TO-MANY navigation under an emptiness call: correlated EXISTS —
+        // the target pipeline filtered by the association condition (parent
+        // reads become the FREE outer row var, resolved through the
+        // lowerer's enclosing-scope channel), the user predicate substituted
+        // over the target's bindings. §133's single form.
+        TypedSpec callArm = rewriteCallArms(n);
+        if (callArm != null) {
+            return callArm;
+        }
+        java.util.List<String> path = pathOf(n, target.userVar());
+        if (path != null && path.size() == 2) {
+            return rewritePath(path.get(0), path.get(1), n);
+        }
+        if (path != null && path.size() > 2) {
+            return rewriteMultiHop(path, n);
+        }
+        String prop = propertyOnUserVar(n, target.userVar());
+        if (prop != null) {
+            TypedSpec headArm = rewriteHeadProp(prop, n);
+            if (headArm != null) {
+                return headArm;
+            }
         }
         return switch (n) {
             case TypedPropertyAccess pa when filteredNavLeafRead(pa) != null ->

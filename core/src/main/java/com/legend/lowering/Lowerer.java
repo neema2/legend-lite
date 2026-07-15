@@ -1928,6 +1928,15 @@ public final class Lowerer {
                 // The MODEL declares the field; an unset optional is NULL.
                 yield v == null ? new SqlExpr.NullLit() : scalar(v, columns);
             }
+            default -> scalarStructural(spec, columns);
+        };
+    }
+
+    /** Scalar lowering, arm group (sequential order preserved:
+     * guarded patterns depend on it) — the 523-line dispatch split
+     * at arm boundaries; each group defaults to the next. */
+    private SqlExpr scalarStructural(TypedSpec spec, ColumnResolver columns) {
+        return switch (spec) {
             // Field access over a TO-MANY class value (filter(...).legalName)
             // MAPS the extraction; a to-one source extracts directly.
             // List.values over the bare-list carrier is the IDENTITY.
@@ -2094,6 +2103,15 @@ public final class Lowerer {
             // was an audit finding.
             case com.legend.compiler.spec.typed.TypedEnumValue e -> new SqlExpr.StringLit(e.value());
 
+            default -> scalarRelationalArms(spec, columns);
+        };
+    }
+
+    /** Scalar lowering, arm group (sequential order preserved:
+     * guarded patterns depend on it) — the 523-line dispatch split
+     * at arm boundaries; each group defaults to the next. */
+    private SqlExpr scalarRelationalArms(TypedSpec spec, ColumnResolver columns) {
+        return switch (spec) {
             // Real pure equality is TYPE-aware: an enum value equals nothing
             // of a different enum or a non-string kind — a static FALSE
             // (never name-coincidence 'X'=='X' across enums, never a DB

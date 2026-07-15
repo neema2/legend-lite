@@ -37,8 +37,6 @@ class CodeShapeGuardrailTest {
     /** Known oversized METHODS, pending their planned splits — ceilings
      * at measured size + small slack; SHRINK only. */
     private static final Map<String, Integer> METHOD_ALLOWLIST = Map.of(
-            "Lowerer.scalar", 560,                    // 523: per-family split planned
-            "Substitution.rewrite", 400,              // 381: arm-order load-bearing; split by family
             "RelOpTranslator.translate", 320,         // 300: relational-op dispatch
             "MappingNormalizer.collectNavLifts", 280, // 264: union lift; splits with the Doors
             "StoreResolver.resolveObject", 270);      // 259: phase extraction continues
