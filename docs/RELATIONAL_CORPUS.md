@@ -116,9 +116,9 @@ runner does not yet recognize (accounted, not skipped silently).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 0 | 0 | 87 | 5 |
 | executionPlan/tests | 109 | 0 | 0 | 8 | 101 |
-| functions/tests | 241 | 88 | 3 | 108 | 42 |
+| functions/tests | 241 | 91 | 4 | 109 | 37 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
-| functions/tests/projection | 154 | 64 | 5 | 56 | 29 |
+| functions/tests/projection | 154 | 64 | 5 | 58 | 27 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 5 | 0 | 0 | 0 | 5 |
 | graphFetch/tests/union | 1 | 0 | 0 | 0 | 1 |
@@ -138,18 +138,18 @@ runner does not yet recognize (accounted, not skipped silently).
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 265 | 104 | 1 | 102 | 58 |
+| tds/tests | 265 | 106 | 1 | 102 | 56 |
 | testDataGeneration/tests | 40 | 0 | 0 | 0 | 40 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 67 | 8 | 0 | 37 | 22 |
 | tests/datatype | 5 | 0 | 0 | 5 | 0 |
 | tests/injection | 3 | 0 | 0 | 3 | 0 |
-| tests/mapping | 10 | 1 | 2 | 6 | 1 |
-| tests/mapping/association | 23 | 7 | 0 | 15 | 1 |
+| tests/mapping | 10 | 1 | 2 | 7 | 0 |
+| tests/mapping/association | 23 | 7 | 0 | 16 | 0 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 32 | 0 |
 | tests/mapping/distinct | 18 | 14 | 0 | 4 | 0 |
 | tests/mapping/dynaJoin | 5 | 3 | 1 | 1 | 0 |
-| tests/mapping/embedded | 63 | 43 | 2 | 8 | 10 |
+| tests/mapping/embedded | 63 | 44 | 2 | 8 | 9 |
 | tests/mapping/enumeration | 26 | 9 | 4 | 10 | 3 |
 | tests/mapping/filter | 9 | 4 | 0 | 5 | 0 |
 | tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
@@ -157,7 +157,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/inheritance | 47 | 10 | 0 | 37 | 0 |
 | tests/mapping/join | 28 | 15 | 2 | 11 | 0 |
 | tests/mapping/merge | 1 | 0 | 0 | 0 | 1 |
-| tests/mapping/modelJoin | 47 | 0 | 0 | 0 | 47 |
+| tests/mapping/modelJoin | 47 | 1 | 0 | 46 | 0 |
 | tests/mapping/multigrain | 5 | 0 | 0 | 5 | 0 |
 | tests/mapping/propertyfunc | 6 | 0 | 0 | 6 | 0 |
 | tests/mapping/relation | 93 | 42 | 1 | 7 | 43 |
@@ -165,14 +165,14 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/selfJoin | 3 | 0 | 0 | 3 | 0 |
 | tests/mapping/sqlFunction | 72 | 57 | 0 | 3 | 12 |
 | tests/mapping/tree | 12 | 0 | 0 | 12 | 0 |
-| tests/mapping/union | 124 | 52 | 1 | 51 | 20 |
+| tests/mapping/union | 124 | 53 | 1 | 52 | 18 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 2 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
-| tests/query | 83 | 55 | 2 | 19 | 7 |
+| tests/query | 83 | 56 | 2 | 21 | 4 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **735** | 24 | 692 | 841 |
+| **total** | 2292 | **744** | 25 | 746 | 777 |
 
 ### mapping walls (dropped at assembly)
 
@@ -286,26 +286,28 @@ runner does not yet recognize (accounted, not skipped silently).
 ### top error buckets
 
 - 41x unknown class 'TDSNull' in ^TDSNull(…)
+- 37x Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
 - 21x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 20x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 18x a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - 14x a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
-- 12x navigation through class-typed slot property 'address' is not supported yet
-- 11x expected at most one value, got many ([*])
+- 13x navigation through class-typed slot property 'address' is not supported yet
+- 12x expected at most one value, got many ([*])
 - 11x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
+- 11x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[function=if, parameters=[AppliedFunction[function=equal, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=active], CString[value=Y]]], LambdaFunction[parameters=[], body=[CString[value=true]]], LambdaFunction[parameters=[], body=[CString[value=false]]]]]]])
+- 10x class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::relational::tests::simpleRelationalMapping)
 - 10x class query under TypedMap is not resolvable yet (H2 vocabulary)
-- 10x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[function=if, parameters=[AppliedFunction[function=equal, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=active], CString[value=Y]]], LambdaFunction[parameters=[], body=[CString[value=true]]], LambdaFunction[parameters=[], body=[CString[value=false]]]]]]])
-- 9x class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::relational::tests::simpleRelationalMapping)
 - 9x lowering not yet implemented for TypedNativeCall
 - 8x [3247:0] unsupported top-level keyword: PAREN_CLOSE (')')
 - 8x relation has no column 'aID'
+- 8x Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "orderTable" does not have a column with name "PRODUCTID" |  | Did you mean: "prodid"
+- 7x object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - 7x [2547:78] expected GREATER_THAN but found PIPE ('|')
 - 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - 7x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' (property 'vehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; the property is dropped from this synthesis; property 'roadVehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; the property is dropped from this synthesis)
 - 7x a scalar query has no row scope for $_r0.personTableToOrgTreeOptimizationTable_ancestor
 - 6x unknown function 'ytd'
 - 6x class meta::relational::tests::model::simple::Address has no property 'values'
-- 6x object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - 6x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - 6x ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - 6x unknown function 'columnValues'
@@ -313,8 +315,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - 5x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 5x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - 5x unknown function 'conditionRightTable'
-- 5x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
-- 4x unknown function 'cw'
 
 ### per-test outcomes (non-passing)
 
@@ -566,15 +566,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testConcatenateWithPostFilteredGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testConcatenateWithPreFilteredGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testComplexOrExistsToManyProperty [functions/tests]: unsupported statement: map
-- SHAPE testDupsFilterProject [functions/tests]: unsupported statement: println
-- SHAPE testDupsFilterNoProjection [functions/tests]: unsupported statement: println
+- FAIL testDupsFilterProject [functions/tests]: assertEquals: expected Firm X, got [Firm X, Yes]
 - ERROR testExistsWithEmbedded [functions/tests]: 'testMappingEmbeddedWithFirmDistinct' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - SHAPE testExistsWithEmbeddedWithPostProcessor [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testWithFilterGroupBy [functions/tests]: unsupported statement: map
 - SHAPE testWithFilterGroupByNestedAssociation [functions/tests]: unsupported statement: map
-- SHAPE testWithProjectGroupByRemoveDups [functions/tests]: unsupported statement: println
-- SHAPE testWithProjectGroupByRemoveDupsTwo [functions/tests]: unsupported statement: println
-- SHAPE testNestedExistsOne [functions/tests]: unsupported statement: println
+- ERROR testNestedExistsOne [functions/tests]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
 - ERROR testNestedNotExists [functions/tests]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
 - ERROR testIsNotEmpty [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: subqueries in lambda expressions are not supported
 - ERROR testAssociationOneLevelDeep [functions/tests]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: subqueries in lambda expressions are not supported
@@ -681,9 +678,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testGroupByEmptyColsTerminalOperation [functions/tests]: no overload of 'groupBy' matches the argument types
 - ERROR testGroupByEmptyColsNonTerminalOperation [functions/tests]: no overload of 'groupBy' matches the argument types
 - SHAPE testGroupByWithWavgAggregation [functions/tests]: no execute(|...) call
-- SHAPE testPaginated [functions/tests]: unsupported statement: runGraphFetchTest
+- SHAPE testPaginated [functions/tests]: unsupported statement: serialize
 - SHAPE testPaginatedByVendor [functions/tests]: no execute(|...) call
-- SHAPE testPaginatedWithVariables [functions/tests]: unsupported statement: runTest
+- SHAPE testPaginatedWithVariables [functions/tests]: harness wrapper 'runTest' carries no zero-arg lambda body
 - SHAPE testSliceByVendor [functions/tests]: no execute(|...) call
 - SHAPE testLimitByVendor [functions/tests]: no execute(|...) call
 - SHAPE testTakeByVendor [functions/tests]: no execute(|...) call
@@ -691,10 +688,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testFilterLimitInSequence [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLimitFilterInSequenceForTableAccessor [functions/tests]: no execute(|...) call
 - SHAPE testFilterLimitInSequenceForTableAccessor [functions/tests]: no execute(|...) call
-- SHAPE testSliceWithVariables [functions/tests]: unsupported statement: runLegendTest
-- SHAPE testDropWithVariables [functions/tests]: unsupported statement: runLegendTest
-- SHAPE testTakeWithVariables [functions/tests]: unsupported statement: runLegendTest
-- SHAPE testLimitWithVariables [functions/tests]: unsupported statement: runLegendTest
+- SHAPE testSliceWithVariables [functions/tests]: harness wrapper 'runLegendTest' carries no zero-arg lambda body
+- SHAPE testDropWithVariables [functions/tests]: harness wrapper 'runLegendTest' carries no zero-arg lambda body
+- SHAPE testTakeWithVariables [functions/tests]: harness wrapper 'runLegendTest' carries no zero-arg lambda body
+- SHAPE testLimitWithVariables [functions/tests]: harness wrapper 'runLegendTest' carries no zero-arg lambda body
 - ERROR testSortByLambdaColumnAddition [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testSortByLambdaWithIfElseValue [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testSortByLambdaWIthIfElseColumn [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
@@ -705,7 +702,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testDeepSubAggregation [functions/tests/projection]: aggregate 'meta::pure::functions::collection::count' over the multi-hop to-many navigation employees.address.name is not supported yet
 - ERROR testSubAggregationWithIf [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - ERROR testSubAggregationWithJoinStringsOrderBy [functions/tests/projection]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
-- SHAPE testSubAggregationWithDeepAndOverlap [functions/tests/projection]: unsupported statement: println
+- ERROR testSubAggregationWithDeepAndOverlap [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications
 - ERROR testSubAggregationWithDeep [functions/tests/projection]: aggregate 'meta::pure::functions::collection::count' over the multi-hop to-many navigation employees.locations.place is not supported yet
 - FAIL testDateAggregationWithMax [functions/tests/projection]: assertSize: expected 3, got 7
@@ -763,7 +760,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testVariableReferenceWithNestedFilterMultiple [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testInWithOneValue [functions/tests/projection]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary)
 - SHAPE H2Test [functions/tests/projection]: no execute(|...) call
-- SHAPE testInWithDynaFunction [functions/tests/projection]: unsupported statement: println
+- ERROR testInWithDynaFunction [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
 - ERROR testQualifierWithInThroughJoin [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::rel
 - ERROR testSimpleBoolean [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::rel
 - ERROR testSimpleDerivedThroughAssociation [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
@@ -1164,14 +1161,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testTableToTDSWithQuotesGroupBy [tds/tests]: no execute(|...) call
 - SHAPE testJoinByColAfterQueryWithConcatenate [tds/tests]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
 - SHAPE testJoinByColAfterQueryWithConcatenateToQueryWithConcatenate [tds/tests]: unsupported statement: meta::relational::functions::asserts::assertSameSQL
-- SHAPE testSimpleJoin [tds/tests]: unsupported statement: meta::alloy::test::mayExecuteAlloyTest
-- SHAPE testSimpleJoinColumns [tds/tests]: unsupported statement: meta::alloy::test::mayExecuteAlloyTest
+- SHAPE testSimpleJoin [tds/tests]: no verifying assertions
+- SHAPE testSimpleJoinColumns [tds/tests]: no verifying assertions
 - ERROR testTwoJoinsWithinConcatenate [tds/tests]: no overload of 'meta::pure::tds::project' matches 2 argument(s) of these shapes
 - ERROR testJoinWithExtendWithDigestOnColumnsOnBothQueries [tds/tests]: no overload of 'meta::pure::tds::project' matches 2 argument(s) of these shapes
 - ERROR testProjectFunctionOnStringColumn [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
-- SHAPE testDateLiteral [tds/tests]: unsupported statement: println
 - ERROR testProjectEnumFromOpenVariable [tds/tests]: unknown function 'extractEnumValue'
-- SHAPE testProjectWithAdjustFunction [tds/tests]: unsupported statement: println
 - ERROR testFilterAfterLimit2 [tds/tests]: [18:0] unsupported expression token: BRACE_CLOSE ('}')
 - ERROR testOptionalLimit_NoValue [tds/tests]: no overload of 'meta::pure::functions::relation::limit' structurally matches the argument types
 - ERROR testOptionalLimit_WithValue [tds/tests]: dynamic slicing bounds are not lowered yet (literal expected), got TypedNativeCall
@@ -1376,7 +1371,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testProject [tests/mapping]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
 - ERROR testGet [tests/mapping]: scalar lowering not yet implemented for TypedFilter
 - ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall
-- SHAPE testGet [tests/mapping]: unsupported statement: println
+- ERROR testGet [tests/mapping]: scalar lowering not yet implemented for TypedFilter
 - FAIL testQuery [tests/mapping]: assertSize: expected 1, got 2
 - ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall
 - FAIL retrieveDateWithTimeZone [tests/mapping]: assertEquals: expected 2016-02-05 21:00:00.123456, got 2016-02-05 21:00:00.123456789
@@ -1387,7 +1382,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testPersonToFirmLocationsInlineEmbedded [tests/mapping/association]: 'associationMappingInlinedEmbedded' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testProjectTwoLambdas [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - ERROR testGroupBy [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
-- SHAPE testBuilderRoutingOfAggFunctionParameters [tests/mapping/association]: unsupported statement: println
+- ERROR testBuilderRoutingOfAggFunctionParameters [tests/mapping/association]: expected at most one value, got many ([*])
 - ERROR testQuery [tests/mapping/association]: runtime 'rcorpus::Rt' has 0 mappings binding class 'meta::relational::tests::model::inheritance::Person' (of 1 candidates); class-query dispatch needs exactly one; 'meta::relational::tests::mapping::association::inheritence::childMapping' failed to normalize this class: Join 'PersonCar' not found in
 - ERROR testFilterProject [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - ERROR testFilterProjectBooleanInFilter [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
@@ -1452,7 +1447,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testMilestonedExtendsEmbeddedGraphFetch [tests/mapping/embedded]: assert form 'assertJsonStringsEqual/2' is not supported yet
 - SHAPE testMilestonedInlineGraphFetchWithEnumProperty [tests/mapping/embedded]: assert form 'assertJsonStringsEqual/2' is not supported yet
 - ERROR testSubType [tests/mapping/embedded]: class-typed property '$p.issuer' used as a whole value is graph output (Phase H4)
-- SHAPE testGroupByComplexAgg [tests/mapping/embedded]: unsupported statement: println
 - FAIL testQualifierProperty [tests/mapping/embedded]: assertEquals: expected name,c2,c3\nBond 1,issuer1,holder1\n, got []
 - SHAPE testEnumTheSame [tests/mapping/enumeration]: no execute(|...) call
 - ERROR testMapping [tests/mapping/enumeration]: runtime 'rcorpus::Rt' has 2 mappings binding class 'meta::relational::tests::mapping::enumeration::model::domain::Employee' (of 2 candidates); class-query dispatch needs exactly one
@@ -1538,53 +1532,52 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testChainedInnerJoinsWithQualifierInGroupBy [tests/mapping/join]: no overload of 'groupBy' matches the argument types
 - FAIL testSameTableNameDifferentSchema1 [tests/mapping/join]: assertEquals: expected [Peter B, John B, John B, Anthony B, Oliver B, null, null], got [Peter B, John B, John B, Anthony B, Oliver B]
 - SHAPE testDynafunctionMerge [tests/mapping/merge]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testNestedPropertyChain [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testDoubleNestedBothSides [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testChainedTwoHops [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testDirectPropertyAccess [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testNestedInFilter [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testRelationalNestedPropertyChain [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testRelationalDoubleNestedBothSides [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testRelationalNestedInFilter [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testFilterOnTarget [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testFilterOnTargetNestedCondition [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testDistinctOnTarget [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testFilterOnTargetReverse [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testFilterWithInnerJoinOnTarget [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testComplexRelationFunction [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testMixedMappingFirmToEmployee [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testMixedMappingEmployeeToFirm [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testInCondition [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testColumnCollisionInSubselect [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testNestedModelJoinCompoundInnerCondition [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testSubFilter [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testSubAggregation [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testQualifiedPropertyInQuery [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testSubAggregationRelational [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testMilestonedContract [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testMilestoningTargetOnly [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testMilestoningSourceOnly [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testMilestoningSameScheme [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testMilestoningDiffScheme [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testRelationalMilestoningTargetOnly [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testRelationalMilestoningSourceOnly [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testRelationalMilestoningSameScheme [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testRelationalMilestoningDiffScheme [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testSimpleEquality [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testMultipleAndConditions [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testOrConditions [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testFunctionInCondition [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testConcatCondition [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testArithmeticCondition [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testDerivedPropertyInCondition [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testInCondition [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testRelationalSimpleEquality [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testRelationalUnionSource [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testRelationalUnionBothSides [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testUnionWithExistsFilter [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testRelationalUnionSubAggregation [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testUnionWithExistsFilter [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
-- SHAPE testUnionWithSubtypeQuery [tests/mapping/modelJoin]: unsupported statement: meta::relational::tests::mapping::modelJoin::setupTestData
+- ERROR testNestedPropertyChain [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testDoubleNestedBothSides [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testChainedTwoHops [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testDirectPropertyAccess [tests/mapping/modelJoin]: 'NestedPropertyChainMapping' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testNestedInFilter [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testRelationalNestedPropertyChain [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testRelationalDoubleNestedBothSides [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testRelationalNestedInFilter [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testFilterOnTarget [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testFilterOnTargetNestedCondition [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testDistinctOnTarget [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testFilterOnTargetReverse [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testFilterWithInnerJoinOnTarget [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testComplexRelationFunction [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testMixedMappingFirmToEmployee [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testMixedMappingEmployeeToFirm [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testInCondition [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testColumnCollisionInSubselect [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testNestedModelJoinCompoundInnerCondition [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testSubFilter [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testSubAggregation [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testQualifiedPropertyInQuery [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testSubAggregationRelational [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testMilestoningTargetOnly [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "orderTable" does not have a column with name "PRODUCTID" |  | Did you mean: "prodid"
+- ERROR testMilestoningSourceOnly [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "orderTable" does not have a column with name "PRODUCTID" |  | Did you mean: "prodid"
+- ERROR testMilestoningSameScheme [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "orderTable" does not have a column with name "PRODUCTID" |  | Did you mean: "prodid"
+- ERROR testMilestoningDiffScheme [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "orderTable" does not have a column with name "PRODUCTID" |  | Did you mean: "prodid"
+- ERROR testRelationalMilestoningTargetOnly [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "orderTable" does not have a column with name "PRODUCTID" |  | Did you mean: "prodid"
+- ERROR testRelationalMilestoningSourceOnly [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "orderTable" does not have a column with name "PRODUCTID" |  | Did you mean: "prodid"
+- ERROR testRelationalMilestoningSameScheme [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "orderTable" does not have a column with name "PRODUCTID" |  | Did you mean: "prodid"
+- ERROR testRelationalMilestoningDiffScheme [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "orderTable" does not have a column with name "PRODUCTID" |  | Did you mean: "prodid"
+- ERROR testSimpleEquality [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testMultipleAndConditions [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testOrConditions [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testFunctionInCondition [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testConcatCondition [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testArithmeticCondition [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testDerivedPropertyInCondition [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testInCondition [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testRelationalSimpleEquality [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testRelationalUnionSource [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testRelationalUnionBothSides [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testUnionWithExistsFilter [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testRelationalUnionSubAggregation [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testUnionWithExistsFilter [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
+- ERROR testUnionWithSubtypeQuery [tests/mapping/modelJoin]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "FirmTable" does not have a column with name "CODE" |  | Did you mean: "ceoId", "id"
 - ERROR testProjectPerson [tests/mapping/multigrain]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Catalog Error: Table with name PERSON_FIRM_ADDRESS_MULTIGRAIN does not exist! | Did you mean "schemaB.PERSONSET"? |  | LINE 2: FROM PERSON_FIRM_ADDRESS_MULTIGRAIN AS t0 |              ^
 - ERROR testProjectFirm [tests/mapping/multigrain]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Catalog Error: Table with name PERSON_FIRM_ADDRESS_MULTIGRAIN does not exist! | Did you mean "schemaB.PERSONSET"? |  | LINE 2: FROM PERSON_FIRM_ADDRESS_MULTIGRAIN AS t0 |              ^
 - ERROR testProjectPersonWithJoinToAddress [tests/mapping/multigrain]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Catalog Error: Table with name PERSON_FIRM_ADDRESS_MULTIGRAIN does not exist! | Did you mean "schemaB.PERSONSET"? |  | LINE 2: FROM PERSON_FIRM_ADDRESS_MULTIGRAIN AS t0 |              ^
@@ -1708,7 +1701,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testChainedUnionsWithMultipleAggregationWithAdditionalColumn [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - ERROR testChainedUnionsWithMapAggregation [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - ERROR testUnionViewJoins [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::UnionViewJoinsMapping' (property 'employees' routes to union member set 'p1' via a CHAINED join — per-member chained joins are not supported yet; the property is dropped from this synt
-- SHAPE testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: unsupported statement: println
+- ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result | Error: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |           
 - ERROR testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: property 'employeesExt' of class 'meta::relational::tests::model::simple::FirmExtension' is not mapped in mapping 'meta::relational::tests::mapping::union::unionOfViews'
 - ERROR testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: property 'employeesExt' of class 'meta::relational::tests::model::simple::FirmExtension' is not mapped in mapping 'meta::relational::tests::mapping::union::unionOfViews2'
 - ERROR testChainedUnions [tests/mapping/union]: multi-hop navigation firm.temporalEntityWithAddress.address.name through an embedded/slot head is not supported yet
@@ -1729,7 +1722,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_MappingToColumn [tests/mapping/union]: object-space use of the instance variable '$p' other than property access is not supported yet
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_MappingToRelationalOperation [tests/mapping/union]: object-space use of the instance variable '$p' other than property access is not supported yet
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: object-space use of the instance variable '$p' other than property access is not supported yet
-- SHAPE testSimpleProject [tests/mapping/union]: unsupported statement: println
 - ERROR testSimpleQueryFromAssociationMapping [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping'
 - ERROR testSimpleQueryToAssociationMapping [tests/mapping/union]: property 'employees' of class 'meta::relational::tests::mapping::union::extend::Firm' has no binding in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testProjectThroughAssoWithAssociationMapping [tests/mapping/union]: property 'employees' of class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping'
@@ -1768,7 +1760,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testIsEmptyForRelational_returnsTrue [tests/platformOperations]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testGroupByWithFilterFunction_noDatePath [tests/query]: unknown function 'getReportingStartDate'
 - SHAPE testDayOfWeek [tests/query]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testAssociationMixedDeep [tests/query]: unsupported statement: println
+- ERROR testAssociationMixedDeep [tests/query]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testTwoAssociationsToManyDeep [tests/query]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
 - ERROR testTwoAssociationsToManyDeepWithOr [tests/query]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
 - ERROR testAssociationToManyWithTwoSeparateExists [tests/query]: scalar lowering not yet implemented for TypedSerializeGraph
@@ -1789,8 +1781,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testFilterUsingArcSinFunction [tests/query]: Invalid Input Error: Unable to compute asin of 1.1
 - ERROR testFilterUsingArcCosFunction [tests/query]: Invalid Input Error: Unable to compute acos of 1.1
 - SHAPE testFilterTimesWithManyOperands [tests/query]: sql-only: 2 advisory golden-SQL assert(s), no row verification
-- SHAPE testCollectionDistinctFunction [tests/query]: assert form 'assertEq/2' is not supported yet
-- SHAPE testDivideFunctionPrecision [tests/query]: assert form 'assertEq/2' is not supported yet
+- ERROR testCollectionDistinctFunction [tests/query]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::rel
 - ERROR testJoinStringFunction [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testDayOfWeekFunction [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testDayOfWeekNumberFunction [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)

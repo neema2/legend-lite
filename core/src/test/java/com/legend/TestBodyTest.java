@@ -354,9 +354,20 @@ class TestBodyTest {
     @Test
     void unsupportedStatementIsLoud() throws Exception {
         TestBody.Outcome o = run("""
-                println('side effect');
+                mysteryHarnessCall('side effect');
                 """);
         assertInstanceOf(TestBody.Outcome.Unsupported.class, o);
-        assertTrue(((TestBody.Outcome.Unsupported) o).reason().contains("println"));
+        assertTrue(((TestBody.Outcome.Unsupported) o).reason()
+                .contains("mysteryHarnessCall"));
+    }
+
+    @org.junit.jupiter.api.Test
+    void printlnIsHarnessNoiseAndSkips() throws Exception {
+        TestBody.Outcome o = run("""
+                println('debug noise');
+                assertEquals(1, 1);
+                """);
+        assertInstanceOf(TestBody.Outcome.Ran.class, o);
+        assertTrue(((TestBody.Outcome.Ran) o).failures().isEmpty());
     }
 }

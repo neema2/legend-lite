@@ -153,6 +153,12 @@ public final class Runner {
         if (familyModels.containsKey(familyKey)) {
             return;
         }
+        for (String src : setupSources) {
+            Corpus.functionBodies(src).forEach(setupFnBodies::putIfAbsent);
+        }
+        for (String src : modelOnlySources) {
+            Corpus.functionBodies(src).forEach(setupFnBodies::putIfAbsent);
+        }
         StringBuilder ext = new StringBuilder();
         List<String> sql = new ArrayList<>();
         if (parentFamilyKey != null && familyModels.containsKey(parentFamilyKey)) {
@@ -249,6 +255,7 @@ public final class Runner {
         if (fileModels.containsKey(key)) {
             return;
         }
+        Corpus.functionBodies(source).forEach(setupFnBodies::putIfAbsent);
         StringBuilder extension = new StringBuilder();
         List<String[]> fileMappings = new ArrayList<>();
         java.util.Set<String> famSeen = familySeen.getOrDefault(currentFamilyKey, java.util.Set.of());
@@ -541,6 +548,24 @@ public final class Runner {
                         setupFnBodies, expanded, includeBody));
             }
         }
+        // TEST-BODY setup calls (modelJoin's setupTestData(...)): a
+        // statement calling a KNOWN function replays that function's seeds
+        // here; TestBody then skips the statement by name
+        // (harnessSetupNames covers every known fn). The contains-probe is
+        // deliberately coarse — extra seeding is idempotent DDL/inserts.
+        for (Map.Entry<String, String> en
+                : new ArrayList<>(setupFnBodies.entrySet())) {
+            String simple = en.getKey().substring(
+                    en.getKey().lastIndexOf(':') + 1);
+            if (fn.body().contains(simple + "(")) {
+                boolean includeBody = expanded.add(en.getKey());
+                String pkg = en.getKey().contains("::")
+                        ? en.getKey().substring(0, en.getKey().lastIndexOf("::"))
+                        : "";
+                allSeeds.addAll(Corpus.expandSeeds(en.getValue(), pkg,
+                        setupFnBodies, expanded, includeBody));
+            }
+        }
         List<String> failedSeeds = new ArrayList<>();
         for (String sql : allSeeds) {
             for (String stmt : splitStatements(sql)) {
@@ -609,13 +634,13 @@ public final class Runner {
 
 
     /** The test file's import sections + the test's own package (implicit). */
-    private static com.legend.parser.ImportScope importScopeOf(Corpus.TestFn fn) {
+    private static com.legend.model.ImportScope importScopeOf(Corpus.TestFn fn) {
         List<String> wildcards = new ArrayList<>(fn.wildcardImports());
         int cut = fn.fqn().lastIndexOf("::");
         if (cut > 0) {
             wildcards.add(fn.fqn().substring(0, cut));
         }
-        return new com.legend.parser.ImportScope(wildcards, fn.imports());
+        return new com.legend.model.ImportScope(wildcards, fn.imports());
     }
 
 

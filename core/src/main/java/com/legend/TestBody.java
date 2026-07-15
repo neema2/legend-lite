@@ -177,12 +177,50 @@ public final class TestBody {
             String runtimeFqn, Connection conn, boolean emptinessUnverifiable,
             java.util.Set<String> harnessSetupCalls)
             throws java.sql.SQLException {
-        List<ValueSpecification> stmts = SpecParser.parseCodeBlock(body);
+        java.util.ArrayDeque<ValueSpecification> work =
+                new java.util.ArrayDeque<>(SpecParser.parseCodeBlock(body));
         Map<String, ValueSpecification> lets = new LinkedHashMap<>();
         Map<String, ExecHandle> handles = new LinkedHashMap<>();
         int verified = 0;
         int advisory = 0;
-        for (ValueSpecification stmt : stmts) {
+        while (!work.isEmpty()) {
+            ValueSpecification stmt = work.poll();
+            // side-effect-free harness noise
+            if (stmt instanceof AppliedFunction pln
+                    && ("println".equals(pln.function())
+                            || "print".equals(simpleName(pln.function())))) {
+                continue;
+            }
+            // engine test-harness WRAPPERS: the lambda argument's body IS
+            // the test — inline its statements at the front of the worklist
+            if (stmt instanceof AppliedFunction wrap
+                    && java.util.Set.of("runLegendTest", "runTest",
+                            "runGraphFetchTest", "mayExecuteAlloyTest",
+                            "mayExecuteLegendTest")
+                            .contains(simpleName(wrap.function()))) {
+                LambdaFunction inner = null;
+                for (ValueSpecification arg : wrap.parameters()) {
+                    ValueSpecification a2 = arg instanceof Variable av
+                            && lets.get(av.name()) != null
+                            ? lets.get(av.name()) : arg;
+                    if (a2 instanceof LambdaFunction lf0
+                            && lf0.parameters().isEmpty()) {
+                        inner = lf0;
+                        break;
+                    }
+                }
+                if (inner != null) {
+                    List<ValueSpecification> bodyStmts =
+                            new ArrayList<>(inner.body());
+                    for (int i = bodyStmts.size() - 1; i >= 0; i--) {
+                        work.addFirst(bodyStmts.get(i));
+                    }
+                    continue;
+                }
+                return new Outcome.Unsupported("harness wrapper '"
+                        + simpleName(wrap.function())
+                        + "' carries no zero-arg lambda body");
+            }
             // let name = rhs
             if (stmt instanceof AppliedFunction af && af.function().equals("letFunction")
                     && af.parameters().size() == 2
@@ -231,7 +269,7 @@ public final class TestBody {
                                 rex.parameters(), lets, handles, runtimeFqn))
                         : substitute(af.parameters().get(1), lets, handles, runtimeFqn);
                 if (rhs instanceof AppliedFunction ex && isExecuteCall(ex)) {
-                    ExecHandle h = toHandle(ex);
+                    ExecHandle h = toHandle(ex, lets);
                     if (h == null) {
                         return new Outcome.Unsupported(
                                 "execute() whose query argument is not a lambda");
@@ -286,11 +324,113 @@ public final class TestBody {
                             || harnessSetupCalls.contains(simpleName(af.function())))) {
                 continue;   // seed-replayed harness setup — already applied
             }
+            // CSV-seeding setup (modelJoin's setupTestData([csv...], db, rt)):
+            // each CSV block is schema\ntable\nheader\nrows — the engine's
+            // setUpDataSQLsV2 convention, loaded natively here
+            if (stmt instanceof AppliedFunction af
+                    && "setupTestData".equals(simpleName(af.function()))
+                    && !af.parameters().isEmpty()) {
+                List<String> csvs = constantStrings(
+                        substitute(af.parameters().get(0), lets, handles,
+                                runtimeFqn));
+                if (csvs != null) {
+                    for (String csv : csvs) {
+                        loadCsvSeed(csv, conn);
+                    }
+                    continue;
+                }
+            }
             return new Outcome.Unsupported("unsupported statement: "
                     + (stmt instanceof AppliedFunction af2 ? af2.function()
                             : stmt.getClass().getSimpleName()));
         }
         return new Outcome.Ran(verified, advisory, List.of());
+    }
+
+    /** The elements of a CONSTANT string collection ({@code ['a'+'b', $x]}
+     * with let-resolved, concat-folded elements), or null if any element
+     * is not a compile-time string. */
+    private static List<String> constantStrings(ValueSpecification v) {
+        List<ValueSpecification> elems =
+                v instanceof PureCollection pc ? pc.values() : List.of(v);
+        List<String> out = new ArrayList<>(elems.size());
+        for (ValueSpecification e : elems) {
+            String sv = constantString(e);
+            if (sv == null) {
+                return null;
+            }
+            out.add(sv);
+        }
+        return out;
+    }
+
+    private static String constantString(ValueSpecification v) {
+        if (v instanceof CString cs) {
+            return cs.value();
+        }
+        if (v instanceof AppliedFunction af && af.parameters().size() == 2
+                && ("plus".equals(af.function()) || "+".equals(af.function()))) {
+            String l = constantString(af.parameters().get(0));
+            String r = constantString(af.parameters().get(1));
+            return l != null && r != null ? l + r : null;
+        }
+        if (v instanceof AppliedFunction af && "plus".equals(af.function())
+                && af.parameters().size() == 1
+                && af.parameters().get(0) instanceof PureCollection pc) {
+            StringBuilder sb = new StringBuilder();
+            for (ValueSpecification e : pc.values()) {
+                String sv = constantString(e);
+                if (sv == null) {
+                    return null;
+                }
+                sb.append(sv);
+            }
+            return sb.toString();
+        }
+        return null;
+    }
+
+    /** One CSV seed block: {@code schema\ntable\nHEADER\nrows...} —
+     * DELETE + typed INSERTs on {@code conn} ('default' schema is bare;
+     * empty tokens are NULL; numerics ride bare, everything else quotes). */
+    private static void loadCsvSeed(String csv, Connection conn)
+            throws java.sql.SQLException {
+        String[] lines = csv.split("\n");
+        if (lines.length < 3) {
+            return;
+        }
+        String schema = lines[0].strip();
+        String table = lines[1].strip();
+        String qualified = "default".equals(schema) ? table
+                : schema + "." + table;
+        String[] cols = lines[2].split(",");
+        try (var st = conn.createStatement()) {
+            st.execute("DELETE FROM " + qualified);
+            for (int i = 3; i < lines.length; i++) {
+                if (lines[i].isBlank()) {
+                    continue;
+                }
+                String[] vals = lines[i].split(",", -1);
+                StringBuilder sql = new StringBuilder("INSERT INTO ")
+                        .append(qualified).append(" (")
+                        .append(String.join(", ", cols)).append(") VALUES (");
+                for (int c = 0; c < cols.length; c++) {
+                    String tok = c < vals.length ? vals[c].strip() : "";
+                    if (c > 0) {
+                        sql.append(", ");
+                    }
+                    if (tok.isEmpty()) {
+                        sql.append("NULL");
+                    } else if (tok.matches("[+-]?\\d+(\\.\\d+)?")) {
+                        sql.append(tok);
+                    } else {
+                        sql.append("'").append(tok.replace("'", "''"))
+                                .append("'");
+                    }
+                }
+                st.execute(sql.append(")").toString());
+            }
+        }
     }
 
     // ===== assert dispatch =====
@@ -323,7 +463,7 @@ public final class TestBody {
                         : "assert" + (expect ? "" : "False") + " did not hold ("
                                 + v + ")";
             }
-            case "assertEquals", "assertEqualsH2Compatible", "assertNotEquals" -> {
+            case "assertEquals", "assertEq", "assertEqualsH2Compatible", "assertNotEquals" -> {
                 if (args.size() < 2) {
                     return UNSUPPORTED_MARKER;
                 }
@@ -946,7 +1086,17 @@ public final class TestBody {
     }
 
     private static ExecHandle toHandle(AppliedFunction ex) {
+        return toHandle(ex, Map.of());
+    }
+
+    /** {@code lets}: a let-bound zero-arg lambda passed as the query
+     * argument resolves through it ({@code let q = |...; execute($q, ...)}). */
+    private static ExecHandle toHandle(AppliedFunction ex,
+            Map<String, ValueSpecification> lets) {
         ValueSpecification q = ex.parameters().get(0);
+        if (q instanceof Variable qv && lets.get(qv.name()) != null) {
+            q = lets.get(qv.name());
+        }
         if (!(q instanceof LambdaFunction lf) || !lf.parameters().isEmpty()) {
             return null;
         }
