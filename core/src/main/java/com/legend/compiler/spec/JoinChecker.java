@@ -41,6 +41,10 @@ final class JoinChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
+        TypedSpec shared = sharedKeyLegacyJoin(t, af, env);
+        if (shared != null) {
+            return shared;
+        }
         af = tdsLegacyToModern(af);
         if (af.parameters().size() == 3) {
             return slot(t, af, env);
@@ -104,6 +108,66 @@ final class JoinChecker {
         List<ValueSpecification> out = new java.util.ArrayList<>(ps);
         out.set(2, joinKind);
         return new AppliedFunction(af.function(), out);
+    }
+
+    /**
+     * The legacy TDS SHARED-KEY join {@code join(tds2, JoinType, ['id'])}:
+     * both sides carry the key columns under the SAME names, and the engine
+     * keeps exactly ONE copy in the output. The modern {@code T+V} algebra
+     * would (rightly) reject the collision, so: rename the right side's keys
+     * to synthetic names, run the modern join on the renamed condition, then
+     * SELECT the synthetic copies away — the whole dedup is visible in the
+     * typed tree, no schema-algebra bypass.
+     */
+    private static TypedSpec sharedKeyLegacyJoin(Typer t, AppliedFunction af, Env env) {
+        List<ValueSpecification> ps = af.parameters();
+        if (ps.size() != 4 || !(ps.get(2) instanceof EnumValue kind)
+                || !(kind.fullPath().equals("meta::relational::metamodel::join::JoinType")
+                        || kind.fullPath().equals("JoinType"))) {
+            return null;
+        }
+        List<String> keys = columnNames(ps.get(3));
+        if (keys == null) {
+            return null;
+        }
+        ValueSpecification right = ps.get(1);
+        Variable a = new Variable("a");
+        Variable b = new Variable("b");
+        ValueSpecification cond = null;
+        List<String> synthetic = new java.util.ArrayList<>(keys.size());
+        for (String k : keys) {
+            String s = "__rjk_" + k;
+            synthetic.add(s);
+            right = new AppliedFunction("rename",
+                    List.of(right, new ColSpec(k), new ColSpec(s)));
+            ValueSpecification eq = new AppliedFunction("equal", List.of(
+                    new AppliedProperty(a, k), new AppliedProperty(b, s)));
+            cond = cond == null ? eq : new AppliedFunction("and", List.of(cond, eq));
+        }
+        AppliedFunction modern = new AppliedFunction("join", List.of(
+                ps.get(0), right,
+                new EnumValue("meta::pure::functions::relation::JoinKind",
+                        joinKindNameOf(kind)),
+                new LambdaFunction(List.of(a, b), List.of(cond))));
+        TypedSpec joined = check(t, modern, env);
+        Type.RelationType rt = (Type.RelationType) joined.info().type();
+        List<Type.Column> kept = rt.columns().stream()
+                .filter(c -> !synthetic.contains(c.name())).toList();
+        return new com.legend.compiler.spec.typed.TypedSelect(joined,
+                kept.stream().map(Type.Column::name).toList(),
+                new ExprType(new Type.RelationType(kept),
+                        joined.info().multiplicity()));
+    }
+
+    private static String joinKindNameOf(EnumValue kind) {
+        return switch (kind.value()) {
+            case "INNER" -> "INNER";
+            case "LEFT_OUTER" -> "LEFT";
+            case "RIGHT_OUTER" -> "RIGHT";
+            case "FULL_OUTER" -> "FULL";
+            default -> throw new TypeInferenceException(
+                    "unknown JoinType value '" + kind.value() + "'");
+        };
     }
 
     /** String or [strings] column-name argument of the legacy TDS join, else null. */

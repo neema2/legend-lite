@@ -88,7 +88,8 @@ final class GroupByChecker {
             }
             aggCols.add(new ColSpec(alias, mapFn, aggFn));
         }
-        return new AppliedFunction(af.function(),
+        // bare name — same reason as tdsLegacyToModern
+        return new AppliedFunction("groupBy",
                 List.of(ps.get(0), new ColSpecArray(keyCols), new ColSpecArray(aggCols)));
     }
 
@@ -150,7 +151,11 @@ final class GroupByChecker {
             }
             aggCols.add(new ColSpec(name, mapFn, aggFn));
         }
-        return new AppliedFunction(af.function(), List.of(ps.get(0),
+        // BARE name: the desugar's whole point is landing in the modern
+        // construct — an FQN spelling (meta::pure::tds::groupBy) would
+        // resolve against only the FQN-registered overloads, whose keys are
+        // FuncColSpecArray, and miss the plain-key relation overloads.
+        return new AppliedFunction("groupBy", List.of(ps.get(0),
                 new ColSpecArray(keyCols), new ColSpecArray(aggCols)));
     }
 

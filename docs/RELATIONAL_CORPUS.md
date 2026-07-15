@@ -4,12 +4,8 @@ RUN-as-data over the local legend-engine checkout; row equality is the
 contract, golden SQL is advisory. SHAPE = test body/assert form the
 runner does not yet recognize (accounted, not skipped silently).
 
-## Failed seed statements (42)
+## Failed seed statements (38)
 
-- `insert into FirmTable ("firmName", "employeeId") values ('GS',19) => Binder Error: Table "FirmTable" does not have a column with name "firmName"`
-- `insert into FirmTable ("firmName", "employeeId") values ('JP',20) => Binder Error: Table "FirmTable" does not have a column with name "firmName"`
-- `insert into testTable ("id", "value") values (1, 'Bla') => Binder Error: Table "testTable" does not have a column with name "id"`
-- `insert into testTable ("id", "value") values (2, null) => Binder Error: Table "testTable" does not have a column with name "id"`
 - `insert into Product ("id", "productDate", "name", "tradeId") values (1, '2014-12-01 21:00:00', 'prod 1 V1', 1) => Catalog Error: Table with name Product does not exist!`
 - `insert into ProductClassificationTableWithBusinessSnapshotMilestoning values('STOCK', \ 'STOCK DESC-V1', '2015-8-15') => Parser Error: syntax error at or near "\"`
 - `insert into ProductClassificationTableWithProcessingSnapshotMilestoning values('STOCK', \ 'STOCK DESC-V1', '2015-8-15') => Parser Error: syntax error at or near "\"`
@@ -54,9 +50,9 @@ runner does not yet recognize (accounted, not skipped silently).
 | aggregationAware/test/rewrite | 13 | 0 | 0 | 0 | 13 |
 | aggregationAware/test/rewrite/NOP | 15 | 0 | 0 | 0 | 15 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
-| calendarAggregation/tests | 92 | 81 | 0 | 6 | 5 |
+| calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 109 | 0 | 0 | 8 | 101 |
-| functions/tests | 241 | 101 | 4 | 99 | 37 |
+| functions/tests | 241 | 104 | 4 | 96 | 37 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
 | functions/tests/projection | 154 | 69 | 5 | 53 | 27 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -112,7 +108,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **863** | 28 | 624 | 777 |
+| **total** | 2292 | **873** | 28 | 615 | 776 |
 
 ### mapping walls (dropped at assembly)
 
@@ -232,13 +228,13 @@ runner does not yet recognize (accounted, not skipped silently).
 - 6x ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - 6x unknown function 'columnValues'
 - 6x 'meta::pure::tds::TDSNull' is not a known class, mapping, runtime, connection, or database
-- 5x no overload of 'groupBy' matches the argument types
 - 5x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 5x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - 5x unknown function 'conditionRightTable'
 - 5x in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6) (value: AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=dec])
 - 5x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - 4x class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
+- 4x multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
 
 ### per-test outcomes (non-passing)
 
@@ -271,17 +267,10 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testRewriteProjectColMulti [aggregationAware/test/rewrite/NOP]: no execute(|...) call
 - SHAPE testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: no execute(|...) call
 - SHAPE testClassesAssociationsAndMappingFromDatabase [autogeneration/tests]: no execute(|...) call
-- SHAPE testPywaDateRange [calendarAggregation/tests]: assert form 'assertEquals/2' is not supported yet
-- ERROR testGroupbyAfterCalendar [calendarAggregation/tests]: no overload of 'meta::pure::tds::groupBy' matches the argument types
-- ERROR testJoinAfterCalendar [calendarAggregation/tests]: the column 'id' already exists in the relation (id:Integer[1], ytd:Number[1])
-- ERROR testNestedAttributeCalendar [calendarAggregation/tests]: Binder Error: Table "t1" does not have a column named "employeeId" |  | Candidate bindings: : "ceoId" |  | LINE 3: LEFT OUTER JOIN FirmTable AS t1 ON t0.id = t1.employeeId |                                                    ^
 - SHAPE testDifferentCalendar [calendarAggregation/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDifferentEndDates [calendarAggregation/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testSubclassDate [calendarAggregation/tests]: no overload of 'groupBy' matches the argument types
-- ERROR testSubclassValue [calendarAggregation/tests]: no overload of 'groupBy' matches the argument types
 - SHAPE testDynaEndDate [calendarAggregation/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDynaInput [calendarAggregation/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testUnionWithWtdAndPwa [calendarAggregation/tests]: Binder Error: Table "t1" does not have a column named "employeeId" |  | Candidate bindings: : "ceoId" |  | LINE 5:   LEFT OUTER JOIN FirmTable AS t1 ON t0.id = t1.employeeId |                                                      ^
 - SHAPE testPureExecutionStrategyForRelationalInstantiationExecutionNode [executionPlan/tests]: no execute(|...) call
 - SHAPE testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode [executionPlan/tests]: no execute(|...) call
 - SHAPE testFilterInWithResultSorcedFromAnExpression [executionPlan/tests]: no execute(|...) call
@@ -454,7 +443,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testInWithFunction [functions/tests]: unknown function 'meta::relational::tests::query::filter::in::getNames'
 - ERROR testConsistencyWithNulls [functions/tests]: class meta::relational::tests::model::simple::Address has no property 'values'
 - SHAPE testInWithinQualifiedPropertyCollectionAsLiteralList [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testDerivedWithIsEmpty [functions/tests]: Binder Error: Table "t0" does not have a column named "value" |  | Candidate bindings: : "else" |  | LINE 3: WHERE t0.value IS NULL |               ^
 - ERROR testIsolationOfInputToIsEmpty [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testIsolationOfInputToIsEmptyWithForcedFiltersOnInput [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testInputNotIsolatedWhenPropertyPathIsToOne [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
@@ -508,8 +496,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testUniqueValueOnly4 [functions/tests]: unknown function 'uniqueValueOnly'
 - ERROR testAggFunctionUsingMultipleSetImplementation [functions/tests]: expected at most one value, got many ([*])
 - ERROR testGroupByIsDistinct [functions/tests]: expected at most one value, got many ([*])
-- ERROR testGroupByEmptyColsTerminalOperation [functions/tests]: no overload of 'groupBy' matches the argument types
-- ERROR testGroupByEmptyColsNonTerminalOperation [functions/tests]: no overload of 'groupBy' matches the argument types
 - SHAPE testGroupByWithWavgAggregation [functions/tests]: no execute(|...) call
 - SHAPE testPaginated [functions/tests]: unsupported statement: serialize
 - SHAPE testPaginatedByVendor [functions/tests]: no execute(|...) call
@@ -1344,7 +1330,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testConvertToStringH2 [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::MappingForAccountAndTrade$class$meta::relational::tests::model::simple::Trade': property 'quantity' of 'meta::relational::tests::model::simple::Trade': expected Float, got Integer (value: AppliedFunction[function=toOne, parameters=
 - ERROR testChainedOuterJoinsWithFilterInproject [tests/mapping/join]: Binder Error: Referenced table "t3" not found! | Candidate tables: "t0" |  | LINE 4: ... AS Person_MiddleTable__MiddleTable_PersonExtension_EXTRAINFO, t3.NUMBER AS Person_MiddleTable__MiddleTable_PersonExtensio... |                                                                           ^
 - ERROR testChainedOuterJoinsWithQualifierInproject [tests/mapping/join]: Binder Error: Referenced table "t3" not found! | Candidate tables: "t0" |  | LINE 4: ... AS Person_MiddleTable__MiddleTable_PersonExtension_EXTRAINFO, t3.NUMBER AS Person_MiddleTable__MiddleTable_PersonExtensio... |                                                                           ^
-- ERROR testChainedInnerJoinsWithQualifierInGroupBy [tests/mapping/join]: no overload of 'groupBy' matches the argument types
+- ERROR testChainedInnerJoinsWithQualifierInGroupBy [tests/mapping/join]: unknown function 'testFunction'
 - FAIL testSameTableNameDifferentSchema1 [tests/mapping/join]: assertEquals: expected [Peter B, John B, John B, Anthony B, Oliver B, null, null], got [Peter B, John B, John B, Anthony B, Oliver B]
 - SHAPE testDynafunctionMerge [tests/mapping/merge]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testNestedPropertyChain [tests/mapping/modelJoin]: 'NestedPropertyChainMapping' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name

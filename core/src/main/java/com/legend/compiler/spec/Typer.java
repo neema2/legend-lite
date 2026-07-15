@@ -543,9 +543,23 @@ final class Typer {
 
         for (int i = 0; i < raw.size(); i++) {
             if (typed[i] == null) {
-                typed[i] = raw.get(i) instanceof LambdaFunction lam
-                        ? typeLambda(lam, chosen.parameters().get(i).type(), b, env)
-                        : typeFuncColSpec(raw.get(i), chosen.parameters().get(i).type(), b, env);
+                if (raw.get(i) instanceof LambdaFunction lam) {
+                    typed[i] = typeLambda(lam, chosen.parameters().get(i).type(), b, env);
+                } else if (genericRawIs(chosen.parameters().get(i).type(),
+                        Pure.COL_SPEC_ARRAY)) {
+                    // an empty colspec array chosen against a PLAIN
+                    // ColSpecArray param types as an ordinary value (it
+                    // deferred only because its flavor was parameter-
+                    // determined) — unify like the value loop would have
+                    typed[i] = synth(raw.get(i), env);
+                    kernel.unify(chosen.parameters().get(i).type(),
+                            typed[i].info().type(), b);
+                    kernel.unifyMult(chosen.parameters().get(i).multiplicity(),
+                            typed[i].info().multiplicity(), typed[i].info().type(), b);
+                } else {
+                    typed[i] = typeFuncColSpec(raw.get(i),
+                            chosen.parameters().get(i).type(), b, env);
+                }
             }
         }
 
@@ -572,12 +586,17 @@ final class Typer {
             "meta::pure::functions::string::parseDecimal",
             "meta::pure::functions::math::toDecimal");
 
-    /** An argument whose typing must wait for the chosen signature: a lambda, or a colspec carrying one. */
+    /** An argument whose typing must wait for the chosen signature: a lambda, or a
+     * colspec carrying one. An EMPTY colspec array also defers — its flavor
+     * (plain/Func/Agg) is nominal-only and the chosen parameter decides it
+     * (legacy groupBy([], aggs, ids): a global aggregate's keys). */
     private static boolean deferredArg(ValueSpecification p) {
         return p instanceof LambdaFunction
                 || (p instanceof ColSpec cs && cs.function1() != null)
                 || (p instanceof ColSpecArray arr
-                        && arr.colSpecs().stream().anyMatch(c -> c.function1() != null));
+                        && (arr.colSpecs().isEmpty()
+                                || arr.colSpecs().stream()
+                                        .anyMatch(c -> c.function1() != null)));
     }
 
     /**
@@ -599,6 +618,10 @@ final class Typer {
                 case LambdaFunction ignored -> isFunctionTyped(t);
                 case ColSpec cs -> genericRawIs(t,
                         cs.function2() != null ? Pure.AGG_COL_SPEC : Pure.FUNC_COL_SPEC);
+                case ColSpecArray arr when arr.colSpecs().isEmpty() ->
+                        genericRawIs(t, Pure.COL_SPEC_ARRAY)
+                                || genericRawIs(t, Pure.FUNC_COL_SPEC_ARRAY)
+                                || genericRawIs(t, Pure.AGG_COL_SPEC_ARRAY);
                 case ColSpecArray arr -> genericRawIs(t,
                         arr.colSpecs().stream().anyMatch(x -> x.function2() != null)
                                 ? Pure.AGG_COL_SPEC_ARRAY : Pure.FUNC_COL_SPEC_ARRAY);

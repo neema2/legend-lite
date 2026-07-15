@@ -544,6 +544,9 @@ public final class Runner {
         for (Corpus.BeforePackage bp : beforePackages) {
             if (fn.fqn().startsWith(bp.pkg() + "::")) {
                 boolean includeBody = expanded.add(bp.fqn());
+                if (includeBody) {
+                    allSeeds.addAll(dropAndCreateSeeds(bp.body()));
+                }
                 allSeeds.addAll(Corpus.expandSeeds(bp.body(), bp.pkg(),
                         setupFnBodies, expanded, includeBody));
             }
@@ -580,6 +583,41 @@ public final class Runner {
             }
         }
         return failedSeeds;
+    }
+
+    /**
+     * {@code dropAndCreateTableInDb(Db, 'Table', $conn)} re-emission: the
+     * engine recreates the table from the STORE's DDL at the call site.
+     * Without this, a collide-named table (calendarAggregation's FirmTable
+     * vs the shared model's) keeps whatever shape the LAST create in the
+     * seed stream gave it — the shared data seeds run after the family
+     * DDL and clobber the family shape. Re-emitting the family's own
+     * CREATE here restores it right before the setup's inserts.
+     */
+    private List<String> dropAndCreateSeeds(String body) {
+        List<String> out = new ArrayList<>();
+        Matcher m = Pattern.compile(
+                "dropAndCreateTableInDb\\([^,]+,\\s*'([\\w.]+)'").matcher(body);
+        while (m.find()) {
+            String table = m.group(1);
+            String simple = table.contains(".")
+                    ? table.substring(table.lastIndexOf('.') + 1) : table;
+            for (String s : familySeeds.getOrDefault(currentFamilyKey, List.of())) {
+                Matcher c = Pattern.compile(
+                        "(?i)^\\s*CREATE OR REPLACE TABLE\\s+([\\w.\"]+)")
+                        .matcher(s);
+                if (!c.find()) {
+                    continue;
+                }
+                String created = c.group(1).replace("\"", "");
+                String createdSimple = created.contains(".")
+                        ? created.substring(created.lastIndexOf('.') + 1) : created;
+                if (createdSimple.equalsIgnoreCase(simple)) {
+                    out.add(s);
+                }
+            }
+        }
+        return out;
     }
 
     /** Split a SQL blob into single statements on top-level {@code ;} (string-aware). */
