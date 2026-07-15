@@ -145,7 +145,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/datatype | 5 | 0 | 0 | 5 | 0 |
 | tests/injection | 3 | 0 | 0 | 3 | 0 |
 | tests/mapping | 10 | 1 | 2 | 6 | 1 |
-| tests/mapping/association | 23 | 5 | 0 | 17 | 1 |
+| tests/mapping/association | 23 | 7 | 0 | 15 | 1 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 32 | 0 |
 | tests/mapping/distinct | 18 | 14 | 0 | 4 | 0 |
 | tests/mapping/dynaJoin | 5 | 3 | 1 | 1 | 0 |
@@ -165,14 +165,14 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/selfJoin | 3 | 0 | 0 | 3 | 0 |
 | tests/mapping/sqlFunction | 72 | 57 | 0 | 3 | 12 |
 | tests/mapping/tree | 12 | 0 | 0 | 12 | 0 |
-| tests/mapping/union | 124 | 46 | 1 | 57 | 20 |
+| tests/mapping/union | 124 | 52 | 1 | 51 | 20 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 2 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
 | tests/query | 83 | 55 | 2 | 19 | 7 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **696** | 24 | 731 | 841 |
+| **total** | 2292 | **704** | 24 | 723 | 841 |
 
 ### mapping walls (dropped at assembly)
 
@@ -184,6 +184,8 @@ runner does not yet recognize (accounted, not skipped silently).
 - executionPlan/tests meta::pure::executionPlan::m2m2r::tests::ModelToModelMapping => [3247:0] unsupported top-level keyword: PAREN_CLOSE (')')
 - executionPlan/tests meta::pure::executionPlan::m2m2r::tests::RelationalMapping => [3247:0] unsupported top-level keyword: PAREN_CLOSE (')')
 - functions/tests meta::relational::tests::functions::objectReferenceIn::simpleModelMapping => [3220:1] Circular M2M ~src chain detected in mapping 'meta::relational::tests::functions::objectReferenceIn::simpleModelMapping': Address -> Address
+- functions/tests meta::relational::tests::fromMapping::MappingWithAssociation => [3336:1] AssociationMapping join 'Firm_Person' not found in db 'meta::relational::tests::fromMapping::mdb'; association='meta::relational::tests::model::simple::Employment', mapping=meta::relational::tests::fromMapping::MappingWithAssociation
+- functions/tests meta::relational::tests::fromMapping::MappingWithAssociation2 => [3336:1] AssociationMapping join 'Firm_Person' not found in db 'meta::relational::tests::fromMapping::mdb'; association='meta::relational::tests::model::simple::Employment', mapping=meta::relational::tests::fromMapping::MappingWithAssociation2
 - functions/tests/projection meta::relational::tests::projection::view::unionOnViewsMapping => [2992:110] expected BRACE_CLOSE but found SEMI_COLON (';')
 - functions/tests/projection meta::relational::tests::projection::view::unionOnViewOnViewMapping => [2991:110] expected BRACE_CLOSE but found SEMI_COLON (';')
 - graphFetch/domain meta::relational::graphFetch::domain::tests::TestMapping => Unknown type: 'Domain' is not a known primitive, class, or enum
@@ -613,12 +615,12 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testLateIsolationOfTypeFilterDoesntPreventMerging [functions/tests]: multi-hop navigation firm.ceo.address.name through an embedded/slot head is not supported yet
 - ERROR testFilterAfterFilter [functions/tests]: multi-hop navigation firm.address#f0.name through an embedded/slot head is not supported yet
 - ERROR testFilterInWithJoin [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testMappingFromQueriesViaMappingWithAssociationsOnly [functions/tests]: unknown function 'meta::external::store::relational::tests::testRuntime'
+- ERROR testMappingFromQueriesViaMappingWithAssociationsOnly [functions/tests]: 'meta::relational::tests::fromMapping::MappingWithAssociation' is not a known class, mapping, runtime, connection, or database
 - SHAPE testClassMappingsAreCorrectlyIsolated [functions/tests]: no execute(|...) call
 - ERROR testClassMappingsWithUnions [functions/tests]: unknown function 'meta::external::store::relational::tests::testRuntime'
 - ERROR testEnumProjection [functions/tests]: unknown function 'meta::external::store::relational::tests::testRuntime'
-- ERROR testFromWithMapping [functions/tests]: unknown function 'withMapping'
-- ERROR testFromWithMappingAndIntermediateFuncCall [functions/tests]: unknown function 'withMapping'
+- ERROR testFromWithMapping [functions/tests]: 'meta::relational::tests::fromMapping::MappingWithAssociation' is not a known class, mapping, runtime, connection, or database
+- ERROR testFromWithMappingAndIntermediateFuncCall [functions/tests]: 'meta::relational::tests::fromMapping::MappingWithAssociation' is not a known class, mapping, runtime, connection, or database
 - ERROR testGetterTwice [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testInWithOneValue [functions/tests]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary)
 - ERROR testInWithFunction [functions/tests]: unknown function 'meta::relational::tests::query::filter::in::getNames'
@@ -1395,8 +1397,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testPersonToOrganisationsInlineEmbedded [tests/mapping/association]: 'associationMappingInlinedEmbedded' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testPersonToFirmAddressNestedInlineEmbedded [tests/mapping/association]: 'associationMappingInlinedEmbedded' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testPersonToFirmLocationsInlineEmbedded [tests/mapping/association]: 'associationMappingInlinedEmbedded' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testFirmToEmployeesIncludes [tests/mapping/association]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::association::associationMappingWithIncludes'
-- ERROR testPersonToFirmIncludes [tests/mapping/association]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::association::associationMappingWithIncludes'
 - ERROR testProjectTwoLambdas [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - ERROR testGroupBy [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - SHAPE testBuilderRoutingOfAggFunctionParameters [tests/mapping/association]: unsupported statement: println
@@ -1796,15 +1796,9 @@ runner does not yet recognize (accounted, not skipped silently).
 - ERROR testChainedUnionsWithAggregationWithAdditionalColumn [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - ERROR testChainedUnionsWithMultipleAggregationWithAdditionalColumn [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - ERROR testChainedUnionsWithMapAggregation [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
-- ERROR testUnionWithChainedJoinsAcross2SetsV3 [tests/mapping/union]: multi-hop navigation y.z.pk through an embedded/slot head is not supported yet
-- ERROR testUnionWithChainedJoinsAcross3SetsV3 [tests/mapping/union]: multi-hop navigation y.z.pk through an embedded/slot head is not supported yet
-- ERROR testUnionWithChainedJoinsAcross4SetsV3 [tests/mapping/union]: multi-hop navigation y.z.pk through an embedded/slot head is not supported yet
-- ERROR testUnionWithChainedJoinsAcross2SetsV4 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV4'
-- ERROR testUnionWithChainedJoinsAcross3SetsV4 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV4'
-- ERROR testUnionWithChainedJoinsAcross4SetsV4 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV4'
-- ERROR testUnionWithChainedJoinsAcross2SetsV5 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross2SetsV5'
-- ERROR testUnionWithChainedJoinsAcross3SetsV5 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross3SetsV5'
-- ERROR testUnionWithChainedJoinsAcross4SetsV5 [tests/mapping/union]: association 'meta::relational::tests::mapping::union::multipleChainedJoins::model::XY' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::multipleChainedJoinsMappingWithUnionAcross4SetsV5'
+- ERROR testUnionWithChainedJoinsAcross2SetsV4 [tests/mapping/union]: chained association hop 'y.z' navigates INTO a union-mapped class — per-member route dispatch is not built yet
+- ERROR testUnionWithChainedJoinsAcross3SetsV4 [tests/mapping/union]: chained association hop 'y.z' navigates INTO a union-mapped class — per-member route dispatch is not built yet
+- ERROR testUnionWithChainedJoinsAcross4SetsV4 [tests/mapping/union]: chained association hop 'y.z' navigates INTO a union-mapped class — per-member route dispatch is not built yet
 - SHAPE testViewToViewToUnion [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testUnionedViewsToViewToUnion [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testUnionTwoRelationMappings_EmbeddedFirmProject [tests/mapping/union/relation]: 'unionOfTwoRelationMappingsWithEmbeddedFirm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name

@@ -130,6 +130,45 @@ final class AssociationJoins {
         return false;
     }
 
+    /** The mapping's AssociationBinding for {@code assocFqn}, searching the
+     * include closure transitively (own definitions win, first match by
+     * declaration order — the class-binding resolution's exact rule). */
+    private java.util.Optional<com.legend.model.MappingDefinition.AssociationBinding>
+            associationBindingInClosure(String mappingFqn, String assocFqn) {
+        java.util.ArrayDeque<String> queue = new java.util.ArrayDeque<>();
+        Set<String> seen = new LinkedHashSet<>();
+        queue.add(mappingFqn);
+        while (!queue.isEmpty()) {
+            String fqn = queue.poll();
+            if (!seen.add(fqn)) {
+                continue;
+            }
+            var m = ctx.findMapping(fqn);
+            if (m.isEmpty()) {
+                continue;
+            }
+            var hit = m.get().associationBindings().stream()
+                    .filter(ab -> ab.associationFqn().equals(assocFqn))
+                    .findFirst();
+            if (hit.isPresent()) {
+                return hit;
+            }
+            for (var inc : m.get().includes()) {
+                queue.add(inc.mappingPath());
+            }
+        }
+        return java.util.Optional.empty();
+    }
+
+    /** The class an ASSOCIATION end named {@code prop} on {@code classFqn}
+     * navigates to, if an association realizes it (the assoc-sub probe —
+     * union V3). */
+    java.util.Optional<String> assocTargetClassOf(String classFqn, String prop) {
+        return ctx.findAssociationOf(classFqn, prop).map(a ->
+                (a.property1().propertyName().equals(prop)
+                        ? a.property1() : a.property2()).targetClassFqn());
+    }
+
     AssocJoin associationJoin(TemporalFrame temporal, ClassSource cs, String head, StoreResolver.Context context,
                                       boolean forExists) {
         return associationJoin(temporal, cs, head, context, forExists, Set.of());
@@ -199,11 +238,11 @@ final class AssociationJoins {
                                 Map.of())),
                 tMat0.slotPrefixes(), tMat0.stripped());
 
-        // The predicate function: mapping's AssociationBinding for the assoc.
-        var mapping = ctx.findMapping(cs.mappingFqn()).orElseThrow();
-        var binding = mapping.associationBindings().stream()
-                .filter(ab -> ab.associationFqn().equals(assoc.qualifiedName()))
-                .findFirst()
+        // The predicate function: the AssociationBinding for the assoc,
+        // searched across the INCLUDE CLOSURE (own mapping wins; audit V3:
+        // the qualified YZ entries live in an included assoc mapping)
+        var binding = associationBindingInClosure(cs.mappingFqn(),
+                assoc.qualifiedName())
                 .orElseThrow(() -> new MappingResolutionException("association '"
                         + assoc.qualifiedName() + "' is not mapped in mapping '"
                         + cs.mappingFqn() + "'"

@@ -102,9 +102,9 @@ public final class StoreResolver {
         // see NO context, exactly the old fields' initial values
         this.temporal = new TemporalFrame(ctx, sources, TemporalContext.NONE,
                 Map.of());
-        this.navMaterializer = new NavMaterializer(sources);
         this.assocMaterial = new AssociationJoins(ctx, sources, specs,
                 synthetics);
+        this.navMaterializer = new NavMaterializer(sources, assocMaterial);
     }
 
     /** Resolve every statement of a query body (lets + final expression). */
@@ -1486,6 +1486,16 @@ public final class StoreResolver {
                 }
                 AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(temporal, parent, path.get(hop), context, false,
                         leavesByChain.getOrDefault(chainKey, Set.of()), chainKey);
+                if (hop > 0 && containsConcatenate(aj.targetPipeline())) {
+                    // a CHAINED hop into a UNION-mapped target needs
+                    // per-member routed conditions (V4's z[y0,z0]/z[y1,z1]
+                    // pairs) — the single predicate returns PARTIAL rows;
+                    // stays loud until that rung is built
+                    throw new com.legend.error.NotImplementedException(
+                            "chained association hop '" + chainKey
+                            + "' navigates INTO a union-mapped class — "
+                            + "per-member route dispatch is not built yet");
+                }
                 if (hop > 0) {
                     // A CHAINED hop: the parent's columns live PREFIXED on the
                     // accumulated joined row — re-point the condition's LEFT
@@ -2429,7 +2439,7 @@ public final class StoreResolver {
      * and strategy flow to SAME-STRATEGY targets navigated through temporal
      * parents (engine: milestoning context does NOT propagate through
      * non-temporal intermediates). Set at each getAll resolution entry. */
-    private static TypedEnumValue leftKind() {
+    static TypedEnumValue leftKind() {
         String fqn = "meta::pure::functions::relation::JoinKind";
         return new TypedEnumValue(fqn, "LEFT",
                 new ExprType(

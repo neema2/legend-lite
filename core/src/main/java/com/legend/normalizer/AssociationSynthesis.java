@@ -240,7 +240,7 @@ final class AssociationSynthesis {
         // (A,B)->Boolean predicate — no binding is emitted, and NAVIGATING
         // the association stays loud at resolve time ("association not
         // mapped in mapping"). Declaring it is not an error.
-        if (!MappingNormalizer.hasMainTable(md, classA) || !MappingNormalizer.hasMainTable(md, classB)) {
+        if (!MappingNormalizer.hasMainTable(md, classA, model) || !MappingNormalizer.hasMainTable(md, classB, model)) {
             return null;
         }
 
@@ -263,8 +263,8 @@ final class AssociationSynthesis {
         // re-deriving them from the classes' mappings.
         ValueSpecification body = new AppliedFunction("legacyAssocPredicate", List.of(
                 a, b,
-                MappingNormalizer.mainTableRefOf(md, classA),
-                MappingNormalizer.mainTableRefOf(md, classB),
+                MappingNormalizer.mainTableRefOf(md, classA, model),
+                MappingNormalizer.mainTableRefOf(md, classB, model),
                 new LambdaFunction(List.of(srcRow, tgtRow),
                                          List.of(predicateBody))));
 
@@ -302,7 +302,7 @@ final class AssociationSynthesis {
                     "AssociationMapping for '" + associationName
                   + "' has empty join chain; mapping=" + md.qualifiedName());
         }
-        String sourceTable = MappingNormalizer.mainTableOf(md, classA);
+        String sourceTable = MappingNormalizer.mainTableOf(md, classA, model);
         if (join.joins().size() == 1) {
             JoinChainElement hop = join.joins().get(0);
             String hopDb = hop.databaseName() != null ? hop.databaseName() : join.database();
@@ -321,7 +321,7 @@ final class AssociationSynthesis {
             // The synthesized legacyAssocPredicate call declares tgtRow's row
             // type as classB's ~mainTable; the join must actually land there,
             // or the lambda's column reads would silently mistype.
-            String classBTable = MappingNormalizer.mainTableOf(md, classB);
+            String classBTable = MappingNormalizer.mainTableOf(md, classB, model);
             if (!targetTable.equals(classBTable)) {
                 throw new NotImplementedException(
                         "AssociationMapping join '" + hop.joinName() + "' lands on table '"

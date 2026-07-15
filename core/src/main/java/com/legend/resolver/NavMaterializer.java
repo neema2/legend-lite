@@ -24,9 +24,11 @@ import java.util.Set;
 final class NavMaterializer {
 
     private final ClassSources sources;
+    private final AssociationJoins assocs;
 
-    NavMaterializer(ClassSources sources) {
+    NavMaterializer(ClassSources sources, AssociationJoins assocs) {
         this.sources = sources;
+        this.assocs = assocs;
     }
 
     /**
@@ -83,12 +85,42 @@ final class NavMaterializer {
         Set<String> tNavs = new LinkedHashSet<>();
         Map<String, List<List<String>>> subTails =
                 new LinkedHashMap<>();
+        Map<String, Set<String>> assocSubLeaves = new LinkedHashMap<>();
         for (List<String> tail : tails) {
             if (tail.isEmpty()) {
                 continue;
             }
             TypedSpec b = t.bindings().get(tail.get(0));
             if (b == null) {
+                // ASSOC-SUB (union V3): the tail continues through an
+                // ASSOCIATION end on this target (head y is a nav slot, z
+                // on plain Y realizes via the association route). One extra
+                // hop only; deeper tails and context-less temporal targets
+                // keep their loud walls.
+                if (tail.size() == 2) {
+                    var subClsOpt = assocs.assocTargetClassOf(
+                            targetClassFqn, tail.get(0));
+                    // a UNION-mapped assoc target needs per-member routed
+                    // conditions (V4) — the plain predicate returns PARTIAL
+                    // rows; stays loud until that rung is built
+                    if (subClsOpt.isPresent()
+                            && !StoreResolver.containsConcatenate(sources
+                                    .get(mappingFqn, subClsOpt.get())
+                                    .pipeline())) {
+                        String subChain = chainPrefix == null ? tail.get(0)
+                                : chainPrefix + "." + tail.get(0);
+                        // temporal sub-target: liftable when its chain-keyed
+                        // spec (explicit hop date) OR the propagated context
+                        // can stamp it — the nav-slot sub gate's condition
+                        if (temporal.temporalStrategy(subClsOpt.get()) == null
+                                || temporal.spec(subChain) != null
+                                || !temporal.contextAt(subChain,
+                                        subClsOpt.get(), hopCtx).isEmpty()) {
+                            assocSubLeaves.computeIfAbsent(tail.get(0),
+                                    k -> new LinkedHashSet<>()).add(tail.get(1));
+                        }
+                    }
+                }
                 continue;
             }
             StoreResolver.collectAliasReads(b, t.rowVar(), tSlots, tDemand);
@@ -210,16 +242,44 @@ final class NavMaterializer {
                     subCs.bindings(),
                     composeSubNavPrefixes(p, sm.getValue().subNavs())));
         }
-        if (!slotCtx.isEmpty() && temporal.hasMilestonedSlotTarget(t.pipeline())) {
-            // milestoned SLOT-TARGET aliases filter by the hop context —
-            // per each table's OWN dimension (cross-dimension takes
-            // nothing; audit 13's own-dimension rule, now structural)
-            return new NavMat(
-                    temporal.filterMilestonedJoinTargets(matM.pipeline(), slotCtx),
-                    matM.slotPrefixes(), matM.stripped(), subTree);
+        TypedSpec pipe =
+                !slotCtx.isEmpty() && temporal.hasMilestonedSlotTarget(t.pipeline())
+                // milestoned SLOT-TARGET aliases filter by the hop context —
+                // per each table's OWN dimension (cross-dimension takes
+                // nothing; audit 13's own-dimension rule, now structural)
+                ? temporal.filterMilestonedJoinTargets(matM.pipeline(), slotCtx)
+                : matM.pipeline();
+        // ASSOC-SUB folds (union V3): each collected end joins its target
+        // INSIDE this materialized pipeline (the same descriptor->emission
+        // the root uses) and rides the SubNav tree — the composed prefix
+        // (y_ + z_) resolves the leaf on the joined row.
+        for (var e : assocSubLeaves.entrySet()) {
+            String prop = e.getKey();
+            String subChain = chainPrefix == null ? prop
+                    : chainPrefix + "." + prop;
+            AssociationJoins.AssocJoin aj = assocs.associationJoin(temporal,
+                    t, prop, StoreResolver.Context.NONE, false,
+                    e.getValue(), subChain);
+            var leftRow = (com.legend.compiler.element.type.Type.RelationType)
+                    pipe.info().type();
+            List<com.legend.compiler.element.type.Type.Column> cols =
+                    new ArrayList<>(leftRow.columns());
+            for (var c : aj.targetRow().columns()) {
+                cols.add(new com.legend.compiler.element.type.Type.Column(
+                        aj.prefix() + c.name(), c.type(), c.multiplicity()));
+            }
+            pipe = new com.legend.compiler.spec.typed.TypedJoin(pipe,
+                    aj.targetPipeline(), StoreResolver.leftKind(),
+                    aj.condition(), java.util.Optional.of(aj.prefix()),
+                    new com.legend.compiler.element.type.ExprType(
+                            new com.legend.compiler.element.type.Type
+                                    .RelationType(cols),
+                            com.legend.compiler.element.type
+                                    .Multiplicity.Bounded.ONE));
+            subTree.put(prop, new Substitution.SubNav(aj.prefix(),
+                    aj.target().rowVar(), aj.target().bindings(), Map.of()));
         }
-        return new NavMat(matM.pipeline(), matM.slotPrefixes(),
-                matM.stripped(), subTree);
+        return new NavMat(pipe, matM.slotPrefixes(), matM.stripped(), subTree);
     }
 
     /** Re-root a child's SUB-navigation tree onto the parent row: every

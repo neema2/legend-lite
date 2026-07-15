@@ -2485,28 +2485,47 @@ public final class MappingNormalizer {
     // AssociationMapping → predicate function  —  doc §5.6.1
     // ====================================================================
 
-    static boolean hasMainTable(LegacyMappingDefinition md, String classFqn) {
-        for (ClassMapping cm : md.classMappings()) {
-            if (cm instanceof ClassMapping.Relational rcm
-                    && classFqn.equals(rcm.className())
-                    && (rcm.mainTable() != null || inferMainTableQuiet(rcm) != null)) {
+    static boolean hasMainTable(LegacyMappingDefinition md, String classFqn,
+            ModelBuilder model) {
+        for (ClassMapping.Relational rcm
+                : relationalMappingsInClosure(md, model, classFqn)) {
+            if (rcm.mainTable() != null || inferMainTableQuiet(rcm) != null) {
                 return true;
             }
         }
         return false;
     }
 
+    /** {@code classFqn}'s Relational class mappings across the INCLUDE
+     * CLOSURE, own mapping first (union V3: assoc mappings routinely live
+     * in a mapping that only INCLUDES the class-mapping definitions). */
+    private static List<ClassMapping.Relational> relationalMappingsInClosure(
+            LegacyMappingDefinition md, ModelBuilder model, String classFqn) {
+        List<LegacyMappingDefinition> closure = new ArrayList<>();
+        collectMappingClosure(md, model, closure, new LinkedHashSet<>());
+        List<ClassMapping.Relational> out = new ArrayList<>();
+        for (LegacyMappingDefinition m : closure) {
+            for (ClassMapping cm : m.classMappings()) {
+                if (cm instanceof ClassMapping.Relational rcm
+                        && classFqn.equals(rcm.className())) {
+                    out.add(rcm);
+                }
+            }
+        }
+        return out;
+    }
+
     /** {@code classFqn}'s ~mainTable declaration in {@code md} (loud if absent). */
     private static LegacyMappingDefinition.TableReference mainTableDefOf(
-            LegacyMappingDefinition md, String classFqn) {
+            LegacyMappingDefinition md, String classFqn, ModelBuilder model) {
         // The ROOT set's table — with multiple set IDs, .all() and every
         // synthesized association predicate anchor on the root; taking the
         // FIRST declared set bound predicates to the wrong table whenever a
-        // non-root set was declared first (audit).
+        // non-root set was declared first (audit). Include-closure aware.
         LegacyMappingDefinition.TableReference first = null;
-        for (ClassMapping cm : md.classMappings()) {
-            if (cm instanceof ClassMapping.Relational rcm
-                    && classFqn.equals(rcm.className())) {
+        for (ClassMapping.Relational rcm
+                : relationalMappingsInClosure(md, model, classFqn)) {
+            {
                 LegacyMappingDefinition.TableReference mt = rcm.mainTable() != null
                         ? rcm.mainTable() : inferMainTableQuiet(rcm);
                 if (mt == null) {
@@ -2529,15 +2548,17 @@ public final class MappingNormalizer {
     }
 
     /** The {@code #>{db.T}#}-shaped source of {@code classFqn}'s ~mainTable row. */
-    static ValueSpecification mainTableRefOf(LegacyMappingDefinition md, String classFqn) {
-        LegacyMappingDefinition.TableReference ref = mainTableDefOf(md, classFqn);
+    static ValueSpecification mainTableRefOf(LegacyMappingDefinition md, String classFqn,
+            ModelBuilder model) {
+        LegacyMappingDefinition.TableReference ref = mainTableDefOf(md, classFqn, model);
         return new AppliedFunction("tableReference", List.of(
                 new PackageableElementPtr(ref.database()),
                 new CString(ref.table())));
     }
 
-    static String mainTableOf(LegacyMappingDefinition md, String classFqn) {
-        return mainTableDefOf(md, classFqn).table();
+    static String mainTableOf(LegacyMappingDefinition md, String classFqn,
+            ModelBuilder model) {
+        return mainTableDefOf(md, classFqn, model).table();
     }
 
     // ====================================================================
