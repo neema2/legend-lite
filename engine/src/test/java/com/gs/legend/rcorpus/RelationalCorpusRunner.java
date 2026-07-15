@@ -163,7 +163,10 @@ class RelationalCorpusRunner {
         String header = "# Relational corpus scoreboard (real legend-engine core_relational)\n\n"
                 + "RUN-as-data over the local legend-engine checkout; row equality is the\n"
                 + "contract, golden SQL is advisory. SHAPE = test body/assert form the\n"
-                + "runner does not yet recognize (accounted, not skipped silently).\n";
+                + "runner does not yet recognize (accounted, not skipped silently).\n"
+                + "Scope: <<test.ToFix>>/<<test.Ignore>> are excluded (engine harness\n"
+                + "parity) and so is <<test.ExcludeAlloy>> (legend-lite executes the\n"
+                + "in-process Alloy-shaped path).\n";
         List<String> seedFails = runner.seedFailures();
         if (!seedFails.isEmpty()) {
             StringBuilder sf = new StringBuilder("\n## Failed seed statements ("
@@ -178,7 +181,8 @@ class RelationalCorpusRunner {
             long p = outs.stream().filter(o -> o.status() == Runner.Status.PASS).count();
             System.out.println("[rcorpus] " + f + ": " + p + "/" + outs.size() + " pass");
         });
-        System.out.println("[rcorpus] mapping walls: " + runner.walls().size());
+        System.out.println("[rcorpus] walls (mappings + dropped base elements): "
+                + runner.walls().size());
         System.out.println("[rcorpus] scoreboard written to docs/RELATIONAL_CORPUS.md");
     }
 }

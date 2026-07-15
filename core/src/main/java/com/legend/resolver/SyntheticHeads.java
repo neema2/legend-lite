@@ -47,13 +47,32 @@ import java.util.function.UnaryOperator;
 final class SyntheticHeads {
 
     /**
-     * A join identity parsed from a head name. Property names cannot
-     * contain {@code '#'} in Pure, so every suffix is ours; a malformed
-     * one is a resolver bug and throws. ALL encode/decode knowledge of
-     * the {@code #fN}/{@code #dN} convention lives in this record.
+     * A join identity parsed from a head name. IDENTIFIER property names
+     * cannot contain {@code '#'}; QUOTED property names (M3
+     * {@code propertyName: (identifier | STRING)}) can — minting over one
+     * throws loudly (the constructor guard), and a malformed suffix is a
+     * loud resolver bug. RESIDUAL (documented, corpus-free): a quoted
+     * property spelled exactly like a minted name ({@code 'emp#f0'})
+     * decodes as synthetic — full closure needs registry-membership
+     * decode. ALL encode/decode knowledge of the {@code #fN}/{@code #dN}/
+     * {@code #cN} convention lives in this record.
      */
     record JoinIdentity(String prop, Kind kind, int seq) {
         enum Kind { PLAIN, FILTERED, DATED, CONCAT }
+
+        JoinIdentity {
+            if (prop.indexOf('#') >= 0) {
+                // QUOTED pure property names are arbitrary strings (M3:
+                // propertyName: (identifier | STRING)) — a real property
+                // containing '#' must never silently masquerade as one of
+                // our synthetic identities, and composed synthetics
+                // (prop#cN#dM) are a resolver bug either way. LOUD.
+                throw new IllegalStateException(
+                        "synthetic-head identity over a property containing"
+                                + " '#' (quoted-name property or composed"
+                                + " synthetic — resolver bug): " + prop);
+            }
+        }
 
         static JoinIdentity of(String head) {
             int i = head.indexOf('#');
@@ -68,8 +87,14 @@ final class SyntheticHeads {
                 default -> throw new IllegalStateException(
                         "malformed synthetic head (resolver bug): " + head);
             };
-            return new JoinIdentity(head.substring(0, i), kind,
-                    Integer.parseInt(head.substring(i + 2)));
+            int seq;
+            try {
+                seq = Integer.parseInt(head.substring(i + 2));
+            } catch (NumberFormatException e) {
+                throw new IllegalStateException(
+                        "malformed synthetic head (resolver bug): " + head);
+            }
+            return new JoinIdentity(head.substring(0, i), kind, seq);
         }
 
         String encoded() {
@@ -412,8 +437,14 @@ final class SyntheticHeads {
             if (prop == null) {
                 prop = p;
                 headNode = nav;
-            } else if (!prop.equals(p)) {
-                return null;   // cross-head unions are their own rung
+            } else if (!prop.equals(p) || !nav.equals(headNode)) {
+                // ONE head means one WHOLE navigation node: the property
+                // AND its receiver chain AND its milestoning dates (audit
+                // 16: branch 2's $p.parent hop or a different business
+                // date silently vanished into branch 1's head — wrong
+                // rows). Cross-head/cross-date unions are their own rung;
+                // the refusal keeps the loud not-substitutable wall.
+                return null;
             }
             branches.add(pred);
         }
@@ -423,8 +454,15 @@ final class SyntheticHeads {
         // ONE identity per distinct stream expression: the same
         // concatenated stream in two projection columns rides ONE join
         // (engine merge-by-identity — two-column Merge golden expects 7
-        // rows, two joins gave 13)
+        // rows, two joins gave 13). The HEAD NODE is part of the identity
+        // (same property over different receivers/dates is a different
+        // stream); its BOTTOM VARIABLE alpha-normalizes so per-column
+        // lambda param names (p| vs t|) don't split one stream into two
+        // joins.
+        Map<String, String> rootEnv = new LinkedHashMap<>();
+        rootEnv.put(bottomVarOf(headNode), "#root");
         List<Object> memoKey = List.of(prop,
+                alphaNormalize(headNode, rootEnv, new int[]{0}),
                 branches.stream().map(b -> b == null ? ""
                         : (Object) canonicalPred(b)).toList());
         String synth = concatMemo.get(memoKey);
@@ -633,15 +671,51 @@ final class SyntheticHeads {
      * parameter name — rename to a fixed one so record equality sees
      * through it. */
     private static TypedLambda canonicalPred(TypedLambda pred) {
-        String param = pred.parameters().get(0);
-        var ft = (Type.FunctionType) pred.info().type();
-        TypedVariable canonical = new TypedVariable("_cb",
-                new ExprType(ft.params().get(0).type(),
-                        ft.params().get(0).multiplicity()));
-        return new TypedLambda(List.of("_cb"),
-                pred.body().stream().map(b ->
-                        Substitution.inlineParam(b, param, canonical)).toList(),
-                pred.info());
+        // FULL alpha-normalization (audit 16): the top-level rename alone
+        // let nested-lambda fresh names (_iN from separate β-inlines of one
+        // derived property) defeat the memo — two identities, two joins,
+        // row multiplication. Canonical names contain '#', unspellable as
+        // pure variables, so user code can never capture them.
+        return (TypedLambda) alphaNormalize(pred,
+                new LinkedHashMap<>(), new int[]{0});
+    }
+
+    private static TypedSpec alphaNormalize(TypedSpec n,
+            Map<String, String> env, int[] counter) {
+        if (n instanceof TypedVariable v) {
+            String canonical = env.get(v.name());
+            return canonical == null ? v
+                    : new TypedVariable(canonical, v.info());
+        }
+        if (n instanceof TypedLambda l) {
+            Map<String, String> inner = new LinkedHashMap<>(env);
+            List<String> ps = new java.util.ArrayList<>(l.parameters().size());
+            for (String p : l.parameters()) {
+                String c = "#a" + counter[0]++;
+                inner.put(p, c);
+                ps.add(c);
+            }
+            return new TypedLambda(ps,
+                    l.body().stream()
+                            .map(b -> alphaNormalize(b, inner, counter))
+                            .toList(),
+                    l.info());
+        }
+        return rebuildChildren(n, c -> alphaNormalize(c, env, counter));
+    }
+
+    /** The variable a liftable navigation chain bottoms at. */
+    private static String bottomVarOf(TypedSpec n) {
+        return switch (n) {
+            case TypedVariable v -> v.name();
+            case TypedPropertyAccess pa -> bottomVarOf(pa.source());
+            case TypedMilestonedAccess ma -> bottomVarOf(ma.source());
+            case TypedFilter f -> bottomVarOf(f.source());
+            case TypedNativeCall c when c.args().size() == 1 ->
+                    bottomVarOf(c.args().get(0));
+            default -> throw new IllegalStateException(
+                    "resolver bug: liftable nav does not bottom at a variable");
+        };
     }
 
     private int count = 0;

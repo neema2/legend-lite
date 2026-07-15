@@ -259,6 +259,11 @@ public final class Corpus {
     private static final Pattern EXECUTE_IN_DB = Pattern.compile(
             "executeInDb\\w*\\s*\\(");
 
+    /** Seed-stream marker: {@code dropAndCreateTableInDb} call sites emit
+     * this + the table name IN TEXT ORDER; the Runner resolves it to the
+     * family's CREATE statement at replay position. */
+    public static final String DROP_AND_CREATE_MARKER = "--dropAndCreate:";
+
     private static final Pattern LET_STRING = Pattern.compile(
             "let\\s+(\\w+)\\s*=\\s*(?=')");
 
@@ -288,8 +293,27 @@ public final class Corpus {
         List<String> out = new ArrayList<>();
         Map<String, String> lets = new LinkedHashMap<>();
         int nextLet = 0;
+        // dropAndCreateTableInDb(Db, 'Table', $conn) participates IN TEXT
+        // ORDER as a marker the Runner resolves to the family's CREATE —
+        // hoisting the re-CREATE ahead of the whole seed block wiped fills
+        // whose helper was already run-once'd (audit 16 F3a: the engine
+        // executes drop+create+fill inline)
+        List<int[]> dropAt = new ArrayList<>();     // [position, index]
+        List<String> dropTables = new ArrayList<>();
+        Matcher dm = Pattern.compile(
+                "dropAndCreateTableInDb\\s*\\([^,]+,\\s*'([\\w.]+)'").matcher(source);
+        while (dm.find()) {
+            dropAt.add(new int[]{dm.start(), dropTables.size()});
+            dropTables.add(dm.group(1));
+        }
+        int nextDrop = 0;
         Matcher m = EXECUTE_IN_DB.matcher(source);
         while (m.find()) {
+            while (nextDrop < dropAt.size() && dropAt.get(nextDrop)[0] < m.start()) {
+                out.add(DROP_AND_CREATE_MARKER
+                        + dropTables.get(dropAt.get(nextDrop)[1]));
+                nextDrop++;
+            }
             while (nextLet < letAt.size() && letAt.get(nextLet)[0] < m.start()) {
                 String[] def = letDefs.get(letAt.get(nextLet)[1]);
                 String folded = foldConcat(def[1], lets);

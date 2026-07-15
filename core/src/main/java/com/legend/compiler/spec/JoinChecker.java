@@ -130,22 +130,51 @@ final class JoinChecker {
         if (keys == null) {
             return null;
         }
+        // WHICH side's key values survive is join-type-dependent (engine
+        // tds.pure requiredLeftCols/requiredRightCols + the RightOuter
+        // golden: fID carries the RIGHT side's values, no TDSNull): the
+        // OUTER-PRESERVED side keeps its keys — RIGHT_OUTER renames the
+        // LEFT copies away; everything else keeps the left.
+        boolean rightKeeps = kind.value().equals("RIGHT_OUTER");
+        // collision-safe synthetic prefix (ordinal bump against BOTH
+        // sides' columns — a real __jk_* column must survive untouched)
+        java.util.Set<String> taken = new java.util.LinkedHashSet<>();
+        for (ValueSpecification side : List.of(ps.get(0), ps.get(1))) {
+            if (t.synth(side, env).info().type()
+                    instanceof Type.RelationType srt) {
+                srt.columns().forEach(c -> taken.add(c.name()));
+            }
+        }
+        String jkPrefix = "__jk_";
+        int ordinal = 2;
+        while (hasJkCollision(jkPrefix, taken)) {
+            jkPrefix = "__jk" + ordinal++ + "_";
+        }
+        ValueSpecification left = ps.get(0);
         ValueSpecification right = ps.get(1);
         Variable a = new Variable("a");
         Variable b = new Variable("b");
         ValueSpecification cond = null;
         List<String> synthetic = new java.util.ArrayList<>(keys.size());
         for (String k : keys) {
-            String s = "__rjk_" + k;
+            String s = jkPrefix + k;
             synthetic.add(s);
-            right = new AppliedFunction("rename",
-                    List.of(right, new ColSpec(k), new ColSpec(s)));
-            ValueSpecification eq = new AppliedFunction("equal", List.of(
-                    new AppliedProperty(a, k), new AppliedProperty(b, s)));
+            ValueSpecification eq;
+            if (rightKeeps) {
+                left = new AppliedFunction("rename",
+                        List.of(left, new ColSpec(k), new ColSpec(s)));
+                eq = new AppliedFunction("equal", List.of(
+                        new AppliedProperty(a, s), new AppliedProperty(b, k)));
+            } else {
+                right = new AppliedFunction("rename",
+                        List.of(right, new ColSpec(k), new ColSpec(s)));
+                eq = new AppliedFunction("equal", List.of(
+                        new AppliedProperty(a, k), new AppliedProperty(b, s)));
+            }
             cond = cond == null ? eq : new AppliedFunction("and", List.of(cond, eq));
         }
         AppliedFunction modern = new AppliedFunction("join", List.of(
-                ps.get(0), right,
+                left, right,
                 new EnumValue("meta::pure::functions::relation::JoinKind",
                         joinKindNameOf(kind)),
                 new LambdaFunction(List.of(a, b), List.of(cond))));
@@ -157,6 +186,15 @@ final class JoinChecker {
                 kept.stream().map(Type.Column::name).toList(),
                 new ExprType(new Type.RelationType(kept),
                         joined.info().multiplicity()));
+    }
+
+    private static boolean hasJkCollision(String prefix, java.util.Set<String> taken) {
+        for (String t : taken) {
+            if (t.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static String joinKindNameOf(EnumValue kind) {

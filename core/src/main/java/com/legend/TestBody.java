@@ -291,6 +291,14 @@ public final class TestBody {
                         return new Outcome.Unsupported(bad);
                     }
                     handles.put(name.value(), h);
+                    // EAGER execution (audit 16 F1, engine parity): the
+                    // engine's execute() runs AT the let — a broken
+                    // compile/lowering must surface here even when no
+                    // assert ever reads the handle. Lazy handles let
+                    // envelope-shape-only asserts (size-1 idiom) PASS
+                    // vacuously against a broken pipeline.
+                    eval(splice(h, runtimeFqn), lets, handles, ctx, imports,
+                            runtimeFqn, conn);
                 } else {
                     lets.put(name.value(), rhs);
                 }
@@ -518,6 +526,14 @@ public final class TestBody {
                     // its value conjuncts silently skipped (audit 9)
                     return containsValuesRead(args.get(0))
                             ? UNSUPPORTED_MARKER : ADVISORY_MARKER;
+                }
+                if (emptinessUnverifiable) {
+                    // seeds failed: a predicate like isEmpty(...) would
+                    // hollow-PASS over the tables the failed seeds left
+                    // empty — same guard as the equals/size-0 spellings
+                    // (audit 16 F4); assert over verifiable state is rare
+                    // enough that blanket-unsupported stays honest
+                    return UNSUPPORTED_MARKER;
                 }
                 Object v = evalScalar(args.get(0), lets, handles, ctx, imports,
                         runtimeFqn, conn);
@@ -1072,15 +1088,35 @@ public final class TestBody {
                         : Double.parseDouble(aCell);
                 int dp = e.contains(".")
                         ? e.length() - e.indexOf('.') - 1 : 0;
-                // half-ulp at the expected's PRINTED precision, floored by
-                // a relative epsilon for FLOAT-ACCUMULATION order: H2 and
-                // DuckDB sum the same doubles in different orders and
-                // addition is not associative — the engine's own 12th
-                // significant digit moves (testPwaValue). The dialect-
-                // arithmetic leniency wireEquals already grants ULPs; this
-                // extends it to printed SUM goldens, nothing else.
-                double tol = Math.max(0.5 * Math.pow(10, -dp),
-                        Math.abs(ev) * 1e-11);
+                // Two leniencies, BOTH bounded by the same rationale (the
+                // engine prints ~12 significant digits; H2 and DuckDB sum
+                // doubles in different orders and addition is not
+                // associative — the engine's own 12th digit moves,
+                // testPwaValue):
+                //   1. relative 1e-11 accumulation epsilon — always;
+                //   2. half-ulp at the expected's PRINTED precision — ONLY
+                //      when the printed token actually carries >= 10
+                //      significant digits (i.e. it IS a ~12-sig-digit
+                //      truncation artifact; a TRIMMED TRAILING ZERO can
+                //      shave the visible count to 10: 0.05657370518 in
+                //      testPwaValueOnStartYear). A coarse golden like
+                //      '100' (audit 16: dp=0 granted +-0.5) is exact
+                //      decimal output, not a truncation — it gets the
+                //      relative floor only.
+                int sig = 0;
+                boolean seenNonZero = false;
+                for (int ci = 0; ci < e.length(); ci++) {
+                    char ch = e.charAt(ci);
+                    if (ch >= '1' && ch <= '9') {
+                        seenNonZero = true;
+                    }
+                    if (Character.isDigit(ch) && (seenNonZero || ch != '0')) {
+                        sig++;
+                    }
+                }
+                double tol = sig >= 10
+                        ? Math.max(0.5 * Math.pow(10, -dp), Math.abs(ev) * 1e-11)
+                        : Math.abs(ev) * 1e-11;
                 if (Math.abs(av - ev) > tol) {
                     return false;
                 }
@@ -1218,9 +1254,10 @@ public final class TestBody {
         if ("TDSNull".equals(e) && a == null) {
             return true;
         }
-        if ("TDSNull".equals(a) && e == null) {
-            return true;
-        }
+        // NO actual-side bridge (audit 16 F5): if a bug ever put the
+        // literal string 'TDSNull' on OUR wire where a NULL belongs, the
+        // symmetric grant would mask it — same refusal as the temporal
+        // bridge below (audit 9)
         if (e == null || a == null) {
             return e == a;
         }

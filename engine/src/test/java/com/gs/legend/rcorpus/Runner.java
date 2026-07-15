@@ -50,9 +50,6 @@ public final class Runner {
     private final java.util.Set<String> sharedSeededFns = new java.util.HashSet<>();
     /** {@code <<test.BeforePackage>>} setups collected corpus-wide. */
     private final List<Corpus.BeforePackage> beforePackages = new ArrayList<>();
-    /** Advisory golden-SQL diffs: counted, never failed on. */
-    public int sqlAsserts;
-
     /** Element keys (kind::fqn) of the SHARED base model — dedup floor. */
     private final java.util.Set<String> sharedSeen = new java.util.HashSet<>();
 
@@ -614,9 +611,6 @@ public final class Runner {
         for (Corpus.BeforePackage bp : beforePackages) {
             if (fn.fqn().startsWith(bp.pkg() + "::")) {
                 boolean includeBody = expanded.add(bp.fqn());
-                if (includeBody) {
-                    allSeeds.addAll(dropAndCreateSeeds(bp.body()));
-                }
                 allSeeds.addAll(Corpus.expandSeeds(bp.body(), bp.pkg(),
                         setupFnBodies, expanded, includeBody));
             }
@@ -630,7 +624,19 @@ public final class Runner {
                 : new ArrayList<>(setupFnBodies.entrySet())) {
             String simple = en.getKey().substring(
                     en.getKey().lastIndexOf(':') + 1);
-            if (fn.body().contains(simple + "(")) {
+            // token-boundary + package-scoped (audit 16 F3b): the raw
+            // substring probe matched "fillDb(" inside
+            // "createTablesAndFillDb(" and pulled same-named setups from
+            // FOREIGN families, whose create-table seeds silently replaced
+            // the current family's filled tables
+            String fnPkg = en.getKey().contains("::")
+                    ? en.getKey().substring(0, en.getKey().lastIndexOf("::"))
+                    : "";
+            boolean inScope = fnPkg.isEmpty()
+                    || fn.fqn().startsWith(fnPkg + "::");
+            if (inScope && Pattern.compile(
+                    "(?<![\\w$])" + Pattern.quote(simple) + "\\s*\\(")
+                    .matcher(fn.body()).find()) {
                 boolean includeBody = expanded.add(en.getKey());
                 String pkg = en.getKey().contains("::")
                         ? en.getKey().substring(0, en.getKey().lastIndexOf("::"))
@@ -640,6 +646,19 @@ public final class Runner {
             }
         }
         List<String> failedSeeds = new ArrayList<>();
+        // resolve dropAndCreate markers (emitted IN CALL ORDER by
+        // Corpus.seedSql) to the family's CREATE statements at replay
+        // position — the engine's inline drop+create+fill order
+        List<String> resolved = new ArrayList<>(allSeeds.size());
+        for (String sql : allSeeds) {
+            if (sql.startsWith(Corpus.DROP_AND_CREATE_MARKER)) {
+                resolved.addAll(familyCreatesOf(
+                        sql.substring(Corpus.DROP_AND_CREATE_MARKER.length())));
+            } else {
+                resolved.add(sql);
+            }
+        }
+        allSeeds = resolved;
         for (String sql : allSeeds) {
             for (String stmt : splitStatements(sql)) {
                 // prepare(): DuckDB JDBC masks Statement.execute errors
@@ -664,27 +683,23 @@ public final class Runner {
      * DDL and clobber the family shape. Re-emitting the family's own
      * CREATE here restores it right before the setup's inserts.
      */
-    private List<String> dropAndCreateSeeds(String body) {
+    /** The family CREATE statements for {@code table} (simple-name match). */
+    private List<String> familyCreatesOf(String table) {
         List<String> out = new ArrayList<>();
-        Matcher m = Pattern.compile(
-                "dropAndCreateTableInDb\\([^,]+,\\s*'([\\w.]+)'").matcher(body);
-        while (m.find()) {
-            String table = m.group(1);
-            String simple = table.contains(".")
-                    ? table.substring(table.lastIndexOf('.') + 1) : table;
-            for (String s : familySeeds.getOrDefault(currentFamilyKey, List.of())) {
-                Matcher c = Pattern.compile(
-                        "(?i)^\\s*CREATE OR REPLACE TABLE\\s+([\\w.\"]+)")
-                        .matcher(s);
-                if (!c.find()) {
-                    continue;
-                }
-                String created = c.group(1).replace("\"", "");
-                String createdSimple = created.contains(".")
-                        ? created.substring(created.lastIndexOf('.') + 1) : created;
-                if (createdSimple.equalsIgnoreCase(simple)) {
-                    out.add(s);
-                }
+        String simple = table.contains(".")
+                ? table.substring(table.lastIndexOf('.') + 1) : table;
+        for (String s : familySeeds.getOrDefault(currentFamilyKey, List.of())) {
+            Matcher c = Pattern.compile(
+                    "(?i)^\\s*CREATE OR REPLACE TABLE\\s+([\\w.\"]+)")
+                    .matcher(s);
+            if (!c.find()) {
+                continue;
+            }
+            String created = c.group(1).replace("\"", "");
+            String createdSimple = created.contains(".")
+                    ? created.substring(created.lastIndexOf('.') + 1) : created;
+            if (createdSimple.equalsIgnoreCase(simple)) {
+                out.add(s);
             }
         }
         return out;
