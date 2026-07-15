@@ -1870,6 +1870,51 @@ public final class MappingNormalizer {
             Map<Integer, List<LiftChain>> chainsByOrdinal) {
     }
 
+    /** The MID hops of a chained lift entry as physical join steps,
+     * prevAlias-scoped conditions composing hop to hop. */
+    private static List<LiftMidStep> liftMidSteps(PropertyMapping.Join j,
+            String prop, String srcTable, LegacyMappingDefinition md,
+            ModelBuilder model) {
+        List<LiftMidStep> midSteps = new ArrayList<>();
+        String prevTable = srcTable;
+        String prevAlias = null;
+        for (int h = 0; h + 1 < j.joins().size(); h++) {
+            JoinChainElement midHop = j.joins().get(h);
+            String midDb = midHop.databaseName() != null
+                    ? midHop.databaseName() : j.database();
+            DatabaseDefinition.JoinDefinition mjd =
+                    model.findJoin(midDb, midHop.joinName()).orElseThrow(() ->
+                            new com.legend.error.ModelException(
+                                    com.legend.error.LegendCompileException
+                                            .Phase.NORMALIZE,
+                                    "Join '" + midHop.joinName() + "' not"
+                                    + " found in db '" + midDb + "'; PM='"
+                                    + prop + "', mapping="
+                                    + md.qualifiedName()));
+            String midTgt = determineTargetTable(mjd.operation(),
+                    prevTable, midHop.joinName(), prop, h + 1,
+                    md.qualifiedName());
+            Variable ms = new Variable("s");
+            Variable mt = new Variable("t");
+            Map<String, ValueSpecification> midScope = new LinkedHashMap<>();
+            midScope.put(prevTable, prevAlias == null ? ms
+                    : new AppliedProperty(ms, prevAlias));
+            if (!midTgt.equals(prevTable)) {
+                midScope.put(midTgt, mt);
+            }
+            ValueSpecification midCond = RelOpTranslator.translate(
+                    mjd.operation(), midScope, mt, null,
+                    RelOpTranslator.PipelineView.NONE);
+            String midAlias = "nl__" + prop + "__" + midHop.joinName();
+            midSteps.add(new LiftMidStep(midAlias, midDb, midTgt,
+                    new LambdaFunction(List.of(ms, mt),
+                            List.of(midCond))));
+            prevTable = midTgt;
+            prevAlias = midAlias;
+        }
+        return midSteps;
+    }
+
     /** One physical MID hop of a CHAINED lift entry, wrapped around the
      * owning member's thread pipeline ({@code join(pipe, ~alias:
      * tableReference, cond)} — engine: mid tables join INSIDE the member
@@ -2041,43 +2086,12 @@ public final class MappingNormalizer {
                 // MID hops (all but the last): physical join steps around
                 // the owning member's thread (engine: mids join INSIDE the
                 // thread; the final hop is the union-level navigation)
-                List<LiftMidStep> midSteps = new ArrayList<>();
-                String prevTable = srcTable;
-                String prevAlias = null;
-                for (int h = 0; h + 1 < j.joins().size(); h++) {
-                    JoinChainElement midHop = j.joins().get(h);
-                    String midDb = midHop.databaseName() != null
-                            ? midHop.databaseName() : j.database();
-                    DatabaseDefinition.JoinDefinition mjd =
-                            model.findJoin(midDb, midHop.joinName()).orElseThrow(() ->
-                                    new com.legend.error.ModelException(
-                                            com.legend.error.LegendCompileException
-                                                    .Phase.NORMALIZE,
-                                            "Join '" + midHop.joinName() + "' not"
-                                            + " found in db '" + midDb + "'; PM='"
-                                            + prop + "', mapping="
-                                            + md.qualifiedName()));
-                    String midTgt = determineTargetTable(mjd.operation(),
-                            prevTable, midHop.joinName(), prop, h + 1,
-                            md.qualifiedName());
-                    Variable ms = new Variable("s");
-                    Variable mt = new Variable("t");
-                    Map<String, ValueSpecification> midScope = new LinkedHashMap<>();
-                    midScope.put(prevTable, prevAlias == null ? ms
-                            : new AppliedProperty(ms, prevAlias));
-                    if (!midTgt.equals(prevTable)) {
-                        midScope.put(midTgt, mt);
-                    }
-                    ValueSpecification midCond = RelOpTranslator.translate(
-                            mjd.operation(), midScope, mt, null,
-                            RelOpTranslator.PipelineView.NONE);
-                    String midAlias = "nl__" + prop + "__" + midHop.joinName();
-                    midSteps.add(new LiftMidStep(midAlias, midDb, midTgt,
-                            new LambdaFunction(List.of(ms, mt),
-                                    List.of(midCond))));
-                    prevTable = midTgt;
-                    prevAlias = midAlias;
-                }
+                List<LiftMidStep> midSteps = liftMidSteps(j, prop, srcTable,
+                        md, model);
+                String prevTable = midSteps.isEmpty() ? srcTable
+                        : midSteps.get(midSteps.size() - 1).table();
+                String prevAlias = midSteps.isEmpty() ? null
+                        : midSteps.get(midSteps.size() - 1).alias();
                 JoinChainElement hop = j.joins().get(j.joins().size() - 1);
                 String hopDb = hop.databaseName() != null ? hop.databaseName()
                         : j.database();

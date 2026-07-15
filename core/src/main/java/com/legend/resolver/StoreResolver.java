@@ -379,23 +379,6 @@ public final class StoreResolver {
                                 "meta::pure::functions::collection::removeDuplicates"));
     }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
     /**
      * INTERIM temporal-propagation wall (audit S1): the engine applies the
      * fetch date to EVERY milestoned table in the query
@@ -1290,7 +1273,6 @@ public final class StoreResolver {
         return new JoinedPipe(m, aggAssocJoins, aggReads);
     }
 
-
     /** PHASE — to-many/navigate heads under exists/isEmpty: the
      * correlated-EXISTS material per head (target pipeline + oriented
      * condition, NO join emitted; the positional rule table §133). */
@@ -1773,6 +1755,29 @@ public final class StoreResolver {
         return top;
     }
 
+    /** Milestoned property functions: each head's temporal arguments,
+     * chain-keyed (conflicting dates for one chain are loud — the date
+     * split renamed genuine two-date heads before this runs). */
+    private java.util.Map<String, TemporalFrame.TemporalSpec> collectChainSpecs(
+            List<TypedSpec> ops, TypedSpec top, List<TypedGraphTree> tree) {
+        java.util.Map<String, TemporalFrame.TemporalSpec> specs =
+                new java.util.LinkedHashMap<>();
+        for (TypedSpec op : ops) {
+            if (op instanceof TypedFilter f) {
+                temporal.collectTemporalSpecs(f.predicate(), specs);
+            }
+            if (op instanceof TypedSortBy sb) {
+                temporal.collectTemporalSpecs(sb.key(), specs);
+            }
+        }
+        if (tree == null) {
+            for (TypedLambda fn : terminalLambdas(top)) {
+                temporal.collectTemporalSpecs(fn, specs);
+            }
+        }
+        return specs;
+    }
+
     private TypedSpec resolveObject(TypedSpec top, Context context) {
         OpChain phase1 = collectOpChain(top, context);
         List<TypedSpec> ops = phase1.ops();
@@ -1833,24 +1838,7 @@ public final class StoreResolver {
         Set<java.util.List<String>> paths = new java.util.LinkedHashSet<>(filterPaths);
         paths.addAll(projectionPaths);
 
-        // Milestoned property functions: collect each head's temporal
-        // arguments (conflicting dates for ONE head in one query are loud —
-        // engine keys separate joins by date, a roadmap refinement).
-        java.util.Map<String, TemporalFrame.TemporalSpec> specs = new java.util.LinkedHashMap<>();
-        for (TypedSpec op : ops) {
-            if (op instanceof TypedFilter f) {
-                temporal.collectTemporalSpecs(f.predicate(), specs);
-            }
-            if (op instanceof TypedSortBy sb) {
-                temporal.collectTemporalSpecs(sb.key(), specs);
-            }
-        }
-        if (tree == null) {
-            for (TypedLambda fn : terminalLambdas(top)) {
-                temporal.collectTemporalSpecs(fn, specs);
-            }
-        }
-        temporal = temporal.withSpecs(specs);
+        temporal = temporal.withSpecs(collectChainSpecs(ops, top, tree));
 
         NavPlan navPlan = registerNavigations(cs, paths);
         Set<String> demanded = navPlan.demanded();
@@ -2047,13 +2035,6 @@ public final class StoreResolver {
         return out;
     }
 
-
-
-
-
-
-
-
     /** {@code x|$x} — the whole-instance map of a COUNT(*)-style aggregate. */
     private static boolean isBareUserVar(TypedLambda l) {
         return l.body().size() == 1
@@ -2088,18 +2069,6 @@ public final class StoreResolver {
         }
         return null;
     }
-
-
-
-
-
-
-
-
-
-
-
-
 
     /** Milestoned accesses grouped by their dotted chain (mirrors
      * {@link #collectTemporalNodes}'s walk — anything the conflict
@@ -2148,9 +2117,6 @@ public final class StoreResolver {
         return new TypedFilter(tPipe, predSub.rewriteLambda(pred),
                 tPipe.info());
     }
-
-
-
 
     private static void scanLambda(TypedLambda lambda, Set<java.util.List<String>> out) {
         for (TypedSpec b : lambda.body()) {
@@ -2349,7 +2315,6 @@ public final class StoreResolver {
         return ctx.findAssociationOf(cs.classFqn(), head).isPresent();
     }
 
-
     /**
      * The TARGET-side key columns of a conjunctive equi-join condition —
      * the columns that pin each source row to AT MOST ONE group of the
@@ -2421,12 +2386,6 @@ public final class StoreResolver {
      * and strategy flow to SAME-STRATEGY targets navigated through temporal
      * parents (engine: milestoning context does NOT propagate through
      * non-temporal intermediates). Set at each getAll resolution entry. */
-
-
-
-
-
-
     private static com.legend.compiler.spec.typed.TypedEnumValue leftKind() {
         String fqn = "meta::pure::functions::relation::JoinKind";
         return new com.legend.compiler.spec.typed.TypedEnumValue(fqn, "LEFT",
@@ -2537,7 +2496,7 @@ public final class StoreResolver {
             collectParamPathHeads(ch, param, out);
         }
     }
-    
+
     /** Whether the pipeline contains a UNION (concatenate) anywhere. */
     static boolean containsConcatenate(TypedSpec pipeline) {
         if (pipeline instanceof com.legend.compiler.spec.typed.TypedConcatenate) {

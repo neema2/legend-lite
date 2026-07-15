@@ -301,6 +301,19 @@ final class RelOpTranslator {
                     }
                     yield tail;
             }
+            default -> translateTail(op, tableScope, targetVarOrNull,
+                    rowBindOrNull, pipeline);
+        };
+    }
+
+    /** Arm group 2 of the relational-op dispatch (sequential order
+     * preserved — the split is at an arm boundary). */
+    private static ValueSpecification translateTail(RelationalOperation op,
+            Map<String, ValueSpecification> tableScope,
+            ValueSpecification targetVarOrNull,
+            Variable rowBindOrNull,
+            PipelineView pipeline) {
+        return switch (op) {
             case RelationalOperation.FunctionCall call
                     when call.name().equals("concat") && call.args().size() >= 2 -> {
                     // The variadic 'concat' dynafunction has NO pure-function
@@ -438,6 +451,10 @@ final class RelOpTranslator {
                 yield translate(jn.terminal(), innerScope, targetVarOrNull,
                         rowBindOrNull, pipeline);
             }
+            // group-1 types never reach here (their arms matched above);
+            // javac still needs coverage over the sealed hierarchy
+            default -> throw new IllegalStateException(
+                    "relational-op dispatch: unexpected " + op.getClass());
         };
     }
 
