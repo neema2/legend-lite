@@ -172,16 +172,46 @@ public final class ClassSources {
         // catches property-set drift loudly at the extraction seam.)
         Map<String, TypedSpec> bindings = new LinkedHashMap<>();
         for (Map.Entry<String, TypedSpec> e : ctor.properties().entrySet()) {
-            if (ctx.findProperty(classFqn, e.getKey()).isEmpty()) {
-                throw new IllegalStateException("resolver bug: mapping binding '"
-                        + e.getKey() + "' is not a property of class '" + classFqn
-                        + "' (G should have rejected the body)");
-            }
+            // NewChecker is the construction gate: a ctor key that is not a
+            // class property can ONLY be a validated mapping-LOCAL property
+            // (+id: Integer[1]: COL — owned by the mapping); it binds like
+            // any other (XStore predicates read locals through bindings)
             bindings.put(e.getKey(), e.getValue());
+        }
+
+        // A ~func Relation pipeline may ITSELF be a class query
+        // (PersonWithFirmId.all()->filter->project — the relation-family
+        // MixedMapping): resolve it recursively with a FRESH resolver
+        // instance (own per-resolution state — never the caller's frame)
+        // against this same mapping. Self-referential ~funcs would recurse
+        // across instances — no corpus shape does; a cycle dies by stack,
+        // loudly, not silently.
+        if (containsGetAll(pipeline)) {
+            var nested = new StoreResolver(ctx, specs)
+                    .resolve(java.util.List.of(pipeline), null, mappingFqn);
+            pipeline = nested.get(0);
         }
 
         return new ClassSource(mappingFqn, classFqn, binding.setId(),
                 pipeline, mapper.parameters().get(0), bindings, rowType);
+    }
+
+    private static boolean containsGetAll(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedGetAll) {
+            return true;
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedNavigate nav) {
+            // a navigate SLOT's target is getAll-shaped BY CONVENTION (the
+            // legacyNavigate emission) — only pipeline-FLOW getAlls demand
+            // the recursive resolution
+            return containsGetAll(nav.source());
+        }
+        for (TypedSpec c : n.children()) {
+            if (containsGetAll(c)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

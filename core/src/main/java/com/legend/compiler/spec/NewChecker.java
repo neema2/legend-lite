@@ -68,6 +68,14 @@ final class NewChecker {
         }
         Map<String, TypedSpec> properties = new LinkedHashMap<>();
         ni.properties().forEach((name, key) -> {
+            if (key.isLocal()) {
+                // mapping-LOCAL property (+id: Integer[1]: COL): owned by
+                // the MAPPING, not the class (engine local-property
+                // semantics) — no class property to validate against; the
+                // value's own type stands (the normalizer emitted both)
+                properties.put(name, t.synth(key.value(), env));
+                return;
+            }
             Property prop = t.model().findProperty(ni.className(), name).orElseThrow(() ->
                     new TypeInferenceException("class '" + ni.className() + "' has no property '" + name + "'"));
             TypedSpec value = t.synth(key.value(), env);

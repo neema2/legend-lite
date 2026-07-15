@@ -160,7 +160,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | tests/mapping/modelJoin | 47 | 0 | 0 | 0 | 47 |
 | tests/mapping/multigrain | 5 | 0 | 0 | 5 | 0 |
 | tests/mapping/propertyfunc | 6 | 0 | 0 | 6 | 0 |
-| tests/mapping/relation | 93 | 35 | 1 | 14 | 43 |
+| tests/mapping/relation | 93 | 42 | 1 | 7 | 43 |
 | tests/mapping/relation/aggregation | 9 | 0 | 0 | 0 | 9 |
 | tests/mapping/selfJoin | 3 | 0 | 0 | 3 | 0 |
 | tests/mapping/sqlFunction | 72 | 57 | 0 | 3 | 12 |
@@ -172,7 +172,7 @@ runner does not yet recognize (accounted, not skipped silently).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2292 | **728** | 24 | 699 | 841 |
+| **total** | 2292 | **735** | 24 | 692 | 841 |
 
 ### mapping walls (dropped at assembly)
 
@@ -189,33 +189,31 @@ runner does not yet recognize (accounted, not skipped silently).
 - functions/tests/projection meta::relational::tests::projection::view::unionOnViewsMapping => [2992:110] expected BRACE_CLOSE but found SEMI_COLON (';')
 - functions/tests/projection meta::relational::tests::projection::view::unionOnViewOnViewMapping => [2991:110] expected BRACE_CLOSE but found SEMI_COLON (';')
 - graphFetch/domain meta::relational::graphFetch::domain::tests::TestMapping => Unknown type: 'Domain' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys => XStore/ModelJoin association end class 'meta::relational::graphFetch::tests::crossDatabase::Firm' resolves to 0 Relation(~func) set(s) in 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys'
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping1 => XStore/ModelJoin association end class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::Product' resolves to 0 Relation(~func) set(s) for set id 'prod_set' in 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping1'
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping2 => XStore/ModelJoin association end class 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::TradeEvent' resolves to 0 Relation(~func) set(s) for set id 'trade_event_set' in 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping2'
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping3 => [3649:6] expected identifier, got PLUS
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping4 => [3651:12] expected COLON but found BRACKET_OPEN ('[')
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5 => [3648:13] expected COLON but found STAR ('*')
-- graphFetch/tests meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::crossMappingUnion => [3667:13] expected COLON but found BRACKET_OPEN ('[')
-- graphFetch/tests meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::crossMappingUnion2 => [3667:13] expected COLON but found BRACKET_OPEN ('[')
+- graphFetch/tests meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys => association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceoId has no column binding on the Relation mapping of 'meta::relational::graphFetch::tests::crossDatabase::Employee' (mapping=meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys)
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping2 => XStore association 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::Trade_TradeEvent' has direction-specific conditions; a single shared predicate is required for now (mapping=meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping2)
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping3 => [3703:6] expected identifier, got PLUS
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping4 => [3705:12] expected COLON but found BRACKET_OPEN ('[')
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::crossMapping5 => [3702:13] expected COLON but found STAR ('*')
+- graphFetch/tests meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::crossMappingUnion => [3721:13] expected COLON but found BRACKET_OPEN ('[')
+- graphFetch/tests meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::crossMappingUnion2 => [3721:13] expected COLON but found BRACKET_OPEN ('[')
 - graphFetch/tests meta::relational::tests::milestoning::embedded::otherwiseMapping3 => Unknown type: 'meta::relational::tests::milestoning::ProductSynonym' is not a known primitive, class, or enum
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping1 => [3738:6] expected identifier, got PLUS
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping2 => [3738:6] expected identifier, got PLUS
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping3 => XStore/ModelJoin association end class 'meta::pure::graphFetch::tests::XStore::ordered::TradeProductBridge' resolves to 0 Relation(~func) set(s) for set id 'bridge_set' in 'meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping3'
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping4 => [3737:11] expected COLON but found BRACKET_OPEN ('[')
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping5 => [3737:11] expected COLON but found BRACKET_OPEN ('[')
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping => [4228:1] Circular M2M ~src chain detected in mapping 'meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping': meta::pure::graphFetch::tests::XStore::milestoning::Trade -> meta::pure::graphFetch::tests::XStore::milestoning::Trade
-- graphFetch/tests meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMappingForModelChain => XStore/ModelJoin association end class 'meta::pure::graphFetch::tests::XStore::milestoning::Trade' resolves to 0 Relation(~func) set(s) for set id 'trade_self' in 'meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMappingForModelChain'
-- graphFetch/tests/union meta::relational::graphFetch::tests::union::rootLevel::CrossStoreMapping2 => XStore/ModelJoin association end class 'meta::relational::graphFetch::tests::union::rootLevel::Product' resolves to 0 Relation(~func) set(s) for set id 'prod_set' in 'meta::relational::graphFetch::tests::union::rootLevel::CrossStoreMapping2'
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping1 => [3792:6] expected identifier, got PLUS
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping2 => [3792:6] expected identifier, got PLUS
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping3 => XStore/ModelJoin association end class 'meta::pure::graphFetch::tests::XStore::ordered::Trade' resolves to no Relation or Relational set for set id 'trade_set' in 'meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping3'
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping4 => [3791:11] expected COLON but found BRACKET_OPEN ('[')
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::ordered::orderedCrossMapping5 => [3791:11] expected COLON but found BRACKET_OPEN ('[')
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping => [4282:1] Circular M2M ~src chain detected in mapping 'meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMapping': meta::pure::graphFetch::tests::XStore::milestoning::Trade -> meta::pure::graphFetch::tests::XStore::milestoning::Trade
+- graphFetch/tests meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMappingForModelChain => XStore/ModelJoin association end class 'meta::pure::graphFetch::tests::XStore::milestoning::Trade' resolves to no Relation or Relational set for set id 'trade_self' in 'meta::pure::graphFetch::tests::XStore::milestoning::TradeLinkageMappingForModelChain'
 - lineage/scanRelations meta::pure::lineage::scanRelations::test::TopMapping => [2555:1] Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::test::DetailMapping => [2555:1] Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - lineage/scanRelations meta::pure::lineage::scanRelations::test::MappingWithJoinToSchemaInAnotherView => [2555:1] Unknown type: 'NamedRelation' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::tests::milestoning::inheritance::union::inheritanceUnionMapping => [5834:109] expected BRACE_CLOSE but found SEMI_COLON (';')
 - modelJoins meta::external::store::relational::modelJoins::test::LocalTradesMapping => [3005:4] Association mappings do not accept [setId] or extends [parentId] on the header
-- modelJoins meta::external::store::relational::modelJoins::test::XStoreTradesMapping => XStore/ModelJoin association end class 'meta::external::store::relational::modelJoins::test::LegalEntity' resolves to 0 Relation(~func) set(s) for set id 'legal_entity' in 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping'
-- modelJoins meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withConstantDouble => XStore/ModelJoin association end class 'meta::external::store::relational::modelJoins::test::LegalEntity' resolves to 0 Relation(~func) set(s) for set id 'legal_entity' in 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withConstantDouble'
-- modelJoins meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withConstantString => XStore/ModelJoin association end class 'meta::external::store::relational::modelJoins::test::LegalEntity' resolves to 0 Relation(~func) set(s) for set id 'legal_entity' in 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withConstantString'
-- modelJoins meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withConstantDate => XStore/ModelJoin association end class 'meta::external::store::relational::modelJoins::test::LegalEntity' resolves to 0 Relation(~func) set(s) for set id 'legal_entity' in 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withConstantDate'
-- modelJoins meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withInequalities => XStore/ModelJoin association end class 'meta::external::store::relational::modelJoins::test::LegalEntity' resolves to 0 Relation(~func) set(s) for set id 'legal_entity' in 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withInequalities'
+- modelJoins meta::external::store::relational::modelJoins::test::XStoreTradesMapping => XStore/ModelJoin association end class 'meta::external::store::relational::modelJoins::test::LegalEntity' resolves to no Relation or Relational set for set id 'legal_entity' in 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping'
+- modelJoins meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withConstantDouble => XStore/ModelJoin association end class 'meta::external::store::relational::modelJoins::test::LegalEntity' resolves to no Relation or Relational set for set id 'legal_entity' in 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withConstantDouble'
+- modelJoins meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withConstantString => XStore/ModelJoin association end class 'meta::external::store::relational::modelJoins::test::LegalEntity' resolves to no Relation or Relational set for set id 'legal_entity' in 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withConstantString'
+- modelJoins meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withConstantDate => XStore/ModelJoin association end class 'meta::external::store::relational::modelJoins::test::LegalEntity' resolves to no Relation or Relational set for set id 'legal_entity' in 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withConstantDate'
+- modelJoins meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withInequalities => XStore/ModelJoin association end class 'meta::external::store::relational::modelJoins::test::LegalEntity' resolves to no Relation or Relational set for set id 'legal_entity' in 'meta::external::store::relational::modelJoins::test::XStoreTradesMapping_withInequalities'
 - router/tests meta::relational::tests::database::mainMapping => Unknown type: 'testJoinTDS_Person' is not a known primitive, class, or enum
 - sqlDialectTranslation meta::relational::functions::toPostgresModel::tests::TestMapping => [2540:1] Unknown type: 'Extension' is not a known primitive, class, or enum
 - testDataGeneration/tests meta::relational::testDataGeneration::tests::model::VeiwOnViewMapping => Join 'student_to_school' targets view 'ViewOnViewSchool'; views as JOIN TARGETS are a roadmap feature (the view must expand as a relation at the join hop). mapping=meta::relational::testDataGeneration::tests::model::VeiwOnViewMapping
@@ -269,9 +267,6 @@ runner does not yet recognize (accounted, not skipped silently).
 - tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::union::UnionBothSidesMapping => XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolves to 2 Relation(~func) set(s) in 'meta::relational::tests::mapping::modelJoin::union::UnionBothSidesMapping'
 - tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::union::UnionPropertyInConditionMapping => XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolves to 0 Relation(~func) set(s) in 'meta::relational::tests::mapping::modelJoin::union::UnionPropertyInConditionMapping'
 - tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::union::UnionWithSubtypeQueryMapping => XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolves to 0 Relation(~func) set(s) in 'meta::relational::tests::mapping::modelJoin::union::UnionWithSubtypeQueryMapping'
-- tests/mapping/relation meta::relational::tests::mapping::relation::MixedMapping => XStore/ModelJoin association end class 'meta::relational::tests::mapping::relation::Firm' resolves to 0 Relation(~func) set(s) for set id 'firm' in 'meta::relational::tests::mapping::relation::MixedMapping'
-- tests/mapping/relation meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping => XStore/ModelJoin association end class 'meta::relational::tests::mapping::relation::BusinessTemporalPerson' resolves to 0 Relation(~func) set(s) for set id 'biztPerson' in 'meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping'
-- tests/mapping/relation meta::relational::tests::mapping::relation::MixedCaseAssociationChainMapping => XStore/ModelJoin association end class 'meta::relational::tests::mapping::relation::Person' resolves to 0 Relation(~func) set(s) for set id 'person' in 'meta::relational::tests::mapping::relation::MixedCaseAssociationChainMapping'
 - tests/mapping/union/relation meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithFirm => XStore/ModelJoin association end class 'meta::relational::tests::model::simple::Person' resolves to 2 Relation(~func) set(s) in 'meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithFirm'
 - tests/mapping/union/relation meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithSubAggregation => XStore/ModelJoin association end class 'meta::relational::tests::model::simple::Person' resolves to 2 Relation(~func) set(s) in 'meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithSubAggregation'
 - tests/mapping/union/relation meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithMultiColumnSubAggregation => XStore/ModelJoin association end class 'meta::relational::tests::model::simple::Person' resolves to 2 Relation(~func) set(s) in 'meta::relational::tests::mapping::union::relation::advanced::mapping::unionOfTwoRelationMappingsWithMultiColumnSubAggregation'
@@ -319,7 +314,7 @@ runner does not yet recognize (accounted, not skipped silently).
 - 5x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - 5x unknown function 'conditionRightTable'
 - 5x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
-- 5x 'meta::relational::tests::mapping::relation::MixedMapping' is not a known class, mapping, runtime, connection, or database
+- 4x unknown function 'cw'
 
 ### per-test outcomes (non-passing)
 
@@ -1645,20 +1640,13 @@ runner does not yet recognize (accounted, not skipped silently).
 - SHAPE testAutoInferPKThroughComposedJoin [tests/mapping/relation]: no execute(|...) call
 - SHAPE testAutoInferPKThroughComposedGroupBy [tests/mapping/relation]: no execute(|...) call
 - ERROR testSimpleMappingQueryWithFilterInProject [tests/mapping/relation]: filtered navigation as a chained association hop ('employees' at 'firm.employees#f0') is not supported yet
-- ERROR testMixedMapping [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testMixedMappingWithAssociation [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testMixedCaseMappingThroughAssociationChain [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedCaseAssociationChainMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testMixedMappingQueryWithPreFilter [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testMixedMappingWithFilterInProject [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testMixedMappingWithObjectGroupByAndTdsProject [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedMapping' is not a known class, mapping, runtime, connection, or database
+- ERROR testMixedMappingWithFilterInProject [tests/mapping/relation]: filtered navigation as a chained association hop ('employees' at 'firm.employees#f0') is not supported yet
 - FAIL testMappingWithWindowColumn [tests/mapping/relation]: assertEquals: expected [David, Group D, 1, Fabrice, Group C, 1, John, Group A, 2, Oliver, Group C, 2], got [David, Group D, 1, Fabrice, Group C, 1, John, Group A, 1, Oliver, Group C, 2]
 - ERROR testMappingWithProcessingSnapshotMilestoningAllVersionsInRange [tests/mapping/relation]: milestoning column 'SNAPSHOTDATE' is not on the pipeline row of 'meta::relational::tests::mapping::relation::ProcessingTemporalPerson'
 - ERROR testMappingWithBusinessSnapshotMilestoningAllVersionsInRange [tests/mapping/relation]: milestoning column 'SNAPSHOTDATE' is not on the pipeline row of 'meta::relational::tests::mapping::relation::BusinessTemporalPerson'
 - ERROR testMappingWithProcessingTemporalMilestoningAllVersionsInRange [tests/mapping/relation]: milestoning column 'IN_Z' is not on the pipeline row of 'meta::relational::tests::mapping::relation::ProcessingTemporalPerson'
 - ERROR testMappingWithBusinessTemporalMilestoningAllVersionsInRange [tests/mapping/relation]: milestoning column 'FROM_Z' is not on the pipeline row of 'meta::relational::tests::mapping::relation::BusinessTemporalPerson'
-- ERROR testMixedTemporalMapping [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testMixedTemporalMappingWithAllVersionsInRange1 [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
-- ERROR testMixedTemporalMappingWithAllVersionsInRange2 [tests/mapping/relation]: 'meta::relational::tests::mapping::relation::MixedTemporalMilestonedMapping' is not a known class, mapping, runtime, connection, or database
+- ERROR testMixedTemporalMappingWithAllVersionsInRange1 [tests/mapping/relation]: milestoning column 'FROM_Z' is not on the pipeline row of 'meta::relational::tests::mapping::relation::BusinessTemporalFirm'
 - SHAPE testSubAggregationOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
 - SHAPE testSubAggregationOnRelationMappingWithSimpleProperty [tests/mapping/relation/aggregation]: no execute(|...) call
 - SHAPE testTwoSubAggregationOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call

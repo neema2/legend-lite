@@ -119,10 +119,20 @@ public final class StoreResolver {
      * the query always wins; the driver runtime is the outermost fallback.
      */
     public List<TypedSpec> resolve(List<TypedSpec> body, String driverRuntimeFqn) {
+        return resolve(body, driverRuntimeFqn, null);
+    }
+
+    /** {@code explicitMappingFqn}: resolve class fetches against THIS
+     * mapping (the ~func-pipeline recursion — ClassSources) — an explicit
+     * from() in the body still wins. */
+    List<TypedSpec> resolve(List<TypedSpec> body, String driverRuntimeFqn,
+            String explicitMappingFqn) {
         // LAZY: the runtime is consulted only when a class fetch needs a
         // mapping — a pure relation query with an unusable runtime must not
         // fail (the corpus's date-literal regression).
-        Context context = driverRuntimeFqn == null ? Context.NONE
+        Context context = explicitMappingFqn != null
+                ? new Context(explicitMappingFqn, null)
+                : driverRuntimeFqn == null ? Context.NONE
                 : Context.ofRuntime(driverRuntimeFqn);
         List<TypedSpec> out = new ArrayList<>(body.size());
         for (TypedSpec stmt : body) {

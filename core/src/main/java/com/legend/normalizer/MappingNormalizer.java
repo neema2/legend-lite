@@ -884,8 +884,10 @@ public final class MappingNormalizer {
             setA = p1 ? l0.targetSetId() : l0.sourceSetId();
             setB = p1 ? l0.sourceSetId() : l0.targetSetId();
         }
-        ClassMapping.RelationFunction rfA = relationFunctionMappingOf(md, classA, setA);
-        ClassMapping.RelationFunction rfB = relationFunctionMappingOf(md, classB, setB);
+        XEnd endA = xstoreEndOf(md, classA, setA, model);
+        XEnd endB = xstoreEndOf(md, classB, setB, model);
+        ClassMapping.RelationFunction rfA = endA.colsView();
+        ClassMapping.RelationFunction rfB = endB.colsView();
         if (xs.propertyMappings2().isEmpty()) {
             throw new ModelException(
                     LegendCompileException.Phase.NORMALIZE,
@@ -943,8 +945,8 @@ public final class MappingNormalizer {
         Variable b = new Variable("b");
         ValueSpecification body = new AppliedFunction("legacyAssocPredicate", List.of(
                 a, b,
-                relationFunctionPipeline(rfA, model),
-                relationFunctionPipeline(rfB, model),
+                endA.pipeline(),
+                endB.pipeline(),
                 new LambdaFunction(List.of(srcRow, tgtRow), List.of(cond))));
         FunctionDefinition.ParameterDefinition pA = new FunctionDefinition.ParameterDefinition(
                 "a", new TypeExpression.NameRef(classA), Multiplicity.Concrete.PURE_ONE);
@@ -1062,6 +1064,50 @@ public final class MappingNormalizer {
                     + " in '" + md.qualifiedName() + "'");
         }
         return hits.get(0);
+    }
+
+    /** An XStore END resolved to its anchor pipeline and column view —
+     * a Relation(~func) set directly, or a RELATIONAL set converted
+     * (Column/local PMs -> cols, ~mainTable -> pipeline): MIXED-kind
+     * mappings bridge the two (relation-family MixedMapping). */
+    private record XEnd(ValueSpecification pipeline,
+                        ClassMapping.RelationFunction colsView) {}
+
+    private static XEnd xstoreEndOf(LegacyMappingDefinition md,
+            String classFqn, String setId, ModelBuilder model) {
+        for (ClassMapping cm : md.classMappings()) {
+            if (cm instanceof ClassMapping.RelationFunction rf
+                    && rf.className().equals(classFqn)
+                    && (setId == null || setId.equals(setIdOf(rf)))) {
+                return new XEnd(relationFunctionPipeline(rf, model), rf);
+            }
+        }
+        for (ClassMapping cm : md.classMappings()) {
+            if (cm instanceof ClassMapping.Relational rcm
+                    && rcm.className().equals(classFqn)
+                    && (setId == null || setId.equals(setIdOf(rcm)))) {
+                List<ClassMapping.RelationFunction.Col> cols = new ArrayList<>();
+                for (PropertyMapping pm : rcm.propertyMappings()) {
+                    if (pm instanceof PropertyMapping.Column c) {
+                        cols.add(new ClassMapping.RelationFunction.Col(
+                                c.propertyName(), c.column(), false));
+                    } else if (pm instanceof PropertyMapping.LocalProperty lp
+                            && lp.body() instanceof PropertyMapping.Column lc) {
+                        cols.add(new ClassMapping.RelationFunction.Col(
+                                lp.propertyName(), lc.column(), true));
+                    }
+                }
+                return new XEnd(mainTableRefOf(md, classFqn, model),
+                        new ClassMapping.RelationFunction(classFqn,
+                                setIdOf(rcm), null, rcm.root(),
+                                "<relational>", cols));
+            }
+        }
+        throw new NotImplementedException(
+                "XStore/ModelJoin association end class '" + classFqn
+                + "' resolves to no Relation or Relational set"
+                + (setId != null ? " for set id '" + setId + "'" : "")
+                + " in '" + md.qualifiedName() + "'");
     }
 
     /** {@code $this.p}/{@code $that.p} → column reads on the two relation rows. */
