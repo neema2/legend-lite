@@ -715,8 +715,51 @@ public final class MappingNormalizer {
         ValueSpecification pipeline = relationFunctionPipeline(rf, model);
         Variable row = new Variable("rf_row");
         Map<String, KeyExpression> fields = new LinkedHashMap<>();
-        for (ClassMapping.RelationFunction.Col c : rf.columns()) {
+        putRelationCols(fields, rf.columns(), row, rf.className(), md, model);
+        return new AppliedFunction("map", List.of(pipeline,
+                new LambdaFunction(List.of(row),
+                        List.of(buildNewInstanceToOne(rf.className(), fields, model)))));
+    }
+
+    /** Bindings for a Relation mapping's column list — EMBEDDED blocks
+     * ({@code prop ( sub: COL, ... )}) synthesize an inner instance over
+     * the SAME row (the Relational-kind embedded emission's shape),
+     * recursively. */
+    private static void putRelationCols(Map<String, KeyExpression> fields,
+            List<ClassMapping.RelationFunction.Col> cols, Variable row,
+            String ownerClassFqn, LegacyMappingDefinition md,
+            ModelBuilder model) {
+        for (ClassMapping.RelationFunction.Col c : cols) {
             if (c.local()) {
+                continue;
+            }
+            if (c.inlineSetId() != null) {
+                // INLINE-embedded (prop () Inline [set]): no binding emitted —
+                // a demanded read fails loud ('not mapped'); the sibling-set
+                // delegation is its own roadmap rung
+                continue;
+            }
+            if (c.isEmbedded()) {
+                ClassDefinition owner = model.findClass(ownerClassFqn)
+                        .orElseThrow(() -> new ModelException(
+                                LegendCompileException.Phase.NORMALIZE,
+                                "Relation mapping embedded property '"
+                                + c.property() + "': unknown owner class '"
+                                + ownerClassFqn + "'"));
+                TypeExpression t = findPropertyTypeDeep(owner, c.property(),
+                        model);
+                if (!(t instanceof TypeExpression.NameRef nr)) {
+                    throw new ModelException(
+                            LegendCompileException.Phase.NORMALIZE,
+                            "Relation mapping embedded property '"
+                            + c.property() + "' of '" + ownerClassFqn
+                            + "' has non-class type — cannot embed");
+                }
+                Map<String, KeyExpression> inner = new LinkedHashMap<>();
+                putRelationCols(inner, c.embedded(), row, nr.name(), md, model);
+                fields.put(c.property(), new KeyExpression(
+                        buildNewInstanceToOne(nr.name(), inner, model),
+                        false, false));
                 continue;
             }
             ValueSpecification read = new AppliedProperty(row, c.column());
@@ -724,13 +767,10 @@ public final class MappingNormalizer {
                 // enum-decoded column: the same source-value decode chain
                 // every other enum-mapped read synthesizes
                 read = translateEnumeratedSource(c.property(), c.enumMappingId(),
-                        read, md, rf.className(), model);
+                        read, md, ownerClassFqn, model);
             }
             fields.put(c.property(), new KeyExpression(read, false, false));
         }
-        return new AppliedFunction("map", List.of(pipeline,
-                new LambdaFunction(List.of(row),
-                        List.of(buildNewInstanceToOne(rf.className(), fields, model)))));
     }
 
     /** Resolve a Relation mapping's {@code ~func} ref and inline its body. */
@@ -984,7 +1024,7 @@ public final class MappingNormalizer {
                 && rowByVar.containsKey(var.name())) {
             ClassMapping.RelationFunction rf = rfByVar.get(var.name());
             for (ClassMapping.RelationFunction.Col c : rf.columns()) {
-                if (c.property().equals(ap.property())) {
+                if (c.property().equals(ap.property()) && c.column() != null) {
                     return new AppliedProperty(rowByVar.get(var.name()), c.column());
                 }
             }

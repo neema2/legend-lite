@@ -279,11 +279,32 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
 
         /** One {@code property: COLUMN} binding. */
         public record Col(String property, String column, boolean local,
-                String enumMappingId) {
+                String enumMappingId, List<Col> embedded, String inlineSetId) {
+            public Col {
+                embedded = embedded == null ? List.of() : List.copyOf(embedded);
+            }
+
+            /** An EMBEDDED block ({@code prop ( sub: COL, ... )}). */
+            public Col(String property, String column, boolean local,
+                    String enumMappingId, List<Col> embedded) {
+                this(property, column, local, enumMappingId, embedded, null);
+            }
+
+            /** Enum-decoded column binding (no embedded block). */
+            public Col(String property, String column, boolean local,
+                    String enumMappingId) {
+                this(property, column, local, enumMappingId, List.of(), null);
+            }
 
             /** Plain (non-enum) column binding. */
             public Col(String property, String column, boolean local) {
-                this(property, column, local, null);
+                this(property, column, local, null, List.of(), null);
+            }
+
+            /** An EMBEDDED block: {@code prop ( sub: COL, ... )} — the
+             * property is class-typed, its sub-bindings share this row. */
+            public boolean isEmbedded() {
+                return !embedded.isEmpty();
             }
         }
     }

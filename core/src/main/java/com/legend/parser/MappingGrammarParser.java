@@ -465,10 +465,45 @@ final class MappingGrammarParser {
                 skipTypeArgsAndMultiplicity();
             }
         }
+        List<ClassMapping.RelationFunction.Col> cols =
+                parseRelationCols(TokenType.BRACE_CLOSE);
+        return new ClassMapping.RelationFunction(className, setId, extendsSetId,
+                root, ref, cols);
+    }
+
+    /** Comma-separated Relation-mapping column bindings up to (not
+     * consuming) {@code stop}: {@code prop: COL}, local {@code +prop},
+     * enum-decoded, and EMBEDDED blocks {@code prop ( sub: COL, ... )}
+     * (audit: one embedded block killed the whole relation setup file). */
+    private List<ClassMapping.RelationFunction.Col> parseRelationCols(
+            TokenType stop) {
         List<ClassMapping.RelationFunction.Col> cols = new ArrayList<>();
-        while (p.peek() != TokenType.BRACE_CLOSE && !p.atEnd()) {
+        while (p.peek() != stop && !p.atEnd()) {
             boolean local = p.match(TokenType.PLUS);
             String prop = p.parseIdentifier();
+            // EMBEDDED block: prop ( sub: COL, ... ) — class-typed property
+            // whose sub-bindings share this row
+            if (p.peek() == TokenType.PAREN_OPEN) {
+                p.advance();
+                List<ClassMapping.RelationFunction.Col> sub =
+                        parseRelationCols(TokenType.PAREN_CLOSE);
+                p.expect(TokenType.PAREN_CLOSE);
+                // INLINE-embedded: prop () Inline [setId] — delegates the
+                // sub-bindings to a sibling set of this mapping
+                String inlineSet = null;
+                if (p.isIdentifierToken(p.peek()) && "Inline".equals(p.text())) {
+                    p.advance();
+                    p.expect(TokenType.BRACKET_OPEN);
+                    inlineSet = p.parseIdentifier();
+                    p.expect(TokenType.BRACKET_CLOSE);
+                }
+                cols.add(new ClassMapping.RelationFunction.Col(prop, null,
+                        local, null, sub, inlineSet));
+                if (!p.match(TokenType.COMMA)) {
+                    break;
+                }
+                continue;
+            }
             p.expect(TokenType.COLON);
             if (local) {
                 p.parseQualifiedName();       // declared local-property type
@@ -488,8 +523,7 @@ final class MappingGrammarParser {
                 break;
             }
         }
-        return new ClassMapping.RelationFunction(className, setId, extendsSetId,
-                root, ref, cols);
+        return cols;
     }
 
     /** Consume {@code <...>} type arguments and a {@code [..]} multiplicity, if present. */
