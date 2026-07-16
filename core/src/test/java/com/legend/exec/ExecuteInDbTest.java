@@ -31,9 +31,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ExecuteInDbTest {
 
     private static final String CONN_LET =
-            "{| let c = meta::core::runtime::connectionByElement("
-                    + "meta::external::store::relational::tests::testRuntime(), 1)"
-                    + "->cast(@meta::external::store::relational::runtime::DatabaseConnection);\n";
+            "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                    + "type=meta::relational::runtime::DatabaseType.DuckDB);\n";
 
     private static Connection conn;
 
@@ -94,18 +93,16 @@ class ExecuteInDbTest {
             }
             function my::s::fill(tableName: String[1]): Boolean[1]
             {
-               let c = meta::core::runtime::connectionByElement(
-                  meta::external::store::relational::tests::testRuntime(), 1)
-                  ->cast(@meta::external::store::relational::runtime::DatabaseConnection);
+               let c = ^meta::external::store::relational::runtime::TestDatabaseConnection(
+                  type=meta::relational::runtime::DatabaseType.DuckDB);
                my::w::executeInDb('Insert into ' + $tableName + ' (id) values (1);', $c);
                my::w::executeInDb('Insert into ' + $tableName + ' (id) values (2);', $c);
                true;
             }
             function my::s::createAndFill(): Boolean[1]
             {
-               let c = meta::core::runtime::connectionByElement(
-                  meta::external::store::relational::tests::testRuntime(), 1)
-                  ->cast(@meta::external::store::relational::runtime::DatabaseConnection);
+               let c = ^meta::external::store::relational::runtime::TestDatabaseConnection(
+                  type=meta::relational::runtime::DatabaseType.DuckDB);
                my::w::executeInDb('Create Table kSeq(id INT);', $c);
                my::s::fill('kSeq');
                true;
@@ -137,6 +134,33 @@ class ExecuteInDbTest {
                         + "let rs = meta::relational::metamodel::execute::executeInDb("
                         + "'Create Table kDrop(id INT);', $c, 0, 1000);\ntrue;}", conn));
         assertTrue(ex.getMessage().contains("executeInDb"), ex.getMessage());
+    }
+
+    @Test
+    @DisplayName("dropAndCreateTableInDb: DDL renders from the compiled store model")
+    void dropAndCreateFromStoreModel() throws Exception {
+        String model = """
+                Database my::store::DB
+                (
+                   Table kDdlTable(id INTEGER PRIMARY KEY, name VARCHAR(20))
+                )
+                """;
+        String call = CONN_LET
+                + "meta::relational::functions::toDDL::dropAndCreateTableInDb("
+                + "my::store::DB, 'kDdlTable', $c);}";
+        ExecutionResult r = Compiler.execute(model, call, conn);
+        assertEquals(true, ((ExecutionResult.Scalar) r).value());
+        try (Statement st = conn.createStatement()) {
+            st.execute("Insert into kDdlTable (id, name) values (1, 'a')");
+        }
+        // drop+create again: the table comes back EMPTY (no constraints —
+        // engine-harness parity: milestoned seeds repeat ids)
+        Compiler.execute(model, call, conn);
+        try (Statement st = conn.createStatement();
+                ResultSet rs = st.executeQuery("select count(*) from kDdlTable")) {
+            assertTrue(rs.next());
+            assertEquals(0, rs.getInt(1));
+        }
     }
 
     @Test

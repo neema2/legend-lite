@@ -391,12 +391,31 @@ class NativeFunctionTest {
         // 37: +StrictTime (real legend-pure meta::pure::metamodel::type::StrictTime).
         // 44: +DatabaseConnection/TestDatabaseConnection/ResultSet (the
         // engine's relational-runtime surface — K-phase executeInDb natives).
-        assertEquals(44, Pure.allNativeClasses().size(),
+        // 47: +Runtime/ConnectionStore/Connection (the real runtime.pure trio).
+        // 48: +Database (the store metaclass — database refs in value position).
+        // 49: +Row (ResultSet introspection in setup functions).
+        assertEquals(49, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
+    private static final java.util.Map<String, List<String>> RUNTIME_SURFACE_PROPERTIES =
+            java.util.Map.of(
+                    "meta::core::runtime::ConnectionStore", List.of("connection", "element"),
+                    "meta::core::runtime::Runtime", List.of("connectionStores"),
+                    "meta::external::store::relational::runtime::DatabaseConnection",
+                    List.of("type", "debug", "timeZone", "quoteIdentifiers",
+                            "queryTimeOutInSeconds"),
+                    "meta::external::store::relational::runtime::TestDatabaseConnection",
+                    List.of("testDataSetupCsv"),
+                    "meta::relational::metamodel::execute::ResultSet",
+                    List.of("executionTimeInNanoSecond",
+                            "connectionAcquisitionTimeInNanoSecond",
+                            "executionPlanInformation", "columnNames", "rows"),
+                    "meta::relational::metamodel::execute::Row",
+                    List.of("values", "parent"));
+
     @Test
-    void everyNativeClassIsMarkedNativeAndHasEmptyBody() {
+    void everyNativeClassIsMarkedNativeAndHasEmptyBodyOutsideTheDocumentedSurface() {
         // Opaque carriers — EXCEPT where real legend-pure declares properties:
         // Pair has first/second (anonymousCollections.pure:17-25), which property
         // access and ^Pair(...) construction validate against.
@@ -411,6 +430,13 @@ class NativeFunctionTest {
                 assertEquals(List.of("values"),
                         c.properties().stream().map(p -> p.name()).toList(),
                         "List declares exactly values (real pure anonymousCollections.pure:33-35)");
+            } else if (RUNTIME_SURFACE_PROPERTIES.containsKey(c.qualifiedName())) {
+                // the relational-runtime surface (K-natives arc): properties
+                // as REAL legend-pure declares them — runtime.pure:17-32,
+                // relationalRuntime.pure:26-105, functions.pure:50-65
+                assertEquals(RUNTIME_SURFACE_PROPERTIES.get(c.qualifiedName()),
+                        c.properties().stream().map(p -> p.name()).toList(),
+                        () -> c.qualifiedName() + " must match real legend-pure");
             } else {
                 assertTrue(c.properties().isEmpty(),
                         () -> "native class '" + c.qualifiedName()
@@ -526,7 +552,10 @@ class NativeFunctionTest {
                 "meta::pure::metamodel",
                 // the engine's relational-runtime surface (K-phase natives)
                 "meta::external::store::relational::runtime",
-                "meta::relational::metamodel::execute");
+                "meta::relational::metamodel::execute",
+                "meta::core::runtime",
+                // the store metaclass lives directly under meta::relational::metamodel
+                "meta::relational::metamodel");
         for (ClassDefinition c : Pure.allNativeClasses()) {
             String fqn = c.qualifiedName();
             boolean ok = expected.stream().anyMatch(p -> fqn.startsWith(p + "::"));
@@ -545,7 +574,8 @@ class NativeFunctionTest {
     @Test
     void nativeEnumCatalogSizeIsPinned() {
         // Update this deliberately when adding or removing native enums.
-        assertEquals(12, Pure.allNativeEnums().size(),
+        // 13: +DatabaseType (relationalRuntime.pure:21).
+        assertEquals(13, Pure.allNativeEnums().size(),
                 "Pure.allNativeEnums() size pin: review the catalog if this changes");
     }
 

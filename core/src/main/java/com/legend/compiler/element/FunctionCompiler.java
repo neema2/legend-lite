@@ -33,7 +33,12 @@ final class FunctionCompiler {
     /** THE native+user overload merge — every "functions at this FQN" question routes here. */
     List<Function> functionsAt(String fqn) {
         List<Function> all = new ArrayList<>(Pure.nativeFunctionsAt(fqn));
-        all.addAll(model.findFunction(fqn));
+        // platform-owned FQNs: the native IS the definition; the corpus's
+        // own M3-reflective bodies (toDDL.pure) never join the overload set
+        if (!com.legend.compiler.element.type.PlatformTypes
+                .isPlatformOwnedFunction(fqn)) {
+            all.addAll(model.findFunction(fqn));
+        }
         return all;
     }
 

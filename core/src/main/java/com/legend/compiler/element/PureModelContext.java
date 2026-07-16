@@ -263,6 +263,38 @@ public final class PureModelContext implements ModelContext {
         return Optional.empty();
     }
 
+    @Override
+    public boolean isDatabase(String fqn) {
+        return model.findDatabase(fqn).isPresent();
+    }
+
+    @Override
+    public Optional<com.legend.model.DatabaseDefinition.TableDefinition>
+            findTableDefinition(String dbFqn, String name) {
+        return model.findDatabase(dbFqn)
+                .flatMap(db -> tableDefWithIncludes(db, name, new java.util.HashSet<>()));
+    }
+
+    private Optional<com.legend.model.DatabaseDefinition.TableDefinition>
+            tableDefWithIncludes(com.legend.model.DatabaseDefinition db,
+                    String name, java.util.Set<String> seen) {
+        var own = StoreCompiler.findTableDef(db, name);
+        if (own.isPresent()) {
+            return own;
+        }
+        for (String include : db.includes()) {
+            if (!seen.add(include)) {
+                continue;
+            }
+            var inc = model.findDatabase(include)
+                    .flatMap(d -> tableDefWithIncludes(d, name, seen));
+            if (inc.isPresent()) {
+                return inc;
+            }
+        }
+        return Optional.empty();
+    }
+
     /** Own tables first, then each {@code include}d database, depth-first (cycle-safe). */
     private Optional<Type.RelationType> resolveTableWithIncludes(
             com.legend.model.DatabaseDefinition db, String name,

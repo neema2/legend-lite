@@ -385,10 +385,33 @@ public final class Compiler {
             com.legend.model.spec.ValueSpecification resolved, ModelContext ctx,
             String runtimeFqn, java.sql.Connection connection)
             throws java.sql.SQLException {
+        return executeResolved(resolved, ctx, runtimeFqn, connection, null);
+    }
+
+    /**
+     * {@code rawSqlFailureSink}: OPTIONAL per-statement tolerance at the
+     * {@code executeInDb} boundary — a failed raw statement is reported
+     * to the sink and the setup CONTINUES (the engine's own harness
+     * semantics: one dialect-incompatible INSERT must not abort the whole
+     * seed; the caller's ledger feeds its emptiness guard). Null = throw.
+     */
+    public static com.legend.exec.ExecutionResult executeResolved(
+            com.legend.model.spec.ValueSpecification resolved, ModelContext ctx,
+            String runtimeFqn, java.sql.Connection connection,
+            java.util.function.Consumer<String> rawSqlFailureSink)
+            throws java.sql.SQLException {
         SpecCompiler specs = new SpecCompiler(ctx);
+        ExecEnv env = new ExecEnv(ctx, runtimeFqn, connection, rawSqlFailureSink);
         return executeStatements(specs.typeQueryBody(resolved),
-                new java.util.ArrayList<>(), specs, ctx, runtimeFqn, connection,
+                new java.util.ArrayList<>(), specs, env,
                 new java.util.ArrayDeque<>());
+    }
+
+    /** The K-phase execution environment: ONE ambient connection, the
+     * driver runtime, and the optional raw-SQL failure sink. */
+    private record ExecEnv(ModelContext ctx, String runtimeFqn,
+            java.sql.Connection connection,
+            java.util.function.Consumer<String> rawSqlFailureSink) {
     }
 
     /**
@@ -406,8 +429,7 @@ public final class Compiler {
      */
     private static com.legend.exec.ExecutionResult executeStatements(
             java.util.List<TypedSpec> stmts, java.util.List<TypedSpec> letPrefix,
-            SpecCompiler specs, ModelContext ctx, String runtimeFqn,
-            java.sql.Connection connection, java.util.Deque<String> frames)
+            SpecCompiler specs, ExecEnv env, java.util.Deque<String> frames)
             throws java.sql.SQLException {
         com.legend.exec.ExecutionResult result = null;
         java.util.Map<String, Boolean> effectMemo = new java.util.HashMap<>();
@@ -429,8 +451,7 @@ public final class Compiler {
                     ? l.value() : stmt;
             if (bare instanceof com.legend.compiler.spec.typed.TypedUserCall call
                     && containsEffect(call, specs, effectMemo)) {
-                result = executeCallStatement(call, letPrefix, specs, ctx,
-                        runtimeFqn, connection, frames);
+                result = executeCallStatement(call, letPrefix, specs, env, frames);
                 continue;
             }
             java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
@@ -438,9 +459,9 @@ public final class Compiler {
             java.util.List<TypedSpec> body =
                     new com.legend.compiler.spec.UserCallInliner(specs)
                             .inlineBody(single);                          // Phase G½
-            body = new com.legend.resolver.StoreResolver(ctx, specs)
-                    .resolve(body, runtimeFqn);                           // Phase H
-            result = executeTyped(body, ctx, runtimeFqn, connection);
+            body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
+                    .resolve(body, env.runtimeFqn());                     // Phase H
+            result = executeTyped(body, env);
         }
         return result;
     }
@@ -452,8 +473,7 @@ public final class Compiler {
      */
     private static com.legend.exec.ExecutionResult executeCallStatement(
             com.legend.compiler.spec.typed.TypedUserCall call,
-            java.util.List<TypedSpec> letPrefix, SpecCompiler specs, ModelContext ctx,
-            String runtimeFqn, java.sql.Connection connection,
+            java.util.List<TypedSpec> letPrefix, SpecCompiler specs, ExecEnv env,
             java.util.Deque<String> frames) throws java.sql.SQLException {
         String key = call.callee().signatureKey();
         if (frames.contains(key)) {
@@ -473,7 +493,7 @@ public final class Compiler {
                         argValue.info()));
             }
             return executeStatements(specs.compile(call.callee()).body(), frame,
-                    specs, ctx, runtimeFqn, connection, frames);
+                    specs, env, frames);
         } finally {
             frames.pop();
         }
@@ -488,8 +508,8 @@ public final class Compiler {
     private static boolean containsEffect(TypedSpec node, SpecCompiler specs,
             java.util.Map<String, Boolean> memo) {
         if (node instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && com.legend.compiler.element.type.PlatformTypes.EXECUTE_IN_DB
-                        .equals(nc.callee().qualifiedName())) {
+                && com.legend.compiler.element.type.PlatformTypes
+                        .isKNative(nc.callee().qualifiedName())) {
             return true;
         }
         if (node instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
@@ -524,9 +544,11 @@ public final class Compiler {
      * {@link #executeResolved} and the K-native argument evaluation below.
      */
     private static com.legend.exec.ExecutionResult executeTyped(
-            java.util.List<TypedSpec> body, ModelContext ctx,
-            String runtimeFqn, java.sql.Connection connection)
+            java.util.List<TypedSpec> body, ExecEnv env)
             throws java.sql.SQLException {
+        ModelContext ctx = env.ctx();
+        String runtimeFqn = env.runtimeFqn();
+        java.sql.Connection connection = env.connection();
         TypedSpec root = body.get(body.size() - 1);
         // from() is context-only: shape AND root type come from the same
         // looked-through node — a resolved source may be relation-shaped
@@ -538,9 +560,38 @@ public final class Compiler {
         // K-NATIVE dispatch: executeInDb never lowers — it IS the phase-K
         // boundary (raw SQL over the ambient JDBC connection).
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && com.legend.compiler.element.type.PlatformTypes.EXECUTE_IN_DB
-                        .equals(nc.callee().qualifiedName())) {
-            return executeInDb(body, nc, ctx, runtimeFqn, connection);
+                && (com.legend.compiler.element.type.PlatformTypes.EXECUTE_IN_DB
+                        .equals(nc.callee().qualifiedName())
+                        || com.legend.compiler.element.type.PlatformTypes.EXECUTE_IN_DB_DEBUG
+                                .equals(nc.callee().qualifiedName()))) {
+            return executeInDb(body, nc, env);
+        }
+        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall dc
+                && com.legend.compiler.element.type.PlatformTypes.DROP_AND_CREATE_TABLE_IN_DB
+                        .equals(dc.callee().qualifiedName())) {
+            return dropAndCreateTableInDb(body, dc, env);
+        }
+        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall pn
+                && (com.legend.compiler.element.type.PlatformTypes.PRINT
+                        .equals(pn.callee().qualifiedName())
+                        || com.legend.compiler.element.type.PlatformTypes.PRINTLN
+                                .equals(pn.callee().qualifiedName()))) {
+            // debug output: a NO-OP — the argument is NEVER evaluated (it
+            // may introspect a ResultSet, which never materializes host-
+            // side). Divergence from the engine (which prints) is deliberate
+            // harness behavior; an effect nested inside print is dropped.
+            return new com.legend.exec.ExecutionResult.Scalar(null, pn.info().type());
+        }
+        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall sc
+                && com.legend.compiler.element.type.PlatformTypes.DROP_AND_CREATE_SCHEMA_IN_DB
+                        .equals(sc.callee().qualifiedName())) {
+            // the engine DROPS + creates; here create-if-missing — the DDL
+            // seeds already own tables in the schema, and the setup's own
+            // dropAndCreateTableInDb calls recreate what it manages
+            com.legend.exec.Executor.executeRaw(connection,
+                    "Create schema if not exists "
+                            + evalStringArg(body, sc.args().get(0), env));
+            return new com.legend.exec.ExecutionResult.Scalar(true, sc.info().type());
         }
         com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
@@ -566,17 +617,85 @@ public final class Compiler {
      */
     private static com.legend.exec.ExecutionResult executeInDb(
             java.util.List<TypedSpec> body,
-            com.legend.compiler.spec.typed.TypedNativeCall call, ModelContext ctx,
-            String runtimeFqn, java.sql.Connection connection)
+            com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env)
             throws java.sql.SQLException {
-        TypedSpec sqlArg = call.args().get(0);
+        String raw = evalStringArg(body, call.args().get(0), env);
+        com.legend.sql.dialect.SqlDialect dialect =
+                dialectOf(env.ctx(), env.runtimeFqn());
+        // split FIRST: adaptation is per-statement (its recognizers anchor
+        // at statement start)
+        for (String stmt : com.legend.sql.RawSql.splitStatements(raw)) {
+            try {
+                com.legend.exec.Executor.executeRaw(env.connection(),
+                        dialect.adaptRawSql(stmt));
+            } catch (java.sql.SQLException e) {
+                if (env.rawSqlFailureSink() == null) {
+                    throw e;
+                }
+                // per-statement tolerance (engine-harness semantics): report
+                // and CONTINUE — the caller's ledger drives its emptiness guard
+                env.rawSqlFailureSink().accept(stmt.strip().split("\\n")[0]
+                        + " => " + String.valueOf(e.getMessage()).split("\\n")[0]);
+            }
+        }
+        // an opaque ResultSet handle: setup statements ignore it; a test
+        // that READS it will surface loudly here when that day comes
+        return new com.legend.exec.ExecutionResult.Scalar(null, call.info().type());
+    }
+
+    /**
+     * The K-native {@code dropAndCreateTableInDb}
+     * (PlatformTypes.DROP_AND_CREATE_TABLE_IN_DB): the real engine spells
+     * DDL by walking the Database metamodel; here it renders from the
+     * compiled store model ({@link com.legend.exec.Ddl}) and executes over
+     * the ambient connection — same connection convention as executeInDb.
+     */
+    private static com.legend.exec.ExecutionResult dropAndCreateTableInDb(
+            java.util.List<TypedSpec> body,
+            com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env)
+            throws java.sql.SQLException {
+        ModelContext ctx = env.ctx();
+        java.sql.Connection connection = env.connection();
+        if (!(call.args().get(0)
+                instanceof com.legend.compiler.spec.typed.TypedPackageableRef db)) {
+            throw new IllegalStateException("dropAndCreateTableInDb: the database"
+                    + " argument must be a store reference, got "
+                    + call.args().get(0).getClass().getSimpleName());
+        }
+        boolean hasSchema = call.args().size() == 4;
+        String schema = hasSchema
+                ? evalStringArg(body, call.args().get(1), env)
+                : "default";
+        String table = evalStringArg(body, call.args().get(hasSchema ? 2 : 1), env);
+        String lookup = "default".equals(schema) ? table : schema + "." + table;
+        com.legend.model.DatabaseDefinition.TableDefinition def =
+                ctx.findTableDefinition(db.fullPath(), lookup)
+                        .orElseThrow(() -> new IllegalStateException(
+                                "dropAndCreateTableInDb: no table '" + lookup
+                                        + "' in store " + db.fullPath()));
+        com.legend.sql.dialect.SqlDialect dialect =
+                dialectOf(ctx, env.runtimeFqn());
+        com.legend.exec.Executor.executeRaw(connection,
+                dialect.adaptRawSql(com.legend.exec.Ddl.dropTable(schema, table)));
+        com.legend.exec.Executor.executeRaw(connection,
+                dialect.adaptRawSql(com.legend.exec.Ddl.createTable(def, schema)));
+        return new com.legend.exec.ExecutionResult.Scalar(true, call.info().type());
+    }
+
+    /**
+     * Evaluate one String[1] argument of a K-native THROUGH the pipeline:
+     * the let statements it (transitively) references ride along; all
+     * others — crucially connection chains — are dropped, never evaluated.
+     */
+    private static String evalStringArg(java.util.List<TypedSpec> body, TypedSpec arg,
+            ExecEnv env) throws java.sql.SQLException {
         java.util.Set<String> needed = new java.util.HashSet<>();
-        collectVariableRefs(sqlArg, needed);
+        collectVariableRefs(arg, needed);
         java.util.List<TypedSpec> kept = new java.util.ArrayList<>();
         for (int i = body.size() - 2; i >= 0; i--) {
             TypedSpec stmt = body.get(i);
             if (!(stmt instanceof com.legend.compiler.spec.typed.TypedLet let)) {
-                throw new IllegalStateException("executeInDb dispatch: non-let statement"
+                throw new IllegalStateException("K-native dispatch: non-let statement"
                         + " preceding the call is not supported: "
                         + stmt.getClass().getSimpleName());
             }
@@ -585,23 +704,14 @@ public final class Compiler {
                 collectVariableRefs(let.value(), needed);
             }
         }
-        kept.add(sqlArg);
-        com.legend.exec.ExecutionResult evaluated =
-                executeTyped(kept, ctx, runtimeFqn, connection);
+        kept.add(arg);
+        com.legend.exec.ExecutionResult evaluated = executeTyped(kept, env);
         if (!(evaluated instanceof com.legend.exec.ExecutionResult.Scalar sc)
-                || !(sc.value() instanceof String raw)) {
-            throw new IllegalStateException("executeInDb dispatch: the sql argument"
+                || !(sc.value() instanceof String str)) {
+            throw new IllegalStateException("K-native dispatch: the argument"
                     + " must evaluate to one String, got " + evaluated);
         }
-        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn);
-        // split FIRST: adaptation is per-statement (its recognizers anchor
-        // at statement start)
-        for (String stmt : com.legend.sql.RawSql.splitStatements(raw)) {
-            com.legend.exec.Executor.executeRaw(connection, dialect.adaptRawSql(stmt));
-        }
-        // an opaque ResultSet handle: setup statements ignore it; a test
-        // that READS it will surface loudly here when that day comes
-        return new com.legend.exec.ExecutionResult.Scalar(null, call.info().type());
+        return str;
     }
 
     /** Conservative free-variable scan (shadowed names over-collect — over-KEEPING lets is safe). */

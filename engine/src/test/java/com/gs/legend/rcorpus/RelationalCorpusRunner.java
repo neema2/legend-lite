@@ -53,7 +53,10 @@ class RelationalCorpusRunner {
         List<String> shared = List.of(
                 Corpus.read("tests/testModel/simpleTestModel.pure"),
                 Corpus.read("tests/testModel/inheritanceTestModel.pure"),
-                Corpus.read("tests/relationalSetUp.pure"));
+                Corpus.read("tests/relationalSetUp.pure"),
+                // the corpus's OWN executeInDb wrapper surface — its 2-arg
+                // wrapper inlines to the 4-arg K-native leaf (S4)
+                Corpus.read("relationalExtension.pure"));
         Runner runner = new Runner(shared, shared);
         // BeforePackage setups live NEXT TO the tests (functions/tests,
         // query, mapping families) — scan every covered file plus the
@@ -67,6 +70,19 @@ class RelationalCorpusRunner {
                             // unreadable corpus file: the tests in it bucket anyway
                         }
                     });
+        }
+
+        // PRE-SCAN every family file: the setup registry and the setup
+        // UNIVERSE must be complete before the FIRST family runs —
+        // cross-family setup calls (projection::setUp reaches join's
+        // createTablesAndFillDb) resolve regardless of family order
+        for (String family : allFamilies()) {
+            Path p = Corpus.RELATIONAL.resolve(family);
+            try (Stream<Path> s = Files.list(p)) {
+                for (Path f : s.filter(x -> x.toString().endsWith(".pure")).toList()) {
+                    runner.addBeforePackages(Files.readString(f));
+                }
+            }
         }
 
         Map<String, List<Runner.Outcome>> byFamily = new LinkedHashMap<>();

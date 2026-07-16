@@ -64,6 +64,9 @@ public final class Runner {
             sharedRaw.add(new com.legend.Compiler.ModelSource(
                     "shared-" + i + ".pure", sharedSources.get(i)));
         }
+        // shared files join the setup UNIVERSE too (relationalSetUp.pure
+        // defines createTablesAndFillDb — cross-family setups call it)
+        setupUniverse.addAll(sharedSources);
         List<String> ddl = new ArrayList<>();
         for (String src : sharedSources) {
             var seedTypes0 = Corpus.seedColumnTypes(src);
@@ -81,7 +84,7 @@ public final class Runner {
         // functions through the platform, in definition order — the same
         // statement sequence the literal extraction produced. Functions
         // WITH parameters cannot be called, but their constant literals
-        // replayed under the legacy extraction — runSetup's bound-variable
+        // replayed under the legacy extraction — the platform path's
         // gates give the identical silent-skip for the parameter-dependent
         // ones.
         for (String src : seedSources) {
@@ -109,7 +112,7 @@ public final class Runner {
     private final Map<String, String> setupFnBodies = new LinkedHashMap<>();
 
     // Phase D: setup functions as PARSED definitions — their bodies
-    // EXECUTE through the platform (TestBody.runSetup), no literal
+    // EXECUTE through the platform (Compiler statement orchestration), no literal
     // extraction. beforePackagesParsed: {pkg, fqn} by STEREOTYPE.
     private final Map<String, java.util.List<com.legend.model.spec.ValueSpecification>>
             setupFnAsts = new LinkedHashMap<>();
@@ -120,6 +123,40 @@ public final class Runner {
         beforePackages.addAll(Corpus.beforePackages(source));
         Corpus.functionBodies(source).forEach(setupFnBodies::putIfAbsent);
         collectSetups(source);
+        setupUniverse.add(source);
+    }
+
+    /** Every scanned source, for the cross-family setup FALLBACK module. */
+    private final java.util.LinkedHashSet<String> setupUniverse =
+            new java.util.LinkedHashSet<>();
+    private com.legend.compiler.element.ModelContext setupUniverseCtx;
+    private int setupUniverseSize = -1;
+
+    /** The whole-corpus TOLERANT module: setup functions reach across
+     * family files (projection::setUp calls join's createTablesAndFillDb)
+     * — the per-test module deliberately excludes foreign families, so a
+     * setup that fails there retries here. Rebuilt only when new sources
+     * arrived; duplicate FQNs are first-wins (module semantics). */
+    private com.legend.compiler.element.ModelContext setupUniverseContext() {
+        if (setupUniverseCtx == null || setupUniverseSize != setupUniverse.size()) {
+            List<com.legend.Compiler.ModelSource> sources = new ArrayList<>();
+            int i = 0;
+            for (String src : setupUniverse) {
+                // known parse walls (#50) stay out — one unparseable file
+                // must not dark the whole setup universe
+                try {
+                    com.legend.parser.ElementParser.parse(src);
+                } catch (RuntimeException unparseable) {
+                    continue;
+                }
+                sources.add(new com.legend.Compiler.ModelSource(
+                        "setup-" + (i++) + ".pure", src));
+            }
+            setupUniverseCtx = com.legend.Compiler.buildModule(
+                    com.legend.Compiler.parseSources(sources).model()).context();
+            setupUniverseSize = setupUniverse.size();
+        }
+        return setupUniverseCtx;
     }
 
     /** Parse a source and collect zero-arg function ASTs + BeforePackage
@@ -378,32 +415,6 @@ public final class Runner {
         return new com.legend.model.ImportScope(wildcards, typeImports);
     }
 
-    /** Every function SIMPLE NAME the body calls (AST walk) — feeds the
-     * seed replay's setup-call detection, structurally. */
-    private static java.util.Set<String> calledSimpleNames(
-            List<com.legend.model.spec.ValueSpecification> body) {
-        java.util.Set<String> out = new java.util.HashSet<>();
-        java.util.ArrayDeque<com.legend.model.spec.ValueSpecification> work =
-                new java.util.ArrayDeque<>(body);
-        while (!work.isEmpty()) {
-            com.legend.model.spec.ValueSpecification v = work.poll();
-            if (v instanceof com.legend.model.spec.AppliedFunction af) {
-                String fn = af.function();
-                out.add(fn.substring(fn.lastIndexOf(':') + 1));
-                work.addAll(af.parameters());
-            } else if (v instanceof com.legend.model.spec.AppliedProperty ap) {
-                work.add(ap.receiver());
-            } else if (v instanceof com.legend.model.spec.LambdaFunction lf) {
-                work.addAll(lf.body());
-            } else if (v instanceof com.legend.model.spec.PureCollection pc) {
-                work.addAll(pc.values());
-            } else if (v instanceof com.legend.model.spec.NewInstance ni) {
-                ni.properties().values().forEach(ke -> work.add(ke.value()));
-            }
-        }
-        return out;
-    }
-
     /** The MAPPING refs of execute()/-&gt;from() calls, AST-walked and
      * qualified via the test's imports — they feed the synthesized
      * Runtime's mappings and the no-execute SHAPE gate. */
@@ -491,12 +502,11 @@ public final class Runner {
                 try (var st = conn.createStatement()) {
                     st.execute("SET TimeZone='UTC'");
                 }
-                List<String> failedSeeds = replaySeeds(t.fqn(),
-                        calledSimpleNames(t.fn().body()), ctx, conn);
+                List<String> failedSeeds = replaySeeds(t.fqn(), ctx, conn);
                 seedFailures.addAll(failedSeeds);
                 com.legend.TestBody.Outcome o = com.legend.TestBody.run(
                         ctx, t.fn().body(), importScopeOf(t), "rcorpus::Rt",
-                        conn, !failedSeeds.isEmpty(), harnessSetupNames());
+                        conn, !failedSeeds.isEmpty(), failedSeeds);
                 return score(t.fqn(), o);
             }
         } catch (Exception e) {
@@ -605,21 +615,13 @@ public final class Runner {
         }
     }
 
-    /** Setup-function names (FQN + simple) whose effects the seed replay applied. */
-    private java.util.Set<String> harnessSetupNames() {
-        java.util.Set<String> out = new java.util.HashSet<>();
-        for (String fqn : setupFnBodies.keySet()) {
-            out.add(fqn);
-            out.add(fqn.substring(fqn.lastIndexOf(':') + 1));
-        }
-        return out;
-    }
-
-    /** Seed replay: ALL DDL first, then shared data, then the SETUP
-     * FUNCTIONS execute through the platform (Phase D — the engine's own
-     * seeding code runs via TestBody.runSetup; no literal extraction). */
+    /** Seed replay: ALL DDL first, then the harness-owned SETUP FUNCTIONS
+     * — shared-file units (legacy dataSeeds position) and BeforePackage
+     * fns — execute as ordinary pure CALLS through the platform (K-natives
+     * arc S4: Compiler's statement orchestration + executeInDb dispatch).
+     * Setups the TEST BODY calls run at their own statement position in
+     * TestBody — no pre-replay, engine-exact ordering. */
     private List<String> replaySeeds(String fqn,
-            java.util.Set<String> calledNames,
             com.legend.compiler.element.ModelContext ctx, Connection conn) {
         List<String> allSeeds = new ArrayList<>(ddlSeeds);
         allSeeds.addAll(familySeeds.getOrDefault(currentFamilyKey, List.of()));
@@ -639,7 +641,8 @@ public final class Runner {
         }
         allSeeds = resolved;
         for (String sql : allSeeds) {
-            for (String stmt : splitStatements(sql)) {
+            for (String raw : splitStatements(sql)) {
+                String stmt = Corpus.DIALECT.adaptRawSql(raw);
                 // prepare(): DuckDB JDBC masks Statement.execute errors
                 try (var st = conn.prepareStatement(stmt)) {
                     st.execute();
@@ -650,102 +653,101 @@ public final class Runner {
                 }
             }
         }
-        // PHASE D: BeforePackage + test-called setup functions EXECUTE
-        // through the platform (TestBody.runSetup) — the engine's own
-        // seeding code runs; no literal extraction. Order matches the
-        // legacy replay: shared DDL, family/file DDL, shared data, then
-        // per-package setups, then setups the TEST BODY calls.
+        // shared-file zero-arg units first (the legacy dataSeeds position),
+        // then this test's BeforePackage fns — each a real call through the
+        // platform; parameterized shared fns run when a body CALLS them
         java.util.Set<String> executed = new java.util.HashSet<>();
-        com.legend.TestBody.SetupIo io = setupIo(conn, failedSeeds);
-        com.legend.model.ImportScope none =
-                new com.legend.model.ImportScope(List.of(), Map.of());
-        // shared-file functions FIRST (the legacy dataSeeds position);
-        // run-once carries into the BP/test-called stages below
         for (Object[] unit : sharedSetupUnits) {
             String sharedFqn = (String) unit[0];
-            @SuppressWarnings("unchecked")
-            List<com.legend.model.spec.ValueSpecification> body =
-                    (List<com.legend.model.spec.ValueSpecification>) unit[1];
-            boolean zeroArg = (Boolean) unit[2];
-            if (!zeroArg || executed.add(sharedFqn)) {
-                String pkg = sharedFqn.contains("::")
-                        ? sharedFqn.substring(0, sharedFqn.lastIndexOf("::")) : "";
-                com.legend.TestBody.runSetup(ctx, body, none, "rcorpus::Rt",
-                        conn, setupFnAsts, executed, io, pkg);
+            if ((Boolean) unit[2] && isEffectfulSetup(sharedFqn)
+                    && executed.add(sharedFqn)) {
+                callSetup(sharedFqn, ctx, conn, failedSeeds);
             }
         }
         for (String[] bp : beforePackagesParsed) {
-            if (fqn.startsWith(bp[0] + "::") && executed.add(bp[1])) {
-                List<com.legend.model.spec.ValueSpecification> body =
-                        setupFnAsts.get(bp[1]);
-                if (body != null) {
-                    com.legend.TestBody.runSetup(ctx, body, none,
-                            "rcorpus::Rt", conn, setupFnAsts, executed, io,
-                            bp[0]);
-                }
-            }
-        }
-        for (Map.Entry<String, java.util.List<com.legend.model.spec.ValueSpecification>> en
-                : new ArrayList<>(setupFnAsts.entrySet())) {
-            String simple = en.getKey().substring(
-                    en.getKey().lastIndexOf(':') + 1);
-            String fnPkg = en.getKey().contains("::")
-                    ? en.getKey().substring(0, en.getKey().lastIndexOf("::"))
-                    : "";
-            boolean inScope = fnPkg.isEmpty()
-                    || fqn.startsWith(fnPkg + "::");
-            if (inScope && calledNames.contains(simple)
-                    && executed.add(en.getKey())) {
-                com.legend.TestBody.runSetup(ctx, en.getValue(), none,
-                        "rcorpus::Rt", conn, setupFnAsts, executed, io, fnPkg);
+            if (fqn.startsWith(bp[0] + "::") && setupFnAsts.containsKey(bp[1])
+                    && isEffectfulSetup(bp[1]) && executed.add(bp[1])) {
+                callSetup(bp[1], ctx, conn, failedSeeds);
             }
         }
         return failedSeeds;
     }
 
-    /** The JDBC boundary for platform-executed setups: dialect-normalize
-     * and run each executeInDb literal; dropAndCreateTableInDb re-runs the
-     * family's model-derived CREATE (schema-qualified). */
-    private com.legend.TestBody.SetupIo setupIo(Connection conn,
+    /** Does this setup function (transitively, over the parsed setup-fn
+     * universe) reach a K-native seeding call? Shared files also define
+     * plain HELPERS (testRuntime(), result-to-json utilities) — eagerly
+     * calling those is meaningless and pollutes the failed-seed ledger. */
+    private boolean isEffectfulSetup(String setupFqn) {
+        return isEffectfulSetup(setupFqn, new java.util.HashSet<>());
+    }
+
+    private boolean isEffectfulSetup(String setupFqn, java.util.Set<String> seen) {
+        List<com.legend.model.spec.ValueSpecification> body =
+                setupFnAsts.get(setupFqn);
+        if (body == null || !seen.add(setupFqn)) {
+            return false;
+        }
+        java.util.Set<String> called = new java.util.HashSet<>();
+        for (com.legend.model.spec.ValueSpecification stmt : body) {
+            collectCalledNames(stmt, called);
+        }
+        if (called.contains("executeInDb") || called.contains("dropAndCreateTableInDb")
+                || called.contains("dropAndCreateSchemaInDb")
+                || called.contains("setupTestData")
+                || called.contains("loadCsvToDbTable")) {
+            return true;
+        }
+        for (String name : called) {
+            for (String candidate : setupFnAsts.keySet()) {
+                if ((candidate.endsWith("::" + name) || candidate.equals(name))
+                        && isEffectfulSetup(candidate, seen)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private static void collectCalledNames(
+            com.legend.model.spec.ValueSpecification v, java.util.Set<String> out) {
+        if (v instanceof com.legend.model.spec.AppliedFunction af) {
+            String fn = af.function();
+            out.add(fn.contains("::") ? fn.substring(fn.lastIndexOf(':') + 1) : fn);
+            af.parameters().forEach(x -> collectCalledNames(x, out));
+        } else if (v instanceof com.legend.model.spec.AppliedProperty ap) {
+            collectCalledNames(ap.receiver(), out);
+        } else if (v instanceof com.legend.model.spec.LambdaFunction lf) {
+            lf.body().forEach(x -> collectCalledNames(x, out));
+        } else if (v instanceof com.legend.model.spec.PureCollection pc) {
+            pc.values().forEach(x -> collectCalledNames(x, out));
+        }
+    }
+
+    /** One zero-arg setup call through the full pipeline; failures feed the
+     * failed-seed ledger (and the emptiness guard). */
+    private void callSetup(String setupFqn,
+            com.legend.compiler.element.ModelContext ctx, Connection conn,
             List<String> failedSeeds) {
-        return new com.legend.TestBody.SetupIo() {
-            @Override
-            public void executeSql(String rawSql) {
-                // split FIRST: adaptation recognizers anchor per statement
-                for (String raw : splitStatements(rawSql)) {
-                    String stmt = Corpus.DIALECT.adaptRawSql(raw);
-                    try (var st = conn.prepareStatement(stmt)) {
-                        st.execute();
-                    } catch (Exception e) {
-                        failedSeeds.add(stmt.strip().split("\\n")[0] + " => "
-                                + String.valueOf(e.getMessage()).split("\\n")[0]);
-                    }
-                }
+        com.legend.model.spec.ValueSpecification call =
+                com.legend.compiler.NameResolver.resolveQuery(
+                        new com.legend.model.spec.AppliedFunction(
+                                setupFqn, List.of()));
+        try {
+            com.legend.Compiler.executeResolved(call, ctx, "rcorpus::Rt", conn,
+                    failedSeeds::add);
+        } catch (Exception first) {
+            // cross-family reach: retry in the whole-corpus setup module
+            // (engine setups start with drops, so the partial first attempt
+            // re-runs safely)
+            try {
+                com.legend.Compiler.executeResolved(call,
+                        setupUniverseContext(), "rcorpus::Rt", conn,
+                        failedSeeds::add);
+            } catch (Exception e) {
+                failedSeeds.add("setup " + setupFqn + "() => "
+                        + String.valueOf(e.getMessage()).split("\n")[0]);
             }
-
-            @Override
-            public void dropAndCreate(String dbFqn, String table) {
-                List<String> creates = familyCreatesOf(table);
-                if (creates.isEmpty()) {
-                    failedSeeds.add("dropAndCreateTableInDb " + table
-                            + " => no model CREATE found");
-                    return;
-                }
-                for (String c : creates) {
-                    try (var st = conn.prepareStatement(c)) {
-                        st.execute();
-                    } catch (Exception e) {
-                        failedSeeds.add(c.strip().split("\\n")[0] + " => "
-                                + String.valueOf(e.getMessage()).split("\\n")[0]);
-                    }
-                }
-            }
-
-            @Override
-            public void failure(String detail) {
-                failedSeeds.add("setup statement => " + detail);
-            }
-        };
+        }
     }
 
     /**

@@ -32,6 +32,43 @@ public final class PlatformTypes {
      */
     public static final String EXECUTE_IN_DB = "meta::relational::metamodel::execute::executeInDb";
 
+    /** K-native sibling of {@link #EXECUTE_IN_DB}: model-derived drop+create DDL. */
+    public static final String DROP_AND_CREATE_TABLE_IN_DB =
+            "meta::relational::functions::toDDL::dropAndCreateTableInDb";
+
+    /** The debug-printing executeInDb wrapper (relationalExtension.pure:43) — same K-dispatch. */
+    public static final String EXECUTE_IN_DB_DEBUG =
+            "meta::relational::functions::database::executeInDb";
+
+    /** Schema (re)creation K-native (toDDL.pure:108). */
+    public static final String DROP_AND_CREATE_SCHEMA_IN_DB =
+            "meta::relational::functions::toDDL::dropAndCreateSchemaInDb";
+
+    /**
+     * PLATFORM-OWNED function FQNs: legend-lite's native IS the definition
+     * — user re-definitions (the real engine's toDDL.pure bodies walk the
+     * Database METAMODEL, M3 reflection this platform doesn't model) are
+     * suppressed at the overload merge, exactly like real pure natives
+     * replacing their stub bodies. executeInDb is NOT owned: the corpus's
+     * 2-arg wrapper there is legitimate pure code over the 4-arg leaf.
+     */
+    public static boolean isPlatformOwnedFunction(String fqn) {
+        return DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
+                || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn);
+    }
+
+    /** Debug output — K-dispatched as a NO-OP, arguments never evaluated. */
+    public static final String PRINT = "meta::pure::functions::io::print";
+    public static final String PRINTLN = "meta::pure::functions::io::println";
+
+    /** All K-natives: calls that EXECUTE at the K boundary and never lower. */
+    public static boolean isKNative(String fqn) {
+        return EXECUTE_IN_DB.equals(fqn) || EXECUTE_IN_DB_DEBUG.equals(fqn)
+                || DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
+                || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
+                || PRINT.equals(fqn) || PRINTLN.equals(fqn);
+    }
+
     /** The top type. */
     public static boolean isAny(Type t) {
         return t instanceof Type.ClassType c && c.fqn().equals(ANY);

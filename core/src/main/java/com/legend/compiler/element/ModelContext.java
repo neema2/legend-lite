@@ -129,6 +129,22 @@ public interface ModelContext {
      */
     Optional<Type.RelationType> findTable(String dbFqn, String name);
 
+    /** Is {@code fqn} a Database store element? (Typed as the store
+     * metaclass in value position — see Typer.classReference.) */
+    default boolean isDatabase(String fqn) {
+        return false;
+    }
+
+    /**
+     * The full store TABLE DEFINITION (columns with relational data types)
+     * — the K-native {@code dropAndCreateTableInDb} renders DDL from it.
+     * {@code name} may be schema-qualified ({@code hr.EMPLOYEES}).
+     */
+    default Optional<com.legend.model.DatabaseDefinition.TableDefinition>
+            findTableDefinition(String dbFqn, String name) {
+        return Optional.empty();
+    }
+
     /** The table's temporal columns, when it declares a milestoning block. */
     default Optional<com.legend.model.DatabaseDefinition.TableDefinition.Milestoning>
             findTableMilestoning(String dbFqn, String name) {

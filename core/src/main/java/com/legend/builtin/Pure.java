@@ -207,9 +207,26 @@ public final class Pure {
     // to the native leaf below; the CONNECTION VALUE at run time is the
     // execution context's one ambient JDBC connection (the K dispatch
     // never evaluates connection expressions).
-    public static final ClassDefinition DATABASE_CONNECTION = nativeClass("native Class meta::external::store::relational::runtime::DatabaseConnection extends meta::pure::metamodel::type::Any {}");
-    public static final ClassDefinition TEST_DATABASE_CONNECTION = nativeClass("native Class meta::external::store::relational::runtime::TestDatabaseConnection extends meta::external::store::relational::runtime::DatabaseConnection {}");
-    public static final ClassDefinition RESULT_SET = nativeClass("native Class meta::relational::metamodel::execute::ResultSet extends meta::pure::metamodel::type::Any {}");
+    // the real platform_dsl_store/grammar/runtime.pure trio — properties
+    // as REAL pure declares them (the connection VALUES never evaluate;
+    // these exist so connection-resolution chains TYPE-check)
+    public static final ClassDefinition RUNTIME_CONNECTION = nativeClass("native Class meta::core::runtime::Connection {}");
+    public static final ClassDefinition CONNECTION_STORE = nativeClass("native Class meta::core::runtime::ConnectionStore { connection: meta::core::runtime::Connection[1]; element: meta::pure::metamodel::type::Any[1]; }");
+    public static final ClassDefinition RUNTIME = nativeClass("native Class meta::core::runtime::Runtime { connectionStores: meta::core::runtime::ConnectionStore[*]; }");
+    // scalar properties as REAL relationalRuntime.pure declares them (the
+    // Function-typed post-processor properties are omitted until demanded);
+    // the corpus's testDatabaseConnection(...) constructs these
+    public static final ClassDefinition DATABASE_CONNECTION = nativeClass("native Class meta::external::store::relational::runtime::DatabaseConnection extends meta::core::runtime::Connection { type: meta::relational::runtime::DatabaseType[1]; debug: meta::pure::metamodel::type::Boolean[0..1]; timeZone: meta::pure::metamodel::type::String[0..1]; quoteIdentifiers: meta::pure::metamodel::type::Boolean[0..1]; queryTimeOutInSeconds: meta::pure::metamodel::type::Integer[0..1]; }");
+    public static final ClassDefinition TEST_DATABASE_CONNECTION = nativeClass("native Class meta::external::store::relational::runtime::TestDatabaseConnection extends meta::external::store::relational::runtime::DatabaseConnection { testDataSetupCsv: meta::pure::metamodel::type::String[0..1]; }");
+    // the store METACLASS (real: extends meta::pure::store::Store) — a
+    // database REFERENCE is a value of this type (classReference), so the
+    // corpus's testRuntime(db:Database[1]) overload family type-checks
+    public static final ClassDefinition DATABASE_METACLASS = nativeClass("native Class meta::relational::metamodel::Database {}");
+    // real platform_store_relational/functions.pure:50-65 (dataSource and
+    // Row's value(name) qualified property omitted until demanded) — setup
+    // functions INTROSPECT results (println(executeInDb(...).rows.values))
+    public static final ClassDefinition RESULT_SET = nativeClass("native Class meta::relational::metamodel::execute::ResultSet extends meta::pure::metamodel::type::Any { executionTimeInNanoSecond: meta::pure::metamodel::type::Integer[1]; connectionAcquisitionTimeInNanoSecond: meta::pure::metamodel::type::Integer[1]; executionPlanInformation: meta::pure::metamodel::type::String[0..1]; columnNames: meta::pure::metamodel::type::String[*]; rows: meta::relational::metamodel::execute::Row[*]; }");
+    public static final ClassDefinition RESULT_SET_ROW = nativeClass("native Class meta::relational::metamodel::execute::Row extends meta::pure::metamodel::type::Any { values: meta::pure::metamodel::type::Any[*]; parent: meta::relational::metamodel::execute::ResultSet[1]; }");
 
     // ---- Function carrier (parameterized over a function-type token) ----
     public static final ClassDefinition FUNCTION = nativeClass("native Class meta::pure::metamodel::function::Function<F> extends meta::pure::metamodel::type::Any {}");
@@ -298,6 +315,19 @@ public final class Pure {
         ALL_ENUMS.add(def);
         return def;
     }
+
+    // ---- Relational runtime enums ----
+    // real relationalRuntime.pure:21 — the corpus's testDatabaseConnection
+    // constructs ^TestDatabaseConnection(type=DatabaseType.H2, ...)
+    public static final EnumDefinition DATABASE_TYPE = nativeEnum("""
+            Enum meta::relational::runtime::DatabaseType
+            {
+                DB2, H2, MemSQL, Sybase, SybaseIQ, Composite, Postgres, SqlServer,
+                Hive, Snowflake, Presto, Trino, BigQuery, Redshift, Databricks,
+                Spanner, Athena, Aurora, SparkSQL, DuckDB, Oracle, ClickHouse,
+                DebugPrint
+            }
+            """);
 
     // ---- Date enums ----
     public static final EnumDefinition DURATION_UNIT = nativeEnum("""
@@ -877,9 +907,28 @@ public final class Pure {
     // connectionByElement type the connection-resolution chains
     // (execution-context elements are Any[1] — the from() convention).
     public static final NativeFunctionDefinition EXECUTE_IN_DB__STRING_1__CONN_1__INTEGER_1__INTEGER_1 = signature("native function meta::relational::metamodel::execute::executeInDb(sql:meta::pure::metamodel::type::String[1], databaseConnection:meta::external::store::relational::runtime::DatabaseConnection[1], timeOutInSeconds:meta::pure::metamodel::type::Integer[1], fetchSize:meta::pure::metamodel::type::Integer[1]):meta::relational::metamodel::execute::ResultSet[1];");
-    public static final NativeFunctionDefinition TEST_RUNTIME__0 = signature("native function meta::external::store::relational::tests::testRuntime():meta::pure::metamodel::type::Any[1];");
-    public static final NativeFunctionDefinition TEST_RUNTIME__ANY_1 = signature("native function meta::external::store::relational::tests::testRuntime(db:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1];");
-    public static final NativeFunctionDefinition CONNECTION_BY_ELEMENT__ANY_1__ANY_1 = signature("native function meta::core::runtime::connectionByElement(runtime:meta::pure::metamodel::type::Any[1], store:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1];");
+    public static final NativeFunctionDefinition CONNECTION_BY_ELEMENT__ANY_1__ANY_1 = signature("native function meta::core::runtime::connectionByElement(runtime:meta::pure::metamodel::type::Any[1], store:meta::pure::metamodel::type::Any[1]):meta::core::runtime::Connection[1];");
+    // dropAndCreateTableInDb: ordinary pure in the real engine (toDDL.pure
+    // walks the Database metamodel to spell DDL) — a K-native here, DDL
+    // rendered from the compiled store model (com.legend.sql.Ddl). The
+    // database argument types Any[1] (execution-context-element convention).
+    public static final NativeFunctionDefinition DROP_AND_CREATE_TABLE_IN_DB__ANY_1__STRING_1__CONN_1 = signature("native function meta::relational::functions::toDDL::dropAndCreateTableInDb(database:meta::pure::metamodel::type::Any[1], tableName:meta::pure::metamodel::type::String[1], c:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition DROP_AND_CREATE_TABLE_IN_DB__ANY_1__STRING_1__STRING_1__CONN_1 = signature("native function meta::relational::functions::toDDL::dropAndCreateTableInDb(database:meta::pure::metamodel::type::Any[1], schema:meta::pure::metamodel::type::String[1], tableName:meta::pure::metamodel::type::String[1], c:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::pure::metamodel::type::Boolean[1];");
+    // relationalExtension.pure's 2-arg wrapper is the corpus's OWN pure
+    // code (a shared module source in the harness) and inlines to the
+    // 4-arg native leaf. Only the debug variant (its body calls the
+    // unregistered print()) registers here, sharing the executeInDb
+    // K-dispatch (sql is always args[0]; debug prints are dropped).
+    public static final NativeFunctionDefinition EXECUTE_IN_DB_DEBUG__STRING_1__CONN_1__BOOLEAN_1 = signature("native function meta::relational::functions::database::executeInDb(str:meta::pure::metamodel::type::String[1], connection:meta::external::store::relational::runtime::DatabaseConnection[1], debug:meta::pure::metamodel::type::Boolean[1]):meta::relational::metamodel::execute::ResultSet[1];");
+    public static final NativeFunctionDefinition DROP_AND_CREATE_SCHEMA_IN_DB__STRING_1__CONN_1 = signature("native function meta::relational::functions::toDDL::dropAndCreateSchemaInDb(schema:meta::pure::metamodel::type::String[1], c:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::pure::metamodel::type::Boolean[1];");
+    // real essential/io print surface — K-dispatched as NO-OPS: debug
+    // output whose ARGUMENTS are never evaluated (they may introspect
+    // ResultSets, which never materialize host-side)
+    public static final NativeFunctionDefinition PRINT__ANY_M__INTEGER_1 = signature("native function meta::pure::functions::io::print(param:meta::pure::metamodel::type::Any[*], max:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Nil[0];");
+    public static final NativeFunctionDefinition PRINT__ANY_M = signature("native function meta::pure::functions::io::print(param:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Nil[0];");
+    public static final NativeFunctionDefinition PRINTLN__ANY_M__INTEGER_1 = signature("native function meta::pure::functions::io::println(param:meta::pure::metamodel::type::Any[*], max:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Nil[0];");
+    public static final NativeFunctionDefinition PRINTLN__ANY_M = signature("native function meta::pure::functions::io::println(param:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Nil[0];");
+    public static final NativeFunctionDefinition DROP_AND_CREATE_SCHEMA_IN_DB__STRING_1__CONN_1__BOOLEAN_1 = signature("native function meta::relational::functions::toDDL::dropAndCreateSchemaInDb(schema:meta::pure::metamodel::type::String[1], c:meta::external::store::relational::runtime::DatabaseConnection[1], debug:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition LEGACY_ASSOC_PREDICATE__A_1__B_1__RELATION_1__RELATION_1__FUNCTION_1 = signature("native function meta::legend::lite::legacyAssocPredicate<A,B,S,T>(a:A[1], b:B[1], src:meta::pure::metamodel::relation::Relation<S>[1], tgt:meta::pure::metamodel::relation::Relation<T>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition LENGTH__STRING_1 = signature("native function meta::pure::functions::string::length(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition LESS_THAN_EQUAL__DATE_0_1__DATE_0_1 = signature("native function meta::pure::functions::boolean::lessThanEqual(left:meta::pure::metamodel::type::Date[0..1], right:meta::pure::metamodel::type::Date[0..1]):meta::pure::metamodel::type::Boolean[1];");

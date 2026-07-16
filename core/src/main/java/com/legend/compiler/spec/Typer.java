@@ -866,8 +866,22 @@ final class Typer {
             return functionCandidates(af.function());
         }
         List<TypedFunction> union = new ArrayList<>();
+        RuntimeException firstBroken = null;
         for (String fqn : af.candidateFqns()) {
-            union.addAll(ctx.findFunction(fqn));
+            try {
+                union.addAll(ctx.findFunction(fqn));
+            } catch (RuntimeException e) {
+                // an import candidate whose overloads are ALL signature-
+                // broken (tolerant module): it cannot be meant — the
+                // healthy candidates decide, exactly like a broken overload
+                // inside one FQN. Surface it only if NOTHING is healthy.
+                if (firstBroken == null) {
+                    firstBroken = e;
+                }
+            }
+        }
+        if (union.isEmpty() && firstBroken != null) {
+            throw firstBroken;
         }
         return union;
     }
@@ -907,7 +921,15 @@ final class Typer {
                     List.of(new Type.EnumType(fqn)));
             return new TypedPackageableRef(fqn, ExprType.one(enumOf));
         }
-        // An execution-context element (mapping/runtime/connection/database) is a value
+        // A DATABASE reference is a value of the store metaclass (real m3:
+        // meta::relational::metamodel::Database) — the corpus's
+        // testRuntime(db:Database[1]) overload family dispatches on it.
+        // Database <: Any, so from/write's Any[1] parameters still accept it.
+        if (ctx.isDatabase(ref.fullPath())) {
+            return new TypedPackageableRef(ref.fullPath(), ExprType.one(
+                    new Type.ClassType("meta::relational::metamodel::Database")));
+        }
+        // An execution-context element (mapping/runtime/connection) is a value
         // of type Any[1] — exactly what from/write's signature parameters declare.
         if (ctx.isExecutionContextElement(ref.fullPath())) {
             return new TypedPackageableRef(ref.fullPath(), ExprType.one(InferenceKernel.anyType()));

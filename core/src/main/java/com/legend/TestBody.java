@@ -164,22 +164,8 @@ public final class TestBody {
     public static Outcome run(ModelContext ctx, String body, ImportScope imports,
             String runtimeFqn, Connection conn, boolean emptinessUnverifiable)
             throws java.sql.SQLException {
-        return run(ctx, body, imports, runtimeFqn, conn, emptinessUnverifiable,
-                java.util.Set.of());
-    }
-
-    /**
-     * {@code harnessSetupCalls}: names (simple + qualified) of engine-harness
-     * SETUP functions whose effects the caller already replayed (seed
-     * machinery) — a bare statement calling one is the harness contract,
-     * not test semantics, and skips.
-     */
-    public static Outcome run(ModelContext ctx, String body, ImportScope imports,
-            String runtimeFqn, Connection conn, boolean emptinessUnverifiable,
-            java.util.Set<String> harnessSetupCalls)
-            throws java.sql.SQLException {
         return run(ctx, SpecParser.parseCodeBlock(body), imports, runtimeFqn,
-                conn, emptinessUnverifiable, harnessSetupCalls);
+                conn, emptinessUnverifiable);
     }
 
     /**
@@ -190,8 +176,22 @@ public final class TestBody {
      */
     public static Outcome run(ModelContext ctx,
             java.util.List<ValueSpecification> statements, ImportScope imports,
+            String runtimeFqn, Connection conn, boolean emptinessUnverifiable)
+            throws java.sql.SQLException {
+        return run(ctx, statements, imports, runtimeFqn, conn,
+                emptinessUnverifiable, null);
+    }
+
+    /**
+     * {@code seedFailures}: the caller's failed-seed LEDGER — setup calls
+     * the body makes report per-statement raw-SQL failures here instead of
+     * aborting (engine-harness tolerance), and a non-empty ledger makes
+     * emptiness-shaped assertions unverifiable from that point on.
+     */
+    public static Outcome run(ModelContext ctx,
+            java.util.List<ValueSpecification> statements, ImportScope imports,
             String runtimeFqn, Connection conn, boolean emptinessUnverifiable,
-            java.util.Set<String> harnessSetupCalls)
+            java.util.List<String> seedFailures)
             throws java.sql.SQLException {
         java.util.ArrayDeque<ValueSpecification> work =
                 new java.util.ArrayDeque<>(statements);
@@ -321,7 +321,8 @@ public final class TestBody {
             }
             if (stmt instanceof AppliedFunction af && af.function().startsWith("assert")) {
                 String failure = checkAssert(af, lets, handles, ctx, imports,
-                        runtimeFqn, conn, emptinessUnverifiable);
+                        runtimeFqn, conn, emptinessUnverifiable
+                                || seedFailures != null && !seedFailures.isEmpty());
                 if (failure == UNSUPPORTED_MARKER) {
                     return new Outcome.Unsupported("assert form '" + af.function()
                             + "/" + af.parameters().size() + "' is not supported yet");
@@ -342,11 +343,6 @@ public final class TestBody {
             }
             if (stmt instanceof AppliedFunction af && isExecuteCall(af)) {
                 return new Outcome.Unsupported("execute() not bound to a let");
-            }
-            if (stmt instanceof AppliedFunction af
-                    && (harnessSetupCalls.contains(af.function())
-                            || harnessSetupCalls.contains(simpleName(af.function())))) {
-                continue;   // seed-replayed harness setup — already applied
             }
             // CSV-seeding setup (modelJoin's setupTestData([csv...], db, rt)):
             // each CSV block is schema\ntable\nheader\nrows — the engine's
@@ -369,9 +365,32 @@ public final class TestBody {
                     continue;
                 }
             }
+            // K-natives arc (S4): any other EXPRESSION STATEMENT executes
+            // through the platform — the engine's setup calls
+            // (createTablesAndFillDb(), setUp($m), executeInDb(...)) are
+            // ordinary pure code, and the pipeline is the only executor.
+            // SQLExceptions propagate (an honest ERROR); compile/type
+            // failures report Unsupported — the body's data cannot be
+            // trusted after a failed setup statement.
+            if (stmt instanceof AppliedFunction af3) {
+                try {
+                    Compiler.executeResolved(
+                            NameResolver.resolveQuery(
+                                    substitute(stmt, lets, handles, runtimeFqn),
+                                    imports, ctx.elementFqns()),
+                            ctx, runtimeFqn, conn,
+                            seedFailures == null ? null : seedFailures::add);
+                    continue;
+                } catch (java.sql.SQLException sql) {
+                    throw sql;
+                } catch (RuntimeException e) {
+                    return new Outcome.Unsupported("statement '" + af3.function()
+                            + "' failed through the pipeline: "
+                            + String.valueOf(e.getMessage()).split("\\n")[0]);
+                }
+            }
             return new Outcome.Unsupported("unsupported statement: "
-                    + (stmt instanceof AppliedFunction af2 ? af2.function()
-                            : stmt.getClass().getSimpleName()));
+                    + stmt.getClass().getSimpleName());
         }
         return new Outcome.Ran(verified, advisory, List.of());
     }
@@ -418,284 +437,6 @@ public final class TestBody {
         }
         return null;
     }
-
-    // ===== Phase D: setup-function EXECUTION through the platform =====
-
-    /**
-     * The harness's JDBC boundary for {@link #runSetup}: the engine's own
-     * setup vocabulary bottoms out in these two effects, implemented by
-     * the caller (who owns the connection, the dialect normalization and
-     * the failure ledger).
-     */
-    public interface SetupIo {
-        /** An {@code executeInDb('...')} literal — normalize, split, run, collect. */
-        void executeSql(String rawSql);
-
-        /** A {@code dropAndCreateTableInDb(Db, 'Table', conn)} — recreate from the model. */
-        void dropAndCreate(String dbFqn, String table);
-
-        /** A setup statement that failed to evaluate — the caller's ledger
-         * (feeds the failed-seed emptiness guard). */
-        void failure(String detail);
-    }
-
-    /**
-     * Execute a {@code <<test.BeforePackage>>} / setup-function BODY for
-     * its side effects — the engine's own seeding code runs THROUGH the
-     * platform instead of having its string literals regex-scraped:
-     * {@code let}s bind lazily and evaluate through the ordinary pipeline
-     * (string concatenation is a real query over {@code conn}); calls to
-     * OTHER zero-arg setup functions recurse with run-once semantics;
-     * the two JDBC-boundary calls dispatch to {@link SetupIo}. Connection
-     * plumbing ({@code testRuntime(...).connectionByElement(...)}) binds
-     * as an opaque let — {@code executeInDb}'s connection argument is the
-     * harness's connection by construction and is never evaluated.
-     * Unrecognized statements SKIP, exactly like the literal-extraction
-     * replay this replaces (setup bodies contain engine-runtime calls we
-     * do not model); a skipped statement can only UNDER-seed, which the
-     * failed-seed emptiness guard already covers.
-     */
-    public static void runSetup(ModelContext ctx, List<ValueSpecification> body,
-            ImportScope imports, String runtimeFqn, Connection conn,
-            Map<String, List<ValueSpecification>> setupFns,
-            java.util.Set<String> executed, SetupIo io, String callerPkg) {
-        Map<String, ValueSpecification> lets = new LinkedHashMap<>();
-        for (ValueSpecification stmt : body) {
-            try {
-                runSetupStatement(stmt, lets, ctx, imports, runtimeFqn, conn,
-                        setupFns, executed, io, callerPkg);
-            } catch (Exception e) {
-                io.failure(String.valueOf(e.getMessage()).split("\n")[0]);
-            }
-        }
-    }
-
-    private static void runSetupStatement(ValueSpecification stmt,
-            Map<String, ValueSpecification> lets, ModelContext ctx,
-            ImportScope imports, String runtimeFqn, Connection conn,
-            Map<String, List<ValueSpecification>> setupFns,
-            java.util.Set<String> executed, SetupIo io, String callerPkg)
-            throws Exception {
-        if (stmt instanceof AppliedFunction let
-                && let.function().equals("letFunction")
-                && let.parameters().size() == 2
-                && let.parameters().get(0) instanceof CString name) {
-            lets.put(name.value(), let.parameters().get(1));
-            return;
-        }
-        if (stmt instanceof AppliedFunction af) {
-            String simple = simpleName(af.function());
-            if (simple.startsWith("executeInDb") && !af.parameters().isEmpty()) {
-                if (!freeVarsBound(af.parameters().get(0), lets)) {
-                    return;   // parameter-dependent SQL: the legacy
-                              // extraction skipped these silently too
-                }
-                Object sql = setupString(af.parameters().get(0), lets, ctx,
-                        imports, runtimeFqn, conn);
-                if (sql instanceof String str) {
-                    io.executeSql(str);
-                }
-                return;
-            }
-            if (simple.equals("dropAndCreateTableInDb")
-                    && af.parameters().size() >= 2) {
-                if (!freeVarsBound(af.parameters().get(1), lets)) {
-                    return;
-                }
-                String dbFqn = af.parameters().get(0)
-                        instanceof PackageableElementPtr ptr
-                        ? ptr.fullPath() : null;
-                Object table = setupString(af.parameters().get(1), lets, ctx,
-                        imports, runtimeFqn, conn);
-                if (table instanceof String t) {
-                    io.dropAndCreate(dbFqn, t);
-                }
-                return;
-            }
-            // a bare call to another SETUP function: recurse, run-once
-            String called = af.function();
-            List<ValueSpecification> calledBody = setupFns.get(called);
-            if (calledBody == null) {
-                // simple-name spellings resolve by PACKAGE PROXIMITY to the
-                // caller — the corpus holds same-named setups in many
-                // families and an arbitrary-first pick executed a FOREIGN
-                // family's seeder (wrong rows, sweep-only)
-                int best = -1;
-                int bestLen = Integer.MAX_VALUE;
-                for (Map.Entry<String, List<ValueSpecification>> en
-                        : setupFns.entrySet()) {
-                    if (!simpleName(en.getKey()).equals(simple)) {
-                        continue;
-                    }
-                    int shared = sharedPkgPrefix(en.getKey(), callerPkg);
-                    if (shared > best
-                            || (shared == best && en.getKey().length() < bestLen)) {
-                        best = shared;
-                        bestLen = en.getKey().length();
-                        called = en.getKey();
-                        calledBody = en.getValue();
-                    }
-                }
-            }
-            if (calledBody != null && af.parameters().isEmpty()) {
-                if (executed.add(called)) {
-                    String calleePkg = called.contains("::")
-                            ? called.substring(0, called.lastIndexOf("::")) : "";
-                    runSetup(ctx, calledBody, imports, runtimeFqn, conn,
-                            setupFns, executed, io, calleePkg);
-                }
-                return;
-            }
-        }
-        // Unrecognized statement SHAPE (loops, ifs, engine-runtime calls):
-        // walk its subtree and run every executeInDb/dropAndCreate whose
-        // arguments are STATICALLY evaluable (constant or let-bound) — the
-        // literal-extraction replay this replaces was shape-insensitive
-        // and picked those up; a loop-computed argument was unfoldable
-        // there too and skips here identically.
-        fallbackWalk(stmt, lets, ctx, imports, runtimeFqn, conn, io);
-    }
-
-    private static void fallbackWalk(ValueSpecification v,
-            Map<String, ValueSpecification> lets, ModelContext ctx,
-            ImportScope imports, String runtimeFqn, Connection conn,
-            SetupIo io) {
-        if (v instanceof AppliedFunction af) {
-            String simple = simpleName(af.function());
-            if (simple.startsWith("executeInDb") && !af.parameters().isEmpty()
-                    && freeVarsBound(af.parameters().get(0), lets)) {
-                try {
-                    Object sql = setupString(af.parameters().get(0), lets, ctx,
-                            imports, runtimeFqn, conn);
-                    if (sql instanceof String str) {
-                        io.executeSql(str);
-                    }
-                } catch (Exception e) {
-                    // unfoldable argument: the legacy extraction skipped too
-                }
-                return;
-            }
-            if (simple.equals("dropAndCreateTableInDb")
-                    && af.parameters().size() >= 2
-                    && freeVarsBound(af.parameters().get(1), lets)) {
-                try {
-                    Object table = setupString(af.parameters().get(1), lets, ctx,
-                            imports, runtimeFqn, conn);
-                    String dbFqn = af.parameters().get(0)
-                            instanceof PackageableElementPtr ptr
-                            ? ptr.fullPath() : null;
-                    if (table instanceof String t) {
-                        io.dropAndCreate(dbFqn, t);
-                    }
-                } catch (Exception e) {
-                    // unfoldable: skip, legacy parity
-                }
-                return;
-            }
-            af.parameters().forEach(x ->
-                    fallbackWalk(x, lets, ctx, imports, runtimeFqn, conn, io));
-        } else if (v instanceof AppliedProperty ap) {
-            fallbackWalk(ap.receiver(), lets, ctx, imports, runtimeFqn, conn, io);
-        } else if (v instanceof LambdaFunction lf) {
-            lf.body().forEach(x ->
-                    fallbackWalk(x, lets, ctx, imports, runtimeFqn, conn, io));
-        } else if (v instanceof PureCollection pc) {
-            pc.values().forEach(x ->
-                    fallbackWalk(x, lets, ctx, imports, runtimeFqn, conn, io));
-        }
-    }
-
-    /**
-     * A setup argument as a STRING: literals and let-bound
-     * literal/concat chains fold HOST-SIDE (a seed replay runs thousands
-     * of these — a pipeline round-trip per literal would dominate the
-     * sweep); anything else evaluates through the ordinary pipeline.
-     */
-    private static Object setupString(ValueSpecification v,
-            Map<String, ValueSpecification> lets, ModelContext ctx,
-            ImportScope imports, String runtimeFqn, Connection conn)
-            throws java.sql.SQLException {
-        String fast = foldString(v, lets, 0);
-        if (fast != null) {
-            return fast;
-        }
-        return evalScalar(v, lets, new LinkedHashMap<>(), ctx, imports,
-                runtimeFqn, conn);
-    }
-
-    /** Host-side fold of CString / let-ref / plus-concat chains; null when
-     * any part is not statically a string. */
-    private static String foldString(ValueSpecification v,
-            Map<String, ValueSpecification> lets, int depth) {
-        if (depth > 32) {
-            return null;
-        }
-        if (v instanceof CString c) {
-            return c.value();
-        }
-        if (v instanceof Variable var && lets.containsKey(var.name())) {
-            return foldString(lets.get(var.name()), lets, depth + 1);
-        }
-        if (v instanceof AppliedFunction af
-                && simpleName(af.function()).equals("plus")) {
-            StringBuilder sb = new StringBuilder();
-            for (ValueSpecification part : flattenPlus(af)) {
-                String piece = foldString(part, lets, depth + 1);
-                if (piece == null) {
-                    return null;
-                }
-                sb.append(piece);
-            }
-            return sb.toString();
-        }
-        return null;
-    }
-
-    private static List<ValueSpecification> flattenPlus(AppliedFunction af) {
-        List<ValueSpecification> out = new ArrayList<>();
-        for (ValueSpecification p : af.parameters()) {
-            if (p instanceof PureCollection pc) {
-                out.addAll(pc.values());
-            } else if (p instanceof AppliedFunction inner
-                    && simpleName(inner.function()).equals("plus")) {
-                out.addAll(flattenPlus(inner));
-            } else {
-                out.add(p);
-            }
-        }
-        return out;
-    }
-
-    /** Shared whole-segment package prefix — the legacy expansion's
-     * closest-package scoring, kept exactly. */
-    private static int sharedPkgPrefix(String a, String b) {
-        String[] as = a.split("::");
-        String[] bs = b == null ? new String[0] : b.split("::");
-        int i = 0;
-        while (i < as.length && i < bs.length && as[i].equals(bs[i])) {
-            i++;
-        }
-        return i;
-    }
-
-    /** Every free variable of {@code v} is let-bound (statically evaluable). */
-    private static boolean freeVarsBound(ValueSpecification v,
-            Map<String, ValueSpecification> lets) {
-        if (v instanceof Variable var) {
-            return lets.containsKey(var.name());
-        }
-        if (v instanceof AppliedFunction af) {
-            return af.parameters().stream().allMatch(x -> freeVarsBound(x, lets));
-        }
-        if (v instanceof AppliedProperty ap) {
-            return freeVarsBound(ap.receiver(), lets);
-        }
-        if (v instanceof PureCollection pc) {
-            return pc.values().stream().allMatch(x -> freeVarsBound(x, lets));
-        }
-        return true;
-    }
-
 
     /** One CSV seed block: {@code schema\ntable\nHEADER\nrows...} —
      * DROP + CREATE from the model's OWN table definition (engine
