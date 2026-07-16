@@ -66,12 +66,14 @@ final class FunctionCompiler {
             try {
                 typed.add(compile(f));
             } catch (RuntimeException e) {
-                // POISON-NOT-DROP at the overload level: a tolerant module
-                // build keeps signature-broken functions in the model; one
-                // such overload must not break candidate collection for
-                // its healthy siblings (natives registered at the same
-                // FQN included). A STRICT build never gets here — model
-                // integrity fails first.
+                // DROP-AT-OVERLOAD (honest name — audit 17): a tolerant
+                // module build keeps signature-broken functions in the
+                // MODEL, but candidate collection omits them, so a call
+                // whose engine-correct target is the broken overload can
+                // silently re-dispatch to a healthy sibling. The fix is a
+                // poison SENTINEL that participates in scoring and throws
+                // when it wins (tracked, task #56). A STRICT build never
+                // gets here — model integrity fails first.
                 if (first == null) {
                     first = e;
                 }

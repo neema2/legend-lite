@@ -96,16 +96,19 @@ public final class Runner {
             }
             for (com.legend.model.PackageableElement el : unit.elements()) {
                 if (el instanceof com.legend.model.FunctionDefinition f) {
-                    sharedSetupUnits.add(new Object[]{f.qualifiedName(),
-                            f.body(), f.parameters().isEmpty()});
+                    sharedSetupUnits.add(new SetupUnit(
+                            f.qualifiedName(), f.parameters().isEmpty()));
                 }
             }
         }
     }
 
-    /** Shared-file functions, definition order — {fqn, body AST, zeroArg};
-     * executed for EVERY test (each test gets a fresh in-memory db). */
-    private final List<Object[]> sharedSetupUnits = new ArrayList<>();
+    /** A shared-file function, definition order — executed for EVERY test
+     * when zero-arg and effectful (each test gets a fresh in-memory db). */
+    private record SetupUnit(String fqn, boolean zeroArg) {
+    }
+
+    private final List<SetupUnit> sharedSetupUnits = new ArrayList<>();
 
 
     // Phase D: setup functions as PARSED definitions — their bodies
@@ -176,8 +179,8 @@ public final class Runner {
                 setupFnImports.putIfAbsent(f.qualifiedName(), scope);
             }
             boolean isBp = f.stereotypes().stream().anyMatch(st ->
-                    st.profileName().substring(st.profileName().lastIndexOf(':') + 1)
-                            .equals("test")
+                    (st.profileName().equals("test")
+                            || st.profileName().equals("meta::pure::profiles::test"))
                             && st.stereotypeName().equals("BeforePackage"));
             if (isBp && bpSeen.add(f.qualifiedName())) {
                 String fqn = f.qualifiedName();
@@ -363,6 +366,30 @@ public final class Runner {
      * ToFix/Ignore (engine harness parity) and ExcludeAlloy (legend-lite
      * executes the in-process Alloy-shaped path).
      */
+    /** ONE stereotype classifier for the whole harness (audit 17: two
+     * hand-kept switches drifted): how does the {@code test} profile mark
+     * this function? */
+    enum TestKind { TEST, EXCLUDED, NONE }
+
+    static TestKind testKindOf(com.legend.model.FunctionDefinition f) {
+        boolean isTest = false;
+        boolean excluded = false;
+        for (com.legend.model.StereotypeApplication st : f.stereotypes()) {
+            String profile = st.profileName();
+            // the real profile is meta::pure::profiles::test — bare or FQN
+            if (!(profile.equals("test")
+                    || profile.equals("meta::pure::profiles::test"))) {
+                continue;
+            }
+            switch (st.stereotypeName()) {
+                case "Test" -> isTest = true;
+                case "ToFix", "Ignore", "ExcludeAlloy" -> excluded = true;
+                default -> { }
+            }
+        }
+        return excluded ? TestKind.EXCLUDED : isTest ? TestKind.TEST : TestKind.NONE;
+    }
+
     /** Does this source declare ANY test-stereotyped function — including
      * ToFix/Ignore/ExcludeAlloy ones (an all-excluded file is still a TEST
      * file, never a family SETUP file)? The family/test-file split runs on
@@ -375,20 +402,9 @@ public final class Runner {
             return false;   // unparseable file: walled at model-build time
         }
         for (com.legend.model.PackageableElement el : unit.elements()) {
-            if (!(el instanceof com.legend.model.FunctionDefinition f)) {
-                continue;
-            }
-            for (com.legend.model.StereotypeApplication st : f.stereotypes()) {
-                String profile = st.profileName();
-                if (!profile.substring(profile.lastIndexOf(':') + 1).equals("test")) {
-                    continue;
-                }
-                switch (st.stereotypeName()) {
-                    case "Test", "ToFix", "Ignore", "ExcludeAlloy" -> {
-                        return true;
-                    }
-                    default -> { }
-                }
+            if (el instanceof com.legend.model.FunctionDefinition f
+                    && testKindOf(f) != TestKind.NONE) {
+                return true;
             }
         }
         return false;
@@ -406,21 +422,7 @@ public final class Runner {
             if (!(el instanceof com.legend.model.FunctionDefinition f)) {
                 continue;
             }
-            boolean isTest = false;
-            boolean excluded = false;
-            for (com.legend.model.StereotypeApplication st : f.stereotypes()) {
-                String profile = st.profileName();
-                String simpleProfile = profile.substring(profile.lastIndexOf(':') + 1);
-                if (!simpleProfile.equals("test")) {
-                    continue;
-                }
-                switch (st.stereotypeName()) {
-                    case "Test" -> isTest = true;
-                    case "ToFix", "Ignore", "ExcludeAlloy" -> excluded = true;
-                    default -> { }
-                }
-            }
-            if (isTest && !excluded) {
+            if (testKindOf(f) == TestKind.TEST) {
                 out.add(new ParsedTest(f.qualifiedName(), f,
                         unit.elementImports().get(f.qualifiedName())));
             }
@@ -660,7 +662,7 @@ public final class Runner {
         allSeeds.addAll(fileSeeds.getOrDefault(currentFileKey, List.of()));
         List<String> failedSeeds = new ArrayList<>();
         for (String sql : allSeeds) {
-            for (String raw : splitStatements(sql)) {
+            for (String raw : com.legend.sql.RawSql.splitStatements(sql)) {
                 String stmt = Corpus.DIALECT.adaptRawSql(raw);
                 // prepare(): DuckDB JDBC masks Statement.execute errors
                 try (var st = conn.prepareStatement(stmt)) {
@@ -676,11 +678,10 @@ public final class Runner {
         // then this test's BeforePackage fns — each a real call through the
         // platform; parameterized shared fns run when a body CALLS them
         java.util.Set<String> executed = new java.util.HashSet<>();
-        for (Object[] unit : sharedSetupUnits) {
-            String sharedFqn = (String) unit[0];
-            if ((Boolean) unit[2] && isEffectfulSetup(sharedFqn)
-                    && executed.add(sharedFqn)) {
-                callSetup(sharedFqn, ctx, conn, failedSeeds);
+        for (SetupUnit unit : sharedSetupUnits) {
+            if (unit.zeroArg() && isEffectfulSetup(unit.fqn())
+                    && executed.add(unit.fqn())) {
+                callSetup(unit.fqn(), ctx, conn, failedSeeds);
             }
         }
         for (String[] bp : beforePackagesParsed) {
@@ -897,33 +898,6 @@ public final class Runner {
         return out;
     }
 
-    /** Split a SQL blob into single statements on top-level {@code ;} (string-aware). */
-    static List<String> splitStatements(String sql) {
-        List<String> out = new ArrayList<>();
-        int start = 0;
-        int i = 0;
-        while (i < sql.length()) {
-            char c = sql.charAt(i);
-            if (c == '\'') {
-                i = Corpus.skipString(sql, i);
-                continue;
-            }
-            if (c == ';') {
-                String stmt = sql.substring(start, i).strip();
-                if (!stmt.isEmpty()) {
-                    out.add(stmt);
-                }
-                start = i + 1;
-            }
-            i++;
-        }
-        String tail = sql.substring(start).strip();
-        if (!tail.isEmpty()) {
-            out.add(tail);
-        }
-        return out;
-    }
-
 
 
 
@@ -960,68 +934,6 @@ public final class Runner {
     // ===== text machinery =====
 
 
-
-    static int matchParen(String s, int open) {
-        int depth = 0;
-        for (int i = open; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c == '\'') {
-                i = Corpus.skipString(s, i) - 1;
-                continue;
-            }
-            if (c == '#') {
-                int close = s.indexOf('#', i + 1);
-                if (close > 0) {
-                    i = close;      // #...# island: parens inside are data
-                    continue;
-                }
-            }
-            if (c == '(') {
-                depth++;
-            } else if (c == ')') {
-                depth--;
-                if (depth == 0) {
-                    return i;
-                }
-            }
-        }
-        return -1;
-    }
-
-    /**
-     * Split a call's argument text on top-level commas (string/bracket
-     * aware; {@code #...#} islands — TDS literals, relation refs, path
-     * literals — are opaque: their commas and brackets are data).
-     */
-    static List<String> splitArgs(String s) {
-        List<String> out = new ArrayList<>();
-        int depth = 0;
-        int start = 0;
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            if (c == '\'') {
-                i = Corpus.skipString(s, i) - 1;
-                continue;
-            }
-            if (c == '#') {
-                int close = s.indexOf('#', i + 1);
-                if (close > 0) {
-                    i = close;
-                    continue;
-                }
-            }
-            if (c == '(' || c == '[' || c == '{') {
-                depth++;
-            } else if (c == ')' || c == ']' || c == '}') {
-                depth--;
-            } else if (c == ',' && depth == 0) {
-                out.add(s.substring(start, i));
-                start = i + 1;
-            }
-        }
-        out.add(s.substring(start));
-        return out;
-    }
 
     // ===== name qualification (imports) =====
 
