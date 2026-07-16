@@ -248,12 +248,6 @@ final class JoinChainEmission {
                             i + 1, md.qualifiedName());
             if (viewTarget == null) {
                 MappingNormalizer.requireNonViewTarget(targetTable, hopDb, hop.joinName(), model, md);
-            } else if (emitNavigate) {
-                throw new NotImplementedException(
-                        "Join '" + hop.joinName() + "' navigates to a CLASS"
-                      + " mapped over view '" + viewTarget + "'; class"
-                      + " navigation onto view relations is a roadmap"
-                      + " feature. mapping=" + md.qualifiedName());
             }
 
             Variable s = new Variable("s");
@@ -275,10 +269,17 @@ final class JoinChainEmission {
                 // thunk is the CLASS extent — spell the target's table row
                 // into the call so the cond lambda's T types (the same
                 // conform-by-emission cure as legacyAssocPredicate).
-                ValueSpecification targetRows = new AppliedFunction(
-                        "tableReference", List.of(
-                                new PackageableElementPtr(hopDb),
-                                new CString(targetTable)));
+                // a VIEW target navigates over the view's RELATION (the
+                // same expansion the physical-hop arm uses — engine: views
+                // are subselects, joins accept Table OR View)
+                ValueSpecification targetRows = viewTarget != null
+                        ? MappingNormalizer.viewRelationExpr(
+                                model.findView(hopDb, viewTarget).orElseThrow(),
+                                viewTarget, hopDb, model, md)
+                        : new AppliedFunction(
+                                "tableReference", List.of(
+                                        new PackageableElementPtr(hopDb),
+                                        new CString(targetTable)));
                 // ROUTED union navigation: ONE navigate carries the OR over
                 // ALL the property's route entries, each entry's condition
                 // built from ITS OWN join with target-side reads suffixed by
