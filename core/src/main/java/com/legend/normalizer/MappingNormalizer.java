@@ -1898,9 +1898,48 @@ public final class MappingNormalizer {
         Variable rowBind = new Variable("row");
         Map<String, ValueSpecification> scope = Map.of(physicalTable, rowBind);
         ValueSpecification cond = RelOpTranslator.translate(fd.condition(), scope, null, rowBind, RelOpTranslator.PipelineView.NONE);
-        ValueSpecification filtered = new AppliedFunction("filter",
-                List.of(source, new LambdaFunction(List.of(rowBind), List.of(cond))));
+        ValueSpecification filtered = filterBelowAggregation(source,
+                new LambdaFunction(List.of(rowBind), List.of(cond)));
         return new AppliedFunction("map", List.of(filtered, mapLambda));
+    }
+
+    /**
+     * Insert the mapping filter BENEATH the class pipeline's groupBy /
+     * distinct nodes: the engine evaluates the view filter AND the mapping
+     * filter both in WHERE position, before aggregation. Filtering the
+     * grouped relation silently turned {@code WHERE amount > 10} into
+     * {@code HAVING sum(amount) > 10} whenever a grouped output column
+     * kept the filtered physical name (audit 18 finding 6). Only reached
+     * from the flattening path, where every groupBy/distinct in the source
+     * chain is class-pipeline-level (grouped views return earlier with the
+     * view as an opaque source subselect).
+     */
+    private static ValueSpecification filterBelowAggregation(
+            ValueSpecification src, LambdaFunction pred) {
+        // distinct commutes with a row-level predicate — descend through it
+        // only to reach a groupBy beneath (the pinned canonical form keeps
+        // the mapping filter ABOVE a bare distinct)
+        boolean descend = src instanceof AppliedFunction af
+                && ("groupBy".equals(af.function())
+                        || ("distinct".equals(af.function())
+                                && chainHasGroupBy(af.parameters().get(0))));
+        if (descend) {
+            AppliedFunction af = (AppliedFunction) src;
+            List<ValueSpecification> ps = new ArrayList<>(af.parameters());
+            ps.set(0, filterBelowAggregation(ps.get(0), pred));
+            return new AppliedFunction(af.function(), ps);
+        }
+        return new AppliedFunction("filter", List.of(src, pred));
+    }
+
+    private static boolean chainHasGroupBy(ValueSpecification v) {
+        while (v instanceof AppliedFunction af && !af.parameters().isEmpty()) {
+            if ("groupBy".equals(af.function())) {
+                return true;
+            }
+            v = af.parameters().get(0);
+        }
+        return false;
     }
 
     /**

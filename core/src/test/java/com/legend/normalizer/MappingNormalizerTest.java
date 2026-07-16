@@ -4232,6 +4232,53 @@ class MappingNormalizerTest {
     }
 
     @Test
+    @DisplayName("mapping ~filter over a grouped class pipeline lands BELOW the groupBy (WHERE, not HAVING)")
+    void viewFilterAndMappingFilterAndGroupBy_filterBelowAggregation() {
+        // Audit 18 finding 6: the engine evaluates the view filter AND the
+        // mapping filter both in WHERE position, BEFORE aggregation.
+        // Layering the mapping filter over the grouped relation silently
+        // turned WHERE amount > 10 into HAVING sum(amount) > 10 whenever a
+        // grouped column kept the filtered physical name.
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::Sale { region: String[1]; amount: Integer[1]; } "
+                        + "Database db::DB ( "
+                        + "  Table T_SALE (REGION VARCHAR(50), AMOUNT INTEGER, ACTIVE INTEGER) "
+                        + "  Filter ActiveFilter ( T_SALE.ACTIVE = 1 ) "
+                        + "  Filter BigFilter    ( T_SALE.AMOUNT > 10 ) "
+                        + "  View V_SALE ( "
+                        + "    ~filter ActiveFilter "
+                        + "    vregion: T_SALE.REGION, "
+                        + "    vamount: T_SALE.AMOUNT "
+                        + "  ) "
+                        + ") "
+                        + "Mapping my::M ( "
+                        + "  *model::Sale: Relational { "
+                        + "    ~filter BigFilter "
+                        + "    ~groupBy([db::DB] T_SALE.REGION) "
+                        + "    ~mainTable [db::DB] V_SALE "
+                        + "    region: V_SALE.vregion, "
+                        + "    amount: sum(T_SALE.AMOUNT) "
+                        + "  } "
+                        + ")");
+        FunctionDefinition fn = soleSynth(normalizeViaPipeline(parsed));
+
+        // Pipeline: map(groupBy(filter(filter(tableReference, view), mapping))).
+        AppliedFunction mapCall = (AppliedFunction) sole(fn.body());
+        assertEquals("map", mapCall.function());
+        AppliedFunction groupBy = (AppliedFunction) mapCall.parameters().get(0);
+        assertEquals("groupBy", groupBy.function(),
+                "aggregation stays the outermost source op");
+        AppliedFunction mappingFilter = (AppliedFunction) groupBy.parameters().get(0);
+        assertEquals("filter", mappingFilter.function(),
+                "the mapping ~filter applies BEFORE aggregation (WHERE, not HAVING)");
+        AppliedFunction viewFilter = (AppliedFunction) mappingFilter.parameters().get(0);
+        assertEquals("filter", viewFilter.function(),
+                "the view ~filter applies first");
+        assertEquals("tableReference",
+                ((AppliedFunction) viewFilter.parameters().get(0)).function());
+    }
+
+    @Test
     @DisplayName("viewFilterAndMappingFilter_layerBothFilters")
     void viewFilterAndMappingFilter_layerBothFilters() {
         // A view carries its own ~filter AND the class mapping adds another
