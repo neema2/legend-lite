@@ -257,6 +257,28 @@ final class LexerTest {
     }
 
     @Test
+    void opaqueSectionsSkipWithoutLexing() {
+        // ###Diagram content is a DIFFERENT DSL — color literals (#FFFFCC)
+        // are unlexable Pure and must never reach the token rules; the
+        // section skips whole, and lexing resumes at the next known section
+        TokenStream ts = Lexer.tokenize("""
+                ###Pure
+                Class my::A {}
+                ###Diagram
+                Diagram my::D(width=1.0) { TypeView v(color=#FFFFCC) }
+                ###Pure
+                Class my::B {}
+                """);
+        long classes = ts.asList().stream()
+                .filter(t -> t.type() == TokenType.VALID_STRING)
+                .filter(t -> t.text().equals("A") || t.text().equals("B"))
+                .count();
+        assertEquals(2, classes, "both Pure sections lex; Diagram is invisible");
+        assertTrue(ts.asList().stream().noneMatch(t -> t.type() == TokenType.INVALID),
+                "no INVALID tokens from the skipped section");
+    }
+
+    @Test
     void sliceEmptyRangeProducesEmptyStream() {
         TokenStream full = Lexer.tokenize("Class my::Foo {}");
         TokenStream empty = full.slice(2, 2);

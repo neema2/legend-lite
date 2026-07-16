@@ -263,9 +263,37 @@ public final class Lexer {
         }
     }
 
+    /**
+     * Section kinds whose CONTENT this lexer understands. Any other kind
+     * (###Diagram — presentation metadata) is an OPAQUE DSL: its content
+     * must not reach the Pure token rules (a diagram color literal
+     * {@code #FFFFCC} is unlexable Pure), so the whole section skips to
+     * the next header. Its elements are simply invisible — exactly what
+     * the engine's semantics need from a diagram.
+     */
+    private static final java.util.Set<String> LEXABLE_SECTIONS =
+            java.util.Set.of("Pure", "Mapping", "Relational", "Connection",
+                    "Runtime", "Data");
+
     private void skipSectionHeader() {
+        int nameStart = pos + 3;
+        int nameEnd = nameStart;
+        while (nameEnd < length && Character.isLetterOrDigit(source.charAt(nameEnd))) {
+            nameEnd++;
+        }
+        String kind = source.substring(nameStart, nameEnd);
         while (pos < length && source.charAt(pos) != '\n') pos++;
         if (pos < length) pos++;
+        if (!kind.isEmpty() && !LEXABLE_SECTIONS.contains(kind)) {
+            // opaque section: raw-skip to the next line-anchored ###
+            while (pos < length) {
+                if (source.charAt(pos) == '#' && source.startsWith("###", pos)
+                        && (pos == 0 || source.charAt(pos - 1) == '\n')) {
+                    return;
+                }
+                pos++;
+            }
+        }
     }
 
     private void skipWhitespaceOnly() {

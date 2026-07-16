@@ -325,7 +325,20 @@ public final class MappingNormalizer {
         for (AssociationMapping am : md.associationMappings()) {
             // null => multi-hop association, realized by per-end navigation
             // injected above; no standalone predicate function, hence no binding.
-            FunctionDefinition fn = AssociationSynthesis.synthesizeAssociationMapping(md, am, model);
+            FunctionDefinition fn;
+            try {
+                fn = AssociationSynthesis.synthesizeAssociationMapping(md, am, model);
+            } catch (NotImplementedException | ModelException e) {
+                // PER-ASSOCIATION fault isolation (mirrors the per-class arm
+                // above): one XStore/ModelJoin association on roadmap
+                // machinery must not sink the whole mapping — the class
+                // bindings stay queryable; navigating THIS association
+                // raises the recorded reason via the poison channel.
+                model.mappingPoisons.putIfAbsent(
+                        md.qualifiedName() + "::" + am.associationName(),
+                        String.valueOf(e.getMessage()));
+                continue;
+            }
             if (fn != null) {
                 lifted.add(fn);
                 assocBindings.add(new MappingDefinition.AssociationBinding(
