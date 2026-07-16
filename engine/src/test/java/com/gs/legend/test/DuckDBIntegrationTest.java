@@ -1889,21 +1889,25 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         for (var row : result.rows()) {
             String name = (String) row.get(0);
             int year = ((Number) row.get(1)).intValue();
-            int month = ((Number) row.get(2)).intValue();
+            // real pure month() returns the Month ENUM — the NAME, the same
+            // enum-by-name convention as dayOfWeek (monthNumber is the
+            // numeric surface; the engine's H2 emission is formatdatetime
+            // 'MMMM')
+            String month = (String) row.get(2);
             int day = ((Number) row.get(3)).intValue();
-            System.out.printf("  %s: year=%d, month=%d, day=%d%n", name, year, month, day);
+            System.out.printf("  %s: year=%d, month=%s, day=%d%n", name, year, month, day);
 
             if ("Alice".equals(name)) {
                 assertEquals(1990, year, "Alice born 1990");
-                assertEquals(6, month, "Alice born June");
+                assertEquals("June", month, "Alice born June");
                 assertEquals(15, day, "Alice born 15th");
             } else if ("Bob".equals(name)) {
                 assertEquals(1985, year, "Bob born 1985");
-                assertEquals(12, month, "Bob born December");
+                assertEquals("December", month, "Bob born December");
                 assertEquals(25, day, "Bob born 25th");
             } else if ("Charlie".equals(name)) {
                 assertEquals(2000, year, "Charlie born 2000");
-                assertEquals(1, month, "Charlie born January");
+                assertEquals("January", month, "Charlie born January");
                 assertEquals(1, day, "Charlie born 1st");
             }
         }

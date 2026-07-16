@@ -364,10 +364,14 @@ final class Scalars {
                     dateArg(n.args().get(0), args.get(0)),
                     new SqlExpr.StringLit("%A")));
         }
+        // month(): real pure returns the Month ENUM — the NAME ('January'),
+        // same enum-by-name convention as dayOfWeek above (the engine's H2
+        // emission is formatdatetime 'MMMM', the full month name; monthNumber
+        // is the numeric surface and keeps EXTRACT below).
         for (String f : Pure.nativeKeysAt("month")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.EXTRACT, List.of(
-                    new SqlExpr.StringLit("month"),
-                    dateArg(n.args().get(0), args.get(0)))));
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.STRFTIME,
+                    dateArg(n.args().get(0), args.get(0)),
+                    new SqlExpr.StringLit("%B")));
         }
         // quarter(): real pure returns the Quarter ENUM (Q1..Q4, with an
         // upstream TODO to make them numbers); the engine surface is the

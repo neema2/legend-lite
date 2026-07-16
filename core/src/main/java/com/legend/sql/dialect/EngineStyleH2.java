@@ -246,6 +246,13 @@ public final class EngineStyleH2 extends AnsiSqlRenderer {
                     + a.stream().map(x -> expr(x, 0))
                             .collect(Collectors.joining(", ")) + ")";
             case TODAY -> "cast(now() as date)";
+            // enum-by-name temporals: the engine's H2 formatdatetime forms
+            case STRFTIME -> a.size() == 2
+                    && a.get(1) instanceof SqlExpr.StringLit fmt
+                    && (fmt.value().equals("%B") || fmt.value().equals("%A"))
+                    ? "formatdatetime(" + expr(a.get(0), 0) + ", '"
+                            + (fmt.value().equals("%B") ? "MMMM" : "EEEE") + "')"
+                    : super.call(c, parentPrec);
             case TRIM -> a.size() == 1
                     ? "trim(both from " + expr(a.get(0), 0) + ")"
                     : super.call(c, parentPrec);
