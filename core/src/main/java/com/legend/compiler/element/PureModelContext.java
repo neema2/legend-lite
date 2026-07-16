@@ -264,6 +264,13 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public java.util.Set<String> functionFqns() {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        model.functions().forEach(f -> out.add(f.qualifiedName()));
+        return out;
+    }
+
+    @Override
     public boolean isDatabase(String fqn) {
         return model.findDatabase(fqn).isPresent();
     }

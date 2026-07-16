@@ -723,6 +723,40 @@ public final class Compiler {
     }
 
     /**
+     * EAGER G — the compileAll mode: type-check every user function BODY
+     * in the module UP FRONT (the default path compiles lazily at call
+     * sites, so a function nobody calls never surfaces its type errors).
+     * Failures come back as a wall map keyed by overload signature, never
+     * thrown — corpus-wide diagnostics for the construct taxonomy. Bodiless
+     * (native) overloads are skipped; an FQN whose whole overload set is
+     * signature-broken walls under the plain FQN.
+     */
+    public static java.util.Map<String, String> compileAllBodies(ModelContext ctx) {
+        SpecCompiler specs = new SpecCompiler(ctx);
+        java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
+        for (String fqn : new java.util.TreeSet<>(ctx.functionFqns())) {
+            java.util.List<com.legend.compiler.element.TypedFunction> overloads;
+            try {
+                overloads = ctx.findFunction(fqn);
+            } catch (RuntimeException e) {
+                walls.put(fqn, String.valueOf(e.getMessage()));
+                continue;
+            }
+            for (com.legend.compiler.element.TypedFunction tf : overloads) {
+                if (tf.body().isEmpty()) {
+                    continue;
+                }
+                try {
+                    specs.compile(tf);
+                } catch (RuntimeException e) {
+                    walls.put(tf.signatureKey(), String.valueOf(e.getMessage()));
+                }
+            }
+        }
+        return walls;
+    }
+
+    /**
      * Frontend + Phase G for a standalone query: Pure model source + query
      * expression &rarr; the query's typed HIR (the FRONT half only; use
      * {@link #execute} for the full pipeline).

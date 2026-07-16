@@ -129,6 +129,12 @@ public interface ModelContext {
      */
     Optional<Type.RelationType> findTable(String dbFqn, String name);
 
+    /** Every USER function FQN in the model (natives excluded) — the
+     * eager-G compileAll mode enumerates over this. */
+    default java.util.Set<String> functionFqns() {
+        return java.util.Set.of();
+    }
+
     /** Is {@code fqn} a Database store element? (Typed as the store
      * metaclass in value position — see Typer.classReference.) */
     default boolean isDatabase(String fqn) {

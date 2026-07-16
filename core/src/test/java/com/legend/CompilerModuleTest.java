@@ -109,6 +109,24 @@ class CompilerModuleTest {
     }
 
     @Test
+    @DisplayName("eager-G compileAll: every body type-checks up front, failures wall by signature")
+    void eagerCompileAllBodies() {
+        // g is healthy; bad's BODY calls an unknown function — the lazy
+        // path would never notice (nobody calls bad); eager-G must.
+        String src = "function my::pkg::g(x: Integer[1]): Integer[1] { $x + 1 }\n"
+                + "function my::pkg::bad(): Integer[1] { my::pkg::noSuchFn() }\n";
+        Compiler.BuiltModule built = Compiler.buildModule(
+                Compiler.parseSources(List.of(
+                        new Compiler.ModelSource("m.pure", src))).model());
+        java.util.Map<String, String> walls =
+                Compiler.compileAllBodies(built.context());
+        assertEquals(1, walls.size(), walls.toString());
+        String key = walls.keySet().iterator().next();
+        assertTrue(key.contains("my::pkg::bad"), key);
+        assertTrue(walls.get(key).contains("noSuchFn"), walls.get(key));
+    }
+
+    @Test
     @DisplayName("module: compile errors carry the source unit's name and position")
     void errorAttribution() {
         String good = "Class my::pkg::Fine { id: Integer[1]; }\n";
