@@ -24,7 +24,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 103 | 0 | 0 | 10 | 93 |
-| functions/tests | 258 | 110 | 4 | 103 | 41 |
+| functions/tests | 258 | 111 | 3 | 103 | 41 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
 | functions/tests/projection | 147 | 69 | 5 | 54 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -46,7 +46,7 @@ in-process Alloy-shaped path).
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 266 | 119 | 1 | 94 | 52 |
+| tds/tests | 266 | 122 | 1 | 94 | 49 |
 | testDataGeneration/tests | 68 | 0 | 0 | 0 | 68 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 68 | 17 | 0 | 38 | 13 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2489 | **914** | 33 | 684 | 858 |
+| **total** | 2489 | **918** | 32 | 684 | 855 |
 
 ### mapping walls (dropped at assembly)
 
@@ -3793,9 +3793,8 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -4424,10 +4423,7 @@ in-process Alloy-shaped path).
 - ERROR groupByAfterASortOnColumnNotInGroupBy [tds/tests]: lowering not yet implemented for TypedNativeCall
 - ERROR groupByAfterConcatenate [tds/tests]: aggregate reducer argument of kind TypedNativeCall is not supported (literals only)
 - SHAPE testTableToTDSWithQuotedColumns [tds/tests]: no execute(|...) call
-- SHAPE testTDSGroupByPercentile [tds/tests]: statement 'meta::relational::functions::asserts::assertSameSQL' failed through the pipeline: unknown function 'meta::relational::functions::asserts::assertSameSQL'
 - ERROR testTDSGroupByIsDistinct [tds/tests]: no overload of 'meta::pure::functions::collection::isDistinct' accepts 1 argument(s)
-- SHAPE testTDSGroupByEmptyColsTerminalOperation [tds/tests]: statement 'meta::relational::functions::asserts::assertSameSQL' failed through the pipeline: unknown function 'meta::relational::functions::asserts::assertSameSQL'
-- SHAPE testTDSGroupByEmptyColsNonTerminalOperation [tds/tests]: statement 'meta::relational::functions::asserts::assertSameSQL' failed through the pipeline: unknown function 'meta::relational::functions::asserts::assertSameSQL'
 - SHAPE testGroupByWithWavgAggregation [tds/tests]: no execute(|...) call
 - SHAPE testGroupByWithMultipleWavgAggregation [tds/tests]: no execute(|...) call
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -4486,15 +4482,15 @@ in-process Alloy-shaped path).
 - ERROR testJoinByCommonColumnName [tds/tests]: the column 'fID' already exists in the relation (personID:Integer[1], personName:String[1], fID:Integer[0..1])
 - ERROR testJoinByCommonColumnName_RightOuter [tds/tests]: the column 'fID' already exists in the relation (personID:Integer[1], personName:String[1], fID:Integer[0..1])
 - ERROR testJoinByColumnName_AfterLimit [tds/tests]: the column 'fID' already exists in the relation (personID:Integer[1], personName:String[1], fID:Integer[0..1])
-- SHAPE testLeftOuterJoinWithFilterOnClassAndFunction [tds/tests]: statement 'meta::relational::functions::asserts::assertSameSQL' failed through the pipeline: unknown function 'meta::relational::functions::asserts::assertSameSQL'
-- SHAPE testJoinOnColumnsAfterConcatenate [tds/tests]: statement 'meta::relational::functions::asserts::assertSameSQL' failed through the pipeline: unknown function 'meta::relational::functions::asserts::assertSameSQL'
-- SHAPE testJoinFuncByColAfterQueryWithConcatenate [tds/tests]: statement 'meta::relational::functions::asserts::assertSameSQL' failed through the pipeline: unknown function 'meta::relational::functions::asserts::assertSameSQL'
-- SHAPE testJoinFuncByColToQueryWithConcatenate [tds/tests]: statement 'meta::relational::functions::asserts::assertSameSQL' failed through the pipeline: unknown function 'meta::relational::functions::asserts::assertSameSQL'
-- SHAPE testJoinFuncByColAfterQueryWithConcatenateToQueryWithConcatenate [tds/tests]: statement 'meta::relational::functions::asserts::assertSameSQL' failed through the pipeline: unknown function 'meta::relational::functions::asserts::assertSameSQL'
-- SHAPE testJoinByColToQueryWithConcatenate [tds/tests]: statement 'meta::relational::functions::asserts::assertSameSQL' failed through the pipeline: unknown function 'meta::relational::functions::asserts::assertSameSQL'
+- SHAPE testLeftOuterJoinWithFilterOnClassAndFunction [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testJoinOnColumnsAfterConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testJoinFuncByColAfterQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testJoinFuncByColToQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testJoinFuncByColAfterQueryWithConcatenateToQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testJoinByColToQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testTableToTDSWithQuotesGroupBy [tds/tests]: no execute(|...) call
-- SHAPE testJoinByColAfterQueryWithConcatenate [tds/tests]: statement 'meta::relational::functions::asserts::assertSameSQL' failed through the pipeline: unknown function 'meta::relational::functions::asserts::assertSameSQL'
-- SHAPE testJoinByColAfterQueryWithConcatenateToQueryWithConcatenate [tds/tests]: statement 'meta::relational::functions::asserts::assertSameSQL' failed through the pipeline: unknown function 'meta::relational::functions::asserts::assertSameSQL'
+- SHAPE testJoinByColAfterQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testJoinByColAfterQueryWithConcatenateToQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testSimpleJoin [tds/tests]: no verifying assertions
 - SHAPE testSimpleJoinColumns [tds/tests]: no verifying assertions
 - ERROR testTwoJoinsWithinConcatenate [tds/tests]: no overload of 'meta::pure::tds::project' matches 2 argument(s) of these shapes
@@ -5078,9 +5074,9 @@ in-process Alloy-shaped path).
 - ERROR testSQLQueryMergingForFiltersAndProjectionsDeep [tests/mapping/union]: Binder Error: Referenced table "t20" not found! | Candidate tables: "t10" |  | LINE 42:   ) AS t20 ON t13.fk_0 = t20.fk OR t13.fk_1 = t20.fk |                                   ^
 - ERROR testSQLQueryMergingForInnerJoins [tests/mapping/union]: null
 - ERROR testSQLQueryMergingForInnerJoins2 [tests/mapping/union]: null
-- SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_AddressIdKey [tests/mapping/union]: statement 'meta::relational::functions::asserts::assertSameSQL' failed through the pipeline: unknown function 'meta::relational::functions::asserts::assertSameSQL'
-- SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_FirmIdKey_Unmapped [tests/mapping/union]: statement 'meta::relational::functions::asserts::assertSameSQL' failed through the pipeline: unknown function 'meta::relational::functions::asserts::assertSameSQL'
-- SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_FirmIdKey_Mapped [tests/mapping/union]: statement 'meta::relational::functions::asserts::assertSameSQL' failed through the pipeline: unknown function 'meta::relational::functions::asserts::assertSameSQL'
+- SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_AddressIdKey [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_FirmIdKey_Unmapped [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_FirmIdKey_Mapped [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_MappingToColumn [tests/mapping/union]: object-space use of the instance variable '$p' other than property access is not supported yet
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_MappingToRelationalOperation [tests/mapping/union]: object-space use of the instance variable '$p' other than property access is not supported yet
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: object-space use of the instance variable '$p' other than property access is not supported yet

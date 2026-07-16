@@ -319,7 +319,8 @@ public final class TestBody {
                 }
                 continue;
             }
-            if (stmt instanceof AppliedFunction af && af.function().startsWith("assert")) {
+            if (stmt instanceof AppliedFunction af
+                    && simpleName(af.function()).startsWith("assert")) {
                 String failure = checkAssert(af, lets, handles, ctx, imports,
                         runtimeFqn, conn, emptinessUnverifiable
                                 || seedFailures != null && !seedFailures.isEmpty());
@@ -549,7 +550,7 @@ public final class TestBody {
             ModelContext ctx, ImportScope imports, String runtimeFqn, Connection conn,
             boolean emptinessUnverifiable) throws java.sql.SQLException {
         List<ValueSpecification> args = af.parameters();
-        switch (af.function()) {
+        switch (simpleName(af.function())) {
             case "assert", "assertFalse" -> {
                 if (args.isEmpty()) {
                     return UNSUPPORTED_MARKER;
