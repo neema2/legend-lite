@@ -311,6 +311,7 @@ final class MappingGrammarParser {
                 if (p.peek() == TokenType.PAREN_OPEN) {
                     skipBalancedBlock();
                 }
+                p.match(TokenType.SEMI_COLON);
                 p.expect(TokenType.BRACE_CLOSE);
                 accum.classMappings.add(new ClassMapping.Inheritance(
                         elementPath, setId, extendsSetId, root));
@@ -345,6 +346,8 @@ final class MappingGrammarParser {
                 }
                 p.expect(TokenType.PAREN_CLOSE);
             }
+            // the corpus writes union_...(a, b); with a trailing semicolon
+            p.match(TokenType.SEMI_COLON);
             p.expect(TokenType.BRACE_CLOSE);
             if (members.isEmpty()) {
                 throw p.error("Operation union for '" + elementPath

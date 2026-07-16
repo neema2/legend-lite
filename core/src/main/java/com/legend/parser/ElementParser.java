@@ -1396,6 +1396,28 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.COLON);
         TypeExpression type = parseType();
         Multiplicity mult = parseMultiplicity();
+        // property DEFAULT VALUE (real pure: prop: Boolean[1] = false;) —
+        // parsed and DROPPED for now: defaults apply at ^construction,
+        // which no supported path exercises for default-bearing classes.
+        // A deliberate, documented divergence until construction demands it.
+        if (match(TokenType.EQUAL)) {
+            int depth = 0;
+            while (!atEnd()) {
+                TokenType t = peek();
+                if (depth == 0 && t == TokenType.SEMI_COLON) {
+                    break;
+                }
+                if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN
+                        || t == TokenType.BRACE_OPEN) {
+                    depth++;
+                } else if (t == TokenType.PAREN_CLOSE
+                        || t == TokenType.BRACKET_CLOSE
+                        || t == TokenType.BRACE_CLOSE) {
+                    depth--;
+                }
+                advance();
+            }
+        }
         expect(TokenType.SEMI_COLON);
         return new ClassDefinition.PropertyDefinition(
                 name, type, mult, stereotypes, taggedValues);
