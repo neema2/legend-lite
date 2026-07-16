@@ -816,6 +816,26 @@ public final class TestBody {
             };
         }
 
+        /** Instance dedup for a GRAPH result: same instance serializes to
+         * the same object — structural dedup of the parsed envelope,
+         * carried as a Collection so size()/values() stay honest. */
+        Eval dedupedValues() {
+            if (!(result instanceof com.legend.exec.ExecutionResult.Graph g)) {
+                return this;
+            }
+            Object parsed = ExecJson.parse(g.json());
+            List<Object> vals = parsed instanceof List<?> l
+                    ? new ArrayList<>(l) : new ArrayList<>(List.of(parsed));
+            List<Object> unique = new ArrayList<>();
+            for (Object v : vals) {
+                if (!unique.contains(v)) {
+                    unique.add(v);
+                }
+            }
+            return new Eval(new com.legend.exec.ExecutionResult.Collection(
+                    unique, g.returnType()), sortedChain, csvTail, joinSep);
+        }
+
         String render() {
             List<Object> v = values();
             return v.size() == 1 ? String.valueOf(v.get(0)) : String.valueOf(v);
@@ -841,6 +861,21 @@ public final class TestBody {
             Map<String, ValueSpecification> lets, Map<String, ExecHandle> handles,
             ModelContext ctx, ImportScope imports, String runtimeFqn, Connection conn)
             throws java.sql.SQLException {
+        // $result.values->removeDuplicates() over a CLASS root: instance
+        // dedup — spliced into the pipeline it feeds the GRAPH envelope
+        // into scalar lowering; the class-root path is HOST-side (the
+        // envelope already serializes each instance identically), so the
+        // dedup is host-side too: evaluate the receiver, dedup the values.
+        if (expr instanceof AppliedFunction dd
+                && (simpleName(dd.function()).equals("removeDuplicates")
+                        || simpleName(dd.function()).equals("distinct"))
+                && dd.parameters().size() == 1) {
+            Eval inner = eval(dd.parameters().get(0), lets, handles, ctx,
+                    imports, runtimeFqn, conn);
+            if (inner.result instanceof com.legend.exec.ExecutionResult.Graph) {
+                return inner.dedupedValues();
+            }
+        }
         ValueSpecification spliced = substitute(expr, lets, handles, runtimeFqn);
         // SERIALIZATION TAILS (toCSV/toString over a TDS) strip: the grid
         // compares STRUCTURALLY (or renders for a string-literal peer) —
