@@ -27,16 +27,16 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 103 | 0 | 0 | 10 | 93 |
-| functions/tests | 258 | 111 | 4 | 116 | 27 |
+| functions/tests | 258 | 115 | 4 | 112 | 27 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
-| functions/tests/projection | 155 | 71 | 5 | 62 | 17 |
+| functions/tests/projection | 155 | 73 | 6 | 59 | 17 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 119 | 13 | 2 | 101 | 3 |
 | graphFetch/tests/union | 15 | 2 | 0 | 13 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 49 | 0 | 0 | 0 | 49 |
-| milestoning/tests | 223 | 144 | 0 | 38 | 41 |
+| milestoning/tests | 223 | 144 | 1 | 37 | 41 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
 | postprocessor | 7 | 6 | 0 | 1 | 0 |
@@ -87,7 +87,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2497 | **952** | 33 | 843 | 669 |
+| **total** | 2497 | **958** | 35 | 835 | 669 |
 
 ### mapping walls (dropped at assembly)
 
@@ -3894,7 +3894,6 @@ in-process Alloy-shaped path).
 - 24x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 18x 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 15x navigation through class-typed slot property 'address' is not supported yet
-- 15x class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'accountOrderPnlView' used as a join target has a join-navigating column 'orderPnl'; navigating view columns are a roadmap feature. mapping=meta::relational::tests::simpleRelationalMapping)
 - 14x a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
 - 13x serialize expects (classCollection, #{Class{…}}#)
 - 12x expected at most one value, got many ([*])
@@ -3919,6 +3918,7 @@ in-process Alloy-shaped path).
 - 6x graphFetch tree: class meta::relational::tests::model::simple::Order has no property 'product'
 - 6x scalar lowering not yet implemented for TypedCLatestDate
 - 6x unknown function 'columnValues'
+- 6x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 
 ### per-test outcomes (non-passing)
 
@@ -4093,7 +4093,6 @@ in-process Alloy-shaped path).
 - SHAPE testFetchDbSchemasMetaData [functions/tests]: no execute(|...) call
 - SHAPE testFetchDbPrimaryKeysMetaData [functions/tests]: no execute(|...) call
 - ERROR testSelectChainOfAndOrOperators [functions/tests]: runtime 'rcorpus::Rt' has 2 mappings binding class 'meta::relational::tests::model::simple::Person' (of 2 candidates); class-query dispatch needs exactly one
-- ERROR testGreaterThanDate [functions/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'accountOrderPnlView' used as a join target has a join-navigating column 'orderPnl'; navigating view columns are a roadmap feature. mapping=meta::relational::test
 - SHAPE testBuildFilterWithValueThatCanBeNull [functions/tests]: execute() whose query argument is not a lambda
 - SHAPE testBuildFilterWithValueThatCanBeNullWithIn [functions/tests]: execute() whose query argument is not a lambda
 - ERROR testConsistencyWithNulls [functions/tests]: class meta::relational::tests::model::simple::Address has no property 'values'
@@ -4148,12 +4147,9 @@ in-process Alloy-shaped path).
 - ERROR testSubAggregationMultiLevelJoinString [functions/tests]: no overload of 'meta::pure::functions::string::joinStrings' accepts 1 argument(s)
 - ERROR testSubAggregationUsingIf [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - ERROR testSequenceMapWithConfusingSetImplementation [functions/tests]: unknown function 'meta::relational::tests::mapping::filter::model::store::createTablesAndFillDb'
-- ERROR testUsingAnAssociationInTheMapFunction [functions/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'accountOrderPnlView' used as a join target has a join-navigating column 'orderPnl'; navigating view columns are a roadmap feature. mapping=meta::relational::test
 - ERROR testUsingFunctionInMapLambdaTakingAParameter [functions/tests]: in function 'meta::relational::tests::groupBy::subFunction3': in call to 'meta::pure::functions::collection::map', argument 2: expected at most one value, got many ([*])
-- ERROR testSimpleWithFilter [functions/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'accountOrderPnlView' used as a join target has a join-navigating column 'orderPnl'; navigating view columns are a roadmap feature. mapping=meta::relational::test
 - ERROR testUsingFunctionInMapLambdaTakingAPathParameterPartial [functions/tests]: in function 'meta::relational::tests::groupBy::subFunction6': in call to 'meta::pure::functions::collection::map', argument 2: expected at most one value, got many ([*])
 - ERROR testUsingFunctionInMapLambdaTakingAParameterPartial [functions/tests]: in function 'meta::relational::tests::groupBy::subFunction6': in call to 'meta::pure::functions::collection::map', argument 2: expected at most one value, got many ([*])
-- ERROR testFilterWithQualifiedProperty [functions/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'accountOrderPnlView' used as a join target has a join-navigating column 'orderPnl'; navigating view columns are a roadmap feature. mapping=meta::relational::test
 - ERROR testSimpleJoinStrings [functions/tests]: lowering not yet implemented for TypedNativeCall
 - ERROR testJoinStringsWithAssociation [functions/tests]: expected at most one value, got many ([*])
 - ERROR testUsingSameAggFunctionTwice [functions/tests]: scalar lowering not yet implemented for TypedSort
@@ -4263,13 +4259,11 @@ in-process Alloy-shaped path).
 - ERROR testInWithOneValue [functions/tests/projection]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary)
 - SHAPE H2Test [functions/tests/projection]: no execute(|...) call
 - ERROR testInWithDynaFunction [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
-- ERROR testQualifierWithInThroughJoin [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'accountOrderPnlView' used as a join target has a join-navigating column 'orderPnl'; navigating view columns are a roadmap feature. mapping=meta::relational::test
-- ERROR testSimpleBoolean [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'accountOrderPnlView' used as a join target has a join-navigating column 'orderPnl'; navigating view columns are a roadmap feature. mapping=meta::relational::test
+- FAIL testSimpleBoolean [functions/tests/projection]: assertEquals: expected false, got []
 - ERROR testSimpleDerivedThroughAssociation [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - FAIL testTwoQualifiersUsingSameJoinWithNoUserParams [functions/tests/projection]: assertSize: expected 1, got 4
 - ERROR testQualifierInLambdaDeep [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testQualifierBeforeProject [functions/tests/projection]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testQualifierWithIsNotEmptyOnComplexType [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'accountOrderPnlView' used as a join target has a join-navigating column 'orderPnl'; navigating view columns are a roadmap feature. mapping=meta::relational::test
 - ERROR testNestedIfWithIsEmpty [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testNestedIfWithIsEmptyCanReturnNull [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testQualifierWithFilterWithDataTypeResult [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
@@ -4279,14 +4273,14 @@ in-process Alloy-shaped path).
 - FAIL testQualifierWithVariableArgReferencedFirstInFilterEqualCriteria [functions/tests/projection]: assertEquals: expected [Firm X~ , Firm A~ , Firm B~ , Firm C~ ], got [Firm X~TDSNull, Firm A~TDSNull, Firm B~TDSNull, Firm C~TDSNull]
 - ERROR testQualifierWithVariableArgWithComplexTypeProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testQualifierWithVariableArgWithComplexTypePropertyAndSubsequentComplexTypePropertyCall [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testFilterOnRootTypeWithOrWithFilterInQualifier [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'accountOrderPnlView' used as a join target has a join-navigating column 'orderPnl'; navigating view columns are a roadmap feature. mapping=meta::relational::test
+- ERROR testFilterOnRootTypeWithOrWithFilterInQualifier [functions/tests/projection]: property 'eventDate' of class 'meta::relational::tests::model::simple::Trade' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testAllOneSimplePropertyWithColsFromFunction [functions/tests/projection]: project expects ~[…] column specifications
 - SHAPE testAllOneSimplePropertyUsingOpenVariables [functions/tests/projection]: no execute(|...) call
 - ERROR testViewAllOneSimpleProperty [functions/tests/projection]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
-- ERROR testJoinToView [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'accountOrderPnlView' used as a join target has a join-navigating column 'orderPnl'; navigating view columns are a roadmap feature. mapping=meta::relational::test
+- ERROR testJoinToView [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Order': property 'quantity' of 'meta::relational::tests::model::simple::Order': expected Float, got Integer (value: AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variabl
 - ERROR testJoinThroughView [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
-- ERROR testViewWithGroupBy [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::AccountPnl': relation has no column 'account'
-- ERROR testAssnToViewWithGroupBy [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'accountOrderPnlView' used as a join target has a join-navigating column 'orderPnl'; navigating view columns are a roadmap feature. mapping=meta::relational::test
+- ERROR testViewWithGroupBy [functions/tests/projection]: mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
+- ERROR testAssnToViewWithGroupBy [functions/tests/projection]: mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
 - ERROR testUnionOnViewsMapping [functions/tests/projection]: class 'meta::relational::tests::model::simple::OrderPnl' is not mapped in mapping 'meta::relational::tests::projection::view::unionOnViewsMapping' (Operation union over a VIEW-backed member set is not supported yet; mapping=meta::relational::tests::projection::view::unionOnViewsMapping)
 - ERROR testViewOnView [functions/tests/projection]: class 'meta::relational::tests::model::simple::OrderPnl' is not mapped in mapping 'meta::relational::tests::projection::view::unionOnViewOnViewMapping' (Operation union over a VIEW-backed member set is not supported yet; mapping=meta::relational::tests::projection::view::unionOnViewOnViewMapping)
 - ERROR testProjectionOfPropertyJoinedToViewWithGroupByAndFilter [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
@@ -4358,10 +4352,10 @@ in-process Alloy-shaped path).
 - ERROR testGraphFetchDataTypes [graphFetch/tests]: unknown function 'meta::relational::tests::mapping::dataType::setUp'
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John}, {firstName=John}, {firstName=Anthony}]}, {legalName=Firm 
 - ERROR testGraphFetchWithViewRootFlat [graphFetch/tests]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
-- ERROR testGraphFetchWithViewRootNested [graphFetch/tests]: class 'meta::relational::tests::model::simple::Order' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'orderPnlView' used as a join target has a join-navigating column 'accountId'; navigating view columns are a roadmap feature. mapping=meta::relational::tests::simpl
-- ERROR testGraphFetchWithViewRootNestedDeep [graphFetch/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::AccountPnl': relation has no column 'account'
-- ERROR testGraphFetchWithViewAtChild [graphFetch/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'accountOrderPnlView' used as a join target has a join-navigating column 'orderPnl'; navigating view columns are a roadmap feature. mapping=meta::relational::test
-- ERROR testGraphFetchWithGroupByViewAtChild [graphFetch/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'accountOrderPnlView' used as a join target has a join-navigating column 'orderPnl'; navigating view columns are a roadmap feature. mapping=meta::relational::test
+- ERROR testGraphFetchWithViewRootNested [graphFetch/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Order': property 'quantity' of 'meta::relational::tests::model::simple::Order': expected Float, got Integer (value: AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variabl
+- ERROR testGraphFetchWithViewRootNestedDeep [graphFetch/tests]: mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
+- ERROR testGraphFetchWithViewAtChild [graphFetch/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Order': property 'quantity' of 'meta::relational::tests::model::simple::Order': expected Float, got Integer (value: AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variabl
+- ERROR testGraphFetchWithGroupByViewAtChild [graphFetch/tests]: mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
 - ERROR testSimpleGraphFetchWithQualifier [graphFetch/tests]: property 'name' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testSimpleGraphFetchWithQualifierWithParameter [graphFetch/tests]: property 'fullName' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testSimpleGraphFetchAliasing [graphFetch/tests]: property 'name' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -4513,7 +4507,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: no execute(|...) call
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: no execute(|...) call
-- ERROR testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: class 'meta::relational::tests::milestoning::Trade' is not mapped in mapping 'meta::relational::tests::milestoning::milestoningmap3' (view 'tradePnlViewNoRootMilestoning' used as a join target has a join-navigating column 'supportContact'; navigating view columns are a roadmap feature. mapping=meta:
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testConcatenationOfTemporalTdsQueries [milestoning/tests]: execute() whose query argument is not a lambda
@@ -4589,7 +4583,7 @@ in-process Alloy-shaped path).
 - SHAPE testPushFiltersDownIntoSubQueryWithGroupByGroupingAndAggregateColumnsFilter [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownToJoinsPostProcessorToSQL [postprocessor/tests]: no execute(|...) call
 - ERROR testSqlRealiasJoin [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testSqlRealiasViews [postprocessor/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::AccountPnl': relation has no column 'account'
+- ERROR testSqlRealiasViews [postprocessor/tests]: mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
 - ERROR testSqlRealiasFreeMarker [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - SHAPE testSQLRealiasCaseSensitiveTableNames [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDb2ColumnRename [postprocessor/tests]: no execute(|...) call
@@ -5081,7 +5075,7 @@ in-process Alloy-shaped path).
 - ERROR testPropertyMappingsForA [tests/mapping/extends]: association property '$a.e' used other than as a navigation head (class-typed value / isEmpty / whole-instance) is not supported yet
 - ERROR testPropertyMappingsForB [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
 - ERROR testPropertyMappingsForC [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR testStoreSubstitutionForB [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::BMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::B': [meta::relational::tests::mapp
 - ERROR testStoreSubstitutionForC [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::CMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::C': [meta::relational::tests::mapp
@@ -5371,18 +5365,18 @@ in-process Alloy-shaped path).
 - ERROR testViewWithJoinsAndDistinct [tests/query]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::TestMappingWithViewJoins' (Join 'personViewWithFirmTable' not found in db 'meta::relational::tests::db'; PM='null', mapping=meta::relational::tests::TestMappingWithViewJoins)
 - ERROR testDistinctOnlyIncludesTopLevelColumns [tests/query]: in function 'meta::relational::tests::TestViewWithDistinctAndJoins$class$meta::relational::tests::model::simple::Person': unknown table 'FirstNameAddress' in database 'meta::relational::tests::db'
 - ERROR testViewSimpleFilter [tests/query]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
-- ERROR testAllWithJoinToView [tests/query]: class 'meta::relational::tests::model::simple::Order' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'orderPnlView' used as a join target has a join-navigating column 'accountId'; navigating view columns are a roadmap feature. mapping=meta::relational::tests::simpl
+- ERROR testAllWithJoinToView [tests/query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Order': property 'quantity' of 'meta::relational::tests::model::simple::Order': expected Float, got Integer (value: AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variabl
 - ERROR testViewSimpleExists [tests/query]: in function 'meta::relational::tests::query::view::relationalMappingWithViewAndInnerJoin$class$meta::relational::tests::model::simple::Order': unknown table 'PersonFirmView' in database 'meta::relational::tests::db'
 - ERROR testViewPropertyFilterWithPrimaryKey [tests/query]: in function 'meta::relational::tests::query::view::EmployeeMappingWithViewAndInnerJoin$class$meta::relational::tests::model::simple::Employee': unknown table 'OrgView' in database 'meta::relational::tests::db'
 - ERROR testPushDownProject [tests/query]: unknown enumeration 'meta::pure::executionPlan::features::Feature'
 - ERROR testPushDownProjectWithParameter [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - FAIL testFilterUsingSubstringFunction [tests/query]: assertSize: expected 2, got 0
-- ERROR testFilterUsingParseIntegerFunction [tests/query]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'accountOrderPnlView' used as a join target has a join-navigating column 'orderPnl'; navigating view columns are a roadmap feature. mapping=meta::relational::test
-- ERROR testFilterUsingParseDecimalFunction [tests/query]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'accountOrderPnlView' used as a join target has a join-navigating column 'orderPnl'; navigating view columns are a roadmap feature. mapping=meta::relational::test
+- ERROR testFilterUsingParseIntegerFunction [tests/query]: Conversion Error: Could not convert string 'ccount 1' to INT64 |  | LINE 3: WHERE CAST(substr(t0.name, 10, -8) AS BIGINT) = 1 |               ^
+- ERROR testFilterUsingParseDecimalFunction [tests/query]: Conversion Error: Could not convert string "ccount 1" to DECIMAL(38,18) |  | LINE 3: WHERE CAST(rtrim(substr(t0.name, 10, -8), 'dD') AS DECIMAL(38... |               ^
 - ERROR testFilterUsingArcSinFunction [tests/query]: Invalid Input Error: Unable to compute asin of 1.1
 - ERROR testFilterUsingArcCosFunction [tests/query]: Invalid Input Error: Unable to compute acos of 1.1
 - SHAPE testFilterTimesWithManyOperands [tests/query]: sql-only: 2 advisory golden-SQL assert(s), no row verification
-- ERROR testCollectionDistinctFunction [tests/query]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'accountOrderPnlView' used as a join target has a join-navigating column 'orderPnl'; navigating view columns are a roadmap feature. mapping=meta::relational::test
+- ERROR testCollectionDistinctFunction [tests/query]: Binder Error: subqueries in lambda expressions are not supported
 - ERROR testJoinStringFunction [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testDayOfWeekFunction [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testDayOfWeekNumberFunction [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)

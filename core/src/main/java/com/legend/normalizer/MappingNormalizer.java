@@ -1731,6 +1731,26 @@ public final class MappingNormalizer {
                                                             DatabaseDefinition.ViewDefinition view,
                                                             ModelBuilder model) {
         String mainDb = rcm.mainTable().database();
+        // A GROUPED view cannot flatten into the class mapping: the merged
+        // ~groupBy would run AFTER navigate injection and discard the
+        // navigation slots (V1b, probe-confirmed on AccountPnl). The view
+        // is a ROW-DEFINING SUBSELECT — it becomes the pipeline SOURCE
+        // (columns projected by NAME, ~filter/~groupBy/~distinct inside),
+        // PMs read view columns VERBATIM, and the view name is the source
+        // row scope. Plain views keep the flattening path below (it also
+        // handles join-navigating view columns, which the subselect
+        // expansion walls loudly).
+        if (!view.groupByColumns().isEmpty()) {
+            ValueSpecification viewSource = viewRelationExpr(
+                    view, rcm.mainTable().table(), mainDb, model, md);
+            ClassMapping.Relational overView = new ClassMapping.Relational(
+                    rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
+                    rcm.mainTable(), rcm.filter(), rcm.distinct(), rcm.groupBy(),
+                    rcm.primaryKey(), rcm.propertyMappings(), null,
+                    rcm.propertyTargetSets());
+            return synthTableBackedMapping(md, overView, model,
+                    /*backingView*/ null, viewSource);
+        }
         // Engine parity: the view resolves to a single physical root table,
         // which (not the view name) is the source relation.
         String physicalTable = inferViewMainTable(view, rcm.mainTable().table(), md);
@@ -1934,7 +1954,16 @@ public final class MappingNormalizer {
                                                               ClassMapping.Relational rcm,
                                                               ModelBuilder model,
                                                               String backingView) {
-        RelationalParts parts = synthTableBackedParts(md, rcm, model, backingView);
+        return synthTableBackedMapping(md, rcm, model, backingView, null);
+    }
+
+    private static ValueSpecification synthTableBackedMapping(LegacyMappingDefinition md,
+                                                              ClassMapping.Relational rcm,
+                                                              ModelBuilder model,
+                                                              String backingView,
+                                                              ValueSpecification sourceOverride) {
+        RelationalParts parts = synthTableBackedParts(md, rcm, model, backingView,
+                sourceOverride);
         return new AppliedFunction("map", List.of(parts.pipeline(),
                 new LambdaFunction(List.of(parts.rowBind()),
                         List.of(buildNewInstanceToOne(rcm.className(), parts.fields(), model)))));
@@ -1944,6 +1973,21 @@ public final class MappingNormalizer {
                                                              ClassMapping.Relational rcm,
                                                              ModelBuilder model,
                                                               String backingView) {
+        return synthTableBackedParts(md, rcm, model, backingView, null);
+    }
+
+    /**
+     * {@code sourceOverride}: a NON-TABLE source relation (a grouped view's
+     * subselect — V1b): the pipeline starts there instead of
+     * {@code tableReference(mainTable)}, and {@code rcm.mainTable().table()}
+     * names the SOURCE ROW SCOPE (the view name) that column PMs and join
+     * conditions resolve against.
+     */
+    static RelationalParts synthTableBackedParts(LegacyMappingDefinition md,
+                                                             ClassMapping.Relational rcm,
+                                                             ModelBuilder model,
+                                                              String backingView,
+                                                              ValueSpecification sourceOverride) {
         validatePmNames(rcm, model, md);
 
         String mainDb    = rcm.mainTable().database();
@@ -1953,8 +1997,9 @@ public final class MappingNormalizer {
         // Query-parser parity (H1): the database is a PackageableElementPtr,
         // the table a string — the same shapes #>{db.TABLE}# produces, so
         // TableReferenceChecker serves both surfaces.
-        Pipeline p = new Pipeline(new AppliedFunction("tableReference",
-                List.of(new PackageableElementPtr(mainDb), new CString(mainTable))),
+        Pipeline p = new Pipeline(sourceOverride != null ? sourceOverride
+                : new AppliedFunction("tableReference",
+                        List.of(new PackageableElementPtr(mainDb), new CString(mainTable))),
                 backingView);
         UnionSynthesis.classifyUnionRoutes(md, rcm, model, p);
 
@@ -3096,11 +3141,27 @@ public final class MappingNormalizer {
             DatabaseDefinition.ViewDefinition view, String viewName, String db,
             ModelBuilder model, LegacyMappingDefinition md) {
         String phys = inferViewMainTable(view, viewName, md);
-        ValueSpecification src = new AppliedFunction("tableReference",
-                List.of(new PackageableElementPtr(db), new CString(phys)));
         Variable r = new Variable("vr");
+        // JOIN-NAVIGATING view columns (orderPnl: @Join | T.COL) hoist as
+        // slots on a real Pipeline — the same pass-2 machinery PM bodies
+        // use; the JoinNavigation arm of RelOpTranslator then resolves
+        // them through the pipeline view (V1c).
+        Pipeline vp = new Pipeline(new AppliedFunction("tableReference",
+                List.of(new PackageableElementPtr(db), new CString(phys))), null);
+        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc0
+                : view.columnMappings()) {
+            List<JoinChainEmission.JoinNavSpec> navs0 = new ArrayList<>();
+            JoinChainEmission.collectJoinNavigations(vc0.expression(), navs0);
+            for (JoinChainEmission.JoinNavSpec nav : navs0) {
+                JoinChainEmission.emitJoinChain(vp, nav.chain(), nav.chainDb(),
+                        vc0.name(), null, db, phys, r, model, md,
+                        /*classTypedTerminus*/ false);
+            }
+        }
+        ValueSpecification src = vp.expr;
         Map<String, ValueSpecification> scope = new LinkedHashMap<>();
         scope.put(phys, r);
+        seedAliasScope(scope, vp, r, phys);
         if (view.filter() != null) {
             if (!(view.filter() instanceof FilterMapping.Direct direct)) {
                 throw new NotImplementedException(
@@ -3120,20 +3181,9 @@ public final class MappingNormalizer {
                           + viewName + "' not found in db '" + dbFqn
                           + "'; mapping=" + md.qualifiedName()));
             ValueSpecification cond = RelOpTranslator.translate(fd.condition(), scope,
-                    null, r, RelOpTranslator.PipelineView.NONE);
+                    null, r, vp.view());
             src = new AppliedFunction("filter", List.of(src,
                     new LambdaFunction(List.of(r), List.of(cond))));
-        }
-        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
-            List<JoinChainEmission.JoinNavSpec> navs = new ArrayList<>();
-            JoinChainEmission.collectJoinNavigations(vc.expression(), navs);
-            if (!navs.isEmpty()) {
-                throw new NotImplementedException(
-                        "view '" + viewName + "' used as a join target has a"
-                      + " join-navigating column '" + vc.name()
-                      + "'; navigating view columns are a roadmap feature."
-                      + " mapping=" + md.qualifiedName());
-            }
         }
         if (!view.groupByColumns().isEmpty()) {
             List<RelationalOperation> keyOps = view.groupByColumns();
@@ -3145,7 +3195,7 @@ public final class MappingNormalizer {
                 if (expr instanceof RelationalOperation.FunctionCall fc
                         && AGGREGATE_FNS.contains(fc.name()) && fc.args().size() == 1) {
                     ValueSpecification selector = RelOpTranslator.translate(
-                            fc.args().get(0), scope, null, r, RelOpTranslator.PipelineView.NONE);
+                            fc.args().get(0), scope, null, r, vp.view());
                     Variable vals = new Variable("vals");
                     aggCols.add(new ColSpec(vc.name(),
                             new LambdaFunction(List.of(r), List.of(selector)),
@@ -3169,7 +3219,7 @@ public final class MappingNormalizer {
                 }
                 claimed[match] = true;
                 ValueSpecification keyValue = RelOpTranslator.translate(expr, scope,
-                        null, r, RelOpTranslator.PipelineView.NONE);
+                        null, r, vp.view());
                 keyCols.add(new ColSpec(vc.name(),
                         new LambdaFunction(List.of(r), List.of(keyValue)), null));
             }
@@ -3177,7 +3227,7 @@ public final class MappingNormalizer {
                 if (!claimed[i]) {
                     // grouped-but-unprojected key: keep the grouping exact
                     ValueSpecification keyValue = RelOpTranslator.translate(keyOps.get(i),
-                            scope, null, r, RelOpTranslator.PipelineView.NONE);
+                            scope, null, r, vp.view());
                     keyCols.add(new ColSpec("k" + i,
                             new LambdaFunction(List.of(r), List.of(keyValue)), null));
                 }
@@ -3188,7 +3238,7 @@ public final class MappingNormalizer {
             List<ColSpec> cols = new ArrayList<>(view.columnMappings().size());
             for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
                 ValueSpecification val = RelOpTranslator.translate(vc.expression(), scope,
-                        null, r, RelOpTranslator.PipelineView.NONE);
+                        null, r, vp.view());
                 cols.add(new ColSpec(vc.name(),
                         new LambdaFunction(List.of(r), List.of(val)), null));
             }
