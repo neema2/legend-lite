@@ -271,7 +271,7 @@ final class Typer {
         // PARAMETERIZED qualified property: $p.synonymByType(X) routes to the
         // externalized body function <owner>$prop$<name>(this, args...) and
         // β-inlines with every other user call — never shadows a real function
-        if (!af.parameters().isEmpty() && functionCandidates(af.function()).isEmpty()) {
+        if (!af.parameters().isEmpty() && functionCandidates(af).isEmpty()) {
             TypedSpec recv = synth(af.parameters().get(0), env);
             String classFqn = recv.info().type() instanceof Type.ClassType ct ? ct.fqn()
                     : recv.info().type() instanceof Type.GenericType g ? g.rawFqn() : null;
@@ -457,7 +457,7 @@ final class Typer {
         }
         List<ExprType> argTypes = args.stream().map(TypedSpec::info).toList();
 
-        List<TypedFunction> candidates = functionCandidates(af.function());
+        List<TypedFunction> candidates = functionCandidates(af);
         if (candidates.isEmpty()) {
             throw new TypeInferenceException("unknown function '" + af.function() + "'");
         }
@@ -514,7 +514,7 @@ final class Typer {
      */
     private Application checkWithDeferred(AppliedFunction af, Env env) {
         List<ValueSpecification> raw = af.parameters();
-        List<TypedFunction> arity = functionCandidates(af.function()).stream()
+        List<TypedFunction> arity = functionCandidates(af).stream()
                 .filter(c -> c.parameters().size() == raw.size())
                 .filter(c -> deferredShapesMatch(c, raw))
                 .toList();
@@ -852,6 +852,24 @@ final class Typer {
             return ctx.findFunction(name.substring(0, m.start()));
         }
         return found;
+    }
+
+    /**
+     * Call-aware overload set: when the resolver recorded IMPORT-AMBIGUITY
+     * candidates on the node (several imported packages define the simple
+     * name), the overload set is the UNION across all of them — real
+     * pure's function matching collects across imports and signature
+     * scoring picks. Single-referent calls keep the plain name path.
+     */
+    private List<TypedFunction> functionCandidates(AppliedFunction af) {
+        if (af.candidateFqns().isEmpty()) {
+            return functionCandidates(af.function());
+        }
+        List<TypedFunction> union = new ArrayList<>();
+        for (String fqn : af.candidateFqns()) {
+            union.addAll(ctx.findFunction(fqn));
+        }
+        return union;
     }
 
     /**
