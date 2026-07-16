@@ -557,6 +557,22 @@ final class Typer {
             if (typed[i] == null) {
                 if (raw.get(i) instanceof LambdaFunction lam) {
                     typed[i] = typeLambda(lam, chosen.parameters().get(i).type(), b, env);
+                } else if (isLambdaCollection(raw.get(i))) {
+                    // pure [f] ≡ f in call position — each element types
+                    // against the chosen signature's function parameter
+                    // (the corpus's filter([t|...]) / project([λ..], names));
+                    // a SINGLETON collapses to the bare lambda (downstream
+                    // consumers dispatch on TypedLambda)
+                    PureCollection pc = (PureCollection) raw.get(i);
+                    List<TypedSpec> els = new ArrayList<>(pc.values().size());
+                    for (ValueSpecification v : pc.values()) {
+                        els.add(typeLambda((LambdaFunction) v,
+                                chosen.parameters().get(i).type(), b, env));
+                    }
+                    typed[i] = els.size() == 1 ? els.get(0)
+                            : new TypedCollection(els, new ExprType(
+                                    els.get(0).info().type(),
+                                    new Multiplicity.Bounded(els.size(), els.size())));
                 } else if (genericRawIs(chosen.parameters().get(i).type(),
                         Pure.COL_SPEC_ARRAY)) {
                     // an empty colspec array chosen against a PLAIN
@@ -604,11 +620,21 @@ final class Typer {
      * (legacy groupBy([], aggs, ids): a global aggregate's keys). */
     private static boolean deferredArg(ValueSpecification p) {
         return p instanceof LambdaFunction
+                || isLambdaCollection(p)
                 || (p instanceof ColSpec cs && cs.function1() != null)
                 || (p instanceof ColSpecArray arr
                         && (arr.colSpecs().isEmpty()
                                 || arr.colSpecs().stream()
                                         .anyMatch(c -> c.function1() != null)));
+    }
+
+    /** A NON-EMPTY collection literal of lambdas — {@code filter([t|...])} /
+     * {@code project([t|...x, t|...y], names)}: pure's [f] ≡ f value
+     * semantics in call position; each element types against the chosen
+     * signature's function parameter. */
+    private static boolean isLambdaCollection(ValueSpecification p) {
+        return p instanceof PureCollection pc && !pc.values().isEmpty()
+                && pc.values().stream().allMatch(v -> v instanceof LambdaFunction);
     }
 
     /**
@@ -628,6 +654,7 @@ final class Typer {
             Type t = c.parameters().get(i).type();
             boolean ok = switch (p) {
                 case LambdaFunction ignored -> isFunctionTyped(t);
+                case PureCollection ignored -> isFunctionTyped(t);
                 case ColSpec cs -> genericRawIs(t,
                         cs.function2() != null ? Pure.AGG_COL_SPEC : Pure.FUNC_COL_SPEC);
                 case ColSpecArray arr when arr.colSpecs().isEmpty() ->
