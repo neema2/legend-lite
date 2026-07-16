@@ -357,6 +357,37 @@ public final class Runner {
      * ToFix/Ignore (engine harness parity) and ExcludeAlloy (legend-lite
      * executes the in-process Alloy-shaped path).
      */
+    /** Does this source declare ANY test-stereotyped function — including
+     * ToFix/Ignore/ExcludeAlloy ones (an all-excluded file is still a TEST
+     * file, never a family SETUP file)? The family/test-file split runs on
+     * this, through the real parser. */
+    public static boolean hasTestFunctions(String source) {
+        com.legend.model.ParsedModel unit;
+        try {
+            unit = com.legend.parser.ElementParser.parse(source);
+        } catch (RuntimeException e) {
+            return false;   // unparseable file: walled at model-build time
+        }
+        for (com.legend.model.PackageableElement el : unit.elements()) {
+            if (!(el instanceof com.legend.model.FunctionDefinition f)) {
+                continue;
+            }
+            for (com.legend.model.StereotypeApplication st : f.stereotypes()) {
+                String profile = st.profileName();
+                if (!profile.substring(profile.lastIndexOf(':') + 1).equals("test")) {
+                    continue;
+                }
+                switch (st.stereotypeName()) {
+                    case "Test", "ToFix", "Ignore", "ExcludeAlloy" -> {
+                        return true;
+                    }
+                    default -> { }
+                }
+            }
+        }
+        return false;
+    }
+
     public static List<ParsedTest> discoverTests(String source) {
         List<ParsedTest> out = new ArrayList<>();
         com.legend.model.ParsedModel unit;

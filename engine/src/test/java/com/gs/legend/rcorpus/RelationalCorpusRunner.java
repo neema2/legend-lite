@@ -104,7 +104,7 @@ class RelationalCorpusRunner {
             Map<Path, String> testSources = new LinkedHashMap<>();
             for (Path f : files) {
                 String src = Files.readString(f);
-                if (Corpus.testFunctions(src).isEmpty()) {
+                if (!Runner.hasTestFunctions(src)) {
                     familySources.add(src);
                 } else {
                     testSources.put(f, src);
@@ -119,7 +119,7 @@ class RelationalCorpusRunner {
             Path parentSetup = p.getParent().resolve("setUp.pure");
             if (!p.getParent().equals(Corpus.RELATIONAL) && Files.exists(parentSetup)) {
                 String src = Files.readString(parentSetup);
-                if (Corpus.testFunctions(src).isEmpty()) {
+                if (!Runner.hasTestFunctions(src)) {
                     familySources.add(0, src);
                 }
             }
@@ -137,7 +137,7 @@ class RelationalCorpusRunner {
                             continue;
                         }
                         String src2 = Files.readString(f2);
-                        boolean storeOnly = Corpus.testFunctions(src2).isEmpty()
+                        boolean storeOnly = !Runner.hasTestFunctions(src2)
                                 && src2.lines().anyMatch(l ->
                                         l.startsWith("Database "))
                                 && src2.lines().noneMatch(l ->

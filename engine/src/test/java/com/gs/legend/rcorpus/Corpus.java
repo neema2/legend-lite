@@ -536,87 +536,11 @@ public final class Corpus {
 
     // ===== test extraction =====
 
-    public record TestFn(String fqn, String body, Map<String, String> imports,
-                         List<String> wildcardImports) {
-    }
-
     private static final Pattern TEST_FN = Pattern.compile(
             "(?m)^\\s*function\\s+(<<[^>]*test\\.Test[^>]*>>)\\s+((?:\\w+::)*\\w+)\\s*\\(\\s*\\)\\s*:\\s*Boolean\\s*\\[1\\]\\s*");
 
     private static final Pattern IMPORT_LINE = Pattern.compile(
             "^import\\s+((?:\\w+::)+)(\\*|\\w+)\\s*;", Pattern.MULTILINE);
-
-    /**
-     * All {@code <<test.Test>>} zero-arg Boolean functions in a corpus source.
-     *
-     * <p>Imports are SECTION-scoped (real pure): each {@code ###X} marker
-     * opens a fresh import group and a test resolves under ITS section's
-     * imports only. File-wide collection cross-contaminated:
-     * testUnionPartial.pure section 1 imports {@code partial::*} while later
-     * mapping sections import {@code union::*} — merged, 'unionMapping' was
-     * ambiguous; the engine resolves it to {@code partial::unionMapping}.
-     */
-    public static List<TestFn> testFunctions(String source) {
-        List<Integer> sectionStarts = new ArrayList<>();
-        Matcher sec = Pattern.compile("(?m)^###\\w+").matcher(source);
-        while (sec.find()) {
-            sectionStarts.add(sec.start());
-        }
-        int sections = sectionStarts.size() + 1;
-        List<Map<String, String>> typeImportsBySec = new ArrayList<>(sections);
-        List<List<String>> wildcardsBySec = new ArrayList<>(sections);
-        for (int i = 0; i < sections; i++) {
-            typeImportsBySec.add(new LinkedHashMap<>());
-            wildcardsBySec.add(new ArrayList<>());
-        }
-        Matcher im = IMPORT_LINE.matcher(source);
-        while (im.find()) {
-            int s = sectionOf(sectionStarts, im.start());
-            String pkg = im.group(1);
-            String name = im.group(2);
-            if (name.equals("*")) {
-                wildcardsBySec.get(s).add(pkg.substring(0, pkg.length() - 2));
-            } else {
-                typeImportsBySec.get(s).put(name, pkg + name);
-            }
-        }
-        List<TestFn> out = new ArrayList<>();
-        Matcher m = TEST_FN.matcher(source);
-        while (m.find()) {
-            // the engine harness never runs ToFix/Ignore tests — counting
-            // them would add PASSes the engine itself doesn't certify
-            String stereotypes = m.group(1);
-            if (stereotypes.contains("test.ToFix") || stereotypes.contains("test.Ignore")
-                    || stereotypes.contains("test.ExcludeAlloy")) {
-                continue;
-            }
-            int bodyStart = source.indexOf('{', m.end());
-            if (bodyStart < 0) {
-                continue;
-            }
-            int end = skipFunction(source, m.start());
-            // //-comments are STRIPPED from the body (string-aware): a lone
-            // apostrophe or '#' in a comment flips string/island parity for
-            // every extractor downstream (audit 8 D1 — a live regression
-            // swallowed a real execute() span)
-            String body = stripLineComments(source.substring(bodyStart + 1, end - 1));
-            int s = sectionOf(sectionStarts, m.start());
-            out.add(new TestFn(m.group(2), body, typeImportsBySec.get(s),
-                    wildcardsBySec.get(s)));
-        }
-        return out;
-    }
-
-    /** Index of the {@code ###}-delimited section containing {@code pos}. */
-    private static int sectionOf(List<Integer> sectionStarts, int pos) {
-        int s = 0;
-        for (int i = 0; i < sectionStarts.size(); i++) {
-            if (sectionStarts.get(i) <= pos) {
-                s = i + 1;
-            }
-        }
-        return s;
-    }
 
     /** Remove {@code // ...} line comments, respecting string literals. */
     static String stripLineComments(String s) {
