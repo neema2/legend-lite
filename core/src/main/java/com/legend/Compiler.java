@@ -392,6 +392,24 @@ public final class Compiler {
     }
 
     /**
+     * Phases G&frac12;&rarr;I for an already NAME-RESOLVED query AST — the
+     * SQL PLAN without execution (the {@code toSQLString} surface: the
+     * caller renders with a dialect of its choosing and compares text).
+     */
+    public static com.legend.sql.SqlQuery lowerResolved(
+            com.legend.model.spec.ValueSpecification resolved, ModelContext ctx,
+            String runtimeFqn) {
+        SpecCompiler specs = new SpecCompiler(ctx);
+        java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
+        body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);
+        body = new com.legend.resolver.StoreResolver(ctx, specs)
+                .resolve(body, runtimeFqn);
+        return new com.legend.lowering.Lowerer(
+                t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
+                f -> ctx.findClass(f).isPresent()).lower(body);
+    }
+
+    /**
      * {@code rawSqlFailureSink}: OPTIONAL per-statement tolerance at the
      * {@code executeInDb} boundary — a failed raw statement is reported
      * to the sink and the setup CONTINUES (the engine's own harness

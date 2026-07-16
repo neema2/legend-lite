@@ -725,6 +725,18 @@ public final class TestBody {
         return !fn.contains("::") || fn.startsWith("meta::");
     }
 
+    /** The trailing member name of an enum-shaped read ({@code DatabaseType.H2}
+     * as an EnumValue or a property read); null when neither shape. */
+    private static String enumTail(ValueSpecification v) {
+        if (v instanceof com.legend.model.spec.EnumValue ev) {
+            return ev.value();
+        }
+        if (v instanceof AppliedProperty ap) {
+            return ap.property();
+        }
+        return null;
+    }
+
     /** Deep JSON equality with NUMERIC BigDecimal compare (scale drops:
      * the engine prints 5.0 where our envelope prints 5.000000000 for the
      * same DECIMAL(38,9) value). Long-vs-BigDecimal stays UNEQUAL on
@@ -914,6 +926,37 @@ public final class TestBody {
             }
         }
         ValueSpecification spliced = substitute(expr, lets, handles, runtimeFqn);
+        // toSQLString(|query, mapping, DatabaseType.X, ext): the ENGINE's
+        // SQL text for the plan — H2 renders through EngineStyleH2 (byte-
+        // exact golden contract); other DatabaseTypes have no renderer yet.
+        if (spliced instanceof AppliedFunction ts
+                && simpleName(ts.function()).equals("toSQLString")
+                && harnessVocabName(ts.function())
+                && ts.parameters().size() >= 3) {
+            String dbType = enumTail(ts.parameters().get(2));
+            if (!"H2".equals(dbType)) {
+                throw new com.legend.error.NotImplementedException("toSQLString for DatabaseType."
+                        + dbType + " — only the H2 engine-style renderer is built");
+            }
+            ValueSpecification q = ts.parameters().get(0);
+            if (!(q instanceof LambdaFunction qLam)) {
+                throw new com.legend.error.NotImplementedException(
+                        "toSQLString whose query argument is not a lambda");
+            }
+            ValueSpecification chain = qLam.body().get(qLam.body().size() - 1);
+            ValueSpecification splicedQ = containsFrom(chain) ? chain
+                    : new AppliedFunction("from", List.of(chain,
+                            ts.parameters().get(1),
+                            new PackageableElementPtr(runtimeFqn)));
+            ValueSpecification resolvedQ = NameResolver.resolveQuery(
+                    new LambdaFunction(List.of(), List.of(splicedQ)), imports,
+                    ctx.elementFqns());
+            String sql = new com.legend.sql.dialect.EngineStyleH2().render(
+                    com.legend.Compiler.lowerResolved(resolvedQ, ctx, runtimeFqn));
+            return new Eval(new com.legend.exec.ExecutionResult.Scalar(sql,
+                    com.legend.compiler.element.type.Type.Primitive.STRING),
+                    false, false);
+        }
         // SERIALIZATION TAILS (toCSV/toString over a TDS) strip: the grid
         // compares STRUCTURALLY (or renders for a string-literal peer) —
         // rendering is a wire concern, not a query. A tail whose receiver

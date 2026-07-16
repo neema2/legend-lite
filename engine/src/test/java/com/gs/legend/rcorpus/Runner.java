@@ -493,7 +493,8 @@ public final class Runner {
                 }
                 String simple = af.function()
                         .substring(af.function().lastIndexOf(':') + 1);
-                boolean executeShape = simple.equals("execute")
+                boolean executeShape = (simple.equals("execute")
+                                || simple.equals("toSQLString"))
                         && af.parameters().size() >= 2;
                 boolean fromShape = simple.equals("from")
                         && af.parameters().size() >= 2;
