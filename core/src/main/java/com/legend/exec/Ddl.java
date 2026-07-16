@@ -17,9 +17,12 @@ import com.legend.model.RelationalDataType;
  * dialect's {@code adaptRawSql} owns quoting and type adaptation, ONE
  * adaptation path for hand-written and model-derived DDL alike.
  *
- * <p>No PRIMARY KEY / NOT NULL constraints are emitted (engine-harness
- * parity: milestoned test tables seed several versions of one id — the
- * legacy replay stripped PK markers for the same reason).
+ * <p>No PRIMARY KEY / NOT NULL constraints are emitted — a DELIBERATE
+ * DIVERGENCE from the engine (its dropAndCreateTableInDb defaults
+ * applyConstraints=true): milestoned test tables seed several versions
+ * of one id, and DuckDB would reject the re-seeds the engine's H2 setup
+ * tolerates. Parity here is with legend-lite's own legacy replay, not
+ * the engine.
  */
 public final class Ddl {
 

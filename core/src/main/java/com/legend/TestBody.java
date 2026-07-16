@@ -203,13 +203,15 @@ public final class TestBody {
             ValueSpecification stmt = work.poll();
             // side-effect-free harness noise
             if (stmt instanceof AppliedFunction pln
-                    && ("println".equals(pln.function())
+                    && harnessVocabName(pln.function())
+                    && ("println".equals(simpleName(pln.function()))
                             || "print".equals(simpleName(pln.function())))) {
                 continue;
             }
             // engine test-harness WRAPPERS: the lambda argument's body IS
             // the test — inline its statements at the front of the worklist
             if (stmt instanceof AppliedFunction wrap
+                    && harnessVocabName(wrap.function())
                     && java.util.Set.of("runLegendTest", "runTest",
                             "runGraphFetchTest", "mayExecuteAlloyTest",
                             "mayExecuteLegendTest")
@@ -320,6 +322,7 @@ public final class TestBody {
                 continue;
             }
             if (stmt instanceof AppliedFunction af
+                    && harnessVocabName(af.function())
                     && simpleName(af.function()).startsWith("assert")) {
                 String failure = checkAssert(af, lets, handles, ctx, imports,
                         runtimeFqn, conn, emptinessUnverifiable
@@ -349,6 +352,7 @@ public final class TestBody {
             // each CSV block is schema\ntable\nheader\nrows — the engine's
             // setUpDataSQLsV2 convention, loaded natively here
             if (stmt instanceof AppliedFunction af
+                    && harnessVocabName(af.function())
                     && "setupTestData".equals(simpleName(af.function()))
                     && !af.parameters().isEmpty()) {
                 List<String> csvs = constantStrings(
@@ -657,6 +661,13 @@ public final class TestBody {
                 return UNSUPPORTED_MARKER;
             }
         }
+    }
+
+    /** Harness vocabulary matches by SIMPLE name only for BARE or
+     * meta::-qualified spellings — a user function my::pkg::assertFoo
+     * must route to the platform, never be hijacked (audit 17). */
+    private static boolean harnessVocabName(String fn) {
+        return !fn.contains("::") || fn.startsWith("meta::");
     }
 
     private static String simpleName(String fn) {

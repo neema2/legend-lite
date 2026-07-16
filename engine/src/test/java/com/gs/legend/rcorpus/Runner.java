@@ -113,6 +113,8 @@ public final class Runner {
     // extraction. beforePackagesParsed: {pkg, fqn} by STEREOTYPE.
     private final Map<String, java.util.List<com.legend.model.spec.ValueSpecification>>
             setupFnAsts = new LinkedHashMap<>();
+    private final Map<String, com.legend.model.ImportScope> setupFnImports =
+            new LinkedHashMap<>();
     private final List<String[]> beforePackagesParsed = new ArrayList<>();
     private final java.util.Set<String> bpSeen = new java.util.HashSet<>();
 
@@ -169,6 +171,10 @@ public final class Runner {
                 continue;
             }
             setupFnAsts.putIfAbsent(f.qualifiedName(), f.body());
+            var scope = unit.elementImports().get(f.qualifiedName());
+            if (scope != null) {
+                setupFnImports.putIfAbsent(f.qualifiedName(), scope);
+            }
             boolean isBp = f.stereotypes().stream().anyMatch(st ->
                     st.profileName().substring(st.profileName().lastIndexOf(':') + 1)
                             .equals("test")
@@ -777,14 +783,41 @@ public final class Runner {
             return true;
         }
         for (String name : called) {
-            for (String candidate : setupFnAsts.keySet()) {
-                if ((candidate.endsWith("::" + name) || candidate.equals(name))
-                        && isEffectfulSetup(candidate, seen)) {
+            for (String candidate : resolveSetupName(setupFqn, name)) {
+                if (isEffectfulSetup(candidate, seen)) {
                     return true;
                 }
             }
         }
         return false;
+    }
+
+    /** EXACT resolution of a called name against the setup registry: an
+     * FQN matches itself; a bare name resolves through the caller's OWN
+     * package and its section's import wildcards — never by suffix
+     * (audit 17: endsWith matched the wrong family's setup both ways). */
+    private List<String> resolveSetupName(String callerFqn, String name) {
+        if (name.contains("::")) {
+            return setupFnAsts.containsKey(name) ? List.of(name) : List.of();
+        }
+        List<String> out = new ArrayList<>();
+        int cut = callerFqn.lastIndexOf("::");
+        if (cut > 0) {
+            String samePkg = callerFqn.substring(0, cut) + "::" + name;
+            if (setupFnAsts.containsKey(samePkg)) {
+                out.add(samePkg);
+            }
+        }
+        com.legend.model.ImportScope scope = setupFnImports.get(callerFqn);
+        if (scope != null) {
+            for (String w : scope.wildcards()) {
+                String candidate = w + "::" + name;
+                if (setupFnAsts.containsKey(candidate) && !out.contains(candidate)) {
+                    out.add(candidate);
+                }
+            }
+        }
+        return out;
     }
 
     private static void collectCalledNames(

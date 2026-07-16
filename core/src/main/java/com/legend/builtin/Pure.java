@@ -907,19 +907,19 @@ public final class Pure {
     // connectionByElement type the connection-resolution chains
     // (execution-context elements are Any[1] — the from() convention).
     public static final NativeFunctionDefinition EXECUTE_IN_DB__STRING_1__CONN_1__INTEGER_1__INTEGER_1 = signature("native function meta::relational::metamodel::execute::executeInDb(sql:meta::pure::metamodel::type::String[1], databaseConnection:meta::external::store::relational::runtime::DatabaseConnection[1], timeOutInSeconds:meta::pure::metamodel::type::Integer[1], fetchSize:meta::pure::metamodel::type::Integer[1]):meta::relational::metamodel::execute::ResultSet[1];");
-    public static final NativeFunctionDefinition CONNECTION_BY_ELEMENT__ANY_1__ANY_1 = signature("native function meta::core::runtime::connectionByElement(runtime:meta::pure::metamodel::type::Any[1], store:meta::pure::metamodel::type::Any[1]):meta::core::runtime::Connection[1];");
+    public static final NativeFunctionDefinition CONNECTION_BY_ELEMENT__ANY_1__ANY_1 = signature("native function meta::core::runtime::connectionByElement(runtime:meta::core::runtime::Runtime[1], store:meta::pure::metamodel::type::Any[1]):meta::core::runtime::Connection[1];");
     // dropAndCreateTableInDb: ordinary pure in the real engine (toDDL.pure
     // walks the Database metamodel to spell DDL) — a K-native here, DDL
-    // rendered from the compiled store model (com.legend.sql.Ddl). The
-    // database argument types Any[1] (execution-context-element convention).
-    public static final NativeFunctionDefinition DROP_AND_CREATE_TABLE_IN_DB__ANY_1__STRING_1__CONN_1 = signature("native function meta::relational::functions::toDDL::dropAndCreateTableInDb(database:meta::pure::metamodel::type::Any[1], tableName:meta::pure::metamodel::type::String[1], c:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::pure::metamodel::type::Boolean[1];");
-    public static final NativeFunctionDefinition DROP_AND_CREATE_TABLE_IN_DB__ANY_1__STRING_1__STRING_1__CONN_1 = signature("native function meta::relational::functions::toDDL::dropAndCreateTableInDb(database:meta::pure::metamodel::type::Any[1], schema:meta::pure::metamodel::type::String[1], tableName:meta::pure::metamodel::type::String[1], c:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::pure::metamodel::type::Boolean[1];");
-    // relationalExtension.pure's 2-arg wrapper is the corpus's OWN pure
-    // code (a shared module source in the harness) and inlines to the
-    // 4-arg native leaf. Only the debug variant (its body calls the
-    // unregistered print()) registers here, sharing the executeInDb
-    // K-dispatch (sql is always args[0]; debug prints are dropped).
-    public static final NativeFunctionDefinition EXECUTE_IN_DB_DEBUG__STRING_1__CONN_1__BOOLEAN_1 = signature("native function meta::relational::functions::database::executeInDb(str:meta::pure::metamodel::type::String[1], connection:meta::external::store::relational::runtime::DatabaseConnection[1], debug:meta::pure::metamodel::type::Boolean[1]):meta::relational::metamodel::execute::ResultSet[1];");
+    // rendered from the compiled store model (com.legend.exec.Ddl). The
+    // database argument types as the store METACLASS, exactly like real
+    // pure (audit 17: Any[1] let string literals type-check).
+    public static final NativeFunctionDefinition DROP_AND_CREATE_TABLE_IN_DB__ANY_1__STRING_1__CONN_1 = signature("native function meta::relational::functions::toDDL::dropAndCreateTableInDb(database:meta::relational::metamodel::Database[1], tableName:meta::pure::metamodel::type::String[1], c:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::pure::metamodel::type::Boolean[1];");
+    public static final NativeFunctionDefinition DROP_AND_CREATE_TABLE_IN_DB__ANY_1__STRING_1__STRING_1__CONN_1 = signature("native function meta::relational::functions::toDDL::dropAndCreateTableInDb(database:meta::relational::metamodel::Database[1], schema:meta::pure::metamodel::type::String[1], tableName:meta::pure::metamodel::type::String[1], c:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::pure::metamodel::type::Boolean[1];");
+    // relationalExtension.pure's wrappers (2-arg AND the 3-arg debug
+    // variant) are the corpus's OWN pure code — shared module sources in
+    // the harness — and inline to the 4-arg native leaf. No natives here
+    // (audit 17: a same-signature native would TIE with the corpus's own
+    // function the day it compiles).
     public static final NativeFunctionDefinition DROP_AND_CREATE_SCHEMA_IN_DB__STRING_1__CONN_1 = signature("native function meta::relational::functions::toDDL::dropAndCreateSchemaInDb(schema:meta::pure::metamodel::type::String[1], c:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::pure::metamodel::type::Boolean[1];");
     // real essential/io print surface — K-dispatched as NO-OPS: debug
     // output whose ARGUMENTS are never evaluated (they may introspect

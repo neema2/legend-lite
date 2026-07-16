@@ -573,10 +573,8 @@ public final class Compiler {
         // K-NATIVE dispatch: executeInDb never lowers — it IS the phase-K
         // boundary (raw SQL over the ambient JDBC connection).
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && (com.legend.compiler.element.type.PlatformTypes.EXECUTE_IN_DB
-                        .equals(nc.callee().qualifiedName())
-                        || com.legend.compiler.element.type.PlatformTypes.EXECUTE_IN_DB_DEBUG
-                                .equals(nc.callee().qualifiedName()))) {
+                && com.legend.compiler.element.type.PlatformTypes.EXECUTE_IN_DB
+                        .equals(nc.callee().qualifiedName())) {
             return executeInDb(body, nc, env);
         }
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall dc
@@ -763,9 +761,7 @@ public final class Compiler {
             com.legend.compiler.spec.typed.TypedNativeCall nc) {
         String fqn = nc.callee().qualifiedName();
         boolean sqlCarrier = com.legend.compiler.element.type.PlatformTypes
-                .EXECUTE_IN_DB.equals(fqn)
-                || com.legend.compiler.element.type.PlatformTypes
-                        .EXECUTE_IN_DB_DEBUG.equals(fqn);
+                .EXECUTE_IN_DB.equals(fqn);
         return sqlCarrier && !nc.args().isEmpty()
                 && nc.args().get(0)
                         instanceof com.legend.compiler.spec.typed.TypedCString cs

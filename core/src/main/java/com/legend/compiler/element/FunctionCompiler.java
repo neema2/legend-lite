@@ -34,13 +34,23 @@ final class FunctionCompiler {
     List<Function> functionsAt(String fqn) {
         List<Function> all = new ArrayList<>(Pure.nativeFunctionsAt(fqn));
         // platform-owned FQNs: the native IS the definition; the corpus's
-        // own M3-reflective bodies (toDDL.pure) never join the overload set
+        // own M3-reflective bodies (toDDL.pure) never join the overload set.
+        // The suppression is NOT silent — stderr once per FQN (audit 17;
+        // a structured wall channel does not reach this layer yet).
         if (!com.legend.compiler.element.type.PlatformTypes
                 .isPlatformOwnedFunction(fqn)) {
             all.addAll(model.findFunction(fqn));
+        } else if (!model.findFunction(fqn).isEmpty()
+                && SUPPRESSED_ONCE.add(fqn)) {
+            System.err.println("[legend-lite] platform-owned function '" + fqn
+                    + "': " + model.findFunction(fqn).size()
+                    + " user definition(s) suppressed (native is the definition)");
         }
         return all;
     }
+
+    private static final java.util.Set<String> SUPPRESSED_ONCE =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     /** Pure existence check — symbol-table lookup only, no compilation. */
     boolean exists(String fqn) {

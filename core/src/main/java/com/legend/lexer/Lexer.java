@@ -273,7 +273,7 @@ public final class Lexer {
      */
     private static final java.util.Set<String> LEXABLE_SECTIONS =
             java.util.Set.of("Pure", "Mapping", "Relational", "Connection",
-                    "Runtime", "Data");
+                    "Runtime");
 
     private void skipSectionHeader() {
         int nameStart = pos + 3;

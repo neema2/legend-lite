@@ -36,10 +36,6 @@ public final class PlatformTypes {
     public static final String DROP_AND_CREATE_TABLE_IN_DB =
             "meta::relational::functions::toDDL::dropAndCreateTableInDb";
 
-    /** The debug-printing executeInDb wrapper (relationalExtension.pure:43) — same K-dispatch. */
-    public static final String EXECUTE_IN_DB_DEBUG =
-            "meta::relational::functions::database::executeInDb";
-
     /** Schema (re)creation K-native (toDDL.pure:108). */
     public static final String DROP_AND_CREATE_SCHEMA_IN_DB =
             "meta::relational::functions::toDDL::dropAndCreateSchemaInDb";
@@ -69,14 +65,14 @@ public final class PlatformTypes {
      * made harmless let bindings refuse loudly).
      */
     public static boolean isEffectfulNative(String fqn) {
-        return EXECUTE_IN_DB.equals(fqn) || EXECUTE_IN_DB_DEBUG.equals(fqn)
+        return EXECUTE_IN_DB.equals(fqn)
                 || DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn);
     }
 
     /** All K-natives: calls that EXECUTE at the K boundary and never lower. */
     public static boolean isKNative(String fqn) {
-        return EXECUTE_IN_DB.equals(fqn) || EXECUTE_IN_DB_DEBUG.equals(fqn)
+        return EXECUTE_IN_DB.equals(fqn)
                 || DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
                 || PRINT.equals(fqn) || PRINTLN.equals(fqn);
