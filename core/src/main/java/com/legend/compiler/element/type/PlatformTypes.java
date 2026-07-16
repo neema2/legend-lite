@@ -24,6 +24,14 @@ public final class PlatformTypes {
     public static final String PAIR = "meta::pure::functions::collection::Pair";
     public static final String FUNCTION = "meta::pure::metamodel::function::Function";
 
+    /**
+     * The K-native JDBC boundary: raw-SQL execution over the ambient
+     * connection ({@code Compiler}'s executeInDb dispatch). A FUNCTION
+     * FQN, not a type — it lives here because this class is the one home
+     * for exact platform-FQN identification.
+     */
+    public static final String EXECUTE_IN_DB = "meta::relational::metamodel::execute::executeInDb";
+
     /** The top type. */
     public static boolean isAny(Type t) {
         return t instanceof Type.ClassType c && c.fqn().equals(ANY);

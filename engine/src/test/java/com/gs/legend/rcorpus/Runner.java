@@ -711,10 +711,9 @@ public final class Runner {
         return new com.legend.TestBody.SetupIo() {
             @Override
             public void executeSql(String rawSql) {
-                String normalized = Corpus.quoteInsertColumns(rawSql)
-                        .replaceAll("(?i)\\bCURRENT_TIMESTAMP\\(\\)",
-                                "CURRENT_TIMESTAMP");
-                for (String stmt : splitStatements(normalized)) {
+                // split FIRST: adaptation recognizers anchor per statement
+                for (String raw : splitStatements(rawSql)) {
+                    String stmt = Corpus.DIALECT.adaptRawSql(raw);
                     try (var st = conn.prepareStatement(stmt)) {
                         st.execute();
                     } catch (Exception e) {

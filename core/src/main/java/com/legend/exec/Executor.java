@@ -23,6 +23,17 @@ public final class Executor {
     private Executor() {
     }
 
+    /**
+     * Raw-statement execution — the K-native {@code executeInDb} boundary:
+     * one already-dialect-adapted statement, no plan, no result shaping.
+     */
+    public static void executeRaw(Connection connection, String statement)
+            throws SQLException {
+        try (Statement st = connection.createStatement()) {
+            st.execute(statement);
+        }
+    }
+
     public static ExecutionResult execute(String sql, SqlQuery plan, ExprType rootType,
                                           Connection connection,
                                           com.legend.sql.dialect.SqlDialect dialect)

@@ -390,6 +390,17 @@ public final class Compiler {
         body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);   // Phase G½
         body = new com.legend.resolver.StoreResolver(ctx, specs)
                 .resolve(body, runtimeFqn);                       // Phase H
+        return executeTyped(body, ctx, runtimeFqn, connection);
+    }
+
+    /**
+     * The I&rarr;J&rarr;K tail over a resolved TYPED body — shared by
+     * {@link #executeResolved} and the K-native argument evaluation below.
+     */
+    private static com.legend.exec.ExecutionResult executeTyped(
+            java.util.List<TypedSpec> body, ModelContext ctx,
+            String runtimeFqn, java.sql.Connection connection)
+            throws java.sql.SQLException {
         TypedSpec root = body.get(body.size() - 1);
         // from() is context-only: shape AND root type come from the same
         // looked-through node — a resolved source may be relation-shaped
@@ -398,6 +409,13 @@ public final class Compiler {
         while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
             root = fr.source();
         }
+        // K-NATIVE dispatch: executeInDb never lowers — it IS the phase-K
+        // boundary (raw SQL over the ambient JDBC connection).
+        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                && com.legend.compiler.element.type.PlatformTypes.EXECUTE_IN_DB
+                        .equals(nc.callee().qualifiedName())) {
+            return executeInDb(body, nc, ctx, runtimeFqn, connection);
+        }
         com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent()).lower(body);
@@ -405,6 +423,67 @@ public final class Compiler {
         return com.legend.exec.Executor.execute(
                 dialect.render(plan), plan, root.info(),
                 com.legend.exec.ResultShape.of(root), connection, dialect);
+    }
+
+    /**
+     * The K-native {@code executeInDb} (PlatformTypes.EXECUTE_IN_DB): the
+     * engine's JDBC boundary. The SQL argument is an ordinary Pure
+     * expression and is evaluated THROUGH the pipeline (Java orchestrates,
+     * the database evaluates); the connection argument is NEVER evaluated —
+     * there is exactly one ambient connection per execution context, and
+     * the corpus's connection-resolution chains
+     * ({@code testRuntime()->connectionByElement(...)}) exist only to
+     * type-check. Let statements the SQL argument does not (transitively)
+     * reference — crucially those connection chains — are dropped before
+     * evaluation. The blob is dialect-adapted, split on top-level
+     * {@code ;}, and executed statement by statement.
+     */
+    private static com.legend.exec.ExecutionResult executeInDb(
+            java.util.List<TypedSpec> body,
+            com.legend.compiler.spec.typed.TypedNativeCall call, ModelContext ctx,
+            String runtimeFqn, java.sql.Connection connection)
+            throws java.sql.SQLException {
+        TypedSpec sqlArg = call.args().get(0);
+        java.util.Set<String> needed = new java.util.HashSet<>();
+        collectVariableRefs(sqlArg, needed);
+        java.util.List<TypedSpec> kept = new java.util.ArrayList<>();
+        for (int i = body.size() - 2; i >= 0; i--) {
+            TypedSpec stmt = body.get(i);
+            if (!(stmt instanceof com.legend.compiler.spec.typed.TypedLet let)) {
+                throw new IllegalStateException("executeInDb dispatch: non-let statement"
+                        + " preceding the call is not supported: "
+                        + stmt.getClass().getSimpleName());
+            }
+            if (needed.contains(let.name())) {
+                kept.add(0, let);
+                collectVariableRefs(let.value(), needed);
+            }
+        }
+        kept.add(sqlArg);
+        com.legend.exec.ExecutionResult evaluated =
+                executeTyped(kept, ctx, runtimeFqn, connection);
+        if (!(evaluated instanceof com.legend.exec.ExecutionResult.Scalar sc)
+                || !(sc.value() instanceof String raw)) {
+            throw new IllegalStateException("executeInDb dispatch: the sql argument"
+                    + " must evaluate to one String, got " + evaluated);
+        }
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(ctx, runtimeFqn);
+        // split FIRST: adaptation is per-statement (its recognizers anchor
+        // at statement start)
+        for (String stmt : com.legend.sql.RawSql.splitStatements(raw)) {
+            com.legend.exec.Executor.executeRaw(connection, dialect.adaptRawSql(stmt));
+        }
+        // an opaque ResultSet handle: setup statements ignore it; a test
+        // that READS it will surface loudly here when that day comes
+        return new com.legend.exec.ExecutionResult.Scalar(null, call.info().type());
+    }
+
+    /** Conservative free-variable scan (shadowed names over-collect — over-KEEPING lets is safe). */
+    private static void collectVariableRefs(TypedSpec node, java.util.Set<String> out) {
+        if (node instanceof com.legend.compiler.spec.typed.TypedVariable v) {
+            out.add(v.name());
+        }
+        node.children().forEach(c -> collectVariableRefs(c, out));
     }
 
     /**

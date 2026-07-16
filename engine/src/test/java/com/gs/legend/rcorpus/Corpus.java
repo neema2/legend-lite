@@ -24,6 +24,9 @@ import java.util.regex.Pattern;
  */
 public final class Corpus {
 
+    /** The wire dialect for raw corpus SQL — ONE implementation (core DuckDb). */
+    static final com.legend.sql.dialect.DuckDb DIALECT = new com.legend.sql.dialect.DuckDb();
+
     /** Root of the local legend-engine checkout (the corpus is read in place). */
     public static final Path ENGINE_ROOT = Path.of(System.getProperty(
             "legend.engine.root", "/Users/neema/legend/legend-engine"));
@@ -326,10 +329,7 @@ public final class Corpus {
             int end = exprEnd(source, argStart);
             String folded = foldConcat(source.substring(argStart, end), lets);
             if (folded != null) {
-                // dialect at the wire: H2 spells the niladic function with
-                // parens, DuckDB without
-                out.add(quoteInsertColumns(folded)
-                        .replaceAll("(?i)\\bCURRENT_TIMESTAMP\\(\\)", "CURRENT_TIMESTAMP"));
+                out.add(DIALECT.adaptRawSql(folded));
             }
         }
         return out;
@@ -427,100 +427,6 @@ public final class Corpus {
             }
         }
         return out.toString();
-    }
-
-    private static final Pattern INSERT_COLS = Pattern.compile(
-            "(?i)^(\\s*insert\\s+into\\s+[\\w.\"]+\\s*\\()([^)]*)(\\))");
-
-    /**
-     * Dialect adaptation at the wire boundary: quote every identifier in an
-     * INSERT's column list. The corpus seeds use SQL-keyword column names
-     * ({@code default, do, else, ...}) unquoted — legal on the engine's H2
-     * setup, a syntax error on DuckDB. CREATE TABLE generation already
-     * quotes; unquoted INSERTs would fail and leave the table empty.
-     */
-    private static final Pattern CREATE_HEAD = Pattern.compile(
-            "(?i)^\\s*create\\s+table\\s+[\\w.\"]+\\s*\\(");
-
-    static String quoteInsertColumns(String sql) {
-        Matcher cm = CREATE_HEAD.matcher(sql);
-        if (cm.find()) {
-            return quoteCreateColumns(sql, cm.end());
-        }
-        Matcher m = INSERT_COLS.matcher(sql);
-        if (!m.find()) {
-            return sql;
-        }
-        StringBuilder cols = new StringBuilder();
-        for (String c : m.group(2).split(",")) {
-            if (cols.length() > 0) {
-                cols.append(", ");
-            }
-            String name = c.strip();
-            cols.append(name.startsWith("\"") ? name : "\"" + name + "\"");
-        }
-        return m.group(1) + cols + m.group(3) + sql.substring(m.end(3));
-    }
-
-    /**
-     * Quote the column NAME of each top-level column definition in a
-     * CREATE TABLE literal (constraint entries — PRIMARY KEY(...) etc —
-     * pass through). Keyword column names (default, do, else...) are legal
-     * on the engine's H2 setup and a syntax error on DuckDB unquoted.
-     */
-    private static String quoteCreateColumns(String sql, int bodyStart) {
-        int depth = 1;
-        int end = bodyStart;
-        while (end < sql.length() && depth > 0) {
-            char c = sql.charAt(end);
-            if (c == '(') {
-                depth++;
-            } else if (c == ')') {
-                depth--;
-            }
-            end++;
-        }
-        String body = sql.substring(bodyStart, end - 1);
-        StringBuilder out = new StringBuilder();
-        int d = 0;
-        int start = 0;
-        List<String> parts = new ArrayList<>();
-        for (int i = 0; i < body.length(); i++) {
-            char c = body.charAt(i);
-            if (c == '(') {
-                d++;
-            } else if (c == ')') {
-                d--;
-            } else if (c == ',' && d == 0) {
-                parts.add(body.substring(start, i));
-                start = i + 1;
-            }
-        }
-        parts.add(body.substring(start));
-        for (String part : parts) {
-            String col = part.strip();
-            if (out.length() > 0) {
-                out.append(", ");
-            }
-            int sp = 0;
-            while (sp < col.length() && !Character.isWhitespace(col.charAt(sp))
-                    && col.charAt(sp) != '(') {
-                sp++;
-            }
-            String head = col.substring(0, sp);
-            if (col.startsWith("\"")
-                    || head.matches("(?i)primary|constraint|foreign|unique|check")) {
-                out.append(col);
-            } else {
-                // FLOAT→DOUBLE on the TYPE PART only (H2's FLOAT is an
-                // 8-byte double; DuckDB's is REAL) — the whole-statement
-                // replace also renamed a column literally named "float"
-                // (relationalSetUp testTable, audit C1)
-                out.append('\"').append(head).append('\"').append(
-                        col.substring(sp).replaceAll("(?i)\\bFLOAT\\b", "DOUBLE"));
-            }
-        }
-        return sql.substring(0, bodyStart) + out + sql.substring(end - 1);
     }
 
     // ===== table DDL from the store text =====
