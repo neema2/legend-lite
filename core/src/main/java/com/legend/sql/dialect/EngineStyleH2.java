@@ -182,6 +182,10 @@ public final class EngineStyleH2 extends AnsiSqlRenderer {
             case SPLIT_PART -> "legend_h2_extension_split_part("
                     + a.stream().map(x -> expr(x, 0))
                             .collect(Collectors.joining(", ")) + ")";
+            case TODAY -> "cast(now() as date)";
+            case TRIM -> a.size() == 1
+                    ? "trim(both from " + expr(a.get(0), 0) + ")"
+                    : super.call(c, parentPrec);
             default -> super.call(c, parentPrec);
         };
     }
