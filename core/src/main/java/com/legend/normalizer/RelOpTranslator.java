@@ -364,6 +364,23 @@ final class RelOpTranslator {
                                     translate(call.args().get(1), tableScope,
                                             targetVarOrNull, rowBindOrNull, pipeline))),
                             new CInteger(1)));
+            // SQL POSITION(needle, haystack) — 1-based, arguments REVERSED
+            // vs pure's indexOf(haystack, needle); same +1 emission as the
+            // indexOf dynafunction above
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("position") && call.args().size() == 2 ->
+                    // toOne on the haystack: an OPTIONAL column read would
+                    // otherwise infect the whole arithmetic chain with [*]
+                    // (SQL null-propagates; erasure makes toOne free)
+                    new AppliedFunction("plus", List.of(
+                            new AppliedFunction("indexOf", List.of(
+                                    new AppliedFunction("toOne", List.of(
+                                            translate(call.args().get(1), tableScope,
+                                                    targetVarOrNull, rowBindOrNull,
+                                                    pipeline))),
+                                    translate(call.args().get(0), tableScope,
+                                            targetVarOrNull, rowBindOrNull, pipeline))),
+                            new CInteger(1)));
             case RelationalOperation.FunctionCall call
                     when call.name().equals("isNull") && call.args().size() == 1 ->
                     new AppliedFunction("isEmpty", List.of(translate(call.args().get(0),
