@@ -80,7 +80,7 @@ public class RelationalCorpusRunner {
             Path p = Corpus.RELATIONAL.resolve(family);
             try (Stream<Path> s = Files.list(p)) {
                 for (Path f : s.filter(x -> x.toString().endsWith(".pure")).toList()) {
-                    runner.addBeforePackages(Files.readString(f));
+                    runner.addBeforePackages(Files.readString(f), family);
                 }
             }
         }

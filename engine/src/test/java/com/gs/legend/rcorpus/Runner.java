@@ -122,13 +122,34 @@ public final class Runner {
     private final java.util.Set<String> bpSeen = new java.util.HashSet<>();
 
     public void addBeforePackages(String source) {
+        addBeforePackages(source, null);
+    }
+
+    /** {@code familyKey}: the corpus family this source belongs to — the
+     * cross-family module pull unit (a family's files close over each
+     * other's models; one file alone does not). */
+    public void addBeforePackages(String source, String familyKey) {
         collectSetups(source);
         setupUniverse.add(source);
+        if (familyKey != null) {
+            sourceFamily.putIfAbsent(source, familyKey);
+            familySources.computeIfAbsent(familyKey,
+                    k -> new ArrayList<>()).add(source);
+        }
     }
+
+    private final Map<String, String> sourceFamily = new LinkedHashMap<>();
+    private final Map<String, List<String>> familySources = new LinkedHashMap<>();
 
     /** Every scanned source, for the cross-family setup FALLBACK module. */
     private final java.util.LinkedHashSet<String> setupUniverse =
             new java.util.LinkedHashSet<>();
+
+    /** FQN -> defining SOURCE for every parsed corpus element: module
+     * assembly pulls the defining file when a test references a mapping
+     * outside its family (graphFetch trees over the embedded family's
+     * model — audit-17 bucket cluster). */
+    private final Map<String, String> elementSource = new LinkedHashMap<>();
     private com.legend.compiler.element.ModelContext setupUniverseCtx;
     private int setupUniverseSize = -1;
 
@@ -169,6 +190,7 @@ public final class Runner {
             return;   // unparseable file: its tests are walled anyway
         }
         for (com.legend.model.PackageableElement el : unit.elements()) {
+            elementSource.putIfAbsent(el.qualifiedName(), source);
             if (!(el instanceof com.legend.model.FunctionDefinition f)
                     || !f.parameters().isEmpty()) {
                 continue;
@@ -620,6 +642,40 @@ public final class Runner {
         com.legend.Compiler.ModelSource file = fileRaw.get(currentFileKey);
         if (file != null) {
             sources.add(file);
+        }
+        // CROSS-FAMILY mapping refs: a test executing against another
+        // family's mapping (graphFetch over the embedded family's model)
+        // pulls that mapping's DEFINING file into the module — otherwise
+        // bare class names in trees resolve to the SHARED model's
+        // same-named classes and fail with misleading no-such-property
+        // errors. The engine compiles the whole project; per-family
+        // modules must at least close over what the test names.
+        java.util.Set<String> present = new java.util.HashSet<>();
+        for (com.legend.Compiler.ModelSource src : sources) {
+            present.add(src.text());
+        }
+        for (String ref : mappingRefs) {
+            String defining = elementSource.get(ref);
+            if (defining == null) {
+                continue;
+            }
+            // pull the defining file's whole FAMILY: a family's files
+            // close over each other's models (the single file did not —
+            // milestoned mappings reference sibling-file classes).
+            // first-wins dedup keeps the test's OWN definitions
+            // authoritative over same-FQN foreign ones.
+            String fam = sourceFamily.get(defining);
+            List<String> pull = fam != null
+                    ? familySources.getOrDefault(fam, List.of(defining))
+                    : List.of(defining);
+            int i = 0;
+            for (String src : pull) {
+                if (present.add(src)) {
+                    sources.add(new com.legend.Compiler.ModelSource(
+                            "xfam-" + Integer.toHexString(src.hashCode())
+                                    + "-" + (i++) + ".pure", src));
+                }
+            }
         }
         // per-source tolerant PARSE: an unparseable file is a FILE wall,
         // never a family poison
