@@ -502,10 +502,28 @@ public final class Compiler {
             outCols.add(new com.legend.compiler.element.type.Type.Column(
                     c.name(), last.type(), last.multiplicity()));
         }
-        var proj = new com.legend.compiler.spec.typed.TypedProject(g.source(), cols,
-                new com.legend.compiler.element.type.ExprType(
-                        new com.legend.compiler.element.type.Type.RelationType(outCols),
-                        g.source().info().multiplicity()));
+        var outInfo = new com.legend.compiler.element.type.ExprType(
+                new com.legend.compiler.element.type.Type.RelationType(outCols),
+                g.source().info().multiplicity());
+        // Scalar projection COMMUTES with truncation: project BENEATH a
+        // trailing limit/slice so the fold keeps TOP/OFFSET-FETCH in the
+        // projecting select (the engine's flat form; ByVendor goldens) —
+        // the general fold policy isolates project-over-limit and stays
+        // untouched for execution paths.
+        TypedSpec proj = switch (g.source()) {
+            case com.legend.compiler.spec.typed.TypedLimit lim ->
+                    new com.legend.compiler.spec.typed.TypedLimit(
+                            new com.legend.compiler.spec.typed.TypedProject(
+                                    lim.source(), cols, outInfo),
+                            lim.count(), outInfo);
+            case com.legend.compiler.spec.typed.TypedSlice sl ->
+                    new com.legend.compiler.spec.typed.TypedSlice(
+                            new com.legend.compiler.spec.typed.TypedProject(
+                                    sl.source(), cols, outInfo),
+                            sl.start(), sl.stop(), outInfo);
+            default -> new com.legend.compiler.spec.typed.TypedProject(
+                    g.source(), cols, outInfo);
+        };
         java.util.List<TypedSpec> out = new java.util.ArrayList<>(body);
         out.set(out.size() - 1, proj);
         return out;
