@@ -280,20 +280,31 @@ final class Pipelines {
                 // BODY, not the lambda — same shadow-stop conflation as the
                 // closure above; via the lambda this check silently never
                 // fires (the un-loud direction, worse than over-firing).
-                boolean readsSlot = false;
+                String rv = f.predicate().parameters().get(0);
+                // Reads of CONVERTED (demanded) slots rewrite to their
+                // prefixed columns — the (INNER) mapping-filter subselect
+                // filters through its own materialized chain. Reads of
+                // STRIPPED (undemanded) slots stay the loud wall.
+                boolean readsStripped = false;
+                boolean readsConverted = false;
                 for (TypedSpec b : f.predicate().body()) {
-                    if (referencesAliasOn(b, f.predicate().parameters().get(0),
-                            slotAliasUniverse(stripped, prefixes))) {
-                        readsSlot = true;
-                        break;
-                    }
+                    readsStripped |= referencesAliasOn(b, rv, stripped);
+                    readsConverted |= referencesAliasOn(b, rv, prefixes.keySet());
                 }
-                if (readsSlot) {
+                if (readsStripped) {
                     throw new NotImplementedException("mapping ~filter for '"
                             + classFqn + "' reads through a join slot;"
                             + " join-mediated mapping filters are H3-pending");
                 }
-                yield new TypedFilter(src, f.predicate(), src.info());
+                TypedLambda pred = f.predicate();
+                if (readsConverted) {
+                    pred = new TypedLambda(pred.parameters(),
+                            pred.body().stream().map(b -> rewriteRowReads(
+                                    b, rv, prefixes, stripped,
+                                    UnaryOperator.identity())).toList(),
+                            pred.info());
+                }
+                yield new TypedFilter(src, pred, src.info());
             }
             // UNION pipelines: each concatenate branch materializes
             // INDEPENDENTLY (its projection's own slot reads are its demand)
@@ -314,6 +325,18 @@ final class Pipelines {
                 for (var col : pr.columns()) {
                     String rv = col.fn().parameters().get(0);
                     for (TypedSpec b : col.fn().body()) {
+                        collectSlotReads(b, rv, slotAliases, ownDemand);
+                    }
+                }
+                // FILTERs between the project and the slots demand their
+                // own reads too — the (INNER) mapping-filter subselect and
+                // join-navigating view ~filters filter THROUGH their chain
+                // (project(filter(slotted)) shape; the predicate is the
+                // only consumer of those slots)
+                for (TypedSpec cur = pr.source();
+                        cur instanceof TypedFilter tf; cur = tf.source()) {
+                    String rv = tf.predicate().parameters().get(0);
+                    for (TypedSpec b : tf.predicate().body()) {
                         collectSlotReads(b, rv, slotAliases, ownDemand);
                     }
                 }

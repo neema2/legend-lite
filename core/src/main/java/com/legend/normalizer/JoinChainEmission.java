@@ -531,4 +531,99 @@ final class JoinChainEmission {
             case RelationalOperation.TypeRef ignored -> { }
         }
     }
+    /**
+     * The (INNER)-typed mapping ~filter as a ROW-EXPLODING source relation:
+     * {@code project(filter(main-table + filter join chain, cond),
+     * [every base column under its original name])}. Duplicate parent rows
+     * (one per matching chain terminal row) survive the projection — the
+     * engine's getRelationalElementWithInnerJoin shape. The chain emits as
+     * pipeline joins; the null-rejecting WHERE makes LEFT ≡ INNER row-for-row.
+     */
+    static ValueSpecification innerFilteredSource(
+            ClassMapping.Relational rcm, FilterMapping.JoinMediated jm,
+            ModelBuilder model, LegacyMappingDefinition md) {
+        String mainDb = rcm.mainTable().database();
+        String mainTable = rcm.mainTable().table();
+        Variable r = new Variable("irow");
+        Pipeline p = new Pipeline(new AppliedFunction("tableReference",
+                List.of(new PackageableElementPtr(mainDb), new CString(mainTable))),
+                null);
+        JoinChainEmission.emitJoinChain(p, jm.joins(), jm.sourceDb(),
+                /* propName */ null, rcm.className(), mainDb, mainTable,
+                r, model, md, /* classTypedTerminus */ false);
+        String dbFqn = switch (jm.filter()) {
+            case FilterPointer.Cross c -> c.db();
+            case FilterPointer.Local l -> jm.sourceDb();
+        };
+        DatabaseDefinition.FilterDefinition fd = model.findFilter(
+                dbFqn, jm.filter().name()).orElseThrow(() -> new ModelException(
+                LegendCompileException.Phase.NORMALIZE,
+                "~filter '" + jm.filter().name() + "' not found in db '"
+              + dbFqn + "'; class=" + rcm.className() + ", mapping="
+              + md.qualifiedName()));
+        String terminalAlias = JoinChainEmission.slotFor(p, jm.joins());
+        ValueSpecification terminalRow = new AppliedProperty(r, terminalAlias);
+        Map<String, ValueSpecification> scope = new LinkedHashMap<>();
+        // The engine anchors the condition at the chain TERMINUS
+        // (firmtable_1 in the ChainedJoins golden) — the terminal binding
+        // takes precedence over the root even when the chain lands back on
+        // the MAIN table; binding root-first silently self-filtered and
+        // left the chain undemanded (elided joins, one row per parent).
+        String terminalTable = p.aliasToTargetTable.get(terminalAlias);
+        if (terminalTable != null) {
+            scope.put(terminalTable, terminalRow);
+        }
+        scope.putIfAbsent(mainTable, r);
+        MappingNormalizer.seedAliasScope(scope, p, r, mainTable);
+        ValueSpecification cond = RelOpTranslator.translate(fd.condition(),
+                scope, terminalRow, r, p.view());
+        ValueSpecification src = new AppliedFunction("filter", List.of(p.expr,
+                new LambdaFunction(List.of(r), List.of(cond))));
+        DatabaseDefinition.TableDefinition td = findPhysicalTable(
+                mainDb, mainTable, model, new HashSet<>());
+        if (td == null) {
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    "main table '" + mainTable + "' not found in db '" + mainDb
+                  + "' for the (INNER) mapping ~filter of class '"
+                  + rcm.className() + "', mapping=" + md.qualifiedName());
+        }
+        Variable vd = new Variable("vd");
+        List<ColSpec> baseCols = new ArrayList<>(td.columns().size());
+        for (DatabaseDefinition.ColumnDefinition cd : td.columns()) {
+            baseCols.add(new ColSpec(cd.name(),
+                    new LambdaFunction(List.of(vd),
+                            List.of(new AppliedProperty(vd, cd.name()))), null));
+        }
+        return new AppliedFunction("project", List.of(src,
+                new ColSpecArray(baseCols)));
+    }
+
+    private static DatabaseDefinition.TableDefinition findPhysicalTable(
+            String dbFqn, String table, ModelBuilder model, Set<String> seen) {
+        if (!seen.add(dbFqn)) {
+            return null;
+        }
+        DatabaseDefinition db = model.findDatabase(dbFqn).orElse(null);
+        if (db == null) {
+            return null;
+        }
+        List<DatabaseDefinition.TableDefinition> tables = new ArrayList<>(db.tables());
+        for (DatabaseDefinition.SchemaDefinition s : db.schemas()) {
+            tables.addAll(s.tables());
+        }
+        for (DatabaseDefinition.TableDefinition td : tables) {
+            if (td.name().equalsIgnoreCase(table)) {
+                return td;
+            }
+        }
+        for (String inc : db.includes()) {
+            DatabaseDefinition.TableDefinition hit =
+                    findPhysicalTable(inc, table, model, seen);
+            if (hit != null) {
+                return hit;
+            }
+        }
+        return null;
+    }
+
 }

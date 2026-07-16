@@ -2029,6 +2029,26 @@ public final class MappingNormalizer {
                                                               ValueSpecification sourceOverride) {
         validatePmNames(rcm, model, md);
 
+        // A mapping ~filter with an EXPLICIT (INNER) join type row-explodes:
+        // the engine swaps the main table for a subselect that joins the
+        // filter chain, applies the condition, and projects every base
+        // column under its original name (getRelationalElementWithInnerJoin,
+        // pureToSQLQuery.pure:5061-5074) — one row PER MATCHING CHILD
+        // survives (testInnerJoinClassMappingFilterWithChainedJoins expects
+        // Firm X x4). The exists-shaped filter route below keeps one row
+        // per parent, so it cannot serve this form.
+        if (sourceOverride == null
+                && rcm.filter() instanceof FilterMapping.JoinMediated jmi
+                && jmi.joinType() != null) {
+            ValueSpecification innerSrc = JoinChainEmission.innerFilteredSource(rcm, jmi, model, md);
+            ClassMapping.Relational noFilter = new ClassMapping.Relational(
+                    rcm.className(), rcm.setId(), rcm.extendsSetId(), rcm.root(),
+                    rcm.mainTable(), null, rcm.distinct(), rcm.groupBy(),
+                    rcm.primaryKey(), rcm.propertyMappings(), null,
+                    rcm.propertyTargetSets());
+            return synthTableBackedParts(md, noFilter, model, backingView, innerSrc);
+        }
+
         String mainDb    = rcm.mainTable().database();
         String mainTable = rcm.mainTable().table();
         Variable rowBind = new Variable("row");

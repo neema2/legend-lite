@@ -982,7 +982,15 @@ final class Typer {
     private TypedSpec collection(PureCollection coll, Env env) {
         List<TypedSpec> elements = new ArrayList<>(coll.values().size());
         for (ValueSpecification v : coll.values()) {
-            elements.add(synth(v, env));
+            TypedSpec e = synth(v, env);
+            // pure has NO nested collections: [['a','b'],'c'] IS
+            // ['a','b','c'] — a collection-valued element SPLICES into
+            // the enclosing literal (real pure value semantics)
+            if (e instanceof TypedCollection tc) {
+                elements.addAll(tc.elements());
+            } else {
+                elements.add(e);
+            }
         }
         Type elementType = elements.stream()
                 .map(e -> e.info().type())
