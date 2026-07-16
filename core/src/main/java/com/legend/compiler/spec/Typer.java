@@ -209,6 +209,18 @@ final class Typer {
             return synth(new AppliedFunction("toOne", List.of(
                     new AppliedProperty(af.parameters().get(0), colName.value()))), env);
         }
+        // $r.isNotNull('COL') / isNull — TDSRow null tests on the named
+        // cell (tds.pure); the cell read is optional-typed, so the tests
+        // ARE emptiness (same conform-by-emission as the dynafunction
+        // spellings in RelOpTranslator)
+        if ((af.function().equals("isNotNull") || af.function().equals("isNull"))
+                && af.parameters().size() == 2
+                && af.parameters().get(1) instanceof CString nullCol) {
+            return synth(new AppliedFunction(
+                    af.function().equals("isNotNull") ? "isNotEmpty" : "isEmpty",
+                    List.of(new AppliedProperty(
+                            af.parameters().get(0), nullCol.value()))), env);
+        }
         // engine TDSRow.get()->toString(): a NULL cell prints 'TDSNull'
         // (tds.pure:131-133 — the engine materializes ^TDSNull() instances;
         // our erasure emits the equivalent conditional string)

@@ -24,9 +24,9 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 103 | 0 | 0 | 10 | 93 |
-| functions/tests | 258 | 111 | 3 | 103 | 41 |
+| functions/tests | 258 | 110 | 4 | 103 | 41 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
-| functions/tests/projection | 147 | 69 | 5 | 54 | 19 |
+| functions/tests/projection | 147 | 71 | 5 | 52 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 119 | 0 | 0 | 5 | 114 |
 | graphFetch/tests/union | 15 | 0 | 0 | 7 | 8 |
@@ -37,7 +37,7 @@ in-process Alloy-shaped path).
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 0 | 7 |
 | postprocessor | 7 | 6 | 0 | 1 | 0 |
-| postprocessor/tests | 30 | 0 | 0 | 8 | 22 |
+| postprocessor/tests | 30 | 0 | 0 | 6 | 24 |
 | pureToSQLQuery/tests | 14 | 3 | 0 | 0 | 11 |
 | router/tests | 26 | 2 | 0 | 5 | 19 |
 | sqlDialectTranslation | 21 | 0 | 0 | 0 | 21 |
@@ -46,7 +46,7 @@ in-process Alloy-shaped path).
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 266 | 122 | 1 | 94 | 49 |
+| tds/tests | 266 | 124 | 1 | 92 | 49 |
 | testDataGeneration/tests | 68 | 0 | 0 | 0 | 68 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 68 | 17 | 0 | 38 | 13 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2489 | **918** | 32 | 684 | 855 |
+| **total** | 2489 | **921** | 33 | 678 | 857 |
 
 ### mapping walls (dropped at assembly)
 
@@ -3645,11 +3645,11 @@ in-process Alloy-shaped path).
 - 6x unknown function 'columnValues'
 - 6x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - 5x unknown type 'TabularDataSet' in @TabularDataSet
-- 5x unknown function 'isNotNull'
 - 5x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - 5x in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6) (value: AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=dec])
 - 4x class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
 - 4x multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
+- 4x unknown function 'uniqueValueOnly'
 
 ### per-test outcomes (non-passing)
 
@@ -3793,8 +3793,9 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -3971,8 +3972,6 @@ in-process Alloy-shaped path).
 - ERROR testChainedFiltersQuery [functions/tests/projection]: property 'locations#f1' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testChainedFiltersGet [functions/tests/projection]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testChainedFiltersProject [functions/tests/projection]: multi-hop navigation employees#f0.locations#f1.place through an embedded/slot head is not supported yet
-- ERROR testIsNullColumn [functions/tests/projection]: unknown function 'isNull'
-- ERROR testIsNotNullColumn [functions/tests/projection]: unknown function 'isNotNull'
 - SHAPE testCompressSQLforINFilter [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testCompressSQLforINFilter2 [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testParametrizedEnumFilter [functions/tests/projection]: assert form 'assertJsonStringsEqual/2' is not supported yet
@@ -4325,8 +4324,8 @@ in-process Alloy-shaped path).
 - SHAPE testPushFiltersDownIntoSubQuery [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownIntoSubQueryWithTDSJoin [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownIntoSubQueryWithTDSJoinPartial [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testPushFiltersDownIntoSubQueryWithGroupByGroupingColumnsFilter [postprocessor/tests]: unknown function 'isNotNull'
-- ERROR testPushFiltersDownIntoSubQueryWithGroupByGroupingAndAggregateColumnsFilter [postprocessor/tests]: unknown function 'isNotNull'
+- SHAPE testPushFiltersDownIntoSubQueryWithGroupByGroupingColumnsFilter [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testPushFiltersDownIntoSubQueryWithGroupByGroupingAndAggregateColumnsFilter [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownToJoinsPostProcessorToSQL [postprocessor/tests]: no execute(|...) call
 - ERROR testSqlRealiasJoin [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testSqlRealiasViews [postprocessor/tests]: class 'meta::relational::tests::model::simple::AccountPnl' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (PropertyMapping 'Join' for property 'account' is not supported under ~groupBy (only Column, Expression, JoinTerminalColumn, and aggregate Expression PMs are allowed
@@ -4458,8 +4457,6 @@ in-process Alloy-shaped path).
 - SHAPE testExtendWithQuotedColumnWithTableToTDS [tds/tests]: no execute(|...) call
 - ERROR testExtendsWithInClause [tds/tests]: ~stringExtends1: mapped/aggregate column specifications need an enclosing call to type against
 - FAIL testFilterOnEnum [tds/tests]: assertEquals: expected CITY, got [New York, CITY]
-- ERROR testFilterMultipleExpressions1 [tds/tests]: unknown function 'isNotNull'
-- ERROR testFilterMultipleExpressions1_chain [tds/tests]: unknown function 'isNotNull'
 - ERROR testInOnColumnInSubselect [tds/tests]: no overload of 'olapGroupBy' matches 5 argument(s) of these shapes
 - SHAPE testFilterOnQuotedColumnFromTableToTds [tds/tests]: no execute(|...) call
 - ERROR testFirstNotNullFunction [tds/tests]: unknown function 'meta::pure::tds::extensions::firstNotNull'
