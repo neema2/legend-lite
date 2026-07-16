@@ -20,7 +20,7 @@ import java.util.stream.Stream;
  * RECORDS results — regression pinning arrives once the first burn-down
  * stabilizes the counts.
  */
-class RelationalCorpusRunner {
+public class RelationalCorpusRunner {
 
     /**
      * THE WHOLE core_relational estate: every directory (recursively) under
@@ -87,92 +87,7 @@ class RelationalCorpusRunner {
 
         Map<String, List<Runner.Outcome>> byFamily = new LinkedHashMap<>();
         for (String family : allFamilies()) {
-            Path p = Corpus.RELATIONAL.resolve(family);
-            List<Path> files = new ArrayList<>();
-            try (Stream<Path> s = Files.list(p)) {
-                s.filter(f -> f.toString().endsWith(".pure")).sorted().forEach(files::add);
-            }
-            List<Runner.Outcome> outcomes = new ArrayList<>();
-            for (Path f : files) {
-                runner.addBeforePackages(Files.readString(f));
-            }
-            // SETUP files (no test functions) extend the model for every
-            // test file of the family. Test files stay per-file: one
-            // unparseable sibling must not wall the whole family, and some
-            // siblings carry intentionally divergent models.
-            List<String> familySources = new ArrayList<>();
-            Map<Path, String> testSources = new LinkedHashMap<>();
-            for (Path f : files) {
-                String src = Files.readString(f);
-                if (!Runner.hasTestFunctions(src)) {
-                    familySources.add(src);
-                } else {
-                    testSources.put(f, src);
-                }
-            }
-            // ANCESTOR setup inheritance was tried and REVERTED: sibling-dir
-            // models conflict (tests/ direct files carry alternative Person
-            // models) — net 48 vs 64 passes. Families see only their own
-            // directory's files — EXCEPT a parent-directory setUp.pure
-            // (dedicated setup, no tests): extends/union references the
-            // extends family's model/store, the one such file in the corpus.
-            Path parentSetup = p.getParent().resolve("setUp.pure");
-            if (!p.getParent().equals(Corpus.RELATIONAL) && Files.exists(parentSetup)) {
-                String src = Files.readString(parentSetup);
-                if (!Runner.hasTestFunctions(src)) {
-                    familySources.add(0, src);
-                }
-            }
-            // STORE-ONLY parent files (calendarAggregation/calendarStore
-            // .pure): a parent-directory source defining ONLY Database
-            // elements is the family's store — inheriting it cannot
-            // conflict (the reverted ancestor experiment tripped on
-            // parent CLASS models, never stores)
-            if (!p.getParent().equals(Corpus.RELATIONAL)) {
-                try (var sib = Files.list(p.getParent())) {
-                    for (Path f2 : sib.filter(x ->
-                            x.toString().endsWith(".pure")
-                            && Files.isRegularFile(x)).sorted().toList()) {
-                        if (f2.equals(parentSetup)) {
-                            continue;
-                        }
-                        String src2 = Files.readString(f2);
-                        boolean storeOnly = !Runner.hasTestFunctions(src2)
-                                && src2.lines().anyMatch(l ->
-                                        l.startsWith("Database "))
-                                && src2.lines().noneMatch(l ->
-                                        l.startsWith("Class ")
-                                        || l.startsWith("function ")
-                                        || l.startsWith("Mapping "));
-                        if (storeOnly) {
-                            familySources.add(0, src2);
-                        }
-                    }
-                }
-            }
-            List<String> modelOnly = new ArrayList<>(testSources.values());
-            // DEEP subfamilies reference their parent family's elements
-            // (union/relation ~func bodies read union's myDB) — the engine
-            // compiles the module together. Depth-guarded: parents at the
-            // tests/ root carry alternative models (the reverted ancestor
-            // experiment), so only parents >= 3 segments deep inherit.
-            String parentKey = null;
-            Path parentDir = p.getParent();
-            if (parentDir != null && !parentDir.equals(Corpus.RELATIONAL)) {
-                String cand = Corpus.RELATIONAL.relativize(parentDir).toString();
-                if (cand.split("/").length >= 3) {
-                    parentKey = cand;
-                }
-            }
-            runner.useFamily(family, familySources, modelOnly, parentKey);
-            for (Map.Entry<Path, String> e : testSources.entrySet()) {
-                runner.useFile(e.getKey().toString(), e.getValue());
-                // Phase C: discovery through the REAL parser — stereotyped
-                // functions off the parsed unit, body as AST
-                for (Runner.ParsedTest t : Runner.discoverTests(e.getValue())) {
-                    outcomes.add(runner.run(t));
-                }
-            }
+            List<Runner.Outcome> outcomes = runFamily(runner, family);
             if (!outcomes.isEmpty()) {
                 byFamily.put(family, outcomes);
             }
@@ -202,5 +117,100 @@ class RelationalCorpusRunner {
         System.out.println("[rcorpus] walls (mappings + dropped base elements): "
                 + runner.walls().size());
         System.out.println("[rcorpus] scoreboard written to docs/RELATIONAL_CORPUS.md");
+    }
+
+    /** ONE family through the pipeline — shared by the scoreboard and the
+     * family-scoped fast sweep (FamilySweep probe): the family/test-file
+     * split, parent setUp/store-only inheritance, module assembly, and the
+     * per-test run. */
+    public static List<Runner.Outcome> runFamily(Runner runner, String family)
+            throws Exception {
+        Path p = Corpus.RELATIONAL.resolve(family);
+        List<Path> files = new ArrayList<>();
+        try (Stream<Path> s = Files.list(p)) {
+            s.filter(f -> f.toString().endsWith(".pure")).sorted().forEach(files::add);
+        }
+        List<Runner.Outcome> outcomes = new ArrayList<>();
+        for (Path f : files) {
+            runner.addBeforePackages(Files.readString(f));
+        }
+        // SETUP files (no test functions) extend the model for every
+        // test file of the family. Test files stay per-file: one
+        // unparseable sibling must not wall the whole family, and some
+        // siblings carry intentionally divergent models.
+        List<String> familySources = new ArrayList<>();
+        Map<Path, String> testSources = new LinkedHashMap<>();
+        for (Path f : files) {
+            String src = Files.readString(f);
+            if (!Runner.hasTestFunctions(src)) {
+                familySources.add(src);
+            } else {
+                testSources.put(f, src);
+            }
+        }
+        // ANCESTOR setup inheritance was tried and REVERTED: sibling-dir
+        // models conflict (tests/ direct files carry alternative Person
+        // models) — net 48 vs 64 passes. Families see only their own
+        // directory's files — EXCEPT a parent-directory setUp.pure
+        // (dedicated setup, no tests): extends/union references the
+        // extends family's model/store, the one such file in the corpus.
+        Path parentSetup = p.getParent().resolve("setUp.pure");
+        if (!p.getParent().equals(Corpus.RELATIONAL) && Files.exists(parentSetup)) {
+            String src = Files.readString(parentSetup);
+            if (!Runner.hasTestFunctions(src)) {
+                familySources.add(0, src);
+            }
+        }
+        // STORE-ONLY parent files (calendarAggregation/calendarStore
+        // .pure): a parent-directory source defining ONLY Database
+        // elements is the family's store — inheriting it cannot
+        // conflict (the reverted ancestor experiment tripped on
+        // parent CLASS models, never stores)
+        if (!p.getParent().equals(Corpus.RELATIONAL)) {
+            try (var sib = Files.list(p.getParent())) {
+                for (Path f2 : sib.filter(x ->
+                    x.toString().endsWith(".pure")
+                    && Files.isRegularFile(x)).sorted().toList()) {
+                if (f2.equals(parentSetup)) {
+                    continue;
+                }
+                String src2 = Files.readString(f2);
+                boolean storeOnly = !Runner.hasTestFunctions(src2)
+                        && src2.lines().anyMatch(l ->
+                            l.startsWith("Database "))
+                        && src2.lines().noneMatch(l ->
+                            l.startsWith("Class ")
+                            || l.startsWith("function ")
+                            || l.startsWith("Mapping "));
+                if (storeOnly) {
+                    familySources.add(0, src2);
+                }
+                }
+            }
+        }
+        List<String> modelOnly = new ArrayList<>(testSources.values());
+        // DEEP subfamilies reference their parent family's elements
+        // (union/relation ~func bodies read union's myDB) — the engine
+        // compiles the module together. Depth-guarded: parents at the
+        // tests/ root carry alternative models (the reverted ancestor
+        // experiment), so only parents >= 3 segments deep inherit.
+        String parentKey = null;
+        Path parentDir = p.getParent();
+        if (parentDir != null && !parentDir.equals(Corpus.RELATIONAL)) {
+            String cand = Corpus.RELATIONAL.relativize(parentDir).toString();
+            if (cand.split("/").length >= 3) {
+                parentKey = cand;
+            }
+        }
+        runner.useFamily(family, familySources, modelOnly, parentKey);
+        for (Map.Entry<Path, String> e : testSources.entrySet()) {
+            runner.useFile(e.getKey().toString(), e.getValue());
+            // Phase C: discovery through the REAL parser — stereotyped
+            // functions off the parsed unit, body as AST
+            for (Runner.ParsedTest t : Runner.discoverTests(e.getValue())) {
+                outcomes.add(runner.run(t));
+            }
+        }
+        return outcomes;
     }
 }

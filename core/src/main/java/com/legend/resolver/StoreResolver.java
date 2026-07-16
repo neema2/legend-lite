@@ -1014,8 +1014,18 @@ public final class StoreResolver {
                         predFilteredPipe(p, tt, tpx, pred, cs.mappingFqn()));
             } else if (ctx.findAssociationOf(parent.classFqn(), leaf)
                     .isPresent()) {
+                // the nested predicate's path HEADS demand target slots —
+                // without them, a slot-backed read inside the exists
+                // predicate ($e.address.name) finds an unmaterialized slot
+                Set<String> innerDemand = new LinkedHashSet<>();
+                for (TypedLambda il : existsInnerLambdas(ops, path)) {
+                    if (!il.parameters().isEmpty()) {
+                        collectParamPathHeads(il, il.parameters().get(0),
+                                innerDemand);
+                    }
+                }
                 AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(temporal, parent, leafName, context,
-                        true, Set.of(), dotted);
+                        true, innerDemand, dotted);
                 t = aj.target();
                 cond = aj.condition();
                 tPipe = aj.targetPipeline();
@@ -1041,12 +1051,13 @@ public final class StoreResolver {
                     chain.prefix(), v -> v);
             TypedLambda chainedCond = new TypedLambda(cond.parameters(),
                     List.of(cbody), cond.info());
-            existsSubs.put(dotted, new Substitution.ExistsSub(tPipe,
+            NestedScope dns = nestedScope(t, ops, path, context, tPipe);
+            existsSubs.put(dotted, new Substitution.ExistsSub(dns.pipeline(),
                     chainedCond, t.rowVar(), t.bindings(),
-                    (Type.RelationType)
-                            tPipe.info().type(),
+                    dns.row(),
                     t.classFqn(), Pipelines.slotAliases(t.pipeline()),
-                    tPrefixes, leafToMany));
+                    tPrefixes, leafToMany)
+                    .withInnerRegs(dns.regs()));
         }
 
     }
@@ -1404,14 +1415,14 @@ public final class StoreResolver {
                                 .Multiplicity.Bounded bb
                                 && Integer.valueOf(1).equals(bb.upper()))
                         .isPresent());
-                existsSubs.put(head, new Substitution.ExistsSub(tMat.pipeline(),
+                NestedScope navNs = nestedScope(t, ops, head, context,
+                        tMat.pipeline());
+                existsSubs.put(head, new Substitution.ExistsSub(navNs.pipeline(),
                         nav.predicate(), t.rowVar(), t.bindings(),
-                        (Type.RelationType)
-                                tMat.pipeline().info().type(),
+                        navNs.row(),
                         t.classFqn(), Pipelines.slotAliases(t.pipeline()),
                         tMat0.slotPrefixes(), navToMany)
-                        .withInnerRegs(nestedExistsRegistries(t, ops, head,
-                                context, tMat.pipeline())));
+                        .withInnerRegs(navNs.regs()));
                 continue;
             }
             var assocOpt = ctx.findAssociationOf(cs.classFqn(), SyntheticHeads.realHead(head));
@@ -1437,13 +1448,14 @@ public final class StoreResolver {
             // (testConstraintTargetingMultipleJoinsInPropertyMapping); the
             // engineered fan-out shape stays data-dependent-loud for now —
             // the plumbing (scalarPipeline field) is in place for the fix.
-            existsSubs.put(head, new Substitution.ExistsSub(aj.targetPipeline(),
+            NestedScope assocNs = nestedScope(aj.target(), ops, head, context,
+                    aj.targetPipeline());
+            existsSubs.put(head, new Substitution.ExistsSub(assocNs.pipeline(),
                     aj.condition(), aj.target().rowVar(), aj.target().bindings(),
-                    aj.targetRow(), aj.target().classFqn(),
+                    assocNs.row(), aj.target().classFqn(),
                     Pipelines.slotAliases(aj.target().pipeline()),
                     aj.targetSlotPrefixes(), isToMany)
-                    .withInnerRegs(nestedExistsRegistries(aj.target(), ops,
-                            head, context, aj.targetPipeline())));
+                    .withInnerRegs(assocNs.regs()));
         }
 
         return existsSubs;
@@ -2504,12 +2516,28 @@ public final class StoreResolver {
      * Terminates on expression depth; assoc/agg materials stay top-level
      * for now (R1a: exists materials only).
      */
-    private Substitution.Registries nestedExistsRegistries(ClassSource t,
+    /** The nested scope's registries PLUS the target pipeline widened with
+     * the nested association joins (their prefixed columns must ride the
+     * exists relation for assocLeaf reads — R2 arm 2). */
+    record NestedScope(Substitution.Registries regs, TypedSpec pipeline,
+                       Type.RelationType row) {
+    }
+
+    private NestedScope nestedScope(ClassSource t,
             List<TypedSpec> ops, String head, Context context,
             TypedSpec targetPipe) {
-        List<TypedLambda> inner = existsInnerLambdas(ops, head);
+        return nestedScope(t, ops, List.of(head), context, targetPipe);
+    }
+
+    private NestedScope nestedScope(ClassSource t,
+            List<TypedSpec> ops, List<String> pathKey, Context context,
+            TypedSpec targetPipe) {
+        Substitution.Registries none = Substitution.Registries.NONE;
+        List<TypedLambda> inner = existsInnerLambdas(ops, pathKey);
+        Type.RelationType row =
+                (Type.RelationType) targetPipe.info().type();
         if (inner.isEmpty()) {
-            return Substitution.Registries.NONE;
+            return new NestedScope(none, targetPipe, row);
         }
         Set<List<String>> innerPaths = new LinkedHashSet<>();
         List<TypedSpec> innerOps = new ArrayList<>();
@@ -2523,27 +2551,91 @@ public final class StoreResolver {
             innerOps.add(new TypedFilter(targetPipe, lam, targetPipe.info()));
         }
         if (innerPaths.isEmpty()) {
-            return Substitution.Registries.NONE;
+            return new NestedScope(none, targetPipe, row);
         }
+        // nested EXISTS materials (emptiness consumption)
         Map<String, Substitution.ExistsSub> nested =
                 registerExistsSubs(t, innerPaths, Set.of(), innerOps, context);
-        if (nested.isEmpty()) {
-            return Substitution.Registries.NONE;
+        // nested ASSOC materials (leaf reads): widen the exists relation
+        // with each demanded association's LEFT join, prefix-renamed —
+        // the same descriptor->emission fold the root pipeline uses
+        Map<String, Substitution.AssocSub> nestedAssocs = new LinkedHashMap<>();
+        TypedSpec pipe = targetPipe;
+        var tNavSteps = Pipelines.navSteps(t.pipeline());
+        for (List<String> path : innerPaths) {
+            String h = path.get(0);
+            // an exists material and an assoc material COEXIST for one
+            // head: emptiness consumption reads existsSubs, leaf reads
+            // read assocs — different arms of rewritePath/rewriteCallArms
+            if (nestedAssocs.containsKey(h)) {
+                continue;
+            }
+            // association heads AND nav-slot-backed heads both resolve
+            // through associationJoin (its binding!=null arm is the
+            // navigate-slot route — $e.address.name where address is a
+            // Join-PM property)
+            TypedSpec hb = t.bindings().get(SyntheticHeads.realHead(h));
+            boolean slotBacked = hb != null
+                    && navSlotAlias(hb, t.rowVar(), tNavSteps.keySet()) != null;
+            if (!slotBacked && (hb != null
+                    || ctx.findAssociationOf(t.classFqn(),
+                            SyntheticHeads.realHead(h)).isEmpty())) {
+                continue;
+            }
+            Set<String> hLeaves = new LinkedHashSet<>();
+            for (List<String> p2 : innerPaths) {
+                if (p2.size() >= 2 && p2.get(0).equals(h)) {
+                    hLeaves.add(p2.get(1));
+                }
+            }
+            // aggJoinMaterial is the nav-slot-aware entry (binding-backed
+            // heads route through the navigate slot; associations fall
+            // through to the assoc route)
+            AssociationJoins.AssocJoin aj2 = assocMaterial.aggJoinMaterial(
+                    temporal, t, h, context, hLeaves);
+            List<Type.Column> cols = new ArrayList<>(
+                    ((Type.RelationType) pipe.info().type()).columns());
+            for (Type.Column c : aj2.targetRow().columns()) {
+                cols.add(new Type.Column(aj2.prefix() + c.name(),
+                        c.type(), c.multiplicity()));
+            }
+            Type.RelationType widened = new Type.RelationType(cols);
+            pipe = new TypedJoin(pipe, aj2.targetPipeline(), leftKind(),
+                    aj2.condition(), Optional.of(aj2.prefix()),
+                    new ExprType(widened,
+                            com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+            nestedAssocs.put(h, new Substitution.AssocSub(aj2.prefix(),
+                    aj2.target().rowVar(), aj2.target().bindings(),
+                    aj2.target().classFqn(),
+                    Pipelines.slotAliases(aj2.target().pipeline()),
+                    aj2.targetSlotPrefixes(),
+                    /*readVar*/ null, /*readRowType*/ null,
+                    Map.of(), Map.of()));
         }
-        return new Substitution.Registries(Map.of(), Set.of(), nested,
-                Map.of(), isNotEmptyCallee(), equalCallee());
+        if (nested.isEmpty() && nestedAssocs.isEmpty()) {
+            return new NestedScope(none, targetPipe, row);
+        }
+        return new NestedScope(
+                new Substitution.Registries(nestedAssocs, Set.of(), nested,
+                        Map.of(), isNotEmptyCallee(), equalCallee()),
+                pipe, (Type.RelationType) pipe.info().type());
     }
 
     /** The predicate lambdas nested under {@code $user.head} chains —
      * the LAMBDA-collecting sibling of {@link #collectExistsInnerLeaves}. */
     private static List<TypedLambda> existsInnerLambdas(List<TypedSpec> ops,
             String head) {
+        return existsInnerLambdas(ops, List.of(head));
+    }
+
+    private static List<TypedLambda> existsInnerLambdas(List<TypedSpec> ops,
+            List<String> path) {
         List<TypedLambda> out = new ArrayList<>();
         for (TypedSpec op : ops) {
             if (op instanceof TypedFilter f) {
                 for (TypedSpec b : f.predicate().body()) {
                     collectExistsInnerLambdas(b,
-                            f.predicate().parameters().get(0), head, out);
+                            f.predicate().parameters().get(0), path, out);
                 }
             }
         }
@@ -2551,7 +2643,7 @@ public final class StoreResolver {
     }
 
     private static void collectExistsInnerLambdas(TypedSpec n, String userVar,
-            String head, List<TypedLambda> out) {
+            List<String> path, List<TypedLambda> out) {
         if (n instanceof TypedNativeCall c && !c.args().isEmpty()) {
             TypedSpec recv = c.args().get(0);
             List<TypedLambda> chainLams = new ArrayList<>();
@@ -2560,7 +2652,7 @@ public final class StoreResolver {
                 recv = tf.source();
             }
             List<String> p = Substitution.pathOf(recv, userVar);
-            if (p != null && p.size() == 1 && p.get(0).equals(head)) {
+            if (p != null && p.equals(path)) {
                 if (c.args().size() == 2
                         && c.args().get(1) instanceof TypedLambda lam
                         && !lam.parameters().isEmpty()) {
@@ -2570,7 +2662,7 @@ public final class StoreResolver {
             }
         }
         for (TypedSpec ch : n.children()) {
-            collectExistsInnerLambdas(ch, userVar, head, out);
+            collectExistsInnerLambdas(ch, userVar, path, out);
         }
     }
 

@@ -525,17 +525,19 @@ class ResolveNavigationTest {
     }
 
     @Test
-    @DisplayName("nested navigation inside an exists predicate is loud NotImplemented")
-    void nestedNavInsideExistsIsLoud() {
+    @DisplayName("nested navigation inside an exists predicate RESOLVES (R2: recursive scope demand)")
+    void nestedNavInsideExistsResolves() {
+        // was a loud NotImplemented until GAP-H R2: the nested scope now
+        // carries its own registered materials (ExistsSub.innerRegs), so
+        // $s.boss.name inside the exists correlates a LEFT-joined boss
+        // onto the exists relation
         var ctx = Compiler.compileModel(MODEL);
         SpecCompiler specs = new SpecCompiler(ctx);
         var body = specs.typeQueryBody(NameResolver.resolveQuery(SpecParser.parse(
                 "m::Firm.all()->filter(f|$f.staff->exists(s|$s.boss.name == 'Bob'))"
                         + "->project(~[legal: f|$f.legal])->from(m::RT)")));
-        var e = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.error.NotImplementedException.class,
-                () -> new StoreResolver(ctx, specs).resolve(body, null));
-        assertTrue(e.getMessage().contains("nested navigation"), e.getMessage());
+        var resolved = new StoreResolver(ctx, specs).resolve(body, null);
+        org.junit.jupiter.api.Assertions.assertNotNull(resolved);
     }
 
     // ---- multi-hop chains (A5): one join per hop, chained by path prefix ----
