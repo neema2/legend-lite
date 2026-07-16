@@ -46,7 +46,6 @@ public final class Runner {
      * silently swallowed post-REPLACE refills (audit A2).
      */
     /** {@code <<test.BeforePackage>>} setups collected corpus-wide. */
-    private final List<Corpus.BeforePackage> beforePackages = new ArrayList<>();
     // ===== MODULE assembly (Phase B): raw sources through the real
     // parser — the text-extraction path below it is being retired =====
     private final List<com.legend.Compiler.ModelSource> sharedRaw = new ArrayList<>();
@@ -108,8 +107,6 @@ public final class Runner {
      * executed for EVERY test (each test gets a fresh in-memory db). */
     private final List<Object[]> sharedSetupUnits = new ArrayList<>();
 
-    /** Zero-arg setup-function bodies across every scanned file. */
-    private final Map<String, String> setupFnBodies = new LinkedHashMap<>();
 
     // Phase D: setup functions as PARSED definitions — their bodies
     // EXECUTE through the platform (Compiler statement orchestration), no literal
@@ -120,8 +117,6 @@ public final class Runner {
     private final java.util.Set<String> bpSeen = new java.util.HashSet<>();
 
     public void addBeforePackages(String source) {
-        beforePackages.addAll(Corpus.beforePackages(source));
-        Corpus.functionBodies(source).forEach(setupFnBodies::putIfAbsent);
         collectSetups(source);
         setupUniverse.add(source);
     }
@@ -241,11 +236,9 @@ public final class Runner {
             familyParent.put(familyKey, parentFamilyKey);
         }
         for (String src : setupSources) {
-            Corpus.functionBodies(src).forEach(setupFnBodies::putIfAbsent);
             collectSetups(src);
         }
         for (String src : modelOnlySources) {
-            Corpus.functionBodies(src).forEach(setupFnBodies::putIfAbsent);
             collectSetups(src);
         }
         List<String> sql = new ArrayList<>();
@@ -294,7 +287,6 @@ public final class Runner {
             return;
         }
         fileRaw.put(key, new com.legend.Compiler.ModelSource(key, source));
-        Corpus.functionBodies(source).forEach(setupFnBodies::putIfAbsent);
         collectSetups(source);
         List<String> sql = new ArrayList<>();
         var seedTypes3 = Corpus.seedColumnTypes(source);
@@ -627,19 +619,6 @@ public final class Runner {
         allSeeds.addAll(familySeeds.getOrDefault(currentFamilyKey, List.of()));
         allSeeds.addAll(fileSeeds.getOrDefault(currentFileKey, List.of()));
         List<String> failedSeeds = new ArrayList<>();
-        // resolve dropAndCreate markers (emitted IN CALL ORDER by
-        // Corpus.seedSql) to the family's CREATE statements at replay
-        // position — the engine's inline drop+create+fill order
-        List<String> resolved = new ArrayList<>(allSeeds.size());
-        for (String sql : allSeeds) {
-            if (sql.startsWith(Corpus.DROP_AND_CREATE_MARKER)) {
-                resolved.addAll(familyCreatesOf(
-                        sql.substring(Corpus.DROP_AND_CREATE_MARKER.length())));
-            } else {
-                resolved.add(sql);
-            }
-        }
-        allSeeds = resolved;
         for (String sql : allSeeds) {
             for (String raw : splitStatements(sql)) {
                 String stmt = Corpus.DIALECT.adaptRawSql(raw);
