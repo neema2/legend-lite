@@ -27,7 +27,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 103 | 0 | 0 | 10 | 93 |
-| functions/tests | 258 | 118 | 4 | 109 | 27 |
+| functions/tests | 258 | 117 | 5 | 109 | 27 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 73 | 6 | 59 | 17 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -68,7 +68,7 @@ in-process Alloy-shaped path).
 | tests/mapping/groupBy | 10 | 4 | 0 | 6 | 0 |
 | tests/mapping/inClause | 4 | 0 | 0 | 0 | 4 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
-| tests/mapping/inheritance | 45 | 10 | 0 | 35 | 0 |
+| tests/mapping/inheritance | 45 | 14 | 0 | 31 | 0 |
 | tests/mapping/innerJoin | 2 | 0 | 0 | 2 | 0 |
 | tests/mapping/join | 28 | 18 | 2 | 8 | 0 |
 | tests/mapping/merge | 1 | 0 | 0 | 1 | 0 |
@@ -87,7 +87,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2497 | **965** | 36 | 827 | 669 |
+| **total** | 2497 | **968** | 37 | 823 | 669 |
 
 ### mapping walls (dropped at assembly)
 
@@ -3892,13 +3892,13 @@ in-process Alloy-shaped path).
 - 44x a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - 24x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 18x 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- 14x a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
 - 13x serialize expects (classCollection, #{Class{…}}#)
+- 13x a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
 - 12x expected at most one value, got many ([*])
 - 12x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[function=if, parameters=[AppliedFunction[function=equal, parameters=[AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=active]], candidateFqns=[]], CString[value=Y]], candidateFqns=[]], LambdaFunction[parameters=[], body=[CString[value=true]]], LambdaFunction[pa)
 - 12x graphFetch tree: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
+- 11x lowering not yet implemented for TypedNativeCall
 - 10x class query under TypedMap is not resolvable yet (H2 vocabulary)
-- 10x lowering not yet implemented for TypedNativeCall
 - 9x graphFetch tree: class meta::relational::tests::model::simple::Product has no property 'id'
 - 8x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=…
 - 8x relation has no column 'aID'
@@ -3908,7 +3908,6 @@ in-process Alloy-shaped path).
 - 7x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
 - 7x ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - 7x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
-- 7x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' (property 'vehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; the property is dropped from this synthesis; property 'roadVehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; the property is dropped from this synthesis)
 - 7x filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
 - 6x 'meta::relational::tests::aggregationAware::domain::Wholesales' is not a known class, mapping, runtime, connection, or database
 - 6x class meta::relational::tests::model::simple::Address has no property 'values'
@@ -3919,6 +3918,7 @@ in-process Alloy-shaped path).
 - 6x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - 6x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=em…
 - 5x scalar lowering not yet implemented for TypedSerializeGraph
+- 5x from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 
 ### per-test outcomes (non-passing)
 
@@ -4064,6 +4064,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Product], multiplicity=Bounded[lower=1, upper=1]]], predicate=TypedLambda[parameters=[p], body=[TypedNa
+- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -5118,17 +5119,13 @@ in-process Alloy-shaped path).
 - ERROR testSubTypeGroupBy [tests/mapping/inheritance]: expected at most one value, got many ([*])
 - ERROR testSubTypeGroupByThroughMap [tests/mapping/inheritance]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testEmbeddMappingInSubTypes [tests/mapping/inheritance]: class-typed property '$f.vehicles' used as a whole value is graph output (Phase H4)
-- ERROR testProjectAssociation [tests/mapping/inheritance]: a navigation join over this union demands key column 'c_PersonID', which union member rows do not all carry; heterogeneous member keys are not supported yet
+- ERROR testProjectAssociation [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::multiJoins::inheritance' (property 'vehicles' routes to union member set 'map1' via a CHAINED join — per-member chained joins are not supported yet; 
 - ERROR testForcedSubTypeProjectDirect [tests/mapping/inheritance]: object-space use of the instance variable '$r' other than property access is not supported yet
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/inheritance]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testProjectTwoLambdas [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' (property 'vehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; 
-- ERROR testGroupBy [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' (property 'vehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; 
-- ERROR testQuery [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' (property 'vehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; 
-- ERROR testFilterProject [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' (property 'vehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; 
-- ERROR testFilterProjectBooleanInFilter [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' (property 'vehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; 
+- ERROR testFilterProjectBooleanInFilter [tests/mapping/inheritance]: lowering not yet implemented for TypedNativeCall
 - ERROR testGetAll [tests/mapping/inheritance]: no SQL type for generic Class<meta::relational::tests::model::inheritance::RoadVehicle> at the lowering boundary
-- ERROR testSubTypeFilter [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' (property 'vehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; 
-- ERROR testSubTypeProjectWithAssociation [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' (property 'vehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; 
+- ERROR testSubTypeFilter [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
+- ERROR testSubTypeProjectWithAssociation [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeProjectDirect [tests/mapping/inheritance]: object-space use of the instance variable '$r' other than property access is not supported yet
 - ERROR testSubTypeProjectShared [tests/mapping/inheritance]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::inheritance::Person], multiplicity=Bounded[lower=1, upper=1]]], property=vehicles, info=Ex
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/inheritance]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)

@@ -209,6 +209,18 @@ final class UnionSynthesis {
                     && model.findClass(nr.name()).isPresent() ? nr.name() : null;
             ClassMapping.Union tu = targetClass == null ? null
                     : unionForClass(md, model, targetClass);
+            // FIX-A (audit-17 bucket analysis): an INHERITANCE op is a
+            // union at the routing level — member set ids in the shared
+            // enumeration's order
+            List<String> memberIds = tu != null ? tu.memberSetIds() : null;
+            if (memberIds == null && targetClass != null) {
+                ClassMapping.Inheritance tih =
+                        inheritanceForClass(md, model, targetClass);
+                if (tih != null) {
+                    memberIds = inheritanceMembers(md, tih, model).stream()
+                            .map(MappingNormalizer::setIdOf).toList();
+                }
+            }
             List<UnionRoute> routes = new ArrayList<>();
             String poison = null;
             for (PropertyMapping.Join j : e.getValue()) {
@@ -217,8 +229,8 @@ final class UnionSynthesis {
                     poison = "unknown mapping set '" + j.targetSetId() + "'";
                     break;
                 }
-                int ord = tu == null ? -1
-                        : memberOrdinalOf(tu.memberSetIds(), md, model,
+                int ord = memberIds == null ? -1
+                        : memberOrdinalOf(memberIds, md, model,
                                 j.targetSetId());
                 // engine rootClassMappingByClass: the * set, or the class's
                 // SOLE set (sole-ness judged in the OWNING mapping's scope)
@@ -353,13 +365,33 @@ final class UnionSynthesis {
      */
     static ValueSpecification synthInheritance(LegacyMappingDefinition md,
             ClassMapping.Inheritance ih, ModelBuilder model) {
-        // ENGINE ALGORITHM (router_operations.pure getMappedLeafTypes): for
-        // each LEAF type among the base's STRICT specializations, the
-        // nearest mapped ancestor's ROOT class mapping (resolved across
-        // includes), deduped. The base's own sets never join; non-root
-        // sets never join; only the leaf-most mapped set per leaf
-        // contributes (audit 8 S3 — the every-subclass-set collection
-        // returned extra and duplicated rows).
+        // ENGINE ALGORITHM (router_operations.pure getMappedLeafTypes) —
+        // the ordered member enumeration is SHARED with route
+        // classification (inheritanceMembers): ordinal alignment by
+        // construction.
+        List<ClassMapping.Relational> members =
+                inheritanceMembers(md, ih, model);
+        if (members.isEmpty()) {
+            throw new NotImplementedException(
+                    "inheritance Operation for '" + ih.className()
+                    + "' finds no mapped subclass sets; mapping="
+                    + md.qualifiedName());
+        }
+        if (members.size() == 1) {
+            return MappingNormalizer.synthRelational(md, members.get(0), model);
+        }
+        return synthMemberUnion(md, ih.className(), members, model);
+    }
+
+    /**
+     * The ORDERED member Relational sets of an inheritance op — ONE
+     * enumeration shared by {@link #synthInheritance} (concatenate thread
+     * order) and route classification (ordinal computation), so the
+     * ordinals align BY CONSTRUCTION (misalignment = silently wrong rows).
+     */
+    static List<ClassMapping.Relational> inheritanceMembers(
+            LegacyMappingDefinition md, ClassMapping.Inheritance ih,
+            ModelBuilder model) {
         LinkedHashSet<ClassMapping> chosen = new LinkedHashSet<>();
         collectInheritanceMembers(md, ih.className(), model, chosen);
         List<ClassMapping.Relational> members = new ArrayList<>();
@@ -390,16 +422,30 @@ final class UnionSynthesis {
                         + md.qualifiedName());
             }
         }
-        if (members.isEmpty()) {
-            throw new NotImplementedException(
-                    "inheritance Operation for '" + ih.className()
-                    + "' finds no mapped subclass sets; mapping="
-                    + md.qualifiedName());
+        return members;
+    }
+
+    /** The inheritance op mapping a class, own then includes — the
+     * Inheritance sibling of {@link #unionForClass}. */
+    static ClassMapping.Inheritance inheritanceForClass(LegacyMappingDefinition md,
+            ModelBuilder model, String classFqn) {
+        for (ClassMapping cm : md.classMappings()) {
+            if (cm instanceof ClassMapping.Inheritance ih
+                    && ih.className().equals(classFqn)) {
+                return ih;
+            }
         }
-        if (members.size() == 1) {
-            return MappingNormalizer.synthRelational(md, members.get(0), model);
+        for (MappingInclude inc : md.includes()) {
+            LegacyMappingDefinition inner =
+                    model.findLegacyMapping(inc.mappingPath()).orElse(null);
+            if (inner != null) {
+                ClassMapping.Inheritance ih = inheritanceForClass(inner, model, classFqn);
+                if (ih != null) {
+                    return ih;
+                }
+            }
         }
-        return synthMemberUnion(md, ih.className(), members, model);
+        return null;
     }
 
     /** The engine's leaf-most-root member selection for an inheritance op. */
