@@ -451,11 +451,24 @@ public final class Runner {
      * Runtime's mappings and the no-execute SHAPE gate. */
     private List<String> executeMappingRefs(ParsedTest t) {
         List<String> out = new ArrayList<>();
+        // LET-BOUND mapping refs (the corpus's dominant graphFetch idiom:
+        // `let mapping = X; ... execute($q, $mapping, ...)`) resolve through
+        // this binding table — TestBody substitutes them at run time, so
+        // the DISCOVERY gate must see through them too (bucket analysis:
+        // 133/150 graphFetch execute calls were walled by this alone).
+        Map<String, com.legend.model.spec.ValueSpecification> lets =
+                new LinkedHashMap<>();
         java.util.ArrayDeque<com.legend.model.spec.ValueSpecification> work =
                 new java.util.ArrayDeque<>(t.fn().body());
         while (!work.isEmpty()) {
             com.legend.model.spec.ValueSpecification v = work.poll();
             if (v instanceof com.legend.model.spec.AppliedFunction af) {
+                if (af.function().equals("letFunction")
+                        && af.parameters().size() == 2
+                        && af.parameters().get(0)
+                                instanceof com.legend.model.spec.CString ln) {
+                    lets.put(ln.value(), af.parameters().get(1));
+                }
                 String simple = af.function()
                         .substring(af.function().lastIndexOf(':') + 1);
                 boolean executeShape = simple.equals("execute")
@@ -463,8 +476,13 @@ public final class Runner {
                 boolean fromShape = simple.equals("from")
                         && af.parameters().size() >= 2;
                 if (executeShape || fromShape) {
-                    if (af.parameters().get(1)
-                            instanceof com.legend.model.spec.PackageableElementPtr ptr) {
+                    com.legend.model.spec.ValueSpecification arg =
+                            af.parameters().get(1);
+                    if (arg instanceof com.legend.model.spec.Variable var
+                            && lets.containsKey(var.name())) {
+                        arg = lets.get(var.name());
+                    }
+                    if (arg instanceof com.legend.model.spec.PackageableElementPtr ptr) {
                         String ref = qualify(ptr.fullPath(), t);
                         if (ref.matches("[\\w:]+") && !out.contains(ref)) {
                             out.add(ref);

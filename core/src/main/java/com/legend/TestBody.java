@@ -404,6 +404,28 @@ public final class TestBody {
         return new Outcome.Ran(verified, advisory, List.of());
     }
 
+    /** One side of a JSON assert as a PARSED structure: a GRAPH result's
+     * envelope, or a String value holding JSON text. Null = not JSON-shaped
+     * (the caller reports Unsupported, never a false verdict). */
+    private static Object jsonValueOf(Eval e) {
+        if (e.result instanceof com.legend.exec.ExecutionResult.Graph g) {
+            return ExecJson.parse(g.json());
+        }
+        List<Object> vals = e.values();
+        if (vals.size() == 1 && vals.get(0) instanceof String str) {
+            try {
+                return ExecJson.parse(str);
+            } catch (RuntimeException notJson) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static String abbreviate(String s) {
+        return s.length() <= 160 ? s : s.substring(0, 157) + "...";
+    }
+
     /** The elements of a CONSTANT string collection ({@code ['a'+'b', $x]}
      * with let-resolved, concat-folded elements), or null if any element
      * is not a compile-time string. */
@@ -656,6 +678,39 @@ public final class TestBody {
             }
             case "assertSameSQL" -> {
                 return ADVISORY_MARKER;
+            }
+            case "assertJsonStringsEqual" -> {
+                // graph-fetch JSON equality (engine semantics): object keys
+                // order-INSENSITIVE, arrays order-SENSITIVE — exactly deep
+                // equality over the PARSED structures (both sides through
+                // the same parser, so number spelling is symmetric)
+                if (args.size() != 2) {
+                    return UNSUPPORTED_MARKER;
+                }
+                Eval e = eval(args.get(0), lets, handles, ctx, imports,
+                        runtimeFqn, conn);
+                if (emptinessUnverifiable) {
+                    return UNSUPPORTED_MARKER;
+                }
+                Eval a = eval(args.get(1), lets, handles, ctx, imports,
+                        runtimeFqn, conn);
+                Object expected = jsonValueOf(e);
+                Object actual = jsonValueOf(a);
+                if (expected == null || actual == null) {
+                    return UNSUPPORTED_MARKER;
+                }
+                // pure's [x] ≡ x value semantics at the ROOT: the engine
+                // serializes a one-element result as the bare object; our
+                // envelope always arrays. Bridge exactly that case — an
+                // object-shaped expectation against a singleton array.
+                if (!(expected instanceof List) && actual instanceof List<?> al
+                        && al.size() == 1) {
+                    actual = al.get(0);
+                }
+                return java.util.Objects.equals(expected, actual) ? null
+                        : "assertJsonStringsEqual: expected "
+                                + abbreviate(String.valueOf(expected))
+                                + ", got " + abbreviate(String.valueOf(actual));
             }
             default -> {
                 return UNSUPPORTED_MARKER;
