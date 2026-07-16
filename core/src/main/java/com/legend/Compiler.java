@@ -488,6 +488,19 @@ public final class Compiler {
                 argBody.add(call.args().get(p));
                 TypedSpec argValue = new com.legend.compiler.spec.UserCallInliner(specs)
                         .inlineBody(argBody).get(0);
+                if (containsEffectfulNode(java.util.List.of(argValue))) {
+                    // same rule as the effectful-let guard: the frame binds
+                    // arguments as lets, and β-substitution drops an unused
+                    // one (or doubles a twice-used one) — refuse loudly
+                    // (audit 17: ignore(executeInDb(...)) silently lost the
+                    // insert)
+                    throw new IllegalStateException("effectful argument to '"
+                            + call.callee().qualifiedName()
+                            + "' (parameter '"
+                            + call.callee().parameters().get(p).name()
+                            + "' binds an executeInDb-family call) is not"
+                            + " supported");
+                }
                 frame.add(new com.legend.compiler.spec.typed.TypedLet(
                         call.callee().parameters().get(p).name(), argValue,
                         argValue.info()));
@@ -509,7 +522,7 @@ public final class Compiler {
             java.util.Map<String, Boolean> memo) {
         if (node instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
                 && com.legend.compiler.element.type.PlatformTypes
-                        .isKNative(nc.callee().qualifiedName())) {
+                        .isEffectfulNative(nc.callee().qualifiedName())) {
             return true;
         }
         if (node instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
@@ -579,7 +592,21 @@ public final class Compiler {
             // debug output: a NO-OP — the argument is NEVER evaluated (it
             // may introspect a ResultSet, which never materializes host-
             // side). Divergence from the engine (which prints) is deliberate
-            // harness behavior; an effect nested inside print is dropped.
+            // harness behavior. A REAL effect nested inside the argument
+            // would be dropped — that must never be silent (audit 17): it
+            // feeds the failure ledger (arming the emptiness guard), or
+            // throws when no ledger is listening.
+            if (containsEffectfulNode(pn.args())) {
+                if (env.rawSqlFailureSink() == null) {
+                    throw new IllegalStateException("print/println argument"
+                            + " contains an executeInDb-family call; the print"
+                            + " arm never evaluates arguments, so the effect"
+                            + " would be dropped");
+                }
+                env.rawSqlFailureSink().accept(
+                        "print => argument contains an executeInDb-family call;"
+                        + " not evaluated (effect dropped)");
+            }
             return new com.legend.exec.ExecutionResult.Scalar(null, pn.info().type());
         }
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall sc
@@ -712,6 +739,38 @@ public final class Compiler {
                     + " must evaluate to one String, got " + evaluated);
         }
         return str;
+    }
+
+    /** Does any node in these (post-inline) trees carry a REAL K effect?
+     * An executeInDb whose SQL is a literal SELECT is provably read-only
+     * (the corpus prints such probes) and does not count. */
+    private static boolean containsEffectfulNode(java.util.List<TypedSpec> nodes) {
+        for (TypedSpec n : nodes) {
+            if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                    && com.legend.compiler.element.type.PlatformTypes
+                            .isEffectfulNative(nc.callee().qualifiedName())
+                    && !isLiteralSelect(nc)) {
+                return true;
+            }
+            if (containsEffectfulNode(n.children())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean isLiteralSelect(
+            com.legend.compiler.spec.typed.TypedNativeCall nc) {
+        String fqn = nc.callee().qualifiedName();
+        boolean sqlCarrier = com.legend.compiler.element.type.PlatformTypes
+                .EXECUTE_IN_DB.equals(fqn)
+                || com.legend.compiler.element.type.PlatformTypes
+                        .EXECUTE_IN_DB_DEBUG.equals(fqn);
+        return sqlCarrier && !nc.args().isEmpty()
+                && nc.args().get(0)
+                        instanceof com.legend.compiler.spec.typed.TypedCString cs
+                && cs.value().strip().toLowerCase(java.util.Locale.ROOT)
+                        .startsWith("select");
     }
 
     /** Conservative free-variable scan (shadowed names over-collect — over-KEEPING lets is safe). */

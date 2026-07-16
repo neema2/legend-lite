@@ -178,7 +178,8 @@ public final class MappingNormalizer {
                 // record does NOT flow past Phase E (CLEAN_SHEET_INVERSION §1.5).
                 try {
                     out.add(withElement(md.qualifiedName(),
-                            () -> normalizeMapping(latest, model, lifted)));
+                            () -> normalizeMapping(latest, model, lifted,
+                                    wallSink != null)));
                 } catch (ModelException e) {
                     if (wallSink == null || e.element() == null) {
                         throw e;
@@ -247,7 +248,8 @@ public final class MappingNormalizer {
 
     private static MappingDefinition normalizeMapping(LegacyMappingDefinition md,
                                                      ModelBuilder model,
-                                                     List<FunctionDefinition> lifted) {
+                                                     List<FunctionDefinition> lifted,
+                                                     boolean tolerant) {
         detectM2MCycles(md, model);
 
         // Pre-pass: flatten `extends [parentSetId]` by merging inherited
@@ -334,6 +336,11 @@ public final class MappingNormalizer {
                 // machinery must not sink the whole mapping — the class
                 // bindings stay queryable; navigating THIS association
                 // raises the recorded reason via the poison channel.
+                // TOLERANT (module) builds only — a STRICT build must
+                // reject what the engine's compiler rejects (audit 17).
+                if (!tolerant) {
+                    throw e;
+                }
                 model.mappingPoisons.putIfAbsent(
                         md.qualifiedName() + "::" + am.associationName(),
                         String.valueOf(e.getMessage()));

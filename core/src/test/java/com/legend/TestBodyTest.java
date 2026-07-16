@@ -353,12 +353,14 @@ class TestBodyTest {
 
     @Test
     void unsupportedStatementIsLoud() throws Exception {
-        TestBody.Outcome o = run("""
-                mysteryHarnessCall('side effect');
-                """);
-        assertInstanceOf(TestBody.Outcome.Unsupported.class, o);
-        assertTrue(((TestBody.Outcome.Unsupported) o).reason()
-                .contains("mysteryHarnessCall"));
+        // audit 17: an unknown function is a real pipeline failure and
+        // PROPAGATES (the runner scores it ERROR) — only a
+        // NotImplementedException vocabulary gap reports Unsupported/SHAPE.
+        // Either way: never silent.
+        org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                () -> run("""
+                        mysteryHarnessCall('side effect');
+                        """));
     }
 
     @org.junit.jupiter.api.Test

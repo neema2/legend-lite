@@ -395,12 +395,18 @@ final class RelOpTranslator {
                         targetVarOrNull, rowBindOrNull, pipeline);
                 List<ValueSpecification> out = new java.util.ArrayList<>(args.size());
                 out.add(args.get(0));
-                out.add(new AppliedFunction("max", List.of(
+                ValueSpecification start0 = new AppliedFunction("max", List.of(
                         new AppliedFunction("minus",
                                 List.of(args.get(1), new CInteger(1))),
-                        new CInteger(0))));
+                        new CInteger(0)));
+                out.add(start0);
                 if (args.size() == 3) {
-                    out.add(args.get(2));
+                    // the dyna's third argument is an SQL LENGTH; pure's is
+                    // the EXCLUSIVE END index — end = start' + length
+                    // (audit 17: forwarding the length verbatim was wrong
+                    // for any start > 1)
+                    out.add(new AppliedFunction("plus",
+                            List.of(start0, args.get(2))));
                 }
                 yield new AppliedFunction("substring", out);
             }

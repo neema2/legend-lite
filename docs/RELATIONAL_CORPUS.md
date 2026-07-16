@@ -7,9 +7,10 @@ Scope: <<test.ToFix>>/<<test.Ignore>> are excluded (engine harness
 parity) and so is <<test.ExcludeAlloy>> (legend-lite executes the
 in-process Alloy-shaped path).
 
-## Failed seed statements (7)
+## Failed seed statements (8)
 
 - `setup meta::relational::tests::mapping::embedded::setUp() => effectful let binding ('dataInTable' reaches executeInDb) is not supported`
+- `setup meta::relational::graphFetch::tests::union::propertyLevel::setup() => 'meta::relational::tests::mapping::union::myDB' is not a known class, mapping, runtime, connection, or database`
 - `Drop schema schemaB if exists cascade => Parser Error: syntax error at or near "if"`
 - `create schema schemaB => Catalog Error: Schema with name "schemaB" already exists!`
 - `CREATE OR REPLACE TABLE PERSON_FIRM_ADDRESS_MULTIGRAIN ("OID" INT, "DLEVEL" VARCHAR(2), "//Person" Grain => Parser Error: syntax error at or near "PERSON_FIRSTNAME"`
@@ -24,9 +25,9 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 103 | 0 | 0 | 10 | 93 |
-| functions/tests | 258 | 110 | 4 | 103 | 41 |
-| functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
-| functions/tests/projection | 147 | 71 | 5 | 52 | 19 |
+| functions/tests | 258 | 111 | 3 | 107 | 37 |
+| functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
+| functions/tests/projection | 147 | 71 | 5 | 53 | 18 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 119 | 0 | 0 | 5 | 114 |
 | graphFetch/tests/union | 15 | 0 | 0 | 7 | 8 |
@@ -75,7 +76,7 @@ in-process Alloy-shaped path).
 | tests/mapping/relation | 93 | 42 | 1 | 7 | 43 |
 | tests/mapping/relation/aggregation | 9 | 0 | 0 | 0 | 9 |
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
-| tests/mapping/sqlFunction | 74 | 57 | 2 | 3 | 12 |
+| tests/mapping/sqlFunction | 74 | 57 | 2 | 5 | 10 |
 | tests/mapping/tree | 12 | 0 | 0 | 12 | 0 |
 | tests/mapping/union | 124 | 53 | 1 | 63 | 7 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 2 | 2 |
@@ -84,7 +85,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2489 | **927** | 33 | 672 | 857 |
+| **total** | 2489 | **928** | 32 | 680 | 849 |
 
 ### mapping walls (dropped at assembly)
 
@@ -3640,16 +3641,16 @@ in-process Alloy-shaped path).
 - 7x association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' (property 'vehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; the property is dropped from this synthesis; property 'roadVehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; the property is dropped from this synthesis)
 - 7x filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
 - 6x class meta::relational::tests::model::simple::Address has no property 'values'
+- 6x unknown type 'TabularDataSet' in @TabularDataSet
 - 6x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - 6x scalar lowering not yet implemented for TypedCLatestDate
 - 6x unknown function 'columnValues'
 - 6x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
-- 5x unknown type 'TabularDataSet' in @TabularDataSet
 - 5x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - 5x in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6) (value: AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=dec])
 - 4x class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
 - 4x multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
-- 4x unknown function 'uniqueValueOnly'
+- 4x from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 
 ### per-test outcomes (non-passing)
 
@@ -3795,7 +3796,6 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -3804,11 +3804,11 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateFlatWithOtherProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(INTEGER, INTEGER)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT t0.ID AS simple, list_concat(t0.ID, t0.ID + 18) AS Concatenated |        
 - SHAPE testConcatenateWithPostFilteredGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testConcatenateWithPreFilteredGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testComplexOrExistsToManyProperty [functions/tests]: statement 'map' failed through the pipeline: unknown function 'assert'
+- ERROR testComplexOrExistsToManyProperty [functions/tests]: unknown function 'assert'
 - FAIL testDupsFilterProject [functions/tests]: assertEquals: expected Firm X, got [Firm X, Yes]
 - ERROR testExistsWithEmbedded [functions/tests]: 'testMappingEmbeddedWithFirmDistinct' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: 'testMappingEmbeddedWithFirmDistinct' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- SHAPE testWithFilterGroupBy [functions/tests]: statement 'map' failed through the pipeline: no scalar lowering registered for resolved overload 'meta::pure::functions::io::println' with 1 parameter(s)
+- ERROR testWithFilterGroupBy [functions/tests]: no scalar lowering registered for resolved overload 'meta::pure::functions::io::println' with 1 parameter(s)
 - ERROR testWithFilterGroupByNestedAssociation [functions/tests]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testNestedExistsOne [functions/tests]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
 - ERROR testNestedNotExists [functions/tests]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
@@ -3879,7 +3879,7 @@ in-process Alloy-shaped path).
 - ERROR testSubAggregationMultiLevel [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testSubAggregationMultiLevelJoinString [functions/tests]: no overload of 'meta::pure::functions::string::joinStrings' accepts 1 argument(s)
 - ERROR testSubAggregationUsingIf [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
-- SHAPE testSequenceMapWithConfusingSetImplementation [functions/tests]: statement 'meta::relational::tests::mapping::filter::model::store::createTablesAndFillDb' failed through the pipeline: unknown function 'meta::relational::tests::mapping::filter::model::store::createTablesAndFillDb'
+- ERROR testSequenceMapWithConfusingSetImplementation [functions/tests]: unknown function 'meta::relational::tests::mapping::filter::model::store::createTablesAndFillDb'
 - ERROR testUsingAnAssociationInTheMapFunction [functions/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::rel
 - ERROR testUsingFunctionInMapLambdaTakingAParameter [functions/tests]: in function 'meta::relational::tests::groupBy::subFunction3': in call to 'meta::pure::functions::collection::map', argument 2: expected at most one value, got many ([*])
 - ERROR testSimpleWithFilter [functions/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::rel
@@ -3915,7 +3915,7 @@ in-process Alloy-shaped path).
 - SHAPE testObjectReferenceInWithEmptyLists [functions/tests]: no execute(|...) call
 - SHAPE testObjectReferenceInWithBiTemporalMilestoning [functions/tests]: no execute(|...) call
 - SHAPE testObjectReferenceInWithObjReferenceOutput [functions/tests]: no execute(|...) call
-- SHAPE testPaginated [functions/tests]: statement 'serialize' failed through the pipeline: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- ERROR testPaginated [functions/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 - SHAPE testPaginatedByVendor [functions/tests]: no execute(|...) call
 - SHAPE testPaginatedWithVariables [functions/tests]: harness wrapper 'runTest' carries no zero-arg lambda body
 - ERROR testSQLComments [functions/tests]: class meta::relational::tests::model::simple::Person has no property 'activities'
@@ -3937,7 +3937,7 @@ in-process Alloy-shaped path).
 - ERROR testSortByLambdaDeepOptional [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - SHAPE testSortByLambdaAndGraphFetchDeep [functions/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
 - SHAPE testSortByLambda_QueryWithParameters_Plan [functions/tests]: no execute(|...) call
-- SHAPE testLoadCsv [functions/tests/loadCsvToDbTable]: statement 'loadCsvToDbTable' failed through the pipeline: Unknown type: 'Table' is not a known primitive, class, or enum
+- ERROR testLoadCsv [functions/tests/loadCsvToDbTable]: Unknown type: 'Table' is not a known primitive, class, or enum
 - ERROR testDeepSubAggregation [functions/tests/projection]: aggregate 'meta::pure::functions::collection::count' over the multi-hop to-many navigation employees.address.name is not supported yet
 - ERROR testSubAggregationWithIf [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - ERROR testSubAggregationWithJoinStringsOrderBy [functions/tests/projection]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
@@ -3991,7 +3991,7 @@ in-process Alloy-shaped path).
 - ERROR testVariableReferenceInMapWithSameNameAsThatInParentProject [functions/tests/projection]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
 - ERROR testVariableReferenceInMapWithNestedFilter [functions/tests/projection]: expected at most one value, got many ([*])
 - ERROR testVariableReferenceWithNestedFilterMultiple [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- SHAPE testGroupByWithWindowSubset [functions/tests/projection]: statement 'meta::relational::tests::advanced::contractmoneyscenario::setUp' failed through the pipeline: unknown function 'meta::relational::tests::advanced::contractmoneyscenario::setUp'
+- ERROR testGroupByWithWindowSubset [functions/tests/projection]: unknown function 'meta::relational::tests::advanced::contractmoneyscenario::setUp'
 - ERROR testInWithOneValue [functions/tests/projection]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary)
 - SHAPE H2Test [functions/tests/projection]: no execute(|...) call
 - ERROR testInWithDynaFunction [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
@@ -4015,7 +4015,7 @@ in-process Alloy-shaped path).
 - ERROR testAllOneSimplePropertyWithColsFromFunction [functions/tests/projection]: project expects ~[…] column specifications
 - SHAPE testAllOneSimplePropertyUsingOpenVariables [functions/tests/projection]: no execute(|...) call
 - SHAPE testGraphFetch [graphFetch/domain]: no execute(|...) call
-- ERROR testCrossMappingWithRelOpWithJoinKeys [graphFetch/tests]: association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys'
+- ERROR testCrossMappingWithRelOpWithJoinKeys [graphFetch/tests]: association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceo
 - SHAPE CrossStoreGraphFetchWithRelationalMilestoned [graphFetch/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
 - SHAPE CrossStoreGraphFetchWithRelationalMilestonedFlowDown [graphFetch/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
 - SHAPE CrossStoreGraphFetchWithRelationalMilestonedAllversions [graphFetch/tests]: assert form 'assertJsonStringsEqual/2' is not supported yet
@@ -4900,41 +4900,41 @@ in-process Alloy-shaped path).
 - ERROR testChainedInnerJoinsWithQualifierInGroupBy [tests/mapping/join]: filtered-navigation leaf 'extraInformation' reads a join slot of 'meta::relational::tests::model::simple::Person' — slot-demanding leaves under value-position filters are not supported yet
 - FAIL testSameTableNameDifferentSchema1 [tests/mapping/join]: assertEquals: expected [Peter B, John B, John B, Anthony B, Oliver B, null, null], got [Peter B, John B, John B, Anthony B, Oliver B]
 - ERROR testDynafunctionMerge [tests/mapping/merge]: in function 'meta::relational::tests::mapping::merge::MergeAliasMapping$class$meta::relational::tests::model::simple::Person': no overload of 'meta::pure::functions::boolean::or' accepts 4 argument(s)
-- ERROR testNestedPropertyChain [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedPropertyChainMapping'
-- ERROR testDoubleNestedBothSides [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::DoubleNestedModelJoinMapping'
+- ERROR testNestedPropertyChain [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedPropertyChainMapping' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm': $employees.address has no colum
+- ERROR testDoubleNestedBothSides [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::DoubleNestedModelJoinMapping' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm': $employees.address has no col
 - FAIL testChainedTwoHops [tests/mapping/modelJoin]: assertEquals: expected [Apple, null, Apple, ProjectY, Apple, ProjectX, Google, ProjectZ], got [Apple, ProjectY, Apple, ProjectX, Apple, null, Google, ProjectZ]
-- ERROR testRelationalNestedPropertyChain [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::RelationalNestedPropertyChainMapping'
-- ERROR testRelationalDoubleNestedBothSides [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::RelationalDoubleNestedMapping'
-- ERROR testRelationalNestedInFilter [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Firm_Headquarters' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::RelationalFilterOnNestedMapping'
+- ERROR testRelationalNestedPropertyChain [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::RelationalNestedPropertyChainMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' 
+- ERROR testRelationalDoubleNestedBothSides [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::RelationalDoubleNestedMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolve
+- ERROR testRelationalNestedInFilter [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Firm_Headquarters' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::RelationalFilterOnNestedMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Firm' r
 - ERROR testFilterOnTarget [tests/mapping/modelJoin]: class 'meta::relational::tests::mapping::modelJoin::domain::Person' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::FilterOnTargetMapping' (ColumnRef references table 'personTable' not in scope; available=[default.personTable])
 - ERROR testFilterOnTargetNestedCondition [tests/mapping/modelJoin]: class 'meta::relational::tests::mapping::modelJoin::domain::Person' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::FilterOnTargetNestedConditionMapping' (ColumnRef references table 'personTable' not in scope; available=[default.personTable])
-- ERROR testDistinctOnTarget [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::DistinctOnTargetMapping'
+- ERROR testDistinctOnTarget [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::DistinctOnTargetMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolves to 0
 - ERROR testFilterOnTargetReverse [tests/mapping/modelJoin]: class 'meta::relational::tests::mapping::modelJoin::domain::Person' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::FilterOnTargetMapping' (ColumnRef references table 'personTable' not in scope; available=[default.personTable])
 - ERROR testFilterWithInnerJoinOnTarget [tests/mapping/modelJoin]: class 'meta::relational::tests::mapping::modelJoin::domain::Person' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::FilterWithInnerJoinOnTargetMapping' (ColumnRef references table 'personTable' not in scope; available=[default.personTable, default.profileTable])
-- ERROR testMixedMappingFirmToEmployee [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::MixedMappingNestedPropertyAccess'
-- ERROR testMixedMappingEmployeeToFirm [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::MixedMappingNestedPropertyAccess'
-- ERROR testColumnCollisionInSubselect [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::ColumnCollisionMapping'
-- ERROR testNestedModelJoinCompoundInnerCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess'
-- ERROR testSubFilter [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedPropertyChainMapping'
+- ERROR testMixedMappingFirmToEmployee [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::MixedMappingNestedPropertyAccess' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' reso
+- ERROR testMixedMappingEmployeeToFirm [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::MixedMappingNestedPropertyAccess' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' reso
+- ERROR testColumnCollisionInSubselect [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::ColumnCollisionMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolves to 0 
+- ERROR testNestedModelJoinCompoundInnerCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedModelJoinWithPropertyAccess' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm': $employees.address has n
+- ERROR testSubFilter [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::NestedPropertyChainMapping' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm': $employees.address has no colum
 - ERROR testSubAggregation [tests/mapping/modelJoin]: association property '$x.employees' used other than as a navigation head (class-typed value / isEmpty / whole-instance) is not supported yet
-- ERROR testQualifiedPropertyInQuery [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::QualifiedPropertyMapping'
-- ERROR testSubAggregationRelational [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::RelationalSimpleEqualityMapping'
-- ERROR testMilestoningTargetOnly [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_Warehouse' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::milestoning::MilestonedOrderWarehouseMapping'
-- ERROR testMilestoningSourceOnly [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_Warehouse' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::milestoning::MilestonedOrderWarehouseMapping'
-- ERROR testMilestoningSameScheme [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_Shipment' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::milestoning::MilestoningSameSchemeBothMapping'
-- ERROR testMilestoningDiffScheme [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_Audit' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::milestoning::MilestoningDiffSchemeMapping'
-- ERROR testRelationalMilestoningTargetOnly [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_Warehouse' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::milestoning::RelationalMilestonedOrderWarehouseMapping'
-- ERROR testRelationalMilestoningSourceOnly [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_Warehouse' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::milestoning::RelationalMilestonedOrderWarehouseMapping'
-- ERROR testRelationalMilestoningSameScheme [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_Shipment' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::milestoning::RelationalMilestoningSameSchemeBothMapping'
-- ERROR testRelationalMilestoningDiffScheme [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_Audit' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::milestoning::RelationalMilestoningDiffSchemeMapping'
-- ERROR testDerivedPropertyInCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::simple::DerivedPropertyConditionMapping'
-- ERROR testRelationalSimpleEquality [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::simple::RelationalSimpleEqualityMapping'
-- ERROR testRelationalUnionSource [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::union::RelationalUnionSourceMapping'
-- ERROR testRelationalUnionBothSides [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::union::RelationalUnionBothSidesMapping'
-- ERROR testUnionWithExistsFilter [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::union::UnionWithExistsMapping'
-- ERROR testRelationalUnionSubAggregation [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::union::UnionWithExistsMapping'
-- ERROR testUnionWithExistsFilter [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::union::UnionWithExistsMapping'
-- ERROR testUnionWithSubtypeQuery [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::union::UnionWithSubtypeQueryMapping'
+- ERROR testQualifiedPropertyInQuery [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::QualifiedPropertyMapping' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm': $employees.address has no column 
+- ERROR testSubAggregationRelational [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::advanced::RelationalSimpleEqualityMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resol
+- ERROR testMilestoningTargetOnly [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_Warehouse' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::milestoning::MilestonedOrderWarehouseMapping' (association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_W
+- ERROR testMilestoningSourceOnly [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_Warehouse' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::milestoning::MilestonedOrderWarehouseMapping' (association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_W
+- ERROR testMilestoningSameScheme [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_Shipment' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::milestoning::MilestoningSameSchemeBothMapping' (association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_S
+- ERROR testMilestoningDiffScheme [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_Audit' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::milestoning::MilestoningDiffSchemeMapping' (association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_Audit': 
+- ERROR testRelationalMilestoningTargetOnly [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_Warehouse' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::milestoning::RelationalMilestonedOrderWarehouseMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::mo
+- ERROR testRelationalMilestoningSourceOnly [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_Warehouse' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::milestoning::RelationalMilestonedOrderWarehouseMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::mo
+- ERROR testRelationalMilestoningSameScheme [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_Shipment' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::milestoning::RelationalMilestoningSameSchemeBothMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::mo
+- ERROR testRelationalMilestoningDiffScheme [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::milestoning::domain::Order_Audit' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::milestoning::RelationalMilestoningDiffSchemeMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin
+- ERROR testDerivedPropertyInCondition [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::simple::DerivedPropertyConditionMapping' (association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm': $employees.fullName has no c
+- ERROR testRelationalSimpleEquality [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::simple::RelationalSimpleEqualityMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolve
+- ERROR testRelationalUnionSource [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::union::RelationalUnionSourceMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolves to
+- ERROR testRelationalUnionBothSides [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::union::RelationalUnionBothSidesMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolves
+- ERROR testUnionWithExistsFilter [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::union::UnionWithExistsMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolves to 0 Rel
+- ERROR testRelationalUnionSubAggregation [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::union::UnionWithExistsMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolves to 0 Rel
+- ERROR testUnionWithExistsFilter [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::union::UnionWithExistsMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolves to 0 Rel
+- ERROR testUnionWithSubtypeQuery [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::union::UnionWithSubtypeQueryMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolves to
 - ERROR testToManyWithQualifierWithFilterOnDataType [tests/mapping/multigrain]: in function 'meta::relational::tests::mapping::multigrain::model::mapping::testMappingFirmAccount$class$meta::relational::tests::mapping::multigrain::model::domain::FirmAccount': property 'number' of 'meta::relational::tests::mapping::multigrain::model::domain::FirmAccount': expected Integer, got St
 - ERROR testToManyWithQualifierWithFilterOnJoin [tests/mapping/multigrain]: in function 'meta::relational::tests::mapping::multigrain::model::mapping::testMappingFirmAccount$class$meta::relational::tests::mapping::multigrain::model::domain::FirmAccount': property 'number' of 'meta::relational::tests::mapping::multigrain::model::domain::FirmAccount': expected Integer, got St
 - SHAPE testAutoInferPKFromBareAccessor [tests/mapping/relation]: no execute(|...) call
@@ -5002,7 +5002,7 @@ in-process Alloy-shaped path).
 - SHAPE testTriminNotSybaseASE [tests/mapping/sqlFunction]: no execute(|...) call
 - ERROR testProject [tests/mapping/sqlFunction]: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[], VARCHAR, [ANY...]) -> ANY |  |  | LINE 1: SELECT list_aggregate(t0.int1, 'stddev_samp') AS stdDev
 - ERROR testProject [tests/mapping/sqlFunction]: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[], VARCHAR, [ANY...]) -> ANY |  |  | LINE 1: SELECT list_aggregate(t0.int1, 'stddev_pop') AS stdDevP
-- SHAPE testProject [tests/mapping/sqlFunction]: statement 'forAll' failed through the pipeline: unknown type 'TabularDataSet' in @TabularDataSet
+- ERROR testProject [tests/mapping/sqlFunction]: unknown type 'TabularDataSet' in @TabularDataSet
 - SHAPE testFilter [tests/mapping/sqlFunction]: assert form 'assertEqWithinTolerance/3' is not supported yet
 - SHAPE testToSQLStringToStringInDB2 [tests/mapping/sqlFunction]: no execute(|...) call
 - SHAPE testToSQLStringConcatInDB2 [tests/mapping/sqlFunction]: no execute(|...) call
@@ -5015,7 +5015,7 @@ in-process Alloy-shaped path).
 - SHAPE testToSQLStringconvertToDateTimeinDb2 [tests/mapping/sqlFunction]: no execute(|...) call
 - ERROR testFilter [tests/mapping/sqlFunction]: Parser Error: syntax error at or near "=" |  | LINE 3: WHERE lower(t0.stringToInt) = upper(t0.stringToInt) = TRUE |                                                             ^
 - SHAPE testToSQLConvertDateH2 [tests/mapping/sqlFunction]: no execute(|...) call
-- SHAPE testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: statement 'map' failed through the pipeline: only single-expression lambdas are supported yet
+- ERROR testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: only single-expression lambdas are supported yet
 - ERROR testQuerySimple [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
 - ERROR testQueryWithResultWithAnd [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
 - ERROR testQueryNoResultWithAnd [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation

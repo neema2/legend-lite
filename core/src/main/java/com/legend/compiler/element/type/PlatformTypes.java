@@ -61,6 +61,19 @@ public final class PlatformTypes {
     public static final String PRINT = "meta::pure::functions::io::print";
     public static final String PRINTLN = "meta::pure::functions::io::println";
 
+    /**
+     * K-natives with REAL side effects (raw SQL over the connection).
+     * print/println are K-DISPATCHED but effect-FREE (no-op arm) — the
+     * effectful-let guard and statement-orchestration routing key on THIS,
+     * not on {@link #isKNative} (audit 17: counting print as an effect
+     * made harmless let bindings refuse loudly).
+     */
+    public static boolean isEffectfulNative(String fqn) {
+        return EXECUTE_IN_DB.equals(fqn) || EXECUTE_IN_DB_DEBUG.equals(fqn)
+                || DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
+                || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn);
+    }
+
     /** All K-natives: calls that EXECUTE at the K boundary and never lower. */
     public static boolean isKNative(String fqn) {
         return EXECUTE_IN_DB.equals(fqn) || EXECUTE_IN_DB_DEBUG.equals(fqn)

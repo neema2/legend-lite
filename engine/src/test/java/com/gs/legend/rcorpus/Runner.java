@@ -530,6 +530,9 @@ public final class Runner {
                 com.legend.TestBody.Outcome o = com.legend.TestBody.run(
                         ctx, t.fn().body(), importScopeOf(t), "rcorpus::Rt",
                         conn, !failedSeeds.isEmpty(), failedSeeds);
+                // body-time setup failures (added via the sink DURING the
+                // run) join the run-wide report too (audit 17)
+                seedFailures.addAll(failedSeeds);
                 return score(t.fqn(), o);
             }
         } catch (Exception e) {
@@ -683,6 +686,72 @@ public final class Runner {
         return failedSeeds;
     }
 
+    /** Can the per-test module resolve this setup and every QUALIFIED
+     * function name its transitive body calls? (Bare names resolve via
+     * imports and are assumed local; the observed cross-family reach is
+     * FQN-shaped.) A miss means the setup must run in the universe module
+     * — decided BEFORE execution, so nothing ever partially runs twice. */
+    private boolean preflightResolvable(String setupFqn,
+            com.legend.compiler.element.ModelContext ctx) {
+        if (safeFindFunction(ctx, setupFqn).isEmpty()) {
+            return false;
+        }
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>();
+        work.add(setupFqn);
+        while (!work.isEmpty()) {
+            String fqn = work.poll();
+            if (!seen.add(fqn)) {
+                continue;
+            }
+            List<com.legend.model.spec.ValueSpecification> body =
+                    setupFnAsts.get(fqn);
+            if (body == null) {
+                continue;
+            }
+            java.util.Set<String> called = new java.util.HashSet<>();
+            for (com.legend.model.spec.ValueSpecification stmt : body) {
+                collectCalledFqns(stmt, called);
+            }
+            for (String c : called) {
+                if (!c.contains("::")) {
+                    continue;
+                }
+                if (safeFindFunction(ctx, c).isEmpty()) {
+                    return false;
+                }
+                work.add(c);
+            }
+        }
+        return true;
+    }
+
+    private static List<com.legend.compiler.element.TypedFunction> safeFindFunction(
+            com.legend.compiler.element.ModelContext ctx, String fqn) {
+        try {
+            return ctx.findFunction(fqn);
+        } catch (RuntimeException brokenOverloads) {
+            return List.of();
+        }
+    }
+
+    /** QUALIFIED call names in a statement tree (bare names skipped). */
+    private static void collectCalledFqns(
+            com.legend.model.spec.ValueSpecification v, java.util.Set<String> out) {
+        if (v instanceof com.legend.model.spec.AppliedFunction af) {
+            if (af.function().contains("::")) {
+                out.add(af.function());
+            }
+            af.parameters().forEach(x -> collectCalledFqns(x, out));
+        } else if (v instanceof com.legend.model.spec.AppliedProperty ap) {
+            collectCalledFqns(ap.receiver(), out);
+        } else if (v instanceof com.legend.model.spec.LambdaFunction lf) {
+            lf.body().forEach(x -> collectCalledFqns(x, out));
+        } else if (v instanceof com.legend.model.spec.PureCollection pc) {
+            pc.values().forEach(x -> collectCalledFqns(x, out));
+        }
+    }
+
     /** Does this setup function (transitively, over the parsed setup-fn
      * universe) reach a K-native seeding call? Shared files also define
      * plain HELPERS (testRuntime(), result-to-json utilities) — eagerly
@@ -742,21 +811,19 @@ public final class Runner {
                 com.legend.compiler.NameResolver.resolveQuery(
                         new com.legend.model.spec.AppliedFunction(
                                 setupFqn, List.of()));
+        // PREFLIGHT, not retry (audit 17): the universe path re-running a
+        // PARTIALLY-executed setup doubles non-drop-guarded inserts, so the
+        // module choice is made BEFORE anything executes — if the per-test
+        // module cannot resolve the setup or any QUALIFIED call in its
+        // transitive body, the whole run happens in the setup universe.
+        com.legend.compiler.element.ModelContext target =
+                preflightResolvable(setupFqn, ctx) ? ctx : setupUniverseContext();
         try {
-            com.legend.Compiler.executeResolved(call, ctx, "rcorpus::Rt", conn,
+            com.legend.Compiler.executeResolved(call, target, "rcorpus::Rt", conn,
                     failedSeeds::add);
-        } catch (Exception first) {
-            // cross-family reach: retry in the whole-corpus setup module
-            // (engine setups start with drops, so the partial first attempt
-            // re-runs safely)
-            try {
-                com.legend.Compiler.executeResolved(call,
-                        setupUniverseContext(), "rcorpus::Rt", conn,
-                        failedSeeds::add);
-            } catch (Exception e) {
-                failedSeeds.add("setup " + setupFqn + "() => "
-                        + String.valueOf(e.getMessage()).split("\n")[0]);
-            }
+        } catch (Exception e) {
+            failedSeeds.add("setup " + setupFqn + "() => "
+                    + String.valueOf(e.getMessage()).split("\n")[0]);
         }
     }
 

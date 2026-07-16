@@ -384,7 +384,11 @@ public final class TestBody {
                     continue;
                 } catch (java.sql.SQLException sql) {
                     throw sql;
-                } catch (RuntimeException e) {
+                } catch (com.legend.error.NotImplementedException e) {
+                    // a VOCABULARY gap — honestly SHAPE; any OTHER
+                    // RuntimeException is a real pipeline defect and must
+                    // surface as ERROR, not hide in the SHAPE bucket
+                    // (audit 17) — it propagates to the runner's scorer
                     return new Outcome.Unsupported("statement '" + af3.function()
                             + "' failed through the pipeline: "
                             + String.valueOf(e.getMessage()).split("\\n")[0]);
