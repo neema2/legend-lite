@@ -590,26 +590,52 @@ final class Pipelines {
                         + " key column '" + c + "' was not projected by the"
                         + " union body (normalizer inbound-route scan)");
             }
-            if (src == null) {
-                throw new NotImplementedException(
-                        "a navigation join over this union demands key column '"
-                        + c + "', which union member rows do not all carry;"
-                        + " heterogeneous member keys are not supported yet");
-            }
             String v = "u_k";
-            ExprType colType = new ExprType(src.type(), src.multiplicity());
-            var read = new TypedPropertyAccess(
-                    new TypedVariable(v,
-                            new ExprType(srcRow, Multiplicity.Bounded.ONE)),
-                    src.name(), colType);
+            TypedSpec body;
+            Type colDeclType;
+            if (src != null) {
+                ExprType colType = new ExprType(src.type(), src.multiplicity());
+                body = new TypedPropertyAccess(
+                        new TypedVariable(v,
+                                new ExprType(srcRow, Multiplicity.Bounded.ONE)),
+                        src.name(), colType);
+                colDeclType = src.type();
+            } else {
+                // HETEROGENEOUS member key (engine SQLNull padding,
+                // pureToSQLQuery_union.pure:682-691): a member that does
+                // not carry the demanded key contributes a TYPED NULL —
+                // its rows can never match the navigation join, exactly
+                // the engine's un-routed-thread semantics. The type comes
+                // from a SIBLING that does carry the column.
+                Type sibling = null;
+                for (TypedSpec m : members) {
+                    if (m.info().type() instanceof Type.RelationType mr) {
+                        Type.Column mc = columnOf(mr, c);
+                        if (mc != null) {
+                            sibling = mc.type();
+                            break;
+                        }
+                    }
+                }
+                if (sibling == null) {
+                    throw new NotImplementedException(
+                            "a navigation join over this union demands key column '"
+                            + c + "', which NO union member carries");
+                }
+                body = new TypedCollection(List.of(),
+                        new ExprType(sibling, Multiplicity.Bounded.ZERO_ONE));
+                colDeclType = sibling;
+            }
             var fnType = new Type.FunctionType(
                     List.of(new Type.Param(srcRow, Multiplicity.Bounded.ONE)),
-                    new Type.Param(src.type(), src.multiplicity()));
+                    new Type.Param(colDeclType,
+                            Multiplicity.Bounded.ZERO_ONE));
             newCols.add(new TypedFuncCol(c,
                     new TypedLambda(List.of(v),
-                            List.of(read),
+                            List.of(body),
                             new ExprType(fnType, Multiplicity.Bounded.ONE))));
-            outCols.add(new Type.Column(c, src.type(), src.multiplicity()));
+            outCols.add(new Type.Column(c, colDeclType,
+                    Multiplicity.Bounded.ZERO_ONE));
         }
         return new TypedProject(p.source(), newCols,
                 new ExprType(new Type.RelationType(outCols),
