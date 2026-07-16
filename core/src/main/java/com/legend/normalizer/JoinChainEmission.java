@@ -273,7 +273,7 @@ final class JoinChainEmission {
                 // same expansion the physical-hop arm uses — engine: views
                 // are subselects, joins accept Table OR View)
                 ValueSpecification targetRows = viewTarget != null
-                        ? MappingNormalizer.viewRelationExpr(
+                        ? ViewRelation.viewRelationExpr(
                                 model.findView(hopDb, viewTarget).orElseThrow(),
                                 viewTarget, hopDb, model, md)
                         : new AppliedFunction(
@@ -375,7 +375,7 @@ final class JoinChainEmission {
                 p.classSlots.add(slotAlias);
             } else {
                 ValueSpecification targetRel = viewTarget != null
-                        ? MappingNormalizer.viewRelationExpr(model.findView(hopDb, viewTarget).orElseThrow(),
+                        ? ViewRelation.viewRelationExpr(model.findView(hopDb, viewTarget).orElseThrow(),
                                 viewTarget, hopDb, model, md)
                         : new AppliedFunction("tableReference",
                                 List.of(new PackageableElementPtr(hopDb), new CString(targetTable)));
@@ -452,14 +452,21 @@ final class JoinChainEmission {
 
     /**
      * Recover the pipeline slot name a physical chain was emitted under.
-     * Resolves through the structured path registry (collision-proof);
-     * falls back to the flattened name only if the chain was never emitted
-     * (defensive — emitted chains are always registered).
+     * Resolves through the structured path registry (collision-proof).
+     * A miss is LOUD: emitted chains are always registered, so a miss
+     * means some translated expression navigates a join that was never
+     * hoisted — the old flattened-name fallback let the terminal read
+     * silently bind through ANOTHER chain's slot (audit 18 finding 2).
      */
     static String slotFor(Pipeline p, List<JoinChainElement> hops) {
         List<String> key = joinPath(hops);
         String slot = p.pathToSlot.get(key);
-        return slot != null ? slot : String.join("__", key);
+        if (slot == null) {
+            throw new NotImplementedException("join chain " + key
+                    + " was never emitted on this pipeline — the expression"
+                    + " navigates a join that was not hoisted as a slot");
+        }
+        return slot;
     }
 
     static String classTypedTargetIfMapped(String ownerClassFqn,
