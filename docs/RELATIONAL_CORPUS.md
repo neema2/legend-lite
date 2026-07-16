@@ -27,7 +27,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 103 | 0 | 0 | 10 | 93 |
-| functions/tests | 258 | 110 | 5 | 116 | 27 |
+| functions/tests | 258 | 111 | 4 | 116 | 27 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 71 | 5 | 62 | 17 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -65,7 +65,7 @@ in-process Alloy-shaped path).
 | tests/mapping/extends | 23 | 10 | 2 | 5 | 6 |
 | tests/mapping/extends/union | 8 | 1 | 0 | 7 | 0 |
 | tests/mapping/filter | 9 | 4 | 0 | 5 | 0 |
-| tests/mapping/groupBy | 10 | 0 | 0 | 10 | 0 |
+| tests/mapping/groupBy | 10 | 4 | 0 | 6 | 0 |
 | tests/mapping/inClause | 4 | 0 | 0 | 0 | 4 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
 | tests/mapping/inheritance | 45 | 10 | 0 | 35 | 0 |
@@ -87,7 +87,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2497 | **947** | 34 | 847 | 669 |
+| **total** | 2497 | **952** | 33 | 843 | 669 |
 
 ### mapping walls (dropped at assembly)
 
@@ -3902,11 +3902,10 @@ in-process Alloy-shaped path).
 - 12x graphFetch tree: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
 - 11x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - 10x class query under TypedMap is not resolvable yet (H2 vocabulary)
-- 9x lowering not yet implemented for TypedNativeCall
+- 10x lowering not yet implemented for TypedNativeCall
 - 9x graphFetch tree: class meta::relational::tests::model::simple::Product has no property 'id'
 - 8x object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
 - 8x relation has no column 'aID'
-- 8x class 'meta::relational::tests::mapping::groupBy::model::domain::Position' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping' (PropertyMapping 'Join' for property 'product' is not supported under ~groupBy (only Column, Expression, JoinTerminalColumn, and aggregate Expression PMs are allowed). Mapping=meta::relational::tests::mapping::groupBy::model::mapping::testMapping)
 - 7x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 7x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - 7x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
@@ -3919,6 +3918,7 @@ in-process Alloy-shaped path).
 - 6x unknown type 'TabularDataSet' in @TabularDataSet
 - 6x graphFetch tree: class meta::relational::tests::model::simple::Order has no property 'product'
 - 6x scalar lowering not yet implemented for TypedCLatestDate
+- 6x unknown function 'columnValues'
 
 ### per-test outcomes (non-passing)
 
@@ -4062,9 +4062,8 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -4286,7 +4285,7 @@ in-process Alloy-shaped path).
 - ERROR testViewAllOneSimpleProperty [functions/tests/projection]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
 - ERROR testJoinToView [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::rel
 - ERROR testJoinThroughView [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
-- ERROR testViewWithGroupBy [functions/tests/projection]: class 'meta::relational::tests::model::simple::AccountPnl' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (PropertyMapping 'Join' for property 'account' is not supported under ~groupBy (only Column, Expression, JoinTerminalColumn, and aggregate Expression PMs are allowed
+- ERROR testViewWithGroupBy [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::AccountPnl': relation has no column 'account'
 - ERROR testAssnToViewWithGroupBy [functions/tests/projection]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::rel
 - ERROR testUnionOnViewsMapping [functions/tests/projection]: class 'meta::relational::tests::model::simple::OrderPnl' is not mapped in mapping 'meta::relational::tests::projection::view::unionOnViewsMapping' (Operation union over a VIEW-backed member set is not supported yet; mapping=meta::relational::tests::projection::view::unionOnViewsMapping)
 - ERROR testViewOnView [functions/tests/projection]: class 'meta::relational::tests::model::simple::OrderPnl' is not mapped in mapping 'meta::relational::tests::projection::view::unionOnViewOnViewMapping' (Operation union over a VIEW-backed member set is not supported yet; mapping=meta::relational::tests::projection::view::unionOnViewOnViewMapping)
@@ -4360,7 +4359,7 @@ in-process Alloy-shaped path).
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John}, {firstName=John}, {firstName=Anthony}]}, {legalName=Firm 
 - ERROR testGraphFetchWithViewRootFlat [graphFetch/tests]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
 - ERROR testGraphFetchWithViewRootNested [graphFetch/tests]: class 'meta::relational::tests::model::simple::Order' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (view 'orderPnlView' used as a join target has a join-navigating column 'accountId'; navigating view columns are a roadmap feature. mapping=meta::relational::tests::simpl
-- ERROR testGraphFetchWithViewRootNestedDeep [graphFetch/tests]: class 'meta::relational::tests::model::simple::AccountPnl' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (PropertyMapping 'Join' for property 'account' is not supported under ~groupBy (only Column, Expression, JoinTerminalColumn, and aggregate Expression PMs are allowed
+- ERROR testGraphFetchWithViewRootNestedDeep [graphFetch/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::AccountPnl': relation has no column 'account'
 - ERROR testGraphFetchWithViewAtChild [graphFetch/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::rel
 - ERROR testGraphFetchWithGroupByViewAtChild [graphFetch/tests]: class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::rel
 - ERROR testSimpleGraphFetchWithQualifier [graphFetch/tests]: property 'name' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -4590,7 +4589,7 @@ in-process Alloy-shaped path).
 - SHAPE testPushFiltersDownIntoSubQueryWithGroupByGroupingAndAggregateColumnsFilter [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownToJoinsPostProcessorToSQL [postprocessor/tests]: no execute(|...) call
 - ERROR testSqlRealiasJoin [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testSqlRealiasViews [postprocessor/tests]: class 'meta::relational::tests::model::simple::AccountPnl' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (PropertyMapping 'Join' for property 'account' is not supported under ~groupBy (only Column, Expression, JoinTerminalColumn, and aggregate Expression PMs are allowed
+- ERROR testSqlRealiasViews [postprocessor/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::AccountPnl': relation has no column 'account'
 - ERROR testSqlRealiasFreeMarker [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - SHAPE testSQLRealiasCaseSensitiveTableNames [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDb2ColumnRename [postprocessor/tests]: no execute(|...) call
@@ -5082,7 +5081,7 @@ in-process Alloy-shaped path).
 - ERROR testPropertyMappingsForA [tests/mapping/extends]: association property '$a.e' used other than as a navigation head (class-typed value / isEmpty / whole-instance) is not supported yet
 - ERROR testPropertyMappingsForB [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
 - ERROR testPropertyMappingsForC [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR testStoreSubstitutionForB [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::BMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::B': [meta::relational::tests::mapp
 - ERROR testStoreSubstitutionForC [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::CMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::C': [meta::relational::tests::mapp
@@ -5098,16 +5097,12 @@ in-process Alloy-shaped path).
 - ERROR testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: multi-hop navigation parent.parent.name through an embedded/slot head is not supported yet
 - ERROR testFilterMappingWithProjectionAndJoin [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithProjectionAndJoinAndQuery [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
-- ERROR testGroupByMapping [tests/mapping/groupBy]: class 'meta::relational::tests::mapping::groupBy::model::domain::Position' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping' (PropertyMapping 'Join' for property 'product' is not supported under ~groupBy (only Column, Expression, JoinTerminalColumn, an
-- ERROR testGroupByMappingWithFilter [tests/mapping/groupBy]: class 'meta::relational::tests::mapping::groupBy::model::domain::Position' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping' (PropertyMapping 'Join' for property 'product' is not supported under ~groupBy (only Column, Expression, JoinTerminalColumn, an
-- ERROR testGroupByMappingWithFilterOnAggregate [tests/mapping/groupBy]: class 'meta::relational::tests::mapping::groupBy::model::domain::Position' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping' (PropertyMapping 'Join' for property 'product' is not supported under ~groupBy (only Column, Expression, JoinTerminalColumn, an
-- ERROR testGroupByMappingWithFilterOnAggregateWithJoin [tests/mapping/groupBy]: class 'meta::relational::tests::mapping::groupBy::model::domain::Position' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping' (PropertyMapping 'Join' for property 'product' is not supported under ~groupBy (only Column, Expression, JoinTerminalColumn, an
-- ERROR testGroupByMappingWithFilterOnAggregateWithProject [tests/mapping/groupBy]: class 'meta::relational::tests::mapping::groupBy::model::domain::Position' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping' (PropertyMapping 'Join' for property 'product' is not supported under ~groupBy (only Column, Expression, JoinTerminalColumn, an
-- ERROR testGroupByMappingProject [tests/mapping/groupBy]: class 'meta::relational::tests::mapping::groupBy::model::domain::Position' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping' (PropertyMapping 'Join' for property 'product' is not supported under ~groupBy (only Column, Expression, JoinTerminalColumn, an
-- ERROR testGroupByMappingProjectWithJoin [tests/mapping/groupBy]: class 'meta::relational::tests::mapping::groupBy::model::domain::Position' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping' (PropertyMapping 'Join' for property 'product' is not supported under ~groupBy (only Column, Expression, JoinTerminalColumn, an
-- ERROR testGroupByMappingProjectWithJoinAndTableFilter [tests/mapping/groupBy]: class 'meta::relational::tests::mapping::groupBy::model::domain::Position' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMappingWithFilter' (PropertyMapping 'Join' for property 'product' is not supported under ~groupBy (only Column, Expression, JoinTerminal
-- ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: class 'meta::relational::tests::mapping::groupBy::model::domain::Position' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping' (PropertyMapping 'Join' for property 'product' is not supported under ~groupBy (only Column, Expression, JoinTerminalColumn, an
-- ERROR testGroupByMappingProjectWithMultipleGroupBys [tests/mapping/groupBy]: class 'meta::relational::tests::mapping::groupBy::model::domain::Position' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMappingWithTwoGroupBysAndFilters' (PropertyMapping 'Join' for property 'product' is not supported under ~groupBy (only Column, Expressio
+- ERROR testGroupByMappingWithFilterOnAggregateWithJoin [tests/mapping/groupBy]: association 'meta::relational::tests::mapping::groupBy::model::domain::PositionProduct' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping'
+- ERROR testGroupByMappingWithFilterOnAggregateWithProject [tests/mapping/groupBy]: lowering not yet implemented for TypedNativeCall
+- ERROR testGroupByMappingProjectWithJoin [tests/mapping/groupBy]: association 'meta::relational::tests::mapping::groupBy::model::domain::PositionProduct' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping'
+- ERROR testGroupByMappingProjectWithJoinAndTableFilter [tests/mapping/groupBy]: association 'meta::relational::tests::mapping::groupBy::model::domain::PositionProduct' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMappingWithFilter'
+- ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: Binder Error: Values list "t2" does not have a column named "PRODUCT_ID" |  | LINE 7: ) AS t2 ON t2.PRODUCT_ID = t0.ID |                    ^
+- ERROR testGroupByMappingProjectWithMultipleGroupBys [tests/mapping/groupBy]: association 'meta::relational::tests::mapping::groupBy::model::domain::PositionProduct' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMappingWithTwoGroupBysAndFilters'
 - SHAPE testJoinWithInClause0 [tests/mapping/inClause]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testJoinWithPrefixInClauseContainingNumberLiterals [tests/mapping/inClause]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testJoinWithPrefixInClauseContainingStringLiterals [tests/mapping/inClause]: sql-only: 1 advisory golden-SQL assert(s), no row verification

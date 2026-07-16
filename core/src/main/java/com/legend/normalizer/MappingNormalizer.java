@@ -780,6 +780,23 @@ public final class MappingNormalizer {
         // cannot distinguish same-named duplicates (audit 11: textual PM
         // order silently decided the outcome), so no map-driven pre-rewrite
         // happens here.
+        // GROUPED sets carry only key + aggregate properties in the grouped
+        // ROW — a class-typed Join PM is navigation, never projection
+        // (stage 1, audit-17 bucket analysis): withhold it BEFORE synthesis
+        // so neither the ctor nor the slot injection references it; a
+        // query touching the property raises the ordinary not-mapped error.
+        if (cm instanceof ClassMapping.Relational g && !g.groupBy().isEmpty()
+                && g.propertyMappings().stream()
+                        .anyMatch(x -> x instanceof PropertyMapping.Join)) {
+            cm = new ClassMapping.Relational(
+                    g.className(), g.setId(), g.extendsSetId(), g.root(),
+                    g.mainTable(), g.filter(), g.distinct(), g.groupBy(),
+                    g.primaryKey(),
+                    g.propertyMappings().stream()
+                            .filter(x -> !(x instanceof PropertyMapping.Join))
+                            .toList(),
+                    g.sourceUrl(), g.propertyTargetSets());
+        }
         ValueSpecification body = switch (cm) {
             case ClassMapping.Pure pcm       -> synthM2M(md, pcm, model, new HashSet<>());
             case ClassMapping.Relational rcm -> synthRelational(md, rcm, model);
@@ -2634,6 +2651,15 @@ public final class MappingNormalizer {
         List<PropertyMapping> aggPms = new ArrayList<>();
         for (PropertyMapping pm : rcm.propertyMappings()) {
             if (isAggregatePm(pm)) { aggPms.add(pm); continue; }
+            // A JOIN PM (class-typed navigation) is not part of the grouped
+            // ROW — the engine navigates grouped sets through the join
+            // machinery, never the grouped projection. Stage 1 (audit-17
+            // bucket analysis): WITHHOLD the property instead of sinking
+            // the whole class mapping — queries that never touch it run;
+            // touching it raises the ordinary not-mapped error, loud.
+            if (pm instanceof PropertyMapping.Join) {
+                continue;
+            }
             RelationalOperation pmOp = pmAsRelationalOp(pm);
             if (pmOp == null) {
                 throw new NotImplementedException(
