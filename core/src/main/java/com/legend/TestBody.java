@@ -321,6 +321,33 @@ public final class TestBody {
                 }
                 continue;
             }
+            // The per-driver golden idiom:
+            //   $expected->map(p| let driver = $p.first; let expectedSql =
+            //   $p.second; ...; assertEquals(...);)->distinct() == [true]
+            // — HOST-side orchestration (the multi-statement lambda is
+            // harness vocabulary, not a query). Every declared driver must
+            // be H2: verifying an H2 subset of a multi-driver list would be
+            // silent partial verification.
+            if (stmt instanceof AppliedFunction eqf
+                    && simpleName(eqf.function()).equals("equal")
+                    && eqf.parameters().size() == 2) {
+                List<AppliedFunction> pairs = new ArrayList<>();
+                LambdaFunction perDriver = driverPairLoop(
+                        eqf.parameters().get(0), lets, pairs);
+                if (perDriver != null) {
+                    int[] counters = {verified, advisory};
+                    Outcome o = runPerDriverLoop(pairs, perDriver, lets,
+                            handles, ctx, imports, runtimeFqn, conn,
+                            emptinessUnverifiable || seedFailures != null
+                                    && !seedFailures.isEmpty(), counters);
+                    verified = counters[0];
+                    advisory = counters[1];
+                    if (o != null) {
+                        return o;
+                    }
+                    continue;
+                }
+            }
             if (stmt instanceof AppliedFunction af
                     && harnessVocabName(af.function())
                     && simpleName(af.function()).startsWith("assert")) {
@@ -725,6 +752,139 @@ public final class TestBody {
         return !fn.contains("::") || fn.startsWith("meta::");
     }
 
+
+    /** The per-driver golden loop body — null when every pair verified
+     * clean; counters = {verified, advisory} accumulate in place. */
+    private static Outcome runPerDriverLoop(List<AppliedFunction> pairs,
+            LambdaFunction perDriver, Map<String, ValueSpecification> lets,
+            Map<String, ExecHandle> handles, ModelContext ctx,
+            ImportScope imports, String runtimeFqn, Connection conn,
+            boolean unverifiable, int[] counters)
+            throws java.sql.SQLException {
+            for (AppliedFunction pair : pairs) {
+                String db = enumTail(pair.parameters().get(0));
+                if (!"H2".equals(db)) {
+                    return new Outcome.Unsupported(
+                            "per-driver golden loop declares"
+                            + " DatabaseType." + db
+                            + " — only the H2 renderer is built");
+                }
+            }
+            for (AppliedFunction pair : pairs) {
+                Map<String, ValueSpecification> loopLets =
+                        new LinkedHashMap<>(lets);
+                for (ValueSpecification ls : perDriver.body()) {
+                    ValueSpecification s2 = substPairReads(ls,
+                            perDriver.parameters().get(0).name(),
+                            pair.parameters().get(0),
+                            pair.parameters().get(1));
+                    if (s2 instanceof AppliedFunction lf
+                            && lf.function().equals("letFunction")
+                            && lf.parameters().size() == 2
+                            && lf.parameters().get(0)
+                                    instanceof CString ln) {
+                        loopLets.put(ln.value(), lf.parameters().get(1));
+                        continue;
+                    }
+                    if (s2 instanceof AppliedFunction af2
+                            && harnessVocabName(af2.function())
+                            && simpleName(af2.function())
+                                    .startsWith("assert")) {
+                        String failure = checkAssert(af2, loopLets,
+                                handles, ctx, imports, runtimeFqn, conn,
+                                unverifiable);
+                        if (failure == UNSUPPORTED_MARKER) {
+                            return new Outcome.Unsupported(
+                                    "assert form '" + af2.function()
+                                    + "' in a per-driver golden loop");
+                        }
+                        if (failure == ADVISORY_MARKER) {
+                            counters[1]++;
+                            continue;
+                        }
+                        counters[0]++;
+                        if (failure != null) {
+                            return new Outcome.Ran(counters[0], counters[1],
+                                    List.of(failure));
+                        }
+                        continue;
+                    }
+                    return new Outcome.Unsupported("unrecognized"
+                            + " statement in a per-driver golden loop");
+                }
+            }
+        return null;
+    }
+
+    /**
+     * {@code distinct(map(src, p|...))} where {@code src} (a let or an
+     * inline collection) is a list of {@code pair(DatabaseType.X, sql)} —
+     * the per-driver golden idiom's pieces; null when the shape differs.
+     */
+    private static LambdaFunction driverPairLoop(ValueSpecification v,
+            Map<String, ValueSpecification> lets,
+            List<AppliedFunction> pairsOut) {
+        if (!(v instanceof AppliedFunction d
+                && simpleName(d.function()).equals("distinct")
+                && d.parameters().size() == 1
+                && d.parameters().get(0) instanceof AppliedFunction m
+                && simpleName(m.function()).equals("map")
+                && m.parameters().size() == 2
+                && m.parameters().get(1) instanceof LambdaFunction lam
+                && lam.parameters().size() == 1)) {
+            return null;
+        }
+        ValueSpecification src = m.parameters().get(0);
+        if (src instanceof Variable var) {
+            src = lets.get(var.name());
+        }
+        List<ValueSpecification> elems = src instanceof PureCollection pc
+                ? pc.values() : src == null ? List.of() : List.of(src);
+        if (elems.isEmpty()) {
+            return null;
+        }
+        for (ValueSpecification e : elems) {
+            if (e instanceof AppliedFunction p
+                    && simpleName(p.function()).equals("pair")
+                    && p.parameters().size() == 2) {
+                pairsOut.add(p);
+            } else {
+                return null;
+            }
+        }
+        return lam;
+    }
+
+    /** Rewrite {@code $p.first}/{@code $p.second} reads to the pair's
+     * concrete values (shadowing lambdas stop the walk). */
+    private static ValueSpecification substPairReads(ValueSpecification v,
+            String pVar, ValueSpecification first, ValueSpecification second) {
+        return switch (v) {
+            case AppliedProperty ap when ap.receiver() instanceof Variable pv
+                    && pv.name().equals(pVar)
+                    && ap.property().equals("first") -> first;
+            case AppliedProperty ap when ap.receiver() instanceof Variable pv
+                    && pv.name().equals(pVar)
+                    && ap.property().equals("second") -> second;
+            case AppliedProperty ap -> new AppliedProperty(
+                    substPairReads(ap.receiver(), pVar, first, second),
+                    ap.property());
+            case AppliedFunction af -> new AppliedFunction(af.function(),
+                    af.parameters().stream()
+                            .map(x -> substPairReads(x, pVar, first, second))
+                            .toList());
+            case LambdaFunction lf when lf.parameters().stream()
+                    .noneMatch(pv2 -> pv2.name().equals(pVar)) ->
+                    new LambdaFunction(lf.parameters(), lf.body().stream()
+                            .map(x -> substPairReads(x, pVar, first, second))
+                            .toList());
+            case PureCollection pc -> new PureCollection(pc.values().stream()
+                    .map(x -> substPairReads(x, pVar, first, second))
+                    .toList());
+            default -> v;
+        };
+    }
+
     /** The trailing member name of an enum-shaped read ({@code DatabaseType.H2}
      * as an EnumValue or a property read); null when neither shape. */
     private static String enumTail(ValueSpecification v) {
@@ -933,7 +1093,11 @@ public final class TestBody {
                 && simpleName(ts.function()).equals("toSQLString")
                 && harnessVocabName(ts.function())
                 && ts.parameters().size() >= 3) {
-            String dbType = enumTail(ts.parameters().get(2));
+            ValueSpecification dbArg = ts.parameters().get(2);
+            if (dbArg instanceof Variable dv && lets.containsKey(dv.name())) {
+                dbArg = lets.get(dv.name());
+            }
+            String dbType = enumTail(dbArg);
             if (!"H2".equals(dbType)) {
                 throw new com.legend.error.NotImplementedException("toSQLString for DatabaseType."
                         + dbType + " — only the H2 engine-style renderer is built");
