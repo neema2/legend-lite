@@ -1096,8 +1096,24 @@ final class Substitution {
         TypedLambda cond = ex.orientedCond();
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
-        List<TypedSpec> corrBody = cond.body().stream().map(b ->
-                Pipelines.rewriteRowReads(b, pVar, Map.of(), Set.of(),
+        // Same 't'-shadowing class as rewriteExists (audit 18): in a
+        // nested scope target.freshRowVar() IS the enclosing exists'
+        // renamed var — an unfreshened corr binder named 't' captures the
+        // parent-correlation reads created below. Freshen collision-driven,
+        // rename the TARGET-side reads FIRST.
+        String freshT = tVar;
+        while (freshT.equals(target.freshRowVar())
+                || freshT.equals(target.userVar())) {
+            freshT = freshT + "_n";
+        }
+        final String tRenamed = freshT;
+        List<TypedSpec> corrBody = cond.body().stream()
+                .map(b -> tRenamed.equals(tVar) ? b
+                        : Pipelines.rewriteRowReads(b, tVar, Map.of(), Set.of(),
+                                v -> new TypedVariable(tRenamed,
+                                        new ExprType(ex.targetRow(),
+                                                Multiplicity.Bounded.ONE))))
+                .map(b -> Pipelines.rewriteRowReads(b, pVar, Map.of(), Set.of(),
                         v -> new TypedVariable(target.freshRowVar(),
                                 new ExprType(target.rowType(), Multiplicity.Bounded.ONE))))
                 .toList();
@@ -1105,7 +1121,7 @@ final class Substitution {
                 List.of(new Type.Param(ex.targetRow(), Multiplicity.Bounded.ONE)),
                 new Type.Param(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)),
                 Multiplicity.Bounded.ONE);
-        TypedLambda corr = new TypedLambda(List.of(tVar), corrBody, predType);
+        TypedLambda corr = new TypedLambda(List.of(tRenamed), corrBody, predType);
         TypedSpec leafBinding = ex.targetBindings().get(leaf);
         if (leafBinding == null) {
             throw new MappingResolutionException("property '" + leaf
@@ -1314,16 +1330,32 @@ final class Substitution {
         if (ex == null) {
             return null;
         }
-        // 1. correlated association condition over the target pipeline
+        // 1. correlated association condition over the target pipeline.
+        // Freshen the corr binder against the enclosing scope (audit 18):
+        // in a nested scope target.freshRowVar() IS the enclosing renamed
+        // var — an unfreshened 't' binder here (and in the RowScope below)
+        // would capture the parent-correlation reads. Rename TARGET-side
+        // reads FIRST, then the parent rewrite (same order as rewriteExists).
         TypedLambda cond = ex.orientedCond();
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
-        List<TypedSpec> corrBody = cond.body().stream().map(b ->
-                Pipelines.rewriteRowReads(b, pVar, Map.of(), Set.of(),
+        String freshT = tVar;
+        while (freshT.equals(target.freshRowVar())
+                || freshT.equals(target.userVar())) {
+            freshT = freshT + "_n";
+        }
+        final String tRenamed = freshT;
+        List<TypedSpec> corrBody = cond.body().stream()
+                .map(b -> tRenamed.equals(tVar) ? b
+                        : Pipelines.rewriteRowReads(b, tVar, Map.of(), Set.of(),
+                                v -> new TypedVariable(tRenamed,
+                                        new ExprType(ex.scalarRow(),
+                                                Multiplicity.Bounded.ONE))))
+                .map(b -> Pipelines.rewriteRowReads(b, pVar, Map.of(), Set.of(),
                         v -> new TypedVariable(target.freshRowVar(),
                                 new ExprType(target.rowType(), Multiplicity.Bounded.ONE))))
                 .toList();
-        TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
+        TypedLambda corr = new TypedLambda(List.of(tRenamed), corrBody,
                 new ExprType(new Type.FunctionType(
                         List.of(new Type.Param(ex.scalarRow(), Multiplicity.Bounded.ONE)),
                         new Type.Param(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)),
@@ -1337,7 +1369,7 @@ final class Substitution {
         //    (outer reads correlate through a second pass — same as exists)
         TypedLambda predLam = f.predicate();
         Substitution predSub = new Substitution(new Target(
-                new RowScope(predLam.parameters().get(0), tVar,
+                new RowScope(predLam.parameters().get(0), tRenamed,
                         ex.targetClassFqn(), target.mappingFqn(),
                         ex.targetRowVar(), ex.targetBindings(), ex.targetRow(),
                         ex.targetSlotAliases(), Map.of(), Map.of()),

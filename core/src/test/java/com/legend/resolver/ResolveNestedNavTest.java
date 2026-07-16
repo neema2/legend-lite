@@ -63,8 +63,9 @@ class ResolveNestedNavTest {
               *n::A : Relational { ~mainTable [n::DB] TA
                 aname: TA.aname, b: [n::DB]@AB, bt: [n::DB]@ABT }
               *n::B : Relational { ~mainTable [n::DB] TB
-                bname: TB.bname, c: [n::DB]@BC }
-              *n::C : Relational { ~mainTable [n::DB] TC cname: TC.C_NAME }
+                bname: TB.bname, c: [n::DB]@BC, backA: [n::DB]@AB }
+              *n::C : Relational { ~mainTable [n::DB] TC
+                cname: TC.C_NAME, backB: [n::DB]@BC }
               *n::BT : Relational { ~mainTable [n::DB] TBT
                 btname: TBT.btname, tc: [n::DB]@BTTC }
             )
@@ -141,6 +142,31 @@ class ResolveNestedNavTest {
         assertThrows(RuntimeException.class, () -> sqlOf("|n::A.all()"
                 + "->project([x|$x.bt.tc.tname], ['v'])->from(n::M, n::RT)"),
                 "an unfiltered join to TTC would leak every version");
+    }
+
+    @Test
+    @DisplayName("nested membership crossing correlates to the PARENT row, not itself")
+    void nestedMembershipExistsCorrelatesToParent() throws SQLException {
+        // Audit 18: rewriteMembershipExists bound its corr lambda to the
+        // RAW join-condition param 't' — in a nested scope that shadows the
+        // enclosing exists' correlation var, turning t_par.BID = t.ID into
+        // the self-comparison t.BID = t.ID. The decoy row is self-matching
+        // (BID == ID) and carries the needle; the row actually linked to
+        // B10 does not. A self-comparison admits the decoy -> C returned.
+        try (Statement st = conn.createStatement()) {
+            st.execute("INSERT INTO TA VALUES (5, 'ZZZ', 5)");
+        }
+        try {
+            String sql = sqlOf("|n::C.all()"
+                    + "->filter(c|$c.backB->exists(b|$b.backA.aname->contains('ZZZ')))"
+                    + "->project([c|$c.cname], ['v'])->from(n::M, n::RT)");
+            assertEquals(List.of(), exec(sql),
+                    "self-correlated membership EXISTS admitted the decoy:\n" + sql);
+        } finally {
+            try (Statement st = conn.createStatement()) {
+                st.execute("DELETE FROM TA WHERE ID = 5");
+            }
+        }
     }
 
     @Test
