@@ -163,7 +163,63 @@ public final class EngineStyleH2 extends AnsiSqlRenderer {
             return c.table() == null ? c.name()
                     : '"' + rename(c.table()) + "\"." + c.name();
         }
+        String dd = engineDateDiff(e);
+        if (dd != null) {
+            return dd;
+        }
         return super.expr(e, parentPrec);
+    }
+
+    /**
+     * dateDiff's composite IR shapes fold BACK to the engine's plain
+     * {@code datediff(unit, a, b)} emission. The IR encodes REAL pure's
+     * per-unit semantics (truncated elapsed time; Sunday-boundary weeks —
+     * PCT-pinned, Scalars.dateDiffExpr); the engine's H2 SQL emits plain
+     * DATEDIFF regardless, and the toSQLString goldens pin that TEXT.
+     * The shapes (epoch_ms pairs under integer division; the week CASE)
+     * are only produced by the dateDiff lowering.
+     */
+    private String engineDateDiff(SqlExpr e) {
+        // truncated elapsed: (epoch_ms(end) - epoch_ms(start)) // unitMs
+        if (e instanceof SqlExpr.Call div
+                && div.fn() == com.legend.sql.SqlFn.INT_DIVIDE
+                && div.args().size() == 2
+                && div.args().get(1) instanceof SqlExpr.IntLit u
+                && div.args().get(0) instanceof SqlExpr.Call minus
+                && minus.fn() == com.legend.sql.SqlFn.MINUS
+                && minus.args().size() == 2
+                && minus.args().get(0) instanceof SqlExpr.Call end
+                && end.fn() == com.legend.sql.SqlFn.EPOCH_MS
+                && minus.args().get(1) instanceof SqlExpr.Call start
+                && start.fn() == com.legend.sql.SqlFn.EPOCH_MS) {
+            String unit = switch ((int) u.value()) {
+                case 3_600_000 -> "hour";
+                case 60_000 -> "minute";
+                case 1_000 -> "second";
+                default -> null;
+            };
+            if (unit != null) {
+                return "datediff(" + unit + ", " + expr(start.args().get(0), 0)
+                        + ", " + expr(end.args().get(0), 0) + ")";
+            }
+        }
+        // Sunday-boundary weeks: CASE WHEN date_diff('day', end, start) <= 0
+        // THEN forward ELSE backward — start/end recovered from the guard
+        if (e instanceof SqlExpr.Case cs && cs.whens().size() == 1
+                && cs.otherwise() != null
+                && cs.whens().get(0).condition() instanceof SqlExpr.Call le
+                && le.fn() == com.legend.sql.SqlFn.LESS_EQUAL
+                && le.args().size() == 2
+                && le.args().get(0) instanceof SqlExpr.Call dayDiff
+                && dayDiff.fn() == com.legend.sql.SqlFn.DATE_DIFF
+                && dayDiff.args().get(0) instanceof SqlExpr.StringLit day
+                && day.value().equals("day")
+                && le.args().get(1) instanceof SqlExpr.IntLit zero
+                && zero.value() == 0) {
+            return "datediff(week, " + expr(dayDiff.args().get(2), 0)
+                    + ", " + expr(dayDiff.args().get(1), 0) + ")";
+        }
+        return null;
     }
 
     // == engine-H2 spellings (each MATCHED against a corpus golden) =====
@@ -172,7 +228,10 @@ public final class EngineStyleH2 extends AnsiSqlRenderer {
     protected String call(SqlExpr.Call c, int parentPrec) {
         java.util.List<SqlExpr> a = c.args();
         return switch (c.fn()) {
-            case CONCAT -> "concat(" + a.stream().map(x -> expr(x, 0))
+            // n-ary concat: nested CONCAT calls SPLICE (the engine emits
+            // one flat concat(a, '_', b), never concat(concat(a,'_'),b))
+            case CONCAT -> "concat(" + flattenConcat(a).stream()
+                    .map(x -> expr(x, 0))
                     .collect(Collectors.joining(", ")) + ")";
             // datediff(<bare unit>, a, b); composite elapsed-time forms
             // built at lowering (weeks/hours/...) have no re-spelling here
@@ -190,14 +249,45 @@ public final class EngineStyleH2 extends AnsiSqlRenderer {
             case TRIM -> a.size() == 1
                     ? "trim(both from " + expr(a.get(0), 0) + ")"
                     : super.call(c, parentPrec);
+            case DATE_TRUNC_DAY -> "cast(truncate(" + expr(a.get(0), 0)
+                    + ") as date)";
+            // parseDate: the engine truncates to the 10 date characters and
+            // parses with the Java pattern (parsedatetime golden)
+            case STRPTIME -> a.size() == 2
+                    && a.get(1) instanceof SqlExpr.StringLit f
+                    && f.value().equals("%Y-%m-%d")
+                    ? "parsedatetime(substring(" + expr(a.get(0), 0)
+                            + ", 1, 10), 'yyyy-MM-dd')"
+                    : super.call(c, parentPrec);
             default -> super.call(c, parentPrec);
         };
     }
 
+    private static java.util.List<SqlExpr> flattenConcat(java.util.List<SqlExpr> a) {
+        java.util.List<SqlExpr> out = new java.util.ArrayList<>();
+        for (SqlExpr e : a) {
+            if (e instanceof SqlExpr.Call c && c.fn() == com.legend.sql.SqlFn.CONCAT) {
+                out.addAll(flattenConcat(c.args()));
+            } else {
+                out.add(e);
+            }
+        }
+        return out;
+    }
+
     @Override
     protected String variantAwareCast(SqlExpr.Cast c) {
-        return "cast(" + expr(c.value(), 0) + " as "
-                + castTypeName(c.target()).toLowerCase(Locale.ROOT) + ")";
+        String t = castTypeName(c.target()).toLowerCase(Locale.ROOT);
+        // engine H2 type spellings (each matched against a golden):
+        // bare decimal, float not double, integer for pure Integer parses
+        if (t.startsWith("decimal(")) {
+            t = "decimal";
+        } else if (t.equals("double precision") || t.equals("double")) {
+            t = "float";
+        } else if (t.equals("bigint")) {
+            t = "integer";
+        }
+        return "cast(" + expr(c.value(), 0) + " as " + t + ")";
     }
 
     @Override
