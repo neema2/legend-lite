@@ -2335,6 +2335,16 @@ public final class MappingNormalizer {
             case "String" -> true;
             case "Boolean" -> true;
             case "DateTime" -> "StrictDate".equals(colKind);
+            // the engine's own dataType corpus binds Float over DECIMAL
+            // (decimalAsFloat) and delivers doubles; Integer->Float is a
+            // plain widening. Integer-over-DECIMAL stays excluded (that
+            // one truncates — audit 8 S4).
+            case "Float" -> "Decimal".equals(colKind)
+                    || "Integer".equals(colKind);
+            // the mirror binding (floatAsDecimal): every double is
+            // representable as a decimal — a widening, engine-delivered
+            case "Decimal" -> "Float".equals(colKind)
+                    || "Integer".equals(colKind);
             default -> false;
         };
         if (!emit) {

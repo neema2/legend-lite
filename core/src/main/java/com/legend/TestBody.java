@@ -679,6 +679,26 @@ public final class TestBody {
                 return compare(e, a, /* ordered */ false) ? null
                         : "assertSameElements: expected " + e.render() + ", got " + a.render();
             }
+            case "assertEqWithinTolerance" -> {
+                if (args.size() != 3) {
+                    return UNSUPPORTED_MARKER;
+                }
+                Object e = evalScalar(args.get(0), lets, handles, ctx, imports,
+                        runtimeFqn, conn);
+                Object a = evalScalar(args.get(1), lets, handles, ctx, imports,
+                        runtimeFqn, conn);
+                Object tol = evalScalar(args.get(2), lets, handles, ctx,
+                        imports, runtimeFqn, conn);
+                if (!(e instanceof Number en && a instanceof Number an
+                        && tol instanceof Number tn)) {
+                    return "assertEqWithinTolerance: non-numeric operand ("
+                            + e + ", " + a + ", " + tol + ")";
+                }
+                return Math.abs(en.doubleValue() - an.doubleValue())
+                        <= tn.doubleValue() ? null
+                        : "assertEqWithinTolerance: expected " + e + " ± "
+                                + tol + ", got " + a;
+            }
             case "assertSize" -> {
                 if (args.size() != 2) {
                     return UNSUPPORTED_MARKER;
@@ -1646,8 +1666,12 @@ public final class TestBody {
         if (e == null || a == null) {
             return e == a;
         }
-        boolean eInt = e instanceof Long || e instanceof Integer || e instanceof java.math.BigInteger;
-        boolean aInt = a instanceof Long || a instanceof Integer || a instanceof java.math.BigInteger;
+        boolean eInt = e instanceof Long || e instanceof Integer
+                || e instanceof Short || e instanceof Byte
+                || e instanceof java.math.BigInteger;
+        boolean aInt = a instanceof Long || a instanceof Integer
+                || a instanceof Short || a instanceof Byte
+                || a instanceof java.math.BigInteger;
         if (eInt || aInt) {
             if (!(eInt && aInt)) {
                 return false;
