@@ -707,7 +707,7 @@ public final class TestBody {
                         && al.size() == 1) {
                     actual = al.get(0);
                 }
-                return java.util.Objects.equals(expected, actual) ? null
+                return jsonDeepEquals(expected, actual) ? null
                         : "assertJsonStringsEqual: expected "
                                 + abbreviate(String.valueOf(expected))
                                 + ", got " + abbreviate(String.valueOf(actual));
@@ -723,6 +723,42 @@ public final class TestBody {
      * must route to the platform, never be hijacked (audit 17). */
     private static boolean harnessVocabName(String fn) {
         return !fn.contains("::") || fn.startsWith("meta::");
+    }
+
+    /** Deep JSON equality with NUMERIC BigDecimal compare (scale drops:
+     * the engine prints 5.0 where our envelope prints 5.000000000 for the
+     * same DECIMAL(38,9) value). Long-vs-BigDecimal stays UNEQUAL on
+     * purpose — an integer-typed expectation against a decimal wire value
+     * is a typing bug this compare must catch, same stance as wireEquals'
+     * int/fp split. */
+    private static boolean jsonDeepEquals(Object e, Object a) {
+        if (e instanceof java.math.BigDecimal be
+                && a instanceof java.math.BigDecimal ba) {
+            return be.compareTo(ba) == 0;
+        }
+        if (e instanceof Map<?, ?> em && a instanceof Map<?, ?> am) {
+            if (!em.keySet().equals(am.keySet())) {
+                return false;
+            }
+            for (Object k : em.keySet()) {
+                if (!jsonDeepEquals(em.get(k), am.get(k))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        if (e instanceof List<?> el && a instanceof List<?> al) {
+            if (el.size() != al.size()) {
+                return false;
+            }
+            for (int i = 0; i < el.size(); i++) {
+                if (!jsonDeepEquals(el.get(i), al.get(i))) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return java.util.Objects.equals(e, a);
     }
 
     private static String simpleName(String fn) {
@@ -869,6 +905,7 @@ public final class TestBody {
         if (expr instanceof AppliedFunction dd
                 && (simpleName(dd.function()).equals("removeDuplicates")
                         || simpleName(dd.function()).equals("distinct"))
+                && harnessVocabName(dd.function())
                 && dd.parameters().size() == 1) {
             Eval inner = eval(dd.parameters().get(0), lets, handles, ctx,
                     imports, runtimeFqn, conn);
@@ -1793,8 +1830,13 @@ public final class TestBody {
                 i++;
             }
             String t = s.substring(start, i);
+            // Decimal tokens parse as BigDecimal, NOT double (audit 18):
+            // two distinct Decimals beyond 17 significant digits round to
+            // the SAME double, so a wrong Decimal wire value would compare
+            // equal — the JSON bridge must stay as strict as wireEquals.
             return t.contains(".") || t.contains("e") || t.contains("E")
-                    ? (Object) Double.parseDouble(t) : (Object) Long.parseLong(t);
+                    ? (Object) new java.math.BigDecimal(t)
+                    : (Object) Long.parseLong(t);
         }
 
         private void ws() {
