@@ -96,6 +96,21 @@ final class Pipelines {
     }
 
     /** All slot aliases present in {@code pipeline}, in source order. */
+    /** The JOIN SLOTS of a pipeline by alias (target + condition ride the slot). */
+    static Map<String, com.legend.compiler.spec.typed.TypedJoinSlot> joinSlots(
+            TypedSpec pipeline) {
+        Map<String, com.legend.compiler.spec.typed.TypedJoinSlot> out =
+                new java.util.LinkedHashMap<>();
+        TypedSpec cur = pipeline;
+        while (cur != null) {
+            if (cur instanceof com.legend.compiler.spec.typed.TypedJoinSlot js) {
+                out.putIfAbsent(js.alias(), js);
+            }
+            cur = cur.children().isEmpty() ? null : cur.children().get(0);
+        }
+        return out;
+    }
+
     static Set<String> slotAliases(TypedSpec pipeline) {
         Set<String> out = new LinkedHashSet<>();
         collectSlotAliases(pipeline, out);

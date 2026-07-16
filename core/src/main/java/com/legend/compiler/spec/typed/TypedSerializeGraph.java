@@ -35,15 +35,27 @@ import java.util.List;
  * @param leaves    scalar leaf projections, fetch-tree order
  * @param nested    nested class-typed children, fetch-tree order
  * @param arrayWrap whether the objects aggregate into one JSON array
+ * @param bareValue TO-MANY PRIMITIVE leaf mode: exactly one leaf, and the
+ *                  aggregation collects the bare VALUES (a JSON array of
+ *                  scalars), never json_object envelopes — the engine's
+ *                  {@code otherNames: ["abc","def"]} shape
  * @param info      the fetched class collection's type (GRAPH shape)
  */
 public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   List<TypedFuncCol> leaves, List<Child> nested,
-                                  boolean arrayWrap, ExprType info) implements TypedSpec {
+                                  boolean arrayWrap, boolean bareValue,
+                                  ExprType info) implements TypedSpec {
 
     public TypedSerializeGraph {
         leaves = List.copyOf(leaves);
         nested = List.copyOf(nested);
+    }
+
+    /** The envelope form: objects keyed by leaves ({@code bareValue} = false). */
+    public TypedSerializeGraph(TypedSpec source, String rowVar,
+            List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
+            ExprType info) {
+        this(source, rowVar, leaves, nested, arrayWrap, false, info);
     }
 
     /** One nested hop: the property name and the child's own envelope. */

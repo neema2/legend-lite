@@ -205,6 +205,36 @@ final class GraphEmission {
                     && c.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
                 inner = c.args().get(0);
             }
+            // A TO-MANY PRIMITIVE leaf ($row.<slot>.COL through a to-many
+            // navigate slot): reading it as a joined scalar EXPLODES the
+            // parent rows — the engine serializes ["abc","def"] per parent.
+            // Emit a bare-value child: the slot target correlated on the
+            // parent row, aggregating the raw column values.
+            if (inner instanceof TypedPropertyAccess colPa
+                    && colPa.source() instanceof TypedPropertyAccess slotPa
+                    && slotPa.source() instanceof TypedVariable slotV
+                    && slotV.name().equals(cs.rowVar())
+                    // multiplicity of the RAW read (a toOne conformance
+                    // wrapper on the binding would mask the [*])
+                    && !(colPa.info().multiplicity()
+                            instanceof com.legend.compiler.element.type
+                                    .Multiplicity.Bounded b1
+                            && Integer.valueOf(1).equals(b1.upper()))) {
+                var navPrim = Pipelines.navSteps(cs.pipeline()).get(slotPa.property());
+                if (navPrim != null) {
+                    children.add(primitiveArrayChild(node.property(),
+                            navPrim.target(), navPrim.predicate(),
+                            colPa, rowVar, rowType));
+                    continue;
+                }
+                var slotPrim = Pipelines.joinSlots(cs.pipeline()).get(slotPa.property());
+                if (slotPrim != null) {
+                    children.add(primitiveArrayChild(node.property(),
+                            slotPrim.target(), slotPrim.condition(),
+                            colPa, rowVar, rowType));
+                    continue;
+                }
+            }
             if (inner instanceof TypedNewInstance) {
                 throw new NotImplementedException("graph leaf '" + node.property()
                         + "' is an EMBEDDED class property — embedded graph"
@@ -238,6 +268,61 @@ final class GraphEmission {
         }
         return new TypedSerializeGraph(pipeline, rowVar, leaves, children,
                 arrayWrap, info);
+    }
+
+    /**
+     * A TO-MANY PRIMITIVE leaf as a BARE-VALUE child: the navigate slot's
+     * target relation, correlated on the parent row exactly like
+     * {@link #correlatedGraphChild}, aggregating the single column's raw
+     * values (TypedSerializeGraph.bareValue).
+     */
+    private TypedSerializeGraph.Child primitiveArrayChild(String property,
+            TypedSpec targetPipeline, TypedLambda cond,
+            TypedPropertyAccess colRead,
+            String parentRowVar, Type.RelationType parentRowType) {
+        Type.RelationType targetRow =
+                (Type.RelationType) targetPipeline.info().type();
+        String pVar = cond.parameters().get(0);
+        String tVar = cond.parameters().get(1);
+        List<TypedSpec> corrBody = cond.body().stream().map(x ->
+                Pipelines.rewriteRowReads(x, pVar, Map.of(), Set.of(),
+                        v -> new TypedVariable(parentRowVar,
+                                new ExprType(parentRowType,
+                                        com.legend.compiler.element.type
+                                                .Multiplicity.Bounded.ONE))))
+                .toList();
+        TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
+                new ExprType(
+                        new Type.FunctionType(
+                                List.of(new Type.Param(targetRow,
+                                        com.legend.compiler.element.type
+                                                .Multiplicity.Bounded.ONE)),
+                                new Type.Param(Type.Primitive.BOOLEAN,
+                                        com.legend.compiler.element.type
+                                                .Multiplicity.Bounded.ONE)),
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        TypedSpec childRel = new TypedFilter(targetPipeline, corr,
+                targetPipeline.info());
+        String childVar = "_r" + freshVar.getAsInt();
+        TypedSpec value = new TypedPropertyAccess(
+                new TypedVariable(childVar,
+                        new ExprType(targetRow,
+                                com.legend.compiler.element.type
+                                        .Multiplicity.Bounded.ONE)),
+                colRead.property(), colRead.info());
+        var fnType = new Type.FunctionType(
+                List.of(new Type.Param(targetRow,
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                new Type.Param(value.info().type(), value.info().multiplicity()));
+        TypedFuncCol leaf = new TypedFuncCol(property,
+                new TypedLambda(List.of(childVar), List.of(value),
+                        new ExprType(fnType,
+                                com.legend.compiler.element.type
+                                        .Multiplicity.Bounded.ONE)));
+        TypedSerializeGraph node = new TypedSerializeGraph(childRel, childVar,
+                List.of(leaf), List.of(), /*arrayWrap*/ true, /*bareValue*/ true,
+                colRead.info());
+        return new TypedSerializeGraph.Child(property, node);
     }
 
     /** One nested hop: correlated child pipeline + the child's own envelope. */

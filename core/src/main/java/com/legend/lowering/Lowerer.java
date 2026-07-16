@@ -619,7 +619,9 @@ public final class Lowerer {
                 enclosing.pop();
             }
         }
-        SqlExpr obj = new SqlExpr.JsonObject(kv);
+        // bareValue: a to-many PRIMITIVE leaf aggregates the raw values —
+        // ["abc","def"] — never json_object envelopes
+        SqlExpr obj = g.bareValue() ? kv.get(1) : new SqlExpr.JsonObject(kv);
         SqlExpr result = g.arrayWrap() ? new SqlExpr.JsonArrayAgg(obj) : obj;
         return base.withProjections(
                 List.of(new SqlSelect.Projection(result, "result")),
