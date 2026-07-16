@@ -562,6 +562,9 @@ public final class Runner {
                 return score(t.fqn(), o);
             }
         } catch (Exception e) {
+            if (System.getenv("LEGEND_LITE_STACKS") != null) {
+                e.printStackTrace();
+            }
             return new Outcome(t.fqn(), Status.ERROR,
                     String.valueOf(e.getMessage()).replace("\n", " | "));
         }

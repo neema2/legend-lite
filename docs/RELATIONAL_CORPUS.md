@@ -27,7 +27,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 103 | 0 | 0 | 10 | 93 |
-| functions/tests | 258 | 114 | 5 | 112 | 27 |
+| functions/tests | 258 | 116 | 5 | 110 | 27 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 73 | 6 | 59 | 17 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -83,11 +83,11 @@ in-process Alloy-shaped path).
 | tests/mapping/union | 124 | 57 | 0 | 60 | 7 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 2 | 2 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
-| tests/query | 83 | 56 | 2 | 24 | 1 |
+| tests/query | 83 | 59 | 2 | 21 | 1 |
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2497 | **957** | 36 | 835 | 669 |
+| **total** | 2497 | **962** | 36 | 830 | 669 |
 
 ### mapping walls (dropped at assembly)
 
@@ -3890,7 +3890,6 @@ in-process Alloy-shaped path).
 ### top error buckets
 
 - 44x a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- 40x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 24x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 18x 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 15x navigation through class-typed slot property 'address' is not supported yet
@@ -3899,11 +3898,10 @@ in-process Alloy-shaped path).
 - 12x expected at most one value, got many ([*])
 - 12x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[function=if, parameters=[AppliedFunction[function=equal, parameters=[AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=active]], candidateFqns=[]], CString[value=Y]], candidateFqns=[]], LambdaFunction[parameters=[], body=[CString[value=true]]], LambdaFunction[pa)
 - 12x graphFetch tree: class meta::relational::tests::model::simple::Product has no property 'bondDetails'
-- 11x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
 - 10x class query under TypedMap is not resolvable yet (H2 vocabulary)
 - 10x lowering not yet implemented for TypedNativeCall
 - 9x graphFetch tree: class meta::relational::tests::model::simple::Product has no property 'id'
-- 8x object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
+- 8x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=…
 - 8x relation has no column 'aID'
 - 7x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 7x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
@@ -3919,6 +3917,8 @@ in-process Alloy-shaped path).
 - 6x scalar lowering not yet implemented for TypedCLatestDate
 - 6x unknown function 'columnValues'
 - 6x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
+- 6x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=em…
+- 5x from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 
 ### per-test outcomes (non-passing)
 
@@ -4062,8 +4062,8 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
-- ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
+- ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Product], multiplicity=Bounded[lower=1, upper=1]]], predicate=TypedLambda[parameters=[p], body=[TypedNa
 - FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
@@ -4079,8 +4079,6 @@ in-process Alloy-shaped path).
 - ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: 'testMappingEmbeddedWithFirmDistinct' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testWithFilterGroupBy [functions/tests]: no scalar lowering registered for resolved overload 'meta::pure::functions::io::println' with 1 parameter(s)
 - ERROR testWithFilterGroupByNestedAssociation [functions/tests]: navigation through class-typed slot property 'address' is not supported yet
-- ERROR testNestedExistsOne [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testNestedNotExists [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testIsNotEmpty [functions/tests]: Binder Error: subqueries in lambda expressions are not supported
 - ERROR testAssociationOneLevelDeep [functions/tests]: Binder Error: subqueries in lambda expressions are not supported
 - ERROR testAssociationTwoLevelDeep [functions/tests]: navigation through class-typed slot property 'address' is not supported yet
@@ -4114,7 +4112,7 @@ in-process Alloy-shaped path).
 - SHAPE testFromWithMapping [functions/tests]: no execute(|...) call
 - SHAPE testFromWithMappingAndIntermediateFuncCall [functions/tests]: no execute(|...) call
 - ERROR testGetterTwice [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testInWithOneValue [functions/tests]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary)
+- ERROR testInWithOneValue [functions/tests]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary): TypedCast[source=TypedCollection[elements=[TypedCString[value=John, info=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]]], target=Class
 - ERROR testConsistencyWithNulls [functions/tests]: class meta::relational::tests::model::simple::Address has no property 'values'
 - SHAPE testInWithinQualifiedPropertyCollectionAsLiteralList [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testInExecutionWithTempTableForStrings [functions/tests]: unknown type 'TabularDataSet' in @TabularDataSet
@@ -4122,9 +4120,9 @@ in-process Alloy-shaped path).
 - ERROR testInExecutionWithTempTableForDates [functions/tests]: unknown type 'TabularDataSet' in @TabularDataSet
 - ERROR testInExecutionWithTempTableForDateTimes [functions/tests]: unknown type 'TabularDataSet' in @TabularDataSet
 - ERROR testInExecutionWithTempTableForDateTimesWithTz [functions/tests]: unknown type 'TabularDataSet' in @TabularDataSet
-- ERROR testInExecutionWithTempTableAndQueryChaining [functions/tests]: object-space expression node TypedGetAll is not substitutable yet (H2 vocabulary)
-- ERROR testInExecutionWithTempTableAndQueryChainingOnIntegerColumn [functions/tests]: object-space expression node TypedGetAll is not substitutable yet (H2 vocabulary)
-- ERROR testInExecutionWithTempTableAndQueryChainingAndChainConnection [functions/tests]: object-space expression node TypedGetAll is not substitutable yet (H2 vocabulary)
+- ERROR testInExecutionWithTempTableAndQueryChaining [functions/tests]: object-space expression node TypedGetAll is not substitutable yet (H2 vocabulary): TypedGetAll[classFqn=meta::relational::tests::model::simple::ValidPerson, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::ValidPerson], multiplicity=Bounded
+- ERROR testInExecutionWithTempTableAndQueryChainingOnIntegerColumn [functions/tests]: object-space expression node TypedGetAll is not substitutable yet (H2 vocabulary): TypedGetAll[classFqn=meta::relational::tests::model::simple::ValidPerson, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::ValidPerson], multiplicity=Bounded
+- ERROR testInExecutionWithTempTableAndQueryChainingAndChainConnection [functions/tests]: object-space expression node TypedGetAll is not substitutable yet (H2 vocabulary): TypedGetAll[classFqn=meta::relational::tests::model::simple::ValidPerson, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::ValidPerson], multiplicity=Bounded
 - ERROR testIsolationOfInputToIsEmpty [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testIsolationOfInputToIsEmptyWithForcedFiltersOnInput [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testInputNotIsolatedWhenPropertyPathIsToOne [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
@@ -4139,14 +4137,14 @@ in-process Alloy-shaped path).
 - ERROR testAssociationToManyAutoMap [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testAssociationToOneAutoMap [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testAssociationDeep [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testAdvancedDerivedPropertyThroughAssociation [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
+- ERROR testAdvancedDerivedPropertyThroughAssociation [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=ExprType
 - ERROR testFilter [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testFilterPostMapWithObject [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testAutoMapBooleanFilterWithProperty [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testGlobalAggregation [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testSubAggregationMultiLevel [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testSubAggregationMultiLevelJoinString [functions/tests]: no overload of 'meta::pure::functions::string::joinStrings' accepts 1 argument(s)
-- ERROR testSubAggregationUsingIf [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
+- ERROR testSubAggregationUsingIf [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=ExprType
 - ERROR testSequenceMapWithConfusingSetImplementation [functions/tests]: unknown function 'meta::relational::tests::mapping::filter::model::store::createTablesAndFillDb'
 - ERROR testUsingFunctionInMapLambdaTakingAParameter [functions/tests]: in function 'meta::relational::tests::groupBy::subFunction3': in call to 'meta::pure::functions::collection::map', argument 2: expected at most one value, got many ([*])
 - ERROR testUsingFunctionInMapLambdaTakingAPathParameterPartial [functions/tests]: in function 'meta::relational::tests::groupBy::subFunction6': in call to 'meta::pure::functions::collection::map', argument 2: expected at most one value, got many ([*])
@@ -4161,7 +4159,7 @@ in-process Alloy-shaped path).
 - ERROR testAggToManyWithMaxDate [functions/tests]: expected at most one value, got many ([*])
 - ERROR testAggToManyWithMinDate [functions/tests]: expected at most one value, got many ([*])
 - ERROR testAggToManyWithFilter [functions/tests]: expected at most one value, got many ([*])
-- ERROR testGroupByAndFilterIsolatedJoinMerge [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testGroupByAndFilterIsolatedJoinMerge [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=t, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1]]],
 - FAIL testGroupByWithJoinH2 [functions/tests]: assertSize: expected 1, got 6
 - SHAPE testGroupByWithJoinDB2 [functions/tests]: no execute(|...) call
 - ERROR testObjectLevelGroupByWTDSLevelGroupByWTDSExtend [functions/tests]: ~Case Column: mapped/aggregate column specifications need an enclosing call to type against
@@ -4204,15 +4202,15 @@ in-process Alloy-shaped path).
 - SHAPE testSortByLambda_QueryWithParameters_Plan [functions/tests]: no execute(|...) call
 - ERROR testLoadCsv [functions/tests/loadCsvToDbTable]: Unknown type: 'Table' is not a known primitive, class, or enum
 - ERROR testDeepSubAggregation [functions/tests/projection]: aggregate 'meta::pure::functions::collection::count' over the multi-hop to-many navigation employees.address.name is not supported yet
-- ERROR testSubAggregationWithIf [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
-- ERROR testSubAggregationWithJoinStringsOrderBy [functions/tests/projection]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
-- ERROR testSubAggregationWithDeepAndOverlap [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
+- ERROR testSubAggregationWithIf [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=ExprType
+- ERROR testSubAggregationWithJoinStringsOrderBy [functions/tests/projection]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=Ex
+- ERROR testSubAggregationWithDeepAndOverlap [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=ExprType
 - ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications
 - ERROR testSubAggregationWithDeep [functions/tests/projection]: aggregate 'meta::pure::functions::collection::count' over the multi-hop to-many navigation employees.locations.place is not supported yet
 - FAIL testDateAggregationWithMax [functions/tests/projection]: assertSize: expected 3, got 7
 - ERROR testIsDistinctSubAggregation [functions/tests/projection]: no overload of 'meta::pure::functions::collection::isDistinct' accepts 1 argument(s)
 - ERROR testAssociationToManyColumnProtocolWithDoc [functions/tests/projection]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
-- ERROR testQualifiedPropertyUsingColumnProtocol [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifiedPropertyUsingColumnProtocol [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
 - SHAPE testConcatenationOfTdsQueries [functions/tests/projection]: execute() whose query argument is not a lambda
 - SHAPE testConcatenationOfTdsQueriesWithFilter [functions/tests/projection]: execute() whose query argument is not a lambda
 - SHAPE testConcatenationOfTdsQueriesWithGroupBy [functions/tests/projection]: execute() whose query argument is not a lambda
@@ -4233,7 +4231,7 @@ in-process Alloy-shaped path).
 - ERROR testPreviousDayOfWeekWithDate [functions/tests/projection]: unknown function 'previousDayOfWeek'
 - ERROR testSimpleExists [functions/tests/projection]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionSc
-- ERROR testSavedRootPropogatedCorrectlyThroughFilter [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testSavedRootPropogatedCorrectlyThroughFilter [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedMap[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], mapper=TypedLambda[parameters=[f], bod
 - ERROR testChainedFiltersQuery [functions/tests/projection]: property 'locations#f1' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testChainedFiltersGet [functions/tests/projection]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testChainedFiltersProject [functions/tests/projection]: multi-hop navigation employees#f0.locations#f1.place through an embedded/slot head is not supported yet
@@ -4251,29 +4249,29 @@ in-process Alloy-shaped path).
 - ERROR testProjectReferenceInRhsFilterWithDistinctVarNamesViaQualifiedProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testProjectReferenceInRhsFilterWithConflictingVarNamesViaQualifiedProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testProjectReferenceInRhsFilterWithPotentiallyConflictingVarNamesViaQualifiedProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
-- ERROR testProjectReferenceInRhsFilterWithDistinctVarNamesViaNonPropertyFunctionExpression [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testProjectReferenceInRhsFilterWithDistinctVarNamesViaNonPropertyFunctionExpression [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=Ex
 - ERROR testVariableReferenceInFilterWithSameNameAsThatInParentProject [functions/tests/projection]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
 - ERROR testVariableReferenceInMapWithSameNameAsThatInParentProject [functions/tests/projection]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
 - ERROR testVariableReferenceInMapWithNestedFilter [functions/tests/projection]: expected at most one value, got many ([*])
-- ERROR testVariableReferenceWithNestedFilterMultiple [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testVariableReferenceWithNestedFilterMultiple [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Person], multiplicity=Bounded[
 - ERROR testGroupByWithWindowSubset [functions/tests/projection]: unknown function 'meta::relational::tests::advanced::contractmoneyscenario::setUp'
-- ERROR testInWithOneValue [functions/tests/projection]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary)
+- ERROR testInWithOneValue [functions/tests/projection]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary): TypedCast[source=TypedCollection[elements=[TypedCString[value=John, info=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]]], target=Class
 - SHAPE H2Test [functions/tests/projection]: no execute(|...) call
 - ERROR testInWithDynaFunction [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
 - FAIL testSimpleBoolean [functions/tests/projection]: assertEquals: expected false, got []
 - ERROR testSimpleDerivedThroughAssociation [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - FAIL testTwoQualifiersUsingSameJoinWithNoUserParams [functions/tests/projection]: assertSize: expected 1, got 4
-- ERROR testQualifierInLambdaDeep [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierInLambdaDeep [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
 - ERROR testQualifierBeforeProject [functions/tests/projection]: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- ERROR testNestedIfWithIsEmpty [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testNestedIfWithIsEmptyCanReturnNull [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testQualifierWithFilterWithDataTypeResult [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testQualifierFunctionConsistencyWithDataTypeProperty [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testQualifierFunctionConsistencyWithComplexTypeProperty [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testNestedIfWithIsEmpty [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=_path, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1
+- ERROR testNestedIfWithIsEmptyCanReturnNull [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=_path, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1
+- ERROR testQualifierWithFilterWithDataTypeResult [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=t, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1]]], property=events, info=Expr
+- ERROR testQualifierFunctionConsistencyWithDataTypeProperty [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=t, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1]]], property=events, info=Expr
+- ERROR testQualifierFunctionConsistencyWithComplexTypeProperty [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=t, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1]]], property=events, info=Expr
 - FAIL testQualifierWithVariableArg [functions/tests/projection]: assertEquals: expected [Firm X~ , Firm A~ , Firm B~ , Firm C~ ], got [Firm X~TDSNull, Firm A~TDSNull, Firm B~TDSNull, Firm C~TDSNull]
 - FAIL testQualifierWithVariableArgReferencedFirstInFilterEqualCriteria [functions/tests/projection]: assertEquals: expected [Firm X~ , Firm A~ , Firm B~ , Firm C~ ], got [Firm X~TDSNull, Firm A~TDSNull, Firm B~TDSNull, Firm C~TDSNull]
 - ERROR testQualifierWithVariableArgWithComplexTypeProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
-- ERROR testQualifierWithVariableArgWithComplexTypePropertyAndSubsequentComplexTypePropertyCall [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierWithVariableArgWithComplexTypePropertyAndSubsequentComplexTypePropertyCall [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=Ex
 - ERROR testFilterOnRootTypeWithOrWithFilterInQualifier [functions/tests/projection]: property 'eventDate' of class 'meta::relational::tests::model::simple::Trade' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testAllOneSimplePropertyWithColsFromFunction [functions/tests/projection]: project expects ~[…] column specifications
 - SHAPE testAllOneSimplePropertyUsingOpenVariables [functions/tests/projection]: no execute(|...) call
@@ -4558,14 +4556,14 @@ in-process Alloy-shaped path).
 - ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=x, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Person], multiplicity=Bounded[lower=1, upper=1]]]
 - SHAPE testReplaceTablePostProcessor [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testReplaceTableMultiplePostProcessor [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testReplaceTablesPostProcessor [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testToSqlStringReplaceTablesPostProcessor [postprocessor/tests]: no execute(|...) call
 - SHAPE testReplaceTablePostProcessorWithExists [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testReplaceTablePostProcessorWithView [postprocessor/tests]: 'meta::relational::tests::query::view::relationalMappingWithViewAndInnerJoin' is not a known class, mapping, runtime, connection, or database
-- ERROR testReplaceTablePostProcessorWithSubQueries [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testReplaceTablePostProcessorWithSubQueries [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=t, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1]]],
 - SHAPE testPushFiltersDownToJoinsPostProcessorSimpleObjectFilterEqual [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownToJoinsPostProcessorSimpleTDSFilterEqual [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterGreaterThan [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -4576,16 +4574,16 @@ in-process Alloy-shaped path).
 - SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterOrOp [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterCombinedOp [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterCombinedWithOrOp [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testPushFiltersDownToJoinsPostProcessorMultipleChildren [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testPushFiltersDownToJoinsPostProcessorMultipleChildren [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=x, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1]]], property=events, info=Expr
 - SHAPE testPushFiltersDownIntoSubQuery [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownIntoSubQueryWithTDSJoin [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownIntoSubQueryWithTDSJoinPartial [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownIntoSubQueryWithGroupByGroupingColumnsFilter [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownIntoSubQueryWithGroupByGroupingAndAggregateColumnsFilter [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownToJoinsPostProcessorToSQL [postprocessor/tests]: no execute(|...) call
-- ERROR testSqlRealiasJoin [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testSqlRealiasJoin [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=x, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1]]], property=events, info=Expr
 - ERROR testSqlRealiasViews [postprocessor/tests]: mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
-- ERROR testSqlRealiasFreeMarker [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testSqlRealiasFreeMarker [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
 - SHAPE testSQLRealiasCaseSensitiveTableNames [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDb2ColumnRename [postprocessor/tests]: no execute(|...) call
 - SHAPE testPostProcessTransformJoinOp [postprocessor/tests]: no execute(|...) call
@@ -4910,19 +4908,19 @@ in-process Alloy-shaped path).
 - SHAPE testRelationalDefaultSchemaMapper [tests]: no execute(|...) call
 - SHAPE testRelationalMapperWithJoin [tests]: no execute(|...) call
 - SHAPE testRelationalMapperTwoDBs [tests]: no execute(|...) call
-- ERROR test1 [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR test2 [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR test1 [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=c, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Contract], multiplicity=Bounded[lower=1, upper=1]
+- ERROR test2 [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=c, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Contract], multiplicity=Bounded[lower=1, upper=1]
 - ERROR failMoveFilterInOnClauseJoin [tests/advanced]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Synonym_SynonymType' (the demand scan and the rewrite disagreed)
 - ERROR failMoveFilterInOnClauseModel [tests/advanced]: navigation through class-typed slot property 'type' is not supported yet
 - SHAPE failMoveFilterOnTop [tests/advanced]: no execute(|...) call
 - SHAPE BuildCorrelatedSubQuery [tests/advanced]: no execute(|...) call
 - ERROR projectAbstractPropertyWithConditionOnRightTableNested [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR projectFunctionExpressionWithConditionOnRightTableNested [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
-- ERROR projectFunctionExpressionWithConditionOnLeftAndRightTable [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR filterFunctionExpressionWithConditionOnLeftAndRightTable [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR projectFunctionExpressionWithConditionOnLeftAndRightTable [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=Ex
+- ERROR filterFunctionExpressionWithConditionOnLeftAndRightTable [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=Ex
 - ERROR filterFunctionExpressionWithOrConditionOnRightTable [tests/advanced]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
-- ERROR filterAbstractPropertyWithConditionOnRightTableExistsExpression [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR nestedFilterInQualifierWithOrCondition [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR filterAbstractPropertyWithConditionOnRightTableExistsExpression [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=Ex
+- ERROR nestedFilterInQualifierWithOrCondition [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=Ex
 - ERROR projectionInvolvingOneNestedAtributeOnTriangularJoinAndOtherJoin [tests/advanced]: navigation through class-typed slot property 'locations' is not supported yet
 - SHAPE testFilterMappingWithProjectionOverlappForcedCorrelated [tests/advanced]: no execute(|...) call
 - SHAPE testFilterMappingWithProjectionOverlappForcedOnClause [tests/advanced]: no execute(|...) call
@@ -4933,7 +4931,7 @@ in-process Alloy-shaped path).
 - SHAPE testNonMilestoningQueryWithMilestoneFilterProjectForcedOnClause [tests/advanced]: no execute(|...) call
 - SHAPE testDerivedWithFilteringTwoPropertiesForcedCorrelated [tests/advanced]: no execute(|...) call
 - SHAPE testDerivedWithFilteringTwoPropertiesForcedOnClause [tests/advanced]: no execute(|...) call
-- ERROR isolationTest [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR isolationTest [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=x, info=ExprType[type=ClassType[fqn=meta::relational::tests::advanced::forcedselfjoin::Firm], mult
 - ERROR testQualifierQueryWithOr [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testQualifierQuery [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testQualifierWithOperation [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
@@ -4946,16 +4944,16 @@ in-process Alloy-shaped path).
 - ERROR testQualifierWithForkAndOrWithInlineWithOffset [tests/advanced]: multi-hop navigation firm.employees#f0.firstName through an embedded/slot head is not supported yet
 - ERROR testQualifierWithForkAndOrWithInlineWithOffsetExplosion [tests/advanced]: multi-hop navigation firm.employees#f0.firstName through an embedded/slot head is not supported yet
 - ERROR testQualifierWithLineAndOrWithInLine [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
-- ERROR testQualifierWithIsolation [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierWithIsolation [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
 - ERROR testQualifierWithIsolationXX [tests/advanced]: extend/project columns [firm] reference names unresolvable even after isolation
-- ERROR testQualifierWithIsolationForced [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierWithIsolationForced [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
 - ERROR testQualifierWithIsolationForced2 [tests/advanced]: multi-hop navigation firm.employees#f0.firm.legalName through an embedded/slot head is not supported yet
 - ERROR testQualifierWithIsolationAndExists [tests/advanced]: lowering not yet implemented for TypedNativeCall
 - ERROR testIfIncludingQualifiers [tests/advanced]: lowering not yet implemented for TypedNativeCall
-- ERROR testQualifierWithIsolationAndExistsDeep [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testQualifierContainingAJoinWithIsolationAndExistsDeep [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testQualifierWithIsolationAndExistsDeepWithParallelProject [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testMultipleIsolationWithSameProp [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testQualifierWithIsolationAndExistsDeep [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
+- ERROR testQualifierContainingAJoinWithIsolationAndExistsDeep [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
+- ERROR testQualifierWithIsolationAndExistsDeepWithParallelProject [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
+- ERROR testMultipleIsolationWithSameProp [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Person], multiplicity=Bounded[lower=1, upper=1]]], proper
 - SHAPE testLiteralConditionsForcedIsolation [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testForcedIsolationFilterOnTop [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR relationalResultSourcingOfList [tests/advanced]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
@@ -4967,7 +4965,7 @@ in-process Alloy-shaped path).
 - ERROR testSimpleTypeMappingBooleanFalse [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
 - ERROR testProject [tests/injection]: property 'productDate' of class 'meta::relational::tests::injection::model::Trade' has no binding in mapping 'meta::relational::tests::injection::mapping::myMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testProjectThroughAssociation [tests/injection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
+- ERROR testProjectThroughAssociation [tests/injection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]], property=trades, info=ExprType
 - ERROR testProjectThroughAssociationAutoMap [tests/injection]: in call to 'meta::relational::tests::injection::model::Trade$prop$productAtTimeOfTrade', argument 1: expected at most one value, got many ([*])
 - ERROR testGet [tests/mapping]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
 - ERROR testQuery [tests/mapping]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
@@ -5036,7 +5034,7 @@ in-process Alloy-shaped path).
 - ERROR testProjectToEmbedded [tests/mapping/embedded]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
 - ERROR testExists [tests/mapping/embedded]: class-typed property '$p.firm' used as a whole value is graph output (Phase H4)
 - FAIL testIsEmpty [tests/mapping/embedded]: assertEquals: expected name,firm\n\n, got []
-- ERROR testMapEmbeddedQualifierWithIfTwoEmbeddedProperties [tests/mapping/embedded]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
+- ERROR testMapEmbeddedQualifierWithIfTwoEmbeddedProperties [tests/mapping/embedded]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Person], multiplicity=Bounded[lower=1, upper=1]]], property=firm, info=ExprType[ty
 - SHAPE testProjectionOtherwiseDeepTraversal [tests/mapping/embedded]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
 - SHAPE otherwiseTestQualifierPropertyConstantExpression [tests/mapping/embedded]: no verifying assertions
@@ -5061,7 +5059,7 @@ in-process Alloy-shaped path).
 - ERROR testInQueryWithEnum [tests/mapping/enumeration]: Binder Error: subqueries in lambda expressions are not supported
 - FAIL testAggregationFunctionWithEnum [tests/mapping/enumeration]: assertEquals: expected [CONTRACT, 1, CONTRACT, 1, FULL_TIME, 1], got [CONTRACT, 2, FULL_TIME, 1]
 - ERROR testProjectionWithInheritedEnum [tests/mapping/enumeration]: unknown function 'columnValues'
-- ERROR testProjectionWithEnumThroughAssociation [tests/mapping/enumeration]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
+- ERROR testProjectionWithEnumThroughAssociation [tests/mapping/enumeration]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::mapping::enumeration::model::domain::Product], multiplicity=Bounded[lower=1, upper=1]]], property
 - ERROR testProjectionWithEnumQualifierParameter [tests/mapping/enumeration]: unknown function 'columnValues'
 - ERROR testFilterWithEnumQualifierParameter [tests/mapping/enumeration]: unknown function 'columnValues'
 - FAIL testProjectWithIfWhereOneSideIsEnumLiteral [tests/mapping/enumeration]: assertEquals: expected [My Product, GS_NUMBER], got [My Product 2, GS_NUMBER]
@@ -5076,7 +5074,7 @@ in-process Alloy-shaped path).
 - ERROR testPropertyMappingsForA [tests/mapping/extends]: association property '$a.e' used other than as a navigation head (class-typed value / isEmpty / whole-instance) is not supported yet
 - ERROR testPropertyMappingsForB [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
 - ERROR testPropertyMappingsForC [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR testStoreSubstitutionForB [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::BMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::B': [meta::relational::tests::mapp
 - ERROR testStoreSubstitutionForC [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::CMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::C': [meta::relational::tests::mapp
@@ -5134,12 +5132,12 @@ in-process Alloy-shaped path).
 - ERROR testSubTypeFilter [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' (property 'vehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; 
 - ERROR testSubTypeProjectWithAssociation [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::union::inheritanceUnion' (property 'vehicles' routes to NON-root mapping set 'car1' — multi-set dispatch outside union members is a roadmap feature; 
 - ERROR testSubTypeProjectDirect [tests/mapping/inheritance]: object-space use of the instance variable '$r' other than property access is not supported yet
-- ERROR testSubTypeProjectShared [tests/mapping/inheritance]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
+- ERROR testSubTypeProjectShared [tests/mapping/inheritance]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::inheritance::Person], multiplicity=Bounded[lower=1, upper=1]]], property=vehicles, info=Ex
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/inheritance]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testProjectSubtype [tests/mapping/inheritance]: class-typed property '$t.product' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeMappingValidWhenMappedExplicitly [tests/mapping/inheritance]: unknown function '_classMappingByClass'
-- ERROR testIsolationOfInnerJoins [tests/mapping/innerJoin]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testIsolationForFiltersWithoutAliasAndInnerJoins [tests/mapping/innerJoin]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testIsolationOfInnerJoins [tests/mapping/innerJoin]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=c, info=ExprType[type=ClassType[fqn=meta::relational::tests::mapping::innerjoin::isolation::Car], multiplicity=Bounded[lower=
+- ERROR testIsolationForFiltersWithoutAliasAndInnerJoins [tests/mapping/innerJoin]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=c, info=ExprType[type=ClassType[fqn=meta::relational::tests::mapping::innerjoin::isolation::Car], multiplicity=Bounded[lower=
 - ERROR testFilterOnSimpleTypePropertyDeepWithJoinInMapping [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilterOnSimpleTypePropertyDeepWithJoinInMappingNotUsed [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilterDeepWithJoinInMappingInMiddle [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
@@ -5271,14 +5269,14 @@ in-process Alloy-shaped path).
 - ERROR testQueryWithResultWithAnd [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
 - ERROR testQueryNoResultWithAnd [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
 - ERROR testQueryWithOr [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
-- ERROR testFilterOnNestedQualifier [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testFilterOnNestedQualifier [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=t, info=ExprType[type=ClassType[fqn=meta::relational::tests::mapping::tree::model::domain::Trade], multiplicity=Bounded[lower
 - ERROR testProjectMerge [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
 - ERROR testProjection [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
 - ERROR testProjectionDeeper [tests/mapping/tree]: relation has no column 'name' in scalar read
 - ERROR testProjectionDeeperInlined [tests/mapping/tree]: relation has no column 'name' in scalar read
 - ERROR testProjectWithFilter [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
-- ERROR testJoinIsolationDeeper_LeftOuterLeftOuterThenInner [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testJoinIsolationDeeper_LeftOuterLeftOuterThenInner [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=a, info=ExprType[type=ClassType[fqn=meta::relational::tests::mapping::tree::model::domain::Account
+- ERROR testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=a, info=ExprType[type=ClassType[fqn=meta::relational::tests::mapping::tree::model::domain::Account
 - ERROR testProjectWithPostTdsOperations [tests/mapping/union]: ~Len: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testFilteredProjectWithPostTdsOperations [tests/mapping/union]: ~Len: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testProjectThroughAsso [tests/mapping/union]: unknown function 'meta::relational::mapping::sql'
@@ -5295,11 +5293,11 @@ in-process Alloy-shaped path).
 - ERROR testIdentificationOfFKColumnsForUnionSelfJoin [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::unionMappingWithSelfJoin$class$meta::relational::tests::model::simple::Person': relation has no column 'lastName_s2'
 - ERROR testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: Binder Error: Values list "t9" does not have a column named "ID" |  | LINE 25: ) AS t9 ON t2.FirmID_0 = t9.ID OR t2.FirmID_1 = t9.ID |                                   ^
 - ERROR testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: multi-hop navigation firm.employees#f0.lastName through an embedded/slot head is not supported yet
-- ERROR testChainedUnionsWithAggregation [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
-- ERROR testChainedUnionsWithMultipleAggregation [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
-- ERROR testChainedUnionsWithAggregationWithAdditionalColumn [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
-- ERROR testChainedUnionsWithMultipleAggregationWithAdditionalColumn [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
-- ERROR testChainedUnionsWithMapAggregation [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
+- ERROR testChainedUnionsWithAggregation [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property
+- ERROR testChainedUnionsWithMultipleAggregation [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=Ex
+- ERROR testChainedUnionsWithAggregationWithAdditionalColumn [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property
+- ERROR testChainedUnionsWithMultipleAggregationWithAdditionalColumn [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=Ex
+- ERROR testChainedUnionsWithMapAggregation [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property
 - ERROR testUnionViewJoins [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::UnionViewJoinsMapping' (property 'employees' routes to union member set 'p1' via a CHAINED join — per-member chained joins are not supported yet; the property is dropped from this synt
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
 - ERROR testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: property 'employeesExt' of class 'meta::relational::tests::model::simple::FirmExtension' is not mapped in mapping 'meta::relational::tests::mapping::union::unionOfViews'
@@ -5336,11 +5334,11 @@ in-process Alloy-shaped path).
 - ERROR testIdentificationOfFKColumnsForUnionSelfJoin [tests/mapping/union]: in function 'meta::relational::tests::mapping::union::extend::unionMappingWithSelfJoin$class$meta::relational::tests::mapping::union::extend::Person': relation has no column 'lastName_s2'
 - ERROR testThreewayUnionJoinWithOverlappingFKPKAliasNames [tests/mapping/union]: Binder Error: Values list "t9" does not have a column named "ID" |  | LINE 25: ) AS t9 ON t2.FirmID_0 = t9.ID OR t2.FirmID_1 = t9.ID |                                   ^
 - ERROR testChainedJoinsWithUnionsAndIsolation [tests/mapping/union]: multi-hop navigation firm.employees#f0.lastName through an embedded/slot head is not supported yet
-- ERROR testChainedUnionsWithAggregation [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
-- ERROR testChainedUnionsWithMultipleAggregation [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
-- ERROR testChainedUnionsWithAggregationWithAdditionalColumn [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
-- ERROR testChainedUnionsWithMultipleAggregationWithAdditionalColumn [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
-- ERROR testChainedUnionsWithMapAggregation [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
+- ERROR testChainedUnionsWithAggregation [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property
+- ERROR testChainedUnionsWithMultipleAggregation [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::mapping::union::extend::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees
+- ERROR testChainedUnionsWithAggregationWithAdditionalColumn [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property
+- ERROR testChainedUnionsWithMultipleAggregationWithAdditionalColumn [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::mapping::union::extend::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees
+- ERROR testChainedUnionsWithMapAggregation [tests/mapping/union]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property
 - ERROR testUnionWithChainedJoinsAcross2SetsV4 [tests/mapping/union]: chained association hop 'y.z' navigates INTO a union-mapped class — per-member route dispatch is not built yet
 - ERROR testUnionWithChainedJoinsAcross3SetsV4 [tests/mapping/union]: chained association hop 'y.z' navigates INTO a union-mapped class — per-member route dispatch is not built yet
 - ERROR testUnionWithChainedJoinsAcross4SetsV4 [tests/mapping/union]: chained association hop 'y.z' navigates INTO a union-mapped class — per-member route dispatch is not built yet
@@ -5357,11 +5355,8 @@ in-process Alloy-shaped path).
 - ERROR testGroupByWithFilterFunction_noDatePath [tests/query]: in function 'meta::relational::tests::groupBy::datePeriods::ytd': 'meta::pure::functions::collection::map' expects a lambda argument in position 1
 - ERROR testDayOfWeek [tests/query]: unknown function 'mostRecentDayOfWeek'
 - ERROR testAssociationMixedDeep [tests/query]: navigation through class-typed slot property 'address' is not supported yet
-- ERROR testTwoAssociationsToManyDeep [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- ERROR testTwoAssociationsToManyDeepWithOr [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testAssociationToManyWithTwoSeparateExists [tests/query]: scalar lowering not yet implemented for TypedSerializeGraph
 - FAIL testWithParameterToClassNestedSelect [tests/query]: assertSize: expected 0, got 1
-- ERROR testExistsWithQualifierOnleftSide [tests/query]: property 'eventDate' of class 'meta::relational::tests::model::simple::Trade' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testViewAll [tests/query]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
 - ERROR testViewWithJoinsAndDistinct [tests/query]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::TestMappingWithViewJoins' (Join 'personViewWithFirmTable' not found in db 'meta::relational::tests::db'; PM='null', mapping=meta::relational::tests::TestMappingWithViewJoins)
 - ERROR testDistinctOnlyIncludesTopLevelColumns [tests/query]: in function 'meta::relational::tests::TestViewWithDistinctAndJoins$class$meta::relational::tests::model::simple::Person': unknown table 'FirstNameAddress' in database 'meta::relational::tests::db'

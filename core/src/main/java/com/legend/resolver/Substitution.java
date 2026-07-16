@@ -14,6 +14,7 @@ import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedEnumValue;
 import com.legend.compiler.spec.typed.TypedFilter;
+import com.legend.compiler.spec.typed.TypedTableReference;
 import com.legend.compiler.spec.typed.TypedFuncCol;
 import com.legend.compiler.spec.typed.TypedIf;
 import com.legend.compiler.spec.typed.TypedLambda;
@@ -306,6 +307,17 @@ final class Substitution {
      * {@code [p]} become {@code [freshRowVar]} and the info is rebuilt as
      * {@code {row[1] -> <result>}}.
      */
+    /** Rewrite a lambda's BODY under this scope, KEEPING its parameters —
+     * for constructed relation material flowing through an outer
+     * correlation pass (the params bind the material's own rows). */
+    TypedLambda rewriteLambdaBodyOnly(TypedLambda lambda) {
+        List<TypedSpec> body = new ArrayList<>(lambda.body().size());
+        for (TypedSpec stmt : lambda.body()) {
+            body.add(rewrite(stmt));
+        }
+        return new TypedLambda(lambda.parameters(), body, lambda.info());
+    }
+
     TypedLambda rewriteLambda(TypedLambda lambda) {
         if (lambda.parameters().size() != 1) {
             throw new NotImplementedException("object-space lambda with "
@@ -811,9 +823,29 @@ final class Substitution {
             case TypedCBoolean ignored -> n;
             case TypedCDate ignored -> n;
             case TypedEnumValue ignored -> n;
-            default -> throw new NotImplementedException(
-                    "object-space expression node " + n.getClass().getSimpleName()
-                            + " is not substitutable yet (H2 vocabulary)");
+            // CONSTRUCTED RELATION MATERIAL (R2): a nested scope's rewrite
+            // (innerRegs — R1a) builds exists/leaf relations whose nodes
+            // then flow through the OUTER correlation re-pass. They are
+            // resolved pipelines, not object-space expressions: structure
+            // passes through; predicate lambdas still rewrite (outer-var
+            // reads left verbatim by the inner scope correlate here).
+            // OBJECT-SPACE filters (class-typed sources) stay loud below.
+            case TypedTableReference ignored -> n;
+            case TypedFilter f when f.source().info().type()
+                    instanceof Type.RelationType ->
+                    // body-only rewrite: the lambda's OWN param binds its
+                    // relation row and must survive (rewriteLambda would
+                    // rebind it to THIS scope's row var, orphaning reads)
+                    new TypedFilter(rewrite(f.source()),
+                            rewriteLambdaBodyOnly(f.predicate()), f.info());
+            default -> {
+                String shape = String.valueOf(n);
+                throw new NotImplementedException(
+                        "object-space expression node " + n.getClass().getSimpleName()
+                                + " is not substitutable yet (H2 vocabulary):"
+                                + " " + (shape.length() > 220
+                                        ? shape.substring(0, 220) + "…" : shape));
+            }
         };
     }
 
@@ -1357,12 +1389,31 @@ final class Substitution {
         TypedLambda cond = ex.orientedCond();   // params (parentRow, targetRow)
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
-        List<TypedSpec> corrBody = cond.body().stream().map(b ->
-                Pipelines.rewriteRowReads(b, pVar, Map.of(), Set.of(),
+        // NESTED levels reuse the join conditions' literal param names
+        // (λ(s,t) everywhere) — an inner 't' would SHADOW the enclosing
+        // scope's correlation var (R2: nested exists silently misbound).
+        // Freshen collision-driven; target-side reads rename with it.
+        String freshT = tVar;
+        while (freshT.equals(target.freshRowVar())
+                || freshT.equals(target.userVar())) {
+            freshT = freshT + "_n";
+        }
+        final String tRenamed = freshT;
+        // ORDER MATTERS: rename the TARGET-side reads FIRST — renaming
+        // after the parent rewrite would capture the just-created parent
+        // reads when the enclosing var is also named 't' (the R2 probe:
+        // the inner exists silently correlated to the FIRM, not the person)
+        List<TypedSpec> corrBody = cond.body().stream()
+                .map(b -> tRenamed.equals(tVar) ? b
+                        : Pipelines.rewriteRowReads(b, tVar, Map.of(), Set.of(),
+                                v -> new TypedVariable(tRenamed,
+                                        new ExprType(ex.targetRow(),
+                                                Multiplicity.Bounded.ONE))))
+                .map(b -> Pipelines.rewriteRowReads(b, pVar, Map.of(), Set.of(),
                         v -> new TypedVariable(target.freshRowVar(),
                                 new ExprType(target.rowType(), Multiplicity.Bounded.ONE))))
                 .toList();
-        TypedLambda corr = new TypedLambda(List.of(tVar), corrBody,
+        TypedLambda corr = new TypedLambda(List.of(tRenamed), corrBody,
                 new ExprType(new Type.FunctionType(
                         List.of(new Type.Param(ex.targetRow(), Multiplicity.Bounded.ONE)),
                         new Type.Param(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE)),
@@ -1375,7 +1426,7 @@ final class Substitution {
         // second pass below at the CALL level; chain preds get theirs here)
         for (TypedLambda cf : chainPreds) {
             Substitution cfSub = new Substitution(new Target(
-                    new RowScope(cf.parameters().get(0), tVar,
+                    new RowScope(cf.parameters().get(0), tRenamed,
                             ex.targetClassFqn(), target.mappingFqn(),
                             ex.targetRowVar(), ex.targetBindings(),
                             ex.targetRow(), unconvertedSlotsOf(ex),
@@ -1404,7 +1455,7 @@ final class Substitution {
                     new LinkedHashSet<>(ex.targetSlotAliases());
             unconvertedSlots.removeAll(ex.targetSlotPrefixes().keySet());
             Substitution predSub = new Substitution(new Target(
-                    new RowScope(predLam.parameters().get(0), tVar,
+                    new RowScope(predLam.parameters().get(0), tRenamed,
                             ex.targetClassFqn(), target.mappingFqn(),
                             ex.targetRowVar(), ex.targetBindings(),
                             ex.targetRow(), unconvertedSlots,
