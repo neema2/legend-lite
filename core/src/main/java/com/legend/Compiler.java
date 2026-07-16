@@ -386,11 +386,137 @@ public final class Compiler {
             String runtimeFqn, java.sql.Connection connection)
             throws java.sql.SQLException {
         SpecCompiler specs = new SpecCompiler(ctx);
-        java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
-        body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);   // Phase G½
-        body = new com.legend.resolver.StoreResolver(ctx, specs)
-                .resolve(body, runtimeFqn);                       // Phase H
-        return executeTyped(body, ctx, runtimeFqn, connection);
+        return executeStatements(specs.typeQueryBody(resolved),
+                new java.util.ArrayList<>(), specs, ctx, runtimeFqn, connection,
+                new java.util.ArrayDeque<>());
+    }
+
+    /**
+     * STATEMENT SEQUENCING — the K-phase orchestration layer. Pure bodies
+     * (lets + one result expression) take exactly the classic path:
+     * inline (G&frac12;) &rarr; resolve (H) &rarr; lower/execute, one
+     * statement. EFFECTFUL bodies — corpus setup functions: a sequence of
+     * {@code executeInDb} statements — cannot &beta;-reduce to one
+     * expression; each statement executes in order through the full
+     * pipeline, and a statement-position call to an effectful function
+     * expands as a statement sequence in a FRESH call frame (parameters
+     * bound as lets; closed bodies make frames capture-proof — no
+     * &alpha;-renaming needed). Value evaluation still ALWAYS lowers to
+     * SQL; only the sequencing lives host-side.
+     */
+    private static com.legend.exec.ExecutionResult executeStatements(
+            java.util.List<TypedSpec> stmts, java.util.List<TypedSpec> letPrefix,
+            SpecCompiler specs, ModelContext ctx, String runtimeFqn,
+            java.sql.Connection connection, java.util.Deque<String> frames)
+            throws java.sql.SQLException {
+        com.legend.exec.ExecutionResult result = null;
+        java.util.Map<String, Boolean> effectMemo = new java.util.HashMap<>();
+        for (int i = 0; i < stmts.size(); i++) {
+            TypedSpec stmt = stmts.get(i);
+            boolean last = i == stmts.size() - 1;
+            if (stmt instanceof com.legend.compiler.spec.typed.TypedLet let && !last) {
+                if (containsEffect(let.value(), specs, effectMemo)) {
+                    // β-substitution would DROP the effect if the binding is
+                    // unused (or double it if used twice) — refuse loudly
+                    throw new IllegalStateException("effectful let binding ('"
+                            + let.name() + "' reaches executeInDb) is not supported");
+                }
+                letPrefix.add(let);
+                continue;
+            }
+            // a trailing let IS its value (real pure)
+            TypedSpec bare = stmt instanceof com.legend.compiler.spec.typed.TypedLet l
+                    ? l.value() : stmt;
+            if (bare instanceof com.legend.compiler.spec.typed.TypedUserCall call
+                    && containsEffect(call, specs, effectMemo)) {
+                result = executeCallStatement(call, letPrefix, specs, ctx,
+                        runtimeFqn, connection, frames);
+                continue;
+            }
+            java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
+            single.add(stmt);
+            java.util.List<TypedSpec> body =
+                    new com.legend.compiler.spec.UserCallInliner(specs)
+                            .inlineBody(single);                          // Phase G½
+            body = new com.legend.resolver.StoreResolver(ctx, specs)
+                    .resolve(body, runtimeFqn);                           // Phase H
+            result = executeTyped(body, ctx, runtimeFqn, connection);
+        }
+        return result;
+    }
+
+    /**
+     * A statement-position call to an EFFECTFUL function: bind the caller's
+     * arguments as parameter lets (caller lets substituted in — the callee
+     * body is otherwise closed) and run the body as a statement sequence.
+     */
+    private static com.legend.exec.ExecutionResult executeCallStatement(
+            com.legend.compiler.spec.typed.TypedUserCall call,
+            java.util.List<TypedSpec> letPrefix, SpecCompiler specs, ModelContext ctx,
+            String runtimeFqn, java.sql.Connection connection,
+            java.util.Deque<String> frames) throws java.sql.SQLException {
+        String key = call.callee().signatureKey();
+        if (frames.contains(key)) {
+            throw new IllegalStateException("recursive effectful call: "
+                    + call.callee().qualifiedName());
+        }
+        frames.push(key);
+        try {
+            java.util.List<TypedSpec> frame = new java.util.ArrayList<>();
+            for (int p = 0; p < call.callee().parameters().size(); p++) {
+                java.util.List<TypedSpec> argBody = new java.util.ArrayList<>(letPrefix);
+                argBody.add(call.args().get(p));
+                TypedSpec argValue = new com.legend.compiler.spec.UserCallInliner(specs)
+                        .inlineBody(argBody).get(0);
+                frame.add(new com.legend.compiler.spec.typed.TypedLet(
+                        call.callee().parameters().get(p).name(), argValue,
+                        argValue.info()));
+            }
+            return executeStatements(specs.compile(call.callee()).body(), frame,
+                    specs, ctx, runtimeFqn, connection, frames);
+        } finally {
+            frames.pop();
+        }
+    }
+
+    /**
+     * Does this expression (transitively, through user calls) reach the
+     * {@code executeInDb} K-native? Memoized per callee signature; a cycle
+     * scores the in-progress callee non-effectful — real recursion is
+     * caught loudly at execution time.
+     */
+    private static boolean containsEffect(TypedSpec node, SpecCompiler specs,
+            java.util.Map<String, Boolean> memo) {
+        if (node instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                && com.legend.compiler.element.type.PlatformTypes.EXECUTE_IN_DB
+                        .equals(nc.callee().qualifiedName())) {
+            return true;
+        }
+        if (node instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
+            String key = uc.callee().signatureKey();
+            Boolean known = memo.get(key);
+            if (known == null) {
+                memo.put(key, false);   // in-progress: cycles score false
+                boolean effectful = false;
+                for (TypedSpec stmt : specs.compile(uc.callee()).body()) {
+                    if (containsEffect(stmt, specs, memo)) {
+                        effectful = true;
+                        break;
+                    }
+                }
+                memo.put(key, effectful);
+                known = effectful;
+            }
+            if (known) {
+                return true;
+            }
+        }
+        for (TypedSpec c : node.children()) {
+            if (containsEffect(c, specs, memo)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

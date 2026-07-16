@@ -83,6 +83,62 @@ class ExecuteInDbTest {
         }
     }
 
+    /** The corpus shape: a user WRAPPER over the native leaf, effectful
+     * setup functions calling it statement after statement, nested. */
+    private static final String SETUP_MODEL = """
+            function my::w::executeInDb(sql: String[1],
+                    conn: meta::external::store::relational::runtime::DatabaseConnection[1]): \
+            meta::relational::metamodel::execute::ResultSet[1]
+            {
+               meta::relational::metamodel::execute::executeInDb($sql, $conn, 0, 1000);
+            }
+            function my::s::fill(tableName: String[1]): Boolean[1]
+            {
+               let c = meta::core::runtime::connectionByElement(
+                  meta::external::store::relational::tests::testRuntime(), 1)
+                  ->cast(@meta::external::store::relational::runtime::DatabaseConnection);
+               my::w::executeInDb('Insert into ' + $tableName + ' (id) values (1);', $c);
+               my::w::executeInDb('Insert into ' + $tableName + ' (id) values (2);', $c);
+               true;
+            }
+            function my::s::createAndFill(): Boolean[1]
+            {
+               let c = meta::core::runtime::connectionByElement(
+                  meta::external::store::relational::tests::testRuntime(), 1)
+                  ->cast(@meta::external::store::relational::runtime::DatabaseConnection);
+               my::w::executeInDb('Create Table kSeq(id INT);', $c);
+               my::s::fill('kSeq');
+               true;
+            }
+            """;
+
+    @Test
+    @DisplayName("setup functions: effectful statement SEQUENCES execute through call frames")
+    void effectfulSetupFunctionSequences() throws Exception {
+        // one statement-position call fans out: create + nested fill (a
+        // parameterized callee — the arg travels through the frame)
+        ExecutionResult r = Compiler.execute(SETUP_MODEL,
+                "{| my::s::createAndFill();}", conn);
+        assertEquals(true, ((ExecutionResult.Scalar) r).value(),
+                "the sequence's value is its LAST statement");
+        try (Statement st = conn.createStatement();
+                ResultSet rs = st.executeQuery("select count(*), sum(id) from kSeq")) {
+            assertTrue(rs.next());
+            assertEquals(2, rs.getInt(1));
+            assertEquals(3, rs.getInt(2));
+        }
+    }
+
+    @Test
+    @DisplayName("an effectful LET binding refuses loudly (β-substitution would drop the effect)")
+    void effectfulLetIsLoud() {
+        IllegalStateException ex = assertThrows(IllegalStateException.class,
+                () -> Compiler.execute(SETUP_MODEL, CONN_LET
+                        + "let rs = meta::relational::metamodel::execute::executeInDb("
+                        + "'Create Table kDrop(id INT);', $c, 0, 1000);\ntrue;}", conn));
+        assertTrue(ex.getMessage().contains("executeInDb"), ex.getMessage());
+    }
+
     @Test
     @DisplayName("executeInDb: a broken statement fails loudly, never silently")
     void brokenStatementFailsLoudly() {
