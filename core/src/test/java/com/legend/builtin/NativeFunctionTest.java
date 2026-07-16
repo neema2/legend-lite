@@ -389,7 +389,9 @@ class NativeFunctionTest {
     void nativeClassCatalogSizeIsPinned() {
         // Update this deliberately when adding or removing native classes.
         // 37: +StrictTime (real legend-pure meta::pure::metamodel::type::StrictTime).
-        assertEquals(41, Pure.allNativeClasses().size(),
+        // 44: +DatabaseConnection/TestDatabaseConnection/ResultSet (the
+        // engine's relational-runtime surface — K-phase executeInDb natives).
+        assertEquals(44, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -521,7 +523,10 @@ class NativeFunctionTest {
                 Pure.MATH_UTILITY_PKG, Pure.VARIANT_PKG, Pure.GRAPH_FETCH_PKG,
                 // ModelElement lives directly under meta::pure::metamodel
                 // (real M3's package tree root element).
-                "meta::pure::metamodel");
+                "meta::pure::metamodel",
+                // the engine's relational-runtime surface (K-phase natives)
+                "meta::external::store::relational::runtime",
+                "meta::relational::metamodel::execute");
         for (ClassDefinition c : Pure.allNativeClasses()) {
             String fqn = c.qualifiedName();
             boolean ok = expected.stream().anyMatch(p -> fqn.startsWith(p + "::"));

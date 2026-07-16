@@ -47,7 +47,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 85 | 0 | 2 | 5 |
 | executionPlan/tests | 103 | 0 | 0 | 10 | 93 |
-| functions/tests | 251 | 109 | 4 | 104 | 34 |
+| functions/tests | 251 | 110 | 3 | 104 | 34 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 0 | 1 |
 | functions/tests/projection | 146 | 69 | 5 | 54 | 18 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -102,7 +102,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2316 | **895** | 30 | 665 | 726 |
+| **total** | 2316 | **896** | 29 | 665 | 726 |
 
 ### mapping walls (dropped at assembly)
 
@@ -207,12 +207,6 @@ in-process Alloy-shaped path).
 - calendarAggregation/tests meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - calendarAggregation/tests meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - calendarAggregation/tests meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- calendarAggregation/tests meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- calendarAggregation/tests meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- calendarAggregation/tests meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- calendarAggregation/tests meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- calendarAggregation/tests meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- calendarAggregation/tests meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - calendarAggregation/tests meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - calendarAggregation/tests meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - calendarAggregation/tests meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
@@ -342,12 +336,6 @@ in-process Alloy-shaped path).
 - executionPlan/tests meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - executionPlan/tests meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - executionPlan/tests meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- executionPlan/tests meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::executionPlan::tests::execution::executeServiceTests => Unknown type: 'Service' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::executionPlan::tests::execution::setUpData => Unknown type: 'Test' is not a known primitive, class, or enum
 - executionPlan/tests meta::pure::executionPlan::tests::assertPlanGenerationForOptionalParameter => Unknown type: 'DatabaseType' is not a known primitive, class, or enum
@@ -398,12 +386,6 @@ in-process Alloy-shaped path).
 - functions/tests meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - functions/tests meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - functions/tests meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- functions/tests meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- functions/tests meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- functions/tests meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- functions/tests meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- functions/tests meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- functions/tests meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - functions/tests meta::relational::tests::functions::distance::testDistanceRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - functions/tests meta::relational::tests::functions::fetchDbMetaData::testFetchDbMetaDataRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - functions/tests meta::relational::tests::query::paginate::helper::runtime => Unknown type: 'Runtime' is not a known primitive, class, or enum
@@ -709,12 +691,6 @@ in-process Alloy-shaped path).
 - functions/tests/loadCsvToDbTable meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- functions/tests/loadCsvToDbTable meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - functions/tests/loadCsvToDbTable meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
@@ -739,12 +715,6 @@ in-process Alloy-shaped path).
 - functions/tests/projection meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - functions/tests/projection meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - functions/tests/projection meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- functions/tests/projection meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::tests::projection::concatenate::tdsQueries::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::tests::projection::exists::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - functions/tests/projection meta::relational::tests::projection::simple::runQuery => Unknown type: 'TabularDataSet' is not a known primitive, class, or enum
@@ -948,12 +918,6 @@ in-process Alloy-shaped path).
 - graphFetch/tests meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - graphFetch/tests meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - graphFetch/tests meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- graphFetch/tests meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - graphFetch/tests meta::pure::graphFetch::tests::milestoning::getAlloyTestH2Connection => Unknown type: 'meta::core::runtime::ConnectionStore' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::graphFetch::tests::resultSourcing::createDbAndGetConnection => Unknown type: 'ConnectionStore' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::graphFetch::tests::isolation::getRuntime => Unknown type: 'Database' is not a known primitive, class, or enum
@@ -993,12 +957,6 @@ in-process Alloy-shaped path).
 - milestoning/tests meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - milestoning/tests meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - milestoning/tests meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- milestoning/tests meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::tests::milestoning::initDatabase => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::tests::milestoning::initDatabaseForCalendar => Unknown type: 'ConnectionStore' is not a known primitive, class, or enum
 - milestoning/tests meta::relational::tests::milestoning::snapshot::setUp => Unknown type: 'Runtime' is not a known primitive, class, or enum
@@ -1273,12 +1231,6 @@ in-process Alloy-shaped path).
 - postprocessor meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - postprocessor meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - postprocessor meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- postprocessor meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- postprocessor meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- postprocessor meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- postprocessor meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- postprocessor meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- postprocessor meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::nonExecutable => Unknown type: 'SelectSQLQuery' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::processRelationalOperationForNonExecutable => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
 - postprocessor meta::relational::postProcessor::joinNonExecutable => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
@@ -1337,12 +1289,6 @@ in-process Alloy-shaped path).
 - postprocessor/tests meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - postprocessor/tests meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - postprocessor/tests meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- postprocessor/tests meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::tests::postProcessor::runtimeWithTableReplace => Unknown type: 'Table' is not a known primitive, class, or enum
 - postprocessor/tests meta::relational::tests::postProcessor::nonExecutable::runtimeWithNonExecutable => Unknown type: 'meta::core::runtime::Runtime' is not a known primitive, class, or enum
 - postprocessor/tests meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
@@ -1360,12 +1306,6 @@ in-process Alloy-shaped path).
 - pureToSQLQuery/tests meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- pureToSQLQuery/tests meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::tests::functions::pureToSqlQuery::buildJoinTreeNode => Unknown type: 'RelationalTreeNode' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::relational::tests::functions::pureToSqlQuery::buildTableAlias => Unknown type: 'TableAlias' is not a known primitive, class, or enum
 - pureToSQLQuery/tests meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
@@ -1378,12 +1318,6 @@ in-process Alloy-shaped path).
 - router/tests meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - router/tests meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - router/tests meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- router/tests meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- router/tests meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- router/tests meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- router/tests meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- router/tests meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- router/tests meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - router/tests meta::relational::tests::query::routing::firmProjected => Unknown type: 'TabularDataSet' is not a known primitive, class, or enum
 - router/tests meta::relational::tests::query::routing::firmProjected1 => Unknown type: 'TabularDataSet' is not a known primitive, class, or enum
 - router/tests meta::relational::tests::query::routing::addProject => Unknown type: 'TabularDataSet' is not a known primitive, class, or enum
@@ -1471,12 +1405,6 @@ in-process Alloy-shaped path).
 - tds/tests meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tds/tests meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tds/tests meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tds/tests meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tds/tests meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tds/tests meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tds/tests meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tds/tests meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tds/tests meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tds/tests meta::relational::tests::tds::window::routing::function1 => Unknown type: 'TabularDataSet' is not a known primitive, class, or enum
 - tds/tests meta::relational::tests::tds::window::routing::function2 => Unknown type: 'TabularDataSet' is not a known primitive, class, or enum
 - tds/tests meta::relational::tests::tds::window::routing::function3 => Unknown type: 'TabularDataSet' is not a known primitive, class, or enum
@@ -1782,16 +1710,9 @@ in-process Alloy-shaped path).
 - tests/advanced meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/advanced meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/advanced meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/advanced meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/advanced meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/advanced meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/advanced meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/advanced meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/advanced meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/advanced meta::relational::tests::advanced::forcedselfjoin::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/advanced meta::relational::tests::advanced::contractmoneyscenario::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/advanced meta::relational::tests::advanced::failures::moveFilterInOnClause::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
-- tests/advanced meta::relational::functions::toDDL::executeInDb2 => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/advanced meta::relational::tests::advanced::forced::filter::testFilterMappingWithProjectionOverlapp => Unknown type: 'IsolationStrategy' is not a known primitive, class, or enum
 - tests/advanced meta::relational::tests::advanced::forced::milestoning::testMilestoningQueryWithSimpleProjectWithMilestoneFilter => Unknown type: 'IsolationStrategy' is not a known primitive, class, or enum
 - tests/advanced meta::relational::tests::advanced::forced::milestoning::testNonMilestoningQueryWithMilestoneFilterProject => Unknown type: 'IsolationStrategy' is not a known primitive, class, or enum
@@ -1894,12 +1815,6 @@ in-process Alloy-shaped path).
 - tests/datatype meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/datatype meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/datatype meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/datatype meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/datatype meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/datatype meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/datatype meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/datatype meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/datatype meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/datatype meta::relational::tests::mapping::dataType::model::store::testDataTypeMappingRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/datatype meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/datatype meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -1919,12 +1834,6 @@ in-process Alloy-shaped path).
 - tests/injection meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/injection meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/injection meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/injection meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/injection meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/injection meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/injection meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/injection meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/injection meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/injection meta::relational::tests::injection::testRuntime => Unknown type: 'meta::core::runtime::Runtime' is not a known primitive, class, or enum
 - tests/injection meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/injection meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -1937,12 +1846,6 @@ in-process Alloy-shaped path).
 - tests/mapping meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - tests/mapping meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
@@ -1968,12 +1871,6 @@ in-process Alloy-shaped path).
 - tests/mapping/association meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/association meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/association meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/association meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/association meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/association meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - tests/mapping/association meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
@@ -2047,12 +1944,6 @@ in-process Alloy-shaped path).
 - tests/mapping/classMappingFilterWithInnerJoin meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::milestoningmapWithInnerJoin$class$meta::relational::tests::milestoning::Exchange => Unknown type: 'meta::relational::tests::milestoning::Exchange' is not a known primitive, class, or enum
@@ -2097,12 +1988,6 @@ in-process Alloy-shaped path).
 - tests/mapping/distinct meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/distinct meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::relational::tests::mapping::distinct::model::store::testDataTypeMappingRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/distinct meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -2120,12 +2005,6 @@ in-process Alloy-shaped path).
 - tests/mapping/dynaJoin meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/dynaJoin meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - tests/mapping/dynaJoin meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
@@ -2165,12 +2044,6 @@ in-process Alloy-shaped path).
 - tests/mapping/embedded meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/embedded meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::tests::mapping::embedded::model::store::testDataTypeMappingRuntimeWithTz => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::tests::mapping::embedded::model::store::testDataTypeMappingRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/embedded meta::relational::tests::mapping::embedded::advanced::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
@@ -2299,12 +2172,6 @@ in-process Alloy-shaped path).
 - tests/mapping/enumeration meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/enumeration meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::relational::tests::mapping::enumeration::enumTestRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/enumeration meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -2315,12 +2182,6 @@ in-process Alloy-shaped path).
 - tests/mapping/filter meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/filter meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/filter meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/filter meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/filter meta::relational::tests::mapping::filter::model::store::testDataTypeMappingRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/filter meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/filter meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -2368,12 +2229,6 @@ in-process Alloy-shaped path).
 - tests/mapping/groupBy meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/groupBy meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::relational::tests::mapping::groupBy::model::store::testDataTypeMappingRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/groupBy meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -2393,12 +2248,6 @@ in-process Alloy-shaped path).
 - tests/mapping/inheritance meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/inheritance meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - tests/mapping/inheritance meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
@@ -2505,12 +2354,6 @@ in-process Alloy-shaped path).
 - tests/mapping/join meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/join meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/join meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/join meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/join meta::relational::tests::mapping::join::model::store::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/join meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/join meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -2525,12 +2368,6 @@ in-process Alloy-shaped path).
 - tests/mapping/merge meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/merge meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/merge meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/merge meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/merge meta::relational::tests::mapping::merge::createRuntime => Unknown type: 'Database' is not a known primitive, class, or enum
 - tests/mapping/merge meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/merge meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -2592,12 +2429,6 @@ in-process Alloy-shaped path).
 - tests/mapping/modelJoin meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/modelJoin meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::relational::tests::mapping::modelJoin::setupTestData => Unknown type: 'Database' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/modelJoin meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -2652,12 +2483,6 @@ in-process Alloy-shaped path).
 - tests/mapping/multigrain meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/multigrain meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::relational::tests::mapping::multigrain::model::store::testDataTypeMappingRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/multigrain meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -2679,12 +2504,6 @@ in-process Alloy-shaped path).
 - tests/mapping/propertyfunc meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/propertyfunc meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::relational::tests::mapping::propertyfunc::model::store::testDataTypeMappingRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/propertyfunc meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -2743,12 +2562,6 @@ in-process Alloy-shaped path).
 - tests/mapping/relation meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/relation meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/relation meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/relation meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/relation meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/relation meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - tests/mapping/relation meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
@@ -2765,12 +2578,6 @@ in-process Alloy-shaped path).
 - tests/mapping/selfJoin meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/selfJoin meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::relational::tests::mapping::selfJoin::model::store::testDataTypeMappingRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/selfJoin meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -2860,12 +2667,6 @@ in-process Alloy-shaped path).
 - tests/mapping/sqlFunction meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/sqlFunction meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::relational::tests::mapping::sqlFunction::model::store::testDataTypeMappingRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/sqlFunction meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -2898,12 +2699,6 @@ in-process Alloy-shaped path).
 - tests/mapping/tree meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/tree meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/tree meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/tree meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/tree meta::relational::tests::mapping::tree::model::store::testDataTypeMappingRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/tree meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/mapping/tree meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -2923,14 +2718,7 @@ in-process Alloy-shaped path).
 - tests/mapping/union meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/union meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/union meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::tests::mapping::union::partialForeignKeyUsage::initDatabase => Unknown type: 'Runtime' is not a known primitive, class, or enum
-- tests/mapping/union meta::relational::tests::mapping::union::executeInDb2 => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::tests::mapping::union::sqlQueryMerging::setup => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/union meta::relational::tests::mapping::union::multipleChainedJoins::setup => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/union meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
@@ -3182,14 +2970,7 @@ in-process Alloy-shaped path).
 - tests/mapping/union/relation meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::tests::mapping::union::partialForeignKeyUsage::initDatabase => Unknown type: 'Runtime' is not a known primitive, class, or enum
-- tests/mapping/union/relation meta::relational::tests::mapping::union::executeInDb2 => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::tests::mapping::union::sqlQueryMerging::setup => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::tests::mapping::union::multipleChainedJoins::setup => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/mapping/union/relation meta::relational::tests::mapping::union::relation::advanced::testTds => Unknown type: 'TabularDataSet' is not a known primitive, class, or enum
@@ -3205,12 +2986,6 @@ in-process Alloy-shaped path).
 - tests/platformOperations meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/platformOperations meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/platformOperations meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/platformOperations meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::tests::platform::operations::runtime::testRuntimeUS => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/platformOperations meta::relational::tests::platform::operations::testDatabaseConnectionPerson => Unknown type: 'Database' is not a known primitive, class, or enum
 - tests/platformOperations meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
@@ -3252,12 +3027,6 @@ in-process Alloy-shaped path).
 - tests/query meta::external::store::relational::tests::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/query meta::external::store::relational::tests::testRuntimeForBQ => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/query meta::external::store::relational::tests::testDatabaseConnection => Unknown type: 'Database' is not a known primitive, class, or enum
-- tests/query meta::relational::tests::createPersonTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/query meta::relational::tests::createFirmTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/query meta::relational::tests::createTradeTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/query meta::relational::tests::createtestTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/query meta::relational::tests::createtestClassTableAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
-- tests/query meta::relational::tests::createProductSchemaTablesAndFillDb => Unknown type: 'meta::external::store::relational::runtime::DatabaseConnection' is not a known primitive, class, or enum
 - tests/query meta::relational::tests::groupBy::datePeriods::testRuntime => Unknown type: 'Runtime' is not a known primitive, class, or enum
 - tests/query meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
 - tests/query meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
@@ -3534,9 +3303,8 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
-- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -3582,8 +3350,8 @@ in-process Alloy-shaped path).
 - ERROR testFilterInWithJoin [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testMappingFromQueriesViaMappingWithAssociationsOnly [functions/tests]: 'meta::relational::tests::fromMapping::MappingWithAssociation' is not a known class, mapping, runtime, connection, or database
 - SHAPE testClassMappingsAreCorrectlyIsolated [functions/tests]: no execute(|...) call
-- ERROR testClassMappingsWithUnions [functions/tests]: Unknown type: 'Runtime' is not a known primitive, class, or enum
-- ERROR testEnumProjection [functions/tests]: Unknown type: 'Runtime' is not a known primitive, class, or enum
+- ERROR testClassMappingsWithUnions [functions/tests]: from() argument 2 must be a mapping or runtime reference, got TypedNativeCall
+- ERROR testEnumProjection [functions/tests]: from() argument 2 must be a mapping or runtime reference, got TypedNativeCall
 - SHAPE testFromWithMapping [functions/tests]: no execute(|...) call
 - SHAPE testFromWithMappingAndIntermediateFuncCall [functions/tests]: no execute(|...) call
 - ERROR testGetterTwice [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)

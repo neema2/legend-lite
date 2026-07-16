@@ -201,6 +201,16 @@ public final class Pure {
     public static final ClassDefinition AGG_COL_SPEC         = nativeClass("native Class meta::pure::metamodel::relation::AggColSpec<F, U, R> extends meta::pure::metamodel::type::Any {}");
     public static final ClassDefinition AGG_COL_SPEC_ARRAY   = nativeClass("native Class meta::pure::metamodel::relation::AggColSpecArray<F, U, R> extends meta::pure::metamodel::type::Any {}");
 
+    // ===== engine RELATIONAL-RUNTIME surface (K-phase natives) =====
+    // The corpus's own executeInDb WRAPPER functions
+    // (relationalExtension.pure) compile against these classes and inline
+    // to the native leaf below; the CONNECTION VALUE at run time is the
+    // execution context's one ambient JDBC connection (the K dispatch
+    // never evaluates connection expressions).
+    public static final ClassDefinition DATABASE_CONNECTION = nativeClass("native Class meta::external::store::relational::runtime::DatabaseConnection extends meta::pure::metamodel::type::Any {}");
+    public static final ClassDefinition TEST_DATABASE_CONNECTION = nativeClass("native Class meta::external::store::relational::runtime::TestDatabaseConnection extends meta::external::store::relational::runtime::DatabaseConnection {}");
+    public static final ClassDefinition RESULT_SET = nativeClass("native Class meta::relational::metamodel::execute::ResultSet extends meta::pure::metamodel::type::Any {}");
+
     // ---- Function carrier (parameterized over a function-type token) ----
     public static final ClassDefinition FUNCTION = nativeClass("native Class meta::pure::metamodel::function::Function<F> extends meta::pure::metamodel::type::Any {}");
 
@@ -861,6 +871,15 @@ public final class Pure {
     // for e.g. an Integer property over a DOUBLE column, calendar family)
     public static final NativeFunctionDefinition TYPE_AS_DECLARED__ANY_01__T_1 = signature("native function meta::legend::lite::typeAsDeclared<T>(value:meta::pure::metamodel::type::Any[0..1], type:T[1]):T[0..1];");
     public static final NativeFunctionDefinition ID__ANY_1 = signature("native function meta::pure::functions::meta::id(instance:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[1];");
+    // K-phase natives: the engine's JDBC boundary (executed host-side at
+    // the EXECUTE phase, never lowered to SQL). executeInDb is the 4-arg
+    // leaf every corpus wrapper bottoms out at; testRuntime and
+    // connectionByElement type the connection-resolution chains
+    // (execution-context elements are Any[1] — the from() convention).
+    public static final NativeFunctionDefinition EXECUTE_IN_DB__STRING_1__CONN_1__INTEGER_1__INTEGER_1 = signature("native function meta::relational::metamodel::execute::executeInDb(sql:meta::pure::metamodel::type::String[1], databaseConnection:meta::external::store::relational::runtime::DatabaseConnection[1], timeOutInSeconds:meta::pure::metamodel::type::Integer[1], fetchSize:meta::pure::metamodel::type::Integer[1]):meta::relational::metamodel::execute::ResultSet[1];");
+    public static final NativeFunctionDefinition TEST_RUNTIME__0 = signature("native function meta::external::store::relational::tests::testRuntime():meta::pure::metamodel::type::Any[1];");
+    public static final NativeFunctionDefinition TEST_RUNTIME__ANY_1 = signature("native function meta::external::store::relational::tests::testRuntime(db:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1];");
+    public static final NativeFunctionDefinition CONNECTION_BY_ELEMENT__ANY_1__ANY_1 = signature("native function meta::core::runtime::connectionByElement(runtime:meta::pure::metamodel::type::Any[1], store:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1];");
     public static final NativeFunctionDefinition LEGACY_ASSOC_PREDICATE__A_1__B_1__RELATION_1__RELATION_1__FUNCTION_1 = signature("native function meta::legend::lite::legacyAssocPredicate<A,B,S,T>(a:A[1], b:B[1], src:meta::pure::metamodel::relation::Relation<S>[1], tgt:meta::pure::metamodel::relation::Relation<T>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition LENGTH__STRING_1 = signature("native function meta::pure::functions::string::length(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition LESS_THAN_EQUAL__DATE_0_1__DATE_0_1 = signature("native function meta::pure::functions::boolean::lessThanEqual(left:meta::pure::metamodel::type::Date[0..1], right:meta::pure::metamodel::type::Date[0..1]):meta::pure::metamodel::type::Boolean[1];");
