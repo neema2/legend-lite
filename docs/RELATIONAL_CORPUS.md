@@ -71,7 +71,7 @@ in-process Alloy-shaped path).
 | tests/mapping/merge | 1 | 0 | 0 | 1 | 0 |
 | tests/mapping/modelJoin | 47 | 12 | 1 | 34 | 0 |
 | tests/mapping/multigrain | 5 | 3 | 0 | 2 | 0 |
-| tests/mapping/propertyfunc | 6 | 0 | 0 | 6 | 0 |
+| tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 |
 | tests/mapping/relation | 93 | 42 | 1 | 7 | 43 |
 | tests/mapping/relation/aggregation | 9 | 0 | 0 | 0 | 9 |
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2489 | **921** | 33 | 678 | 857 |
+| **total** | 2489 | **927** | 33 | 672 | 857 |
 
 ### mapping walls (dropped at assembly)
 
@@ -3628,7 +3628,7 @@ in-process Alloy-shaped path).
 - 12x expected at most one value, got many ([*])
 - 11x class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping' (Join 'AccountPnlView_Account' navigates to a CLASS mapped over view 'accountOrderPnlView'; class navigation onto view relations is a roadmap feature. mapping=meta::relational::tests::simpleRelationalMapping)
 - 11x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary)
-- 11x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[function=if, parameters=[AppliedFunction[function=equal, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=active], CString[value=Y]], candidateFqns=[]], LambdaFunction[parameters=[], body=[CString[value=true]]], LambdaFunction[parameters=[], body=[CString[value=false]]]], candidateFqns=[]]], )
+- 11x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[function=if, parameters=[AppliedFunction[function=equal, parameters=[AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=active]], candidateFqns=[]], CString[value=Y]], candidateFqns=[]], LambdaFunction[parameters=[], body=[CString[value=true]]], LambdaFunction[pa)
 - 10x class query under TypedMap is not resolvable yet (H2 vocabulary)
 - 9x lowering not yet implemented for TypedNativeCall
 - 8x object-space expression node TypedMap is not substitutable yet (H2 vocabulary)
@@ -4937,12 +4937,6 @@ in-process Alloy-shaped path).
 - ERROR testUnionWithSubtypeQuery [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::union::UnionWithSubtypeQueryMapping'
 - ERROR testToManyWithQualifierWithFilterOnDataType [tests/mapping/multigrain]: in function 'meta::relational::tests::mapping::multigrain::model::mapping::testMappingFirmAccount$class$meta::relational::tests::mapping::multigrain::model::domain::FirmAccount': property 'number' of 'meta::relational::tests::mapping::multigrain::model::domain::FirmAccount': expected Integer, got St
 - ERROR testToManyWithQualifierWithFilterOnJoin [tests/mapping/multigrain]: in function 'meta::relational::tests::mapping::multigrain::model::mapping::testMappingFirmAccount$class$meta::relational::tests::mapping::multigrain::model::domain::FirmAccount': property 'number' of 'meta::relational::tests::mapping::multigrain::model::domain::FirmAccount': expected Integer, got St
-- ERROR testSimplePropertyFuncProject [tests/mapping/propertyfunc]: in function 'meta::relational::tests::mapping::propertyfunc::model::mapping::PropertyfuncMapping$class$meta::relational::tests::mapping::propertyfunc::model::domain::Person': in call to 'meta::pure::functions::string::substring', argument 2: expected at most one value, got many ([*])
-- ERROR testSimplePropertyFuncQuery [tests/mapping/propertyfunc]: in function 'meta::relational::tests::mapping::propertyfunc::model::mapping::PropertyfuncMapping$class$meta::relational::tests::mapping::propertyfunc::model::domain::Person': in call to 'meta::pure::functions::string::substring', argument 2: expected at most one value, got many ([*])
-- ERROR testSimplePropertyFuncGetAll [tests/mapping/propertyfunc]: in function 'meta::relational::tests::mapping::propertyfunc::model::mapping::PropertyfuncMapping$class$meta::relational::tests::mapping::propertyfunc::model::domain::Person': in call to 'meta::pure::functions::string::substring', argument 2: expected at most one value, got many ([*])
-- ERROR testSimplePropertyFuncProjectWithJoin [tests/mapping/propertyfunc]: in function 'meta::relational::tests::mapping::propertyfunc::model::mapping::PropertyfuncMappingWithJoin$class$meta::relational::tests::mapping::propertyfunc::model::domain::Person': in call to 'meta::pure::functions::string::substring', argument 2: expected at most one value, got many ([*])
-- ERROR testSimplePropertyFuncQueryWithJoin [tests/mapping/propertyfunc]: in function 'meta::relational::tests::mapping::propertyfunc::model::mapping::PropertyfuncMappingWithJoin$class$meta::relational::tests::mapping::propertyfunc::model::domain::Person': in call to 'meta::pure::functions::string::substring', argument 2: expected at most one value, got many ([*])
-- ERROR testSimplePropertyFuncGetAllWithJoin [tests/mapping/propertyfunc]: in function 'meta::relational::tests::mapping::propertyfunc::model::mapping::PropertyfuncMappingWithJoin$class$meta::relational::tests::mapping::propertyfunc::model::domain::Person': in call to 'meta::pure::functions::string::substring', argument 2: expected at most one value, got many ([*])
 - SHAPE testAutoInferPKFromBareAccessor [tests/mapping/relation]: no execute(|...) call
 - SHAPE testAutoInferPKThroughFilter [tests/mapping/relation]: no execute(|...) call
 - SHAPE testAutoInferPKThroughLimit [tests/mapping/relation]: no execute(|...) call

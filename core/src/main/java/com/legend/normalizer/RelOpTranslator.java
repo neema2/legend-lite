@@ -115,13 +115,33 @@ final class RelOpTranslator {
         return new AppliedProperty(base, column);
     }
 
+    /**
+     * DYNA-WIDE MULTIPLICITY CONVENTION: inside a dynafunction call's
+     * ARGUMENTS, a column reference is an SQL scalar — nullable and
+     * null-propagating — so an optional column read conforms by EMISSION
+     * (toOne; erasure at lowering). Without this, one [0..1] column
+     * infects the whole arithmetic chain with [*] and scalar signatures
+     * (substring, minus, ...) reject the synthesized mapping body.
+     * Comparisons/logical ops do NOT route here — their optionality
+     * semantics are their own.
+     */
     private static List<ValueSpecification> translateArgs(
             RelationalOperation.FunctionCall call,
             Map<String, ValueSpecification> tableScope,
             ValueSpecification targetVarOrNull, Variable rowBindOrNull,
             PipelineView pipeline) {
         return call.args().stream()
-                .map(a -> translate(a, tableScope, targetVarOrNull, rowBindOrNull, pipeline))
+                .map(a -> {
+                    ValueSpecification t = translate(a, tableScope,
+                            targetVarOrNull, rowBindOrNull, pipeline);
+                    // JOIN CONDITIONS (a target var is bound) stay VERBATIM
+                    // — the engine preserves them and join-key extraction
+                    // reads bare column shapes; only PROPERTY expressions
+                    // get the scalar conform.
+                    return targetVarOrNull == null
+                            && a instanceof RelationalOperation.ColumnRef
+                            ? new AppliedFunction("toOne", List.of(t)) : t;
+                })
                 .toList();
     }
 
@@ -364,6 +384,37 @@ final class RelOpTranslator {
                                     translate(call.args().get(1), tableScope,
                                             targetVarOrNull, rowBindOrNull, pipeline))),
                             new CInteger(1)));
+            // dyna 'substring' is SQL SUBSTRING — 1-BASED start (H2 clamps
+            // start < 1 to 1: the corpus passes literal 0); pure's
+            // substring is 0-based. Conform by emission for BOTH arities:
+            // start' = max(start - 1, 0).
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("substring")
+                    && (call.args().size() == 2 || call.args().size() == 3) -> {
+                List<ValueSpecification> args = translateArgs(call, tableScope,
+                        targetVarOrNull, rowBindOrNull, pipeline);
+                List<ValueSpecification> out = new java.util.ArrayList<>(args.size());
+                out.add(args.get(0));
+                out.add(new AppliedFunction("max", List.of(
+                        new AppliedFunction("minus",
+                                List.of(args.get(1), new CInteger(1))),
+                        new CInteger(0))));
+                if (args.size() == 3) {
+                    out.add(args.get(2));
+                }
+                yield new AppliedFunction("substring", out);
+            }
+            // dyna 'add'/'sub' are SQL ARITHMETIC — pure spells them
+            // plus/minus; the bare names would hit pure's COLLECTION
+            // add(T[*],T[1]) and type [*]
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("add") && call.args().size() == 2 ->
+                    new AppliedFunction("plus", translateArgs(call, tableScope,
+                            targetVarOrNull, rowBindOrNull, pipeline));
+            case RelationalOperation.FunctionCall call
+                    when call.name().equals("sub") && call.args().size() == 2 ->
+                    new AppliedFunction("minus", translateArgs(call, tableScope,
+                            targetVarOrNull, rowBindOrNull, pipeline));
             // SQL POSITION(needle, haystack) — 1-based, arguments REVERSED
             // vs pure's indexOf(haystack, needle); same +1 emission as the
             // indexOf dynafunction above
@@ -406,10 +457,8 @@ final class RelOpTranslator {
                                             rowBindOrNull, pipeline)))));
             case RelationalOperation.FunctionCall call -> new AppliedFunction(
                     call.name(),
-                    call.args().stream()
-                            .map(a -> translate(a, tableScope, targetVarOrNull,
-                                    rowBindOrNull, pipeline))
-                            .toList());
+                    translateArgs(call, tableScope, targetVarOrNull,
+                            rowBindOrNull, pipeline));
             case RelationalOperation.Comparison cmp -> {
                 AppliedFunction c = new AppliedFunction(
                         comparisonFn(cmp.op()),
