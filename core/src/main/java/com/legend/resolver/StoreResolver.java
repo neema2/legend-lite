@@ -1409,7 +1409,9 @@ public final class StoreResolver {
                         (Type.RelationType)
                                 tMat.pipeline().info().type(),
                         t.classFqn(), Pipelines.slotAliases(t.pipeline()),
-                        tMat0.slotPrefixes(), navToMany));
+                        tMat0.slotPrefixes(), navToMany)
+                        .withInnerRegs(nestedExistsRegistries(t, ops, head,
+                                context, tMat.pipeline())));
                 continue;
             }
             var assocOpt = ctx.findAssociationOf(cs.classFqn(), SyntheticHeads.realHead(head));
@@ -1439,7 +1441,9 @@ public final class StoreResolver {
                     aj.condition(), aj.target().rowVar(), aj.target().bindings(),
                     aj.targetRow(), aj.target().classFqn(),
                     Pipelines.slotAliases(aj.target().pipeline()),
-                    aj.targetSlotPrefixes(), isToMany));
+                    aj.targetSlotPrefixes(), isToMany)
+                    .withInnerRegs(nestedExistsRegistries(aj.target(), ops,
+                            head, context, aj.targetPipeline())));
         }
 
         return existsSubs;
@@ -2492,6 +2496,84 @@ public final class StoreResolver {
      * head} anywhere in the chain's filters — the inner-lambda demand that
      * materializes the exists target's own slot joins (N1).
      */
+    /**
+     * R1 — RECURSIVE SCOPE DEMAND: the exists/filter predicates nested
+     * under {@code head} get their own registered materials against the
+     * TARGET class, so navigation INSIDE a nested predicate resolves
+     * instead of staying loud (Registries.NONE was a blanket stop).
+     * Terminates on expression depth; assoc/agg materials stay top-level
+     * for now (R1a: exists materials only).
+     */
+    private Substitution.Registries nestedExistsRegistries(ClassSource t,
+            List<TypedSpec> ops, String head, Context context,
+            TypedSpec targetPipe) {
+        List<TypedLambda> inner = existsInnerLambdas(ops, head);
+        if (inner.isEmpty()) {
+            return Substitution.Registries.NONE;
+        }
+        Set<List<String>> innerPaths = new LinkedHashSet<>();
+        List<TypedSpec> innerOps = new ArrayList<>();
+        for (TypedLambda lam : inner) {
+            if (lam.parameters().isEmpty()) {
+                continue;
+            }
+            Set<String> heads = new LinkedHashSet<>();
+            collectParamPathHeads(lam, lam.parameters().get(0), heads);
+            heads.forEach(h -> innerPaths.add(List.of(h)));
+            innerOps.add(new TypedFilter(targetPipe, lam, targetPipe.info()));
+        }
+        if (innerPaths.isEmpty()) {
+            return Substitution.Registries.NONE;
+        }
+        Map<String, Substitution.ExistsSub> nested =
+                registerExistsSubs(t, innerPaths, Set.of(), innerOps, context);
+        if (nested.isEmpty()) {
+            return Substitution.Registries.NONE;
+        }
+        return new Substitution.Registries(Map.of(), Set.of(), nested,
+                Map.of(), isNotEmptyCallee(), equalCallee());
+    }
+
+    /** The predicate lambdas nested under {@code $user.head} chains —
+     * the LAMBDA-collecting sibling of {@link #collectExistsInnerLeaves}. */
+    private static List<TypedLambda> existsInnerLambdas(List<TypedSpec> ops,
+            String head) {
+        List<TypedLambda> out = new ArrayList<>();
+        for (TypedSpec op : ops) {
+            if (op instanceof TypedFilter f) {
+                for (TypedSpec b : f.predicate().body()) {
+                    collectExistsInnerLambdas(b,
+                            f.predicate().parameters().get(0), head, out);
+                }
+            }
+        }
+        return out;
+    }
+
+    private static void collectExistsInnerLambdas(TypedSpec n, String userVar,
+            String head, List<TypedLambda> out) {
+        if (n instanceof TypedNativeCall c && !c.args().isEmpty()) {
+            TypedSpec recv = c.args().get(0);
+            List<TypedLambda> chainLams = new ArrayList<>();
+            while (recv instanceof TypedFilter tf) {
+                chainLams.add(tf.predicate());
+                recv = tf.source();
+            }
+            List<String> p = Substitution.pathOf(recv, userVar);
+            if (p != null && p.size() == 1 && p.get(0).equals(head)) {
+                if (c.args().size() == 2
+                        && c.args().get(1) instanceof TypedLambda lam
+                        && !lam.parameters().isEmpty()) {
+                    out.add(lam);
+                }
+                out.addAll(chainLams);
+            }
+        }
+        for (TypedSpec ch : n.children()) {
+            collectExistsInnerLambdas(ch, userVar, head, out);
+        }
+    }
+
     private static Set<String> existsInnerLeaves(List<TypedSpec> ops,
             String head) {
         Set<String> out = new LinkedHashSet<>();

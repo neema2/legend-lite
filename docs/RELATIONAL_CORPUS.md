@@ -27,7 +27,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 103 | 0 | 0 | 10 | 93 |
-| functions/tests | 258 | 115 | 4 | 112 | 27 |
+| functions/tests | 258 | 114 | 5 | 112 | 27 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 73 | 6 | 59 | 17 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -87,7 +87,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2497 | **958** | 35 | 835 | 669 |
+| **total** | 2497 | **957** | 36 | 835 | 669 |
 
 ### mapping walls (dropped at assembly)
 
@@ -3890,7 +3890,7 @@ in-process Alloy-shaped path).
 ### top error buckets
 
 - 44x a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- 36x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- 40x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - 24x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 18x 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 15x navigation through class-typed slot property 'address' is not supported yet
@@ -4064,6 +4064,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -4078,8 +4079,8 @@ in-process Alloy-shaped path).
 - ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: 'testMappingEmbeddedWithFirmDistinct' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testWithFilterGroupBy [functions/tests]: no scalar lowering registered for resolved overload 'meta::pure::functions::io::println' with 1 parameter(s)
 - ERROR testWithFilterGroupByNestedAssociation [functions/tests]: navigation through class-typed slot property 'address' is not supported yet
-- ERROR testNestedExistsOne [functions/tests]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
-- ERROR testNestedNotExists [functions/tests]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
+- ERROR testNestedExistsOne [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testNestedNotExists [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testIsNotEmpty [functions/tests]: Binder Error: subqueries in lambda expressions are not supported
 - ERROR testAssociationOneLevelDeep [functions/tests]: Binder Error: subqueries in lambda expressions are not supported
 - ERROR testAssociationTwoLevelDeep [functions/tests]: navigation through class-typed slot property 'address' is not supported yet
@@ -5075,7 +5076,7 @@ in-process Alloy-shaped path).
 - ERROR testPropertyMappingsForA [tests/mapping/extends]: association property '$a.e' used other than as a navigation head (class-typed value / isEmpty / whole-instance) is not supported yet
 - ERROR testPropertyMappingsForB [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
 - ERROR testPropertyMappingsForC [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR testStoreSubstitutionForB [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::BMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::B': [meta::relational::tests::mapp
 - ERROR testStoreSubstitutionForC [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::CMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::C': [meta::relational::tests::mapp
@@ -5356,8 +5357,8 @@ in-process Alloy-shaped path).
 - ERROR testGroupByWithFilterFunction_noDatePath [tests/query]: in function 'meta::relational::tests::groupBy::datePeriods::ytd': 'meta::pure::functions::collection::map' expects a lambda argument in position 1
 - ERROR testDayOfWeek [tests/query]: unknown function 'mostRecentDayOfWeek'
 - ERROR testAssociationMixedDeep [tests/query]: navigation through class-typed slot property 'address' is not supported yet
-- ERROR testTwoAssociationsToManyDeep [tests/query]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
-- ERROR testTwoAssociationsToManyDeepWithOr [tests/query]: class-typed property '$e.locations' used as a whole value is graph output (Phase H4)
+- ERROR testTwoAssociationsToManyDeep [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
+- ERROR testTwoAssociationsToManyDeepWithOr [tests/query]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary)
 - ERROR testAssociationToManyWithTwoSeparateExists [tests/query]: scalar lowering not yet implemented for TypedSerializeGraph
 - FAIL testWithParameterToClassNestedSelect [tests/query]: assertSize: expected 0, got 1
 - ERROR testExistsWithQualifierOnleftSide [tests/query]: property 'eventDate' of class 'meta::relational::tests::model::simple::Trade' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)

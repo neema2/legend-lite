@@ -185,7 +185,29 @@ final class Substitution {
                      Type.RelationType targetRow, String targetClassFqn,
                      Set<String> targetSlotAliases,
                      Map<String, String> targetSlotPrefixes, boolean toMany,
-                     TypedSpec scalarPipeline, Type.RelationType scalarRow) {
+                     TypedSpec scalarPipeline, Type.RelationType scalarRow,
+                     Registries innerRegs) {
+
+        ExistsSub(TypedSpec targetPipeline, TypedLambda orientedCond,
+                  String targetRowVar, Map<String, TypedSpec> targetBindings,
+                  Type.RelationType targetRow, String targetClassFqn,
+                  Set<String> targetSlotAliases,
+                  Map<String, String> targetSlotPrefixes, boolean toMany,
+                  TypedSpec scalarPipeline, Type.RelationType scalarRow) {
+            this(targetPipeline, orientedCond, targetRowVar, targetBindings,
+                    targetRow, targetClassFqn, targetSlotAliases,
+                    targetSlotPrefixes, toMany, scalarPipeline, scalarRow,
+                    Registries.NONE);
+        }
+
+        /** R1 (recursive scope demand): nested predicate scopes carry
+         * their OWN registered materials instead of staying loud. */
+        ExistsSub withInnerRegs(Registries r) {
+            return new ExistsSub(targetPipeline, orientedCond, targetRowVar,
+                    targetBindings, targetRow, targetClassFqn,
+                    targetSlotAliases, targetSlotPrefixes, toMany,
+                    scalarPipeline, scalarRow, r);
+        }
 
         ExistsSub(TypedSpec targetPipeline, TypedLambda orientedCond,
                   String targetRowVar, Map<String, TypedSpec> targetBindings,
@@ -1287,7 +1309,7 @@ final class Substitution {
                         ex.targetClassFqn(), target.mappingFqn(),
                         ex.targetRowVar(), ex.targetBindings(), ex.targetRow(),
                         ex.targetSlotAliases(), Map.of(), Map.of()),
-                Registries.NONE, TemporalView.NONE, true, true));
+                ex.innerRegs(), TemporalView.NONE, true, true));
         TypedLambda inner = predSub.rewriteLambda(predLam);
         TypedLambda innerOuter = new TypedLambda(inner.parameters(),
                 inner.body().stream().map(this::rewrite).toList(), inner.info());
@@ -1358,7 +1380,7 @@ final class Substitution {
                             ex.targetRowVar(), ex.targetBindings(),
                             ex.targetRow(), unconvertedSlotsOf(ex),
                             ex.targetSlotPrefixes(), Map.of()),
-                    Registries.NONE, TemporalView.NONE, true, true));
+                    ex.innerRegs(), TemporalView.NONE, true, true));
             TypedLambda cfInner = cfSub.rewriteLambda(cf);
             TypedLambda cfCorr = new TypedLambda(cfInner.parameters(),
                     cfInner.body().stream().map(this::rewrite).toList(),
@@ -1387,7 +1409,7 @@ final class Substitution {
                             ex.targetRowVar(), ex.targetBindings(),
                             ex.targetRow(), unconvertedSlots,
                             ex.targetSlotPrefixes(), Map.of()),
-                    Registries.NONE, TemporalView.NONE, true, true));
+                    ex.innerRegs(), TemporalView.NONE, true, true));
             TypedLambda inner = predSub.rewriteLambda(predLam);
             // OUTER reads inside the predicate ($s.name == $f.legal): a
             // second pass through THIS substitution turns them into
