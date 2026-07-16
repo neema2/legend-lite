@@ -399,14 +399,116 @@ public final class Compiler {
     public static com.legend.sql.SqlQuery lowerResolved(
             com.legend.model.spec.ValueSpecification resolved, ModelContext ctx,
             String runtimeFqn) {
+        return lowerResolved(resolved, ctx, runtimeFqn, false);
+    }
+
+    /**
+     * {@code relationalRootForm}: a BARE class root renders as the engine's
+     * flat relational SELECT — primary-key columns ({@code pk_0}..) plus
+     * the property leaves — instead of the platform's JSON envelope. The
+     * engine assembles objects HOST-side from that flat select, so its
+     * {@code toSQLString} goldens pin this form; execution paths never use
+     * it (Java orchestrates, the database executes — the envelope stays).
+     */
+    public static com.legend.sql.SqlQuery lowerResolved(
+            com.legend.model.spec.ValueSpecification resolved, ModelContext ctx,
+            String runtimeFqn, boolean relationalRootForm) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
         body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);
         body = new com.legend.resolver.StoreResolver(ctx, specs)
                 .resolve(body, runtimeFqn);
+        if (relationalRootForm) {
+            body = flattenBareGraphRoot(body, ctx);
+        }
         return new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent()).lower(body);
+    }
+
+    private static java.util.List<TypedSpec> flattenBareGraphRoot(
+            java.util.List<TypedSpec> body, ModelContext ctx) {
+        if (body.isEmpty()) {
+            return body;
+        }
+        // the from() wrapper survives resolution (it flows through the
+        // Lowerer untouched) — look through it
+        TypedSpec root = body.get(body.size() - 1);
+        if (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
+            root = fr.source();
+        }
+        if (!(root
+                instanceof com.legend.compiler.spec.typed.TypedSerializeGraph g)
+                || !g.nested().isEmpty() || g.bareValue()
+                || !(g.source().info().type()
+                        instanceof com.legend.compiler.element.type.Type.RelationType rowType)) {
+            return body;
+        }
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        java.util.List<com.legend.compiler.spec.typed.TypedFuncCol> cols =
+                new java.util.ArrayList<>();
+        // pk columns: the source's root table's PRIMARY KEY (the engine's
+        // resolvePrimaryKey fallback — mapping ~primaryKey is not lowered)
+        TypedSpec cur = g.source();
+        com.legend.compiler.spec.typed.TypedTableReference tref = null;
+        while (tref == null) {
+            if (cur instanceof com.legend.compiler.spec.typed.TypedTableReference tr) {
+                tref = tr;
+            } else if (cur.children().isEmpty()) {
+                break;
+            } else {
+                cur = cur.children().get(0);
+            }
+        }
+        if (tref != null) {
+            var td = ctx.findTableDefinition(tref.store(), tref.table())
+                    .orElse(null);
+            if (td != null) {
+                int i = 0;
+                for (var cd : td.columns()) {
+                    if (!cd.primaryKey()) {
+                        continue;
+                    }
+                    var colType = rowType.columns().stream()
+                            .filter(c -> c.name().equals(cd.name()))
+                            .findFirst().orElse(null);
+                    if (colType == null) {
+                        continue;
+                    }
+                    var colInfo = new com.legend.compiler.element.type.ExprType(
+                            colType.type(), colType.multiplicity());
+                    TypedSpec read = new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                            new com.legend.compiler.spec.typed.TypedVariable(g.rowVar(),
+                                    new com.legend.compiler.element.type.ExprType(rowType, one)),
+                            cd.name(), colInfo);
+                    var fnType = new com.legend.compiler.element.type.Type.FunctionType(
+                            java.util.List.of(new com.legend.compiler.element.type.Type.Param(
+                                    rowType, one)),
+                            new com.legend.compiler.element.type.Type.Param(
+                                    colType.type(), colType.multiplicity()));
+                    cols.add(new com.legend.compiler.spec.typed.TypedFuncCol("pk_" + i++,
+                            new com.legend.compiler.spec.typed.TypedLambda(
+                                    java.util.List.of(g.rowVar()),
+                                    java.util.List.of(read),
+                                    new com.legend.compiler.element.type.ExprType(fnType, one))));
+                }
+            }
+        }
+        cols.addAll(g.leaves());
+        java.util.List<com.legend.compiler.element.type.Type.Column> outCols =
+                new java.util.ArrayList<>();
+        for (var c : cols) {
+            var last = c.fn().body().get(c.fn().body().size() - 1).info();
+            outCols.add(new com.legend.compiler.element.type.Type.Column(
+                    c.name(), last.type(), last.multiplicity()));
+        }
+        var proj = new com.legend.compiler.spec.typed.TypedProject(g.source(), cols,
+                new com.legend.compiler.element.type.ExprType(
+                        new com.legend.compiler.element.type.Type.RelationType(outCols),
+                        g.source().info().multiplicity()));
+        java.util.List<TypedSpec> out = new java.util.ArrayList<>(body);
+        out.set(out.size() - 1, proj);
+        return out;
     }
 
     /**

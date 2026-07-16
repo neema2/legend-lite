@@ -952,7 +952,8 @@ public final class TestBody {
                     new LambdaFunction(List.of(), List.of(splicedQ)), imports,
                     ctx.elementFqns());
             String sql = new com.legend.sql.dialect.EngineStyleH2().render(
-                    com.legend.Compiler.lowerResolved(resolvedQ, ctx, runtimeFqn));
+                    com.legend.Compiler.lowerResolved(resolvedQ, ctx, runtimeFqn,
+                            /* relationalRootForm */ true));
             return new Eval(new com.legend.exec.ExecutionResult.Scalar(sql,
                     com.legend.compiler.element.type.Type.Primitive.STRING),
                     false, false);

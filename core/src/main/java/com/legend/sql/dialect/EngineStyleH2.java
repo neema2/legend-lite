@@ -84,6 +84,10 @@ public final class EngineStyleH2 extends AnsiSqlRenderer {
                     "QUALIFY has no engine-H2 golden spelling");
         }
         sb.append("select ");
+        // H2: a bare row cap is TOP; a slice is OFFSET .. FETCH NEXT
+        if (s.limit() != null && s.offset() == null) {
+            sb.append("top ").append(s.limit()).append(' ');
+        }
         if (s.distinct()) {
             sb.append("distinct ");
         }
@@ -108,11 +112,11 @@ public final class EngineStyleH2 extends AnsiSqlRenderer {
             sb.append(" order by ").append(s.orderBy().stream()
                     .map(this::sortKey).collect(Collectors.joining(", ")));
         }
-        if (s.limit() != null) {
-            sb.append(" limit ").append(s.limit());
-        }
         if (s.offset() != null) {
-            sb.append(" offset ").append(s.offset());
+            sb.append(" offset ").append(s.offset()).append(" rows");
+            if (s.limit() != null) {
+                sb.append(" fetch next ").append(s.limit()).append(" rows only");
+            }
         }
     }
 
