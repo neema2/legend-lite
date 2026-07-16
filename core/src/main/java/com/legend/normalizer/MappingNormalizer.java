@@ -672,10 +672,21 @@ public final class MappingNormalizer {
         // parent route would mis-read as a PARTIAL union route (wrong rows).
         // The child's own routes are authoritative; inherited multi-route
         // properties keep the merged single PM (equivalent-join shape).
+        // Table-level attributes INHERIT-IF-ABSENT, child REPLACES (never
+        // ANDs) — real legend-pure resolveFilter/resolveGroupBy/
+        // resolveDistinct (platform_store_relational functions.pure:143-167)
+        // and the pk priority ladder (:190-214). Hardcoding the child's
+        // silently DROPPED a parent ~filter for filter-less children —
+        // wrong ROWS, not an error (audit 17 bucket analysis).
         return new ClassMapping.Relational(
                 child.className(), child.setId(), child.extendsSetId(), child.root(),
-                child.mainTable(), child.filter(), child.distinct(), child.groupBy(),
-                child.primaryKey(), new ArrayList<>(merged.values()), child.sourceUrl(),
+                child.mainTable() != null ? child.mainTable() : flatParent.mainTable(),
+                child.filter() != null ? child.filter() : flatParent.filter(),
+                child.distinct() || flatParent.distinct(),
+                child.groupBy() != null ? child.groupBy() : flatParent.groupBy(),
+                child.primaryKey() != null && !child.primaryKey().isEmpty()
+                        ? child.primaryKey() : flatParent.primaryKey(),
+                new ArrayList<>(merged.values()), child.sourceUrl(),
                 child.propertyTargetSets());
     }
 
