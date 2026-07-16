@@ -2228,15 +2228,18 @@ public final class MappingNormalizer {
      * Engine semantics for EXPRESSION property mappings: the dynafunction's
      * result coerces to the property's declared type at the SQL boundary
      * (abs(...) types Number, the property says Float — the engine compiles
-     * and the database delivers the declared kind). NUMERIC declared types
-     * wrap in cast(@Declared); everything else passes through untouched so
-     * genuine kind errors stay loud.
+     * and the database delivers the declared kind; Boolean covers the
+     * corpus's own {@code case(equal(col,'Y'), 'true', 'false')} idiom on a
+     * Boolean[1] property). NUMERIC/temporal/Boolean declared types wrap in
+     * cast(@Declared); everything else passes through untouched so genuine
+     * kind errors stay loud.
      */
     static ValueSpecification coerceToDeclaredNumeric(ValueSpecification value,
             String propName, String ownerClassFqn, ModelBuilder model) {
         String simple = declaredPlatformKind(propName, ownerClassFqn, model);
         if (simple == null || !Set.of("Float", "Integer", "Decimal",
-                "Number", "DateTime", "StrictDate", "Date").contains(simple)) {
+                "Number", "DateTime", "StrictDate", "Date", "Boolean")
+                        .contains(simple)) {
             return value;
         }
         return new AppliedFunction("cast", List.of(value,
