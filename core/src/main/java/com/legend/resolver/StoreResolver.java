@@ -1670,9 +1670,13 @@ public final class StoreResolver {
             // collecting: first()/head() IS limit 1; class-space
             // sort(key, comparator) IS sortBy with a direction.
             if (cur instanceof TypedNativeCall nc && isClassDistinct(nc)) {
-                // instance distinct over a relational extent dedups by
-                // OBJECT IDENTITY = primary key — rows are already unique
-                cur = nc.args().get(0);
+                // instance distinct = dedup by the SERIALIZED VALUE. Over a
+                // single-table extent rows are pk-unique and DISTINCT is a
+                // no-op; over a UNION/concatenate extent duplicates are
+                // REAL (audit 19d B7 — the old drop-the-node assumption
+                // pushed this to a host-side JSON dedup in the harness).
+                // Empty column list = the whole materialized row (§A.6).
+                cur = new TypedDistinct(nc.args().get(0), List.of(), nc.info());
                 continue;
             }
             if (cur instanceof TypedNativeCall nc && isFirstLike(nc)) {

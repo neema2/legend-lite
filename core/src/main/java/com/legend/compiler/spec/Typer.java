@@ -296,6 +296,21 @@ final class Typer {
         if (core.isPresent()) {
             return applyCore(core.get(), af, env);
         }
+        // instanceOf(cell, TDSNull): the null-cell type test IS the SQL
+        // null test (the engine materializes ^TDSNull() for null cells;
+        // tds.pure) — typed as isEmpty so every consumer shares the scalar
+        // IS NULL lowering. Exact names only; instanceOf against any other
+        // type stays the loud unknown (audit 19d B7 — this transplant
+        // lived in the harness's pre-typing substitute).
+        if (af.function().equals("instanceOf")
+                && af.parameters().size() == 2
+                && af.parameters().get(1)
+                        instanceof com.legend.model.spec.PackageableElementPtr pep
+                && (pep.fullPath().equals("meta::pure::tds::TDSNull")
+                        || pep.fullPath().equals("TDSNull"))) {
+            return synth(new AppliedFunction("isEmpty",
+                    List.of(af.parameters().get(0))), env);
+        }
         // PARAMETERIZED qualified property: $p.synonymByType(X) routes to the
         // externalized body function <owner>$prop$<name>(this, args...) and
         // β-inlines with every other user call — never shadows a real function
