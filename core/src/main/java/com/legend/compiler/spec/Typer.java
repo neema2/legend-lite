@@ -149,9 +149,25 @@ final class Typer {
             // (root package-info invariant): a new AST variant is a COMPILE
             // error here, not a runtime surprise. The two arms below are the
             // deliberate not-yet-implemented forms.
-            case LambdaFunction lf -> throw new TypeInferenceException(
-                    "a bare lambda has no type outside a call position"
-                            + " (lambdas type against their call's signature)");
+            case LambdaFunction lf -> {
+                // A ZERO-ARG single-expression lambda LITERAL has a type
+                // without any call: its own FunctionType (the corpus's
+                // let q = |Trade.all()->...; execute($q, ...) idiom — the
+                // engine's interpreter types lambda values directly; audit
+                // 19d B4). Parameterized / multi-statement lambdas still
+                // need a call signature and stay loud.
+                if (lf.parameters().isEmpty() && lf.body().size() == 1) {
+                    TypedSpec body = synth(lf.body().get(0), env);
+                    var fnType = new Type.FunctionType(List.of(),
+                            new Type.Param(body.info().type(),
+                                    body.info().multiplicity()));
+                    yield new TypedLambda(List.of(), List.of(body),
+                            new ExprType(fnType, Multiplicity.Bounded.ONE));
+                }
+                throw new TypeInferenceException(
+                        "a bare lambda has no type outside a call position"
+                                + " (lambdas type against their call's signature)");
+            }
             // ^Class($src): the MAPPING CAST — an upstream class value fed
             // through Class's mapping (M2M). Typed nominally here; the
             // RESOLVER composes it during class-source extraction (H5).
