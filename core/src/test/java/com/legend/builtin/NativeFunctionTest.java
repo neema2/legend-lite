@@ -394,7 +394,7 @@ class NativeFunctionTest {
         // 47: +Runtime/ConnectionStore/Connection (the real runtime.pure trio).
         // 48: +Database (the store metaclass — database refs in value position).
         // 49: +Row (ResultSet introspection in setup functions).
-        assertEquals(49, Pure.allNativeClasses().size(),
+        assertEquals(51, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -412,7 +412,10 @@ class NativeFunctionTest {
                             "connectionAcquisitionTimeInNanoSecond",
                             "executionPlanInformation", "columnNames", "rows"),
                     "meta::relational::metamodel::execute::Row",
-                    List.of("values", "parent"));
+                    List.of("values", "parent"),
+                    // B2a (real pure: platform_dsl_mapping/result.pure)
+                    "meta::pure::mapping::Result",
+                    List.of("values", "activities"));
 
     @Test
     void everyNativeClassIsMarkedNativeAndHasEmptyBodyOutsideTheDocumentedSurface() {
@@ -553,6 +556,8 @@ class NativeFunctionTest {
                 // the engine's relational-runtime surface (K-phase natives)
                 "meta::external::store::relational::runtime",
                 "meta::relational::metamodel::execute",
+                // B2a: the execute()/Result typing surface
+                "meta::pure::mapping",
                 "meta::core::runtime",
                 // the store metaclass lives directly under meta::relational::metamodel
                 "meta::relational::metamodel");

@@ -908,6 +908,19 @@ public final class Pure {
     // (execution-context elements are Any[1] — the from() convention).
     public static final NativeFunctionDefinition EXECUTE_IN_DB__STRING_1__CONN_1__INTEGER_1__INTEGER_1 = signature("native function meta::relational::metamodel::execute::executeInDb(sql:meta::pure::metamodel::type::String[1], databaseConnection:meta::external::store::relational::runtime::DatabaseConnection[1], timeOutInSeconds:meta::pure::metamodel::type::Integer[1], fetchSize:meta::pure::metamodel::type::Integer[1]):meta::relational::metamodel::execute::ResultSet[1];");
     public static final NativeFunctionDefinition CONNECTION_BY_ELEMENT__ANY_1__ANY_1 = signature("native function meta::core::runtime::connectionByElement(runtime:meta::core::runtime::Runtime[1], store:meta::pure::metamodel::type::Any[1]):meta::core::runtime::Connection[1];");
+    // B2a (docs/PHASE_B2_RESULT_VALUE.md): the execute()/Result typing
+    // surface. Result is a TYPING surface + orchestration handle — reads
+    // over it rewrite into SQL-bound queries (no interpreter, tenet #1);
+    // the K arm lands in B2b. mapping/runtime/extensions type as Any.
+    // NOTE: real pure spells Result<T|m> with values:T[m]; class-level
+    // multiplicity params are the task-#50 parse gap (the corpus's OWN
+    // Result<T|m> spelling darkens the postprocessor family the same
+    // way). T[*] is safe meanwhile — consumers normalize multiplicity.
+    public static final ClassDefinition RESULT = nativeClass("native Class meta::pure::mapping::Result<T> extends meta::pure::metamodel::type::Any { values: T[*]; activities: meta::pure::mapping::Activity[*]; }");
+    public static final ClassDefinition ACTIVITY = nativeClass("native Class meta::pure::mapping::Activity extends meta::pure::metamodel::type::Any {}");
+    public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::mapping::execute<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T>[1];");
+    public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1 = signature("native function meta::pure::mapping::execute<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::metamodel::type::Any[1]):meta::pure::mapping::Result<T>[1];");
+
     // relationalExtensions(): the corpus's own definition is signature-
     // broken in this platform (the Extension metamodel class), so it never
     // enters the module — this native exists for TYPING the context
