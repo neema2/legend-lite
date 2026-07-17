@@ -1790,6 +1790,10 @@ final class Scalars {
             });
         }
         family(SqlFn.IS_DISTINCT, "isDistinct");
+        // parseInteger is 64-BIT (PCT pins Long.MIN/MAX round-trips) —
+        // BIGINT execution; the engine-H2 golden TEXT says 'integer' and
+        // needs a per-dynafunction origin tag to respell without touching
+        // semantics (audit 19 F3 — the text diff stays an honest FAIL).
         castFamily("parseInteger", Type.Primitive.INTEGER);
         castFamily("parseFloat", Type.Primitive.FLOAT);
         castFamily("toFloat", Type.Primitive.FLOAT);

@@ -661,6 +661,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return switch (t) {
             case com.legend.sql.SqlType.Scalar s -> switch (s) {
                 case BOOLEAN -> "BOOLEAN";
+                case INTEGER -> "INTEGER";
                 case BIGINT -> "BIGINT";
                 case HUGEINT -> "HUGEINT";
                 case TIMESTAMPTZ -> "TIMESTAMPTZ";

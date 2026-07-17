@@ -62,13 +62,15 @@ public final class Ddl {
             case RelationalDataType.SmallInt ignored -> "SMALLINT";
             case RelationalDataType.TinyInt ignored -> "TINYINT";
             case RelationalDataType.Integer_ ignored -> "INTEGER";
-            // H2's FLOAT is an 8-byte double (DuckDB's FLOAT is REAL) —
-            // same mapping the raw-DDL path applies in adaptRawSql
-            case RelationalDataType.Float_ ignored -> "DOUBLE";
+            // H2-FLAVORED on purpose: this DDL text flows through the
+            // executing dialect's adaptRawSql like every hand-written
+            // statement — ONE adaptation path (FLOAT->DOUBLE, BIT->BOOLEAN
+            // live in DuckDb.quoteCreateColumns; audit 19 restored the
+            // contract this file's header states).
+            case RelationalDataType.Float_ ignored -> "FLOAT";
             case RelationalDataType.Double_ ignored -> "DOUBLE";
             case RelationalDataType.Real ignored -> "REAL";
-            // H2's BIT is a boolean; DuckDB's BIT is a bitstring
-            case RelationalDataType.Bit ignored -> "BOOLEAN";
+            case RelationalDataType.Bit ignored -> "BIT";
             case RelationalDataType.Timestamp ignored -> "TIMESTAMP";
             case RelationalDataType.Date_ ignored -> "DATE";
             case RelationalDataType.Varchar v -> "VARCHAR(" + v.size() + ")";

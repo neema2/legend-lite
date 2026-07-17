@@ -507,8 +507,11 @@ public final class DuckDb extends AnsiSqlRenderer {
                     || head.matches("(?i)primary|constraint|foreign|unique|check")) {
                 out.append(col);
             } else {
+                // H2 semantics on the TYPE PART only: FLOAT is an 8-byte
+                // double; BIT is a boolean (DuckDB's BIT is a bitstring)
                 out.append('\"').append(head).append('\"').append(
-                        col.substring(sp).replaceAll("(?i)\\bFLOAT\\b", "DOUBLE"));
+                        col.substring(sp).replaceAll("(?i)\\bFLOAT\\b", "DOUBLE")
+                                .replaceAll("(?i)\\bBIT\\b", "BOOLEAN"));
             }
         }
         return sql.substring(0, bodyStart) + out + sql.substring(end - 1);

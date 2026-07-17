@@ -204,7 +204,10 @@ public final class EngineStyleH2 extends AnsiSqlRenderer {
             }
         }
         // Sunday-boundary weeks: CASE WHEN date_diff('day', end, start) <= 0
-        // THEN forward ELSE backward — start/end recovered from the guard
+        // THEN forward ELSE backward. The BRANCHES must also match the
+        // sundayIndex-difference shape (audit 19 F1): a user-written
+        // if(dateDiff(a,b,DAYS) <= 0, |x, |y) lowers to the SAME guard,
+        // and folding it would silently delete both branches.
         if (e instanceof SqlExpr.Case cs && cs.whens().size() == 1
                 && cs.otherwise() != null
                 && cs.whens().get(0).condition() instanceof SqlExpr.Call le
@@ -215,11 +218,36 @@ public final class EngineStyleH2 extends AnsiSqlRenderer {
                 && dayDiff.args().get(0) instanceof SqlExpr.StringLit day
                 && day.value().equals("day")
                 && le.args().get(1) instanceof SqlExpr.IntLit zero
-                && zero.value() == 0) {
+                && zero.value() == 0
+                && isSundayIndexDifference(cs.whens().get(0).then())
+                && isSundayIndexDifference(cs.otherwise())) {
             return "datediff(week, " + expr(dayDiff.args().get(2), 0)
                     + ", " + expr(dayDiff.args().get(1), 0) + ")";
         }
         return null;
+    }
+
+    /** {@code sundayIndex(d2) - sundayIndex(d1)} where sundayIndex =
+     * {@code date_diff('day', DATE '0001-01-07', d) // 7} (Scalars'
+     * dateDiff week emission — the only producer of this shape). */
+    private static boolean isSundayIndexDifference(SqlExpr e) {
+        return e instanceof SqlExpr.Call m
+                && m.fn() == com.legend.sql.SqlFn.MINUS
+                && m.args().size() == 2
+                && isSundayIndex(m.args().get(0))
+                && isSundayIndex(m.args().get(1));
+    }
+
+    private static boolean isSundayIndex(SqlExpr e) {
+        return e instanceof SqlExpr.Call div
+                && div.fn() == com.legend.sql.SqlFn.INT_DIVIDE
+                && div.args().size() == 2
+                && div.args().get(1) instanceof SqlExpr.IntLit seven
+                && seven.value() == 7
+                && div.args().get(0) instanceof SqlExpr.Call dd
+                && dd.fn() == com.legend.sql.SqlFn.DATE_DIFF
+                && dd.args().get(1) instanceof SqlExpr.DateLit epoch
+                && epoch.iso().equals("0001-01-07");
     }
 
     // == engine-H2 spellings (each MATCHED against a corpus golden) =====
@@ -246,28 +274,81 @@ public final class EngineStyleH2 extends AnsiSqlRenderer {
                     + a.stream().map(x -> expr(x, 0))
                             .collect(Collectors.joining(", ")) + ")";
             case TODAY -> "cast(now() as date)";
-            // enum-by-name temporals: the engine's H2 formatdatetime forms
-            case STRFTIME -> a.size() == 2
-                    && a.get(1) instanceof SqlExpr.StringLit fmt
-                    && (fmt.value().equals("%B") || fmt.value().equals("%A"))
-                    ? "formatdatetime(" + expr(a.get(0), 0) + ", '"
-                            + (fmt.value().equals("%B") ? "MMMM" : "EEEE") + "')"
-                    : super.call(c, parentPrec);
+            // enum-by-name temporals: the engine's H2 formatdatetime forms.
+            // UNMATCHED formats THROW — falling back to strftime() would
+            // leak a DuckDB spelling into engine-H2 golden text (audit 19)
+            case STRFTIME -> {
+                if (a.size() == 2 && a.get(1) instanceof SqlExpr.StringLit fmt) {
+                    String java = switch (fmt.value()) {
+                        case "%B" -> "MMMM";
+                        case "%A" -> "EEEE";
+                        default -> null;
+                    };
+                    if (java != null) {
+                        yield "formatdatetime(" + expr(a.get(0), 0) + ", '"
+                                + java + "')";
+                    }
+                }
+                throw new IllegalStateException("strftime format has no"
+                        + " engine-H2 formatdatetime spelling yet: " + a);
+            }
             case TRIM -> a.size() == 1
                     ? "trim(both from " + expr(a.get(0), 0) + ")"
                     : super.call(c, parentPrec);
             case DATE_TRUNC_DAY -> "cast(truncate(" + expr(a.get(0), 0)
                     + ") as date)";
-            // parseDate: the engine truncates to the 10 date characters and
-            // parses with the Java pattern (parsedatetime golden)
-            case STRPTIME -> a.size() == 2
-                    && a.get(1) instanceof SqlExpr.StringLit f
-                    && f.value().equals("%Y-%m-%d")
-                    ? "parsedatetime(substring(" + expr(a.get(0), 0)
-                            + ", 1, 10), 'yyyy-MM-dd')"
-                    : super.call(c, parentPrec);
+            // parse-date family: the engine's rule (convertToDateH2) is
+            // substring(x, 1, 10) + the Java pattern for ALL date-only
+            // formats; datetime formats parse the whole string. UNMATCHED
+            // formats THROW rather than leak DuckDB strptime() text.
+            case STRPTIME -> {
+                if (a.size() == 2 && a.get(1) instanceof SqlExpr.StringLit f) {
+                    String java = javaDatePattern(f.value());
+                    if (java != null) {
+                        boolean dateOnly = !f.value().contains("%H");
+                        yield dateOnly
+                                ? "parsedatetime(substring(" + expr(a.get(0), 0)
+                                        + ", 1, 10), '" + java + "')"
+                                : "parsedatetime(" + expr(a.get(0), 0)
+                                        + ", '" + java + "')";
+                    }
+                }
+                throw new IllegalStateException("strptime format has no"
+                        + " engine-H2 parsedatetime spelling yet: " + a);
+            }
             default -> super.call(c, parentPrec);
         };
+    }
+
+    /** C-style strptime directives → the Java pattern the engine's
+     * parsedatetime takes; null when any directive has no mapping (the
+     * caller throws — never a silent DuckDB fallback). */
+    private static String javaDatePattern(String cFormat) {
+        StringBuilder out = new StringBuilder();
+        for (int i = 0; i < cFormat.length(); i++) {
+            char ch = cFormat.charAt(i);
+            if (ch != '%') {
+                out.append(ch);
+                continue;
+            }
+            if (++i >= cFormat.length()) {
+                return null;
+            }
+            String java = switch (cFormat.charAt(i)) {
+                case 'Y' -> "yyyy";
+                case 'm' -> "MM";
+                case 'd' -> "dd";
+                case 'H' -> "HH";
+                case 'M' -> "mm";
+                case 'S' -> "ss";
+                default -> null;
+            };
+            if (java == null) {
+                return null;
+            }
+            out.append(java);
+        }
+        return out.toString();
     }
 
     private static java.util.List<SqlExpr> flattenConcat(java.util.List<SqlExpr> a) {
@@ -285,14 +366,20 @@ public final class EngineStyleH2 extends AnsiSqlRenderer {
     @Override
     protected String variantAwareCast(SqlExpr.Cast c) {
         String t = castTypeName(c.target()).toLowerCase(Locale.ROOT);
-        // engine H2 type spellings (each matched against a golden):
-        // bare decimal, float not double, integer for pure Integer parses
-        if (t.startsWith("decimal(")) {
+        // The engine spells casts PER DYNAFUNCTION (audit 19 F3), so only
+        // respells that cannot collide survive here:
+        // - toDecimal is the ONLY producer of DECIMAL(38, 18) and spells
+        //   bare 'decimal'; parseDecimal keeps its declared (p, s).
+        // - parseInteger carries SqlType.INTEGER from lowering (no respell;
+        //   round/ceiling/floor keep 'bigint', matching their goldens).
+        // - 'float': parseFloat's golden spelling. KNOWN LATENT COLLISION:
+        //   toFloat shares the DOUBLE IR and the engine spells it 'double
+        //   precision' — no corpus H2 golden pins toFloat text today; a
+        //   per-dynafunction origin tag is the clean fix when one appears.
+        if (t.equals("decimal(38, 18)")) {
             t = "decimal";
         } else if (t.equals("double precision") || t.equals("double")) {
             t = "float";
-        } else if (t.equals("bigint")) {
-            t = "integer";
         }
         return "cast(" + expr(c.value(), 0) + " as " + t + ")";
     }

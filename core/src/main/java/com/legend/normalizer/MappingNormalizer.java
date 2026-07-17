@@ -2326,33 +2326,30 @@ public final class MappingNormalizer {
         }
         // Only conversions the engine's runtime transformer actually
         // performs (Boolean, Date-family) or that are lossless (*->String,
-        // DATE widening to DateTime) may cast. NARROWING casts (Integer
-        // over DECIMAL, StrictDate over TIMESTAMP) match no engine
-        // behavior — they'd silently truncate values the engine preserves
-        // (audit 8 S4); those fall through uncast and the type checker
-        // stays the loud arbiter.
-        boolean emit = switch (declared) {
+        // DATE widening to DateTime) may cast. NUMERIC declared-vs-column
+        // mismatches are IDENTITY in the engine (SetImplTransformers passes
+        // numerics through untouched; audit 19 F7) — they get the TYPE-ONLY
+        // assertion (typeAsDeclared, no SQL cast): the declared kind drives
+        // result typing, the database delivers the raw value. Anything else
+        // falls through uncast and the type checker stays the loud arbiter.
+        boolean cast = switch (declared) {
             case "String" -> true;
             case "Boolean" -> true;
             case "DateTime" -> "StrictDate".equals(colKind);
-            // the engine's own dataType corpus binds Float over DECIMAL
-            // (decimalAsFloat) and delivers doubles; Integer->Float is a
-            // plain widening. Integer-over-DECIMAL stays excluded (that
-            // one truncates — audit 8 S4).
-            case "Float" -> "Decimal".equals(colKind)
-                    || "Integer".equals(colKind);
-            // the mirror binding (floatAsDecimal): every double is
-            // representable as a decimal — a widening, engine-delivered
-            case "Decimal" -> "Float".equals(colKind)
-                    || "Integer".equals(colKind);
             default -> false;
         };
-        if (!emit) {
-            return read;
+        if (cast) {
+            return new AppliedFunction("cast", List.of(read,
+                    new TypeAnnotation.Named(
+                            new TypeExpression.NameRef(declared))));
         }
-        return new AppliedFunction("cast", List.of(read,
-                new TypeAnnotation.Named(
-                        new TypeExpression.NameRef(declared))));
+        Set<String> numeric = Set.of("Float", "Decimal", "Integer", "Number");
+        if (numeric.contains(declared) && numeric.contains(colKind)) {
+            return new AppliedFunction("typeAsDeclared", List.of(read,
+                    new TypeAnnotation.Named(
+                            new TypeExpression.NameRef(declared))));
+        }
+        return read;
     }
 
     /** The pure primitive kind a physical SQL type reads as, or null. */
