@@ -2234,6 +2234,12 @@ public final class MappingNormalizer {
      * Boolean[1] property). NUMERIC/temporal/Boolean declared types wrap in
      * cast(@Declared); everything else passes through untouched so genuine
      * kind errors stay loud.
+     *
+     * <p>DELIBERATE divergence (audit 19 F6): the engine's runtime rule for
+     * declared-Boolean strings is {@code Boolean.parseBoolean} — 'Y' maps
+     * to FALSE, silently. Our SQL cast ERRORS on such strings instead:
+     * loud beats silently-different, and the corpus only ever feeds
+     * 'true'/'false' (where the two agree).
      */
     static ValueSpecification coerceToDeclaredNumeric(ValueSpecification value,
             String propName, String ownerClassFqn, ModelBuilder model) {

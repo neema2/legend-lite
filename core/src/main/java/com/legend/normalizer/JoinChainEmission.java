@@ -561,6 +561,19 @@ final class JoinChainEmission {
                 "~filter '" + jm.filter().name() + "' not found in db '"
               + dbFqn + "'; class=" + rcm.className() + ", mapping="
               + md.qualifiedName()));
+        // LEFT JOIN + WHERE ≡ INNER JOIN + WHERE only when the condition is
+        // NULL-REJECTING on the joined side — a null-TOLERANT condition
+        // (is-null arms) keeps null-extended parents the engine's INNER
+        // join drops (audit 19c, probe-verified). Every corpus (INNER)
+        // condition today is null-rejecting; the first tolerant one must
+        // be LOUD, never silently wrong. Real INNER emission is follow-up.
+        if (nullTolerant(fd.condition())) {
+            throw new NotImplementedException("(INNER) mapping ~filter '"
+                    + jm.filter().name() + "' has a NULL-TOLERANT condition —"
+                    + " the LEFT+WHERE realization would keep parents the"
+                    + " engine's INNER join drops; class=" + rcm.className()
+                    + ", mapping=" + md.qualifiedName());
+        }
         String terminalAlias = JoinChainEmission.slotFor(p, jm.joins());
         ValueSpecification terminalRow = new AppliedProperty(r, terminalAlias);
         Map<String, ValueSpecification> scope = new LinkedHashMap<>();
@@ -596,6 +609,27 @@ final class JoinChainEmission {
         }
         return new AppliedFunction("project", List.of(src,
                 new ColSpecArray(baseCols)));
+    }
+
+    /** A condition with an is-null arm (or a null-literal comparison /
+     * isNull dyna) anywhere in it — the LEFT+WHERE ≡ INNER equivalence
+     * breaks exactly there. Conservative: OR/NOT around a null test also
+     * counts. */
+    private static boolean nullTolerant(RelationalOperation op) {
+        return switch (op) {
+            case RelationalOperation.IsNull ignored -> true;
+            case RelationalOperation.FunctionCall fc ->
+                    fc.name().equalsIgnoreCase("isNull")
+                            || fc.name().equalsIgnoreCase("sqlNull")
+                            || fc.args().stream()
+                                    .anyMatch(JoinChainEmission::nullTolerant);
+            case RelationalOperation.BooleanOp b ->
+                    nullTolerant(b.left()) || nullTolerant(b.right());
+            case RelationalOperation.Comparison c ->
+                    nullTolerant(c.left()) || nullTolerant(c.right());
+            case RelationalOperation.Group g -> nullTolerant(g.inner());
+            default -> false;
+        };
     }
 
     private static DatabaseDefinition.TableDefinition findPhysicalTable(
