@@ -31,44 +31,75 @@ public final class EngineStyleH2 extends AnsiSqlRenderer {
     @Override
     public String render(SqlQuery query) {
         renames.clear();
-        planQuery(query, new int[] {0});
+        planQuery(query, new LinkedHashMap<>());
         StringBuilder sb = new StringBuilder();
         query(sb, query, 0);
         return sb.toString();
     }
 
-    // == the engine's alias plan (replaceAliasName parity) ==============
+    // == the engine's alias plan (replaceAliasName parity, audit 19 F2) ==
+    // The engine groups aliases BY LOWERCASED TABLE NAME and numbers
+    // 0..n-1 within each group in encounter order; each SELECT's leftmost
+    // source renders "root" but still CONSUMES its group's next index
+    // (self-join goldens: root + persontable_1). A subselect belongs to
+    // its FIRST INNER TABLE's group (goldens: account_info_1, never
+    // subselect_0), and its interior plans BEFORE the alias itself.
 
-    private void planQuery(SqlQuery q, int[] ctr) {
+    private void planQuery(SqlQuery q, Map<String, Integer> groups) {
         switch (q) {
             case SqlSelect s -> {
                 if (s.from() != null) {
-                    planSource(s.from(), true, ctr);
+                    planSource(s.from(), true, groups);
                 }
             }
-            case SqlUnion u -> u.branches().forEach(b -> planQuery(b, ctr));
+            case SqlUnion u -> u.branches().forEach(b -> planQuery(b, groups));
         }
     }
 
-    private void planSource(SqlSource src, boolean leftmost, int[] ctr) {
+    private void planSource(SqlSource src, boolean leftmost,
+            Map<String, Integer> groups) {
         switch (src) {
             case SqlSource.Table t -> {
                 if (t.alias() != null) {
-                    renames.put(t.alias(), leftmost ? "root"
-                            : t.name().toLowerCase(Locale.ROOT) + "_" + ctr[0]++);
+                    String named = nextInGroup(
+                            t.name().toLowerCase(Locale.ROOT), groups);
+                    renames.put(t.alias(), leftmost ? "root" : named);
                 }
             }
             case SqlSource.Subselect sub -> {
-                renames.put(sub.alias(), leftmost ? "root"
-                        : "subselect_" + ctr[0]++);
-                planQuery(sub.inner(), ctr);
+                planQuery(sub.inner(), groups);
+                String named = nextInGroup(firstInnerTable(sub.inner()), groups);
+                renames.put(sub.alias(), leftmost ? "root" : named);
             }
             case SqlSource.Join j -> {
-                planSource(j.left(), leftmost, ctr);
-                planSource(j.right(), false, ctr);
+                planSource(j.left(), leftmost, groups);
+                planSource(j.right(), false, groups);
             }
             default -> { }
         }
+    }
+
+    private static String nextInGroup(String group, Map<String, Integer> groups) {
+        int i = groups.merge(group, 1, Integer::sum) - 1;
+        return group + "_" + i;
+    }
+
+    /** The group a subselect alias renames into: its leftmost inner
+     * table's lowercased name (the engine's traverse rule). */
+    private static String firstInnerTable(SqlQuery q) {
+        SqlSource src = q instanceof SqlSelect s ? s.from()
+                : q instanceof SqlUnion u && !u.branches().isEmpty()
+                        ? (u.branches().get(0) instanceof SqlSelect bs
+                                ? bs.from() : null)
+                        : null;
+        while (src instanceof SqlSource.Join j) {
+            src = j.left();
+        }
+        return switch (src) {
+            case SqlSource.Table t -> t.name().toLowerCase(Locale.ROOT);
+            case SqlSource.Subselect sub -> firstInnerTable(sub.inner());
+            case null, default -> "subselect";
+        };
     }
 
     private String rename(String alias) {
