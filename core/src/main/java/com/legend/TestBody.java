@@ -375,28 +375,6 @@ public final class TestBody {
             if (stmt instanceof AppliedFunction af && isExecuteCall(af)) {
                 return new Outcome.Unsupported("execute() not bound to a let");
             }
-            // CSV-seeding setup (modelJoin's setupTestData([csv...], db, rt)):
-            // each CSV block is schema\ntable\nheader\nrows — the engine's
-            // setUpDataSQLsV2 convention, loaded natively here
-            if (stmt instanceof AppliedFunction af
-                    && harnessVocabName(af.function())
-                    && "setupTestData".equals(simpleName(af.function()))
-                    && !af.parameters().isEmpty()) {
-                List<String> csvs = constantStrings(
-                        substitute(af.parameters().get(0), lets, handles,
-                                runtimeFqn));
-                String dbFqn = af.parameters().size() > 1
-                        && substitute(af.parameters().get(1), lets, handles,
-                                runtimeFqn)
-                                instanceof PackageableElementPtr dbp
-                        ? dbp.fullPath() : null;
-                if (csvs != null) {
-                    for (String csv : csvs) {
-                        loadCsvSeed(csv, dbFqn, ctx, conn);
-                    }
-                    continue;
-                }
-            }
             // K-natives arc (S4): any other EXPRESSION STATEMENT executes
             // through the platform — the engine's setup calls
             // (createTablesAndFillDb(), setUp($m), executeInDb(...)) are
@@ -503,98 +481,7 @@ public final class TestBody {
      * shadow the family's — audit: 37 modelJoin binder errors), then
      * typed INSERTs ('default' schema is bare; empty tokens are NULL;
      * numerics ride bare, everything else quotes). */
-    private static void loadCsvSeed(String csv, String dbFqn,
-            ModelContext ctx, Connection conn)
-            throws java.sql.SQLException {
-        String[] lines = csv.split("\n");
-        if (lines.length < 3) {
-            return;
-        }
-        String schema = lines[0].strip();
-        String table = lines[1].strip();
-        String qualified = "default".equals(schema) ? table
-                : schema + "." + table;
-        String[] cols = lines[2].split(",");
-        var tableType = dbFqn == null
-                ? java.util.Optional.<com.legend.compiler.element.type
-                        .Type.RelationType>empty()
-                : ctx.findTable(dbFqn, table);
-        if (tableType.isPresent()) {
-            StringBuilder ddl = new StringBuilder("CREATE OR REPLACE TABLE ")
-                    .append(qualified).append(" (");
-            var tcols = tableType.get().columns();
-            for (int c = 0; c < tcols.size(); c++) {
-                if (c > 0) {
-                    ddl.append(", ");
-                }
-                ddl.append(tcols.get(c).name()).append(' ')
-                        .append(sqlDdlType(tcols.get(c).type()));
-            }
-            try (var st = conn.prepareStatement(ddl.append(")").toString())) {
-                st.execute();
-            }
-        } else {
-            try (var st = conn.prepareStatement(
-                    "DELETE FROM " + qualified)) {
-                st.execute();
-            }
-        }
-        {
-            for (int i = 3; i < lines.length; i++) {
-                if (lines[i].isBlank()) {
-                    continue;
-                }
-                String[] vals = lines[i].split(",", -1);
-                StringBuilder sql = new StringBuilder("INSERT INTO ")
-                        .append(qualified).append(" (")
-                        .append(String.join(", ", cols)).append(") VALUES (");
-                for (int c = 0; c < cols.length; c++) {
-                    String tok = c < vals.length ? vals[c].strip() : "";
-                    if (c > 0) {
-                        sql.append(", ");
-                    }
-                    if (tok.isEmpty()) {
-                        sql.append("NULL");
-                    } else if (tok.matches("[+-]?\\d+(\\.\\d+)?")) {
-                        sql.append(tok);
-                    } else {
-                        sql.append("'").append(tok.replace("'", "''"))
-                                .append("'");
-                    }
-                }
-                try (var ins = conn.prepareStatement(
-                        sql.append(")").toString())) {
-                    ins.execute();
-                }
-            }
-        }
-    }
 
-    private static String sqlDdlType(com.legend.compiler.element.type.Type t) {
-        if (t == com.legend.compiler.element.type.Type.Primitive.INTEGER) {
-            return "BIGINT";
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.FLOAT
-                || t == com.legend.compiler.element.type.Type.Primitive.NUMBER) {
-            return "DOUBLE";
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN) {
-            return "BOOLEAN";
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.STRICT_DATE) {
-            return "DATE";
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.DATE_TIME
-                || t == com.legend.compiler.element.type.Type.Primitive.DATE) {
-            return "TIMESTAMP";
-        }
-        if (t == com.legend.compiler.element.type.Type.Primitive.DECIMAL
-                || t instanceof com.legend.compiler.element.type
-                        .Type.PrecisionDecimal) {
-            return "DECIMAL(38, 9)";
-        }
-        return "VARCHAR";
-    }
 
     // ===== assert dispatch =====
 

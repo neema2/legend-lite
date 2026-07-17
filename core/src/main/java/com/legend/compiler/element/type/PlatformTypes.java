@@ -48,6 +48,10 @@ public final class PlatformTypes {
     public static final String TO_SQL_STRING =
             "meta::relational::functions::sqlstring::toSQLString";
 
+    /** The engine's CSV-seed SQL generator — K-dispatched (CsvSeed). */
+    public static final String SET_UP_DATA_SQLS_V2 =
+            "meta::alloy::service::execution::setUpDataSQLsV2";
+
     /**
      * PLATFORM-OWNED function FQNs: legend-lite's native IS the definition
      * — user re-definitions (the real engine's toDDL.pure bodies walk the
@@ -85,6 +89,7 @@ public final class PlatformTypes {
                 || DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
                 || TO_SQL_STRING.equals(fqn)
+                || SET_UP_DATA_SQLS_V2.equals(fqn)
                 || PRINT.equals(fqn) || PRINTLN.equals(fqn);
     }
 

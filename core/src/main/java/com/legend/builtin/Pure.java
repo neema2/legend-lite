@@ -914,6 +914,16 @@ public final class Pure {
     // argument of toSQLString/execute calls; it is never evaluated.
     public static final NativeFunctionDefinition RELATIONAL_EXTENSIONS__ANY_MANY = signature("native function meta::relational::extension::relationalExtensions():meta::pure::metamodel::type::Any[*];");
 
+    // setUpDataSQLsV2: the engine's CSV-seed SQL generator (module-
+    // external to the corpus) — K-dispatched via CsvSeed; dbConfig types
+    // as Any and is never evaluated (the ambient-connection doctrine).
+    public static final NativeFunctionDefinition SET_UP_DATA_SQLS_V2__STRING_1__ANY_1__ANY_1 = signature("native function meta::alloy::service::execution::setUpDataSQLsV2(csv:meta::pure::metamodel::type::String[1], db:meta::pure::metamodel::type::Any[1], dbConfig:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[*];");
+
+    // createDbConfig: the corpus's own definitions return the DbConfig
+    // metamodel class (unknown here, signature-broken) — typing-only.
+    public static final NativeFunctionDefinition CREATE_DB_CONFIG__ANY_1 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Any[1];");
+    public static final NativeFunctionDefinition CREATE_DB_CONFIG__ANY_1__STRING_01 = signature("native function meta::relational::functions::sqlQueryToString::createDbConfig(dbType:meta::pure::metamodel::type::Any[1], dbTimeZone:meta::pure::metamodel::type::String[0..1]):meta::pure::metamodel::type::Any[1];");
+
     // toSQLString: ordinary pure in the real engine (plan-generation
     // internals) — a K-native here: the query lambda lowers through the
     // platform's own pipeline against the mapping argument and renders

@@ -161,6 +161,47 @@ final class StatementExecutor {
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 
+    /** Bind an effectful map's parameter: TypedVariable(param) reads in
+     * the body's native-call arguments replace with the STRING literal
+     * (the corpus shape: executeInDb($sql, $connection)); a read anywhere
+     * deeper is loud — never silently unbound. */
+    private static TypedSpec bindParam(TypedSpec node, String param, String value) {
+        var lit = new com.legend.compiler.spec.typed.TypedCString(value,
+                com.legend.compiler.element.type.ExprType.one(
+                        com.legend.compiler.element.type.Type.Primitive.STRING));
+        if (node instanceof com.legend.compiler.spec.typed.TypedVariable tv
+                && tv.name().equals(param)) {
+            return lit;
+        }
+        if (node instanceof com.legend.compiler.spec.typed.TypedNativeCall nc) {
+            java.util.List<TypedSpec> args = new java.util.ArrayList<>();
+            for (TypedSpec a : nc.args()) {
+                args.add(a instanceof com.legend.compiler.spec.typed.TypedVariable v2
+                        && v2.name().equals(param) ? lit : a);
+            }
+            return new com.legend.compiler.spec.typed.TypedNativeCall(
+                    nc.callee(), args, nc.info());
+        }
+        if (referencesVar(node, param)) {
+            throw new IllegalStateException("effectful map body reads the"
+                    + " parameter '" + param + "' in an unsupported position");
+        }
+        return node;
+    }
+
+    private static boolean referencesVar(TypedSpec node, String name) {
+        if (node instanceof com.legend.compiler.spec.typed.TypedVariable tv
+                && tv.name().equals(name)) {
+            return true;
+        }
+        for (TypedSpec c : node.children()) {
+            if (referencesVar(c, name)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** The member name of a typed enum-shaped read (DatabaseType.H2). */
     private static String typedEnumTail(TypedSpec v) {
         if (v instanceof com.legend.compiler.spec.typed.TypedEnumValue ev) {
@@ -312,6 +353,56 @@ final class StatementExecutor {
                         + " not evaluated (effect dropped)");
             }
             return new ExecutionResult.Scalar(null, pn.info().type());
+        }
+        // The engine's CSV-seed SQL generator: strings from the parsed
+        // store's column types (CsvSeed) — dbConfig is never evaluated.
+        // The corpus's own setupTestData body maps the result through
+        // executeInDb, which the TypedMap arm below sequences.
+        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall gen
+                && com.legend.compiler.element.type.PlatformTypes.SET_UP_DATA_SQLS_V2
+                        .equals(gen.callee().qualifiedName())) {
+            String csv = evalStringArg(body, gen.args().get(0), env);
+            String dbFqn = gen.args().get(1)
+                    instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr
+                    ? pr.fullPath() : null;
+            java.util.List<Object> sqls = new java.util.ArrayList<>(
+                    com.legend.exec.CsvSeed.sqls(csv, dbFqn, ctx));
+            return new ExecutionResult.Collection(sqls,
+                    com.legend.compiler.element.type.Type.Primitive.STRING);
+        }
+        // map over an EFFECTFUL lambda ($sqls->map(sql|executeInDb(...))):
+        // the source collection evaluates through the pipeline; each
+        // element executes the lambda body with the parameter bound (the
+        // one statement-orchestration shape the corpus's setup bodies use).
+        if (root instanceof com.legend.compiler.spec.typed.TypedMap tm
+                && containsEffectfulNode(java.util.List.of(tm.mapper()))) {
+            java.util.List<TypedSpec> src = new java.util.ArrayList<>(
+                    body.subList(0, body.size() - 1));
+            src.add(tm.source());
+            ExecutionResult values = executeTyped(src, env);
+            java.util.List<Object> vals = switch (values) {
+                case ExecutionResult.Collection c -> c.values();
+                case ExecutionResult.Scalar sc2 -> sc2.value() == null
+                        ? java.util.List.of() : java.util.List.of(sc2.value());
+                default -> throw new IllegalStateException(
+                        "effectful map over a non-collection source");
+            };
+            String param = tm.mapper().parameters().get(0);
+            ExecutionResult last = new ExecutionResult.Scalar(null,
+                    tm.info().type());
+            for (Object v : vals) {
+                if (!(v instanceof String sv)) {
+                    throw new IllegalStateException("effectful map element is"
+                            + " not a string: " + v);
+                }
+                java.util.List<TypedSpec> one = new java.util.ArrayList<>(
+                        body.subList(0, body.size() - 1));
+                for (TypedSpec stmt2 : tm.mapper().body()) {
+                    one.add(bindParam(stmt2, param, sv));
+                }
+                last = executeTyped(one, env);
+            }
+            return last;
         }
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall sc
                 && com.legend.compiler.element.type.PlatformTypes.DROP_AND_CREATE_SCHEMA_IN_DB
