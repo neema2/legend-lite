@@ -908,6 +908,18 @@ public final class Pure {
     // (execution-context elements are Any[1] — the from() convention).
     public static final NativeFunctionDefinition EXECUTE_IN_DB__STRING_1__CONN_1__INTEGER_1__INTEGER_1 = signature("native function meta::relational::metamodel::execute::executeInDb(sql:meta::pure::metamodel::type::String[1], databaseConnection:meta::external::store::relational::runtime::DatabaseConnection[1], timeOutInSeconds:meta::pure::metamodel::type::Integer[1], fetchSize:meta::pure::metamodel::type::Integer[1]):meta::relational::metamodel::execute::ResultSet[1];");
     public static final NativeFunctionDefinition CONNECTION_BY_ELEMENT__ANY_1__ANY_1 = signature("native function meta::core::runtime::connectionByElement(runtime:meta::core::runtime::Runtime[1], store:meta::pure::metamodel::type::Any[1]):meta::core::runtime::Connection[1];");
+    // relationalExtensions(): the corpus's own definition is signature-
+    // broken in this platform (the Extension metamodel class), so it never
+    // enters the module — this native exists for TYPING the context
+    // argument of toSQLString/execute calls; it is never evaluated.
+    public static final NativeFunctionDefinition RELATIONAL_EXTENSIONS__ANY_MANY = signature("native function meta::relational::extension::relationalExtensions():meta::pure::metamodel::type::Any[*];");
+
+    // toSQLString: ordinary pure in the real engine (plan-generation
+    // internals) — a K-native here: the query lambda lowers through the
+    // platform's own pipeline against the mapping argument and renders
+    // with the engine-style dialect. mapping/databaseType/extensions type
+    // as Any (the from()-convention for execution-context elements).
+    public static final NativeFunctionDefinition TO_SQL_STRING__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::relational::functions::sqlstring::toSQLString(f:meta::pure::metamodel::function::Function<{->meta::pure::metamodel::type::Any[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], databaseType:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::String[1];");
     // dropAndCreateTableInDb: ordinary pure in the real engine (toDDL.pure
     // walks the Database metamodel to spell DDL) — a K-native here, DDL
     // rendered from the compiled store model (com.legend.exec.Ddl). The

@@ -1106,42 +1106,6 @@ public final class TestBody {
             }
         }
         ValueSpecification spliced = substitute(expr, lets, handles, runtimeFqn);
-        // toSQLString(|query, mapping, DatabaseType.X, ext): the ENGINE's
-        // SQL text for the plan — H2 renders through EngineStyleH2 (byte-
-        // exact golden contract); other DatabaseTypes have no renderer yet.
-        if (spliced instanceof AppliedFunction ts
-                && simpleName(ts.function()).equals("toSQLString")
-                && harnessVocabName(ts.function())
-                && ts.parameters().size() >= 3) {
-            ValueSpecification dbArg = ts.parameters().get(2);
-            if (dbArg instanceof Variable dv && lets.containsKey(dv.name())) {
-                dbArg = lets.get(dv.name());
-            }
-            String dbType = enumTail(dbArg);
-            if (!"H2".equals(dbType)) {
-                throw new com.legend.error.NotImplementedException("toSQLString for DatabaseType."
-                        + dbType + " — only the H2 engine-style renderer is built");
-            }
-            ValueSpecification q = ts.parameters().get(0);
-            if (!(q instanceof LambdaFunction qLam)) {
-                throw new com.legend.error.NotImplementedException(
-                        "toSQLString whose query argument is not a lambda");
-            }
-            ValueSpecification chain = qLam.body().get(qLam.body().size() - 1);
-            ValueSpecification splicedQ = containsFrom(chain) ? chain
-                    : new AppliedFunction("from", List.of(chain,
-                            ts.parameters().get(1),
-                            new PackageableElementPtr(runtimeFqn)));
-            ValueSpecification resolvedQ = NameResolver.resolveQuery(
-                    new LambdaFunction(List.of(), List.of(splicedQ)), imports,
-                    ctx.elementFqns());
-            String sql = new com.legend.sql.dialect.EngineStyleH2().render(
-                    com.legend.Compiler.lowerResolved(resolvedQ, ctx, runtimeFqn,
-                            /* relationalRootForm */ true));
-            return new Eval(new com.legend.exec.ExecutionResult.Scalar(sql,
-                    com.legend.compiler.element.type.Type.Primitive.STRING),
-                    false, false);
-        }
         // SERIALIZATION TAILS (toCSV/toString over a TDS) strip: the grid
         // compares STRUCTURALLY (or renders for a string-literal peer) —
         // rendering is a wire concern, not a query. A tail whose receiver
@@ -1851,7 +1815,12 @@ public final class TestBody {
             return new CInteger(1L);
         }
         return switch (v) {
-            case Variable var when lets.containsKey(var.name()) -> lets.get(var.name());
+            // RECURSIVE: the pulled RHS may itself read lets bound earlier
+            // (the per-driver loop's toSQLString($driver) — audit 19d B3
+            // exposed the shallow pull when the K-native began TYPING what
+            // the old harness arm resolved by hand)
+            case Variable var when lets.containsKey(var.name()) ->
+                    substitute(lets.get(var.name()), lets, handles, runtimeFqn);
             case Variable var when handles.containsKey(var.name()) ->
                     splice(handles.get(var.name()), runtimeFqn);
             // an INLINE execute (chained without a let: execute(...).values

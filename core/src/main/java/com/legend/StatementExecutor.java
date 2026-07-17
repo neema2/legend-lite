@@ -97,11 +97,79 @@ final class StatementExecutor {
             java.util.List<TypedSpec> body =
                     new com.legend.compiler.spec.UserCallInliner(specs)
                             .inlineBody(single);                          // Phase G½
+            // toSQLString dispatches PRE-H: its query lambda resolves
+            // against the EXPLICIT mapping argument, never the ambient
+            // runtime's (audit 19d B3 — the K-native replacing the
+            // harness's name-interception)
+            TypedSpec preRoot = body.get(body.size() - 1);
+            if (preRoot instanceof com.legend.compiler.spec.typed.TypedLet pl) {
+                preRoot = pl.value();
+            }
+            while (preRoot instanceof com.legend.compiler.spec.typed.TypedFrom pf) {
+                preRoot = pf.source();
+            }
+            if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall tsc
+                    && com.legend.compiler.element.type.PlatformTypes.TO_SQL_STRING
+                            .equals(tsc.callee().qualifiedName())) {
+                result = toSqlString(tsc, specs, env);
+                continue;
+            }
             body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
                     .resolve(body, env.runtimeFqn());                     // Phase H
             result = executeTyped(body, env);
         }
         return result;
+    }
+
+    /**
+     * The engine's SQL-text surface: lower the query lambda through the
+     * platform's own G½->H->I against the MAPPING ARGUMENT and render with
+     * the engine-style dialect. H2 only — other DatabaseTypes throw until
+     * their renderers exist. Never lowers, never touches the connection.
+     */
+    private static ExecutionResult toSqlString(
+            com.legend.compiler.spec.typed.TypedNativeCall call,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
+        String db = typedEnumTail(call.args().get(2));
+        if (!"H2".equals(db)) {
+            throw new com.legend.error.NotImplementedException(
+                    "toSQLString for DatabaseType." + db
+                    + " — only the H2 engine-style renderer is built");
+        }
+        if (!(call.args().get(0)
+                instanceof com.legend.compiler.spec.typed.TypedLambda lam)) {
+            throw new com.legend.error.NotImplementedException(
+                    "toSQLString whose query argument is not a lambda literal");
+        }
+        if (!(call.args().get(1)
+                instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr)) {
+            throw new com.legend.error.NotImplementedException(
+                    "toSQLString mapping argument must be a mapping reference");
+        }
+        java.util.List<TypedSpec> body =
+                new com.legend.compiler.spec.UserCallInliner(specs)
+                        .inlineBody(lam.body());
+        body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
+                .resolve(body, env.runtimeFqn(), pr.fullPath());
+        body = com.legend.resolver.RelationalRootForm.apply(
+                body, env.ctx(), pr.fullPath());
+        com.legend.sql.SqlQuery plan = new com.legend.lowering.Lowerer(
+                t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
+                f -> env.ctx().findClass(f).isPresent()).lower(body);
+        return new ExecutionResult.Scalar(
+                new com.legend.sql.dialect.EngineStyleH2().render(plan),
+                com.legend.compiler.element.type.Type.Primitive.STRING);
+    }
+
+    /** The member name of a typed enum-shaped read (DatabaseType.H2). */
+    private static String typedEnumTail(TypedSpec v) {
+        if (v instanceof com.legend.compiler.spec.typed.TypedEnumValue ev) {
+            return ev.value();
+        }
+        if (v instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa) {
+            return pa.property();
+        }
+        return String.valueOf(v);
     }
 
     /**

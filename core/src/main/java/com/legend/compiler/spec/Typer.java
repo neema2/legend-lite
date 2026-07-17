@@ -728,7 +728,11 @@ final class Typer {
             throw new TypeInferenceException("lambda has " + lam.parameters().size()
                     + " parameter(s) but the function type expects " + ftype.params().size());
         }
-        if (lam.body().size() != 1) {
+        if (lam.body().size() != 1 && !lam.parameters().isEmpty()) {
+            // Multi-statement bodies are supported only for ZERO-ARG query
+            // thunks (consumed as STATEMENT lists — the K natives and the
+            // harness splice); a parameterized relation lambda's lets would
+            // silently drop at lowering (consumers read the last body expr).
             throw new TypeInferenceException("only single-expression lambdas are supported yet");
         }
 
@@ -741,7 +745,26 @@ final class Typer {
             lambdaScope = lambdaScope.with(name, new ExprType(paramType, ftype.params().get(i).multiplicity()));
         }
 
-        TypedSpec body = synth(lam.body().get(0), lambdaScope);
+        // ZERO-ARG multi-statement bodies: leading lets bind into scope
+        // (real pure statement semantics; the typed lets stay as STATEMENTS
+        // for the consumer's sequencing), the final expression is the value.
+        List<TypedSpec> typedStmts = new ArrayList<>();
+        for (int si = 0; si < lam.body().size() - 1; si++) {
+            ValueSpecification st = lam.body().get(si);
+            if (st instanceof AppliedFunction lf2
+                    && lf2.function().equals("letFunction")
+                    && lf2.parameters().size() == 2
+                    && lf2.parameters().get(0) instanceof CString ln) {
+                TypedSpec val = synth(lf2.parameters().get(1), lambdaScope);
+                lambdaScope = lambdaScope.with(ln.value(), val.info());
+                typedStmts.add(new com.legend.compiler.spec.typed.TypedLet(
+                        ln.value(), val, val.info()));
+                continue;
+            }
+            throw new TypeInferenceException("only trailing-expression lambda"
+                    + " bodies are supported (a non-let intermediate statement)");
+        }
+        TypedSpec body = synth(lam.body().get(lam.body().size() - 1), lambdaScope);
 
         // An unbound return variable (map's V) is inferred from the body. A
         // solved return is resolved then CHECKED (subtype-friendly, bindings
@@ -777,7 +800,8 @@ final class Typer {
                 new Type.FunctionType(ftype.params(),
                         new Type.Param(body.info().type(), body.info().multiplicity())),
                 Multiplicity.Bounded.ONE);
-        return new TypedLambda(names, List.of(body), info);
+        typedStmts.add(body);
+        return new TypedLambda(names, List.copyOf(typedStmts), info);
     }
 
     /** Unwrap a {@code Function<{…}>} (or a bare {@code FunctionType}) parameter to its function type. */

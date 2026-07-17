@@ -40,6 +40,14 @@ public final class PlatformTypes {
     public static final String DROP_AND_CREATE_SCHEMA_IN_DB =
             "meta::relational::functions::toDDL::dropAndCreateSchemaInDb";
 
+    /** The engine's SQL-text surface — K-dispatched: the query lambda
+     * lowers through the platform's own G½->H->I against the given mapping
+     * and renders with the engine-style dialect (audit 19d B3: this was a
+     * name-intercepting harness arm; the corpus's own toSQLString body is
+     * engine plan-generation internals, suppressed like toDDL). */
+    public static final String TO_SQL_STRING =
+            "meta::relational::functions::sqlstring::toSQLString";
+
     /**
      * PLATFORM-OWNED function FQNs: legend-lite's native IS the definition
      * — user re-definitions (the real engine's toDDL.pure bodies walk the
@@ -50,7 +58,8 @@ public final class PlatformTypes {
      */
     public static boolean isPlatformOwnedFunction(String fqn) {
         return DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
-                || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn);
+                || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
+                || TO_SQL_STRING.equals(fqn);
     }
 
     /** Debug output — K-dispatched as a NO-OP, arguments never evaluated. */
@@ -75,6 +84,7 @@ public final class PlatformTypes {
         return EXECUTE_IN_DB.equals(fqn)
                 || DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
+                || TO_SQL_STRING.equals(fqn)
                 || PRINT.equals(fqn) || PRINTLN.equals(fqn);
     }
 

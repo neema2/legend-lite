@@ -42,6 +42,14 @@ public final class RelationalRootForm {
     }
 
     public static List<TypedSpec> apply(List<TypedSpec> body, ModelContext ctx) {
+        return apply(body, ctx, null);
+    }
+
+    /** {@code mappingFqn}: the ~primaryKey source when the body carries no
+     * from() wrapper (the toSQLString K-native resolves with an explicit
+     * mapping argument instead). */
+    public static List<TypedSpec> apply(List<TypedSpec> body, ModelContext ctx,
+            String mappingFqn) {
         if (body.isEmpty()) {
             return body;
         }
@@ -49,9 +57,10 @@ public final class RelationalRootForm {
         // Lowerer untouched) — look through it, and keep its mapping as
         // the ~primaryKey source
         TypedSpec root = body.get(body.size() - 1);
-        String mappingFqn = null;
         if (root instanceof TypedFrom fr) {
-            mappingFqn = fr.mapping().map(m -> m.fullPath()).orElse(null);
+            if (mappingFqn == null) {
+                mappingFqn = fr.mapping().map(m -> m.fullPath()).orElse(null);
+            }
             root = fr.source();
         }
         if (!(root instanceof TypedSerializeGraph g)

@@ -125,7 +125,7 @@ public final class StoreResolver {
     /** {@code explicitMappingFqn}: resolve class fetches against THIS
      * mapping (the ~func-pipeline recursion — ClassSources) — an explicit
      * from() in the body still wins. */
-    List<TypedSpec> resolve(List<TypedSpec> body, String driverRuntimeFqn,
+    public List<TypedSpec> resolve(List<TypedSpec> body, String driverRuntimeFqn,
             String explicitMappingFqn) {
         // LAZY: the runtime is consulted only when a class fetch needs a
         // mapping — a pure relation query with an unusable runtime must not
