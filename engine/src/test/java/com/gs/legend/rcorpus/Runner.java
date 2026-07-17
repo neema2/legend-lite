@@ -535,8 +535,10 @@ public final class Runner {
         return out;
     }
 
-    /** Qualify a bare mapping reference via the test's imports + presence
-     * in the raw model sources. */
+    /** Qualify a bare mapping reference via the test's imports + the
+     * PARSED element index — never substring search over source text
+     * (audit 19d R2: qualify was the last text-scan name resolver; the
+     * elementSource keys are the real parser's FQNs). */
     private String qualify(String name, ParsedTest t) {
         if (name.contains("::")) {
             return name;
@@ -544,15 +546,6 @@ public final class Runner {
         if (t.imports() != null && t.imports().typeImports().containsKey(name)) {
             return t.imports().typeImports().get(name);
         }
-        StringBuilder sb = new StringBuilder();
-        sharedRaw.forEach(m -> sb.append(m.text()));
-        familyRaw.getOrDefault(currentFamilyKey, List.of())
-                .forEach(m -> sb.append(m.text()));
-        com.legend.Compiler.ModelSource f = fileRaw.get(currentFileKey);
-        if (f != null) {
-            sb.append(f.text());
-        }
-        String scope = sb.toString();
         List<String> pkgs = new ArrayList<>();
         if (t.imports() != null) {
             pkgs.addAll(t.imports().wildcards());
@@ -563,7 +556,7 @@ public final class Runner {
         }
         for (String pkg : pkgs) {
             String candidate = pkg + "::" + name;
-            if (scope.contains(candidate)) {
+            if (elementSource.containsKey(candidate)) {
                 return candidate;
             }
         }
