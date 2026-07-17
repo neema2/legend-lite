@@ -114,6 +114,15 @@ public final class Runner {
     // Phase D: setup functions as PARSED definitions — their bodies
     // EXECUTE through the platform (Compiler statement orchestration), no literal
     // extraction. beforePackagesParsed: {pkg, fqn} by STEREOTYPE.
+    /** Every parsed corpus function: parameter names + body + imports —
+     * the statement-position β-expansion index (audit 19d B1). */
+    record FnDef(List<String> params,
+            List<com.legend.model.spec.ValueSpecification> body,
+            com.legend.model.ImportScope imports) {
+    }
+
+    private final Map<String, FnDef> fnIndex = new LinkedHashMap<>();
+
     private final Map<String, java.util.List<com.legend.model.spec.ValueSpecification>>
             setupFnAsts = new LinkedHashMap<>();
     private final Map<String, com.legend.model.ImportScope> setupFnImports =
@@ -191,8 +200,21 @@ public final class Runner {
         }
         for (com.legend.model.PackageableElement el : unit.elements()) {
             elementSource.putIfAbsent(el.qualifiedName(), source);
-            if (!(el instanceof com.legend.model.FunctionDefinition f)
-                    || !f.parameters().isEmpty()) {
+            if (!(el instanceof com.legend.model.FunctionDefinition f)) {
+                continue;
+            }
+            // EVERY parsed function joins the expansion index: test bodies
+            // that reach execute()/toSQLString() through a HELPER call were
+            // invisible to discovery AND to TestBody (audit 19d B1 — the
+            // 498-SHAPE cliff). Statement-position calls β-expand with the
+            // callee's parameters bound as lets.
+            fnIndex.putIfAbsent(f.qualifiedName(), new FnDef(
+                    f.parameters().stream()
+                            .map(com.legend.model.FunctionDefinition.ParameterDefinition::name)
+                            .toList(),
+                    f.body(),
+                    unit.elementImports().get(f.qualifiedName())));
+            if (!f.parameters().isEmpty()) {
                 continue;
             }
             setupFnAsts.putIfAbsent(f.qualifiedName(), f.body());
@@ -471,7 +493,79 @@ public final class Runner {
     /** The MAPPING refs of execute()/-&gt;from() calls, AST-walked and
      * qualified via the test's imports — they feed the synthesized
      * Runtime's mappings and the no-execute SHAPE gate. */
-    private List<String> executeMappingRefs(ParsedTest t) {
+    /**
+     * β-expand statement-position calls to INDEXED corpus helpers whose
+     * bodies (transitively, at this level) carry an execute/toSQLString
+     * shape: parameters bind as lets, the callee's statements splice.
+     * Query-level user functions (executeInDb wrappers etc.) are NOT
+     * expanded here — they inline in the PLATFORM (UserCallInliner); the
+     * execute-shape guard keeps this to test orchestration.
+     */
+    private List<com.legend.model.spec.ValueSpecification> expandHelperCalls(
+            List<com.legend.model.spec.ValueSpecification> stmts,
+            ParsedTest t, int depth) {
+        if (depth >= 3) {
+            return stmts;
+        }
+        List<com.legend.model.spec.ValueSpecification> out = new ArrayList<>();
+        for (com.legend.model.spec.ValueSpecification stmt : stmts) {
+            FnDef callee = null;
+            com.legend.model.spec.AppliedFunction call = null;
+            if (stmt instanceof com.legend.model.spec.AppliedFunction af
+                    && !af.function().equals("letFunction")) {
+                String fqn = af.function().contains("::")
+                        ? af.function() : qualify(af.function(), t);
+                FnDef fd = fnIndex.get(fqn);
+                if (fd != null && fd.params().size() == af.parameters().size()
+                        && !fd.body().isEmpty()
+                        && containsExecuteShape(fd.body())) {
+                    callee = fd;
+                    call = af;
+                }
+            }
+            if (callee == null) {
+                out.add(stmt);
+                continue;
+            }
+            for (int i = 0; i < callee.params().size(); i++) {
+                out.add(new com.legend.model.spec.AppliedFunction("letFunction",
+                        List.of(new com.legend.model.spec.CString(
+                                        callee.params().get(i)),
+                                call.parameters().get(i))));
+            }
+            out.addAll(expandHelperCalls(callee.body(), t, depth + 1));
+        }
+        return out;
+    }
+
+    /** Any execute/toSQLString/from call anywhere in these statements. */
+    private static boolean containsExecuteShape(
+            List<com.legend.model.spec.ValueSpecification> stmts) {
+        java.util.ArrayDeque<com.legend.model.spec.ValueSpecification> work =
+                new java.util.ArrayDeque<>(stmts);
+        while (!work.isEmpty()) {
+            var v = work.poll();
+            if (v instanceof com.legend.model.spec.AppliedFunction af) {
+                String simple = af.function()
+                        .substring(af.function().lastIndexOf(':') + 1);
+                if (simple.equals("execute") || simple.equals("toSQLString")
+                        || simple.equals("from")) {
+                    return true;
+                }
+                work.addAll(af.parameters());
+            } else if (v instanceof com.legend.model.spec.AppliedProperty ap) {
+                work.add(ap.receiver());
+            } else if (v instanceof com.legend.model.spec.LambdaFunction lf) {
+                work.addAll(lf.body());
+            } else if (v instanceof com.legend.model.spec.PureCollection pc) {
+                work.addAll(pc.values());
+            }
+        }
+        return false;
+    }
+
+    private List<String> executeMappingRefs(
+            List<com.legend.model.spec.ValueSpecification> body, ParsedTest t) {
         List<String> out = new ArrayList<>();
         // LET-BOUND mapping refs (the corpus's dominant graphFetch idiom:
         // `let mapping = X; ... execute($q, $mapping, ...)`) resolve through
@@ -481,7 +575,7 @@ public final class Runner {
         Map<String, com.legend.model.spec.ValueSpecification> lets =
                 new LinkedHashMap<>();
         java.util.ArrayDeque<com.legend.model.spec.ValueSpecification> work =
-                new java.util.ArrayDeque<>(t.fn().body());
+                new java.util.ArrayDeque<>(body);
         while (!work.isEmpty()) {
             com.legend.model.spec.ValueSpecification v = work.poll();
             if (v instanceof com.legend.model.spec.AppliedFunction af) {
@@ -563,7 +657,13 @@ public final class Runner {
 
     /** Run one PARSED test through the pipeline. */
     public Outcome run(ParsedTest t) {
-        List<String> mappingRefs = executeMappingRefs(t);
+        // Statement-position HELPER calls β-expand (params bound as lets)
+        // so discovery and the harness both see the real body — a test
+        // reaching execute()/toSQLString() only through a helper was
+        // invisible to both (audit 19d B1, the 498-SHAPE cliff).
+        List<com.legend.model.spec.ValueSpecification> body =
+                expandHelperCalls(t.fn().body(), t, 0);
+        List<String> mappingRefs = executeMappingRefs(body, t);
         if (mappingRefs.isEmpty()) {
             return new Outcome(t.fqn(), Status.SHAPE, "no execute(|...) call");
         }
@@ -577,7 +677,7 @@ public final class Runner {
                 List<String> failedSeeds = replaySeeds(t.fqn(), ctx, conn);
                 seedFailures.addAll(failedSeeds);
                 com.legend.TestBody.Outcome o = com.legend.TestBody.run(
-                        ctx, t.fn().body(), importScopeOf(t), "rcorpus::Rt",
+                        ctx, body, importScopeOf(t), "rcorpus::Rt",
                         conn, !failedSeeds.isEmpty(), failedSeeds);
                 // body-time setup failures (added via the sink DURING the
                 // run) join the run-wide report too (audit 17)
