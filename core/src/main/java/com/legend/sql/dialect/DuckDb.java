@@ -503,8 +503,15 @@ public final class DuckDb extends AnsiSqlRenderer {
                 sp++;
             }
             String head = col.substring(0, sp);
-            if (col.startsWith("\"")
-                    || head.matches("(?i)primary|constraint|foreign|unique|check")) {
+            if (col.startsWith("\"")) {
+                // pre-quoted name (model-derived DDL quotes fully): the
+                // TYPE PART still needs the H2->DuckDB kind mapping
+                int endq = col.indexOf('"', 1);
+                out.append(col, 0, endq + 1)
+                        .append(col.substring(endq + 1)
+                                .replaceAll("(?i)\\bFLOAT\\b", "DOUBLE")
+                                .replaceAll("(?i)\\bBIT\\b", "BOOLEAN"));
+            } else if (head.matches("(?i)primary|constraint|foreign|unique|check")) {
                 out.append(col);
             } else {
                 // H2 semantics on the TYPE PART only: FLOAT is an 8-byte

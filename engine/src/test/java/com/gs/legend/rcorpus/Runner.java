@@ -35,7 +35,6 @@ public final class Runner {
 
     private final List<String> walls = new ArrayList<>();
     /** Shared-file table DDL — replayed FIRST, before ANY data. */
-    private final List<String> ddlSeeds;
     /** Shared-file executeInDb data literals — replayed after ALL DDL. */
     /**
      * FQNs of every zero-arg function defined in the shared seed files:
@@ -66,19 +65,6 @@ public final class Runner {
         // shared files join the setup UNIVERSE too (relationalSetUp.pure
         // defines createTablesAndFillDb — cross-family setups call it)
         setupUniverse.addAll(sharedSources);
-        List<String> ddl = new ArrayList<>();
-        for (String src : sharedSources) {
-            var seedTypes0 = Corpus.seedColumnTypes(src);
-            for (var defs : Corpus.tableDefsAll(src).values()) {
-                var seed0 = seedTypes0.get(defs.get(0).name().toLowerCase());
-                var d = pickBySeed(defs, seed0);
-                if (!d.schema().isEmpty() && !d.schema().equals("default")) {
-                    ddl.add("CREATE SCHEMA IF NOT EXISTS " + d.schema());
-                }
-                ddl.add(d.createSql(seed0 == null ? java.util.Map.of() : seed0));
-            }
-        }
-        this.ddlSeeds = ddl;
         // PHASE E: shared-file DATA seeds by EXECUTING the shared files'
         // functions through the platform, in definition order — the same
         // statement sequence the literal extraction produced. Functions
@@ -235,9 +221,7 @@ public final class Runner {
         }
     }
 
-    private final Map<String, List<String>> fileSeeds = new LinkedHashMap<>();
     private String currentFileKey = "";
-    private final Map<String, List<String>> familySeeds = new LinkedHashMap<>();
     private String currentFamilyKey = "";
 
     /**
@@ -294,39 +278,6 @@ public final class Runner {
         for (String src : modelOnlySources) {
             collectSetups(src);
         }
-        List<String> sql = new ArrayList<>();
-        if (parentFamilyKey != null) {
-            sql.addAll(familySeeds.getOrDefault(parentFamilyKey, List.of()));
-        }
-        List<String> preSql = new ArrayList<>();
-        for (String src : setupSources) {
-            var seedTypes1 = Corpus.seedColumnTypes(src);
-            for (var defs : Corpus.tableDefsAll(src).values()) {
-                var seed1 = seedTypes1.get(defs.get(0).name().toLowerCase());
-                var d = pickBySeed(defs, seed1);
-                if (!d.schema().isEmpty() && !d.schema().equals("default")) {
-                    sql.add("CREATE SCHEMA IF NOT EXISTS " + d.schema());
-                }
-                sql.add(d.createSql(seed1 == null ? java.util.Map.of() : seed1));
-            }
-        }
-        // sibling TEST files contribute their table DDL (empty CREATE OR
-        // REPLACE — a sibling's classes are queryable only if their tables
-        // exist; the current file's own DDL and the BeforePackage seeds run
-        // AFTER and win), but NOT data seeds
-        for (String src : modelOnlySources) {
-            var seedTypes2 = Corpus.seedColumnTypes(src);
-            for (var defs : Corpus.tableDefsAll(src).values()) {
-                var seed2 = seedTypes2.get(defs.get(0).name().toLowerCase());
-                var d = pickBySeed(defs, seed2);
-                if (!d.schema().isEmpty() && !d.schema().equals("default")) {
-                    preSql.add("CREATE SCHEMA IF NOT EXISTS " + d.schema());
-                }
-                preSql.add(d.createSql(seed2 == null ? java.util.Map.of() : seed2));
-            }
-        }
-        sql.addAll(0, preSql);
-        familySeeds.put(familyKey, sql);
     }
 
     /**
@@ -341,45 +292,9 @@ public final class Runner {
         }
         fileRaw.put(key, new com.legend.Compiler.ModelSource(key, source));
         collectSetups(source);
-        List<String> sql = new ArrayList<>();
-        var seedTypes3 = Corpus.seedColumnTypes(source);
-        for (var defs : Corpus.tableDefsAll(source).values()) {
-            var seed3 = seedTypes3.get(defs.get(0).name().toLowerCase());
-            var d = pickBySeed(defs, seed3);
-            if (!d.schema().isEmpty() && !d.schema().equals("default")) {
-                sql.add("CREATE SCHEMA IF NOT EXISTS " + d.schema());
-            }
-            sql.add(d.createSql(seed3 == null ? java.util.Map.of() : seed3));
-        }
-        fileSeeds.put(key, sql);
     }
 
 
-    /** The declared def the SEEDS actually created: among same-named
-     * declarations, the one whose column set best matches the harness's
-     * own create-table statement; ties/no-seed keep the first. */
-    private static Corpus.TableDef pickBySeed(java.util.List<Corpus.TableDef> defs,
-            java.util.Map<String, String> seedCols) {
-        if (defs.size() == 1 || seedCols == null || seedCols.isEmpty()) {
-            return defs.get(0);
-        }
-        Corpus.TableDef best = defs.get(0);
-        int bestScore = -1;
-        for (Corpus.TableDef d : defs) {
-            String txt = d.columnsText().toLowerCase();
-            int score = 0;
-            for (String c : seedCols.keySet()) {
-                if (txt.matches("(?s).*\\b" + java.util.regex.Pattern.quote(c) + "\\b.*")) {
-                    score++;
-                }
-            }
-            if (score > bestScore) {
-                bestScore = score;
-                best = d;
-            }
-        }
-        return best;
-    }
 
     public List<String> walls() {
         return walls;
@@ -833,11 +748,52 @@ public final class Runner {
      * arc S4: Compiler's statement orchestration + executeInDb dispatch).
      * Setups the TEST BODY calls run at their own statement position in
      * TestBody — no pre-replay, engine-exact ordering. */
+    private static List<String> moduleDdl(
+            com.legend.compiler.element.ModelContext ctx) {
+        List<String> out = new ArrayList<>();
+        java.util.Set<String> seenTables = new java.util.HashSet<>();
+        java.util.Set<String> seenSchemas = new java.util.HashSet<>();
+        for (String fqn : ctx.elementFqns()) {
+            var dbOpt = ctx.findDatabase(fqn);
+            if (dbOpt.isEmpty()) {
+                continue;
+            }
+            var db = dbOpt.get();
+            for (var td : db.tables()) {
+                if (seenTables.add(td.name().toLowerCase())) {
+                    out.add(com.legend.exec.Ddl.createTable(td, null));
+                }
+            }
+            for (var schema : db.schemas()) {
+                boolean defaultSchema = schema.name().isEmpty()
+                        || "default".equals(schema.name());
+                if (!defaultSchema && seenSchemas.add(schema.name())) {
+                    out.add("CREATE SCHEMA IF NOT EXISTS " + schema.name());
+                }
+                for (var td : schema.tables()) {
+                    // default-schema tables share the FLAT key — the same
+                    // physical table declared both ways must create ONCE
+                    String key = defaultSchema ? td.name().toLowerCase()
+                            : (schema.name() + "." + td.name()).toLowerCase();
+                    if (seenTables.add(key)) {
+                        out.add(com.legend.exec.Ddl.createTable(td,
+                                defaultSchema ? null : schema.name()));
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
     private List<String> replaySeeds(String fqn,
             com.legend.compiler.element.ModelContext ctx, Connection conn) {
-        List<String> allSeeds = new ArrayList<>(ddlSeeds);
-        allSeeds.addAll(familySeeds.getOrDefault(currentFamilyKey, List.of()));
-        allSeeds.addAll(fileSeeds.getOrDefault(currentFileKey, List.of()));
+        // MODULE-DERIVED DDL (audit 19d B6 / task #55): every table of
+        // every database the test's module compiled, spelled by Ddl.java
+        // from the PARSED store — the regex extraction (tableDefsAll/
+        // seedColumnTypes/pickBySeed, the last surviving shadow parser)
+        // is retired. Same-named tables dedup first-wins (module order),
+        // the same arbitration the module's element dedup already applies.
+        List<String> allSeeds = moduleDdl(ctx);
         List<String> failedSeeds = new ArrayList<>();
         for (String sql : allSeeds) {
             for (String raw : com.legend.sql.RawSql.splitStatements(sql)) {

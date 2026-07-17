@@ -151,6 +151,13 @@ public interface ModelContext {
         return Optional.empty();
     }
 
+    /** The full store definition — DDL derivation (the harness's model-
+     * driven seeding) enumerates a module's databases through this. */
+    default Optional<com.legend.model.DatabaseDefinition>
+            findDatabase(String dbFqn) {
+        return Optional.empty();
+    }
+
     /** The table's temporal columns, when it declares a milestoning block. */
     default Optional<com.legend.model.DatabaseDefinition.TableDefinition.Milestoning>
             findTableMilestoning(String dbFqn, String name) {

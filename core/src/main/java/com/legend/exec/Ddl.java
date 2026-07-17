@@ -44,7 +44,11 @@ public final class Ddl {
                 sb.append(", ");
             }
             first = false;
-            sb.append(col.name()).append(' ').append(spell(col.dataType()));
+            // FULL-name quoting: corpus columns carry spaces and reserved
+            // words ('Previous Fiscal Week Year', 'FIRST NAME') — the
+            // dialect's quoteCreateColumns passes quoted heads through
+            sb.append('"').append(col.name()).append('"').append(' ')
+                    .append(spell(col.dataType()));
         }
         return sb.append(");").toString();
     }
