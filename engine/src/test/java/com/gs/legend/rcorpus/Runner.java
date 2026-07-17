@@ -584,7 +584,7 @@ public final class Runner {
                 }
                 List<String> failedSeeds = replaySeeds(t.fqn(), ctx, conn);
                 seedFailures.addAll(failedSeeds);
-                com.legend.TestBody.Outcome o = com.legend.TestBody.run(
+                com.legend.harness.TestBody.Outcome o = com.legend.harness.TestBody.run(
                         ctx, body, importScopeOf(t), "rcorpus::Rt",
                         conn, !failedSeeds.isEmpty(), failedSeeds);
                 // body-time setup failures (added via the sink DURING the
@@ -601,11 +601,11 @@ public final class Runner {
         }
     }
 
-    private static Outcome score(String fqn, com.legend.TestBody.Outcome o) {
+    private static Outcome score(String fqn, com.legend.harness.TestBody.Outcome o) {
         return switch (o) {
-            case com.legend.TestBody.Outcome.Unsupported u ->
+            case com.legend.harness.TestBody.Outcome.Unsupported u ->
                     new Outcome(fqn, Status.SHAPE, u.reason());
-            case com.legend.TestBody.Outcome.Ran r -> {
+            case com.legend.harness.TestBody.Outcome.Ran r -> {
                 if (!r.failures().isEmpty()) {
                     yield new Outcome(fqn, Status.FAIL, r.failures().get(0));
                 }

@@ -1,7 +1,9 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend;
+package com.legend.harness;
+
+import com.legend.Compiler;
 
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.element.ModelContext;

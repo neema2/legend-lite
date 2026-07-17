@@ -130,11 +130,12 @@ final class ArchitectureTest {
     void phasesNeverDependOnTheDriverLayer() {
         noClasses()
             .that().resideOutsideOfPackage("com.legend")
+            .and().resideOutsideOfPackage("com.legend.harness")
             .and().resideInAPackage("com.legend..")
             .should().dependOnClassesThat().belongToAnyOf(
                     com.legend.Compiler.class,
                     com.legend.StatementExecutor.class,
-                    com.legend.TestBody.class)
+                    com.legend.harness.TestBody.class)
             .as("Invariant 4c: the com.legend root (driver/harness) is the top"
                     + " layer — audit 19")
             .check(CORE_PROD_CLASSES);
@@ -151,6 +152,7 @@ final class ArchitectureTest {
     void engineStyleRendererIsQuarantinedToTheRootLayer() {
         noClasses()
             .that().resideOutsideOfPackage("com.legend")
+            .and().resideOutsideOfPackage("com.legend.harness")
             .and().resideInAPackage("com.legend..")
             .should().dependOnClassesThat().belongToAnyOf(
                     com.legend.sql.dialect.EngineStyleH2.class)
@@ -338,7 +340,10 @@ final class ArchitectureTest {
         noClasses()
             .that().resideOutsideOfPackages(
                     "com.legend.parser..", "com.legend.ide..",
-                    "com.legend.builtin", "com.legend")
+                    "com.legend.builtin", "com.legend",
+                    // the harness bridge sits WITH the driver at the top
+                    // layer (TestBody.run's string entry parses test bodies)
+                    "com.legend.harness")
             .should().dependOnClassesThat().haveNameMatching(
                     "com\\.legend\\.parser\\.(ElementParser|SpecParser"
                     + "|MappingGrammarParser|RelationalGrammarParser"
