@@ -320,7 +320,8 @@ public final class MappingNormalizer {
                             ? MappingDefinition.Kind.PURE
                             : MappingDefinition.Kind.RELATIONAL,
                     cm.setId(), cm.extendsSetId(), cm.root(),
-                    fn.qualifiedName()));
+                    new Realization.Ref(fn.qualifiedName()),
+                    declaredPrimaryKeyColumns(cm)));
         }
         List<MappingDefinition.AssociationBinding> assocBindings =
                 new ArrayList<>(md.associationMappings().size());
@@ -2253,6 +2254,23 @@ public final class MappingNormalizer {
      * spelling (not shadowed by a user class — {@code m::Number} must never
      * coerce) or the full platform FQN. Suffix-matching is the banned idiom.
      */
+    /** The ~primaryKey column NAMES (engine resolvePrimaryKey: declared
+     * mapping identity first; the table's PK is only the fallback and is
+     * resolved by the CONSUMER, which has store access). Only plain
+     * ColumnRef entries carry a name — expression keys contribute none. */
+    private static List<String> declaredPrimaryKeyColumns(ClassMapping cm) {
+        if (!(cm instanceof ClassMapping.Relational rcm)) {
+            return List.of();
+        }
+        List<String> out = new ArrayList<>();
+        for (RelationalOperation op : rcm.primaryKey()) {
+            if (op instanceof RelationalOperation.ColumnRef cr) {
+                out.add(cr.column());
+            }
+        }
+        return out;
+    }
+
     private static String declaredPlatformKind(String propName, String ownerClassFqn,
             ModelBuilder model) {
         ClassDefinition owner = model.findClass(ownerClassFqn).orElse(null);

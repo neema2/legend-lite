@@ -939,42 +939,6 @@ public final class Runner {
         }
     }
 
-    /**
-     * {@code dropAndCreateTableInDb(Db, 'Table', $conn)} re-emission: the
-     * engine recreates the table from the STORE's DDL at the call site.
-     * Without this, a collide-named table (calendarAggregation's FirmTable
-     * vs the shared model's) keeps whatever shape the LAST create in the
-     * seed stream gave it — the shared data seeds run after the family
-     * DDL and clobber the family shape. Re-emitting the family's own
-     * CREATE here restores it right before the setup's inserts.
-     */
-    /** The model CREATE statements for {@code table} (simple-name match)
-     * across the FAMILY, the current test FILE, and the shared DDL — a
-     * dropAndCreateTableInDb may target a table declared in any of them. */
-    private List<String> familyCreatesOf(String table) {
-        List<String> out = new ArrayList<>();
-        String simple = table.contains(".")
-                ? table.substring(table.lastIndexOf('.') + 1) : table;
-        List<String> searchSpace = new ArrayList<>(
-                familySeeds.getOrDefault(currentFamilyKey, List.of()));
-        searchSpace.addAll(fileSeeds.getOrDefault(currentFileKey, List.of()));
-        searchSpace.addAll(ddlSeeds);
-        for (String s : searchSpace) {
-            Matcher c = Pattern.compile(
-                    "(?i)^\\s*CREATE OR REPLACE TABLE\\s+([\\w.\"]+)")
-                    .matcher(s);
-            if (!c.find()) {
-                continue;
-            }
-            String created = c.group(1).replace("\"", "");
-            String createdSimple = created.contains(".")
-                    ? created.substring(created.lastIndexOf('.') + 1) : created;
-            if (createdSimple.equalsIgnoreCase(simple)) {
-                out.add(s);
-            }
-        }
-        return out;
-    }
 
 
 

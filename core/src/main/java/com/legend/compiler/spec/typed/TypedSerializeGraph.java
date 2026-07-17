@@ -44,6 +44,7 @@ import java.util.List;
 public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   List<TypedFuncCol> leaves, List<Child> nested,
                                   boolean arrayWrap, boolean bareValue,
+                                  String classFqn,
                                   ExprType info) implements TypedSpec {
 
     public TypedSerializeGraph {
@@ -51,11 +52,18 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
         nested = List.copyOf(nested);
     }
 
+    /** Provenance-free compat (nested children, tests). */
+    public TypedSerializeGraph(TypedSpec source, String rowVar,
+            List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
+            boolean bareValue, ExprType info) {
+        this(source, rowVar, leaves, nested, arrayWrap, bareValue, null, info);
+    }
+
     /** The envelope form: objects keyed by leaves ({@code bareValue} = false). */
     public TypedSerializeGraph(TypedSpec source, String rowVar,
             List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
             ExprType info) {
-        this(source, rowVar, leaves, nested, arrayWrap, false, info);
+        this(source, rowVar, leaves, nested, arrayWrap, false, null, info);
     }
 
     /** One nested hop: the property name and the child's own envelope. */

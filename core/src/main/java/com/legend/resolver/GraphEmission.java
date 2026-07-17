@@ -267,7 +267,7 @@ final class GraphEmission {
                                     com.legend.compiler.element.type.Multiplicity.Bounded.ONE))));
         }
         return new TypedSerializeGraph(pipeline, rowVar, leaves, children,
-                arrayWrap, info);
+                arrayWrap, false, cs.classFqn(), info);
     }
 
     /**

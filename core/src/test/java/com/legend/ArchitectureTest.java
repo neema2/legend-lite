@@ -120,6 +120,46 @@ final class ArchitectureTest {
     }
 
     /**
+     * <strong>Invariant 4c — the root package is the TOP layer.</strong>
+     * The acyclic-slices matcher {@code com.legend.(*)..} skips root
+     * classes, so nothing structural prevented a phase from importing the
+     * driver (Compiler/StatementExecutor) or the harness bridge (TestBody)
+     * — audit 19's blind spot. Phases never call up into orchestration.
+     */
+    @Test
+    void phasesNeverDependOnTheDriverLayer() {
+        noClasses()
+            .that().resideOutsideOfPackage("com.legend")
+            .and().resideInAPackage("com.legend..")
+            .should().dependOnClassesThat().belongToAnyOf(
+                    com.legend.Compiler.class,
+                    com.legend.StatementExecutor.class,
+                    com.legend.TestBody.class)
+            .as("Invariant 4c: the com.legend root (driver/harness) is the top"
+                    + " layer — audit 19")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
+     * <strong>Invariant 4d — the golden-text renderer is quarantined.</strong>
+     * EngineStyleH2 exists ONLY for the toSQLString golden surface; an
+     * execution path reaching it (dialectOf returning it, a lowering
+     * import) would run engine-H2 TEXT semantics against DuckDB. Only the
+     * root layer (the harness bridge) may construct it.
+     */
+    @Test
+    void engineStyleRendererIsQuarantinedToTheRootLayer() {
+        noClasses()
+            .that().resideOutsideOfPackage("com.legend")
+            .and().resideInAPackage("com.legend..")
+            .should().dependOnClassesThat().belongToAnyOf(
+                    com.legend.sql.dialect.EngineStyleH2.class)
+            .as("Invariant 4d: EngineStyleH2 is a golden-text renderer, root"
+                    + " layer only — audit 19")
+            .check(CORE_PROD_CLASSES);
+    }
+
+    /**
      * Sub-rule of Invariant 4 the top-level slices can't see: the typed HIR
      * package must not reach back into the checker package (the old
      * spec&lt;-&gt;spec.typed cycle existed solely because ExprType lived in spec).

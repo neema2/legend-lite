@@ -53,100 +53,6 @@ public final class Corpus {
 
     // ===== model assembly =====
 
-    /**
-     * Model-element text of a corpus source: {@code ###...} markers and
-     * {@code import} lines dropped (imports are resolved per test file for
-     * QUERY names; model-internal names in the corpus's shared files are
-     * package-local and resolve via the model parser's own import handling),
-     * and every {@code function}/{@code native function} definition removed
-     * (string-aware brace matching — bodies carry quoted braces).
-     */
-    public static String modelElements(String source) {
-        StringBuilder out = new StringBuilder();
-        int i = 0;
-        int n = source.length();
-        boolean inDiagram = false;
-        boolean inDb = false;
-        boolean dbSawOpen = false;
-        boolean dbJustClosed = false;
-        int dbDepth = 0;
-        while (i < n) {
-            int lineEnd = source.indexOf('\n', i);
-            if (lineEnd < 0) {
-                lineEnd = n;
-            }
-            String line = source.substring(i, lineEnd);
-            String trimmed = line.strip();
-            if (trimmed.startsWith("###")) {
-                // ###Diagram sections are visual metadata, not model — and
-                // their bodies (#FFFFCC color literals) don't even lex
-                inDiagram = trimmed.equals("###Diagram");
-                i = lineEnd + 1;
-                continue;
-            }
-            if (inDiagram) {
-                i = lineEnd + 1;
-                continue;
-            }
-            if (trimmed.startsWith("function ") || trimmed.startsWith("function<")
-                    || trimmed.matches("function\\s+<<.*")
-                    || trimmed.equals("function")
-                    || trimmed.startsWith("native function ")) {
-                int end = skipFunction(source, i);
-                // Relation-mapping provider functions (~func targets —
-                // zero-arg, returning Relation<...>) are MODEL, not test
-                // machinery: they must survive into the compiled text
-                String fnText = source.substring(i, end);
-                if (fnText.substring(0, Math.min(fnText.length(), fnText.indexOf('{') < 0
-                                ? fnText.length() : fnText.indexOf('{')))
-                        .matches("(?s).*\\(\\s*\\)\\s*:\\s*"
-                                + "(?:meta::pure::metamodel::relation::)?Relation\\s*<.*")) {
-                    out.append(fnText).append('\n');
-                }
-                i = end;
-                continue;
-            }
-            // QUIRK (decoded from m2m2rExecutionPlanTests.pure:284, engine
-            // master): a Database block followed by a stray lone ')' —
-            // legend-pure's section machinery tolerates it, so the file
-            // compiles in engine CI. Reproduce: drop the stray close right
-            // after a BALANCED Database element; everything else stays
-            // strict.
-            if (dbJustClosed && trimmed.equals(")")) {
-                i = lineEnd + 1;
-                continue;
-            }
-            if (!trimmed.isEmpty()) {
-                dbJustClosed = false;
-            }
-            if (!inDb && trimmed.startsWith("Database ")) {
-                inDb = true;
-                dbSawOpen = false;
-                dbDepth = 0;
-            }
-            if (inDb) {
-                for (int k = 0; k < line.length(); k++) {
-                    char c = line.charAt(k);
-                    if (c == '\'') {
-                        int e = skipString(line, k);
-                        k = e - 1;
-                    } else if (c == '(') {
-                        dbDepth++;
-                        dbSawOpen = true;
-                    } else if (c == ')') {
-                        dbDepth--;
-                    }
-                }
-                if (dbSawOpen && dbDepth <= 0) {
-                    inDb = false;
-                    dbJustClosed = true;
-                }
-            }
-            out.append(line).append('\n');
-            i = lineEnd + 1;
-        }
-        return out.toString();
-    }
 
     /** Skip a function definition starting at {@code start}; returns the index after its body. */
     private static int skipFunction(String source, int start) {
@@ -259,11 +165,7 @@ public final class Corpus {
 
     // ===== seed SQL =====
 
-    private static final Pattern EXECUTE_IN_DB = Pattern.compile(
-            "executeInDb\\w*\\s*\\(");
 
-    private static final Pattern LET_STRING = Pattern.compile(
-            "let\\s+(\\w+)\\s*=\\s*(?=')");
 
     // ===== table DDL from the store text =====
 
@@ -536,33 +438,6 @@ public final class Corpus {
 
     // ===== test extraction =====
 
-    private static final Pattern TEST_FN = Pattern.compile(
-            "(?m)^\\s*function\\s+(<<[^>]*test\\.Test[^>]*>>)\\s+((?:\\w+::)*\\w+)\\s*\\(\\s*\\)\\s*:\\s*Boolean\\s*\\[1\\]\\s*");
 
-    private static final Pattern IMPORT_LINE = Pattern.compile(
-            "^import\\s+((?:\\w+::)+)(\\*|\\w+)\\s*;", Pattern.MULTILINE);
 
-    /** Remove {@code // ...} line comments, respecting string literals. */
-    static String stripLineComments(String s) {
-        StringBuilder out = new StringBuilder(s.length());
-        int i = 0;
-        while (i < s.length()) {
-            char c = s.charAt(i);
-            if (c == '\'') {
-                int end = skipString(s, i);
-                out.append(s, i, end);
-                i = end;
-                continue;
-            }
-            if (c == '/' && i + 1 < s.length() && s.charAt(i + 1) == '/') {
-                while (i < s.length() && s.charAt(i) != '\n') {
-                    i++;
-                }
-                continue;
-            }
-            out.append(c);
-            i++;
-        }
-        return out.toString();
-    }
 }

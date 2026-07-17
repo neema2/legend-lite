@@ -69,11 +69,22 @@ public record MappingDefinition(
             String setId,
             String extendsSetId,
             boolean root,
-            Realization realization) {
+            Realization realization,
+            List<String> primaryKeyColumns) {
         public ClassBinding {
             Objects.requireNonNull(classFqn, "classFqn");
             Objects.requireNonNull(kind, "kind");
             Objects.requireNonNull(realization, "realization");
+            primaryKeyColumns = primaryKeyColumns == null ? List.of()
+                    : List.copyOf(primaryKeyColumns);
+        }
+
+        /** Pre-~primaryKey compat: no declared object-identity columns. */
+        public ClassBinding(String classFqn, Kind kind, String setId,
+                            String extendsSetId, boolean root,
+                            Realization realization) {
+            this(classFqn, kind, setId, extendsSetId, root, realization,
+                    List.of());
         }
 
         /** Convenience: a function-ref binding (Door 1 / post-lift). */

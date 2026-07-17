@@ -619,7 +619,8 @@ public final class NameResolver {
         Realization realization = resolveRealization(b.realization(), scope);
         if (classFqn.equals(b.classFqn()) && realization == b.realization()) return b;
         return new MappingDefinition.ClassBinding(
-                classFqn, b.kind(), b.setId(), b.extendsSetId(), b.root(), realization);
+                classFqn, b.kind(), b.setId(), b.extendsSetId(), b.root(),
+                realization, b.primaryKeyColumns());
     }
 
     private static MappingDefinition.AssociationBinding resolveAssociationBinding(

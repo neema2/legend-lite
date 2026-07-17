@@ -396,12 +396,6 @@ public final class Compiler {
      * SQL PLAN without execution (the {@code toSQLString} surface: the
      * caller renders with a dialect of its choosing and compares text).
      */
-    public static com.legend.sql.SqlQuery lowerResolved(
-            com.legend.model.spec.ValueSpecification resolved, ModelContext ctx,
-            String runtimeFqn) {
-        return lowerResolved(resolved, ctx, runtimeFqn, false);
-    }
-
     /**
      * {@code relationalRootForm}: a BARE class root renders as the engine's
      * flat relational SELECT — primary-key columns ({@code pk_0}..) plus
@@ -419,114 +413,11 @@ public final class Compiler {
         body = new com.legend.resolver.StoreResolver(ctx, specs)
                 .resolve(body, runtimeFqn);
         if (relationalRootForm) {
-            body = flattenBareGraphRoot(body, ctx);
+            body = com.legend.resolver.RelationalRootForm.apply(body, ctx);
         }
         return new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent()).lower(body);
-    }
-
-    private static java.util.List<TypedSpec> flattenBareGraphRoot(
-            java.util.List<TypedSpec> body, ModelContext ctx) {
-        if (body.isEmpty()) {
-            return body;
-        }
-        // the from() wrapper survives resolution (it flows through the
-        // Lowerer untouched) — look through it
-        TypedSpec root = body.get(body.size() - 1);
-        if (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
-            root = fr.source();
-        }
-        if (!(root
-                instanceof com.legend.compiler.spec.typed.TypedSerializeGraph g)
-                || !g.nested().isEmpty() || g.bareValue()
-                || !(g.source().info().type()
-                        instanceof com.legend.compiler.element.type.Type.RelationType rowType)) {
-            return body;
-        }
-        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
-        java.util.List<com.legend.compiler.spec.typed.TypedFuncCol> cols =
-                new java.util.ArrayList<>();
-        // pk columns: the source's root table's PRIMARY KEY (the engine's
-        // resolvePrimaryKey fallback — mapping ~primaryKey is not lowered)
-        TypedSpec cur = g.source();
-        com.legend.compiler.spec.typed.TypedTableReference tref = null;
-        while (tref == null) {
-            if (cur instanceof com.legend.compiler.spec.typed.TypedTableReference tr) {
-                tref = tr;
-            } else if (cur.children().isEmpty()) {
-                break;
-            } else {
-                cur = cur.children().get(0);
-            }
-        }
-        if (tref != null) {
-            var td = ctx.findTableDefinition(tref.store(), tref.table())
-                    .orElse(null);
-            if (td != null) {
-                int i = 0;
-                for (var cd : td.columns()) {
-                    if (!cd.primaryKey()) {
-                        continue;
-                    }
-                    var colType = rowType.columns().stream()
-                            .filter(c -> c.name().equals(cd.name()))
-                            .findFirst().orElse(null);
-                    if (colType == null) {
-                        continue;
-                    }
-                    var colInfo = new com.legend.compiler.element.type.ExprType(
-                            colType.type(), colType.multiplicity());
-                    TypedSpec read = new com.legend.compiler.spec.typed.TypedPropertyAccess(
-                            new com.legend.compiler.spec.typed.TypedVariable(g.rowVar(),
-                                    new com.legend.compiler.element.type.ExprType(rowType, one)),
-                            cd.name(), colInfo);
-                    var fnType = new com.legend.compiler.element.type.Type.FunctionType(
-                            java.util.List.of(new com.legend.compiler.element.type.Type.Param(
-                                    rowType, one)),
-                            new com.legend.compiler.element.type.Type.Param(
-                                    colType.type(), colType.multiplicity()));
-                    cols.add(new com.legend.compiler.spec.typed.TypedFuncCol("pk_" + i++,
-                            new com.legend.compiler.spec.typed.TypedLambda(
-                                    java.util.List.of(g.rowVar()),
-                                    java.util.List.of(read),
-                                    new com.legend.compiler.element.type.ExprType(fnType, one))));
-                }
-            }
-        }
-        cols.addAll(g.leaves());
-        java.util.List<com.legend.compiler.element.type.Type.Column> outCols =
-                new java.util.ArrayList<>();
-        for (var c : cols) {
-            var last = c.fn().body().get(c.fn().body().size() - 1).info();
-            outCols.add(new com.legend.compiler.element.type.Type.Column(
-                    c.name(), last.type(), last.multiplicity()));
-        }
-        var outInfo = new com.legend.compiler.element.type.ExprType(
-                new com.legend.compiler.element.type.Type.RelationType(outCols),
-                g.source().info().multiplicity());
-        // Scalar projection COMMUTES with truncation: project BENEATH a
-        // trailing limit/slice so the fold keeps TOP/OFFSET-FETCH in the
-        // projecting select (the engine's flat form; ByVendor goldens) —
-        // the general fold policy isolates project-over-limit and stays
-        // untouched for execution paths.
-        TypedSpec proj = switch (g.source()) {
-            case com.legend.compiler.spec.typed.TypedLimit lim ->
-                    new com.legend.compiler.spec.typed.TypedLimit(
-                            new com.legend.compiler.spec.typed.TypedProject(
-                                    lim.source(), cols, outInfo),
-                            lim.count(), outInfo);
-            case com.legend.compiler.spec.typed.TypedSlice sl ->
-                    new com.legend.compiler.spec.typed.TypedSlice(
-                            new com.legend.compiler.spec.typed.TypedProject(
-                                    sl.source(), cols, outInfo),
-                            sl.start(), sl.stop(), outInfo);
-            default -> new com.legend.compiler.spec.typed.TypedProject(
-                    g.source(), cols, outInfo);
-        };
-        java.util.List<TypedSpec> out = new java.util.ArrayList<>(body);
-        out.set(out.size() - 1, proj);
-        return out;
     }
 
     /**
