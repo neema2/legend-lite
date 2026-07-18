@@ -641,7 +641,12 @@ public interface TokenStreamCursor {
     private TypeExpression.Column parseRelationColumn() {
         String colName = match(TokenType.QUESTION) ? "?" : parseIdentifier();
         expect(TokenType.COLON);
-        TypeExpression colType = parseType();
+        // real m3 mayColumnType: (QUESTION | type) — the wildcard type
+        // slot ((?:?) in over/SortInfo signatures) mirrors the name
+        // slot's literal-"?" convention.
+        TypeExpression colType = match(TokenType.QUESTION)
+                ? new TypeExpression.NameRef("?")
+                : parseType();
         Multiplicity mult = (peek() == TokenType.BRACKET_OPEN)
                 ? parseMultiplicity()
                 : Multiplicity.exactly(1);

@@ -10,17 +10,16 @@
 |---|---|---|---|---|---|---|---|---|
 | essential | 177 | 8 | 985 | 329 | 327 | 189 | 16 | 640 |
 | grammar | 48 | 0 | 439 | 136 | 136 | 123 | 2 | 242 |
-| relation | 49 | 1 | 390 | 350 | 282 | 95 | 2 | 318 |
+| relation | 49 | 0 | 474 | 350 | 350 | 95 | 3 | 386 |
 | standard | 55 | 0 | 358 | 205 | 204 | 115 | 0 | 252 |
 | unclassified | 67 | 0 | 262 | 96 | 94 | 39 | 13 | 166 |
 | variant | 7 | 0 | 112 | 88 | 88 | 9 | 0 | 91 |
-| **total** | **403** | **9** | | **1204** | **1131** | | | |
+| **total** | **403** | **8** | | **1204** | **1199** | | | |
 
 ## Parse-wall buckets
 
 | count | failure |
 |---|---|
-| 1 | `[21:82] expected type name, got QUESTION` |
 | 1 | `[22:34] expected type name after '@'` |
 | 1 | `[23:19] expected ')' to close argument list` |
 | 1 | `[23:35] expected ')' to close argument list` |
@@ -41,6 +40,7 @@
 | 3 | `Unknown type: 'Profile' is not a known primitive, class, or enum` |
 | 2 | `Unknown type: 'FunctionType' is not a known primitive, class, or enum` |
 | 2 | `Unknown type: 'Package' is not a known primitive, class, or enum` |
+| 1 | `Unknown type: '?' is not a known primitive, class, or enum` |
 | 1 | `Unknown type: 'Association' is not a known primitive, class, or enum` |
 | 1 | `Unknown type: 'CO_Location' is not a known primitive, class, or enum` |
 | 1 | `Unknown type: 'FunctionExpression' is not a known primitive, class, or enum` |
@@ -82,7 +82,13 @@
 | 2 | `in function 'meta::pure::functions::date::formatDate': expected a zero-parameter single-expression thunk` |
 | 2 | `in function 'meta::pure::functions::lang::tests::new::MyClassWithTypeVariables$prop$res': unbound variable '$x'` |
 | 2 | `in function 'meta::pure::functions::math::covarPopulation': unknown function 'covariance'` |
-| … | (1607 more buckets) |
+| … | (1674 more buckets) |
+
+## Discovery mismatches (parsed files where textual count != discovered)
+
+- `standard:boolean/inequality/between.pure` — textual 7, discovered 6
+- `unclassified:string/padding/lpad.pure` — textual 6, discovered 5
+- `unclassified:string/split/splitPart.pure` — textual 6, discovered 5
 
 ## Parse-walled files
 
@@ -94,4 +100,3 @@
 - `essential:meta/graph/pathToElement.pure` — [59:13] unsupported expression token: PATH_SEPARATOR ('::')
 - `essential:meta/type/relation/addColumns.pure` — [22:34] expected type name after '@'
 - `essential:tests/surveyor.pure` — [76:63] unsupported expression token: PATH_SEPARATOR ('::')
-- `relation:relation/functions/olap/over.pure` — [21:82] expected type name, got QUESTION

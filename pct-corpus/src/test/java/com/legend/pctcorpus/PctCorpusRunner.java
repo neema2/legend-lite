@@ -227,6 +227,19 @@ class PctCorpusRunner {
         sb.append("## Body-wall buckets (eager G over every body)\n\n");
         appendBuckets(sb, results, SuiteCensus::bodyWallBuckets);
 
+        sb.append("## Discovery mismatches (parsed files where textual count != discovered)\n\n");
+        for (SuiteCensus s : results) {
+            for (FileCensus f : s.files()) {
+                if (f.parseWall() == null && f.textualTests() != f.discovered().size()) {
+                    sb.append("- `").append(s.suite().name()).append(':')
+                            .append(f.rel()).append("` — textual ")
+                            .append(f.textualTests()).append(", discovered ")
+                            .append(f.discovered().size()).append('\n');
+                }
+            }
+        }
+        sb.append('\n');
+
         sb.append("## Parse-walled files\n\n");
         for (SuiteCensus s : results) {
             for (FileCensus f : s.files()) {
