@@ -114,7 +114,9 @@ final class Scalars {
                     for (int i = 0; i < args.size(); i++) {
                         padded.add(dateArg(n.args().get(i), args.get(i)));
                     }
-                    return new SqlExpr.Call(cmp.getValue(), padded);
+                    // pure [0..1] overload bodies inline HERE (audit 20a H2)
+                    return NullSemantics.optionalOperandGuards(n, padded,
+                            new SqlExpr.Call(cmp.getValue(), padded));
                 });
             }
         }
@@ -152,27 +154,18 @@ final class Scalars {
                     return NullSemantics.notEqualNullArms(c.args());
                 }
                 if (args.get(0) instanceof SqlExpr.Call c && c.fn() == SqlFn.IN) {
+                    // engine processNotIn: L NOT IN (...) OR L IS NULL —
+                    // unconditional (dbExtension.pure)
                     return new SqlExpr.Call(SqlFn.OR, List.of(
                             new SqlExpr.Call(SqlFn.NOT,
                                     List.of(args.get(0))),
                             SqlExpr.Call.of(SqlFn.IS_NULL, c.args().get(0))));
                 }
-                // the corpus's null-consistency FAMILY (comparisons +
-                // startsWith/endsWith/contains) pins the PARTITION contract
-                // (pred + notPred == all): a NULL predicate negates to TRUE,
-                // so those wrap COALESCE(x, false). Everything else stays
-                // BARE — testFilterUsingMatchesFunction pins bare
-                // `not ... ~ ...` (null row in NEITHER partition), the
-                // engine's default processNot.
-                boolean nullConsistent = args.get(0) instanceof SqlExpr.Call c2
-                        && java.util.Set.of(SqlFn.LESS, SqlFn.LESS_EQUAL,
-                                SqlFn.GREATER, SqlFn.GREATER_EQUAL,
-                                SqlFn.STARTS_WITH, SqlFn.ENDS_WITH)
-                                .contains(c2.fn());
-                return new SqlExpr.Call(SqlFn.NOT, List.of(nullConsistent
-                        ? SqlExpr.Call.of(SqlFn.COALESCE, args.get(0),
-                                new SqlExpr.BoolLit(false))
-                        : args.get(0)));
+                // everything else is BARE not (engine processNot default):
+                // null tolerance for optional operands lives at the
+                // COMPARISON SITE (NullSemantics.optionalOperandGuards —
+                // audit 20a H2 removed the wrong-layer COALESCE wrap here)
+                return new SqlExpr.Call(SqlFn.NOT, args);
             });
         }
         // UNARY plus/minus (the parser's -x => minus(x) desugar): a 1-arg
@@ -337,6 +330,8 @@ final class Scalars {
                 Map.entry("bitXor", SqlFn.BIT_XOR),
 
                 // Strings — plain families first; index-shifted below.
+                // (startsWith/endsWith re-register with [0..1]-operand
+                // guards right after this table — audit 20a H2)
                 Map.entry("startsWith", SqlFn.STARTS_WITH),
                 Map.entry("endsWith", SqlFn.ENDS_WITH),
                 Map.entry("matches", SqlFn.REGEXP_FULL_MATCH),
@@ -363,6 +358,17 @@ final class Scalars {
 
                 Map.entry("toVariant", SqlFn.TO_VARIANT)).entrySet()) {
             familyIfPresent(e.getValue(), e.getKey());
+        }
+        // startsWith/endsWith carry the pure [0..1]-overload guards
+        // (stringExtension.pure: $source->isNotEmpty() && ...) — the
+        // COMPARISON-SITE null tolerance (audit 20a H2), overriding the
+        // plain-family registration above.
+        for (var e : Map.of("startsWith", SqlFn.STARTS_WITH,
+                "endsWith", SqlFn.ENDS_WITH).entrySet()) {
+            for (String f : Pure.nativeKeysAt(e.getKey())) {
+                RULES.put(f, (n, args) -> NullSemantics.optionalOperandGuards(
+                        n, args, new SqlExpr.Call(e.getValue(), args)));
+            }
         }
         // ---- Date family (H-audit registrations bucket) ----
         // Numeric extractions ride EXTRACT with a part literal.

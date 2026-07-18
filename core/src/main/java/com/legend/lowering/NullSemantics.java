@@ -21,6 +21,41 @@ final class NullSemantics {
     private NullSemantics() {
     }
 
+    /**
+     * The pure {@code [0..1]} comparison overloads' bodies, inlined at the
+     * COMPARISON SITE (audit 20a H2 — real mechanism, not a not()-side
+     * wrap): {@code greaterThan(left:Number[0..1], right:Number[1]) =
+     * $left->isNotEmpty() && greaterThan($left->toOne(), $right)}
+     * (legend-pure inequality/greaterThan.pure; engine stringExtension.pure
+     * for startsWith/endsWith). Each OPTIONAL non-literal operand
+     * contributes an {@code IS NOT NULL} conjunct — active in EVERY
+     * context (negated, value position, composed), exactly like the
+     * inlined overload body reaching SQL as
+     * {@code X is not null and X > 30} (engine testFilters golden).
+     */
+    static SqlExpr optionalOperandGuards(
+            com.legend.compiler.spec.typed.TypedNativeCall n,
+            List<SqlExpr> loweredArgs, SqlExpr cmp) {
+        List<SqlExpr> conj = new java.util.ArrayList<>();
+        for (int i = 0; i < loweredArgs.size(); i++) {
+            if (isOptional(n.args().get(i).info().multiplicity())
+                    && !isSqlLiteral(loweredArgs.get(i))) {
+                conj.add(SqlExpr.Call.of(SqlFn.IS_NOT_NULL, loweredArgs.get(i)));
+            }
+        }
+        if (conj.isEmpty()) {
+            return cmp;
+        }
+        conj.add(cmp);
+        return new SqlExpr.Call(SqlFn.AND, conj);
+    }
+
+    private static boolean isOptional(
+            com.legend.compiler.element.type.Multiplicity m) {
+        return m instanceof com.legend.compiler.element.type.Multiplicity.Bounded b
+                && b.lower() == 0 && Integer.valueOf(1).equals(b.upper());
+    }
+
     /** Engine processNotEqual arms (dbExtension.pure), keyed on operand
      * LITERAL-ness: two literals bare; a column side gains OR IS NULL;
      * col-vs-col adds both single-null arms (both-null compares EQUAL). */
