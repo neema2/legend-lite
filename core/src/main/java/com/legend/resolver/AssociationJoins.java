@@ -357,7 +357,7 @@ final class AssociationJoins {
      * predicate — own param via TARGET bindings onto the condition's
      * target row; each residual FREE variable via the PARENT's bindings
      * onto the condition's source row — then AND into the condition body. */
-    private TypedLambda andCorrelatedIntoCondition(TypedLambda cond,
+    TypedLambda andCorrelatedIntoCondition(TypedLambda cond,
             TypedLambda pred, ClassSource parent, ClassSource target,
             Map<String, String> targetSlotPrefixes) {
         String srcParam = cond.parameters().get(0);
@@ -366,8 +366,13 @@ final class AssociationJoins {
                 Pipelines.slotAliases(target.pipeline()));
         unconvertedTgt.removeAll(targetSlotPrefixes.keySet());
         var ft = (Type.FunctionType) cond.info().type();
-        Type.RelationType srcRow = rowOf(ft.params().get(0).type());
-        Type.RelationType tgtRow = rowOf(ft.params().get(1).type());
+        // the assoc-route cond declares concrete relation params; the
+        // navigate-step emission is GENERIC (TypeVars) — the actual
+        // pipelines carry the row shapes either way
+        Type.RelationType srcRow = rowOr(ft.params().get(0).type(),
+                parent.rowType());
+        Type.RelationType tgtRow = rowOr(ft.params().get(1).type(),
+                target.rowType());
         // pass 1: the pred's own param -> target bindings over tgtParam
         Substitution tgtSub = new Substitution(new Substitution.Target(
                 new Substitution.RowScope(pred.parameters().get(0), tgtParam,
@@ -418,11 +423,8 @@ final class AssociationJoins {
         n.children().forEach(c -> collectVarNames(c, out));
     }
 
-    private static Type.RelationType rowOf(Type t) {
-        if (t instanceof Type.RelationType rt) {
-            return rt;
-        }
-        throw new IllegalStateException("resolver bug: association condition"
-                + " param is not relation-typed: " + t.typeName());
+    private static Type.RelationType rowOr(Type t,
+            Type.RelationType fallback) {
+        return t instanceof Type.RelationType rt ? rt : fallback;
     }
 }

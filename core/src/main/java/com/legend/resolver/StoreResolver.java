@@ -472,6 +472,39 @@ public final class StoreResolver {
     }
 
     /** The element CLASS of an object-space chain (for synthetic lambdas). */
+    /** The NAV-SLOT correlation pass: a demanded navigate step whose lifted
+     * head carries a CORRELATED predicate gets it ANDed into the step\u0027s
+     * own condition (parentRow, targetTableRow — both in scope) BEFORE
+     * materialization, via the association route\u0027s exact composition. */
+    private TypedSpec augmentNavPredicates(TypedSpec pipe, ClassSource cs,
+            Map<String, String> navHeadByAlias, Set<String> demandedNavs) {
+        if (pipe instanceof TypedNavigate nav && nav.alias().isPresent()) {
+            TypedSpec src = augmentNavPredicates(nav.source(), cs,
+                    navHeadByAlias, demandedNavs);
+            String head = navHeadByAlias.getOrDefault(nav.alias().get(),
+                    nav.alias().get());
+            TypedLambda corr = synthetics.correlatedPred(head);
+            if (corr != null && demandedNavs.contains(nav.alias().get())
+                    && nav.target() instanceof TypedGetAll ga) {
+                ClassSource target = sources.get(cs.mappingFqn(), ga.classFqn());
+                TypedLambda aug = assocMaterial.andCorrelatedIntoCondition(
+                        nav.predicate(), corr, cs, target, Map.of());
+                return new TypedNavigate(src, nav.alias(), nav.target(),
+                        aug, nav.form(), nav.info());
+            }
+            return src == nav.source() ? pipe
+                    : new TypedNavigate(src, nav.alias(), nav.target(),
+                            nav.predicate(), nav.form(), nav.info());
+        }
+        if (pipe instanceof TypedFilter f) {
+            TypedSpec src = augmentNavPredicates(f.source(), cs,
+                    navHeadByAlias, demandedNavs);
+            return src == f.source() ? pipe
+                    : new TypedFilter(src, f.predicate(), f.info());
+        }
+        return pipe;
+    }
+
     /** A CORRELATED lifted predicate is only applicable at the association
      * route's join CONDITION (both rows in scope). Every OTHER consumer of
      * a synthetic head must refuse LOUDLY — applying only the closed
@@ -1125,8 +1158,8 @@ public final class StoreResolver {
             // node); the composite right side carries its own filters, so
             // the outer join-stamping never double-stamps it
             String liftedHead = navHeadByAlias.getOrDefault(alias, alias);
-            if (synthetics.hasPred(liftedHead)) {
-                requireNoCorrelatedPred(liftedHead, "navigate-slot");
+            if (synthetics.hasPred(liftedHead)
+                    && synthetics.correlatedPred(liftedHead) == null) {
                 ClassSource target = sources.get(cs.mappingFqn(), targetClass);
                 NavMaterializer.NavMat mat = navMats.get(alias);
                 navMats.put(alias, new NavMaterializer.NavMat(
@@ -1329,7 +1362,8 @@ public final class StoreResolver {
     private RootPipe materializeRoot(ClassSource cs, TypedGetAll g,
             Set<String> demanded, Set<String> demandedNavs,
             Map<String, NavMaterializer.NavMat> navMats, Map<String, String> navHeadByAlias) {
-        TypedSpec csPipe = cs.pipeline();
+        TypedSpec csPipe = augmentNavPredicates(cs.pipeline(), cs,
+                navHeadByAlias, demandedNavs);
         Pipelines.Materialized m = Pipelines.materialize(
                 csPipe, demanded, demandedNavs, cs.classFqn(),
                 (alias, targetClass) -> navMats.containsKey(alias)
@@ -1656,7 +1690,15 @@ public final class StoreResolver {
                 TypedSpec tTemporal = temporal.temporalTargetPipe(cs, t, head,
                         temporal.applyJoinTemporalFilters(tPipe0, t, Map.of()));
                 final ClassSource ft = t;
-                requireNoCorrelatedPred(head, "aggregated-navigation");
+                // a CORRELATED lifted pred composes into the nav step's own
+                // (parent, target) condition — both rows in scope, the same
+                // composition as the association route
+                TypedLambda navCond = nav.predicate();
+                TypedLambda corrNav = synthetics.correlatedPred(head);
+                if (corrNav != null) {
+                    navCond = assocMaterial.andCorrelatedIntoCondition(
+                            navCond, corrNav, cs, t, tMat0.slotPrefixes());
+                }
                 tTemporal = synthetics.applyToPipe(head, tTemporal,
                         (p, pred) -> predFilteredPipe(p, ft,
                                 tMat0.slotPrefixes(), pred, cs.mappingFqn()));
@@ -1671,7 +1713,7 @@ public final class StoreResolver {
                 NestedScope navNs = nestedScope(t, ops, head, context,
                         tMat.pipeline());
                 existsSubs.put(head, new Substitution.ExistsSub(navNs.pipeline(),
-                        nav.predicate(), t.rowVar(), t.bindings(),
+                        navCond, t.rowVar(), t.bindings(),
                         navNs.row(),
                         t.classFqn(), Pipelines.slotAliases(t.pipeline()),
                         tMat0.slotPrefixes(), navToMany)
