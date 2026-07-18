@@ -150,18 +150,49 @@ final class Typer {
             // error here, not a runtime surprise. The two arms below are the
             // deliberate not-yet-implemented forms.
             case LambdaFunction lf -> {
-                // A ZERO-ARG single-expression lambda LITERAL has a type
-                // without any call: its own FunctionType (the corpus's
-                // let q = |Trade.all()->...; execute($q, ...) idiom — the
-                // engine's interpreter types lambda values directly; audit
-                // 19d B4). Parameterized / multi-statement lambdas still
-                // need a call signature and stay loud.
-                if (lf.parameters().isEmpty() && lf.body().size() == 1) {
-                    TypedSpec body = synth(lf.body().get(0), env);
-                    var fnType = new Type.FunctionType(List.of(),
+                // A lambda LITERAL types WITHOUT a call when its parameter
+                // types are knowable: zero-arg, or FULLY-ANNOTATED params
+                // ({id:Integer[1], name:String[*]|...} — real pure types
+                // these directly; audit 19d B4 + the executionPlan family).
+                // Leading lets bind statement-style (multi-statement zero-arg
+                // thunks); a partially-annotated lambda stays loud.
+                boolean annotated = !lf.parameters().isEmpty()
+                        && lf.parameters().stream().allMatch(pv -> pv.type() != null);
+                if (lf.parameters().isEmpty() || annotated) {
+                    Env scope = env;
+                    List<String> names = new ArrayList<>();
+                    List<Type.Param> params = new ArrayList<>();
+                    for (Variable pv : lf.parameters()) {
+                        Type pt = namedType(pv.type());
+                        Multiplicity pm = pv.multiplicity() == null
+                                ? Multiplicity.Bounded.ONE
+                                : Multiplicity.from(pv.multiplicity());
+                        names.add(pv.name());
+                        params.add(new Type.Param(pt, pm));
+                        scope = scope.with(pv.name(), new ExprType(pt, pm));
+                    }
+                    List<TypedSpec> stmts = new ArrayList<>();
+                    for (int si = 0; si < lf.body().size() - 1; si++) {
+                        if (lf.body().get(si) instanceof AppliedFunction lset
+                                && lset.function().equals("letFunction")
+                                && lset.parameters().size() == 2
+                                && lset.parameters().get(0) instanceof CString ln) {
+                            TypedSpec val = synth(lset.parameters().get(1), scope);
+                            scope = scope.with(ln.value(), val.info());
+                            stmts.add(new com.legend.compiler.spec.typed.TypedLet(
+                                    ln.value(), val, val.info()));
+                            continue;
+                        }
+                        throw new TypeInferenceException("a non-let intermediate"
+                                + " statement in a bare lambda literal is not"
+                                + " supported");
+                    }
+                    TypedSpec body = synth(lf.body().get(lf.body().size() - 1), scope);
+                    stmts.add(body);
+                    var fnType = new Type.FunctionType(params,
                             new Type.Param(body.info().type(),
                                     body.info().multiplicity()));
-                    yield new TypedLambda(List.of(), List.of(body),
+                    yield new TypedLambda(names, List.copyOf(stmts),
                             new ExprType(fnType, Multiplicity.Bounded.ONE));
                 }
                 throw new TypeInferenceException(

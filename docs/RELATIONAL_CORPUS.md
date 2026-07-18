@@ -4291,11 +4291,11 @@ in-process Alloy-shaped path).
 
 ### top error buckets
 
-- 26x a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - 19x unknown type 'TabularDataSet' in @TabularDataSet
 - 15x serialize expects (classCollection, #{Class{…}}#)
 - 15x a navigation join over this union demands key column 'c_PersonID', which NO union member carries
 - 14x toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
+- 13x from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 - 13x expected at most one value, got many ([*])
 - 11x lowering not yet implemented for TypedNativeCall
 - 11x graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
@@ -4306,21 +4306,21 @@ in-process Alloy-shaped path).
 - 8x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - 7x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 7x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
-- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - 7x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
 - 7x ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - 7x filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
 - 6x unknown class 'meta::external::store::model::ModelStore' in ^meta::external::store::model::ModelStore(…)
 - 6x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=…
 - 6x no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
+- 6x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
 - 6x scalar lowering not yet implemented for TypedCLatestDate
 - 6x unknown function 'columnValues'
 - 6x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - 6x navigation through class-typed slot property 'address' is not supported yet
 - 6x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=em…
+- 5x '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 5x unknown function 'generateObjectReferences'
-- 5x class query under TypedMap is not resolvable yet (H2 vocabulary)
-- 5x Unknown type: 'Table' is not a known primitive, class, or enum
 
 ### per-test outcomes (non-passing)
 
@@ -4432,7 +4432,7 @@ in-process Alloy-shaped path).
 - SHAPE testModelConnectionMultipleAgg [executionPlan/tests]: no execute(|...) call
 - ERROR testExecutionPLanGenerationForFrom [executionPlan/tests]: '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testExecutionPLanGenerationForFromInAllocation [executionPlan/tests]: '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testExecutionPLanGenerationForFromWithMultiClusters [executionPlan/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testExecutionPLanGenerationForFromWithMultiClusters [executionPlan/tests]: '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - SHAPE testExecutionPlanGenerationForInWithIntegerCollection [executionPlan/tests]: no execute(|...) call
 - SHAPE testExecutionPlanGenerationForMultipleInWithTwoCollectionInputs [executionPlan/tests]: no execute(|...) call
 - SHAPE testExecutionPlanGenerationForInWithVarAndConstantInputs [executionPlan/tests]: no execute(|...) call
@@ -4443,10 +4443,10 @@ in-process Alloy-shaped path).
 - SHAPE testSupportStreamFlagWithSupportedAndUnSupportedUsages [executionPlan/tests]: no execute(|...) call
 - SHAPE testSupportStreamFlagWithTdsJoinForOneDB [executionPlan/tests]: no execute(|...) call
 - SHAPE testSupportStreamFlagithTdsJoinForTwoDB [executionPlan/tests]: no execute(|...) call
-- ERROR testSupportStreamFlagFromSimple [executionPlan/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testSupportStreamFlagFromSimple [executionPlan/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 - SHAPE testSQLCommentsInPlan [executionPlan/tests]: no execute(|...) call
 - SHAPE testSupportStreamFlagGraphFetchSimple [executionPlan/tests]: no execute(|...) call
-- ERROR testSupportStreamFlagWithGraphFetchAndFrom [executionPlan/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testSupportStreamFlagWithGraphFetchAndFrom [executionPlan/tests]: ~legalName: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testQuoteIdentifiersFlag [executionPlan/tests]: no execute(|...) call
 - SHAPE testQuoteIdentifiersFlagInOrderByClause [executionPlan/tests]: no execute(|...) call
 - SHAPE testQuoteIdentifiersFlagInGroupBy [executionPlan/tests]: no execute(|...) call
@@ -4454,7 +4454,7 @@ in-process Alloy-shaped path).
 - SHAPE testPlanWithLocalH2ConnectionWithSQL [executionPlan/tests]: no execute(|...) call
 - SHAPE testRelationalProjectionWithExternalFormat [executionPlan/tests]: no execute(|...) call
 - SHAPE testEnumPushDownWithExternalFormat [executionPlan/tests]: no execute(|...) call
-- ERROR testMultiExpressionWithPlatformAndFromFunction [executionPlan/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testMultiExpressionWithPlatformAndFromFunction [executionPlan/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 - SHAPE testGraphFetchH2TempTableStrategy [executionPlan/tests]: no execute(|...) call
 - SHAPE testGraphFetchH2TempTableStrategyWithQuoteIdentifiers [executionPlan/tests]: no execute(|...) call
 - SHAPE testTypedTDSWithEnum [executionPlan/tests]: no execute(|...) call
@@ -4464,7 +4464,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Product], multiplicity=Bounded[lower=1, upper=1]]], predicate=TypedLambda[parameters=[p], body=[TypedNa
 - ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
@@ -4619,7 +4619,7 @@ in-process Alloy-shaped path).
 - ERROR testChainedFiltersProject [functions/tests/projection]: multi-hop navigation employees#f0.locations#f1.place through an embedded/slot head is not supported yet
 - SHAPE testCompressSQLforINFilter [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testCompressSQLforINFilter2 [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testParametrizedEnumFilter [functions/tests/projection]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testParametrizedEnumFilter [functions/tests/projection]: unknown class '' in ^(…)
 - SHAPE testFilterAfterJoinInRelation [functions/tests/projection]: no execute(|...) call
 - SHAPE testFilterAfterJoinInRelationWithExtendedPrimitives [functions/tests/projection]: no execute(|...) call
 - FAIL testIsolatioWhereNoConstaintsAndInnerJoin [functions/tests/projection]: assertEquals: expected [Firm X, UK, Firm X, Europe, Firm X, Europe, Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe], got [Firm X, Europe, Firm A, Europe, Firm B, Europe, Firm C, Europe]
@@ -4666,10 +4666,10 @@ in-process Alloy-shaped path).
 - SHAPE testProjectionOfPropertyJoinedToViewWithGroupByAndFilter [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testGraphFetch [graphFetch/domain]: no execute(|...) call
 - ERROR testCrossMappingWithRelOpWithJoinKeys [graphFetch/tests]: association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceo
-- ERROR CrossStoreGraphFetchWithRelationalMilestoned [graphFetch/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR CrossStoreGraphFetchWithRelationalMilestonedFlowDown [graphFetch/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR CrossStoreGraphFetchWithRelationalMilestonedAllversions [graphFetch/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR CrossStoreGraphFetchWithRelationalMilestonedFlowDownM2M [graphFetch/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR CrossStoreGraphFetchWithRelationalMilestoned [graphFetch/tests]: 'TradeLinkageMapping' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR CrossStoreGraphFetchWithRelationalMilestonedFlowDown [graphFetch/tests]: 'TradeLinkageMapping' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR CrossStoreGraphFetchWithRelationalMilestonedAllversions [graphFetch/tests]: graphFetch tree: class meta::pure::graphFetch::tests::XStore::milestoning::Trade has no property 'customerAllVersions'
+- ERROR CrossStoreGraphFetchWithRelationalMilestonedFlowDownM2M [graphFetch/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 - SHAPE testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint [graphFetch/tests]: no execute(|...) call
 - ERROR testRelationalChainExecutionFlat [graphFetch/tests]: unknown class 'meta::external::store::model::ModelStore' in ^meta::external::store::model::ModelStore(…)
 - ERROR testRelationalChainExecutionNested [graphFetch/tests]: unknown class 'meta::external::store::model::ModelStore' in ^meta::external::store::model::ModelStore(…)
@@ -4718,10 +4718,10 @@ in-process Alloy-shaped path).
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty_WithPropertyAliasing [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
 - ERROR testDatePropagationFromMilestonedRootToMilestonedProperty_Checked [graphFetch/tests]: unknown function 'meta::legend::compileLegendGrammar'
-- ERROR testSourcingJsonResultToQuery [graphFetch/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testSourcingJsonResultToQueryWithFiltersInMapping [graphFetch/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testSourcingJsonResultToQueryWithParametersInUrl [graphFetch/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testSourcingJsonResultToQueryWithPureDateAsParam [graphFetch/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testSourcingJsonResultToQuery [graphFetch/tests]: no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
+- ERROR testSourcingJsonResultToQueryWithFiltersInMapping [graphFetch/tests]: no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
+- ERROR testSourcingJsonResultToQueryWithParametersInUrl [graphFetch/tests]: no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
+- ERROR testSourcingJsonResultToQueryWithPureDateAsParam [graphFetch/tests]: no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
 - ERROR testIsolationOfPropertyTargetFilter [graphFetch/tests]: filter predicate references column 'firmTable_personFirmBridgeTable_personId', unresolvable even after isolation
 - ERROR testGraphFetchCheckedWithSize [graphFetch/tests]: no overload of 'graphFetchChecked' matches 3 argument(s) of these shapes
 - ERROR testRelationalGraphFetchWithAlloySerializationConfig [graphFetch/tests]: unknown function 'alloyConfig'
@@ -4930,19 +4930,19 @@ in-process Alloy-shaped path).
 - SHAPE testProp4 [modelToModelToRelational]: no execute(|...) call
 - SHAPE testPreeavalOnSort [modelToModelToRelational]: no execute(|...) call
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
-- ERROR test_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR test_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
 - SHAPE testFlatten_ViaNoArgMapping [modelToModelToRelational/milestoned]: no execute(|...) call
 - SHAPE testFlatten_ViaNoArgMapping_ViaAssociation [modelToModelToRelational/milestoned]: no execute(|...) call
-- ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
+- ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
-- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - ERROR testReplaceTablePostProcessor [postprocessor/tests]: Unknown type: 'Table' is not a known primitive, class, or enum
 - ERROR testReplaceTableMultiplePostProcessor [postprocessor/tests]: class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablesPostProcessor [postprocessor/tests]: Unknown type: 'Table' is not a known primitive, class, or enum
@@ -4988,8 +4988,8 @@ in-process Alloy-shaped path).
 - ERROR testNoRoutingWhenTraversingFunction [router/tests]: in function 'meta::relational::tests::query::routing::mapNestedInUserFunction': 'meta::pure::functions::collection::map' expects a lambda argument in position 1
 - SHAPE testRoutingOfSimpleQualifiedProperty [router/tests]: no execute(|...) call
 - ERROR testRoutingWithSubtypePropagation [router/tests]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
-- ERROR testPlatformExpressionDependencyOnAFromExpression [router/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testPlatformExpressionDependencyOnAFromExpression2 [router/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testPlatformExpressionDependencyOnAFromExpression [router/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- ERROR testPlatformExpressionDependencyOnAFromExpression2 [router/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 - SHAPE testCompositionInProject [router/tests]: no execute(|...) call
 - SHAPE testSimpleEval [router/tests]: no execute(|...) call
 - SHAPE testEvalFunctionOutputFromFunctionCall [router/tests]: no execute(|...) call
@@ -5337,8 +5337,8 @@ in-process Alloy-shaped path).
 - ERROR testMultipleIsolationWithSameProp [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Person], multiplicity=Bounded[lower=1, upper=1]]], proper
 - ERROR testLiteralConditionsForcedIsolation [tests/advanced]: unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
 - ERROR testForcedIsolationFilterOnTop [tests/advanced]: unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
-- ERROR relationalResultSourcingOfList [tests/advanced]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR relationalResultSourcingOfDateList [tests/advanced]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR relationalResultSourcingOfList [tests/advanced]: no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
+- ERROR relationalResultSourcingOfDateList [tests/advanced]: no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
 - SHAPE relationalResultSourcingOfListExecutionPlan [tests/advanced]: no execute(|...) call
 - FAIL testSimpleTypeMappingNulls [tests/datatype]: assertEquals: expected [], got null
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: unknown function 'toJSON'
@@ -5697,10 +5697,10 @@ in-process Alloy-shaped path).
 - ERROR testUnionTwoRelationMappings_EmbeddedFirmFilter [tests/mapping/union/relation]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEmbeddedFirm' (union member 'meta::relational::tests::model::simple::Person': relation column mapping for property 'firm' has no 
 - ERROR testUnionTwoRelationMappings_EmbeddedFirmProject_Tds [tests/mapping/union/relation]: unknown type 'TabularDataSet' in @TabularDataSet
 - ERROR testUnionTwoRelationMappings_EmbeddedFirmFilter_Tds [tests/mapping/union/relation]: unknown type 'TabularDataSet' in @TabularDataSet
-- ERROR testIsNotEmptyForRelational_returnsTrue [tests/platformOperations]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testIsNotEmptyForRelational_returnsFalse [tests/platformOperations]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testIsEmptyForRelational_returnsFalse [tests/platformOperations]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testIsEmptyForRelational_returnsTrue [tests/platformOperations]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testIsNotEmptyForRelational_returnsTrue [tests/platformOperations]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- ERROR testIsNotEmptyForRelational_returnsFalse [tests/platformOperations]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- ERROR testIsEmptyForRelational_returnsFalse [tests/platformOperations]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- ERROR testIsEmptyForRelational_returnsTrue [tests/platformOperations]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 - ERROR testGroupByWithFilterFunction_noDatePath [tests/query]: in function 'meta::relational::tests::groupBy::datePeriods::ytd': 'meta::pure::functions::collection::map' expects a lambda argument in position 1
 - ERROR testDayOfWeek [tests/query]: unknown function 'mostRecentDayOfWeek'
 - ERROR testAssociationMixedDeep [tests/query]: object-space operation TypedDistinct is not supported yet
@@ -5714,7 +5714,7 @@ in-process Alloy-shaped path).
 - ERROR testViewSimpleExists [tests/query]: in function 'meta::relational::tests::query::view::relationalMappingWithViewAndInnerJoin$class$meta::relational::tests::model::simple::Order': unknown table 'PersonFirmView' in database 'meta::relational::tests::db'
 - ERROR testViewPropertyFilterWithPrimaryKey [tests/query]: in function 'meta::relational::tests::query::view::EmployeeMappingWithViewAndInnerJoin$class$meta::relational::tests::model::simple::Employee': unknown table 'OrgView' in database 'meta::relational::tests::db'
 - ERROR testPushDownProject [tests/query]: unknown enumeration 'meta::pure::executionPlan::features::Feature'
-- ERROR testPushDownProjectWithParameter [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testPushDownProjectWithParameter [tests/query]: unknown enumeration 'meta::pure::executionPlan::features::Feature'
 - FAIL testFilterUsingSubstringFunction [tests/query]: assertSize: expected 2, got 0
 - ERROR testFilterUsingParseIntegerFunction [tests/query]: Conversion Error: Could not convert string 'ccount 1' to INT64 |  | LINE 3: WHERE CAST(substr(t0.name, 10, -8) AS BIGINT) = 1 |               ^
 - ERROR testFilterUsingParseDecimalFunction [tests/query]: Conversion Error: Could not convert string "ccount 1" to DECIMAL(38,18) |  | LINE 3: WHERE CAST(rtrim(substr(t0.name, 10, -8), 'dD') AS DECIMAL(38... |               ^

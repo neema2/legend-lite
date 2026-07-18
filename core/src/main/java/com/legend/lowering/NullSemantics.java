@@ -86,6 +86,7 @@ final class NullSemantics {
         return e instanceof SqlExpr.StringLit || e instanceof SqlExpr.IntLit
                 || e instanceof SqlExpr.FloatLit || e instanceof SqlExpr.DecimalLit
                 || e instanceof SqlExpr.BoolLit || e instanceof SqlExpr.DateLit
+                || e instanceof SqlExpr.TimestampLit
                 || e instanceof SqlExpr.NullLit;
     }
 

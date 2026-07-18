@@ -64,10 +64,22 @@ public final class Executor {
              ResultSet rs = st.executeQuery()) {
             return switch (shape) {
                 case TABULAR -> tabular(rs, plan, rootType, dialect);
-                case SCALAR -> new ExecutionResult.Scalar(
-                        rs.next() ? latticeKind(cell(rs, plan, dialect, anyRoot),
-                                rootType.type(), plan) : null,
-                        rootType.type());
+                case SCALAR -> {
+                    Object v = rs.next()
+                            ? latticeKind(cell(rs, plan, dialect, anyRoot),
+                                    rootType.type(), plan)
+                            : null;
+                    // a SECOND row under a scalar-shaped root is a resolver/
+                    // lowering bug (e.g. a to-one stand-in leaking rows) —
+                    // reading only the first would be a SILENT wrong value
+                    // (audit 20b: this arm never checked)
+                    if (rs.next()) {
+                        throw new IllegalStateException("scalar-shaped result"
+                                + " returned more than one row — the to-one"
+                                + " contract was not enforced upstream");
+                    }
+                    yield new ExecutionResult.Scalar(v, rootType.type());
+                }
                 case COLLECTION -> {
                     List<Object> values = new ArrayList<>();
                     while (rs.next()) {
