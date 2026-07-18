@@ -24,7 +24,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 103 | 0 | 0 | 10 | 93 |
-| functions/tests | 258 | 120 | 9 | 109 | 20 |
+| functions/tests | 258 | 123 | 6 | 109 | 20 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 76 | 7 | 59 | 13 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 2 | 18 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2497 | **1008** | 46 | 853 | 590 |
+| **total** | 2497 | **1011** | 43 | 853 | 590 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4466,6 +4466,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Product], multiplicity=Bounded[lower=1, upper=1]]], predicate=TypedLambda[parameters=[p], body=[TypedNa
+- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -4495,10 +4496,6 @@ in-process Alloy-shaped path).
 - ERROR testSelectChainOfAndOrOperators [functions/tests]: runtime 'rcorpus::Rt' has 2 mappings binding class 'meta::relational::tests::model::simple::Person' (of 2 candidates); class-query dispatch needs exactly one
 - ERROR testBuildFilterWithValueThatCanBeNull [functions/tests]: in call to 'meta::pure::mapping::execute', argument 1: expected { -> T[*]}, got FunctionDefinition<{ -> meta::relational::tests::model::simple::Person[*]}>
 - ERROR testBuildFilterWithValueThatCanBeNullWithIn [functions/tests]: in call to 'meta::pure::mapping::execute', argument 1: expected { -> T[*]}, got FunctionDefinition<{ -> meta::relational::tests::model::simple::Person[*]}>
-- FAIL testConsistencyWithNulls [functions/tests]: assertEquals: expected 2, got 11
-- FAIL testConsistencyWithNulls [functions/tests]: assertEquals: expected 2, got 11
-- FAIL testConsistencyWithNulls [functions/tests]: assertEquals: expected 2, got 11
-- FAIL testConsistencyWithNullsInColumnToColumnComparison [functions/tests]: assertEquals: expected 2, got 11
 - FAIL testConsistencyWithNullsInColumnToColumnComparison [functions/tests]: assertEquals: expected 2, got 11
 - ERROR testOrFilterWithTypeFilter [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testFilterBeforeAndAfterGroupBy [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet

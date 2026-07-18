@@ -416,10 +416,14 @@ class ResolveNavigationTest {
         String sql = sqlOf("m::Person.all()->filter(p|!($p.employer.legal == 'ACME'))"
                 + "->project(~[name: p|$p.name])->from(m::RT)");
         assertEquals(0, count(sql, "EXISTS"), sql);
-        // Ann/Cat are ACME (excluded); Bob's NULL comparison is NULL, and
-        // NOT(NULL) is NULL — excluded too. The flat-join semantics, pinned
-        // by DATA so an EXISTS reroute (NOT EXISTS would ADMIT Bob) fails.
-        assertEquals(List.of(), exec(sql));
+        // Ann/Cat are ACME (excluded); Bob has NO employer — pure
+        // semantics: equal([], 'ACME') is false, so not(...) is TRUE and
+        // Bob is ADMITTED. The engine emits exactly this via its
+        // processNotEqual null arm (dbExtension.pure: L <> R OR L is
+        // null); the earlier pin baked in SQL three-valued <> and
+        // silently DROPPED the null row (task #62).
+        assertEquals(1, count(sql, "IS NULL"), sql);
+        assertEquals(List.of("Bob"), exec(sql));
     }
 
     @Test

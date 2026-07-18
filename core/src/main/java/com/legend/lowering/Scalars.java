@@ -142,14 +142,38 @@ final class Scalars {
                                     new SqlExpr.BoolLit(false)))
                     : new SqlExpr.Call(SqlFn.OR, args));
         }
-        // not(equal(a,b)) renders as a <> b (lean SQL): the peephole keeps
-        // SqlFn.NOT_EQUAL alive even though the QUERY spelling is not(equal)
-        // (real pure has no notEqual — FQN_MIGRATION finding).
+        // not(equal)/not(in) carry the engine's NULL ARMS (dbExtension.pure
+        // processNotEqual/processNotIn): pure `x != v` MATCHES null x (eq
+        // over empty is false) — bare SQL <> silently drops null rows
+        // (testConsistencyWithNulls, task #62). See notEqualNullArms.
         for (String f : Pure.nativeKeysAt("not")) {
-            RULES.put(f, (n, args) ->
-                    args.get(0) instanceof SqlExpr.Call c && c.fn() == SqlFn.EQUAL
-                            ? new SqlExpr.Call(SqlFn.NOT_EQUAL, c.args())
-                            : new SqlExpr.Call(SqlFn.NOT, args));
+            RULES.put(f, (n, args) -> {
+                if (args.get(0) instanceof SqlExpr.Call c && c.fn() == SqlFn.EQUAL) {
+                    return NullSemantics.notEqualNullArms(c.args());
+                }
+                if (args.get(0) instanceof SqlExpr.Call c && c.fn() == SqlFn.IN) {
+                    return new SqlExpr.Call(SqlFn.OR, List.of(
+                            new SqlExpr.Call(SqlFn.NOT,
+                                    List.of(args.get(0))),
+                            SqlExpr.Call.of(SqlFn.IS_NULL, c.args().get(0))));
+                }
+                // the corpus's null-consistency FAMILY (comparisons +
+                // startsWith/endsWith/contains) pins the PARTITION contract
+                // (pred + notPred == all): a NULL predicate negates to TRUE,
+                // so those wrap COALESCE(x, false). Everything else stays
+                // BARE — testFilterUsingMatchesFunction pins bare
+                // `not ... ~ ...` (null row in NEITHER partition), the
+                // engine's default processNot.
+                boolean nullConsistent = args.get(0) instanceof SqlExpr.Call c2
+                        && java.util.Set.of(SqlFn.LESS, SqlFn.LESS_EQUAL,
+                                SqlFn.GREATER, SqlFn.GREATER_EQUAL,
+                                SqlFn.STARTS_WITH, SqlFn.ENDS_WITH)
+                                .contains(c2.fn());
+                return new SqlExpr.Call(SqlFn.NOT, List.of(nullConsistent
+                        ? SqlExpr.Call.of(SqlFn.COALESCE, args.get(0),
+                                new SqlExpr.BoolLit(false))
+                        : args.get(0)));
+            });
         }
         // UNARY plus/minus (the parser's -x => minus(x) desugar): a 1-arg
         // minus NEGATES — the binary operator renderer would silently DROP
