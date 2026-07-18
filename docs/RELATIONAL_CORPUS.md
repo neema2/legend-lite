@@ -7,36 +7,33 @@ Scope: <<test.ToFix>>/<<test.Ignore>> are excluded (engine harness
 parity) and so is <<test.ExcludeAlloy>> (legend-lite executes the
 in-process Alloy-shaped path).
 
-## Failed seed statements (10)
+## Failed seed statements (7)
 
-- `setup meta::relational::tests::aggregationAware::setUp() => Unknown type: 'WindowColumn' is not a known primitive, class, or enum`
+- `setup meta::relational::tests::aggregationAware::setUp() => in function 'meta::relational::tests::aggregationAware::setUp': unknown function 'dropSchemaStatement'`
 - `setup meta::relational::tests::mapping::embedded::setUp() => effectful let binding ('dataInTable' reaches executeInDb) is not supported`
 - `setup meta::relational::tests::functions::objectReferenceIn::setUp() => effectful let binding ('dataInTable' reaches executeInDb) is not supported`
 - `setup meta::relational::graphFetch::tests::union::propertyLevel::setup() => 'meta::relational::tests::mapping::union::myDB' is not a known class, mapping, runtime, connection, or database`
 - `Drop schema schemaB if exists cascade => Parser Error: syntax error at or near "if"`
 - `create schema schemaB => Catalog Error: Schema with name "schemaB" already exists!`
-- `CREATE OR REPLACE TABLE PERSON_FIRM_ADDRESS_MULTIGRAIN ("OID" INT, "DLEVEL" VARCHAR(2), "//Person" Grain => Parser Error: syntax error at or near "PERSON_FIRSTNAME"`
-- `CREATE OR REPLACE TABLE FIRM_ACCT_IF_MULTIGRAIN ("OID" INT, "DLEVEL" VARCHAR(2), "//Account" grain => Parser Error: syntax error at or near "ACCOUNT_NUM"`
 - `setup meta::relational::tests::mapping::union::sqlQueryMerging::setup() => no scalar lowering registered for resolved overload 'meta::core::runtime::connectionByElement' with 2 parameter(s)`
-- `setup meta::relational::tests::groupBy::datePeriods::setUp() => Parser Error: syntax error at or near "Week"`
 
 | family | tests | pass | fail | error | shape |
 |---|---|---|---|---|---|
 | aggregationAware/test/rewrite | 13 | 0 | 0 | 13 | 0 |
-| aggregationAware/test/rewrite/NOP | 15 | 0 | 0 | 15 | 0 |
+| aggregationAware/test/rewrite/NOP | 15 | 0 | 0 | 9 | 6 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 103 | 0 | 0 | 10 | 93 |
-| functions/tests | 258 | 117 | 5 | 109 | 27 |
+| functions/tests | 258 | 118 | 5 | 113 | 22 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
-| functions/tests/projection | 155 | 73 | 7 | 58 | 17 |
+| functions/tests/projection | 155 | 76 | 7 | 55 | 17 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 119 | 14 | 3 | 98 | 4 |
+| graphFetch/tests | 119 | 15 | 6 | 94 | 4 |
 | graphFetch/tests/union | 15 | 2 | 0 | 13 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 49 | 0 | 0 | 0 | 49 |
-| milestoning/tests | 223 | 144 | 1 | 37 | 41 |
+| milestoning/tests | 223 | 144 | 1 | 39 | 39 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
 | postprocessor | 7 | 6 | 0 | 1 | 0 |
@@ -49,45 +46,45 @@ in-process Alloy-shaped path).
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 266 | 124 | 1 | 109 | 32 |
+| tds/tests | 266 | 128 | 1 | 108 | 29 |
 | testDataGeneration/tests | 68 | 0 | 0 | 0 | 68 |
 | tests | 39 | 0 | 0 | 0 | 39 |
-| tests/advanced | 68 | 17 | 0 | 38 | 13 |
-| tests/datatype | 5 | 0 | 0 | 5 | 0 |
-| tests/injection | 3 | 0 | 0 | 3 | 0 |
-| tests/mapping | 10 | 1 | 2 | 7 | 0 |
+| tests/advanced | 68 | 17 | 1 | 37 | 13 |
+| tests/datatype | 5 | 4 | 0 | 1 | 0 |
+| tests/injection | 3 | 1 | 0 | 2 | 0 |
+| tests/mapping | 10 | 3 | 2 | 5 | 0 |
 | tests/mapping/association | 23 | 7 | 0 | 16 | 0 |
-| tests/mapping/classMappingFilterWithInnerJoin | 32 | 0 | 0 | 32 | 0 |
+| tests/mapping/classMappingFilterWithInnerJoin | 32 | 12 | 0 | 20 | 0 |
 | tests/mapping/distinct | 18 | 14 | 0 | 4 | 0 |
-| tests/mapping/dynaJoin | 5 | 3 | 1 | 1 | 0 |
+| tests/mapping/dynaJoin | 5 | 4 | 1 | 0 | 0 |
 | tests/mapping/embedded | 63 | 44 | 2 | 14 | 3 |
 | tests/mapping/enumeration | 26 | 10 | 4 | 9 | 3 |
 | tests/mapping/extends | 23 | 10 | 2 | 5 | 6 |
 | tests/mapping/extends/union | 8 | 1 | 0 | 7 | 0 |
 | tests/mapping/filter | 9 | 4 | 0 | 5 | 0 |
-| tests/mapping/groupBy | 10 | 4 | 0 | 6 | 0 |
+| tests/mapping/groupBy | 10 | 7 | 0 | 3 | 0 |
 | tests/mapping/inClause | 4 | 0 | 0 | 0 | 4 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
 | tests/mapping/inheritance | 45 | 14 | 0 | 31 | 0 |
 | tests/mapping/innerJoin | 2 | 0 | 0 | 2 | 0 |
-| tests/mapping/join | 28 | 18 | 2 | 8 | 0 |
+| tests/mapping/join | 28 | 19 | 2 | 7 | 0 |
 | tests/mapping/merge | 1 | 0 | 0 | 1 | 0 |
 | tests/mapping/modelJoin | 47 | 12 | 1 | 34 | 0 |
 | tests/mapping/multigrain | 5 | 3 | 0 | 2 | 0 |
 | tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 |
 | tests/mapping/relation | 93 | 42 | 1 | 7 | 43 |
-| tests/mapping/relation/aggregation | 9 | 0 | 0 | 0 | 9 |
+| tests/mapping/relation/aggregation | 9 | 0 | 0 | 9 | 0 |
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
-| tests/mapping/sqlFunction | 74 | 57 | 2 | 5 | 10 |
+| tests/mapping/sqlFunction | 74 | 58 | 3 | 13 | 0 |
 | tests/mapping/tree | 12 | 0 | 0 | 12 | 0 |
 | tests/mapping/union | 124 | 57 | 0 | 60 | 7 |
-| tests/mapping/union/relation | 15 | 11 | 0 | 2 | 2 |
+| tests/mapping/union/relation | 15 | 11 | 0 | 4 | 0 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
-| tests/query | 83 | 60 | 3 | 19 | 1 |
-| transform/fromPure/tests | 50 | 0 | 0 | 0 | 50 |
+| tests/query | 83 | 60 | 2 | 20 | 1 |
+| transform/fromPure/tests | 50 | 15 | 2 | 18 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2497 | **969** | 39 | 819 | 670 |
+| **total** | 2497 | **1018** | 45 | 824 | 610 |
 
 ### mapping walls (dropped at assembly)
 
@@ -1132,6 +1129,7 @@ in-process Alloy-shaped path).
 - graphFetch/tests duplicate Function::meta::relational::graphFetch::tests::classMappingFilterWithInnerJoin::testInnerJoinFilterClassMappingAsTarget() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testGraphFetchClassMappingFilterWithInnerJoin.pure, kept graphFetch/tests/sibling-6.pure)
 - graphFetch/tests meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::milestoningmapWithInnerJoin$class$meta::relational::tests::milestoning::Exchange => Unknown type: 'meta::relational::tests::milestoning::Exchange' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::TestClassMappingsWithInnerFilterJoinedByChainOfJoins$class$meta::relational::tests::milestoning::Product => Unknown type: 'meta::relational::tests::milestoning::Product' is not a known primitive, class, or enum
+- graphFetch/tests meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::TestClassMappingsWithInnerFilterJoinedByChainOfJoins$class$meta::relational::tests::milestoning::ProductClassification => Unknown type: 'meta::relational::tests::milestoning::ProductClassification' is not a known primitive, class, or enum
 - graphFetch/tests meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::milestoningmapWithInnerJoin => mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::milestoningmapWithInnerJoin' binds unknown class 'meta::relational::tests::milestoning::Exchange'
 - graphFetch/tests meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::TestClassMappingsWithInnerFilterJoinedByChainOfJoins => mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::TestClassMappingsWithInnerFilterJoinedByChainOfJoins' binds unknown class 'meta::relational::tests::milestoning::Product'
 - graphFetch/tests duplicate Function::meta::relational::graphFetch::tests::embedded::setup() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/graphFetch/tests/testGraphFetchEmbdded.pure, kept graphFetch/tests/sibling-7.pure)
@@ -2670,6 +2668,7 @@ in-process Alloy-shaped path).
 - tests/mapping/classMappingFilterWithInnerJoin meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::milestoningmapWithInnerJoin$class$meta::relational::tests::milestoning::Exchange => Unknown type: 'meta::relational::tests::milestoning::Exchange' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::TestClassMappingsWithInnerFilterJoinedByChainOfJoins$class$meta::relational::tests::milestoning::Product => Unknown type: 'meta::relational::tests::milestoning::Product' is not a known primitive, class, or enum
+- tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::TestClassMappingsWithInnerFilterJoinedByChainOfJoins$class$meta::relational::tests::milestoning::ProductClassification => Unknown type: 'meta::relational::tests::milestoning::ProductClassification' is not a known primitive, class, or enum
 - tests/mapping/classMappingFilterWithInnerJoin meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
 - tests/mapping/classMappingFilterWithInnerJoin meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
 - tests/mapping/classMappingFilterWithInnerJoin meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::milestoningmapWithInnerJoin => mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::milestoningmapWithInnerJoin' binds unknown class 'meta::relational::tests::milestoning::Exchange'
@@ -3545,6 +3544,35 @@ in-process Alloy-shaped path).
 - tests/mapping/relation meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
 - tests/mapping/relation meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
 - tests/mapping/relation meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
+- tests/mapping/relation/aggregation duplicate Function::meta::relational::tests::mapping::relation::aggregation::testFirmAgg(,Generic[name=FunctionDefinition, arguments=[FunctionType[parameters=[], result=TypedParameter[type=NameRef[name=TabularDataSet], multiplicity=[1]]]], multiplicityArguments=[]][1],NameRef[name=String][*]) (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/aggregation/testRelationFunctionAggregation.pure, kept tests/mapping/relation/aggregation/sibling-0.pure)
+- tests/mapping/relation/aggregation duplicate Function::meta::relational::tests::mapping::relation::aggregation::testSubAggregationOnRelationMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/aggregation/testRelationFunctionAggregation.pure, kept tests/mapping/relation/aggregation/sibling-0.pure)
+- tests/mapping/relation/aggregation duplicate Function::meta::relational::tests::mapping::relation::aggregation::testSubAggregationOnRelationMappingWithSimpleProperty() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/aggregation/testRelationFunctionAggregation.pure, kept tests/mapping/relation/aggregation/sibling-0.pure)
+- tests/mapping/relation/aggregation duplicate Function::meta::relational::tests::mapping::relation::aggregation::testTwoSubAggregationOnRelationMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/aggregation/testRelationFunctionAggregation.pure, kept tests/mapping/relation/aggregation/sibling-0.pure)
+- tests/mapping/relation/aggregation duplicate Function::meta::relational::tests::mapping::relation::aggregation::testSubAggregationSumOnRelationMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/aggregation/testRelationFunctionAggregation.pure, kept tests/mapping/relation/aggregation/sibling-0.pure)
+- tests/mapping/relation/aggregation duplicate Function::meta::relational::tests::mapping::relation::aggregation::testSubAggregationMaxOnRelationMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/aggregation/testRelationFunctionAggregation.pure, kept tests/mapping/relation/aggregation/sibling-0.pure)
+- tests/mapping/relation/aggregation duplicate Function::meta::relational::tests::mapping::relation::aggregation::testSubAggregationWithFilterOnRelationMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/aggregation/testRelationFunctionAggregation.pure, kept tests/mapping/relation/aggregation/sibling-0.pure)
+- tests/mapping/relation/aggregation duplicate Function::meta::relational::tests::mapping::relation::aggregation::testSubAggregationMinOnRelationMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/aggregation/testRelationFunctionAggregation.pure, kept tests/mapping/relation/aggregation/sibling-0.pure)
+- tests/mapping/relation/aggregation duplicate Function::meta::relational::tests::mapping::relation::aggregation::testSubAggregationCountOnlyOnRelationMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/aggregation/testRelationFunctionAggregation.pure, kept tests/mapping/relation/aggregation/sibling-0.pure)
+- tests/mapping/relation/aggregation duplicate Function::meta::relational::tests::mapping::relation::aggregation::testSubAggregationWithIfOnRelationMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/aggregation/testRelationFunctionAggregation.pure, kept tests/mapping/relation/aggregation/sibling-0.pure)
+- tests/mapping/relation/aggregation duplicate Function::meta::relational::tests::mapping::relation::aggregation::testSubAggregationMapArithmeticOnRelationMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/aggregation/testRelationFunctionAggregation.pure, kept tests/mapping/relation/aggregation/sibling-0.pure)
+- tests/mapping/relation/aggregation duplicate Function::meta::relational::tests::mapping::relation::aggregation::testSubAggregationJoinStringsOnRelationMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/relation/aggregation/testRelationFunctionAggregation.pure, kept tests/mapping/relation/aggregation/sibling-0.pure)
+- tests/mapping/relation/aggregation meta::relational::metamodel::execute::loadCsvToDbTable => Unknown type: 'Table' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::relational::metamodel::execute::resultSetToTDS => Unknown type: 'TabularDataSet' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::relational::metamodel::execute::executeInDbToTDS => Unknown type: 'TabularDataSet' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::relational::tests::mapping::relation::aggregation::testFirmAgg => Unknown type: 'TabularDataSet' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
+- tests/mapping/relation/aggregation meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
+- tests/mapping/relation/aggregation meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
 - tests/mapping/selfJoin duplicate Function::meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMapping() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/selfJoin/selfJoin.pure, kept tests/mapping/selfJoin/sibling-0.pure)
 - tests/mapping/selfJoin duplicate Function::meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMappingOverlap() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/selfJoin/selfJoin.pure, kept tests/mapping/selfJoin/sibling-0.pure)
 - tests/mapping/selfJoin duplicate Function::meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMappingWithDynaFunction() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/mapping/selfJoin/selfJoin.pure, kept tests/mapping/selfJoin/sibling-0.pure)
@@ -4169,19 +4197,114 @@ in-process Alloy-shaped path).
 - tests/query duplicate Function::meta::relational::tests::query::function::testJoinStringFunction() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/testWithFunction.pure, kept tests/query/sibling-9.pure)
 - tests/query duplicate Function::meta::relational::tests::query::function::testDayOfWeekFunction() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/testWithFunction.pure, kept tests/query/sibling-9.pure)
 - tests/query duplicate Function::meta::relational::tests::query::function::testDayOfWeekNumberFunction() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/tests/query/testWithFunction.pure, kept tests/query/sibling-9.pure)
+- transform/fromPure/tests duplicate ClassDefinition::meta::relational::tests::functions::sqlstring::TestCase (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testCasesForDocGeneration() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::runTestCaseById(,NameRef[name=String][1]) (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLString() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringNonPrestoSchemaNameShouldNotConvertDollarSign() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringComposite() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringWithAggregation() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringWithAggregationDB2() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringWithRelativeDateDB2() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringWithAbs() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringJoinStrings() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringJoinStringsSimpleConcat() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringWithCodeBlock() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::filterReportDates(,NameRef[name=T][1],NameRef[name=Date][1],Generic[name=Function, arguments=[FunctionType[parameters=[TypedParameter[type=NameRef[name=T], multiplicity=[1]]], result=TypedParameter[type=NameRef[name=Date], multiplicity=[0..1]]]], multiplicityArguments=[]][1]) (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testNonExecutableSQLString() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringWithLength() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringReverse() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringSplitPart() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringAscii() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringChar() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringWithPosition() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringWithStdDevSample() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringWithStdDevPopulation() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInYears() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInMonths() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInWeeks() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInDays() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInHours() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInMinutes() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInSeconds() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testGenerateDateDiffExpressionForH2ForDifferenceInMilliseconds() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testDayOfYear() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testTrim() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testPad() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testLeftRight() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testCbrt() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testSqlGenerationForAdjustStrictDateUsageInProjectionForH2() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testSqlGenerationForAdjustStrictDateUsageInFiltersForH2() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testSqlGenerationForDatePartForH2() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfMonth() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfYear() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfThisYear() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfQuarter(,NameRef[name=DatabaseType][1],NameRef[name=String][1]) (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfQuarter_H2() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfQuarter_DB2() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfWeek() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSqlGenerationMonth() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringWithRepeatString() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringWithReplace() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testSqlGenerationDivide_AllDBs() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testIsDistinctSQLGeneration() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringToNumericCasts() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testGreatestLeast() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testToSQLStringForTDSStringJoin() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests duplicate Function::meta::relational::tests::functions::sqlstring::testHashFunctions() (/Users/neema/legend/legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/transform/fromPure/tests/testToSQLString.pure, kept transform/fromPure/tests/sibling-0.pure)
+- transform/fromPure/tests meta::relational::tests::functions::sqlstring::TestCase => Unknown type: 'Mapping' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::metamodel::execute::loadCsvToDbTable => Unknown type: 'Table' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::metamodel::execute::resultSetToTDS => Unknown type: 'TabularDataSet' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::metamodel::execute::executeInDbToTDS => Unknown type: 'TabularDataSet' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::runtime::dataSourceEquality => Unknown type: 'DataSource' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::functions::typeInference::inferDynaFunctionReturnType => Unknown type: 'DynaFunction' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::functions::typeInference::inferRelationalType => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::functions::typeInference::getDynaFunctionTypeInferenceMap => Unknown type: 'RelationalOperationElement' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::functions::typeInference::isSafeTypePossible => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::functions::typeInference::getSafeType => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::functions::typeInference::getDecimalScale => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::functions::typeInference::getDecimalIntegerPrecision => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::functions::typeInference::getSize => Unknown type: 'meta::relational::metamodel::datatype::DataType' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::metamodel::execute::tests::executeLegendFunction => Unknown type: 'Mapping' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::metamodel::execute::tests::extractSqlFromPlan => Unknown type: 'ExecutionPlan' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::metamodel::execute::tests::collectSqlNodes => Unknown type: 'ExecutionNode' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::pure::alloy::connections::tests::relationalMapper::databaseMappers => Unknown type: 'DatabaseMapper' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::pure::alloy::connections::tests::relationalMapper::schemaMappers => Unknown type: 'SchemaMapper' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::pure::alloy::connections::tests::relationalMapper::tableMappers => Unknown type: 'TableMapper' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::pure::alloy::connections::tests::relationalMapper::getSchema => Unknown type: 'Schema' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::pure::alloy::connections::tests::relationalMapper::relationalMapperSqlQuery => Unknown type: 'Mapping' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::relational::metamodel::execute::tests::runRelationalRouterExtensionConnectionEquality => Unknown type: 'RelationalDatabaseConnection' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub$class$meta::pure::mapping::modelToModel::test::shared::dest::PersonView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping$class$meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView => Unknown type: 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::pure::mapping::modelToModel::test::shared::relationalMapping$class$_S_Person => Unknown type: '_S_Person' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::pure::mapping::modelToModel::test::shared::relationalMapping$class$_Person => Unknown type: '_Person' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::pure::mapping::modelToModel::test::shared::relationalMapping$class$_PersonSrc1 => Unknown type: '_PersonSrc1' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::pure::mapping::modelToModel::test::shared::relationalMapping$class$_PersonSrc2 => Unknown type: '_PersonSrc2' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::pure::mapping::modelToModel::test::shared::relationalMapping$class$_Firm => Unknown type: '_Firm' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::pure::mapping::modelToModel::test::shared::relationalMapping$class$_FirmX => Unknown type: '_FirmX' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::pure::mapping::modelToModel::test::shared::relationalMapping$class$_Trade => Unknown type: '_Trade' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::pure::mapping::modelToModel::test::shared::relationalMapping$class$_Product => Unknown type: '_Product' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::pure::mapping::modelToModel::test::shared::relationalMapping$class$_Product2 => Unknown type: '_Product2' is not a known primitive, class, or enum
+- transform/fromPure/tests meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub => mapping 'meta::pure::mapping::modelToModel::test::simple::PersonPureMappingSub' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::PersonView'
+- transform/fromPure/tests meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping => mapping 'meta::pure::mapping::modelToModel::test::simple::OrderContactPureMapping' binds unknown class 'meta::pure::mapping::modelToModel::test::shared::dest::OrderContactView'
+- transform/fromPure/tests meta::pure::mapping::modelToModel::test::shared::relationalMapping => mapping 'meta::pure::mapping::modelToModel::test::shared::relationalMapping' binds unknown class '_S_Person'
 
 ### top error buckets
 
-- 45x a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- 24x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- 18x 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- 27x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- 26x a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- 19x unknown type 'TabularDataSet' in @TabularDataSet
+- 14x toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
+- 13x expected at most one value, got many ([*])
 - 13x serialize expects (classCollection, #{Class{…}}#)
 - 13x a navigation join over this union demands key column 'c_PersonID', which NO union member carries
-- 12x expected at most one value, got many ([*])
-- 12x in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[function=if, parameters=[AppliedFunction[function=equal, parameters=[AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=active]], candidateFqns=[]], CString[value=Y]], candidateFqns=[]], LambdaFunction[parameters=[], body=[CString[value=true]]], LambdaFunction[pa)
 - 11x lowering not yet implemented for TypedNativeCall
 - 11x graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - 10x class query under TypedMap is not resolvable yet (H2 vocabulary)
+- 9x class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
+- 8x class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
+- 8x from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- 8x scalar lowering not yet implemented for TypedSerializeGraph
 - 8x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=…
 - 8x relation has no column 'aID'
 - 8x navigation through class-typed slot property 'address' is not supported yet
@@ -4191,48 +4314,44 @@ in-process Alloy-shaped path).
 - 7x ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - 7x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - 7x filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
-- 6x 'meta::relational::tests::aggregationAware::domain::Wholesales' is not a known class, mapping, runtime, connection, or database
 - 6x class meta::relational::tests::model::simple::Address has no property 'values'
-- 6x unknown type 'TabularDataSet' in @TabularDataSet
-- 6x class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::classOwnedMappingWithInnerJoinInFilter' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet; class=meta::relational::tests::model::simple::Person, mapping=meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::classOwnedMappingWithInnerJoinInFilter)
-- 6x in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6) (value: AppliedProperty[receiver=Variable[name=row, type=null, multiplicity=null], property=dec])
 - 6x scalar lowering not yet implemented for TypedCLatestDate
 - 6x unknown function 'columnValues'
 - 6x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - 6x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=em…
-- 5x scalar lowering not yet implemented for TypedSerializeGraph
-- 5x from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- 5x unknown function 'generateObjectReferences'
+- 5x mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
 
 ### per-test outcomes (non-passing)
 
-- ERROR testRewriteCanAggregateGroupByOnLiteralWithSumAgg [aggregationAware/test/rewrite]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testRewriteCanAggregateGroupByOnLiteralWithMultipleAgg [aggregationAware/test/rewrite]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testRewriteSwitchToSalesTable [aggregationAware/test/rewrite]: 'meta::relational::tests::aggregationAware::domain::Wholesales' is not a known class, mapping, runtime, connection, or database
-- ERROR testRewriteSwitchToSalesTableWithQualifiedProperty [aggregationAware/test/rewrite]: 'meta::relational::tests::aggregationAware::domain::Wholesales' is not a known class, mapping, runtime, connection, or database
-- ERROR testRewriteWithTDSJoin [aggregationAware/test/rewrite]: 'meta::relational::tests::aggregationAware::domain::Wholesales' is not a known class, mapping, runtime, connection, or database
-- ERROR testRewriteSwitchToProductMonthTable [aggregationAware/test/rewrite]: 'meta::relational::tests::aggregationAware::domain::Wholesales' is not a known class, mapping, runtime, connection, or database
-- ERROR testRewriteSwitchToProdLineYearTable [aggregationAware/test/rewrite]: 'meta::relational::tests::aggregationAware::domain::Wholesales' is not a known class, mapping, runtime, connection, or database
-- ERROR testRewriteSwitchToProdLineSalesPersonYearTable [aggregationAware/test/rewrite]: 'meta::relational::tests::aggregationAware::domain::Wholesales' is not a known class, mapping, runtime, connection, or database
-- ERROR testRewriteEmployeeToSales [aggregationAware/test/rewrite]: 'meta::relational::tests::aggregationAware::domain::Employee' is not a known class, mapping, runtime, connection, or database
-- ERROR testRewriteEmployeeToSalesBackToEmployee [aggregationAware/test/rewrite]: 'meta::relational::tests::aggregationAware::domain::Employee' is not a known class, mapping, runtime, connection, or database
-- ERROR testRewriteEmployeeToSalesToProduct [aggregationAware/test/rewrite]: 'meta::relational::tests::aggregationAware::domain::Employee' is not a known class, mapping, runtime, connection, or database
-- ERROR testRewriteEmployeeToSalesToProductToProdLine [aggregationAware/test/rewrite]: 'meta::relational::tests::aggregationAware::domain::Employee' is not a known class, mapping, runtime, connection, or database
-- ERROR testRewriteWithMilestonedDescriptionPropertyAccess [aggregationAware/test/rewrite]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testRewriteProjectFunction [aggregationAware/test/rewrite/NOP]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testRewriteProjectCol [aggregationAware/test/rewrite/NOP]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testRewriteProjectFunctionMulti [aggregationAware/test/rewrite/NOP]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testRewriteProjectColMulti [aggregationAware/test/rewrite/NOP]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testRewriteTDSGroupBy [aggregationAware/test/rewrite/NOP]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testRewriteProjectFunction [aggregationAware/test/rewrite/NOP]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testRewriteProjectCol [aggregationAware/test/rewrite/NOP]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testRewriteProjectFunctionMulti [aggregationAware/test/rewrite/NOP]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testRewriteProjectColMulti [aggregationAware/test/rewrite/NOP]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: 'Wholesales' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testRewriteCanAggregateGroupByOnLiteralWithSumAgg [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMonthCannotBeAggregated'
+- ERROR testRewriteCanAggregateGroupByOnLiteralWithMultipleAgg [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMonthCannotBeAggregated'
+- ERROR testRewriteSwitchToSalesTable [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
+- ERROR testRewriteSwitchToSalesTableWithQualifiedProperty [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
+- ERROR testRewriteWithTDSJoin [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
+- ERROR testRewriteSwitchToProductMonthTable [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
+- ERROR testRewriteSwitchToProdLineYearTable [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
+- ERROR testRewriteSwitchToProdLineSalesPersonYearTable [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
+- ERROR testRewriteEmployeeToSales [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
+- ERROR testRewriteEmployeeToSalesBackToEmployee [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
+- ERROR testRewriteEmployeeToSalesToProduct [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
+- ERROR testRewriteEmployeeToSalesToProductToProdLine [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
+- ERROR testRewriteWithMilestonedDescriptionPropertyAccess [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
+- SHAPE testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
+- ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- SHAPE testRewriteProjectFunction [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
+- SHAPE testRewriteProjectCol [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
+- SHAPE testRewriteProjectFunctionMulti [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
+- SHAPE testRewriteProjectColMulti [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
+- ERROR testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: ~Product ID Added 2: mapped/aggregate column specifications need an enclosing call to type against
+- SHAPE testRewriteTDSGroupBy [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
+- ERROR testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
+- ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- ERROR testRewriteProjectFunction [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
+- ERROR testRewriteProjectCol [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
+- ERROR testRewriteProjectFunctionMulti [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
+- ERROR testRewriteProjectColMulti [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
+- ERROR testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
 - SHAPE testClassesAssociationsAndMappingFromDatabase [autogeneration/tests]: no execute(|...) call
 - SHAPE testDifferentCalendar [calendarAggregation/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDifferentEndDates [calendarAggregation/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -4297,9 +4416,9 @@ in-process Alloy-shaped path).
 - SHAPE twoDBRenameColumns [executionPlan/tests]: no execute(|...) call
 - SHAPE tdsJoinTwoDBExtend [executionPlan/tests]: no execute(|...) call
 - SHAPE tdsTwoJoinThreeDB [executionPlan/tests]: no execute(|...) call
-- ERROR testTwoMappingsOneRuntime [executionPlan/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testTwoMappingsOneRuntimeWithoutExternalMapping [executionPlan/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testCrossDbPlanGenerationWithFromWithoutExternalMapping [executionPlan/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testTwoMappingsOneRuntime [executionPlan/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- ERROR testTwoMappingsOneRuntimeWithoutExternalMapping [executionPlan/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- ERROR testCrossDbPlanGenerationWithFromWithoutExternalMapping [executionPlan/tests]: no overload of 'meta::pure::tds::project' matches 2 argument(s) of these shapes
 - SHAPE testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes [executionPlan/tests]: no execute(|...) call
 - SHAPE testCrossDbPlanGenerationWithRelationUsesCorrectColumnTypes [executionPlan/tests]: no execute(|...) call
 - SHAPE testTemporalDateVariableAtRoot [executionPlan/tests]: no execute(|...) call
@@ -4311,8 +4430,8 @@ in-process Alloy-shaped path).
 - SHAPE testModelConnectionJoin [executionPlan/tests]: no execute(|...) call
 - SHAPE testModelConnectionAgg [executionPlan/tests]: no execute(|...) call
 - SHAPE testModelConnectionMultipleAgg [executionPlan/tests]: no execute(|...) call
-- ERROR testExecutionPLanGenerationForFrom [executionPlan/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testExecutionPLanGenerationForFromInAllocation [executionPlan/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testExecutionPLanGenerationForFrom [executionPlan/tests]: '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testExecutionPLanGenerationForFromInAllocation [executionPlan/tests]: '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testExecutionPLanGenerationForFromWithMultiClusters [executionPlan/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - SHAPE testExecutionPlanGenerationForInWithIntegerCollection [executionPlan/tests]: no execute(|...) call
 - SHAPE testExecutionPlanGenerationForMultipleInWithTwoCollectionInputs [executionPlan/tests]: no execute(|...) call
@@ -4340,7 +4459,7 @@ in-process Alloy-shaped path).
 - SHAPE testGraphFetchH2TempTableStrategyWithQuoteIdentifiers [executionPlan/tests]: no execute(|...) call
 - SHAPE testTypedTDSWithEnum [executionPlan/tests]: no execute(|...) call
 - SHAPE testTypedTDSWithEnumFilter [executionPlan/tests]: no execute(|...) call
-- ERROR testExecutionPlanGenerationForLambdaFromWithEnumMapping [executionPlan/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testExecutionPlanGenerationForLambdaFromWithEnumMapping [executionPlan/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 - ERROR testAll [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
@@ -4358,12 +4477,13 @@ in-process Alloy-shaped path).
 - SHAPE testConcatenateWithPreFilteredGroupBy [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testComplexOrExistsToManyProperty [functions/tests]: unknown function 'assert'
 - FAIL testDupsFilterProject [functions/tests]: assertEquals: expected Firm X, got [Firm X, Yes]
-- ERROR testExistsWithEmbedded [functions/tests]: 'testMappingEmbeddedWithFirmDistinct' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: 'testMappingEmbeddedWithFirmDistinct' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- ERROR testExistsWithEmbedded [functions/tests]: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet
+- ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet
 - ERROR testWithFilterGroupBy [functions/tests]: no scalar lowering registered for resolved overload 'meta::pure::functions::io::println' with 1 parameter(s)
 - ERROR testWithFilterGroupByNestedAssociation [functions/tests]: no scalar lowering registered for resolved overload 'meta::pure::functions::io::println' with 1 parameter(s)
 - ERROR testIsNotEmpty [functions/tests]: Binder Error: subqueries in lambda expressions are not supported
 - ERROR testAssociationOneLevelDeep [functions/tests]: Binder Error: subqueries in lambda expressions are not supported
+- ERROR testAssociationTwoLevelDeep [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
 - ERROR testAssociationThreeLevelDeep [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
 - ERROR testAssociationHandlingDups [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
 - ERROR testAssociationWithProjectionHandlingDups [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
@@ -4443,7 +4563,7 @@ in-process Alloy-shaped path).
 - ERROR testAggToManyWithFilter [functions/tests]: expected at most one value, got many ([*])
 - ERROR testGroupByAndFilterIsolatedJoinMerge [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=t, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1]]],
 - FAIL testGroupByWithJoinH2 [functions/tests]: assertSize: expected 1, got 6
-- SHAPE testGroupByWithJoinDB2 [functions/tests]: no execute(|...) call
+- ERROR testGroupByWithJoinDB2 [functions/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - ERROR testObjectLevelGroupByWTDSLevelGroupByWTDSExtend [functions/tests]: ~Case Column: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testReprocessGroupByAlias [functions/tests]: in function 'meta::relational::tests::MappingWithInnerJoinAndEmbeddedMapping$class$meta::relational::tests::model::simple::Order': unknown table 'PersonFirmView' in database 'meta::relational::tests::db'
 - ERROR testUniqueValueOnly1 [functions/tests]: unknown function 'uniqueValueOnly'
@@ -4454,19 +4574,17 @@ in-process Alloy-shaped path).
 - ERROR testGroupByIsDistinct [functions/tests]: expected at most one value, got many ([*])
 - ERROR testGroupByWithWavgAggregation [functions/tests]: unknown function 'meta::pure::functions::math::wavgUtility::wavgRowMapper'
 - ERROR testObjectReferenceInSimple [functions/tests]: '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testObjectReferenceInEmbeddedMapping [functions/tests]: unknown function 'meta::relational::extension::relationalExtensions'
-- ERROR testObjectReferneceInWithMilestonedRootClass [functions/tests]: unknown function 'meta::relational::extension::relationalExtensions'
-- ERROR testObjectReferenceInWithMilestonedProperty [functions/tests]: unknown function 'meta::relational::extension::relationalExtensions'
-- ERROR testObjectReferenceInWithEmptyLists [functions/tests]: unknown function 'meta::relational::extension::relationalExtensions'
-- ERROR testObjectReferenceInWithBiTemporalMilestoning [functions/tests]: unknown function 'meta::relational::extension::relationalExtensions'
+- ERROR testObjectReferenceInEmbeddedMapping [functions/tests]: unknown function 'generateObjectReferences'
+- ERROR testObjectReferneceInWithMilestonedRootClass [functions/tests]: unknown function 'generateObjectReferences'
+- ERROR testObjectReferenceInWithMilestonedProperty [functions/tests]: unknown function 'generateObjectReferences'
+- ERROR testObjectReferenceInWithEmptyLists [functions/tests]: unknown function 'generateObjectReferences'
+- ERROR testObjectReferenceInWithBiTemporalMilestoning [functions/tests]: unknown function 'generateObjectReferences'
 - ERROR testObjectReferenceInWithObjReferenceOutput [functions/tests]: '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testPaginated [functions/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
-- SHAPE testPaginatedByVendor [functions/tests]: no execute(|...) call
+- ERROR testPaginatedByVendor [functions/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - SHAPE testPaginatedWithVariables [functions/tests]: harness wrapper 'runTest' carries no zero-arg lambda body
+- ERROR testDistinctSize [functions/tests]: object-space operation TypedDistinct is not supported yet
 - ERROR testSQLComments [functions/tests]: class meta::relational::tests::model::simple::Person has no property 'activities'
-- SHAPE testSliceByVendor [functions/tests]: no execute(|...) call
-- SHAPE testLimitByVendor [functions/tests]: no execute(|...) call
-- SHAPE testTakeByVendor [functions/tests]: no execute(|...) call
 - SHAPE testLimitFilterInSequence [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFilterLimitInSequence [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLimitFilterInSequenceForTableAccessor [functions/tests]: no execute(|...) call
@@ -4497,8 +4615,6 @@ in-process Alloy-shaped path).
 - SHAPE testConcatenationOfTdsQueriesWithFilter [functions/tests/projection]: execute() whose query argument is not a lambda
 - SHAPE testConcatenationOfTdsQueriesWithGroupBy [functions/tests/projection]: execute() whose query argument is not a lambda
 - SHAPE testConcatenationOfTdsQueriesWithFilterAndGroupBy [functions/tests/projection]: execute() whose query argument is not a lambda
-- SHAPE testToday [functions/tests/projection]: no execute(|...) call
-- SHAPE testNow [functions/tests/projection]: no execute(|...) call
 - FAIL testAdjustWithMicroseconds [functions/tests/projection]: assertSameElements: expected 2014-12-04 15:22:23.123456, got 2014-12-04 15:22:23.123456789
 - ERROR testFirstDayOfWeek [functions/tests/projection]: unknown function 'firstDayOfWeek'
 - ERROR testFirstDayOfThisMonth [functions/tests/projection]: unknown function 'firstDayOfThisMonth'
@@ -4507,7 +4623,7 @@ in-process Alloy-shaped path).
 - SHAPE testFirstDayOfQuarter [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testFirstDayOfThisYear [functions/tests/projection]: unknown function 'firstDayOfThisYear'
 - SHAPE testFirstDayOfYear [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testMostRecentDayOfWeek [functions/tests/projection]: no execute(|...) call
+- ERROR testMostRecentDayOfWeek [functions/tests/projection]: unknown function 'mostRecentDayOfWeek'
 - ERROR testPreviousDayOfWeek [functions/tests/projection]: unknown function 'previousDayOfWeek'
 - ERROR testMostRecentDayOfWeekWithDate [functions/tests/projection]: unknown function 'mostRecentDayOfWeek'
 - ERROR testPreviousDayOfWeekWithDate [functions/tests/projection]: unknown function 'previousDayOfWeek'
@@ -4526,8 +4642,8 @@ in-process Alloy-shaped path).
 - ERROR testIsolationOfFiltersWithoutAlias [functions/tests/projection]: relation has no column 'name' in scalar read
 - ERROR testIsolationOfFiltersWithoutAliasWithChainedJoins [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=t, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1]]],
 - SHAPE testNestedPlusFunctionAndMappingDynaFunction [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testNestedPlusFunctionAndNestedMappingDynaFunction [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMappingWithNestedPlus$class$meta::relational::tests::model::simple::Order': property 'quantity' of 'meta::relational::tests::model::simple::Order': expected Float, got Integer (value: AppliedFunction[function=toOne, parameters=[AppliedProperty[re
-- ERROR testSameBehaviorForNestedAddAndPlus [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMappingWithNestedAdd$class$meta::relational::tests::model::simple::Order': property 'quantity' of 'meta::relational::tests::model::simple::Order': expected Float, got Integer (value: AppliedFunction[function=toOne, parameters=[AppliedProperty[rec
+- SHAPE testNestedPlusFunctionAndNestedMappingDynaFunction [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testSameBehaviorForNestedAddAndPlus [functions/tests/projection]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - ERROR testProjectReferenceInRhsFilterWithDistinctVarNamesViaQualifiedProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testProjectReferenceInRhsFilterWithConflictingVarNamesViaQualifiedProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testProjectReferenceInRhsFilterWithPotentiallyConflictingVarNamesViaQualifiedProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
@@ -4536,10 +4652,10 @@ in-process Alloy-shaped path).
 - ERROR testVariableReferenceInMapWithSameNameAsThatInParentProject [functions/tests/projection]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
 - ERROR testVariableReferenceInMapWithNestedFilter [functions/tests/projection]: expected at most one value, got many ([*])
 - ERROR testVariableReferenceWithNestedFilterMultiple [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Person], multiplicity=Bounded[
-- ERROR testGroupByWithWindowSubset [functions/tests/projection]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testGroupByWithWindowSubset [functions/tests/projection]: no overload of 'groupByWithWindowSubset' matches 6 argument(s) of these shapes
 - ERROR testInWithOneValue [functions/tests/projection]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary): TypedCast[source=TypedCollection[elements=[TypedCString[value=John, info=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]]], target=Class
 - SHAPE H2Test [functions/tests/projection]: no execute(|...) call
-- ERROR testInWithDynaFunction [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
+- ERROR testInWithDynaFunction [functions/tests/projection]: Conversion Error: Could not convert string 'something' to BOOL |  | LINE 3: ... = 'Y' THEN 'true' ELSE 'false' END AS BOOLEAN) IN ('false', 'something') AND CAST(t0.ID AS VARCHAR) = 4 |                                                                         ^
 - FAIL testSimpleBoolean [functions/tests/projection]: assertEquals: expected false, got []
 - ERROR testSimpleDerivedThroughAssociation [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - FAIL testTwoQualifiersUsingSameJoinWithNoUserParams [functions/tests/projection]: assertSize: expected 1, got 4
@@ -4554,17 +4670,16 @@ in-process Alloy-shaped path).
 - FAIL testQualifierWithVariableArgReferencedFirstInFilterEqualCriteria [functions/tests/projection]: assertEquals: expected [Firm X~ , Firm A~ , Firm B~ , Firm C~ ], got [Firm X~TDSNull, Firm A~TDSNull, Firm B~TDSNull, Firm C~TDSNull]
 - ERROR testQualifierWithVariableArgWithComplexTypeProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testQualifierWithVariableArgWithComplexTypePropertyAndSubsequentComplexTypePropertyCall [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=Ex
-- ERROR testFilterOnRootTypeWithOrWithFilterInQualifier [functions/tests/projection]: property 'eventDate' of class 'meta::relational::tests::model::simple::Trade' has no binding in mapping 'meta::relational::tests::simpleRelationalMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testAllOneSimplePropertyWithColsFromFunction [functions/tests/projection]: project expects ~[…] column specifications
 - SHAPE testAllOneSimplePropertyUsingOpenVariables [functions/tests/projection]: no execute(|...) call
 - ERROR testViewAllOneSimpleProperty [functions/tests/projection]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
-- ERROR testJoinToView [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Order': property 'quantity' of 'meta::relational::tests::model::simple::Order': expected Float, got Integer (value: AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variabl
+- ERROR testJoinToView [functions/tests/projection]: resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
 - ERROR testJoinThroughView [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testViewWithGroupBy [functions/tests/projection]: mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
 - ERROR testAssnToViewWithGroupBy [functions/tests/projection]: mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
 - ERROR testUnionOnViewsMapping [functions/tests/projection]: class 'meta::relational::tests::model::simple::OrderPnl' is not mapped in mapping 'meta::relational::tests::projection::view::unionOnViewsMapping' (Operation union over a VIEW-backed member set is not supported yet; mapping=meta::relational::tests::projection::view::unionOnViewsMapping)
 - ERROR testViewOnView [functions/tests/projection]: class 'meta::relational::tests::model::simple::OrderPnl' is not mapped in mapping 'meta::relational::tests::projection::view::unionOnViewOnViewMapping' (Operation union over a VIEW-backed member set is not supported yet; mapping=meta::relational::tests::projection::view::unionOnViewOnViewMapping)
-- ERROR testProjectionOfPropertyJoinedToViewWithGroupByAndFilter [functions/tests/projection]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
+- SHAPE testProjectionOfPropertyJoinedToViewWithGroupByAndFilter [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testGraphFetch [graphFetch/domain]: no execute(|...) call
 - ERROR testCrossMappingWithRelOpWithJoinKeys [graphFetch/tests]: association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation': $that.ceo
 - ERROR CrossStoreGraphFetchWithRelationalMilestoned [graphFetch/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
@@ -4576,11 +4691,10 @@ in-process Alloy-shaped path).
 - ERROR testRelationalChainExecutionNested [graphFetch/tests]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::chain::M2M_Mapping'
 - ERROR testRelationalChainExecutionWithFilter [graphFetch/tests]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::chain::M2M_Mapping'
 - ERROR testRelationalChainExecutionWithInScopeVariableFilter [graphFetch/tests]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::chain::M2M_Mapping'
-- ERROR testFlatGraphFetch [graphFetch/tests]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::baseMappingWithInnerJoinInFilter' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet; clas
-- ERROR testFlatGraphFetchWithJoin [graphFetch/tests]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithInnerJoinInFilter' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet; class=me
-- ERROR testNestedGraphFetch [graphFetch/tests]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::classOwnedMappingWithInnerJoinInFilter' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet
-- ERROR testGraphFetchWithPrimitiveQualifier [graphFetch/tests]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::classOwnedMappingWithInnerJoinInFilter' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet
-- ERROR testInnerJoinFilterClassMappingAsTarget [graphFetch/tests]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::classOwnedMappingWithInnerJoinInFilter' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet
+- FAIL testFlatGraphFetchWithJoin [graphFetch/tests]: assertJsonStringsEqual: expected [{firstName=Peter, lastName=Firm X, age=23}, {firstName=John, lastName=Firm X, age=22}, {firstName=John, lastName=Firm X, age=12}, {firstName=Anthony, lastNa..., got [{firstName=Anthony, lastName=Firm X, age=22}, {firstName=John, lastName=Firm X, age=12}, {firstName=
+- FAIL testNestedGraphFetch [graphFetch/tests]: assertJsonStringsEqual: expected [{firstName=Peter, lastName=Firm X, firm={legalName=Firm X}}, {firstName=John, lastName=Firm X, firm={legalName=Firm X}}, {firstName=John, lastName=Firm X, f..., got [{firstName=Anthony, lastName=Firm X, firm={legalName=Firm X}}, {firstName=John, lastName=Firm X, fir
+- ERROR testGraphFetchWithPrimitiveQualifier [graphFetch/tests]: property 'nameWithTitle' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::classOwnedMappingWithInnerJoinInFilter'
+- ERROR testInnerJoinFilterClassMappingAsTarget [graphFetch/tests]: graph leaf 'lastName' of class 'meta::relational::tests::model::simple::Person' is mapped through the class's own join slots — nested join demand inside a graph child is not supported yet (H4b)
 - ERROR testSimpleEmbeddedMapping [graphFetch/tests]: graph child 'firm' of class 'meta::relational::tests::model::simple::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - ERROR testEmbeddedMappingForPropertyHavingEnumAttribute [graphFetch/tests]: graph child 'firm' of class 'meta::relational::tests::model::simple::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - ERROR testMultiLevelEmbeddedMapping [graphFetch/tests]: graph child 'firm' of class 'meta::relational::tests::model::simple::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
@@ -4629,12 +4743,12 @@ in-process Alloy-shaped path).
 - ERROR testRelationalGraphFetchWithAlloySerializationConfig [graphFetch/tests]: unknown function 'alloyConfig'
 - ERROR testObjectReferenceInUsingResultReferences [graphFetch/tests]: unknown function 'alloyConfig'
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, otherNames=mno}, {firstName=Peter, otherNames=de
-- ERROR testGraphFetchDataTypes [graphFetch/tests]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
+- FAIL testGraphFetchDataTypes [graphFetch/tests]: assertJsonStringsEqual: expected [{date=2003-07-19, floatAsDecimal=1.1, double=2.2, varchar=Something, numeric=1.23456, tinyInt=1, integer=3, float=1.1, bit=true, smallInt=2, char=c, numeric..., got [{tinyInt=1, smallInt=2, integer=3, bigInt=1000, varchar=Something, char=c, date=2003-07-19, timestam
 - FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John}, {firstName=John}, {firstName=Anthony}]}, {legalName=Firm 
 - ERROR testGraphFetchWithViewRootFlat [graphFetch/tests]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
-- ERROR testGraphFetchWithViewRootNested [graphFetch/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Order': property 'quantity' of 'meta::relational::tests::model::simple::Order': expected Float, got Integer (value: AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variabl
+- ERROR testGraphFetchWithViewRootNested [graphFetch/tests]: resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
 - ERROR testGraphFetchWithViewRootNestedDeep [graphFetch/tests]: mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
-- ERROR testGraphFetchWithViewAtChild [graphFetch/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Order': property 'quantity' of 'meta::relational::tests::model::simple::Order': expected Float, got Integer (value: AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variabl
+- ERROR testGraphFetchWithViewAtChild [graphFetch/tests]: resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
 - ERROR testGraphFetchWithGroupByViewAtChild [graphFetch/tests]: mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
 - ERROR testSimpleGraphFetchWithQualifier [graphFetch/tests]: property 'name' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testSimpleGraphFetchWithQualifierWithParameter [graphFetch/tests]: property 'fullName' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -4667,8 +4781,8 @@ in-process Alloy-shaped path).
 - ERROR testInheritanceMappingWithoutSubType [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
 - ERROR testUnionMappingWithoutSubType [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
 - ERROR RootSubTypeWithRootPropertyUnion [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
-- SHAPE RootSubTypeWithSubtypeLevelPropertyUnionMapping [graphFetch/tests]: no execute(|...) call
-- SHAPE RootSubTypeWithSubtypeLevelPropertyUnionMappingChecked [graphFetch/tests]: no execute(|...) call
+- SHAPE RootSubTypeWithSubtypeLevelPropertyUnionMapping [graphFetch/tests]: execute() whose query argument is not a lambda
+- SHAPE RootSubTypeWithSubtypeLevelPropertyUnionMappingChecked [graphFetch/tests]: execute() whose query argument is not a lambda
 - ERROR RootSubTypeWithSubtypeLevelAndRootLevelPropertyUnionMapping [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
 - ERROR subTypeWithQualifiedPropertyUnionMapping [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
 - ERROR testMilestoningWithSimpleQualifiedPropertyWithUnionMapping [graphFetch/tests/union]: graphFetch tree: class meta::relational::tests::model::simple::Order has no property 'product'
@@ -4683,7 +4797,7 @@ in-process Alloy-shaped path).
 - ERROR testUnionWithQualifiedProperty [graphFetch/tests/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::union::propertyLevel::Mapping1' (Join 'firm1_person1_join' not found in db 'myDB'; PM='employees', mapping=meta::relational::graphFetch::tests::union::propertyLevel::Mapping1)
 - ERROR testNestedUnion_SameStore [graphFetch/tests/union]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
 - ERROR testRootUnionWithOnePropertySet_SameStore [graphFetch/tests/union]: Invalid Input Error: More than one row returned by a subquery used as an expression - scalar subqueries can only return a single row. |  | Use "SET scalar_subquery_error_on_multiple_rows=false" to revert to previous behavior of returning a random row.
-- ERROR testSpecialUnion_m2m2r [graphFetch/tests/union]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testSpecialUnion_m2m2r [graphFetch/tests/union]: unknown class 'EngineRuntime' in ^EngineRuntime(…)
 - SHAPE findTableByName [helperFunctions/tests]: no execute(|...) call
 - SHAPE createDropTableStatement [helperFunctions/tests]: no execute(|...) call
 - SHAPE createCreateTableStatement [helperFunctions/tests]: no execute(|...) call
@@ -4785,8 +4899,8 @@ in-process Alloy-shaped path).
 - SHAPE testExecutionPlanForQueryWithVariableRundateWithinLambda [milestoning/tests]: no execute(|...) call
 - ERROR testMilestoningCriteriaAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: filter predicate references column 'orderDetails', unresolvable even after isolation
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
-- SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: no execute(|...) call
-- SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: no execute(|...) call
+- SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
@@ -4797,7 +4911,7 @@ in-process Alloy-shaped path).
 - SHAPE testFilterOnView [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testNestedExists_NestedExistsWithEmbeddedMapping [milestoning/tests]: multi-hop navigation children.leaves.leafValue through an embedded/slot head is not supported yet
 - ERROR testNestedExists_NestedExistsWithEmbeddedMappingInProject [milestoning/tests]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Child_Leaf' (the demand scan and the rewrite disagreed)
-- ERROR testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: class 'meta::relational::tests::milestoning::inheritance::Book' is not mapped in mapping 'meta::relational::tests::milestoning::bookCatalogMap' (ColumnRef references table 'AuthorshipTable' not in scope; available=[BookTable])
+- ERROR testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: class 'meta::relational::tests::milestoning::inheritance::Book' is not mapped in mapping 'meta::relational::tests::milestoning::bookCatalogMap' (join chain [Book_Authorship] was never emitted on this pipeline — the expression navigates a join that was not hoisted as a slot)
 - ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation product.classification.description through an embedded/slot head is not supported yet
 - ERROR testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: scalar lowering not yet implemented for TypedCLatestDate
 - ERROR testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: scalar lowering not yet implemented for TypedCLatestDate
@@ -4821,8 +4935,8 @@ in-process Alloy-shaped path).
 - SHAPE testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithFunction [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithThisBusinessDate [milestoning/tests]: filter predicate references column 'businessDate', unresolvable even after isolation
 - ERROR testHybridMilestoningUnionOperationWithNonTemporalRoot [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::hybridMilestoningUnionMap'
-- SHAPE testPlanHybridMilestoningUnionOperationWithNonTemporalRootWithPropagation [milestoning/tests]: no execute(|...) call
-- SHAPE testPlanHybridMilestoningUnionOperationWithTemporalRootWithPropagation [milestoning/tests]: no execute(|...) call
+- ERROR testPlanHybridMilestoningUnionOperationWithNonTemporalRootWithPropagation [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::hybridMilestoningUnionMap'
+- ERROR testPlanHybridMilestoningUnionOperationWithTemporalRootWithPropagation [milestoning/tests]: property 'biTemporalClassification' of class 'meta::relational::tests::milestoning::BiTemporalProduct' is not mapped in mapping 'meta::relational::tests::milestoning::hybridMilestoningUnionMap'
 - ERROR testMilestoningWithUnionOnView [milestoning/tests]: class 'meta::relational::tests::milestoning::ProductClassification' is not mapped in mapping 'meta::relational::tests::milestoning::UnionOnViewWithMilestoningMapping' (Operation union over a VIEW-backed member set is not supported yet; mapping=meta::relational::tests::milestoning::UnionOnViewWithMil
 - ERROR testMilestoningWithUnionOnViewWithAllVersions [milestoning/tests]: class 'meta::relational::tests::milestoning::ProductClassification' is not mapped in mapping 'meta::relational::tests::milestoning::UnionOnViewWithMilestoningMapping' (Operation union over a VIEW-backed member set is not supported yet; mapping=meta::relational::tests::milestoning::UnionOnViewWithMil
 - SHAPE testProp1 [modelToModelToRelational]: no execute(|...) call
@@ -4830,13 +4944,13 @@ in-process Alloy-shaped path).
 - SHAPE testProp3 [modelToModelToRelational]: no execute(|...) call
 - SHAPE testProp4 [modelToModelToRelational]: no execute(|...) call
 - SHAPE testPreeavalOnSort [modelToModelToRelational]: no execute(|...) call
-- ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
 - ERROR test_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - SHAPE testFlatten_ViaNoArgMapping [modelToModelToRelational/milestoned]: no execute(|...) call
 - SHAPE testFlatten_ViaNoArgMapping_ViaAssociation [modelToModelToRelational/milestoned]: no execute(|...) call
 - ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
 - ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=x, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Person], multiplicity=Bounded[lower=1, upper=1]]]
 - SHAPE testReplaceTablePostProcessor [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testReplaceTableMultiplePostProcessor [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -4941,13 +5055,9 @@ in-process Alloy-shaped path).
 - SHAPE testJoinUsing [tds/relation]: no execute(|...) call
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: no execute(|...) call
-- ERROR testSimpleDistinct [tds/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
-- ERROR testSimpleDistinctWithTake [tds/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
-- ERROR testSimpleDistinctWithFilter [tds/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
-- ERROR testSimpleDistinctGroupBy [tds/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
 - ERROR simpleGroupCount [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
-- ERROR simpleGroupDistinctCount [tds/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
-- ERROR simpleGroupDistinctCountWithExtendedPrimitives [tds/tests]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
+- ERROR simpleGroupDistinctCount [tds/tests]: aggregate reducer argument of kind TypedNativeCall is not supported (literals only)
+- ERROR simpleGroupDistinctCountWithExtendedPrimitives [tds/tests]: aggregate reducer argument of kind TypedNativeCall is not supported (literals only)
 - ERROR simpleFilterWithGroupByWithDistinct [tds/tests]: unknown function 'meta::pure::tds::distinct'
 - ERROR simpleGroupByAnd [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::and'
 - ERROR simpleGroupByOr [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::or'
@@ -4962,13 +5072,13 @@ in-process Alloy-shaped path).
 - ERROR testGroupByWithMultipleWavgAggregation [tds/tests]: unknown function 'wavgRowMapper'
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testSimpleSortAscWithPreval [tds/tests]: execute() whose query argument is not a lambda
-- SHAPE testSortQuotes [tds/tests]: no execute(|...) call
+- ERROR testSortQuotes [tds/tests]: unknown function 'enumValues'
 - ERROR testTableToTDSWithQuotes [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
 - ERROR testMultiConcatenate [tds/tests]: lowering not yet implemented for TypedCollection
-- ERROR testTDSContainsType1 [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testTDSContainsType1Negation [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testTDSContainsType1NegationWithExtendedPrimitives [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testTDSContainsType1NegationFurtherOps [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testTDSContainsType1 [tds/tests]: no overload of 'tdsContains' matches 3 argument(s) of these shapes
+- ERROR testTDSContainsType1Negation [tds/tests]: no overload of 'tdsContains' matches 3 argument(s) of these shapes
+- ERROR testTDSContainsType1NegationWithExtendedPrimitives [tds/tests]: no overload of 'tdsContains' matches 3 argument(s) of these shapes
+- ERROR testTDSContainsType1NegationFurtherOps [tds/tests]: no overload of 'tdsContains' matches 3 argument(s) of these shapes
 - ERROR testTDSContainsType2 [tds/tests]: no overload of 'tdsContains' matches 5 argument(s) of these shapes
 - ERROR testTDSContainsType2Negation [tds/tests]: no overload of 'tdsContains' matches 5 argument(s) of these shapes
 - ERROR testTDSContainsType2NegationFurtherOps [tds/tests]: no overload of 'tdsContains' matches 5 argument(s) of these shapes
@@ -4987,7 +5097,7 @@ in-process Alloy-shaped path).
 - SHAPE testParseDate [tds/tests]: no execute(|...) call
 - SHAPE testDecimal [tds/tests]: no execute(|...) call
 - ERROR testNull [tds/tests]: ~isNull: mapped/aggregate column specifications need an enclosing call to type against
-- SHAPE testStringConcatSQLGeneration [tds/tests]: no execute(|...) call
+- ERROR testStringConcatSQLGeneration [tds/tests]: ~exprString3: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testIfWithEmptyExtension [tds/tests]: ~extended: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testExtendWithQuotedColumnWithTableToTDS [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
 - ERROR testExtendsWithInClause [tds/tests]: ~stringExtends1: mapped/aggregate column specifications need an enclosing call to type against
@@ -5032,7 +5142,7 @@ in-process Alloy-shaped path).
 - ERROR testOptionalLimit_NoValue [tds/tests]: no overload of 'meta::pure::functions::relation::limit' structurally matches the argument types
 - ERROR testOptionalLimit_WithValue [tds/tests]: dynamic slicing bounds are not lowered yet (literal expected), got TypedNativeCall
 - ERROR testProjectWithColumnSubSet [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
-- ERROR testProjectWithColumnSubSetFunctions [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testProjectWithColumnSubSetFunctions [tds/tests]: no overload of 'projectWithColumnSubset' matches 4 argument(s) of these shapes
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testProjectWithQuotedColumnFromTableToTDS [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
 - ERROR testRestrictOnGroupByColumn_SubSetOfGroupByColumns [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
@@ -5044,7 +5154,7 @@ in-process Alloy-shaped path).
 - ERROR testRestrictDistinct_NoOptimization_NotAfterProject [tds/tests]: Binder Error: No function matches the given name and argument types 'list_sort(VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(ANY[], VARCHAR) -> ANY[] | 	list_sort(ANY[], VARCHAR, VARCHAR) -> ANY[] |  |  | LINE 1: SELECT coales
 - ERROR testRestrictDistinct_NoOptimization_NotRestrictFollowedByDistinct [tds/tests]: Binder Error: No function matches the given name and argument types 'list_sort(VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(ANY[], VARCHAR) -> ANY[] | 	list_sort(ANY[], VARCHAR, VARCHAR) -> ANY[] |  |  | LINE 1: SELECT coales
 - ERROR testRestrictDistinct_JoinCutDown_PostTdsOperations [tds/tests]: Binder Error: No function matches the given name and argument types 'list_sort(BIGINT)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(ANY[], VARCHAR) -> ANY[] | 	list_sort(ANY[], VARCHAR, VARCHAR) -> ANY[] |  |  | LINE 1: SELECT coalesc
-- SHAPE testRestrictDistinct_NoOptimization_WindowColumns [tds/tests]: no execute(|...) call
+- ERROR testRestrictDistinct_NoOptimization_WindowColumns [tds/tests]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
 - SHAPE testSimpleRelationalUnion [tds/tests]: no execute(|...) call
 - ERROR testSimpleUnion [tds/tests]: unknown function 'union'
 - SHAPE testUnionWithGroupBy [tds/tests]: no execute(|...) call
@@ -5054,8 +5164,8 @@ in-process Alloy-shaped path).
 - SHAPE testUnionWithPrePostOperation [tds/tests]: no execute(|...) call
 - SHAPE testUnionWithJoin [tds/tests]: no execute(|...) call
 - ERROR testPercentileWindowFunction [tds/tests]: no overload of 'func' matches 2 argument(s) of these shapes
-- ERROR testDistinctBeforeWindowFunction [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testDistinctAfterWindowFunction [tds/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR testDistinctBeforeWindowFunction [tds/tests]: no overload of 'func' matches 2 argument(s) of these shapes
+- ERROR testDistinctAfterWindowFunction [tds/tests]: no overload of 'func' matches 2 argument(s) of these shapes
 - ERROR testProjectStringColumn [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - ERROR testInnerJoinTabletoObject [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::dbInc], CString[value=default], CString[value=personTable]]
 - ERROR testSimpleFilter [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
@@ -5205,7 +5315,7 @@ in-process Alloy-shaped path).
 - ERROR projectionInvolvingOneNestedAtributeOnTriangularJoinAndOtherJoin [tests/advanced]: navigation through class-typed slot property 'locations' is not supported yet
 - SHAPE testFilterMappingWithProjectionOverlappForcedCorrelated [tests/advanced]: no execute(|...) call
 - SHAPE testFilterMappingWithProjectionOverlappForcedOnClause [tests/advanced]: no execute(|...) call
-- ERROR testProject [tests/advanced]: class meta::relational::tests::model::simple::Trade has no property 'name'
+- FAIL testProject [tests/advanced]: assertEquals: expected 4, got 0
 - SHAPE testMilestoningQueryWithSimpleProjectWithMilestoneFilterForcedCorrelated [tests/advanced]: no execute(|...) call
 - SHAPE testMilestoningQueryWithSimpleProjectWithMilestoneFilterForcedOnClause [tests/advanced]: no execute(|...) call
 - SHAPE testNonMilestoningQueryWithMilestoneFilterProjectForcedCorrelated [tests/advanced]: no execute(|...) call
@@ -5240,17 +5350,10 @@ in-process Alloy-shaped path).
 - ERROR relationalResultSourcingOfList [tests/advanced]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR relationalResultSourcingOfDateList [tests/advanced]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - SHAPE relationalResultSourcingOfListExecutionPlan [tests/advanced]: no execute(|...) call
-- ERROR testSimpleTypeMapping [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
-- ERROR testSimpleTypeMappingProject [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
-- ERROR testSimpleTypeMappingNulls [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
-- ERROR testSimpleTypeMappingBooleanFalse [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
-- ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: in function 'meta::relational::tests::mapping::dataType::model::mapping::testMapping$class$meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': property 'decimalAsFloat' of 'meta::relational::tests::mapping::dataType::model::domain::DataDBTypes': expected Float, got Decimal(18,6)
-- ERROR testProject [tests/injection]: property 'productDate' of class 'meta::relational::tests::injection::model::Trade' has no binding in mapping 'meta::relational::tests::injection::mapping::myMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
+- ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: unknown function 'toJSON'
 - ERROR testProjectThroughAssociation [tests/injection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]], property=trades, info=ExprType
 - ERROR testProjectThroughAssociationAutoMap [tests/injection]: in call to 'meta::relational::tests::injection::model::Trade$prop$productAtTimeOfTrade', argument 1: expected at most one value, got many ([*])
-- ERROR testGet [tests/mapping]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
-- ERROR testQuery [tests/mapping]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
-- ERROR testProject [tests/mapping]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
+- ERROR testGet [tests/mapping]: scalar lowering not yet implemented for TypedFilter
 - ERROR testGet [tests/mapping]: scalar lowering not yet implemented for TypedFilter
 - ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall
 - ERROR testGet [tests/mapping]: scalar lowering not yet implemented for TypedFilter
@@ -5272,14 +5375,8 @@ in-process Alloy-shaped path).
 - ERROR testSubTypeFilter [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - ERROR testSubTypeProjectWithAssociation [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/association]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testSubTypeInColumnProjectionsWithInlineMappings [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::ineritanceMappingWithInlineEmbeddedSets' (ColumnRef references table 'Person' not in scope; available=[Bicycle])
-- ERROR testRootQueryWithInnerJoinClassMappingTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::baseMappingWithInnerJoinInFilter' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet; clas
-- ERROR testRootQueryWithInnerJoinClassMappingFilterAndPropertyMappedWithJoinToFilterTable [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithInnerJoinInFilter' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet; class=me
-- ERROR testRootQueryWithInnerJoinClassOwnedPropertyMappingTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::classOwnedMappingWithInnerJoinInFilter' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet
-- ERROR testRootFilterQueryWithInnerJoinClassMappingTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::baseMappingWithInnerJoinInFilter' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet; clas
-- ERROR testRootFilterAndProjectionQueryWithInnerJoinClassMappingFilterAndPropertyMappedWithJoinToFilterTable [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithInnerJoinInFilter' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet; class=me
-- ERROR testRootFilterAndProjectionQueryWithInnerJoinClassOwnedPropertyMappingTable [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::classOwnedMappingWithInnerJoinInFilter' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet
-- ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::chainedJoinsWithUnionsAndIsolation' (Join 'PersonSet1FirmSet1' not found in db 'meta::relational::tests::mapping::classMappingFilterWithInnerJo
+- ERROR testSubTypeInColumnProjectionsWithInlineMappings [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::ineritanceMappingWithInlineEmbeddedSets' (join chain [PersonBicycle] was never emitted on this pipeline — the expression navigates a join that was not ho
+- ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::chainedJoinsWithUnionsAndIsolation' (Join 'PersonSet1AddressSet1' not found in db 'meta::relational::tests::mapping::classMappingFilterWithInne
 - ERROR testDynafunctionMergeWithProjectionQueryWithInnerJoinTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::MergeAliasMappingWithInnerJoinFilter' (Join 'personSet_organization_Join' not found in db 'meta::relational::tests::mapping::classMappingFilter
 - ERROR testPropertyProjectionQueryWithInnerJoinClassOwnedPropertyMappingTable [tests/mapping/classMappingFilterWithInnerJoin]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testPropertyProjectionQueryWithInnerJoinEmbeddedMappingTable [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testMappingEmbeddedWithInnerJoinFilter' (Join 'firmEmployees' not found in db 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin:
@@ -5287,30 +5384,23 @@ in-process Alloy-shaped path).
 - ERROR testPropertyQueryWithInnerJoinClassMappingWithMilestoningTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
 - ERROR testPropertyProjectionQueryWithInnerJoinClassMappingWithMilestoningTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
 - ERROR testSubTypeProjectionQueryWithInnerJoinClassMappingTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::inheritanceMappingWithInnerJoin' (Join 'PersonBicycle' not found in db 'meta::relational::tests::mapping::classMappingFilterWithInner
-- ERROR testSourceViewRootQueryWithInnerJoinClassMappingTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToTableMapping' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet; class=meta::re
 - ERROR testSourceViewPropertyQueryWithInnerJoinClassMappingTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testTargetViewRootQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testTableToViewMapping' (Join 'Firm_Person' not found in db 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::store:
+- ERROR testTargetViewRootQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testTableToViewMapping' (Join 'PersonWithPersonView' not found in db 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mappin
 - ERROR testTargetViewPropertyQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testSourceViewRootQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet; class=meta::rel
+- ERROR testSourceViewRootQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must ex
 - ERROR testSourceViewPropertyQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testInnerJoinClassMappingFilterProjectingPropertyUsingFilterJoin [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithInnerJoinInFilterEdgeCases' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet;
-- ERROR testInnerJoinClassMappingFilterProjectingPropertiesUsingFilterJoin [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithInnerJoinInFilterEdgeCases' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet;
-- ERROR testInnerJoinClassMappingFilterWithFilterPresentInJoinCondition [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithInnerJoinInFilterEdgeCases1' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet
-- ERROR testInnerJoinClassMappingFilterWithSameFilterInQuery [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithInnerJoinInFilter' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet; class=me
-- ERROR testInnerJoinClassMappingFilterAtPropertyLevelWithSameFilterInQuery [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithInnerJoinInFilterEdgeCases' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet;
-- ERROR testInnerJoinClassMappingFilterWithChainedJoins [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithInnerJoinInFilterEdgeCases1' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet; 
+- ERROR testInnerJoinClassMappingFilterProjectingPropertiesUsingFilterJoin [tests/mapping/classMappingFilterWithInnerJoin]: unknown type 'TabularDataSet' in @TabularDataSet
 - ERROR testMilestoneDatePropogationThruExistsConditionalClause [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Order' is not a known class, mapping, runtime, connection, or database
-- ERROR testMergeForClassMappingInnerJoinFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::model::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithMultipleClassMappings' (mapping ~filter with an explicit (INNER) join type row-explodes through to
-- ERROR testMergeForClassMappingInnerJoinFilter1 [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::model::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithMultipleClassMappings' (mapping ~filter with an explicit (INNER) join type row-explodes through to
-- ERROR testLazyExecution [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::classOwnedMappingWithInnerJoinInFilter' (mapping ~filter with an explicit (INNER) join type row-explodes through to-many chains — not built yet
+- ERROR testMergeForClassMappingInnerJoinFilter [tests/mapping/classMappingFilterWithInnerJoin]: property 'employees2' of class 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::model::Firm' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithMultipleClassMappings'
+- ERROR testMergeForClassMappingInnerJoinFilter1 [tests/mapping/classMappingFilterWithInnerJoin]: property 'employees3' of class 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::model::Firm' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithMultipleClassMappings'
+- ERROR testLazyExecution [tests/mapping/classMappingFilterWithInnerJoin]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testCorrelatedSubSqlQueryGeneration [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
-- ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::TemporalProduct' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::store::TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNested' (mapping ~filter with an explicit (INNER) join type row-ex
+- ERROR TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNestedGeneration [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::TemporalProduct' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::store::TestClassMappingsWithInnerFilterJoinedWithMilestoningDepthTwoNested' (main table 'ProductTableView' not found in db 'meta::rela
 - ERROR testDistinctMappingWithFullDenormSelfJoins [tests/mapping/distinct]: store resolution left getAll(meta::relational::tests::mapping::distinct::model::domain::Classification) unresolved — the query shape around it is not supported by the resolver yet
 - ERROR testDistinctMappingWithFullDenormSelfJoinsWithFilterOnJoin [tests/mapping/distinct]: store resolution left getAll(meta::relational::tests::mapping::distinct::model::domain::Classification) unresolved — the query shape around it is not supported by the resolver yet
 - ERROR testDistinctMappingWithFullDenormSelfJoinsWithTwoFiltersOnJoin [tests/mapping/distinct]: store resolution left getAll(meta::relational::tests::mapping::distinct::model::domain::Classification) unresolved — the query shape around it is not supported by the resolver yet
 - ERROR testDistinctMappingWithCaseStatement [tests/mapping/distinct]: store resolution left getAll(meta::relational::tests::mapping::distinct::model::domain::Classification) unresolved — the query shape around it is not supported by the resolver yet
 - FAIL testFilterOnMultiLevelJoinWithNonAggregateFunction [tests/mapping/dynaJoin]: assertEquals: expected [New,Hoboken, Correct,New York, Settle,New York, New,New York, Cancel,San Fransisco], got [New,TDSNull, Correct,TDSNull, Settle,TDSNull, New,TDSNull, Cancel,TDSNull]
-- ERROR testSelfJoinWithAggregateFunction [tests/mapping/dynaJoin]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Interaction': property 'active' of 'meta::relational::tests::model::simple::Interaction': expected Boolean, got String (value: AppliedFunction[function=toOne, parameters=[AppliedFunction[funct
 - ERROR testDenormMappingOneToManyProjectLambdaSyntaxWithMap [tests/mapping/embedded]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
 - ERROR testProjectToEmbedded [tests/mapping/embedded]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
 - ERROR testExists [tests/mapping/embedded]: class-typed property '$p.firm' used as a whole value is graph output (Phase H4)
@@ -5371,12 +5461,9 @@ in-process Alloy-shaped path).
 - ERROR testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: multi-hop navigation parent.parent.name through an embedded/slot head is not supported yet
 - ERROR testFilterMappingWithProjectionAndJoin [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithProjectionAndJoinAndQuery [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
-- ERROR testGroupByMappingWithFilterOnAggregateWithJoin [tests/mapping/groupBy]: association 'meta::relational::tests::mapping::groupBy::model::domain::PositionProduct' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping'
 - ERROR testGroupByMappingWithFilterOnAggregateWithProject [tests/mapping/groupBy]: lowering not yet implemented for TypedNativeCall
-- ERROR testGroupByMappingProjectWithJoin [tests/mapping/groupBy]: association 'meta::relational::tests::mapping::groupBy::model::domain::PositionProduct' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMapping'
-- ERROR testGroupByMappingProjectWithJoinAndTableFilter [tests/mapping/groupBy]: association 'meta::relational::tests::mapping::groupBy::model::domain::PositionProduct' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMappingWithFilter'
 - ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: Binder Error: Values list "t2" does not have a column named "PRODUCT_ID" |  | LINE 7: ) AS t2 ON t2.PRODUCT_ID = t0.ID |                    ^
-- ERROR testGroupByMappingProjectWithMultipleGroupBys [tests/mapping/groupBy]: association 'meta::relational::tests::mapping::groupBy::model::domain::PositionProduct' is not mapped in mapping 'meta::relational::tests::mapping::groupBy::model::mapping::testMappingWithTwoGroupBysAndFilters'
+- ERROR testGroupByMappingProjectWithMultipleGroupBys [tests/mapping/groupBy]: Binder Error: Values list "t3" does not have a column named "PRODUCT_ID" |  | LINE 13: ) AS t3 ON t1.k1__PRODUCT_ID = t3.PRODUCT_ID |                                         ^
 - SHAPE testJoinWithInClause0 [tests/mapping/inClause]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testJoinWithPrefixInClauseContainingNumberLiterals [tests/mapping/inClause]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testJoinWithPrefixInClauseContainingStringLiterals [tests/mapping/inClause]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -5420,7 +5507,6 @@ in-process Alloy-shaped path).
 - ERROR testFilterDeepWithJoinInMappingInMiddle [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - FAIL testMultipleJoinsInPropertyMappingWithDatesInClass [tests/mapping/join]: assertSameElements: expected [Row1, Row2, Row3, Row1, Row2, Row3], got [Row1, Row2, Row3]
 - ERROR testMultipleJoinsInPropertyMappingWithDateInJoin [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::advancedRelationalMapping2$class$meta::relational::tests::mapping::join::model::domain::TypeBuiltOutOfMultipleJoins': no overload of 'meta::pure::functions::boolean::lessThanEqual' structurally matches the argument types
-- ERROR testConvertToStringH2 [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::MappingForAccountAndTrade$class$meta::relational::tests::model::simple::Trade': property 'quantity' of 'meta::relational::tests::model::simple::Trade': expected Float, got Integer (value: AppliedFunction[function=toOne, parameters=
 - ERROR testChainedOuterJoinsWithFilterInproject [tests/mapping/join]: Binder Error: Referenced table "t3" not found! | Candidate tables: "t0" |  | LINE 4: ... AS Person_MiddleTable__MiddleTable_PersonExtension_EXTRAINFO, t3.NUMBER AS Person_MiddleTable__MiddleTable_PersonExtensio... |                                                                           ^
 - ERROR testChainedOuterJoinsWithQualifierInproject [tests/mapping/join]: Binder Error: Referenced table "t3" not found! | Candidate tables: "t0" |  | LINE 4: ... AS Person_MiddleTable__MiddleTable_PersonExtension_EXTRAINFO, t3.NUMBER AS Person_MiddleTable__MiddleTable_PersonExtensio... |                                                                           ^
 - ERROR testChainedInnerJoinsWithQualifierInGroupBy [tests/mapping/join]: filtered-navigation leaf 'extraInformation' reads a join slot of 'meta::relational::tests::model::simple::Person' — slot-demanding leaves under value-position filters are not supported yet
@@ -5514,33 +5600,32 @@ in-process Alloy-shaped path).
 - ERROR testMappingWithProcessingTemporalMilestoningAllVersionsInRange [tests/mapping/relation]: milestoning column 'IN_Z' is not on the pipeline row of 'meta::relational::tests::mapping::relation::ProcessingTemporalPerson'
 - ERROR testMappingWithBusinessTemporalMilestoningAllVersionsInRange [tests/mapping/relation]: milestoning column 'FROM_Z' is not on the pipeline row of 'meta::relational::tests::mapping::relation::BusinessTemporalPerson'
 - ERROR testMixedTemporalMappingWithAllVersionsInRange1 [tests/mapping/relation]: milestoning column 'FROM_Z' is not on the pipeline row of 'meta::relational::tests::mapping::relation::BusinessTemporalFirm'
-- SHAPE testSubAggregationOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
-- SHAPE testSubAggregationOnRelationMappingWithSimpleProperty [tests/mapping/relation/aggregation]: no execute(|...) call
-- SHAPE testTwoSubAggregationOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
-- SHAPE testSubAggregationSumOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
-- SHAPE testSubAggregationMaxOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
-- SHAPE testSubAggregationMinOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
-- SHAPE testSubAggregationCountOnlyOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
-- SHAPE testSubAggregationWithIfOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
-- SHAPE testSubAggregationJoinStringsOnRelationMapping [tests/mapping/relation/aggregation]: no execute(|...) call
+- ERROR testSubAggregationOnRelationMapping [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
+- ERROR testSubAggregationOnRelationMappingWithSimpleProperty [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
+- ERROR testTwoSubAggregationOnRelationMapping [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
+- ERROR testSubAggregationSumOnRelationMapping [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
+- ERROR testSubAggregationMaxOnRelationMapping [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
+- ERROR testSubAggregationMinOnRelationMapping [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
+- ERROR testSubAggregationCountOnlyOnRelationMapping [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
+- ERROR testSubAggregationWithIfOnRelationMapping [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
+- ERROR testSubAggregationJoinStringsOnRelationMapping [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
 - FAIL testSelfJoinPropertyMappingOverlap [tests/mapping/selfJoin]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - FAIL testSelfJoinPropertyMappingWithDynaFunction [tests/mapping/selfJoin]: assertEquals: expected [ROOT, TDSNull, TDSNull, true], got [Banking_c1_c1, Firm X, ROOT, false]
-- SHAPE testTriminNotSybaseASE [tests/mapping/sqlFunction]: no execute(|...) call
+- ERROR testTriminNotSybaseASE [tests/mapping/sqlFunction]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - ERROR testProject [tests/mapping/sqlFunction]: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[], VARCHAR, [ANY...]) -> ANY |  |  | LINE 1: SELECT list_aggregate(t0.int1, 'stddev_samp') AS stdDev
 - ERROR testProject [tests/mapping/sqlFunction]: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[], VARCHAR, [ANY...]) -> ANY |  |  | LINE 1: SELECT list_aggregate(t0.int1, 'stddev_pop') AS stdDevP
 - ERROR testProject [tests/mapping/sqlFunction]: unknown type 'TabularDataSet' in @TabularDataSet
-- SHAPE testFilter [tests/mapping/sqlFunction]: assert form 'assertEqWithinTolerance/3' is not supported yet
-- SHAPE testToSQLStringToStringInDB2 [tests/mapping/sqlFunction]: no execute(|...) call
-- SHAPE testToSQLStringConcatInDB2 [tests/mapping/sqlFunction]: no execute(|...) call
+- ERROR testFilter [tests/mapping/sqlFunction]: unknown type 'TabularDataSet' in @TabularDataSet
+- ERROR testToSQLStringToStringInDB2 [tests/mapping/sqlFunction]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
+- ERROR testToSQLStringConcatInDB2 [tests/mapping/sqlFunction]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - FAIL testToSQLStringParseDecimalExecutioninH2 [tests/mapping/sqlFunction]: assertEquals: expected [123.45, 100.01], got [123.450021000000000000, 100.009000000000000000]
 - FAIL testToSQLStringParseDecimalSQLCompilationinH2 [tests/mapping/sqlFunction]: assertEquals: expected [123.45, 100.01], got [123.450021000000000000, 100.009000000000000000]
-- SHAPE testToSQLStringParseIntegerinH2 [tests/mapping/sqlFunction]: no execute(|...) call
-- SHAPE testToSQLStringParseIntegerinComposite [tests/mapping/sqlFunction]: no execute(|...) call
-- SHAPE testToSQLStringParseIntegerinDB2 [tests/mapping/sqlFunction]: no execute(|...) call
-- SHAPE testToSQLStringconvertToDateinDb2 [tests/mapping/sqlFunction]: no execute(|...) call
-- SHAPE testToSQLStringconvertToDateTimeinDb2 [tests/mapping/sqlFunction]: no execute(|...) call
+- FAIL testToSQLStringParseIntegerinH2 [tests/mapping/sqlFunction]: assertEquals: expected select cast("root".string2Integer as integer) as "parseInteger" from dataTable as "root", got select cast("root".string2Integer as bigint) as "parseInteger" from dataTable as "root"
+- ERROR testToSQLStringParseIntegerinComposite [tests/mapping/sqlFunction]: toSQLString for DatabaseType.Composite — only the H2 engine-style renderer is built
+- ERROR testToSQLStringParseIntegerinDB2 [tests/mapping/sqlFunction]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
+- ERROR testToSQLStringconvertToDateinDb2 [tests/mapping/sqlFunction]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
+- ERROR testToSQLStringconvertToDateTimeinDb2 [tests/mapping/sqlFunction]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - ERROR testFilter [tests/mapping/sqlFunction]: Parser Error: syntax error at or near "=" |  | LINE 3: WHERE lower(t0.stringToInt) = upper(t0.stringToInt) = TRUE |                                                             ^
-- SHAPE testToSQLConvertDateH2 [tests/mapping/sqlFunction]: no execute(|...) call
 - ERROR testAdjustDateTranslationInMappingAndQuery [tests/mapping/sqlFunction]: only single-expression lambdas are supported yet
 - ERROR testQuerySimple [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
 - ERROR testQueryWithResultWithAnd [tests/mapping/tree]: filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
@@ -5623,21 +5708,22 @@ in-process Alloy-shaped path).
 - ERROR testUnionedViewsToViewToUnion [tests/mapping/union]: class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::unionOfViewsToViewToUnion' (Operation union over a VIEW-backed member set is not supported yet; mapping=meta::relational::
 - ERROR testUnionTwoRelationMappings_EmbeddedFirmProject [tests/mapping/union/relation]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEmbeddedFirm' (union member 'meta::relational::tests::model::simple::Person': relation column mapping for property 'firm' has no 
 - ERROR testUnionTwoRelationMappings_EmbeddedFirmFilter [tests/mapping/union/relation]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEmbeddedFirm' (union member 'meta::relational::tests::model::simple::Person': relation column mapping for property 'firm' has no 
-- SHAPE testUnionTwoRelationMappings_EmbeddedFirmProject_Tds [tests/mapping/union/relation]: no execute(|...) call
-- SHAPE testUnionTwoRelationMappings_EmbeddedFirmFilter_Tds [tests/mapping/union/relation]: no execute(|...) call
+- ERROR testUnionTwoRelationMappings_EmbeddedFirmProject_Tds [tests/mapping/union/relation]: unknown type 'TabularDataSet' in @TabularDataSet
+- ERROR testUnionTwoRelationMappings_EmbeddedFirmFilter_Tds [tests/mapping/union/relation]: unknown type 'TabularDataSet' in @TabularDataSet
 - ERROR testIsNotEmptyForRelational_returnsTrue [tests/platformOperations]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testIsNotEmptyForRelational_returnsFalse [tests/platformOperations]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testIsEmptyForRelational_returnsFalse [tests/platformOperations]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testIsEmptyForRelational_returnsTrue [tests/platformOperations]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testGroupByWithFilterFunction_noDatePath [tests/query]: in function 'meta::relational::tests::groupBy::datePeriods::ytd': 'meta::pure::functions::collection::map' expects a lambda argument in position 1
 - ERROR testDayOfWeek [tests/query]: unknown function 'mostRecentDayOfWeek'
-- FAIL testAssociationToManyWithTwoSeparateExists [tests/query]: assertSameElements: expected Firm X, got [Firm X, Firm X, Firm X, Firm X, Firm X]
+- ERROR testAssociationMixedDeep [tests/query]: scalar lowering not yet implemented for TypedSerializeGraph
+- ERROR testAssociationToManyWithTwoSeparateExists [tests/query]: scalar lowering not yet implemented for TypedSerializeGraph
 - FAIL testWithParameterToClassNestedSelect [tests/query]: assertSize: expected 0, got 1
 - ERROR testViewAll [tests/query]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
 - ERROR testViewWithJoinsAndDistinct [tests/query]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::TestMappingWithViewJoins' (Join 'personViewWithFirmTable' not found in db 'meta::relational::tests::db'; PM='null', mapping=meta::relational::tests::TestMappingWithViewJoins)
 - ERROR testDistinctOnlyIncludesTopLevelColumns [tests/query]: in function 'meta::relational::tests::TestViewWithDistinctAndJoins$class$meta::relational::tests::model::simple::Person': unknown table 'FirstNameAddress' in database 'meta::relational::tests::db'
 - ERROR testViewSimpleFilter [tests/query]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
-- ERROR testAllWithJoinToView [tests/query]: in function 'meta::relational::tests::simpleRelationalMapping$class$meta::relational::tests::model::simple::Order': property 'quantity' of 'meta::relational::tests::model::simple::Order': expected Float, got Integer (value: AppliedFunction[function=toOne, parameters=[AppliedProperty[receiver=Variabl
+- ERROR testAllWithJoinToView [tests/query]: resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
 - ERROR testViewSimpleExists [tests/query]: in function 'meta::relational::tests::query::view::relationalMappingWithViewAndInnerJoin$class$meta::relational::tests::model::simple::Order': unknown table 'PersonFirmView' in database 'meta::relational::tests::db'
 - ERROR testViewPropertyFilterWithPrimaryKey [tests/query]: in function 'meta::relational::tests::query::view::EmployeeMappingWithViewAndInnerJoin$class$meta::relational::tests::model::simple::Employee': unknown table 'OrgView' in database 'meta::relational::tests::db'
 - ERROR testPushDownProject [tests/query]: unknown enumeration 'meta::pure::executionPlan::features::Feature'
@@ -5649,59 +5735,43 @@ in-process Alloy-shaped path).
 - ERROR testFilterUsingArcCosFunction [tests/query]: Invalid Input Error: Unable to compute acos of 1.1
 - SHAPE testFilterTimesWithManyOperands [tests/query]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - ERROR testCollectionDistinctFunction [tests/query]: Binder Error: subqueries in lambda expressions are not supported
-- ERROR testJoinStringFunction [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testDayOfWeekFunction [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- ERROR testDayOfWeekNumberFunction [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- SHAPE testToSQLString [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringNonPrestoSchemaNameShouldNotConvertDollarSign [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringComposite [transform/fromPure/tests]: no execute(|...) call
+- ERROR testJoinStringFunction [tests/query]: no overload of 'meta::pure::functions::string::joinStrings' accepts 1 argument(s)
+- ERROR testDayOfWeekNumberFunction [tests/query]: no overload of 'meta::pure::functions::date::dayOfWeekNumber' accepts 2 argument(s)
+- ERROR testToSQLStringComposite [transform/fromPure/tests]: toSQLString for DatabaseType.Composite — only the H2 engine-style renderer is built
 - SHAPE testToSQLStringWithAggregation [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringWithAggregationDB2 [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringWithRelativeDateDB2 [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringWithAbs [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringJoinStrings [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringJoinStringsSimpleConcat [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringWithCodeBlock [transform/fromPure/tests]: no execute(|...) call
+- ERROR testToSQLStringWithAggregationDB2 [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
+- ERROR testToSQLStringWithRelativeDateDB2 [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
+- ERROR testToSQLStringWithAbs [transform/fromPure/tests]: Unknown type: 'Mapping' is not a known primitive, class, or enum
+- ERROR testToSQLStringJoinStrings [transform/fromPure/tests]: expected at most one value, got many ([*])
+- ERROR testToSQLStringJoinStringsSimpleConcat [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
+- SHAPE testToSQLStringWithCodeBlock [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testNonExecutableSQLString [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringWithLength [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringReverse [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringSplitPart [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringAscii [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringChar [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringWithPosition [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringWithStdDevSample [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringWithStdDevPopulation [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testGenerateDateDiffExpressionForH2ForDifferenceInYears [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testGenerateDateDiffExpressionForH2ForDifferenceInMonths [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testGenerateDateDiffExpressionForH2ForDifferenceInWeeks [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testGenerateDateDiffExpressionForH2ForDifferenceInDays [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testGenerateDateDiffExpressionForH2ForDifferenceInHours [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testGenerateDateDiffExpressionForH2ForDifferenceInMinutes [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testGenerateDateDiffExpressionForH2ForDifferenceInSeconds [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testGenerateDateDiffExpressionForH2ForDifferenceInMilliseconds [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testDayOfYear [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testTrim [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testPad [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testLeftRight [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testCbrt [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testSqlGenerationForAdjustStrictDateUsageInProjectionForH2 [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testSqlGenerationForAdjustStrictDateUsageInFiltersForH2 [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testSqlGenerationForDatePartForH2 [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSqlGenerationFirstDayOfMonth [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSqlGenerationFirstDayOfYear [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSqlGenerationFirstDayOfThisYear [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSqlGenerationFirstDayOfQuarter_H2 [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSqlGenerationFirstDayOfQuarter_DB2 [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSqlGenerationFirstDayOfWeek [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSqlGenerationMonth [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringWithRepeatString [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringWithReplace [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testSqlGenerationDivide_AllDBs [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testIsDistinctSQLGeneration [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringToNumericCasts [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testGreatestLeast [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testToSQLStringForTDSStringJoin [transform/fromPure/tests]: no execute(|...) call
-- SHAPE testHashFunctions [transform/fromPure/tests]: no execute(|...) call
+- ERROR testToSQLStringWithLength [transform/fromPure/tests]: only single-expression lambdas are supported yet
+- ERROR testToSQLStringReverse [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
+- FAIL testToSQLStringSplitPart [transform/fromPure/tests]: assertEquals: expected select legend_h2_extension_split_part(legend_h2_extension_split_part("root".FIRSTNAME, '|', 1), ',', 2) as "splitComma", legend_h2_extension_split_part(legend_h2_extension_split_part("root".FIRSTNAME, '|', 1 + 1 + 1), ',', 1 + 1 + 1) as "splitCommaExpression" from personTable 
+- ERROR testToSQLStringWithPosition [transform/fromPure/tests]: only single-expression lambdas are supported yet
+- ERROR testToSQLStringWithStdDevSample [transform/fromPure/tests]: only single-expression lambdas are supported yet
+- ERROR testToSQLStringWithStdDevPopulation [transform/fromPure/tests]: only single-expression lambdas are supported yet
+- SHAPE testDayOfYear [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.DB2 — only the H2 renderer is built
+- SHAPE testTrim [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.DB2 — only the H2 renderer is built
+- SHAPE testPad [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.DB2 — only the H2 renderer is built
+- SHAPE testLeftRight [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.DB2 — only the H2 renderer is built
+- SHAPE testCbrt [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.DB2 — only the H2 renderer is built
+- SHAPE testSqlGenerationForAdjustStrictDateUsageInProjectionForH2 [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testSqlGenerationForAdjustStrictDateUsageInFiltersForH2 [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testToSqlGenerationFirstDayOfMonth [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.DB2 — only the H2 renderer is built
+- SHAPE testToSqlGenerationFirstDayOfYear [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.DB2 — only the H2 renderer is built
+- SHAPE testToSqlGenerationFirstDayOfThisYear [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.DB2 — only the H2 renderer is built
+- FAIL testToSqlGenerationFirstDayOfQuarter_H2 [transform/fromPure/tests]: assertEquals: expected select cast(cast(date_trunc('quarter', "root".tradeDate) as timestamp) as date) as "date" from tradeTable as "root", got select date_trunc('quarter', "root".tradeDate) as "date" from tradeTable as "root"
+- ERROR testToSqlGenerationFirstDayOfQuarter_DB2 [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
+- ERROR testToSqlGenerationFirstDayOfWeek [transform/fromPure/tests]: unknown function 'firstDayOfWeek'
+- ERROR testToSQLStringWithRepeatString [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
+- ERROR testToSQLStringWithReplace [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
+- SHAPE testSqlGenerationDivide_AllDBs [transform/fromPure/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
+- SHAPE testIsDistinctSQLGeneration [transform/fromPure/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
+- ERROR testGreatestLeast [transform/fromPure/tests]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary): TypedCast[source=TypedCollection[elements=[], info=ExprType[type=ClassType[fqn=meta::pure::metamodel::type::Nil], multiplicity=Bounded[lower=0, upper=0]]], target=STRING, info=ExprType[type=STRING, multiplicity=Bounded[
+- ERROR testToSQLStringForTDSStringJoin [transform/fromPure/tests]: ~name1: mapped/aggregate column specifications need an enclosing call to type against
+- ERROR testHashFunctions [transform/fromPure/tests]: no overload of 'meta::pure::functions::string::joinStrings' accepts 1 argument(s)
 - SHAPE validateAllConstraints [validation/showcase]: no execute(|...) call
 - SHAPE validateSingleConstraint [validation/showcase]: no execute(|...) call
 - SHAPE validateMultipleConstraints [validation/showcase]: no execute(|...) call

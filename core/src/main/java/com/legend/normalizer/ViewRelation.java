@@ -136,7 +136,7 @@ final class ViewRelation {
                 }
                 int match = -1;
                 for (int i = 0; i < keyOps.size(); i++) {
-                    if (!claimed[i] && MappingNormalizer.groupByOpsMatch(expr, keyOps.get(i))) {
+                    if (!claimed[i] && GroupBySynthesis.groupByOpsMatch(expr, keyOps.get(i))) {
                         match = i;
                         break;
                     }

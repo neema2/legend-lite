@@ -781,23 +781,6 @@ public final class MappingNormalizer {
         // cannot distinguish same-named duplicates (audit 11: textual PM
         // order silently decided the outcome), so no map-driven pre-rewrite
         // happens here.
-        // GROUPED sets carry only key + aggregate properties in the grouped
-        // ROW — a class-typed Join PM is navigation, never projection
-        // (stage 1, audit-17 bucket analysis): withhold it BEFORE synthesis
-        // so neither the ctor nor the slot injection references it; a
-        // query touching the property raises the ordinary not-mapped error.
-        if (cm instanceof ClassMapping.Relational g && !g.groupBy().isEmpty()
-                && g.propertyMappings().stream()
-                        .anyMatch(x -> x instanceof PropertyMapping.Join)) {
-            cm = new ClassMapping.Relational(
-                    g.className(), g.setId(), g.extendsSetId(), g.root(),
-                    g.mainTable(), g.filter(), g.distinct(), g.groupBy(),
-                    g.primaryKey(),
-                    g.propertyMappings().stream()
-                            .filter(x -> !(x instanceof PropertyMapping.Join))
-                            .toList(),
-                    g.sourceUrl(), g.propertyTargetSets());
-        }
         ValueSpecification body = switch (cm) {
             case ClassMapping.Pure pcm       -> synthM2M(md, pcm, model, new HashSet<>());
             case ClassMapping.Relational rcm -> synthRelational(md, rcm, model);
@@ -2065,8 +2048,15 @@ public final class MappingNormalizer {
 
         // Pass 1: structural chain emission (Join, JoinTerminalColumn,
         // LocalProperty-wrapping-JTC). Class-typed Join PMs to mapped
-        // targets emit a final-hop legacyNavigate.
+        // targets emit a final-hop legacyNavigate. On a ~groupBy class the
+        // Join PMs DEFER: their navigate lands AFTER the groupBy (stage 2 —
+        // the engine navigates a grouped set through the join over the
+        // GROUPED subselect, on the group-key columns).
+        boolean grouped = !rcm.groupBy().isEmpty();
         for (PropertyMapping pm : rcm.propertyMappings()) {
+            if (grouped && pm instanceof PropertyMapping.Join) {
+                continue;
+            }
             JoinChainEmission.emitHopsForStructuralPm(p, pm, rcm.className(), mainDb, mainTable,
                     rowBind, model, md);
         }
@@ -2109,7 +2099,29 @@ public final class MappingNormalizer {
 
         // Apply ~groupBy (with aggregate decomposition).
         if (!rcm.groupBy().isEmpty()) {
-            p.expr = applyGroupBy(p.expr, rcm, rowBind, mainTable, p, md);
+            p.expr = GroupBySynthesis.applyGroupBy(p.expr, rcm, rowBind, mainTable, p, md);
+            // stage 2: the deferred class-typed Join PMs navigate the
+            // GROUPED relation — the join condition's source-side reads
+            // redirect to the grouped OUTPUT columns (a condition column
+            // that is not a group key is loud: a grouped set cannot be
+            // navigated on a non-key).
+            Map<String, String> groupedNames =
+                    GroupBySynthesis.groupedKeyColumnNames(rcm, mainTable);
+            for (PropertyMapping pm : rcm.propertyMappings()) {
+                if (!(pm instanceof PropertyMapping.Join j)) {
+                    continue;
+                }
+                if (j.joins().size() != 1) {
+                    throw new NotImplementedException("multi-hop Join PM '"
+                            + j.propertyName() + "' on a ~groupBy class is"
+                            + " not supported yet; mapping="
+                            + md.qualifiedName());
+                }
+                JoinChainEmission.emitHopsForStructuralPm(p, j,
+                        rcm.className(), mainDb, mainTable, rowBind, model, md);
+                p.expr = GroupBySynthesis.renameGroupedNavCond(p.expr, groupedNames,
+                        j.propertyName(), md);
+            }
         }
 
         // ~primaryKey is intentionally NOT lowered into the realizing
@@ -2769,140 +2781,13 @@ public final class MappingNormalizer {
     // ~groupBy with aggregate fn1/fn2 decomposition  —  doc §5.3.5
     // ====================================================================
 
-    private static ValueSpecification applyGroupBy(ValueSpecification source,
-                                                  ClassMapping.Relational rcm,
-                                                  Variable rowBind, String mainTable,
-                                                  Pipeline p, LegacyMappingDefinition md) {
-        Map<String, ValueSpecification> scope = new LinkedHashMap<>();
-        scope.put(mainTable, rowBind);
-        seedAliasScope(scope, p, rowBind, mainTable);
 
-        List<RelationalOperation> keyOps = rcm.groupBy();
-        String[] keyNames = new String[keyOps.size()];
-        for (int i = 0; i < keyOps.size(); i++) {
-            String base = keyBaseName(keyOps.get(i));
-            keyNames[i] = base != null ? "k" + i + "__" + base : "k" + i;
-        }
-        // Walk PMs once: align non-agg PMs to keys by structural
-        // equality, collect aggregate PMs, reject orphan formulas.
-        Set<Integer> claimedKeys = new HashSet<>();
-        List<PropertyMapping> aggPms = new ArrayList<>();
-        for (PropertyMapping pm : rcm.propertyMappings()) {
-            if (isAggregatePm(pm)) { aggPms.add(pm); continue; }
-            // A JOIN PM (class-typed navigation) is not part of the grouped
-            // ROW — the engine navigates grouped sets through the join
-            // machinery, never the grouped projection. Stage 1 (audit-17
-            // bucket analysis): WITHHOLD the property instead of sinking
-            // the whole class mapping — queries that never touch it run;
-            // touching it raises the ordinary not-mapped error, loud.
-            if (pm instanceof PropertyMapping.Join) {
-                continue;
-            }
-            RelationalOperation pmOp = pmAsRelationalOp(pm);
-            if (pmOp == null) {
-                throw new NotImplementedException(
-                        "PropertyMapping '" + pm.getClass().getSimpleName()
-                      + "' for property '" + pm.propertyName()
-                      + "' is not supported under ~groupBy (only Column, Expression, "
-                      + "JoinTerminalColumn, and aggregate Expression PMs are allowed). "
-                      + "Mapping=" + md.qualifiedName());
-            }
-            int matchIdx = -1;
-            for (int i = 0; i < keyOps.size(); i++) {
-                if (!claimedKeys.contains(i) && groupByOpsMatch(pmOp, keyOps.get(i))) {
-                    matchIdx = i; break;
-                }
-            }
-            if (matchIdx < 0) {
-                throw new NotImplementedException(
-                        "PM '" + pm.propertyName() + "' is a per-row expression that is "
-                      + "neither an aggregate nor a declared ~groupBy key; ~groupBy "
-                      + "mappings forbid per-row formulas outside the key list. Mapping="
-                      + md.qualifiedName());
-            }
-            claimedKeys.add(matchIdx);
-            keyNames[matchIdx] = pm.propertyName();
-        }
-        // Build key ColSpecs.
-        List<ColSpec> keyCols = new ArrayList<>(keyOps.size());
-        for (int i = 0; i < keyOps.size(); i++) {
-            ValueSpecification keyValue = RelOpTranslator.translate(keyOps.get(i), scope, null,
-                    rowBind, p.view());
-            keyCols.add(new ColSpec(keyNames[i],
-                    new LambdaFunction(List.of(rowBind), List.of(keyValue)), null));
-        }
-        // Build aggregate ColSpecs with fn1 (selector) + fn2 (aggregate).
-        List<ColSpec> aggCols = new ArrayList<>(aggPms.size());
-        for (PropertyMapping pm : aggPms) {
-            RelationalOperation.FunctionCall fc = (RelationalOperation.FunctionCall)
-                    ((PropertyMapping.Expression) pm).expression();
-            if (fc.args().size() != 1) {
-                throw new NotImplementedException(
-                        "Aggregate PM '" + pm.propertyName() + "' uses '" + fc.name()
-                      + "' with " + fc.args().size() + " args; only single-argument "
-                      + "aggregates lift to the two-stage AggColSpec form. Mapping="
-                      + md.qualifiedName());
-            }
-            ValueSpecification selector = RelOpTranslator.translate(fc.args().get(0), scope, null,
-                    rowBind, p.view());
-            Variable vals = new Variable("vals");
-            ValueSpecification aggBody = new AppliedFunction(
-                    fc.name(), List.of(vals));
-            aggCols.add(new ColSpec(pm.propertyName(),
-                    new LambdaFunction(List.of(rowBind), List.of(selector)),
-                    new LambdaFunction(List.of(vals), List.of(aggBody))));
-        }
-        return new AppliedFunction("groupBy", List.of(source,
-                new ColSpecArray(keyCols), new ColSpecArray(aggCols)));
-    }
 
-    private static boolean isAggregatePm(PropertyMapping pm) {
-        if (pm instanceof PropertyMapping.Expression expr
-                && expr.expression() instanceof RelationalOperation.FunctionCall fc) {
-            return AGGREGATE_FNS.contains(fc.name());
-        }
-        return false;
-    }
 
-    private static RelationalOperation pmAsRelationalOp(PropertyMapping pm) {
-        if (pm instanceof PropertyMapping.Column col) {
-            return new RelationalOperation.ColumnRef(col.database(), col.table(), col.column());
-        }
-        if (pm instanceof PropertyMapping.Expression expr) {
-            return expr.expression();
-        }
-        if (pm instanceof PropertyMapping.JoinTerminalColumn jtc) {
-            return new RelationalOperation.JoinNavigation(jtc.database(),
-                    jtc.joins(), jtc.terminalColumn());
-        }
-        return null;
-    }
 
-    /**
-     * Structural equality MODULO the database qualifier: a PM rewritten
-     * through a view carries the mapping's db FQN while the view's own
-     * ~groupBy keys parse unqualified — same table+column IS the same key.
-     */
-    static boolean groupByOpsMatch(RelationalOperation a, RelationalOperation b) {
-        if (a instanceof RelationalOperation.ColumnRef ca
-                && b instanceof RelationalOperation.ColumnRef cb) {
-            // The qualifier is ignored only when ONE side lacks it (the
-            // view-rewrite stamps the mapping's db onto PMs while view keys
-            // parse unqualified); two EXPLICIT different dbs never match
-            // (same-named tables across included dbs; audit).
-            boolean dbOk = ca.databaseName() == null || cb.databaseName() == null
-                    || ca.databaseName().equals(cb.databaseName());
-            return dbOk && Objects.equals(ca.table(), cb.table())
-                    && Objects.equals(ca.column(), cb.column());
-        }
-        return Objects.equals(a, b);
-    }
 
-    private static String keyBaseName(RelationalOperation op) {
-        if (op instanceof RelationalOperation.ColumnRef cr) return cr.column();
-        if (op instanceof RelationalOperation.TargetColumnRef tr) return tr.column();
-        return null;
-    }
+
+
 
     // ====================================================================
     // AssociationMapping → predicate function  —  doc §5.6.1
