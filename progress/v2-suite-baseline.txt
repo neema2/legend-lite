@@ -1,0 +1,60 @@
+# V2 engine-suite parity baseline (DEV-ONLY measurement)
+#
+# Captured by temporarily routing PlanGenerator.generate() through
+# MappingResolverV2. NOT a committed pipeline change — see the
+# DO-NOT-COMMIT comment in PlanGenerator.java around line 113.
+#
+# Compare to progress/baseline-failures.txt for the V1 baseline.
+#
+# Repo state: branch mr-rewrite-final, after commit
+#   2734569  MappingResolverV2: prune unused mapping-body extend cols (Rule 1)
+
+V2 SWAP: tests=2721 failures=201 errors=319 skipped=19 broken=520
+V1 BASELINE (from baseline-failures.txt): tests=2675 failures=69 errors=89 skipped=19 broken=158
+V2-INTRODUCED DELTA: ~362 additional broken tests
+
+======================================================================
+Bucket breakdown (root-cause counts from surefire output greps)
+======================================================================
+
+Rule 3 / association traversal:
+  173  TypedPropertyAccess with non-empty associationPath reaches lowering
+       unresolved (V2 leaves it for "Rule 3 territory" — not yet impl)
+   30  graphFetch nested property '<X>' has no resolved join in parent
+        class store (related: nested-class joins inside graph trees)
+
+buildIndex switch missing arms (cheap to fix — 5 cases, ~25 failures):
+   11  buildIndex: no row shape for TypedCast
+    5  buildIndex: no row shape for TypedNativeCall
+    4  buildIndex: no row shape for TypedVariable
+    3  buildIndex: no row shape for TypedIf
+    2  buildIndex: no row shape for TypedLambda
+
+Sidecar leftovers:
+    3  CollectionLowering: class-typed collection has no StoreResolution
+       stamped (MappingResolver.collectionInstanceStore must run before
+       lowering)
+
+Cycle stub:
+    0  measured — no test exercises self-join cycles through V2 (or
+       fails earlier in the pipeline)
+
+UserCallInliner fold:
+    0  measured — UserCallInliner still runs as a separate prologue
+       in PlanGenerator (line 111), so V2's TypedUserCall arm never
+       fires. This will need to be folded in eventually but it's not
+       blocking suite parity right now.
+
+======================================================================
+Plan
+======================================================================
+
+Order of attack (cheapest first, biggest payoff last):
+
+  1. buildIndex missing arms     (~25 tests, mechanical, validates
+                                  the measurement workflow)
+  2. CollectionLowering sidecar  (3 tests, small port)
+  3. Rule 3 — associations       (~200+ tests, big design)
+
+Re-run engine suite after each milestone. Numbers should fall in
+proportion to the bucket sizes above.

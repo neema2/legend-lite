@@ -1,3 +1,33 @@
+================================================================================
+MappingNormalizer Phase-E Inc 4 redesign — 2026-05-17
+
+DECISIONS LOCKED (after long deliberation, see chat):
+  1. Relational synth returns Class[*] (unchanged). M2M unchanged.
+  2. Class-typed Join PMs NO LONGER inline-materialize ^Firm(...) from sibling
+     mapping. They emit bare $row.<alias> — sub-row in class-typed slot. Type
+     tension accepted as a normalize-output convention; downstream interprets.
+  3. Associate alias = full join-chain name joined by '__' (Position 2).
+     Single hop: 'Person_Firm'. Multi-hop: 'Person_Address__Address_City'.
+     Aliases dedupe naturally across PMs and across PM+filter (one associate
+     per unique chain prefix in the synth).
+  4. EnumeratedColumn inline-expands to nested if(equal(...), {| EnumValue}, ...).
+     No more enumValue(...) native (was never registered).
+  5. JoinMediated filter uses the same alias space as PMs — no '__filter' magic.
+  6. PM-name validation: must match a declared property; must not collide with
+     any associate alias the synth emits.
+
+DELETED:
+  - materializeJoinedRelationalClass (~90 lines)
+  - Inner-PM kind restrictions
+  - cycleStack for Relational (M2M + Embedded keep theirs)
+  - enumValue native emission
+  - tableScope.putAll for filter chain (scope leak)
+
+OPEN: a future cosmetic pass can rename associate aliases to match a class-typed
+Join PM's name when one exists for that join (Position 2 + optimization).
+Not in this increment.
+
+================================================================================
 Typed AST Big-Bang — Phase A in flight
 
 PLAN (frozen):

@@ -6,11 +6,8 @@ import com.gs.legend.compiler.typed.*;
 import com.gs.legend.model.ModelContext;
 import com.gs.legend.model.m3.PureClass;
 import com.gs.legend.model.m3.Type;
-import com.gs.legend.model.mapping.ClassMapping;
-import com.gs.legend.model.mapping.PureClassMapping;
-import com.gs.legend.model.mapping.RelationalMapping;
-import com.gs.legend.model.store.PropertyMapping;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
@@ -153,18 +150,37 @@ public final class MappingResolverV2 {
      * resolves property accesses by querying {@link #buildIndex} on the
      * bound node — no schema digest is carried alongside.
      *
-     * <p>Rule 3 will reintroduce a pending-joins channel; for now Scope
-     * is the minimum needed for Rules 1 + 2.
+     * <p>{@link #navs} carries the per-relop navigation accumulator
+     * when present; relops set it before walking their lambda body and
+     * drain it after, turning discovered associations into TypedJoins.
+     * Outside a relop's lambda walk it is empty.
      */
-    record Scope(Map<String, TypedSpec> env, Optional<String> mappingClass) {
+    record Scope(Map<String, TypedSpec> env,
+                 Map<String, String> envClass,
+                 Optional<String> mappingClass,
+                 Optional<Navigations> navs) {
         static Scope empty() {
-            return new Scope(Map.of(), Optional.empty());
+            return new Scope(Map.of(), Map.of(), Optional.empty(), Optional.empty());
         }
 
         Scope bind(String name, TypedSpec node) {
             Map<String, TypedSpec> next = new HashMap<>(env);
             next.put(name, node);
-            return new Scope(next, mappingClass);
+            return new Scope(next, envClass, mappingClass, navs);
+        }
+
+        /**
+         * Bind a lambda param to its row source AND record the class
+         * FQN this row represents. Used by Rule 3 to resolve assoc
+         * cols on the row's owning class even when the bound spec's
+         * static type is Relation (post-Rule-1 inlining).
+         */
+        Scope bindWithClass(String name, TypedSpec node, String classFqn) {
+            Map<String, TypedSpec> nextEnv = new HashMap<>(env);
+            nextEnv.put(name, node);
+            Map<String, String> nextCls = new HashMap<>(envClass);
+            if (classFqn != null) nextCls.put(name, classFqn); else nextCls.remove(name);
+            return new Scope(nextEnv, nextCls, mappingClass, navs);
         }
 
         /**
@@ -176,22 +192,69 @@ public final class MappingResolverV2 {
          * is empty, the extend is user-authored and pruning is skipped.
          */
         Scope enterMapping(String classFqn) {
-            return new Scope(env, Optional.of(classFqn));
+            return new Scope(env, envClass, Optional.of(classFqn), navs);
+        }
+
+        /** Attach a navigation accumulator for the upcoming lambda walk. */
+        Scope withNavs(Navigations n) {
+            return new Scope(env, envClass, mappingClass, Optional.of(n));
         }
     }
 
     /**
-     * Logical alias → physical column map for a relational node's row.
-     * Built lazily by {@link #buildIndex} from the AST and cached by
-     * node identity. The cache is a memoization, never an authoritative
-     * record — clearing it preserves correctness.
+     * Per-relop bag of association navigations discovered while
+     * rewriting the relop's lambda body. The relop creates one before
+     * walking its lambda, exposes it via {@link Scope#navs()}, and
+     * drains it after the walk to wrap its source in {@link TypedJoin}
+     * nodes and add params to the lambda.
      *
-     * <p>Future: when Rule 3 lands, an entry may also reference a
-     * {@link TypedAssociationExtendCol} so association traversal can
-     * find its hop info from the same lookup. The plan is to fatten
-     * the value type, not split the cache.
+     * <p>Mutation is stack-local: the bag is born and dies inside one
+     * relop method. The resolver class itself remains immutable; this
+     * is the same scoping V1's NavScope uses, just per-relop instead of
+     * threaded through a class field.
      */
-    record RowIndex(Map<String, String> byAlias) {}
+    static final class Navigations {
+        private final LinkedHashMap<List<String>, Navigation> byPrefix = new LinkedHashMap<>();
+        private int counter = 0;
+
+        boolean isEmpty() { return byPrefix.isEmpty(); }
+
+        java.util.Collection<Navigation> all() { return byPrefix.values(); }
+
+        /** Lookup an existing navigation for a path prefix. */
+        Navigation get(List<String> prefix) { return byPrefix.get(prefix); }
+
+        /** Register a navigation for a path prefix. */
+        void put(List<String> prefix, Navigation nav) { byPrefix.put(prefix, nav); }
+
+        /** Allocate a fresh outer-lambda param name. */
+        String freshParamName() { return "_jr" + counter++; }
+    }
+
+    /**
+     * Logical alias → physical column map for a relational node's row,
+     * plus alias → association-extend lookup. Both views are derived
+     * by walking the AST once via {@link #buildIndex} and cached by
+     * node identity. The cache is a memoization, never an authoritative
+     * record — clearing it preserves correctness; the AST stays the
+     * single source of truth.
+     *
+     * <p>{@link #assocCols} carries every {@link TypedAssociationExtendCol}
+     * visible from the node's row. Rule 3 reads it directly when
+     * rewriting path-bearing property accesses to join chains —
+     * eliminates the body-walk that an earlier draft did via
+     * {@code findAssocColInBody}.
+     */
+    record RowIndex(
+            Map<String, String> byAlias,
+            Map<String, TypedAssociationExtendCol> assocCols
+    ) {
+        /** Convenience: index with no association cols (the common case). */
+        RowIndex(Map<String, String> byAlias) { this(byAlias, Map.of()); }
+
+        /** Direct lookup; null if no association of this alias is in scope. */
+        TypedAssociationExtendCol assocCol(String alias) { return assocCols.get(alias); }
+    }
 
     // ==================== Rule 1 — class fetch inlining ====================
 
@@ -224,11 +287,13 @@ public final class MappingResolverV2 {
             // shallowResolution stub here. C+ doesn't need a stub for the
             // resolver — buildIndex consumes whatever AST is bound — but a
             // cycle in inlineClassFetch itself still has to terminate.
-            // No cycle test exists in the parity fixture yet; throw until
-            // one does and we can design the right termination.
-            throw new UnsupportedOperationException(
-                    "TODO: cycle stub for " + classFqn
-                            + " (no parity test exercises this yet)");
+            // Self-join / back-reference: target is in progress higher
+            // in the stack. Returning null lets callers (e.g. the nav
+            // rewrite loop) abort and leave the access for later
+            // resolution rather than infinite-recursing through
+            // mapping-function bodies. Phase 3 of the V2 plan
+            // introduces explicit cycle-aware reuse.
+            return null;
         }
 
         resolving.add(classFqn);
@@ -375,6 +440,33 @@ public final class MappingResolverV2 {
         return scope.bind(lam.parameters().get(0).name(), source);
     }
 
+    /**
+     * Bind the first param of a lambda to a row source AND its owner
+     * class FQN. {@code classFqn} may be null if the source is not a
+     * class fetch (e.g. a TDS-backed relation); in that case Rule 3
+     * navigation will fall through to other resolution paths.
+     */
+    private Scope bindFirstWithClass(Scope scope, TypedLambda lam, TypedSpec source, String classFqn) {
+        if (source == null || lam.parameters().isEmpty()) return scope;
+        return scope.bindWithClass(lam.parameters().get(0).name(), source, classFqn);
+    }
+
+    /**
+     * Recover the owner class FQN of {@code n.source()} when it's a
+     * class fetch (TypedGetAll), or when its static type is
+     * {@link Type.ClassType}. Returns null for relational sources
+     * (TDS literals, joins, projects, etc.) that don't carry a class
+     * identity.
+     */
+    private String sourceOwnerClassFqn(TypedSpec preRewriteSource) {
+        if (preRewriteSource instanceof TypedGetAll ga) {
+            return canonicalize(ga.className());
+        }
+        Type t = preRewriteSource.info().type();
+        if (t instanceof Type.ClassType ct) return ct.qualifiedName();
+        return null;
+    }
+
     private Scope bindJoinCondParams(Scope scope, TypedLambda cond, TypedSpec left, TypedSpec right) {
         Scope s = scope;
         if (left != null && cond.parameters().size() >= 1) {
@@ -386,29 +478,79 @@ public final class MappingResolverV2 {
         return s;
     }
 
-    /** Mirrors FilterLowering.java:89. */
+    /**
+     * Mirrors FilterLowering.java:89. Pre-Phase-2 shape: walks the
+     * predicate body for leaf-PA {@code physicalColumn} stamping but
+     * does <em>not</em> rewrite path-bearing accesses to TypedJoin —
+     * those keep their {@code associationPath} and are handled by
+     * Phase 2's {@link TypedExists} translation. Single-param lambda
+     * is preserved (FilterLowering's invariant).
+     */
     private TypedSpec rewriteFilter(TypedFilter n, Scope scope) {
         TypedSpec src = rewrite(n.source(), scope);
         TypedLambda pred = rewriteLambda(n.predicate(), bindFirst(scope, n.predicate(), src));
         return new TypedFilter(src, pred, n.def(), n.info());
     }
 
-    /** Mirrors SortLimitLowering.java:64. */
-    private TypedSpec rewriteSort(TypedSort n, Scope scope) {
-        TypedSpec src = rewrite(n.source(), scope);
-        List<TypedSortKey> keys = n.keys().stream()
-                .map(k -> rewriteSortKey(k, scope, src))
-                .toList();
-        return new TypedSort(src, keys, n.def(), n.info());
+    /**
+     * Wrap {@code src} in a left-to-right chain of {@link TypedJoin}s,
+     * one per registered navigation hop, in registration order.
+     */
+    private TypedSpec drainNavsToSource(TypedSpec src, Navigations navs) {
+        TypedSpec joined = src;
+        for (Navigation nav : navs.all()) {
+            joined = new TypedJoin(
+                    joined, nav.rightBody(), nav.condition(),
+                    JoinType.LEFT_OUTER, Map.of(), null, joined.info());
+        }
+        return joined;
     }
 
-    private TypedSortKey rewriteSortKey(TypedSortKey k, Scope scope, TypedSpec src) {
+    /**
+     * Append one {@link TypedParam} per registered hop to the lambda's
+     * parameter list, preserving body and info.
+     */
+    private TypedLambda expandLambdaParams(TypedLambda lam, Navigations navs) {
+        List<TypedParam> params = new ArrayList<>(lam.parameters());
+        for (Navigation nav : navs.all()) params.add(nav.param());
+        return new TypedLambda(params, lam.body(), lam.info());
+    }
+
+    /** Mirrors SortLimitLowering.java:64. */
+    private TypedSpec rewriteSort(TypedSort n, Scope scope) {
+        String ownerFqn = sourceOwnerClassFqn(n.source());
+        TypedSpec src = rewrite(n.source(), scope);
+        Navigations navs = new Navigations();
+        Scope withClassAndNavs = scope.withNavs(navs);
+        // owner FQN is bound on each sort key's keyFn first param via rewriteSortKey
+        List<TypedSortKey> keys = n.keys().stream()
+                .map(k -> rewriteSortKey(k, withClassAndNavs, src, ownerFqn))
+                .toList();
+        if (navs.isEmpty()) {
+            return new TypedSort(src, keys, n.def(), n.info());
+        }
+        TypedSpec joinedSrc = drainNavsToSource(src, navs);
+        List<TypedSortKey> expandedKeys = keys.stream()
+                .map(k -> expandSortKeyParams(k, navs))
+                .toList();
+        return new TypedSort(joinedSrc, expandedKeys, n.def(), n.info());
+    }
+
+    private TypedSortKey rewriteSortKey(TypedSortKey k, Scope scope, TypedSpec src, String ownerFqn) {
         return switch (k) {
             case TypedColumnSortKey c -> c;
             case TypedExpressionSortKey e ->
                     new TypedExpressionSortKey(
-                            rewriteLambda(e.keyFn(), bindFirst(scope, e.keyFn(), src)),
+                            rewriteLambda(e.keyFn(), bindFirstWithClass(scope, e.keyFn(), src, ownerFqn)),
                             e.direction());
+        };
+    }
+
+    private TypedSortKey expandSortKeyParams(TypedSortKey k, Navigations navs) {
+        return switch (k) {
+            case TypedColumnSortKey c -> c;
+            case TypedExpressionSortKey e ->
+                    new TypedExpressionSortKey(expandLambdaParams(e.keyFn(), navs), e.direction());
         };
     }
 
@@ -435,28 +577,56 @@ public final class MappingResolverV2 {
     }
 
     private TypedSpec rewriteFold(TypedFold n, Scope scope) {
+        String ownerFqn = sourceOwnerClassFqn(n.source());
         TypedSpec src = rewrite(n.source(), scope);
-        TypedLambda red = rewriteLambda(n.reducer(), bindFirst(scope, n.reducer(), src));
+        Navigations navs = new Navigations();
+        TypedLambda red = rewriteLambda(n.reducer(), bindFirstWithClass(scope, n.reducer(), src, ownerFqn).withNavs(navs));
         TypedSpec init = rewrite(n.init(), scope);
-        return new TypedFold(src, red, init, n.strategy(), n.def(), n.info());
+        if (navs.isEmpty()) {
+            return new TypedFold(src, red, init, n.strategy(), n.def(), n.info());
+        }
+        return new TypedFold(
+                drainNavsToSource(src, navs),
+                expandLambdaParams(red, navs),
+                init, n.strategy(), n.def(), n.info());
     }
 
     private TypedSpec rewriteMap(TypedMap n, Scope scope) {
+        String ownerFqn = sourceOwnerClassFqn(n.source());
         TypedSpec src = rewrite(n.source(), scope);
-        TypedLambda m = rewriteLambda(n.mapper(), bindFirst(scope, n.mapper(), src));
-        return new TypedMap(src, m, n.def(), n.info());
+        Navigations navs = new Navigations();
+        TypedLambda m = rewriteLambda(n.mapper(), bindFirstWithClass(scope, n.mapper(), src, ownerFqn).withNavs(navs));
+        if (navs.isEmpty()) {
+            return new TypedMap(src, m, n.def(), n.info());
+        }
+        return new TypedMap(
+                drainNavsToSource(src, navs),
+                expandLambdaParams(m, navs),
+                n.def(), n.info());
     }
 
     /** Mirrors ProjectLowering.java:59. */
     private TypedSpec rewriteProject(TypedProject n, Scope scope) {
+        String ownerFqn = sourceOwnerClassFqn(n.source());
         TypedSpec src = rewrite(n.source(), scope);
+        Navigations navs = new Navigations();
         List<TypedProjectionCol> cols = n.projections().stream()
                 .map(p -> new TypedProjectionCol(
                         p.alias(),
-                        rewriteLambda(p.expression(), bindFirst(scope, p.expression(), src)),
+                        rewriteLambda(p.expression(), bindFirstWithClass(scope, p.expression(), src, ownerFqn).withNavs(navs)),
                         p.associationPath()))
                 .toList();
-        return new TypedProject(src, cols, n.def(), n.info());
+        if (navs.isEmpty()) {
+            return new TypedProject(src, cols, n.def(), n.info());
+        }
+        TypedSpec joinedSrc = drainNavsToSource(src, navs);
+        List<TypedProjectionCol> expandedCols = cols.stream()
+                .map(p -> new TypedProjectionCol(
+                        p.alias(),
+                        expandLambdaParams(p.expression(), navs),
+                        p.associationPath()))
+                .toList();
+        return new TypedProject(joinedSrc, expandedCols, n.def(), n.info());
     }
 
     /**
@@ -482,10 +652,30 @@ public final class MappingResolverV2 {
         if (kept.isEmpty() && n.traversalSpecs().isEmpty()) {
             return src;
         }
+        Navigations navs = new Navigations();
         List<TypedExtendCol> rewritten = kept.stream()
-                .map(c -> rewriteExtendCol(c, scope, src))
+                .map(c -> rewriteExtendCol(c, scope.withNavs(navs), src))
                 .toList();
-        return new TypedExtend(src, n.traversalSpecs(), rewritten, n.def(), n.info());
+        if (navs.isEmpty()) {
+            return new TypedExtend(src, n.traversalSpecs(), rewritten, n.def(), n.info());
+        }
+        TypedSpec joinedSrc = drainNavsToSource(src, navs);
+        List<TypedExtendCol> expandedCols = rewritten.stream()
+                .map(c -> expandExtendColParams(c, navs))
+                .toList();
+        return new TypedExtend(joinedSrc, n.traversalSpecs(), expandedCols, n.def(), n.info());
+    }
+
+    private TypedExtendCol expandExtendColParams(TypedExtendCol c, Navigations navs) {
+        return switch (c) {
+            case TypedScalarExtendCol s ->
+                    new TypedScalarExtendCol(s.alias(), expandLambdaParams(s.expression(), navs), s.returnType());
+            case TypedWindowExtendCol w -> w;
+            case TypedTraverseExtendCol t ->
+                    new TypedTraverseExtendCol(t.alias(), t.hops(), expandLambdaParams(t.expression(), navs));
+            case TypedAssociationExtendCol a -> a;
+            case TypedEmbeddedExtendCol e -> e;
+        };
     }
 
     /**
@@ -523,13 +713,42 @@ public final class MappingResolverV2 {
     /** Mirrors GroupByAggregateLowering.java:297, :324. */
     private TypedSpec rewriteGroupBy(TypedGroupBy n, Scope scope) {
         TypedSpec src = rewrite(n.source(), scope);
+        Navigations navs = new Navigations();
+        Scope inner = scope.withNavs(navs);
         List<TypedGroupKey> keys = n.keys().stream()
-                .map(k -> rewriteGroupKey(k, scope, src))
+                .map(k -> rewriteGroupKey(k, inner, src))
                 .toList();
         List<TypedAggCall> aggs = n.aggs().stream()
-                .map(a -> rewriteAggCall(a, scope, src))
+                .map(a -> rewriteAggCall(a, inner, src))
                 .toList();
-        return new TypedGroupBy(src, keys, aggs, n.def(), n.info());
+        if (navs.isEmpty()) {
+            return new TypedGroupBy(src, keys, aggs, n.def(), n.info());
+        }
+        TypedSpec joinedSrc = drainNavsToSource(src, navs);
+        List<TypedGroupKey> expandedKeys = keys.stream()
+                .map(k -> expandGroupKeyParams(k, navs))
+                .toList();
+        List<TypedAggCall> expandedAggs = aggs.stream()
+                .map(a -> expandAggCallParams(a, navs))
+                .toList();
+        return new TypedGroupBy(joinedSrc, expandedKeys, expandedAggs, n.def(), n.info());
+    }
+
+    private TypedGroupKey expandGroupKeyParams(TypedGroupKey k, Navigations navs) {
+        return switch (k) {
+            case TypedColumnGroupKey c -> c;
+            case TypedExpressionGroupKey e ->
+                    new TypedExpressionGroupKey(expandLambdaParams(e.keyFn(), navs), e.alias());
+            case TypedAssociationGroupKey a -> a;
+        };
+    }
+
+    private TypedAggCall expandAggCallParams(TypedAggCall a, Navigations navs) {
+        return new TypedAggCall(
+                a.alias(), a.func(),
+                a.fn1() == null ? null : expandLambdaParams(a.fn1(), navs),
+                a.fn2() == null ? null : expandLambdaParams(a.fn2(), navs),
+                a.extraArgs(), a.returnType(), a.castType());
     }
 
     private TypedGroupKey rewriteGroupKey(TypedGroupKey k, Scope scope, TypedSpec src) {
@@ -554,18 +773,33 @@ public final class MappingResolverV2 {
 
     private TypedSpec rewriteAggregate(TypedAggregate n, Scope scope) {
         TypedSpec src = rewrite(n.source(), scope);
+        Navigations navs = new Navigations();
         List<TypedAggCall> aggs = n.aggs().stream()
-                .map(a -> rewriteAggCall(a, scope, src))
+                .map(a -> rewriteAggCall(a, scope.withNavs(navs), src))
                 .toList();
-        return new TypedAggregate(src, aggs, n.def(), n.info());
+        if (navs.isEmpty()) {
+            return new TypedAggregate(src, aggs, n.def(), n.info());
+        }
+        return new TypedAggregate(
+                drainNavsToSource(src, navs),
+                aggs.stream().map(a -> expandAggCallParams(a, navs)).toList(),
+                n.def(), n.info());
     }
 
     private TypedSpec rewritePivot(TypedPivot n, Scope scope) {
         TypedSpec src = rewrite(n.source(), scope);
+        Navigations navs = new Navigations();
         List<TypedAggCall> aggs = n.aggs().stream()
-                .map(a -> rewriteAggCall(a, scope, src))
+                .map(a -> rewriteAggCall(a, scope.withNavs(navs), src))
                 .toList();
-        return new TypedPivot(src, n.pivotColumns(), aggs, n.def(), n.info());
+        if (navs.isEmpty()) {
+            return new TypedPivot(src, n.pivotColumns(), aggs, n.def(), n.info());
+        }
+        return new TypedPivot(
+                drainNavsToSource(src, navs),
+                n.pivotColumns(),
+                aggs.stream().map(a -> expandAggCallParams(a, navs)).toList(),
+                n.def(), n.info());
     }
 
     /** Mirrors JoinLowering.java:59-60. */
@@ -623,31 +857,44 @@ public final class MappingResolverV2 {
     // ----- Rule 2 + Rule 3: property access -----
 
     /**
-     * Mirrors PropertyAccessLowering.lower. The single most important
-     * arm.
+     * Mirrors PropertyAccessLowering.lower. Two cases:
      *
-     * <p>Empty associationPath → Rule 2: query {@link #buildIndex} on
-     * the AST node bound to the property's source variable; the
-     * physical column is {@code byAlias.get(pa.property)}. Rebuild
-     * {@code TypedPropertyAccess} with the physical column populated.
-     *
-     * <p>Non-empty associationPath → Rule 3 (TODO): walk the hops via
-     * {@code TypedAssociationExtendCol}s discovered by walking the
-     * source node, build {@link TypedJoin}s, and rewrite the access to
-     * a column ref on the joined alias.
+     * <ul>
+     *   <li><b>Leaf access</b> (no association hops): query
+     *       {@link #buildIndex} on the AST node bound to the source
+     *       variable; the physical column is
+     *       {@code byAlias.get(pa.property)}. Emit a TPA with
+     *       physicalColumn populated.</li>
+     *   <li><b>Path-bearing access</b> (size ≥ 2 hops, e.g.
+     *       {@code $p.firm.legalName}): if a {@link Navigations} sink
+     *       is attached to the scope (the enclosing relop is
+     *       collecting), get-or-register a single-hop FK navigation for
+     *       {@code path[0]} and emit a direct access on the freshly
+     *       allocated joined param. The relop drains the sink and
+     *       wraps its source in {@link TypedJoin} after the walk.</li>
+     * </ul>
      */
     private TypedSpec rewritePropertyAccess(TypedPropertyAccess n, Scope scope) {
         TypedSpec src = rewrite(n.source(), scope);
 
-        // Rule 2: leaf-only property access (no association hops),
-        // source is a variable bound in scope.env. Resolve the property
-        // to its physical column via buildIndex on the bound source.
-        //
-        // associationPath shape: TypeChecker stores the full access
-        // chain. For `$p.age`, path = ["age"] (size 1). For
-        // `$p.firm.legalName`, path = ["firm", "legalName"] (size 2).
-        // Hops = path[0..n-1], leaf = path[n-1]. So "no hops" means
-        // size <= 1 (or empty Optional).
+        // Path-bearing access: defer to navigation accumulator if
+        // present. N-hop paths register one Navigation per non-leaf
+        // segment, dedup'd by cumulative dotted prefix so siblings
+        // share common ancestors. The relop drains the bag after the
+        // lambda walk, wrapping its source in TypedJoin per hop.
+        if (n.associationPath().isPresent()
+                && n.associationPath().get().size() >= 2
+                && src instanceof TypedVariable v
+                && scope.navs().isPresent()
+                && scope.env().get(v.name()) != null) {
+            TypedSpec rewritten = rewriteNavigation(n, v, scope);
+            if (rewritten != null) return rewritten;
+        }
+
+        // Leaf access: resolve physical column via buildIndex on the
+        // bound source. associationPath shape: TypeChecker stores the
+        // full access chain — `$p.age` is path=["age"] (size 1),
+        // `$p.firm.legalName` is path=["firm","legalName"] (size 2).
         boolean leafOnly = n.associationPath().isEmpty()
                 || n.associationPath().get().size() <= 1;
         if (leafOnly
@@ -663,15 +910,104 @@ public final class MappingResolverV2 {
             }
             // Property not in the index: leave unresolved. Either the
             // synth body's structure doesn't expose this alias yet
-            // (Rule 3 territory) or the property is genuinely
-            // undefined. Don't throw — let downstream lowering fail
-            // loudly if the column doesn't exist.
+            // (multi-hop / embedded territory) or the property is
+            // genuinely undefined. Don't throw — let downstream
+            // lowering fail loudly if the column doesn't exist.
         }
 
-        // TODO: Rule 3 — non-empty associationPath: walk hops, install
-        // TypedJoin nodes, rewrite to column ref on joined alias.
         return new TypedPropertyAccess(
                 src, n.property(), n.associationPath(), n.physicalColumn(), n.info());
+    }
+
+    /**
+     * Rewrite an N-hop path-bearing TPA — e.g. {@code $x.firm.address.city}
+     * with {@code path=[firm,address,city]} — into a leaf access on the
+     * deepest hop's joined row, registering each hop in the active
+     * {@link Navigations} sink as it goes. The relop drains the sink
+     * after the lambda walk, wrapping its source in one {@link TypedJoin}
+     * per registered hop.
+     *
+     * <p>Hops dedupe by cumulative {@code List<String>} prefix so siblings
+     * (e.g. {@code $x.firm.legalName} and {@code $x.firm.city}) share one
+     * registered Navigation; longer prefixes chain off shorter ones.
+     *
+     * <p>Returns {@code null} when the navigation cannot be rewritten
+     * (no owner class FQN bound, owner body unavailable, assoc col
+     * missing on owner, target class still resolving — self-cycle).
+     * The caller leaves the access path-bearing and Phase 2 / 3 of the
+     * V2 plan handles the residue.
+     */
+    private TypedSpec rewriteNavigation(TypedPropertyAccess pa, TypedVariable rowVar, Scope scope) {
+        List<String> path = pa.associationPath().get();
+        int hopCount = path.size() - 1;                  // path = [..hops.., leaf]
+        Navigations navs = scope.navs().get();
+
+        // Owner FQN priority: scope's class hint (relops thread it via
+        // bindFirstWithClass), else the bound spec's static type.
+        String ownerFqn = scope.envClass().get(rowVar.name());
+        if (ownerFqn == null) {
+            ownerFqn = classFqnOf(scope.env().get(rowVar.name()));
+        }
+        if (ownerFqn == null) return null;
+        TypedSpec ownerBody = inlineClassFetch(ownerFqn);
+        if (ownerBody == null) return null;
+
+        Navigation nav = null;
+        for (int i = 0; i < hopCount; i++) {
+            String segment = path.get(i);
+            List<String> prefix = List.copyOf(path.subList(0, i + 1));
+
+            Navigation existing = navs.get(prefix);
+            if (existing == null) {
+                // Direct alias lookup on the owner body's RowIndex —
+                // the assoc cols for this class are already indexed
+                // there by {@link #overlayExtends} during {@link #buildIndex}.
+                TypedAssociationExtendCol assocCol = buildIndex(ownerBody).assocCol(segment);
+                if (assocCol == null) return null;
+
+                String targetFqn = assocCol.targetClassFqn();
+                TypedSpec rightBody = inlineClassFetch(targetFqn);
+                if (rightBody == null) return null;     // memoed null = cycle
+
+                TypedSpec rewrittenRight = rewrite(rightBody, scope.enterMapping(targetFqn));
+                TypedLambda cond = assocCol.hops().get(assocCol.hops().size() - 1).condition();
+                TypedParam param = new TypedParam(
+                        navs.freshParamName(),
+                        new Type.ClassType(targetFqn),
+                        com.gs.legend.model.m3.Multiplicity.ZERO_OR_ONE);
+                existing = new Navigation(prefix, param, rewrittenRight, cond, targetFqn);
+                navs.put(prefix, existing);
+            }
+            nav = existing;
+            // Walk into the next hop's owner: that's this hop's target
+            // class. inlineClassFetch is memoised, so this is a map hit.
+            ownerBody = inlineClassFetch(nav.targetClassFqn());
+            if (ownerBody == null) return null;
+        }
+        if (nav == null) return null;
+
+        // Emit a leaf access on the deepest joined param. Re-run
+        // rewritePropertyAccess with the param bound so the leaf-PA
+        // arm resolves physicalColumn via buildIndex on the right body.
+        TypedVariable newSrc = new TypedVariable(nav.param().name(), rowVar.role(), rowVar.info());
+        TypedPropertyAccess direct = new TypedPropertyAccess(
+                newSrc, pa.property(),
+                Optional.empty(),  // path consumed
+                Optional.empty(),  // physicalColumn populated by leaf PA arm
+                pa.info());
+        Scope withRight = scope.bind(nav.param().name(), nav.rightBody());
+        return rewritePropertyAccess(direct, withRight);
+    }
+
+    /**
+     * Class FQN of a TypedSpec whose info type is a {@link Type.ClassType},
+     * else null.
+     */
+    private String classFqnOf(TypedSpec spec) {
+        if (spec == null) return null;
+        Type t = spec.info().type();
+        if (t instanceof Type.ClassType ct) return ct.qualifiedName();
+        return null;
     }
 
     // ----- Lambda binding -----
@@ -863,15 +1199,14 @@ public final class MappingResolverV2 {
     }
 
     /**
-     * Layer extend columns onto a base index. For scalar/traverse
-     * extends with bodies of shape {@code $param.COL}, the alias maps
-     * to {@code COL}. For computed bodies, the alias names itself.
-     * Window extends always name themselves. Association/embedded
-     * extends contribute nothing to Rule 2 — they're consumed by
-     * Rule 3 (when implemented).
+     * Layer extend columns onto a base index. Scalar/traverse extends
+     * contribute alias→physical-column entries; window extends name
+     * themselves; association extends populate {@code assocCols} for
+     * Rule 3 to read directly without re-walking the body.
      */
     private RowIndex overlayExtends(RowIndex base, List<TypedExtendCol> extensions) {
         Map<String, String> ptc = new LinkedHashMap<>(base.byAlias());
+        Map<String, TypedAssociationExtendCol> assocs = new LinkedHashMap<>(base.assocCols());
         for (TypedExtendCol c : extensions) {
             switch (c) {
                 // Scalar rename optimization: a single-param body of shape
@@ -888,11 +1223,14 @@ public final class MappingResolverV2 {
                 // alias IS the alias itself, not the underlying column on
                 // the target table.
                 case TypedTraverseExtendCol t  -> ptc.put(t.alias(), t.alias());
-                case TypedAssociationExtendCol a -> { /* Rule 3 territory */ }
+                // Association extends don't add scalar columns; surface
+                // them via {@code assocCols} so Rule 3 can find the
+                // navigation by alias in O(1).
+                case TypedAssociationExtendCol a -> assocs.put(a.alias(), a);
                 case TypedEmbeddedExtendCol e  -> { /* Rule 3 territory */ }
             }
         }
-        return new RowIndex(ptc);
+        return new RowIndex(ptc, assocs);
     }
 
     /**
@@ -987,7 +1325,46 @@ public final class MappingResolverV2 {
         return new RowIndex(ptc);
     }
 
-    // ==================== Rule 4: implicit-serialize wrap ====================
+    // ==================== Rule 3: association → explicit join ====================
+
+    /**
+     * One association navigation discovered during a relop's lambda
+     * walk. At drain time it becomes:
+     *
+     * <ul>
+     *   <li>a {@link TypedJoin} wrapping the relop's source
+     *       ({@code left = stacked-src, right = rightBody, on = condition}),
+     *       and</li>
+     *   <li>a {@link TypedParam} appended to the relop's lambda's
+     *       parameter list, bound to the join's right side.</li>
+     * </ul>
+     *
+     * The bag exists only because {@link TypedJoin}'s {@code left} is
+     * not known until prior hops are stacked — eager construction
+     * isn't possible. The fields are the AST nodes we'll splice in,
+     * minus the {@code left} we don't know yet.
+     *
+     * @param prefix          The cumulative path prefix this hop covers
+     *                        (e.g. {@code [firm, address]} for the
+     *                        second hop of {@code $x.firm.address}).
+     *                        Used as the {@link Navigations} dedup key.
+     * @param param           Lambda param that will be appended at drain
+     *                        time and bound to this hop's right side.
+     * @param rightBody       Pre-rewrite right relation (this hop's
+     *                        target class mapping body).
+     * @param condition       The 2-param join condition from the assoc
+     *                        col's last hop.
+     * @param targetClassFqn  FQN of the destination class (read straight
+     *                        from {@link TypedAssociationExtendCol#targetClassFqn}
+     *                        — no archaeology).
+     */
+    private record Navigation(
+            List<String> prefix,
+            TypedParam param,
+            TypedSpec rightBody,
+            TypedLambda condition,
+            String targetClassFqn
+    ) {}
 
     /**
      * If the resolved root is class-typed and not already wrapped,

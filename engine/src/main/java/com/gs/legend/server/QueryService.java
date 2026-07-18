@@ -73,6 +73,15 @@ public class QueryService {
     public ExecutionResult execute(String pureSource, String query, String runtimeName,
             Connection connection) throws SQLException {
 
+        // The CORE pipeline is the default (PHASE_K_EXECUTION.md: the engine
+        // suite is core's acceptance scoreboard). -Dlegend.pipeline=engine
+        // restores the legacy path for comparison; there is NO silent
+        // fallback — a fallback would blur the scoreboard.
+        if (!"engine".equals(System.getProperty("legend.pipeline", "core"))) {
+            return CoreBridge.toEngine(
+                    com.legend.Compiler.execute(pureSource, query, runtimeName, connection));
+        }
+
         PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
         SingleExecutionPlan plan = PlanGenerator.generate(model, query, runtimeName, PlanGenerator.Mode.SNAPSHOT);
 
@@ -89,14 +98,12 @@ public class QueryService {
     public ExecutionResult execute(String pureSource, String query, String runtimeName)
             throws SQLException {
 
+        // Connection resolution is pre-existing engine plumbing (not bridge
+        // logic); the execution itself routes through the same seam as the
+        // 4-arg overload.
         PureModelBuilder model = new PureModelBuilder().addSource(pureSource);
         Connection conn = model.resolveConnection(runtimeName);
-        SingleExecutionPlan plan = PlanGenerator.generate(model, query, runtimeName, PlanGenerator.Mode.SNAPSHOT);
-
-        System.out.println("Pure Query: " + query);
-        System.out.println("Generated SQL: " + plan.sql());
-
-        return PlanExecutor.execute(plan, conn);
+        return execute(pureSource, query, runtimeName, conn);
     }
 
     /**

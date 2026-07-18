@@ -20,6 +20,14 @@
     <description>Core Legend Lite engine with Pure parser, compiler, and SQL generator.</description>
 
     <dependencies>
+        <!-- legend-lite-core: the replacement pipeline. QueryService delegates
+             to core (PHASE_K_EXECUTION.md); the engine pipeline remains
+             reachable via -Dlegend.pipeline=engine. -->
+        <dependency>
+            <groupId>org.finos.legend</groupId>
+            <artifactId>legend-lite-core</artifactId>
+        </dependency>
+
         <!-- DuckDB JDBC Driver -->
         <dependency>
             <groupId>org.duckdb</groupId>

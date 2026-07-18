@@ -105,13 +105,15 @@ public class ExtendChecker extends AbstractChecker {
                     var result = compileTraverseClause(innerTraverse, sourceSchema, ctx);
                     traversalSpecs.add(new TraversalSpec(result.hops));
                     colSpecSchema = result.terminalSchema;
-                    // Target class's compiled mapping function is resolved by a
-                    // pass-2 fan-out over associationNavigations on TypeChecker,
-                    // exposed via CompiledDependencies.mappingFunctions. We
-                    // deliberately do not thread the owner class through the
-                    // compilation context to avoid mutable side-channel state.
+                    // Target class FQN: the synth function compilation stamps
+                    // {@code ctx.mappingTarget()} with the owner class; the
+                    // model knows the destination class for owner.propName.
+                    // {@link MappingResolverV2} reads {@code targetClassFqn}
+                    // directly when rewriting association paths into joins —
+                    // no condition-lambda parameter-type archaeology.
+                    String targetClassFqn = resolveAssocTargetClassFqn(ctx, cs.name());
                     extensions.add(new TypedAssociationExtendCol(
-                            cs.name(), result.hops));
+                            cs.name(), result.hops, targetClassFqn));
                     continue;
                 }
                 // Embedded extend: fn1 is 0-param lambda wrapping ColSpecArray.
@@ -266,6 +268,36 @@ public class ExtendChecker extends AbstractChecker {
                             + ". Narrow the source (e.g. ->first(), ->take(1)) or"
                             + " widen the property's multiplicity.");
         }
+    }
+
+    /**
+     * Resolves the destination class FQN for an association extend col.
+     *
+     * <p>Synthesized association extends are only emitted by
+     * {@code MappingNormalizer} when compiling a synth mapping function, which
+     * stamps {@code ctx.mappingTarget()} with the owner class's FQN. The model
+     * knows the target class for {@code owner.propName} via
+     * {@link com.gs.legend.model.ModelContext#findAssociationByProperty}. We
+     * fail loudly when either piece is missing because the input shape is a
+     * synthesized AST and the contract is non-optional — see invariant 4
+     * (no fallbacks).
+     */
+    private String resolveAssocTargetClassFqn(
+            TypeChecker.CompilationContext ctx, String propName) {
+        var targetOpt = ctx.mappingTarget();
+        if (targetOpt.isEmpty()) {
+            throw new PureCompileException(
+                    "association extend '" + propName + "': no ctx.mappingTarget() — "
+                            + "association extends are only synthesized inside synth mapping function bodies");
+        }
+        String ownerFqn = targetOpt.get().classFqn();
+        var navOpt = env.modelContext().findAssociationByProperty(ownerFqn, propName);
+        if (navOpt.isEmpty()) {
+            throw new PureCompileException(
+                    "association extend '" + propName + "': no association on class '"
+                            + ownerFqn + "' for property '" + propName + "'");
+        }
+        return navOpt.get().targetClassName();
     }
 
     // ========== Association / Embedded extend detection ==========
