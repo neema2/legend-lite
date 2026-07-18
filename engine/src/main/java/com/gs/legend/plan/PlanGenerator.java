@@ -90,6 +90,16 @@ public final class PlanGenerator {
     }
 
     public static SingleExecutionPlan generate(String pureSource, String query, String runtimeName) {
+        // The CORE pipeline is the default (same gate as QueryService.execute:
+        // the engine suite is core's acceptance scoreboard; no silent
+        // fallback). -Dlegend.pipeline=engine restores the legacy path.
+        // CoreBridge.toPlan re-wraps core's QueryPlan verbatim (SQL, root
+        // type, shape) — core-routed EXECUTION goes through QueryService,
+        // never this plan's connection metadata.
+        if (!"engine".equals(System.getProperty("legend.pipeline", "core"))) {
+            return com.gs.legend.server.CoreBridge.toPlan(
+                    com.legend.Compiler.plan(pureSource, query, runtimeName));
+        }
         var model = new com.gs.legend.model.PureModelBuilder().addSource(pureSource);
         return generate(model, query, runtimeName);
     }
@@ -110,6 +120,7 @@ public final class PlanGenerator {
         // family as Rust monomorphization or MLton defunctionalization.
         var inlinedUnit = com.gs.legend.compiler.UserCallInliner.inline(unit);
 
+        // V1 path restored (the V2 experiment lives on in generateV2).
         var resolved = new MappingResolver(
                 inlinedUnit, normalizer.normalizedMapping(), model).resolve();
         return new PlanGenerator(resolved, dialect, mode).generate();
