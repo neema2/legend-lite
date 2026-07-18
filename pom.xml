@@ -20,6 +20,7 @@
         <module>engine</module>
         <module>nlq</module>
         <module>pct</module>
+        <module>pct-corpus</module>
     </modules>
 
     <properties>

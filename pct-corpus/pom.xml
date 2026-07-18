@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.finos.legend</groupId>
+        <artifactId>legend-lite</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>legend-lite-pct-corpus</artifactId>
+    <packaging>jar</packaging>
+    <name>Legend Lite - PCT Corpus</name>
+    <description>
+        PCT-as-data (docs/PCT_NATIVE_PLAN.md Mode A): reads the REAL PCT
+        .pure suites from the legend-pure / legend-engine checkouts in
+        place and runs them through core. Depends on core ONLY — no
+        upstream legend artifacts (those stay quarantined in pct/ until
+        Mode A retires it).
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.finos.legend</groupId>
+            <artifactId>legend-lite-core</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
