@@ -7,18 +7,14 @@ import com.legend.Compiler;
 
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.element.ModelContext;
-import com.legend.compiler.spec.SpecCompiler;
-import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.model.ImportScope;
 import com.legend.parser.SpecParser;
 import com.legend.model.spec.AppliedFunction;
 import com.legend.model.spec.AppliedProperty;
 import com.legend.model.spec.CBoolean;
-import com.legend.model.spec.CInteger;
 import com.legend.model.spec.CString;
 import com.legend.model.spec.LambdaFunction;
 import com.legend.model.spec.NewInstance;
-import com.legend.model.spec.PackageableElementPtr;
 import com.legend.model.spec.PureCollection;
 import com.legend.model.spec.ValueSpecification;
 import com.legend.model.spec.Variable;
@@ -88,54 +84,99 @@ public final class TestBody {
         }
     }
 
-    /** A bound {@code execute(...)}: the lazy query handle + its context. */
-    private record ExecHandle(LambdaFunction query, ValueSpecification mappingRef,
-            boolean relationRooted) {
+    // execute() bindings and every read over them run PLATFORM-SIDE (audit
+    // 19d B2): the statements forward VERBATIM to the statement executor's
+    // result frame — the harness no longer owns any envelope semantics
+    // (the values/at/toOne/size splice rules live in StatementExecutor).
 
-        ExecHandle(LambdaFunction query, ValueSpecification mappingRef) {
-            this(query, mappingRef, true);
+    /** Does the expression (transitively) contain an {@code execute()} call? */
+    private static boolean containsExecute(ValueSpecification v) {
+        if (v instanceof AppliedFunction af && isExecuteCall(af)) {
+            return true;
         }
+        return switch (v) {
+            case AppliedFunction af -> af.parameters().stream()
+                    .anyMatch(TestBody::containsExecute);
+            case AppliedProperty ap -> containsExecute(ap.receiver());
+            case PureCollection pc -> pc.values().stream()
+                    .anyMatch(TestBody::containsExecute);
+            case LambdaFunction lf -> lf.body().stream()
+                    .anyMatch(TestBody::containsExecute);
+            default -> false;
+        };
     }
 
-    /** at(k>0) on a relation-rooted Result.values: the envelope has ONE
-     * element — collapsing would silently ignore the index. */
-    private static String envelopeIndexError(java.util.List<AppliedFunction> wrappers) {
-        for (AppliedFunction w : wrappers) {
-            if (w.function().equals("at") && w.parameters().size() == 2
-                    && !(w.parameters().get(1) instanceof CInteger k
-                            && k.value().longValue() == 0)) {
-                return "Result.values->at(k>0) on a relation-rooted query"
-                        + " — the values envelope holds one TDS";
-            }
-        }
-        return null;
+    /** Does the expression read any of the given variables? (No shadow
+     * tracking — execute bindings are never usefully shadowed, and
+     * over-forwarding a statement prefix is safe.) */
+    private static boolean referencesAny(ValueSpecification v,
+            java.util.Set<String> names) {
+        return switch (v) {
+            case Variable var -> names.contains(var.name());
+            case AppliedFunction af -> af.parameters().stream()
+                    .anyMatch(p -> referencesAny(p, names));
+            case AppliedProperty ap -> referencesAny(ap.receiver(), names);
+            case PureCollection pc -> pc.values().stream()
+                    .anyMatch(p -> referencesAny(p, names));
+            case LambdaFunction lf -> lf.body().stream()
+                    .anyMatch(p -> referencesAny(p, names));
+            default -> false;
+        };
     }
 
     /**
-     * The engine's {@code Result.values} shape depends on the QUERY ROOT:
-     * a relation/TDS query's values holds ONE element (the TDS — the
-     * {@code ->at(0)}/{@code ->toOne()} wrappers are envelope peels), while
-     * a class- or scalar-rooted query's values IS the row collection and
-     * {@code at(k)} means the k-th VALUE (audit 9: the blind collapse
-     * silently read all objects). Decided from the USER-LEVEL type — the
-     * query typed BEFORE store resolution.
+     * ORDER-POLICY VIEW ONLY: rewrite {@code $r.values(->at(0)/->toOne())}
+     * reads to the bound query's chain expression so {@link #endsInSort}
+     * sees a sort INSIDE the query lambda (the platform frame owns the
+     * actual evaluation; this rewrite never executes).
      */
-    private static boolean relationRooted(ExecHandle h, ModelContext ctx,
-            ImportScope imports, String runtimeFqn) {
-        try {
-            ValueSpecification spliced = splice(h, runtimeFqn);
-            LambdaFunction wrapped = new LambdaFunction(List.of(), List.of(spliced));
-            ValueSpecification resolved = com.legend.compiler.NameResolver
-                    .resolveQuery(wrapped, imports, ctx.elementFqns());
-            List<TypedSpec> body = new SpecCompiler(ctx).typeQueryBody(resolved);
-            TypedSpec root = body.get(body.size() - 1);
-            while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
-                root = fr.source();
+    private static ValueSpecification orderView(ValueSpecification v,
+            Map<String, ValueSpecification> execChains) {
+        if (v instanceof AppliedProperty ap && ap.property().equals("values")
+                && ap.receiver() instanceof Variable var
+                && execChains.containsKey(var.name())) {
+            return execChains.get(var.name());
+        }
+        if (v instanceof Variable var && execChains.containsKey(var.name())) {
+            return execChains.get(var.name());
+        }
+        return switch (v) {
+            case AppliedFunction af -> new AppliedFunction(af.function(),
+                    af.parameters().stream()
+                            .map(p -> orderView(p, execChains)).toList());
+            case AppliedProperty ap -> new AppliedProperty(
+                    orderView(ap.receiver(), execChains), ap.property());
+            default -> v;
+        };
+    }
+
+    /** The query CHAIN of a forwarded execute binding ({@code let name =
+     * execute(|chain, ...)}) — for the order-policy view; aliases follow. */
+    private static void recordExecChain(String name, ValueSpecification rhs,
+            Map<String, ValueSpecification> execChains) {
+        ValueSpecification cur = rhs;
+        while (true) {
+            if (cur instanceof AppliedProperty ap
+                    && ap.property().equals("values")) {
+                cur = ap.receiver();
+                continue;
             }
-            return root.info().type()
-                    instanceof com.legend.compiler.element.type.Type.RelationType;
-        } catch (RuntimeException e) {
-            return true;   // typing fails loudly at evaluation either way
+            if (cur instanceof AppliedFunction w
+                    && (w.function().equals("at") || w.function().equals("toOne"))
+                    && !w.parameters().isEmpty()) {
+                cur = w.parameters().get(0);
+                continue;
+            }
+            break;
+        }
+        if (cur instanceof Variable var && execChains.containsKey(var.name())) {
+            execChains.put(name, execChains.get(var.name()));
+            return;
+        }
+        if (cur instanceof AppliedFunction ex && isExecuteCall(ex)
+                && ex.parameters().get(0) instanceof LambdaFunction lf
+                && !lf.body().isEmpty()) {
+            execChains.put(name, lf.body().get(lf.body().size() - 1));
         }
     }
 
@@ -198,7 +239,12 @@ public final class TestBody {
         java.util.ArrayDeque<ValueSpecification> work =
                 new java.util.ArrayDeque<>(statements);
         Map<String, ValueSpecification> lets = new LinkedHashMap<>();
-        Map<String, ExecHandle> handles = new LinkedHashMap<>();
+        // the PLATFORM-forwarded statements (execute bindings + reads over
+        // them, in order) and their bound names; execChains is the
+        // order-policy view of each binding's query chain
+        List<ValueSpecification> execStmts = new ArrayList<>();
+        java.util.Set<String> execVars = new java.util.HashSet<>();
+        Map<String, ValueSpecification> execChains = new LinkedHashMap<>();
         int verified = 0;
         int advisory = 0;
         while (!work.isEmpty()) {
@@ -245,82 +291,22 @@ public final class TestBody {
             if (stmt instanceof AppliedFunction af && af.function().equals("letFunction")
                     && af.parameters().size() == 2
                     && af.parameters().get(0) instanceof CString name) {
-                ValueSpecification raw = af.parameters().get(1);
-                // let r = execute(...).values / .values->at(0) / ->toOne():
-                // for a RELATION-rooted query these wrappers are the Result
-                // envelope and peel to the handle; for a class/scalar root
-                // values IS the collection and at/toOne are REAL selections
-                // (audit 9) — those bind as ordinary lazy lets instead.
-                java.util.List<AppliedFunction> wrappers = new ArrayList<>();
-                while (true) {
-                    if (raw instanceof AppliedProperty pw
-                            && pw.property().equals("values")) {
-                        raw = pw.receiver();
-                        continue;
-                    }
-                    if (raw instanceof AppliedFunction fw
-                            && (fw.function().equals("at") || fw.function().equals("toOne"))
-                            && !fw.parameters().isEmpty()
-                            && (fw.parameters().get(0) instanceof AppliedProperty
-                                    || fw.parameters().get(0) instanceof AppliedFunction ifn
-                                            && isExecuteCall(ifn))) {
-                        wrappers.add(fw);
-                        raw = fw.parameters().get(0);
-                        continue;
-                    }
-                    break;
-                }
-                // let tds = $r.values->at(0) over a RELATION-rooted handle:
-                // the peel bottoms at the handle VAR — the alias is the
-                // same envelope handle (so $tds->size() keeps ONE-TDS
-                // semantics, and $tds.rows reads splice as before)
-                if (raw instanceof Variable hv && handles.containsKey(hv.name())
-                        && handles.get(hv.name()).relationRooted()) {
-                    String bad = envelopeIndexError(wrappers);
-                    if (bad != null) {
-                        return new Outcome.Unsupported(bad);
-                    }
-                    handles.put(name.value(), handles.get(hv.name()));
+                ValueSpecification rhs =
+                        substitute(af.parameters().get(1), lets);
+                // an execute() binding — or any read over one — forwards to
+                // the PLATFORM's result frame (audit 19d B2). Forwarding is
+                // EAGER (audit 16 F1, engine parity): the statement executor
+                // runs the query AT the let, so a broken pipeline surfaces
+                // even when no assert ever reads the binding.
+                if (containsExecute(rhs) || referencesAny(rhs, execVars)) {
+                    execStmts.add(new AppliedFunction("letFunction",
+                            List.of(name, rhs)));
+                    execVars.add(name.value());
+                    recordExecChain(name.value(), rhs, execChains);
+                    evalStatements(execStmts, ctx, imports, runtimeFqn, conn);
                     continue;
                 }
-                ValueSpecification rhs = raw instanceof AppliedFunction rex
-                        && isExecuteCall(rex)
-                        ? new AppliedFunction(rex.function(), substituteAll(
-                                rex.parameters(), lets, handles, runtimeFqn))
-                        : substitute(af.parameters().get(1), lets, handles, runtimeFqn);
-                if (rhs instanceof AppliedFunction ex && isExecuteCall(ex)) {
-                    ExecHandle h = toHandle(ex, lets);
-                    if (h == null) {
-                        return new Outcome.Unsupported(
-                                "execute() whose query argument is not a lambda");
-                    }
-                    h = new ExecHandle(h.query(), h.mappingRef(),
-                            relationRooted(h, ctx, imports, runtimeFqn));
-                    if (!wrappers.isEmpty() && !h.relationRooted()) {
-                        // class/scalar root: at/toOne are REAL selections —
-                        // bind the whole wrapped chain as a lazy let (the
-                        // inline-execute substitution splices the query and
-                        // keeps the wrappers in place)
-                        lets.put(name.value(), substitute(af.parameters().get(1),
-                                lets, handles, runtimeFqn));
-                        continue;
-                    }
-                    String bad = envelopeIndexError(wrappers);
-                    if (bad != null) {
-                        return new Outcome.Unsupported(bad);
-                    }
-                    handles.put(name.value(), h);
-                    // EAGER execution (audit 16 F1, engine parity): the
-                    // engine's execute() runs AT the let — a broken
-                    // compile/lowering must surface here even when no
-                    // assert ever reads the handle. Lazy handles let
-                    // envelope-shape-only asserts (size-1 idiom) PASS
-                    // vacuously against a broken pipeline.
-                    eval(splice(h, runtimeFqn), lets, handles, ctx, imports,
-                            runtimeFqn, conn);
-                } else {
-                    lets.put(name.value(), rhs);
-                }
+                lets.put(name.value(), rhs);
                 continue;
             }
             // The per-driver golden idiom:
@@ -339,7 +325,8 @@ public final class TestBody {
                 if (perDriver != null) {
                     int[] counters = {verified, advisory};
                     Outcome o = runPerDriverLoop(pairs, perDriver, lets,
-                            handles, ctx, imports, runtimeFqn, conn,
+                            execStmts, execVars, execChains, ctx, imports,
+                            runtimeFqn, conn,
                             emptinessUnverifiable || seedFailures != null
                                     && !seedFailures.isEmpty(), counters);
                     verified = counters[0];
@@ -353,7 +340,8 @@ public final class TestBody {
             if (stmt instanceof AppliedFunction af
                     && harnessVocabName(af.function())
                     && simpleName(af.function()).startsWith("assert")) {
-                String failure = checkAssert(af, lets, handles, ctx, imports,
+                String failure = checkAssert(af, lets, execStmts, execVars,
+                        execChains, ctx, imports,
                         runtimeFqn, conn, emptinessUnverifiable
                                 || seedFailures != null && !seedFailures.isEmpty());
                 if (failure == UNSUPPORTED_MARKER) {
@@ -374,21 +362,24 @@ public final class TestBody {
             if (stmt instanceof CBoolean) {
                 continue;
             }
-            if (stmt instanceof AppliedFunction af && isExecuteCall(af)) {
-                return new Outcome.Unsupported("execute() not bound to a let");
-            }
             // K-natives arc (S4): any other EXPRESSION STATEMENT executes
             // through the platform — the engine's setup calls
             // (createTablesAndFillDb(), setUp($m), executeInDb(...)) are
-            // ordinary pure code, and the pipeline is the only executor.
+            // ordinary pure code, and the pipeline is the only executor
+            // (a statement-position execute() runs its frame there too).
             // SQLExceptions propagate (an honest ERROR); compile/type
             // failures report Unsupported — the body's data cannot be
             // trusted after a failed setup statement.
             if (stmt instanceof AppliedFunction af3) {
                 try {
+                    ValueSpecification sub = substitute(stmt, lets);
+                    ValueSpecification wrapped =
+                            referencesAny(sub, execVars)
+                                    ? new LambdaFunction(List.of(),
+                                            append(execStmts, sub))
+                                    : sub;
                     Compiler.executeResolved(
-                            NameResolver.resolveQuery(
-                                    substitute(stmt, lets, handles, runtimeFqn),
+                            NameResolver.resolveQuery(wrapped,
                                     imports, ctx.elementFqns()),
                             ctx, runtimeFqn, conn,
                             seedFailures == null ? null : seedFailures::add);
@@ -492,7 +483,9 @@ public final class TestBody {
 
     /** null = held; ADVISORY_MARKER = golden-SQL; UNSUPPORTED_MARKER; else the failure text. */
     private static String checkAssert(AppliedFunction af,
-            Map<String, ValueSpecification> lets, Map<String, ExecHandle> handles,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts, java.util.Set<String> execVars,
+            Map<String, ValueSpecification> execChains,
             ModelContext ctx, ImportScope imports, String runtimeFqn, Connection conn,
             boolean emptinessUnverifiable) throws java.sql.SQLException {
         List<ValueSpecification> args = af.parameters();
@@ -516,7 +509,7 @@ public final class TestBody {
                     // enough that blanket-unsupported stays honest
                     return UNSUPPORTED_MARKER;
                 }
-                Object v = evalScalar(args.get(0), lets, handles, ctx, imports,
+                Object v = evalScalar(args.get(0), lets, execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
                 boolean expect = af.function().equals("assert");
                 return Boolean.valueOf(expect).equals(v) ? null
@@ -541,14 +534,14 @@ public final class TestBody {
                 if (args.size() == 3 && af.function().equals("assertEqualsH2Compatible")) {
                     return ADVISORY_MARKER;
                 }
-                Eval e = eval(args.get(0), lets, handles, ctx, imports, runtimeFqn, conn);
+                Eval e = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 if (emptinessUnverifiable && e.size() == 0) {
                     // seeds failed: an EMPTY expectation would hollow-PASS
                     // against the empty tables (audit 9 — the assertSize-0/
                     // assertEmpty guard alone missed the equals spellings)
                     return UNSUPPORTED_MARKER;
                 }
-                Eval a = eval(args.get(1), lets, handles, ctx, imports, runtimeFqn, conn);
+                Eval a = eval(args.get(1), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 boolean equal = compare(e, a, /* ordered */ true);
                 if (af.function().equals("assertNotEquals")) {
                     return equal ? "assertNotEquals: both sides are " + e.render() : null;
@@ -560,11 +553,11 @@ public final class TestBody {
                 if (args.size() != 2) {
                     return UNSUPPORTED_MARKER;
                 }
-                Eval e = eval(args.get(0), lets, handles, ctx, imports, runtimeFqn, conn);
+                Eval e = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 if (emptinessUnverifiable && e.size() == 0) {
                     return UNSUPPORTED_MARKER;   // see the assertEquals guard
                 }
-                Eval a = eval(args.get(1), lets, handles, ctx, imports, runtimeFqn, conn);
+                Eval a = eval(args.get(1), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 return compare(e, a, /* ordered */ false) ? null
                         : "assertSameElements: expected " + e.render() + ", got " + a.render();
             }
@@ -572,11 +565,11 @@ public final class TestBody {
                 if (args.size() != 3) {
                     return UNSUPPORTED_MARKER;
                 }
-                Object e = evalScalar(args.get(0), lets, handles, ctx, imports,
+                Object e = evalScalar(args.get(0), lets, execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
-                Object a = evalScalar(args.get(1), lets, handles, ctx, imports,
+                Object a = evalScalar(args.get(1), lets, execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
-                Object tol = evalScalar(args.get(2), lets, handles, ctx,
+                Object tol = evalScalar(args.get(2), lets, execStmts, execVars, execChains, ctx,
                         imports, runtimeFqn, conn);
                 if (!(e instanceof Number en && a instanceof Number an
                         && tol instanceof Number tn)) {
@@ -592,12 +585,12 @@ public final class TestBody {
                 if (args.size() != 2) {
                     return UNSUPPORTED_MARKER;
                 }
-                Object n = evalScalar(args.get(1), lets, handles, ctx, imports,
+                Object n = evalScalar(args.get(1), lets, execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
                 if (emptinessUnverifiable && n instanceof Number zn && zn.longValue() == 0) {
                     return UNSUPPORTED_MARKER;
                 }
-                Eval a = eval(args.get(0), lets, handles, ctx, imports, runtimeFqn, conn);
+                Eval a = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 long actual = a.size();
                 return (n instanceof Number num && num.longValue() == actual) ? null
                         : "assertSize: expected " + n + ", got " + actual;
@@ -609,7 +602,7 @@ public final class TestBody {
                 if (emptinessUnverifiable) {
                     return UNSUPPORTED_MARKER;
                 }
-                Eval a = eval(args.get(0), lets, handles, ctx, imports, runtimeFqn, conn);
+                Eval a = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 return a.size() == 0 ? null : "assertEmpty: got " + a.size() + " values";
             }
             case "assertSameSQL" -> {
@@ -623,12 +616,12 @@ public final class TestBody {
                 if (args.size() != 2) {
                     return UNSUPPORTED_MARKER;
                 }
-                Eval e = eval(args.get(0), lets, handles, ctx, imports,
+                Eval e = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
                 if (emptinessUnverifiable) {
                     return UNSUPPORTED_MARKER;
                 }
-                Eval a = eval(args.get(1), lets, handles, ctx, imports,
+                Eval a = eval(args.get(1), lets, execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
                 Object expected = jsonValueOf(e);
                 Object actual = jsonValueOf(a);
@@ -666,7 +659,8 @@ public final class TestBody {
      * clean; counters = {verified, advisory} accumulate in place. */
     private static Outcome runPerDriverLoop(List<AppliedFunction> pairs,
             LambdaFunction perDriver, Map<String, ValueSpecification> lets,
-            Map<String, ExecHandle> handles, ModelContext ctx,
+            List<ValueSpecification> execStmts, java.util.Set<String> execVars,
+            Map<String, ValueSpecification> execChains, ModelContext ctx,
             ImportScope imports, String runtimeFqn, Connection conn,
             boolean unverifiable, int[] counters)
             throws java.sql.SQLException {
@@ -700,7 +694,8 @@ public final class TestBody {
                             && simpleName(af2.function())
                                     .startsWith("assert")) {
                         String failure = checkAssert(af2, loopLets,
-                                handles, ctx, imports, runtimeFqn, conn,
+                                execStmts, execVars, execChains, ctx,
+                                imports, runtimeFqn, conn,
                                 unverifiable);
                         if (failure == UNSUPPORTED_MARKER) {
                             return new Outcome.Unsupported(
@@ -956,10 +951,12 @@ public final class TestBody {
     }
 
     private static Eval eval(ValueSpecification expr,
-            Map<String, ValueSpecification> lets, Map<String, ExecHandle> handles,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts, java.util.Set<String> execVars,
+            Map<String, ValueSpecification> execChains,
             ModelContext ctx, ImportScope imports, String runtimeFqn, Connection conn)
             throws java.sql.SQLException {
-        ValueSpecification spliced = substitute(expr, lets, handles, runtimeFqn);
+        ValueSpecification spliced = substitute(expr, lets);
         // SERIALIZATION TAILS (toCSV/toString over a TDS) strip: the grid
         // compares STRUCTURALLY (or renders for a string-literal peer) —
         // rendering is a wire concern, not a query. A tail whose receiver
@@ -978,7 +975,8 @@ public final class TestBody {
                 && "\n".equals(from.value())
                 && rep.parameters().get(2) instanceof CString to) {
             com.legend.exec.ExecutionResult stripped2 = evalSpliced(
-                    innerCsv.parameters().get(0), ctx, imports, runtimeFqn, conn);
+                    innerCsv.parameters().get(0), execStmts, execVars,
+                    ctx, imports, runtimeFqn, conn);
             if (stripped2 instanceof com.legend.exec.ExecutionResult.Tabular tab2) {
                 // structured compare: keep the TABULAR and the joined-line
                 // separator — string-exact comparison broke on ROW ORDER
@@ -986,7 +984,8 @@ public final class TestBody {
                 // csvJoinedEquals below applies the header/multiset/
                 // tolerant-cell policy instead
                 return new Eval(stripped2,
-                        endsInSort(innerCsv.parameters().get(0)), false,
+                        endsInSort(orderView(innerCsv.parameters().get(0),
+                                execChains)), false,
                         "CSVJOIN:" + to.value());
             }
         }
@@ -995,14 +994,17 @@ public final class TestBody {
                         || simpleName(tail.function()).equals("toString"))
                 && tail.parameters().size() == 1) {
             com.legend.exec.ExecutionResult stripped = evalSpliced(
-                    tail.parameters().get(0), ctx, imports, runtimeFqn, conn);
+                    tail.parameters().get(0), execStmts, execVars,
+                    ctx, imports, runtimeFqn, conn);
             if (stripped instanceof com.legend.exec.ExecutionResult.Tabular) {
-                return new Eval(stripped, endsInSort(tail.parameters().get(0)),
+                return new Eval(stripped,
+                        endsInSort(orderView(tail.parameters().get(0),
+                                execChains)),
                         simpleName(tail.function()).equals("toCSV"));
             }
         }
-        com.legend.exec.ExecutionResult r = evalSpliced(spliced, ctx, imports,
-                runtimeFqn, conn);
+        com.legend.exec.ExecutionResult r = evalSpliced(spliced, execStmts,
+                execVars, ctx, imports, runtimeFqn, conn);
         // A makeString/joinStrings tail over an UNSORTED chain: the joined
         // string's element order is the DB's incidental row order — record
         // the separator so the compare can fall back to split-multiset
@@ -1013,30 +1015,61 @@ public final class TestBody {
                         || simpleName(jf.function()).equals("joinStrings"))
                 && jf.parameters().size() == 2
                 && jf.parameters().get(1) instanceof CString sep
-                && !endsInSort(jf.parameters().get(0))) {
+                && !endsInSort(orderView(jf.parameters().get(0),
+                        execChains))) {
             joinSep = sep.value();
         }
-        return new Eval(r, endsInSort(spliced), csv, joinSep);
+        return new Eval(r, endsInSort(orderView(spliced, execChains)),
+                csv, joinSep);
     }
 
     private static Object evalScalar(ValueSpecification expr,
-            Map<String, ValueSpecification> lets, Map<String, ExecHandle> handles,
+            Map<String, ValueSpecification> lets,
+            List<ValueSpecification> execStmts, java.util.Set<String> execVars,
+            Map<String, ValueSpecification> execChains,
             ModelContext ctx, ImportScope imports, String runtimeFqn, Connection conn)
             throws java.sql.SQLException {
-        Eval e = eval(expr, lets, handles, ctx, imports, runtimeFqn, conn);
+        Eval e = eval(expr, lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
         List<Object> v = e.values();
         return v.size() == 1 ? v.get(0) : v;
     }
 
-    /** Compile + execute ONE expression (handles already spliced in) —
-     * delegates to THE one back-half sequence ({@link Compiler#executeResolved}). */
+    /** Compile + execute ONE expression through THE one back-half sequence
+     * ({@link Compiler#executeResolved}); an expression that reads an
+     * execute() binding rides behind the forwarded statement PREFIX — the
+     * platform's result frame owns the envelope splice (audit 19d B2). */
     private static com.legend.exec.ExecutionResult evalSpliced(ValueSpecification expr,
+            List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             ModelContext ctx, ImportScope imports, String runtimeFqn, Connection conn)
             throws java.sql.SQLException {
-        LambdaFunction wrapped = new LambdaFunction(List.of(), List.of(expr));
+        List<ValueSpecification> stmts = new ArrayList<>();
+        if (referencesAny(expr, execVars) || containsExecute(expr)) {
+            stmts.addAll(execStmts);
+        }
+        stmts.add(expr);
+        LambdaFunction wrapped = new LambdaFunction(List.of(), stmts);
         ValueSpecification resolved = NameResolver.resolveQuery(wrapped, imports,
                 ctx.elementFqns());
         return Compiler.executeResolved(resolved, ctx, runtimeFqn, conn);
+    }
+
+    /** Evaluate the forwarded statement list AS-IS (a trailing let IS its
+     * value) — the EAGER run at an execute() binding. */
+    private static void evalStatements(List<ValueSpecification> stmts,
+            ModelContext ctx, ImportScope imports, String runtimeFqn,
+            Connection conn) throws java.sql.SQLException {
+        LambdaFunction wrapped = new LambdaFunction(List.of(),
+                new ArrayList<>(stmts));
+        ValueSpecification resolved = NameResolver.resolveQuery(wrapped, imports,
+                ctx.elementFqns());
+        Compiler.executeResolved(resolved, ctx, runtimeFqn, conn);
+    }
+
+    private static List<ValueSpecification> append(
+            List<ValueSpecification> prefix, ValueSpecification last) {
+        List<ValueSpecification> out = new ArrayList<>(prefix);
+        out.add(last);
+        return out;
     }
 
     // ===== comparison (both sides share ONE wire convention — strict) =====
@@ -1551,63 +1584,13 @@ public final class TestBody {
     }
 
     /**
-     * A multi-statement query lambda ({@code {| let date = %d; Product.all(
-     * $date)->...}}) folds its OWN lets into the final expression — pure
-     * lets are single-assignment, so textual inlining is exact (the outer
-     * statement driver does the same for test-body lets).
-     */
-    private static LambdaFunction inlineQueryLets(LambdaFunction lf) {
-        if (lf.body().size() <= 1) {
-            return lf;
-        }
-        Map<String, ValueSpecification> lets = new LinkedHashMap<>();
-        ValueSpecification last = null;
-        for (ValueSpecification stmt : lf.body()) {
-            if (stmt instanceof AppliedFunction af
-                    && af.function().equals("letFunction")
-                    && af.parameters().size() == 2
-                    && af.parameters().get(0) instanceof CString name) {
-                lets.put(name.value(),
-                        substitute(af.parameters().get(1), lets, Map.of(), null));
-                continue;
-            }
-            last = substitute(stmt, lets, Map.of(), null);
-        }
-        return new LambdaFunction(lf.parameters(),
-                List.of(last != null ? last
-                        : lf.body().get(lf.body().size() - 1)));
-    }
-
-    private static ExecHandle toHandle(AppliedFunction ex) {
-        return toHandle(ex, Map.of());
-    }
-
-    /** {@code lets}: a let-bound zero-arg lambda passed as the query
-     * argument resolves through it ({@code let q = |...; execute($q, ...)}). */
-    private static ExecHandle toHandle(AppliedFunction ex,
-            Map<String, ValueSpecification> lets) {
-        ValueSpecification q = ex.parameters().get(0);
-        if (q instanceof Variable qv && lets.get(qv.name()) != null) {
-            q = lets.get(qv.name());
-        }
-        if (!(q instanceof LambdaFunction lf) || !lf.parameters().isEmpty()) {
-            return null;
-        }
-        return new ExecHandle(inlineQueryLets(lf), ex.parameters().get(1));
-    }
-
-    /**
-     * Replace let-bound variables with their expressions and handle reads
-     * with the SPLICED query: {@code $r.values} &rarr; the query chain
-     * wrapped in {@code ->from(mapping, runtime? no — context rides the
-     * driver runtime)}; head spellings {@code $r.values->at(0)} /
-     * {@code ->toOne()} collapse onto the chain (the engine's Result.values
-     * for a TDS query IS the single TDS). Shadowing lambda params stop
-     * let-substitution.
+     * Replace let-bound variables with their expressions (shadowing lambda
+     * params stop substitution). Reads over execute() bindings are NOT
+     * substituted here — those statements forward to the platform's result
+     * frame, which owns the envelope splice (audit 19d B2).
      */
     private static ValueSpecification substitute(ValueSpecification v,
-            Map<String, ValueSpecification> lets, Map<String, ExecHandle> handles,
-            String runtimeFqn) {
+            Map<String, ValueSpecification> lets) {
         // ^TDSNull() in a TEST literal is the engine's null-cell INSTANCE
         // (a real value, not a pure empty — an empty would VANISH from
         // [^TDSNull(), 5.0] and break the comparison): it travels as the
@@ -1624,118 +1607,37 @@ public final class TestBody {
                         || tn2.className().equals("meta::pure::tds::TDSNull"))) {
             return new CString("TDSNull");
         }
-        // $r.values → spliced query (with mapping context attached)
-        if (v instanceof AppliedProperty ap
-                && ap.receiver() instanceof Variable var
-                && handles.containsKey(var.name())
-                && ap.property().equals("values")) {
-            return splice(handles.get(var.name()), runtimeFqn);
-        }
-        // $r.values->at(0) / ->toOne(): for a RELATION-rooted query the
-        // values envelope holds ONE TDS — the wrapper collapses. For a
-        // class/scalar root, values IS the collection: keep the wrapper as
-        // a REAL selection over the spliced chain (audit 9). at(k>0) on a
-        // relation root is loud — the envelope has one element.
-        if (v instanceof AppliedFunction af
-                && (af.function().equals("at") || af.function().equals("toOne"))
-                && !af.parameters().isEmpty()
-                && af.parameters().get(0) instanceof AppliedProperty ap2
-                && ap2.receiver() instanceof Variable var2
-                && handles.containsKey(var2.name())
-                && ap2.property().equals("values")) {
-            ExecHandle h2 = handles.get(var2.name());
-            if (!h2.relationRooted()) {
-                List<ValueSpecification> ps = new ArrayList<>(af.parameters());
-                ps.set(0, splice(h2, runtimeFqn));
-                return new AppliedFunction(af.function(), ps);
-            }
-            if (af.function().equals("at") && af.parameters().size() == 2
-                    && !(af.parameters().get(1) instanceof CInteger k2
-                            && k2.value().longValue() == 0)) {
-                throw new IllegalStateException("Result.values->at(k>0) on a"
-                        + " relation-rooted query — the values envelope holds"
-                        + " one TDS");
-            }
-            return splice(h2, runtimeFqn);
-        }
-        // $tds->size() where $tds IS the peeled envelope (a relation-rooted
-        // handle): ONE TDS value — pure size of a single instance, never
-        // the row count (rows count as $tds.rows->size())
-        if (v instanceof AppliedFunction sf && sf.function().equals("size")
-                && sf.parameters().size() == 1
-                && sf.parameters().get(0) instanceof Variable sv
-                && handles.containsKey(sv.name())
-                && handles.get(sv.name()).relationRooted()) {
-            return new CInteger(1L);
-        }
         return switch (v) {
             // RECURSIVE: the pulled RHS may itself read lets bound earlier
             // (the per-driver loop's toSQLString($driver) — audit 19d B3
             // exposed the shallow pull when the K-native began TYPING what
             // the old harness arm resolved by hand)
             case Variable var when lets.containsKey(var.name()) ->
-                    substitute(lets.get(var.name()), lets, handles, runtimeFqn);
-            case Variable var when handles.containsKey(var.name()) ->
-                    splice(handles.get(var.name()), runtimeFqn);
-            // an INLINE execute (chained without a let: execute(...).values
-            // or nested in an assert arg) splices in place
-            case AppliedFunction af when isExecuteCall(af) && toHandle(af) != null ->
-                    splice(toHandle(new AppliedFunction(af.function(),
-                            substituteAll(af.parameters(), lets, handles, runtimeFqn))),
-                            runtimeFqn);
+                    substitute(lets.get(var.name()), lets);
             case AppliedFunction af -> new AppliedFunction(af.function(),
-                    substituteAll(af.parameters(), lets, handles, runtimeFqn));
+                    substituteAll(af.parameters(), lets));
             case AppliedProperty ap3 -> new AppliedProperty(
-                    substitute(ap3.receiver(), lets, handles, runtimeFqn), ap3.property());
+                    substitute(ap3.receiver(), lets), ap3.property());
             case PureCollection pc -> new PureCollection(
-                    substituteAll(pc.values(), lets, handles, runtimeFqn));
+                    substituteAll(pc.values(), lets));
             case LambdaFunction lf -> {
-                // shadowing params stop LET substitution (handles keep —
-                // a lambda param can't shadow an execute binding usefully)
+                // shadowing params stop LET substitution
                 Map<String, ValueSpecification> visible = new LinkedHashMap<>(lets);
                 lf.parameters().forEach(p2 -> visible.remove(p2.name()));
                 yield new LambdaFunction(lf.parameters(),
-                        substituteAll(lf.body(), visible, handles, runtimeFqn));
+                        substituteAll(lf.body(), visible));
             }
             default -> v;
         };
     }
 
     private static List<ValueSpecification> substituteAll(List<ValueSpecification> vs,
-            Map<String, ValueSpecification> lets, Map<String, ExecHandle> handles,
-            String runtimeFqn) {
+            Map<String, ValueSpecification> lets) {
         List<ValueSpecification> out = new ArrayList<>(vs.size());
         for (ValueSpecification v : vs) {
-            out.add(substitute(v, lets, handles, runtimeFqn));
+            out.add(substitute(v, lets));
         }
         return out;
-    }
-
-    /** The handle's query chain with its execution context attached. */
-    private static ValueSpecification splice(ExecHandle h, String runtimeFqn) {
-        ValueSpecification chain = h.query().body().get(h.query().body().size() - 1);
-        // ->from(mapping, runtime): the 3-ARG form — the 2-arg overload is
-        // (source, RUNTIME) and would read the mapping as a runtime. An
-        // in-chain from() the corpus wrote itself already carries its own.
-        if (containsFrom(chain)) {
-            return chain;
-        }
-        return new AppliedFunction("from", List.of(chain, h.mappingRef(),
-                new PackageableElementPtr(runtimeFqn)));
-    }
-
-    private static boolean containsFrom(ValueSpecification v) {
-        if (v instanceof AppliedFunction af) {
-            if (af.function().equals("from")) {
-                return true;
-            }
-            for (ValueSpecification p : af.parameters()) {
-                if (containsFrom(p)) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     /** The chain's OUTER tail carries a sort — its order is a contract. */

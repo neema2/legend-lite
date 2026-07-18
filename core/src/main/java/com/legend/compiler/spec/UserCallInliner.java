@@ -113,12 +113,27 @@ import java.util.Optional;
 public final class UserCallInliner {
 
     private final SpecCompiler specs;
+    private final java.util.function.UnaryOperator<TypedSpec> hook;
     private final ArrayDeque<String> stack = new ArrayDeque<>();
     private final ArrayDeque<String> names = new ArrayDeque<>();
     private int fresh;
 
     public UserCallInliner(SpecCompiler specs) {
+        this(specs, null);
+    }
+
+    /**
+     * {@code hook}: an OPTIONAL per-node pre-rewrite (the statement
+     * executor's result-frame splice rides this walker instead of
+     * duplicating the vocabulary switch). Fired before the standard
+     * rewrite at every node; returning a DIFFERENT node replaces it and
+     * the rewrite recurses into the replacement — the hook must return
+     * the argument itself (same reference) when it does not apply.
+     */
+    public UserCallInliner(SpecCompiler specs,
+            java.util.function.UnaryOperator<TypedSpec> hook) {
         this.specs = Objects.requireNonNull(specs, "specs");
+        this.hook = hook;
     }
 
     /** Inline every user call in a query body (statements = lets + result). */
@@ -286,6 +301,12 @@ public final class UserCallInliner {
     // =====================================================================
 
     private TypedSpec rewrite(TypedSpec n, Map<String, TypedSpec> env) {
+        if (hook != null) {
+            TypedSpec h = hook.apply(n);
+            if (h != n) {
+                return rewrite(h, env);
+            }
+        }
         return switch (n) {
             case TypedUserCall uc -> inlineCall(uc, env);
 

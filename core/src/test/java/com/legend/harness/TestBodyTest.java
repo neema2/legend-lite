@@ -53,6 +53,9 @@ class TestBodyTest {
 
             Runtime test::Rt
             { mappings: [ test::M ]; connections: [ test::DB: [ c: test::Conn ] ] }
+
+            function test::r(): meta::pure::metamodel::type::Any[1] { 1 }
+            function test::e(): meta::pure::metamodel::type::Any[*] { [] }
             """;
 
     private static final ImportScope IMPORTS =
@@ -86,7 +89,7 @@ class TestBodyTest {
         assertHeld(run("""
                 let result = execute(|Person.all()
                         ->project([p|$p.name], ['name'])
-                        ->sort(asc('name')), test::M, ignoredRuntime(), ignoredExt());
+                        ->sort(asc('name')), test::M, r(), e());
                 assertEquals(['Alice', 'Bob', 'Cid'],
                         $result.values->at(0)->map(r|$r.name));
                 true;
@@ -296,6 +299,9 @@ class TestBodyTest {
 
             Runtime test::Rt
             { mappings: [ test::M ]; connections: [ test::DB: [ c: test::Conn ] ] }
+
+            function test::r(): meta::pure::metamodel::type::Any[1] { 1 }
+            function test::e(): meta::pure::metamodel::type::Any[*] { [] }
             """;
 
     private static TestBody.Outcome runFirm(String body) throws Exception {

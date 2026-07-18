@@ -71,10 +71,35 @@ final class StatementExecutor {
             throws java.sql.SQLException {
         ExecutionResult result = null;
         java.util.Map<String, Boolean> effectMemo = new java.util.HashMap<>();
+        java.util.Map<String, ExecFrame> execFrames = new java.util.LinkedHashMap<>();
         for (int i = 0; i < stmts.size(); i++) {
             TypedSpec stmt = stmts.get(i);
             boolean last = i == stmts.size() - 1;
             if (stmt instanceof com.legend.compiler.spec.typed.TypedLet let && !last) {
+                // let tds = $r.values(->at(0)/->toOne()): over a RELATION-
+                // rooted frame these wrappers are the Result ENVELOPE — the
+                // alias IS the same frame (audit 19d B2: the splice rules
+                // move verbatim from the harness). Class/scalar roots fall
+                // through: their at/toOne are REAL selections.
+                ExecFrame alias = aliasFrame(let.value(), execFrames);
+                if (alias != null) {
+                    execFrames.put(let.name(), alias);
+                    continue;
+                }
+                TypedSpec rhs = let.value();
+                while (rhs instanceof com.legend.compiler.spec.typed.TypedFrom rf) {
+                    rhs = rf.source();
+                }
+                if (rhs instanceof com.legend.compiler.spec.typed.TypedNativeCall ec
+                        && com.legend.compiler.element.type.PlatformTypes.EXECUTE
+                                .equals(ec.callee().qualifiedName())) {
+                    // EAGER run (engine parity, audit 16 F1): a broken
+                    // pipeline surfaces AT the let even when nothing reads
+                    // the frame.
+                    execFrames.put(let.name(),
+                            buildFrame(ec, letPrefix, true, specs, env));
+                    continue;
+                }
                 if (containsEffect(let.value(), specs, effectMemo)) {
                     // β-substitution would DROP the effect if the binding is
                     // unused (or double it if used twice) — refuse loudly
@@ -95,7 +120,8 @@ final class StatementExecutor {
             java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
             single.add(stmt);
             java.util.List<TypedSpec> body =
-                    new com.legend.compiler.spec.UserCallInliner(specs)
+                    new com.legend.compiler.spec.UserCallInliner(specs,
+                            spliceHook(execFrames, letPrefix, specs, env))
                             .inlineBody(single);                          // Phase G½
             // toSQLString dispatches PRE-H: its query lambda resolves
             // against the EXPLICIT mapping argument, never the ambient
@@ -112,6 +138,15 @@ final class StatementExecutor {
                     && com.legend.compiler.element.type.PlatformTypes.TO_SQL_STRING
                             .equals(tsc.callee().qualifiedName())) {
                 result = toSqlString(tsc, specs, env);
+                continue;
+            }
+            // execute() in RESULT position: the eager frame run IS the value
+            // (the Result envelope is typing-only — the chain's rows are what
+            // a reader observes).
+            if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall xc
+                    && com.legend.compiler.element.type.PlatformTypes.EXECUTE
+                            .equals(xc.callee().qualifiedName())) {
+                result = buildFrame(xc, letPrefix, true, specs, env).result();
                 continue;
             }
             body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
@@ -159,6 +194,272 @@ final class StatementExecutor {
         return new ExecutionResult.Scalar(
                 new com.legend.sql.dialect.EngineStyleH2().render(plan),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
+    }
+
+    // =====================================================================
+    // The RESULT FRAME (audit 19d B2): let-bound execute() runs EAGERLY and
+    // becomes a frame; downstream reads over the frame splice into typed
+    // queries — Result is a typing surface plus an orchestration handle,
+    // NEVER a host object graph (tenet #1: Java orchestrates, the database
+    // executes). The splice rules moved VERBATIM from the harness.
+    // =====================================================================
+
+    /** One executed {@code execute()} binding: the from-wrapped typed query
+     * chain (unresolved — downstream reads compose over it and resolve as a
+     * whole), whether the query ROOT is relation-shaped (the engine's
+     * {@code Result.values} for a TDS query holds ONE TDS; for a class or
+     * scalar root, values IS the collection), and the eager run's result. */
+    record ExecFrame(TypedSpec chain, boolean relationRooted,
+            ExecutionResult result) {
+    }
+
+    /** Envelope-read recognizers — generic natives identified by EXACT FQN
+     * (never suffix matching). */
+    private static final String AT_FQN = "meta::pure::functions::collection::at";
+    private static final String TO_ONE_FQN =
+            "meta::pure::functions::multiplicity::toOne";
+    private static final java.util.Set<String> SIZE_FQNS = java.util.Set.of(
+            "meta::pure::functions::relation::size",
+            "meta::pure::functions::collection::size");
+
+    /**
+     * Build the frame for one {@code execute(f, mapping, runtime, ext)}
+     * call: fold the query lambda's (and the caller's) lets, attach the
+     * EXPLICIT mapping argument as the chain's execution context, and — for
+     * a let binding — run it eagerly through the pipeline.
+     */
+    private static ExecFrame buildFrame(
+            com.legend.compiler.spec.typed.TypedNativeCall ec,
+            java.util.List<TypedSpec> letPrefix, boolean eager,
+            SpecCompiler specs, ExecEnv env) throws java.sql.SQLException {
+        TypedSpec q = letBound(ec.args().get(0), letPrefix);
+        if (!(q instanceof com.legend.compiler.spec.typed.TypedLambda lam)
+                || !lam.parameters().isEmpty()) {
+            throw new com.legend.error.NotImplementedException(
+                    "execute() whose query argument is not a lambda");
+        }
+        if (!(letBound(ec.args().get(1), letPrefix)
+                instanceof com.legend.compiler.spec.typed.TypedPackageableRef mref)) {
+            throw new com.legend.error.NotImplementedException(
+                    "execute() mapping argument must be a mapping reference");
+        }
+        java.util.List<TypedSpec> qb = new java.util.ArrayList<>(letPrefix);
+        qb.addAll(lam.body());
+        TypedSpec chain = new com.legend.compiler.spec.UserCallInliner(specs)
+                .inlineBody(qb).get(0);
+        if (!containsTypedFrom(chain)) {
+            java.util.Optional<com.legend.compiler.spec.typed.TypedPackageableRef>
+                    runtime = env.runtimeFqn() == null ? java.util.Optional.empty()
+                            : java.util.Optional.of(
+                                    new com.legend.compiler.spec.typed.TypedPackageableRef(
+                                            env.runtimeFqn(), mref.info()));
+            chain = new com.legend.compiler.spec.typed.TypedFrom(chain,
+                    java.util.Optional.of(mref), runtime, chain.info());
+        }
+        boolean relationRooted = chain.info().type()
+                instanceof com.legend.compiler.element.type.Type.RelationType;
+        ExecutionResult run = null;
+        if (eager) {
+            java.util.List<TypedSpec> body =
+                    new com.legend.resolver.StoreResolver(env.ctx(), specs)
+                            .resolve(java.util.List.of(chain), env.runtimeFqn());
+            run = executeTyped(body, env);
+        }
+        return new ExecFrame(chain, relationRooted, run);
+    }
+
+    /** A let-bound argument resolves through the caller's let prefix
+     * ({@code let q = |...|; execute($q, ...)}). */
+    private static TypedSpec letBound(TypedSpec arg,
+            java.util.List<TypedSpec> letPrefix) {
+        if (arg instanceof com.legend.compiler.spec.typed.TypedVariable v) {
+            for (int i = letPrefix.size() - 1; i >= 0; i--) {
+                if (letPrefix.get(i)
+                        instanceof com.legend.compiler.spec.typed.TypedLet let
+                        && let.name().equals(v.name())) {
+                    return let.value();
+                }
+            }
+        }
+        return arg;
+    }
+
+    private static boolean containsTypedFrom(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedFrom) {
+            return true;
+        }
+        for (TypedSpec c : n.children()) {
+            if (containsTypedFrom(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * {@code let tds = $r.values(->at(0)/->toOne())} over a RELATION-rooted
+     * frame: the wrappers are the Result envelope and the alias IS the same
+     * frame ({@code $tds->size()} keeps ONE-TDS semantics). {@code at(k>0)}
+     * is loud — the envelope holds one TDS. Class/scalar roots return null:
+     * their at/toOne are REAL selections and the binding is an ordinary let.
+     */
+    private static ExecFrame aliasFrame(TypedSpec rhs,
+            java.util.Map<String, ExecFrame> execFrames) {
+        TypedSpec cur = rhs;
+        boolean badIndex = false;
+        while (true) {
+            if (cur instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                    && pa.property().equals("values")) {
+                cur = pa.source();
+                continue;
+            }
+            if (cur instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                    && (AT_FQN.equals(nc.callee().qualifiedName())
+                            || TO_ONE_FQN.equals(nc.callee().qualifiedName()))
+                    && !nc.args().isEmpty()) {
+                if (AT_FQN.equals(nc.callee().qualifiedName())
+                        && !(nc.args().size() == 2 && nc.args().get(1)
+                                instanceof com.legend.compiler.spec.typed.TypedCInteger k
+                                && k.value().longValue() == 0)) {
+                    badIndex = true;
+                }
+                cur = nc.args().get(0);
+                continue;
+            }
+            break;
+        }
+        if (cur instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && execFrames.containsKey(v.name())
+                && execFrames.get(v.name()).relationRooted()) {
+            if (badIndex) {
+                throw new IllegalStateException("Result.values->at(k>0) on a"
+                        + " relation-rooted query — the values envelope holds"
+                        + " one TDS");
+            }
+            return execFrames.get(v.name());
+        }
+        return null;
+    }
+
+    /**
+     * The TYPED splice — rides the inliner's per-node hook: {@code $r.values}
+     * becomes the frame's query chain; {@code ->at(0)}/{@code ->toOne()}
+     * over it collapse for a relation root (real selections for a class or
+     * scalar root); {@code $r->size()} over a relation-rooted frame is the
+     * envelope's ONE; an inline {@code execute(...).values} splices in place.
+     */
+    private static java.util.function.UnaryOperator<TypedSpec> spliceHook(
+            java.util.Map<String, ExecFrame> execFrames,
+            java.util.List<TypedSpec> letPrefix, SpecCompiler specs, ExecEnv env) {
+        return n -> {
+            // the Typer's `.rows` MARKER (identity over a relation value):
+            // it exists so the arms below can tell a REAL row index
+            // ($r.values.rows->at(k)) from the Result envelope
+            // ($r.values->at(k)) — once seen, it erases to its source.
+            if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess rp
+                    && rp.property().equals("rows")
+                    && rp.source().info().type() instanceof
+                            com.legend.compiler.element.type.Type.RelationType) {
+                return rp.source();
+            }
+            // $r->size() / $tds->size(): ONE TDS value, never the row count
+            if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall sz
+                    && SIZE_FQNS.contains(sz.callee().qualifiedName())
+                    && sz.args().size() == 1
+                    && sz.args().get(0)
+                            instanceof com.legend.compiler.spec.typed.TypedVariable sv
+                    && execFrames.containsKey(sv.name())
+                    && execFrames.get(sv.name()).relationRooted()) {
+                return new com.legend.compiler.spec.typed.TypedCInteger(1L,
+                        sz.info());
+            }
+            // $r.values->at(k) / ->toOne(): collapse (relation root) or a
+            // REAL selection over the spliced chain (class/scalar root)
+            if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall w
+                    && (AT_FQN.equals(w.callee().qualifiedName())
+                            || TO_ONE_FQN.equals(w.callee().qualifiedName()))
+                    && !w.args().isEmpty()) {
+                TypedSpec spliced = spliceValuesRead(w.args().get(0),
+                        execFrames, letPrefix, specs, env);
+                if (spliced != null) {
+                    // relation-rootedness IS the spliced chain's root type
+                    boolean relation = spliced.info().type() instanceof
+                            com.legend.compiler.element.type.Type.RelationType;
+                    if (relation) {
+                        if (AT_FQN.equals(w.callee().qualifiedName())
+                                && !(w.args().size() == 2 && w.args().get(1)
+                                        instanceof com.legend.compiler.spec.typed
+                                                .TypedCInteger k
+                                        && k.value().longValue() == 0)) {
+                            throw new IllegalStateException(
+                                    "Result.values->at(k>0) on a relation-rooted"
+                                    + " query — the values envelope holds one TDS");
+                        }
+                        return spliced;
+                    }
+                    java.util.List<TypedSpec> args =
+                            new java.util.ArrayList<>(w.args());
+                    args.set(0, spliced);
+                    return new com.legend.compiler.spec.typed.TypedNativeCall(
+                            w.callee(), args, w.info());
+                }
+            }
+            // $r.values / execute(...).values → the spliced chain
+            TypedSpec direct = spliceValuesRead(n, execFrames, letPrefix,
+                    specs, env);
+            if (direct != null) {
+                return direct;
+            }
+            // a BARE frame variable reads as the chain (harness parity)
+            if (n instanceof com.legend.compiler.spec.typed.TypedVariable bv
+                    && execFrames.containsKey(bv.name())) {
+                return execFrames.get(bv.name()).chain();
+            }
+            return n;
+        };
+    }
+
+    /** The frame behind a {@code <frameVar>.values} read; null otherwise. */
+    private static ExecFrame valuesFrame(TypedSpec n,
+            java.util.Map<String, ExecFrame> execFrames) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && pa.property().equals("values")
+                && pa.source() instanceof com.legend.compiler.spec.typed.TypedVariable v
+                && execFrames.containsKey(v.name())) {
+            return execFrames.get(v.name());
+        }
+        return null;
+    }
+
+    /** Splice a {@code .values} read (over a frame variable or an INLINE
+     * execute call) into the underlying typed query chain; null when the
+     * node is not a values read the frames can answer. */
+    private static TypedSpec spliceValuesRead(TypedSpec n,
+            java.util.Map<String, ExecFrame> execFrames,
+            java.util.List<TypedSpec> letPrefix, SpecCompiler specs, ExecEnv env) {
+        ExecFrame f = valuesFrame(n, execFrames);
+        if (f != null) {
+            return f.chain();
+        }
+        if (n instanceof com.legend.compiler.spec.typed.TypedPropertyAccess pa
+                && pa.property().equals("values")) {
+            TypedSpec src = pa.source();
+            while (src instanceof com.legend.compiler.spec.typed.TypedFrom sf) {
+                src = sf.source();
+            }
+            if (src instanceof com.legend.compiler.spec.typed.TypedNativeCall ec
+                    && com.legend.compiler.element.type.PlatformTypes.EXECUTE
+                            .equals(ec.callee().qualifiedName())) {
+                try {
+                    // inline read: the value is observed where it stands —
+                    // no separate eager run (it would execute twice)
+                    return buildFrame(ec, letPrefix, false, specs, env).chain();
+                } catch (java.sql.SQLException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+        }
+        return null;
     }
 
     /** Bind an effectful map's parameter: TypedVariable(param) reads in

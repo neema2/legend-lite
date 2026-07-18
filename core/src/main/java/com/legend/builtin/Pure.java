@@ -917,6 +917,13 @@ public final class Pure {
     // Result<T|m> spelling darkens the postprocessor family the same
     // way). T[*] is safe meanwhile — consumers normalize multiplicity.
     public static final ClassDefinition RESULT = nativeClass("native Class meta::pure::mapping::Result<T> extends meta::pure::metamodel::type::Any { values: T[*]; activities: meta::pure::mapping::Activity[*]; }");
+    // debug-context surface (REAL legend-pure platform/pure/tools.pure +
+    // essential/tools/debug/noDebug.pure): the corpus's debug-arity execute
+    // calls type against these. RelationalDebugContext/IsolationStrategy
+    // stay CORPUS classes (pureToSQLQuery.pure — dark until task #50's
+    // parse wall lands) — never promoted to the prelude.
+    public static final ClassDefinition DEBUG_CONTEXT = nativeClass("native Class meta::pure::tools::DebugContext extends meta::pure::metamodel::type::Any { debug: meta::pure::metamodel::type::Boolean[1]; space: meta::pure::metamodel::type::String[1]; }");
+    public static final NativeFunctionDefinition NO_DEBUG = signature("native function meta::pure::tools::noDebug():meta::pure::tools::DebugContext[1];");
     public static final ClassDefinition ACTIVITY = nativeClass("native Class meta::pure::mapping::Activity extends meta::pure::metamodel::type::Any {}");
     public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY = signature("native function meta::pure::mapping::execute<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*]):meta::pure::mapping::Result<T>[1];");
     public static final NativeFunctionDefinition EXECUTE__FN_1__ANY_1__ANY_1__ANY_MANY__ANY_1 = signature("native function meta::pure::mapping::execute<T>(f:meta::pure::metamodel::function::Function<{->T[*]}>[1], mapping:meta::pure::metamodel::type::Any[1], runtime:meta::pure::metamodel::type::Any[1], extensions:meta::pure::metamodel::type::Any[*], debug:meta::pure::metamodel::type::Any[1]):meta::pure::mapping::Result<T>[1];");

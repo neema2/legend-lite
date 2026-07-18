@@ -394,7 +394,9 @@ class NativeFunctionTest {
         // 47: +Runtime/ConnectionStore/Connection (the real runtime.pure trio).
         // 48: +Database (the store metaclass — database refs in value position).
         // 49: +Row (ResultSet introspection in setup functions).
-        assertEquals(51, Pure.allNativeClasses().size(),
+        // 52: +DebugContext (B2b: the debug-arity execute calls type
+        //     against the REAL legend-pure platform tools surface).
+        assertEquals(52, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -415,7 +417,10 @@ class NativeFunctionTest {
                     List.of("values", "parent"),
                     // B2a (real pure: platform_dsl_mapping/result.pure)
                     "meta::pure::mapping::Result",
-                    List.of("values", "activities"));
+                    List.of("values", "activities"),
+                    // B2b (real pure: platform/pure/tools.pure)
+                    "meta::pure::tools::DebugContext",
+                    List.of("debug", "space"));
 
     @Test
     void everyNativeClassIsMarkedNativeAndHasEmptyBodyOutsideTheDocumentedSurface() {
@@ -558,6 +563,8 @@ class NativeFunctionTest {
                 "meta::relational::metamodel::execute",
                 // B2a: the execute()/Result typing surface
                 "meta::pure::mapping",
+                // B2b: the debug-context surface (platform tools.pure)
+                "meta::pure::tools",
                 "meta::core::runtime",
                 // the store metaclass lives directly under meta::relational::metamodel
                 "meta::relational::metamodel");

@@ -1132,8 +1132,15 @@ final class Typer {
             // .rows IS the relation viewed as its row collection; bare
             // .columns is the column-name collection (assertSize targets)
             if (ap.property().equals("rows")) {
-                // the relation IS its row collection
-                return source;
+                // the relation IS its row collection — but the node SURVIVES
+                // as an identity-typed MARKER: the statement executor's
+                // result frame must tell `$r.values.rows->at(k)` (a REAL row
+                // index) from `$r.values->at(k)` (the Result envelope, k=0
+                // only) — erasing here made the two spellings collide (audit
+                // 19d B2). The K-side splice hook erases the marker after
+                // disambiguation; no other consumer sees it.
+                return new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                        source, "rows", source.info());
             }
             if (ap.property().equals("values")) {
                 // On a ROW VARIABLE ($r inside map/filter): TDSRow.values =

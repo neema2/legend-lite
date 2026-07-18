@@ -52,6 +52,12 @@ public final class PlatformTypes {
     public static final String SET_UP_DATA_SQLS_V2 =
             "meta::alloy::service::execution::setUpDataSQLsV2";
 
+    /** The engine's execution entry — K-dispatched as a RESULT FRAME
+     * (audit 19d B2: {@code Result} is a typing surface plus an
+     * orchestration handle, never a host object graph; reads over it
+     * splice into SQL-bound typed queries in the statement executor). */
+    public static final String EXECUTE = "meta::pure::mapping::execute";
+
     /**
      * PLATFORM-OWNED function FQNs: legend-lite's native IS the definition
      * — user re-definitions (the real engine's toDDL.pure bodies walk the
@@ -63,7 +69,8 @@ public final class PlatformTypes {
     public static boolean isPlatformOwnedFunction(String fqn) {
         return DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
-                || TO_SQL_STRING.equals(fqn);
+                || TO_SQL_STRING.equals(fqn)
+                || EXECUTE.equals(fqn);
     }
 
     /** Debug output — K-dispatched as a NO-OP, arguments never evaluated. */
@@ -90,6 +97,7 @@ public final class PlatformTypes {
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
                 || TO_SQL_STRING.equals(fqn)
                 || SET_UP_DATA_SQLS_V2.equals(fqn)
+                || EXECUTE.equals(fqn)
                 || PRINT.equals(fqn) || PRINTLN.equals(fqn);
     }
 

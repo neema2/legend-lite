@@ -24,20 +24,20 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 103 | 0 | 0 | 10 | 93 |
-| functions/tests | 258 | 118 | 5 | 113 | 22 |
+| functions/tests | 258 | 120 | 9 | 109 | 20 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
-| functions/tests/projection | 155 | 76 | 7 | 55 | 17 |
+| functions/tests/projection | 155 | 76 | 7 | 59 | 13 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 119 | 15 | 6 | 94 | 4 |
+| graphFetch/tests | 119 | 15 | 5 | 97 | 2 |
 | graphFetch/tests/union | 15 | 2 | 0 | 13 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 49 | 0 | 0 | 0 | 49 |
-| milestoning/tests | 223 | 144 | 1 | 39 | 39 |
+| milestoning/tests | 223 | 143 | 1 | 44 | 35 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
-| postprocessor | 7 | 6 | 0 | 1 | 0 |
-| postprocessor/tests | 30 | 0 | 0 | 6 | 24 |
+| postprocessor | 7 | 0 | 0 | 7 | 0 |
+| postprocessor/tests | 30 | 0 | 0 | 10 | 20 |
 | pureToSQLQuery/tests | 14 | 3 | 0 | 0 | 11 |
 | router/tests | 26 | 2 | 0 | 5 | 19 |
 | sqlDialectTranslation | 21 | 0 | 0 | 0 | 21 |
@@ -46,11 +46,11 @@ in-process Alloy-shaped path).
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 266 | 128 | 1 | 108 | 29 |
+| tds/tests | 266 | 127 | 1 | 111 | 27 |
 | testDataGeneration/tests | 68 | 0 | 0 | 0 | 68 |
 | tests | 39 | 0 | 0 | 0 | 39 |
-| tests/advanced | 68 | 17 | 1 | 37 | 13 |
-| tests/datatype | 5 | 4 | 0 | 1 | 0 |
+| tests/advanced | 68 | 17 | 0 | 40 | 11 |
+| tests/datatype | 5 | 1 | 0 | 4 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 |
 | tests/mapping | 10 | 3 | 2 | 5 | 0 |
 | tests/mapping/association | 23 | 7 | 0 | 16 | 0 |
@@ -71,7 +71,7 @@ in-process Alloy-shaped path).
 | tests/mapping/merge | 1 | 0 | 0 | 1 | 0 |
 | tests/mapping/modelJoin | 47 | 12 | 1 | 34 | 0 |
 | tests/mapping/multigrain | 5 | 3 | 0 | 2 | 0 |
-| tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 |
+| tests/mapping/propertyfunc | 6 | 5 | 0 | 1 | 0 |
 | tests/mapping/relation | 93 | 42 | 1 | 7 | 43 |
 | tests/mapping/relation/aggregation | 9 | 0 | 0 | 9 | 0 |
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
@@ -80,11 +80,11 @@ in-process Alloy-shaped path).
 | tests/mapping/union | 124 | 57 | 0 | 60 | 7 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 4 | 0 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
-| tests/query | 83 | 60 | 2 | 20 | 1 |
+| tests/query | 83 | 60 | 1 | 21 | 1 |
 | transform/fromPure/tests | 50 | 15 | 2 | 18 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2497 | **1018** | 45 | 824 | 610 |
+| **total** | 2497 | **1008** | 46 | 853 | 590 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4291,36 +4291,36 @@ in-process Alloy-shaped path).
 
 ### top error buckets
 
-- 27x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 26x a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- 25x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 19x unknown type 'TabularDataSet' in @TabularDataSet
+- 15x serialize expects (classCollection, #{Class{…}}#)
 - 14x toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - 13x expected at most one value, got many ([*])
-- 13x serialize expects (classCollection, #{Class{…}}#)
 - 13x a navigation join over this union demands key column 'c_PersonID', which NO union member carries
+- 12x scalar lowering not yet implemented for TypedSerializeGraph
 - 11x lowering not yet implemented for TypedNativeCall
 - 11x graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - 10x class query under TypedMap is not resolvable yet (H2 vocabulary)
+- 10x unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
 - 9x class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
 - 8x class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
-- 8x from() argument 2 must be a mapping or runtime reference, got TypedUserCall
-- 8x scalar lowering not yet implemented for TypedSerializeGraph
-- 8x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=…
 - 8x relation has no column 'aID'
-- 8x navigation through class-typed slot property 'address' is not supported yet
 - 7x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 7x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
+- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - 7x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
 - 7x ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - 7x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping'
 - 7x filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
-- 6x class meta::relational::tests::model::simple::Address has no property 'values'
+- 6x unknown class 'meta::external::store::model::ModelStore' in ^meta::external::store::model::ModelStore(…)
+- 6x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=…
+- 6x no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
 - 6x scalar lowering not yet implemented for TypedCLatestDate
 - 6x unknown function 'columnValues'
 - 6x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
+- 6x navigation through class-typed slot property 'address' is not supported yet
 - 6x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=em…
-- 5x unknown function 'generateObjectReferences'
-- 5x mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
 
 ### per-test outcomes (non-passing)
 
@@ -4464,9 +4464,8 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Product], multiplicity=Bounded[lower=1, upper=1]]], predicate=TypedLambda[parameters=[p], body=[TypedNa
-- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -4478,7 +4477,7 @@ in-process Alloy-shaped path).
 - ERROR testComplexOrExistsToManyProperty [functions/tests]: unknown function 'assert'
 - FAIL testDupsFilterProject [functions/tests]: assertEquals: expected Firm X, got [Firm X, Yes]
 - ERROR testExistsWithEmbedded [functions/tests]: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet
-- ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet
+- ERROR testExistsWithEmbeddedWithPostProcessor [functions/tests]: unknown class '' in ^(…)
 - ERROR testWithFilterGroupBy [functions/tests]: no scalar lowering registered for resolved overload 'meta::pure::functions::io::println' with 1 parameter(s)
 - ERROR testWithFilterGroupByNestedAssociation [functions/tests]: no scalar lowering registered for resolved overload 'meta::pure::functions::io::println' with 1 parameter(s)
 - ERROR testIsNotEmpty [functions/tests]: Binder Error: subqueries in lambda expressions are not supported
@@ -4494,28 +4493,27 @@ in-process Alloy-shaped path).
 - SHAPE testFetchDbSchemasMetaData [functions/tests]: no execute(|...) call
 - SHAPE testFetchDbPrimaryKeysMetaData [functions/tests]: no execute(|...) call
 - ERROR testSelectChainOfAndOrOperators [functions/tests]: runtime 'rcorpus::Rt' has 2 mappings binding class 'meta::relational::tests::model::simple::Person' (of 2 candidates); class-query dispatch needs exactly one
-- SHAPE testBuildFilterWithValueThatCanBeNull [functions/tests]: execute() whose query argument is not a lambda
-- SHAPE testBuildFilterWithValueThatCanBeNullWithIn [functions/tests]: execute() whose query argument is not a lambda
-- ERROR testConsistencyWithNulls [functions/tests]: class meta::relational::tests::model::simple::Address has no property 'values'
-- ERROR testConsistencyWithNulls [functions/tests]: class meta::relational::tests::model::simple::Address has no property 'values'
-- ERROR testConsistencyWithNulls [functions/tests]: class meta::relational::tests::model::simple::Address has no property 'values'
-- ERROR testConsistencyWithNullsInColumnToColumnComparison [functions/tests]: class meta::relational::tests::model::simple::Address has no property 'values'
-- ERROR testConsistencyWithNullsInColumnToColumnComparison [functions/tests]: class meta::relational::tests::model::simple::Address has no property 'values'
+- ERROR testBuildFilterWithValueThatCanBeNull [functions/tests]: in call to 'meta::pure::mapping::execute', argument 1: expected { -> T[*]}, got FunctionDefinition<{ -> meta::relational::tests::model::simple::Person[*]}>
+- ERROR testBuildFilterWithValueThatCanBeNullWithIn [functions/tests]: in call to 'meta::pure::mapping::execute', argument 1: expected { -> T[*]}, got FunctionDefinition<{ -> meta::relational::tests::model::simple::Person[*]}>
+- FAIL testConsistencyWithNulls [functions/tests]: assertEquals: expected 2, got 11
+- FAIL testConsistencyWithNulls [functions/tests]: assertEquals: expected 2, got 11
+- FAIL testConsistencyWithNulls [functions/tests]: assertEquals: expected 2, got 11
+- FAIL testConsistencyWithNullsInColumnToColumnComparison [functions/tests]: assertEquals: expected 2, got 11
+- FAIL testConsistencyWithNullsInColumnToColumnComparison [functions/tests]: assertEquals: expected 2, got 11
 - ERROR testOrFilterWithTypeFilter [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testFilterBeforeAndAfterGroupBy [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testFilterBeforeAndAfterProject [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testLateIsolationOfTypeFilterDoesntPreventMerging [functions/tests]: multi-hop navigation firm.ceo.address.name through an embedded/slot head is not supported yet
 - ERROR testFilterAfterFilter [functions/tests]: multi-hop navigation firm.address#f0.name through an embedded/slot head is not supported yet
 - ERROR testFilterInWithJoin [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testMappingFromQueriesViaMappingWithAssociationsOnly [functions/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
-- ERROR testClassMappingsAreCorrectlyIsolated [functions/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
-- ERROR testClassMappingsWithUnions [functions/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
-- ERROR testEnumProjection [functions/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- ERROR testMappingFromQueriesViaMappingWithAssociationsOnly [functions/tests]: unknown class 'Mapping' in ^Mapping(…)
+- ERROR testClassMappingsAreCorrectlyIsolated [functions/tests]: unknown class 'Mapping' in ^Mapping(…)
+- ERROR testClassMappingsWithUnions [functions/tests]: unknown class 'Mapping' in ^Mapping(…)
+- ERROR testEnumProjection [functions/tests]: unknown class 'Mapping' in ^Mapping(…)
 - SHAPE testFromWithMapping [functions/tests]: no execute(|...) call
 - SHAPE testFromWithMappingAndIntermediateFuncCall [functions/tests]: no execute(|...) call
-- ERROR testGetterTwice [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- ERROR testGetterTwice [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
 - ERROR testInWithOneValue [functions/tests]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary): TypedCast[source=TypedCollection[elements=[TypedCString[value=John, info=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]]], target=Class
-- ERROR testConsistencyWithNulls [functions/tests]: class meta::relational::tests::model::simple::Address has no property 'values'
 - SHAPE testInWithinQualifiedPropertyCollectionAsLiteralList [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testInExecutionWithTempTableForStrings [functions/tests]: unknown type 'TabularDataSet' in @TabularDataSet
 - ERROR testInExecutionWithTempTableForNumbers [functions/tests]: unknown type 'TabularDataSet' in @TabularDataSet
@@ -4524,8 +4522,8 @@ in-process Alloy-shaped path).
 - ERROR testInExecutionWithTempTableForDateTimesWithTz [functions/tests]: unknown type 'TabularDataSet' in @TabularDataSet
 - ERROR testInExecutionWithTempTableAndQueryChaining [functions/tests]: object-space expression node TypedGetAll is not substitutable yet (H2 vocabulary): TypedGetAll[classFqn=meta::relational::tests::model::simple::ValidPerson, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::ValidPerson], multiplicity=Bounded
 - ERROR testInExecutionWithTempTableAndQueryChainingOnIntegerColumn [functions/tests]: object-space expression node TypedGetAll is not substitutable yet (H2 vocabulary): TypedGetAll[classFqn=meta::relational::tests::model::simple::ValidPerson, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::ValidPerson], multiplicity=Bounded
-- ERROR testInExecutionWithTempTableAndQueryChainingAndChainConnection [functions/tests]: object-space expression node TypedGetAll is not substitutable yet (H2 vocabulary): TypedGetAll[classFqn=meta::relational::tests::model::simple::ValidPerson, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::ValidPerson], multiplicity=Bounded
-- ERROR testIsolationOfInputToIsEmpty [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- ERROR testInExecutionWithTempTableAndQueryChainingAndChainConnection [functions/tests]: unknown class 'meta::external::store::model::ModelStore' in ^meta::external::store::model::ModelStore(…)
+- ERROR testIsolationOfInputToIsEmpty [functions/tests]: scalar lowering not yet implemented for TypedSerializeGraph
 - ERROR testIsolationOfInputToIsEmptyWithForcedFiltersOnInput [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testInputNotIsolatedWhenPropertyPathIsToOne [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testIsolationOfTheSameInputInABooleanExprWhereOneSideIsEmpty [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
@@ -4584,7 +4582,7 @@ in-process Alloy-shaped path).
 - ERROR testPaginatedByVendor [functions/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - SHAPE testPaginatedWithVariables [functions/tests]: harness wrapper 'runTest' carries no zero-arg lambda body
 - ERROR testDistinctSize [functions/tests]: object-space operation TypedDistinct is not supported yet
-- ERROR testSQLComments [functions/tests]: class meta::relational::tests::model::simple::Person has no property 'activities'
+- ERROR testSQLComments [functions/tests]: unknown type 'RelationalActivity' in @RelationalActivity
 - SHAPE testLimitFilterInSequence [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFilterLimitInSequence [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLimitFilterInSequenceForTableAccessor [functions/tests]: no execute(|...) call
@@ -4611,10 +4609,10 @@ in-process Alloy-shaped path).
 - ERROR testIsDistinctSubAggregation [functions/tests/projection]: no overload of 'meta::pure::functions::collection::isDistinct' accepts 1 argument(s)
 - ERROR testAssociationToManyColumnProtocolWithDoc [functions/tests/projection]: a name-less project column must be a property navigation (its leaf names the column); give explicit names for computed columns
 - ERROR testQualifiedPropertyUsingColumnProtocol [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
-- SHAPE testConcatenationOfTdsQueries [functions/tests/projection]: execute() whose query argument is not a lambda
-- SHAPE testConcatenationOfTdsQueriesWithFilter [functions/tests/projection]: execute() whose query argument is not a lambda
-- SHAPE testConcatenationOfTdsQueriesWithGroupBy [functions/tests/projection]: execute() whose query argument is not a lambda
-- SHAPE testConcatenationOfTdsQueriesWithFilterAndGroupBy [functions/tests/projection]: execute() whose query argument is not a lambda
+- ERROR testConcatenationOfTdsQueries [functions/tests/projection]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
+- ERROR testConcatenationOfTdsQueriesWithFilter [functions/tests/projection]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
+- ERROR testConcatenationOfTdsQueriesWithGroupBy [functions/tests/projection]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
+- ERROR testConcatenationOfTdsQueriesWithFilterAndGroupBy [functions/tests/projection]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
 - FAIL testAdjustWithMicroseconds [functions/tests/projection]: assertSameElements: expected 2014-12-04 15:22:23.123456, got 2014-12-04 15:22:23.123456789
 - ERROR testFirstDayOfWeek [functions/tests/projection]: unknown function 'firstDayOfWeek'
 - ERROR testFirstDayOfThisMonth [functions/tests/projection]: unknown function 'firstDayOfThisMonth'
@@ -4687,10 +4685,10 @@ in-process Alloy-shaped path).
 - ERROR CrossStoreGraphFetchWithRelationalMilestonedAllversions [graphFetch/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR CrossStoreGraphFetchWithRelationalMilestonedFlowDownM2M [graphFetch/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - SHAPE testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint [graphFetch/tests]: no execute(|...) call
-- ERROR testRelationalChainExecutionFlat [graphFetch/tests]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::chain::M2M_Mapping'
-- ERROR testRelationalChainExecutionNested [graphFetch/tests]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::chain::M2M_Mapping'
-- ERROR testRelationalChainExecutionWithFilter [graphFetch/tests]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::chain::M2M_Mapping'
-- ERROR testRelationalChainExecutionWithInScopeVariableFilter [graphFetch/tests]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::graphFetch::tests::chain::M2M_Mapping'
+- ERROR testRelationalChainExecutionFlat [graphFetch/tests]: unknown class 'meta::external::store::model::ModelStore' in ^meta::external::store::model::ModelStore(…)
+- ERROR testRelationalChainExecutionNested [graphFetch/tests]: unknown class 'meta::external::store::model::ModelStore' in ^meta::external::store::model::ModelStore(…)
+- ERROR testRelationalChainExecutionWithFilter [graphFetch/tests]: unknown class 'meta::external::store::model::ModelStore' in ^meta::external::store::model::ModelStore(…)
+- ERROR testRelationalChainExecutionWithInScopeVariableFilter [graphFetch/tests]: unknown class 'meta::external::store::model::ModelStore' in ^meta::external::store::model::ModelStore(…)
 - FAIL testFlatGraphFetchWithJoin [graphFetch/tests]: assertJsonStringsEqual: expected [{firstName=Peter, lastName=Firm X, age=23}, {firstName=John, lastName=Firm X, age=22}, {firstName=John, lastName=Firm X, age=12}, {firstName=Anthony, lastNa..., got [{firstName=Anthony, lastName=Firm X, age=22}, {firstName=John, lastName=Firm X, age=12}, {firstName=
 - FAIL testNestedGraphFetch [graphFetch/tests]: assertJsonStringsEqual: expected [{firstName=Peter, lastName=Firm X, firm={legalName=Firm X}}, {firstName=John, lastName=Firm X, firm={legalName=Firm X}}, {firstName=John, lastName=Firm X, f..., got [{firstName=Anthony, lastName=Firm X, firm={legalName=Firm X}}, {firstName=John, lastName=Firm X, fir
 - ERROR testGraphFetchWithPrimitiveQualifier [graphFetch/tests]: property 'nameWithTitle' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::classOwnedMappingWithInnerJoinInFilter'
@@ -4744,7 +4742,7 @@ in-process Alloy-shaped path).
 - ERROR testObjectReferenceInUsingResultReferences [graphFetch/tests]: unknown function 'alloyConfig'
 - FAIL testGraphFetchWithManyMultiplicityPrimitiveProperty [graphFetch/tests]: assertJsonStringsEqual: expected [{firstName=Peter, otherNames=[abc, def, ghi]}, {firstName=John, otherNames=[jkl, mno]}, {firstName=John, otherNames=[]}, {firstName=Anthony, otherNames=[]},..., got [{firstName=Peter, otherNames=ghi}, {firstName=John, otherNames=mno}, {firstName=Peter, otherNames=de
 - FAIL testGraphFetchDataTypes [graphFetch/tests]: assertJsonStringsEqual: expected [{date=2003-07-19, floatAsDecimal=1.1, double=2.2, varchar=Something, numeric=1.23456, tinyInt=1, integer=3, float=1.1, bit=true, smallInt=2, char=c, numeric..., got [{tinyInt=1, smallInt=2, integer=3, bigInt=1000, varchar=Something, char=c, date=2003-07-19, timestam
-- FAIL testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: assertJsonStringsEqual: expected [{legalName=Firm X, employees=[]}, {legalName=Firm A, employees=[]}, {legalName=Firm B, employees=[]}, {legalName=Firm C, employees=[]}], got [{legalName=Firm X, employees=[{firstName=Peter}, {firstName=John}, {firstName=John}, {firstName=Anthony}]}, {legalName=Firm 
+- ERROR testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: unknown class 'meta::external::store::relational::runtime::RelationalDatabaseConnection' in ^meta::external::store::relational::runtime::RelationalDatabaseConnection(…)
 - ERROR testGraphFetchWithViewRootFlat [graphFetch/tests]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
 - ERROR testGraphFetchWithViewRootNested [graphFetch/tests]: resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
 - ERROR testGraphFetchWithViewRootNestedDeep [graphFetch/tests]: mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
@@ -4781,8 +4779,8 @@ in-process Alloy-shaped path).
 - ERROR testInheritanceMappingWithoutSubType [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
 - ERROR testUnionMappingWithoutSubType [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
 - ERROR RootSubTypeWithRootPropertyUnion [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
-- SHAPE RootSubTypeWithSubtypeLevelPropertyUnionMapping [graphFetch/tests]: execute() whose query argument is not a lambda
-- SHAPE RootSubTypeWithSubtypeLevelPropertyUnionMappingChecked [graphFetch/tests]: execute() whose query argument is not a lambda
+- ERROR RootSubTypeWithSubtypeLevelPropertyUnionMapping [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
+- ERROR RootSubTypeWithSubtypeLevelPropertyUnionMappingChecked [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
 - ERROR RootSubTypeWithSubtypeLevelAndRootLevelPropertyUnionMapping [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
 - ERROR subTypeWithQualifiedPropertyUnionMapping [graphFetch/tests]: serialize expects (classCollection, #{Class{…}}#)
 - ERROR testMilestoningWithSimpleQualifiedPropertyWithUnionMapping [graphFetch/tests/union]: graphFetch tree: class meta::relational::tests::model::simple::Order has no property 'product'
@@ -4876,8 +4874,8 @@ in-process Alloy-shaped path).
 - SHAPE testConstraintUsageOfThisMilestoningContext2WithNonTemporalStore [milestoning/tests]: no execute(|...) call
 - SHAPE testConstraintUsageOfThisMilestoningContext3 [milestoning/tests]: no execute(|...) call
 - SHAPE testMilestonedThisBusinessDateInPosition1InQualfiedPropertySequence [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testMilestonedThisBusinessDateInPosition1InQualfiedPropertySequence2 [milestoning/tests]: execute() whose query argument is not a lambda
-- SHAPE testMilestonedThisBusinessDateWithNestedDerivedProperty [milestoning/tests]: execute() whose query argument is not a lambda
+- ERROR testMilestonedThisBusinessDateInPosition1InQualfiedPropertySequence2 [milestoning/tests]: no overload of 'meta::pure::router::preeval::preval' matches 2 argument(s) of these shapes
+- ERROR testMilestonedThisBusinessDateWithNestedDerivedProperty [milestoning/tests]: no overload of 'meta::pure::router::preeval::preval' matches 2 argument(s) of these shapes
 - SHAPE testProcessedMilestonedExchangeNameConstraint [milestoning/tests]: no execute(|...) call
 - SHAPE testMilestonedThisBusinessDateInPosition2InQualfiedPropertySequence [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMilestonedThisBusinessDateUsedAsParameterToFunctionParametersOfMilestonedQualifiedProperty [milestoning/tests]: filter predicate references column 'businessDate', unresolvable even after isolation
@@ -4885,6 +4883,7 @@ in-process Alloy-shaped path).
 - SHAPE testMilestonedQualifiedPropertyWithDateProvidedByFunction [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testViewChainsWithBusinessDate [milestoning/tests]: no execute(|...) call
 - ERROR testPopulationOfLatestMilestonedDateInQuery [milestoning/tests]: scalar lowering not yet implemented for TypedCLatestDate
+- ERROR testMilestoningFiltersPreservedInTdsJoinWithConcatenate [milestoning/tests]: a non-let intermediate statement (TypedUserCall) in an inlined function body is not supported
 - ERROR testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: scalar lowering not yet implemented for TypedCLatestDate
 - SHAPE testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testNonMilestoningQueryWithLatestMilestoneFilterSimple [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -4901,11 +4900,11 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
-- SHAPE testConcatenationOfTemporalTdsQueries [milestoning/tests]: execute() whose query argument is not a lambda
-- SHAPE testConcatenationOfTemporalTdsQueriesWithGroupBy [milestoning/tests]: execute() whose query argument is not a lambda
+- ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
+- ERROR testConcatenationOfTemporalTdsQueriesWithGroupBy [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
 - ERROR testMultiLevelIsolatedToSubSelectHasCorrectExtraColumns [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmap2$class$meta::relational::tests::milestoning::Product': property 'isBrexitClassificationTypeExchange' of 'meta::relational::tests::milestoning::Product': expected Boolean, got String (value: AppliedFunction[function=if, parameters=[App
 - SHAPE testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFilterOnView [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -4951,14 +4950,20 @@ in-process Alloy-shaped path).
 - ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
-- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=x, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Person], multiplicity=Bounded[lower=1, upper=1]]]
-- SHAPE testReplaceTablePostProcessor [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testReplaceTableMultiplePostProcessor [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testReplaceTablesPostProcessor [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testReplaceTablePostProcessor [postprocessor/tests]: Unknown type: 'Table' is not a known primitive, class, or enum
+- ERROR testReplaceTableMultiplePostProcessor [postprocessor/tests]: class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testReplaceTablesPostProcessor [postprocessor/tests]: Unknown type: 'Table' is not a known primitive, class, or enum
 - SHAPE testToSqlStringReplaceTablesPostProcessor [postprocessor/tests]: no execute(|...) call
-- SHAPE testReplaceTablePostProcessorWithExists [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testReplaceTablePostProcessorWithView [postprocessor/tests]: in function 'meta::relational::tests::query::view::relationalMappingWithViewAndInnerJoin$class$meta::relational::tests::model::simple::Order': unknown table 'PersonFirmView' in database 'meta::relational::tests::db'
-- ERROR testReplaceTablePostProcessorWithSubQueries [postprocessor/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=t, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1]]],
+- ERROR testReplaceTablePostProcessorWithExists [postprocessor/tests]: Unknown type: 'Table' is not a known primitive, class, or enum
+- ERROR testReplaceTablePostProcessorWithView [postprocessor/tests]: Unknown type: 'Table' is not a known primitive, class, or enum
+- ERROR testReplaceTablePostProcessorWithSubQueries [postprocessor/tests]: in function 'meta::relational::tests::postProcessor::nonExecutable::runtimeWithNonExecutable': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - SHAPE testPushFiltersDownToJoinsPostProcessorSimpleObjectFilterEqual [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownToJoinsPostProcessorSimpleTDSFilterEqual [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownToJoinsPostProcessorTDSFilterGreaterThan [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -5071,7 +5076,7 @@ in-process Alloy-shaped path).
 - ERROR testGroupByWithWavgAggregation [tds/tests]: unknown function 'wavgRowMapper'
 - ERROR testGroupByWithMultipleWavgAggregation [tds/tests]: unknown function 'wavgRowMapper'
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testSimpleSortAscWithPreval [tds/tests]: execute() whose query argument is not a lambda
+- ERROR testSimpleSortAscWithPreval [tds/tests]: no overload of 'meta::pure::router::preeval::preval' matches 2 argument(s) of these shapes
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues'
 - ERROR testTableToTDSWithQuotes [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
 - ERROR testMultiConcatenate [tds/tests]: lowering not yet implemented for TypedCollection
@@ -5105,6 +5110,7 @@ in-process Alloy-shaped path).
 - ERROR testInOnColumnInSubselect [tds/tests]: no overload of 'olapGroupBy' matches 5 argument(s) of these shapes
 - ERROR testFilterOnQuotedColumnFromTableToTds [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
 - ERROR testFirstNotNullFunction [tds/tests]: unknown function 'meta::pure::tds::extensions::firstNotNull'
+- ERROR testChainPostFilter [tds/tests]: unknown class 'meta::external::store::model::ModelStore' in ^meta::external::store::model::ModelStore(…)
 - ERROR testRightOuterJoinSimple [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - ERROR testFullOuterJoinSimple [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - ERROR testExtendAfterJoinInner [tds/tests]: ~name_length: mapped/aggregate column specifications need an enclosing call to type against
@@ -5147,7 +5153,7 @@ in-process Alloy-shaped path).
 - ERROR testProjectWithQuotedColumnFromTableToTDS [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
 - ERROR testRestrictOnGroupByColumn_SubSetOfGroupByColumns [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - ERROR testRestrictHandlesQueryPathsCorrectlyOnRename [tds/tests]: ~age_new: mapped/aggregate column specifications need an enclosing call to type against
-- SHAPE testRestrictWithPostProcessor [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- ERROR testRestrictWithPostProcessor [tds/tests]: unknown class '' in ^(…)
 - ERROR testRestrictAfterMultiColumnGroupByFollowedByRename [tds/tests]: unknown function 'renameColumns'
 - ERROR testRestrictDistinct_JoinCutDown_ProjectFunctions [tds/tests]: Binder Error: No function matches the given name and argument types 'list_sort(VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(ANY[], VARCHAR) -> ANY[] | 	list_sort(ANY[], VARCHAR, VARCHAR) -> ANY[] |  |  | LINE 1: SELECT coales
 - ERROR testRestrictDistinct_JoinCutDown_ColumnSpecs [tds/tests]: Binder Error: No function matches the given name and argument types 'list_sort(VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(ANY[], VARCHAR) -> ANY[] | 	list_sort(ANY[], VARCHAR, VARCHAR) -> ANY[] |  |  | LINE 1: SELECT coales
@@ -5315,7 +5321,7 @@ in-process Alloy-shaped path).
 - ERROR projectionInvolvingOneNestedAtributeOnTriangularJoinAndOtherJoin [tests/advanced]: navigation through class-typed slot property 'locations' is not supported yet
 - SHAPE testFilterMappingWithProjectionOverlappForcedCorrelated [tests/advanced]: no execute(|...) call
 - SHAPE testFilterMappingWithProjectionOverlappForcedOnClause [tests/advanced]: no execute(|...) call
-- FAIL testProject [tests/advanced]: assertEquals: expected 4, got 0
+- ERROR testProject [tests/advanced]: unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
 - SHAPE testMilestoningQueryWithSimpleProjectWithMilestoneFilterForcedCorrelated [tests/advanced]: no execute(|...) call
 - SHAPE testMilestoningQueryWithSimpleProjectWithMilestoneFilterForcedOnClause [tests/advanced]: no execute(|...) call
 - SHAPE testNonMilestoningQueryWithMilestoneFilterProjectForcedCorrelated [tests/advanced]: no execute(|...) call
@@ -5323,10 +5329,10 @@ in-process Alloy-shaped path).
 - SHAPE testDerivedWithFilteringTwoPropertiesForcedCorrelated [tests/advanced]: no execute(|...) call
 - SHAPE testDerivedWithFilteringTwoPropertiesForcedOnClause [tests/advanced]: no execute(|...) call
 - ERROR isolationTest [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=x, info=ExprType[type=ClassType[fqn=meta::relational::tests::advanced::forcedselfjoin::Firm], mult
-- ERROR testQualifierQueryWithOr [tests/advanced]: scalar lowering not yet implemented for TypedSerializeGraph
-- ERROR testQualifierQuery [tests/advanced]: scalar lowering not yet implemented for TypedSerializeGraph
-- ERROR testQualifierWithOperation [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
-- ERROR testTwoQualifiersWithOperation [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
+- ERROR testQualifierQueryWithOr [tests/advanced]: unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
+- ERROR testQualifierQuery [tests/advanced]: unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
+- ERROR testQualifierWithOperation [tests/advanced]: unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
+- ERROR testTwoQualifiersWithOperation [tests/advanced]: unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
 - ERROR testQualifierQueryWithOr [tests/advanced]: scalar lowering not yet implemented for TypedSerializeGraph
 - ERROR testQualifierQuery [tests/advanced]: scalar lowering not yet implemented for TypedSerializeGraph
 - ERROR testQualifierWithOperation [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
@@ -5335,21 +5341,24 @@ in-process Alloy-shaped path).
 - ERROR testQualifierWithForkAndOrWithInlineWithOffset [tests/advanced]: multi-hop navigation firm.employees#f0.firstName through an embedded/slot head is not supported yet
 - ERROR testQualifierWithForkAndOrWithInlineWithOffsetExplosion [tests/advanced]: multi-hop navigation firm.employees#f0.firstName through an embedded/slot head is not supported yet
 - ERROR testQualifierWithLineAndOrWithInLine [tests/advanced]: navigation through class-typed slot property 'address' is not supported yet
-- ERROR testQualifierWithIsolation [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
+- ERROR testQualifierWithIsolation [tests/advanced]: unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
 - ERROR testQualifierWithIsolationXX [tests/advanced]: extend/project columns [firm] reference names unresolvable even after isolation
-- ERROR testQualifierWithIsolationForced [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
-- ERROR testQualifierWithIsolationForced2 [tests/advanced]: multi-hop navigation firm.employees#f0.firm.legalName through an embedded/slot head is not supported yet
+- ERROR testQualifierWithIsolationForced [tests/advanced]: unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
+- ERROR testQualifierWithIsolationForced2 [tests/advanced]: unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
 - ERROR testQualifierWithIsolationAndExists [tests/advanced]: lowering not yet implemented for TypedNativeCall
 - ERROR testIfIncludingQualifiers [tests/advanced]: lowering not yet implemented for TypedNativeCall
 - ERROR testQualifierWithIsolationAndExistsDeep [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
 - ERROR testQualifierContainingAJoinWithIsolationAndExistsDeep [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
 - ERROR testQualifierWithIsolationAndExistsDeepWithParallelProject [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
 - ERROR testMultipleIsolationWithSameProp [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Person], multiplicity=Bounded[lower=1, upper=1]]], proper
-- SHAPE testLiteralConditionsForcedIsolation [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- SHAPE testForcedIsolationFilterOnTop [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- ERROR testLiteralConditionsForcedIsolation [tests/advanced]: unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
+- ERROR testForcedIsolationFilterOnTop [tests/advanced]: unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
 - ERROR relationalResultSourcingOfList [tests/advanced]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR relationalResultSourcingOfDateList [tests/advanced]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - SHAPE relationalResultSourcingOfListExecutionPlan [tests/advanced]: no execute(|...) call
+- ERROR testSimpleTypeMapping [tests/datatype]: scalar lowering not yet implemented for TypedSerializeGraph
+- ERROR testSimpleTypeMappingNulls [tests/datatype]: scalar lowering not yet implemented for TypedSerializeGraph
+- ERROR testSimpleTypeMappingBooleanFalse [tests/datatype]: scalar lowering not yet implemented for TypedSerializeGraph
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: unknown function 'toJSON'
 - ERROR testProjectThroughAssociation [tests/injection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]], property=trades, info=ExprType
 - ERROR testProjectThroughAssociationAutoMap [tests/injection]: in call to 'meta::relational::tests::injection::model::Trade$prop$productAtTimeOfTrade', argument 1: expected at most one value, got many ([*])
@@ -5377,9 +5386,9 @@ in-process Alloy-shaped path).
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/association]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testSubTypeInColumnProjectionsWithInlineMappings [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::ineritanceMappingWithInlineEmbeddedSets' (join chain [PersonBicycle] was never emitted on this pipeline — the expression navigates a join that was not ho
 - ERROR testChainedJoinsWithUnionsAndIsolationWithProjectionQueryTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::chainedJoinsWithUnionsAndIsolation' (Join 'PersonSet1AddressSet1' not found in db 'meta::relational::tests::mapping::classMappingFilterWithInne
-- ERROR testDynafunctionMergeWithProjectionQueryWithInnerJoinTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::MergeAliasMappingWithInnerJoinFilter' (Join 'personSet_organization_Join' not found in db 'meta::relational::tests::mapping::classMappingFilter
+- ERROR testDynafunctionMergeWithProjectionQueryWithInnerJoinTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: unknown function 'meta::relational::tests::mapping::merge::createRuntime'
 - ERROR testPropertyProjectionQueryWithInnerJoinClassOwnedPropertyMappingTable [tests/mapping/classMappingFilterWithInnerJoin]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testPropertyProjectionQueryWithInnerJoinEmbeddedMappingTable [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testMappingEmbeddedWithInnerJoinFilter' (Join 'firmEmployees' not found in db 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin:
+- ERROR testPropertyProjectionQueryWithInnerJoinEmbeddedMappingTable [tests/mapping/classMappingFilterWithInnerJoin]: unknown function 'meta::relational::tests::mapping::embedded::model::store::testDataTypeMappingRuntime'
 - ERROR testRootQueryWithInnerJoinClassMappingWithMilestoningTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
 - ERROR testPropertyQueryWithInnerJoinClassMappingWithMilestoningTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
 - ERROR testPropertyProjectionQueryWithInnerJoinClassMappingWithMilestoningTableFilter [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Product' is not a known class, mapping, runtime, connection, or database
@@ -5445,7 +5454,7 @@ in-process Alloy-shaped path).
 - ERROR testPropertyMappingsForA [tests/mapping/extends]: association property '$a.e' used other than as a navigation head (class-typed value / isEmpty / whole-instance) is not supported yet
 - ERROR testPropertyMappingsForB [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
 - ERROR testPropertyMappingsForC [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR testStoreSubstitutionForB [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::BMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::B': [meta::relational::tests::mapp
 - ERROR testStoreSubstitutionForC [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::CMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::C': [meta::relational::tests::mapp
@@ -5549,6 +5558,7 @@ in-process Alloy-shaped path).
 - ERROR testUnionWithSubtypeQuery [tests/mapping/modelJoin]: association 'meta::relational::tests::mapping::modelJoin::domain::Person_Firm' is not mapped in mapping 'meta::relational::tests::mapping::modelJoin::union::UnionWithSubtypeQueryMapping' (XStore/ModelJoin association end class 'meta::relational::tests::mapping::modelJoin::domain::Person' resolves to
 - ERROR testToManyWithQualifierWithFilterOnDataType [tests/mapping/multigrain]: in function 'meta::relational::tests::mapping::multigrain::model::mapping::testMappingFirmAccount$class$meta::relational::tests::mapping::multigrain::model::domain::FirmAccount': property 'number' of 'meta::relational::tests::mapping::multigrain::model::domain::FirmAccount': expected Integer, got St
 - ERROR testToManyWithQualifierWithFilterOnJoin [tests/mapping/multigrain]: in function 'meta::relational::tests::mapping::multigrain::model::mapping::testMappingFirmAccount$class$meta::relational::tests::mapping::multigrain::model::domain::FirmAccount': property 'number' of 'meta::relational::tests::mapping::multigrain::model::domain::FirmAccount': expected Integer, got St
+- ERROR testSimplePropertyFuncQuery [tests/mapping/propertyfunc]: scalar lowering not yet implemented for TypedSerializeGraph
 - SHAPE testAutoInferPKFromBareAccessor [tests/mapping/relation]: no execute(|...) call
 - SHAPE testAutoInferPKThroughFilter [tests/mapping/relation]: no execute(|...) call
 - SHAPE testAutoInferPKThroughLimit [tests/mapping/relation]: no execute(|...) call
@@ -5641,8 +5651,8 @@ in-process Alloy-shaped path).
 - ERROR testJoinIsolationDeeperTwoIsolations_LeftOuterLeftOuterThenInner [tests/mapping/tree]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=a, info=ExprType[type=ClassType[fqn=meta::relational::tests::mapping::tree::model::domain::Account
 - ERROR testProjectWithPostTdsOperations [tests/mapping/union]: ~Len: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testFilteredProjectWithPostTdsOperations [tests/mapping/union]: ~Len: mapped/aggregate column specifications need an enclosing call to type against
-- ERROR testProjectThroughAsso [tests/mapping/union]: unknown function 'meta::relational::mapping::sql'
-- ERROR testProjectThroughAssoWithJoinInMapping [tests/mapping/union]: unknown function 'meta::relational::mapping::sql'
+- ERROR testProjectThroughAsso [tests/mapping/union]: unknown function 'meta::relational::postProcessor::removeUnionOrJoins::testRuntimeWithRemoveUnionOrJoinsFeatureEnabled'
+- ERROR testProjectThroughAssoWithJoinInMapping [tests/mapping/union]: unknown function 'meta::relational::postProcessor::removeUnionOrJoins::testRuntimeWithRemoveUnionOrJoinsFeatureEnabled'
 - ERROR testProjectThroughAssoWithMultiJoinInMapping [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithJoinSequenceInProperty' (property 'employees' routes to union member set 'set1' via a CHAINED join — per-member chained joins are not supported yet; the
 - ERROR testSimpleQueryFromWithEmbeddedInMapping [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedProperty'
 - ERROR testSimpleProjectionFromWithEmbeddedInMapping [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::unionMappingWithEmbeddedPropertyOneThroughJoin'
@@ -5665,8 +5675,8 @@ in-process Alloy-shaped path).
 - ERROR testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: property 'employeesExt' of class 'meta::relational::tests::model::simple::FirmExtension' is not mapped in mapping 'meta::relational::tests::mapping::union::unionOfViews'
 - ERROR testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: property 'employeesExt' of class 'meta::relational::tests::model::simple::FirmExtension' is not mapped in mapping 'meta::relational::tests::mapping::union::unionOfViews2'
 - ERROR testChainedUnions [tests/mapping/union]: multi-hop navigation firm.temporalEntityWithAddress.address.name through an embedded/slot head is not supported yet
-- ERROR testPksWithImportDataFlow [tests/mapping/union]: relation has no column 'ID_0'
-- ERROR testUnionWithSinglePropertyMapping [tests/mapping/union]: unknown function 'meta::relational::mapping::sql'
+- ERROR testPksWithImportDataFlow [tests/mapping/union]: unknown class 'RelationalExecutionContext' in ^RelationalExecutionContext(…)
+- ERROR testUnionWithSinglePropertyMapping [tests/mapping/union]: unknown function 'meta::relational::postProcessor::removeUnionOrJoins::testRuntimeWithRemoveUnionOrJoinsFeatureEnabled'
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: no execute(|...) call
 - ERROR testSQLQueryMergingForFilters [tests/mapping/union]: Binder Error: Values list "t17" does not have a column named "fk" |  | LINE 33: ) AS t17 ON t10.fk_0 = t17.fk OR t10.fk_1 = t17.fk |                                 ^
 - ERROR testSQLQueryMergingForFiltersDeep [tests/mapping/union]: Binder Error: Referenced table "t20" not found! | Candidate tables: "t10" |  | LINE 42:   ) AS t20 ON t13.fk_0 = t20.fk OR t13.fk_1 = t20.fk |                                   ^
@@ -5718,7 +5728,7 @@ in-process Alloy-shaped path).
 - ERROR testDayOfWeek [tests/query]: unknown function 'mostRecentDayOfWeek'
 - ERROR testAssociationMixedDeep [tests/query]: scalar lowering not yet implemented for TypedSerializeGraph
 - ERROR testAssociationToManyWithTwoSeparateExists [tests/query]: scalar lowering not yet implemented for TypedSerializeGraph
-- FAIL testWithParameterToClassNestedSelect [tests/query]: assertSize: expected 0, got 1
+- ERROR testWithParameterToClassNestedSelect [tests/query]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
 - ERROR testViewAll [tests/query]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
 - ERROR testViewWithJoinsAndDistinct [tests/query]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::TestMappingWithViewJoins' (Join 'personViewWithFirmTable' not found in db 'meta::relational::tests::db'; PM='null', mapping=meta::relational::tests::TestMappingWithViewJoins)
 - ERROR testDistinctOnlyIncludesTopLevelColumns [tests/query]: in function 'meta::relational::tests::TestViewWithDistinctAndJoins$class$meta::relational::tests::model::simple::Person': unknown table 'FirstNameAddress' in database 'meta::relational::tests::db'
