@@ -498,16 +498,33 @@ final class ElementParserTest {
 
     @Test
     void unsupportedTopLevelKeywordFailsLoudly() {
-        // 'Measure' is unsupported — and after the dead-token purge it is
-        // no longer even a KEYWORD (zombie tokens deleted; unsupported
-        // constructs fail at the dispatcher). The error names the offending
-        // TEXT, which is what a user can act on.
+        // 'Binding' is unsupported (Measure graduated to consume-and-skip
+        // for the PCT corpus, and Diagram was already a skip construct —
+        // audit 8 S9). The error names the offending TEXT, which is what a
+        // user can act on.
         ParseException e = assertThrows(ParseException.class,
-                () -> ElementParser.parse("Measure my::M ( )"));
+                () -> ElementParser.parse("Binding my::B { }"));
         assertTrue(e.getMessage().toLowerCase().contains("unsupported"),
                 () -> "expected 'unsupported' in message, got: " + e.getMessage());
-        assertTrue(e.getMessage().contains("Measure"),
+        assertTrue(e.getMessage().contains("Binding"),
                 () -> "error should name the offending text, got: " + e.getMessage());
+    }
+
+    @Test
+    void measureDeclarationIsConsumedAndAbsent() {
+        // Units are unmodeled: a Measure block parses through (balanced
+        // braces, nested conversion lambdas included) and contributes NO
+        // element — references to its units fail loud at name resolution.
+        var model = ElementParser.parse("""
+                Measure my::RomanLength
+                {
+                   *Pes: x -> $x;
+                   Cubitum: x -> $x * 1.5;
+                }
+                Class my::After { a: String[1]; }
+                """);
+        assertEquals(1, model.elements().size());
+        assertEquals("my::After", model.elements().get(0).qualifiedName());
     }
 
     @Test

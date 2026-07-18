@@ -8,43 +8,25 @@
 
 | suite | files | parse-walled | elements | `<<PCT.test>>` (textual) | discovered | `<<PCT.function>>` (textual) | element walls | body walls |
 |---|---|---|---|---|---|---|---|---|
-| essential | 177 | 13 | 911 | 329 | 291 | 189 | 16 | 587 |
-| grammar | 48 | 4 | 315 | 136 | 114 | 123 | 2 | 166 |
-| relation | 49 | 2 | 389 | 350 | 282 | 95 | 2 | 318 |
-| standard | 55 | 3 | 340 | 205 | 189 | 115 | 0 | 237 |
-| unclassified | 67 | 3 | 250 | 96 | 88 | 39 | 13 | 158 |
-| variant | 7 | 3 | 55 | 88 | 47 | 9 | 0 | 48 |
-| **total** | **403** | **28** | | **1204** | **1011** | | | |
+| essential | 177 | 8 | 985 | 329 | 327 | 189 | 16 | 640 |
+| grammar | 48 | 0 | 439 | 136 | 136 | 123 | 2 | 242 |
+| relation | 49 | 1 | 390 | 350 | 282 | 95 | 2 | 318 |
+| standard | 55 | 0 | 358 | 205 | 204 | 115 | 0 | 252 |
+| unclassified | 67 | 0 | 262 | 96 | 94 | 39 | 13 | 166 |
+| variant | 7 | 0 | 112 | 88 | 88 | 9 | 0 | 91 |
+| **total** | **403** | **9** | | **1204** | **1131** | | | |
 
 ## Parse-wall buckets
 
 | count | failure |
 |---|---|
-| 2 | `[46:42] unsupported expression token: DOT ('.')` |
-| 1 | `[113:71] expected BRACE_OPEN but found PAREN_OPEN ('(')` |
-| 1 | `[15:51] expected GREATER_THAN but found PIPE ('\|')` |
-| 1 | `[15:8] expected type name, got LESS_THAN` |
-| 1 | `[21:116] expected BRACE_CLOSE but found PLUS ('+')` |
-| 1 | `[21:145] expected BRACE_CLOSE but found PLUS ('+')` |
 | 1 | `[21:82] expected type name, got QUESTION` |
-| 1 | `[22:139] expected BRACE_CLOSE but found PLUS ('+')` |
 | 1 | `[22:34] expected type name after '@'` |
-| 1 | `[23:110] expected BRACE_CLOSE but found PLUS ('+')` |
 | 1 | `[23:19] expected ')' to close argument list` |
 | 1 | `[23:35] expected ')' to close argument list` |
-| 1 | `[23:44] expected '(' after class name or $variable in ^NewInstance` |
-| 1 | `[23:62] expected BRACE_CLOSE but found PLUS ('+')` |
-| 1 | `[23:8] expected type name, got LESS_THAN` |
-| 1 | `[24:124] expected BRACE_CLOSE but found PLUS ('+')` |
 | 1 | `[34:45] expected type name after '@'` |
 | 1 | `[39:53] expected EXTENDS but found PAREN_OPEN ('(')` |
-| 1 | `[40:15] malformed string literal: octal/unicode escape '\0' is not supported yet` |
-| 1 | `[47:31] unsupported expression token: DOT ('.')` |
-| 1 | `[48:42] unsupported expression token: DOT ('.')` |
-| 1 | `[53:21] unsupported expression token: DOT ('.')` |
 | 1 | `[59:13] unsupported expression token: PATH_SEPARATOR ('::')` |
-| 1 | `[62:17] unlexable input: '%'` |
-| 1 | `[65:0] unsupported top-level keyword: VALID_STRING ('Measure')` |
 | 1 | `[76:63] unsupported expression token: PATH_SEPARATOR ('::')` |
 | 1 | `[93:35] unsupported expression token: PATH_SEPARATOR ('::')` |
 
@@ -70,14 +52,11 @@
 
 | count | failure |
 |---|---|
-| 12 | `'CC_Person' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name` |
-| 9 | `'CC_GeographicEntityType' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified …` |
 | 7 | `Unknown type: 'Multiplicity' is not a known primitive, class, or enum` |
 | 6 | `'PureZero' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name` |
 | 6 | `Unknown type: 'GenericType' is not a known primitive, class, or enum` |
 | 5 | `Unknown type: 'ValueSpecification' is not a known primitive, class, or enum` |
 | 4 | `in function 'meta::pure::functions::flow::coalesce': ambiguous overload of 'meta::pure::functions::flow::coalesce': 2 candidates tie for the…` |
-| 3 | `'CC_List' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name` |
 | 3 | `Unknown type: 'Profile' is not a known primitive, class, or enum` |
 | 3 | `in function 'meta::pure::functions::asserts::assertContains': unknown function 'assert'` |
 | 3 | `in function 'meta::pure::functions::asserts::assertIs': unknown function 'is'` |
@@ -100,35 +79,19 @@
 | 2 | `Unknown type: 'Package' is not a known primitive, class, or enum` |
 | 2 | `in function 'meta::pure::functions::collection::removeDuplicates': in call to 'meta::pure::functions::collection::removeDuplicates', argumen…` |
 | 2 | `in function 'meta::pure::functions::collection::sort': no overload of 'meta::pure::functions::relation::sort' structurally matches the argum…` |
-| … | (1392 more buckets) |
+| 2 | `in function 'meta::pure::functions::date::formatDate': expected a zero-parameter single-expression thunk` |
+| 2 | `in function 'meta::pure::functions::lang::tests::new::MyClassWithTypeVariables$prop$res': unbound variable '$x'` |
+| 2 | `in function 'meta::pure::functions::math::covarPopulation': unknown function 'covariance'` |
+| … | (1607 more buckets) |
 
 ## Parse-walled files
 
-- `essential:date/operation/adjust.pure` — [62:17] unlexable input: '%'
 - `essential:lang/cast/cast.pure` — [39:53] expected EXTENDS but found PAREN_OPEN ('(')
 - `essential:lang/cast/toMultiplicity.pure` — [34:45] expected type name after '@'
 - `essential:lang/unit/getUnitValue.pure` — [23:35] expected ')' to close argument list
 - `essential:lang/unit/newUnit.pure` — [23:19] expected ')' to close argument list
 - `essential:meta/graph/elementToPath.pure` — [93:35] unsupported expression token: PATH_SEPARATOR ('::')
 - `essential:meta/graph/pathToElement.pure` — [59:13] unsupported expression token: PATH_SEPARATOR ('::')
-- `essential:meta/testModel.pure` — [65:0] unsupported top-level keyword: VALID_STRING ('Measure')
 - `essential:meta/type/relation/addColumns.pure` — [22:34] expected type name after '@'
-- `essential:string/toString/toRepresentation.pure` — [53:21] unsupported expression token: DOT ('.')
-- `essential:string/toString/toString.pure` — [47:31] unsupported expression token: DOT ('.')
-- `essential:tests/pct_core.pure` — [23:8] expected type name, got LESS_THAN
 - `essential:tests/surveyor.pure` — [76:63] unsupported expression token: PATH_SEPARATOR ('::')
-- `grammar:boolean/equality/equal.pure` — [21:116] expected BRACE_CLOSE but found PLUS ('+')
-- `grammar:collection/iteration/map.pure` — [22:139] expected BRACE_CLOSE but found PLUS ('+')
-- `grammar:lang/creation/new.pure` — [113:71] expected BRACE_OPEN but found PAREN_OPEN ('(')
-- `grammar:math/sequence/range.pure` — [21:145] expected BRACE_CLOSE but found PLUS ('+')
 - `relation:relation/functions/olap/over.pure` — [21:82] expected type name, got QUESTION
-- `relation:relation/functions/pctQualifiers.pure` — [15:8] expected type name, got LESS_THAN
-- `standard:math/trigonometry/cosh.pure` — [46:42] unsupported expression token: DOT ('.')
-- `standard:math/trigonometry/sinh.pure` — [46:42] unsupported expression token: DOT ('.')
-- `standard:math/trigonometry/tanh.pure` — [48:42] unsupported expression token: DOT ('.')
-- `unclassified:meta/get.pure` — [23:44] expected '(' after class name or $variable in ^NewInstance
-- `unclassified:profile.pure` — [15:51] expected GREATER_THAN but found PIPE ('|')
-- `unclassified:string/ascii/char.pure` — [40:15] malformed string literal: octal/unicode escape '\0' is not supported yet
-- `variant:functions/convert/to.pure` — [23:62] expected BRACE_CLOSE but found PLUS ('+')
-- `variant:functions/convert/toMany.pure` — [24:124] expected BRACE_CLOSE but found PLUS ('+')
-- `variant:functions/navigation/get.pure` — [23:110] expected BRACE_CLOSE but found PLUS ('+')

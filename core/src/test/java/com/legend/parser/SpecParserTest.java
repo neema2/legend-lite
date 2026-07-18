@@ -136,12 +136,14 @@ final class SpecParserTest {
         // engine semantics, not a stricter invention.
         ValueSpecification v = SpecParser.parse("'a\\zb'");
         assertEquals("azb", ((CString) v).value());
-        // octal/unicode escapes stay LOUD (drop-backslash would corrupt
-        // them silently; unimplemented until a corpus file demands them)
-        ParseException ex = assertThrows(ParseException.class,
-                () -> SpecParser.parse("'a\\u0041b'"));
-        assertTrue(ex.getMessage().contains("octal/unicode"),
-                () -> "want octal/unicode-escape error, got: " + ex.getMessage());
+        // octal/unicode escapes decode per StringEscape.UNESCAPE_PURE
+        // (OctalUnescaper + UnicodeUnescaper) — PCT char.pure pins
+        // '\0' -> NUL, so the previous stay-loud stance is retired.
+        assertEquals("aAb", ((CString) SpecParser.parse("'a\\u0041b'")).value());
+        assertEquals("aAb", ((CString) SpecParser.parse("'a\\101b'")).value());
+        assertEquals("\0", ((CString) SpecParser.parse("'\\0'")).value());
+        // 3rd octal digit only when the first is 0-3: '\477' is '\47'+"7"
+        assertEquals("'7", ((CString) SpecParser.parse("'\\477'")).value());
     }
 
     // ----- booleans ----------------------------------------------------

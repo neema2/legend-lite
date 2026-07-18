@@ -209,8 +209,13 @@ public final class ElementParser implements TokenStreamCursor {
     public static PackageableElement parseSingle(TokenStream slice) {
         ElementParser parser = new ElementParser(slice);
         PackageableElement element = parser.parseSingleElement();
+        if (element == null) {
+            throw parser.error("element slice is a skipped kind (Measure)");
+        }
         if (!parser.atEnd()) {
-            parser.error("trailing tokens after element body: expected slice to be fully consumed");
+            // error() RETURNS the exception — the old bare call here was a
+            // silent no-op (trailing tokens were never actually rejected)
+            throw parser.error("trailing tokens after element body: expected slice to be fully consumed");
         }
         return element;
     }
@@ -255,9 +260,11 @@ public final class ElementParser implements TokenStreamCursor {
                 int at = tokens.start(pos);
                 PackageableElement e = parseSingleElement();
                 sawElementSinceImport = true;
-                elementImports.putIfAbsent(e.qualifiedName(), sectionImports.build());
-                offsets.putIfAbsent(e.qualifiedName(), at);
-                elements.add(e);
+                if (e != null) {   // null = consumed-and-skipped (Measure)
+                    elementImports.putIfAbsent(e.qualifiedName(), sectionImports.build());
+                    offsets.putIfAbsent(e.qualifiedName(), at);
+                    elements.add(e);
+                }
             }
         }
 
@@ -333,6 +340,15 @@ public final class ElementParser implements TokenStreamCursor {
                 if ("Primitive".equals(safeText())) {
                     yield parsePrimitiveExtension();
                 }
+                if ("Measure".equals(safeText())) {
+                    // Units are not modeled yet: the block is consumed and
+                    // the element is ABSENT — unit references fail loud at
+                    // name resolution. Skipping (vs walling the file) keeps
+                    // the file's other elements alive (PCT testModel.pure
+                    // carries the CC_* model the essential suite needs).
+                    skipMeasure();
+                    yield null;
+                }
                 throw error("unsupported top-level keyword: " + t + " ('" + safeText() + "')");
             }
             default -> throw error("unsupported top-level keyword: " + t + " ('" + safeText() + "')");
@@ -372,6 +388,21 @@ public final class ElementParser implements TokenStreamCursor {
 
         List<String> typeParams = parseClassTypeParams();
 
+        // Type VARIABLES (real m3 typeVariableParameters):
+        // Class X(x:Integer[1]) — value parameters on the type itself.
+        // Parsed and DROPPED: constraints referencing $x fail loud at
+        // type-check (nothing downstream models type variables yet).
+        if (peek() == TokenType.PAREN_OPEN) {
+            advance();
+            if (peek() != TokenType.PAREN_CLOSE) {
+                parseDerivedPropertyParameter();
+                while (match(TokenType.COMMA)) {
+                    parseDerivedPropertyParameter();
+                }
+            }
+            expect(TokenType.PAREN_CLOSE);
+        }
+
         List<TypeExpression> superClasses = new ArrayList<>();
         if (match(TokenType.EXTENDS)) {
             superClasses.add(parseType());
@@ -409,14 +440,47 @@ public final class ElementParser implements TokenStreamCursor {
                 isNative);
     }
 
-    /** Optional generic type parameters: {@code <T>}, {@code <U, V>}, ... */
+    /**
+     * Consume a whole {@code Measure fqn { ... }} declaration. Units are
+     * not modeled; the caller records ABSENCE (returns null element), so
+     * any reference to the measure or its units fails loud downstream.
+     */
+    private void skipMeasure() {
+        advance(); // consume 'Measure'
+        parseQualifiedName();
+        expect(TokenType.BRACE_OPEN);
+        int depth = 1;
+        while (!atEnd() && depth > 0) {
+            TokenType t = peek();
+            if (t == TokenType.BRACE_OPEN) depth++;
+            else if (t == TokenType.BRACE_CLOSE) depth--;
+            advance();
+        }
+    }
+
+    /**
+     * Optional generic parameters: {@code <T>}, {@code <U, V>},
+     * {@code <T|m>}, {@code <|m>}. Multiplicity parameters (after the
+     * '|') are consumed and DROPPED: properties spell them as
+     * {@link Multiplicity.Parameter} already, and nothing downstream
+     * resolves class-level multiplicity params yet — a use fails loud
+     * at type-check, never silently.
+     */
     private List<String> parseClassTypeParams() {
         if (peek() != TokenType.LESS_THAN) return List.of();
         advance(); // consume <
         List<String> params = new ArrayList<>();
-        params.add(parseIdentifier());
-        while (match(TokenType.COMMA)) {
+        if (peek() != TokenType.PIPE) {
             params.add(parseIdentifier());
+            while (match(TokenType.COMMA)) {
+                params.add(parseIdentifier());
+            }
+        }
+        if (match(TokenType.PIPE)) {
+            parseIdentifier();
+            while (match(TokenType.COMMA)) {
+                parseIdentifier();
+            }
         }
         expect(TokenType.GREATER_THAN);
         return params;
@@ -744,6 +808,8 @@ public final class ElementParser implements TokenStreamCursor {
      */
     private ProfileDefinition parseProfile() {
         expect(TokenType.PROFILE);
+        parseStereotypes();   // parity: engine consumes and drops
+        parseTaggedValues();  // parity: engine consumes and drops
         String qualifiedName = parseQualifiedName();
         expect(TokenType.BRACE_OPEN);
 
@@ -1535,12 +1601,19 @@ public final class ElementParser implements TokenStreamCursor {
         expect(TokenType.DOT);
         String tag = parseIdentifier();
         expect(TokenType.EQUAL);
-        String rawValue = consume(TokenType.STRING);
-        String value = rawValue;
-        if (value.startsWith("'") && value.endsWith("'") && value.length() >= 2) {
-            value = value.substring(1, value.length() - 1);
+        // The value is one string literal, or several concatenated with
+        // '+' (the PCT suites spell multi-line doc.doc tags that way).
+        StringBuilder value = new StringBuilder(unquote(consume(TokenType.STRING)));
+        while (match(TokenType.PLUS)) {
+            value.append(unquote(consume(TokenType.STRING)));
         }
-        return new TaggedValue(profile, tag, value);
+        return new TaggedValue(profile, tag, value.toString());
+    }
+
+    private static String unquote(String raw) {
+        return raw.startsWith("'") && raw.endsWith("'") && raw.length() >= 2
+                ? raw.substring(1, raw.length() - 1)
+                : raw;
     }
 
     // ============================================================

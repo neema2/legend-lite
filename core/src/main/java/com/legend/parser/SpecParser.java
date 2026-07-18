@@ -769,12 +769,12 @@ public final class SpecParser implements TokenStreamCursor {
                 throw error("malformed string literal: trailing backslash");
             }
             char esc = body.charAt(i + 1);
-            // real pure's set (M4Fragment.g4 EscSeq): [btnfr"'\\]; an
-            // UNRECOGNIZED escape drops the backslash and keeps the char
-            // (legend-pure StringEscape.UNESCAPE_PURE's terminal {"\\",""}
-            // rule — the corpus's '\ ' seed literal depends on it). Octal
-            // and \\uXXXX escapes stay loud until a corpus file demands
-            // them (drop-backslash would corrupt them silently).
+            // real pure's set (StringEscape.UNESCAPE_PURE): octal \\ooo
+            // (commons-text OctalUnescaper), \\uXXXX (UnicodeUnescaper,
+            // repeated 'u's allowed), [btnfr"'\\], and an UNRECOGNIZED
+            // escape drops the backslash and keeps the char (the terminal
+            // {"\\",""} rule — the corpus's '\ ' seed literal depends on
+            // it). PCT char.pure pins '\0' -> NUL.
             switch (esc) {
                 case '\\' -> sb.append('\\');
                 case '\'' -> sb.append('\'');
@@ -784,14 +784,46 @@ public final class SpecParser implements TokenStreamCursor {
                 case 'r' -> sb.append('\r');
                 case 'b' -> sb.append('\b');
                 case 'f' -> sb.append('\f');
-                case 'u', '0', '1', '2', '3', '4', '5', '6', '7' ->
-                        throw error("malformed string literal: octal/unicode"
-                                + " escape '\\" + esc + "' is not supported yet");
+                case '0', '1', '2', '3', '4', '5', '6', '7' -> {
+                    // commons-text OctalUnescaper: up to 3 octal digits,
+                    // a 3rd digit only if the first is 0-3 (max \377).
+                    int j = i + 1;
+                    int end = j + 1;
+                    if (end < body.length() && isOctal(body.charAt(end))) end++;
+                    if (end < body.length() && isOctal(body.charAt(end))
+                            && body.charAt(j) <= '3') {
+                        end++;
+                    }
+                    sb.append((char) Integer.parseInt(body.substring(j, end), 8));
+                    i = end;
+                    continue;
+                }
+                case 'u' -> {
+                    int j = i + 2;
+                    while (j < body.length() && body.charAt(j) == 'u') j++;
+                    if (j + 4 > body.length()) {
+                        throw error("malformed string literal: incomplete"
+                                + " unicode escape");
+                    }
+                    String hex = body.substring(j, j + 4);
+                    try {
+                        sb.append((char) Integer.parseInt(hex, 16));
+                    } catch (NumberFormatException e) {
+                        throw error("malformed string literal: bad unicode"
+                                + " escape '\\u" + hex + "'");
+                    }
+                    i = j + 4;
+                    continue;
+                }
                 default -> sb.append(esc);
             }
             i += 2;
         }
         return sb.toString();
+    }
+
+    private static boolean isOctal(char c) {
+        return c >= '0' && c <= '7';
     }
 
     private CBoolean consumeBoolean(boolean value) {
@@ -885,7 +917,7 @@ public final class SpecParser implements TokenStreamCursor {
      * Trailing commas are <em>not</em> permitted &mdash; engine rejects
      * them and C.1 follows suit so corpora remain byte-comparable.
      */
-    private PureCollection parseCollection() {
+    private ValueSpecification parseCollection() {
         pos++; // consume '['
         boundedDepth++;
         try {
@@ -895,13 +927,59 @@ public final class SpecParser implements TokenStreamCursor {
         }
     }
 
-    private PureCollection parseCollectionBody() {
+    /** From a cursor ON a '(' token: is the matching ')' immediately
+     * followed by another '('? Distinguishes {@code ^X(10)(fields)}
+     * type-variable values from the plain {@code ^X(fields)} form. */
+    private boolean parenGroupFollowedByParen() {
+        int p = pos;
+        int n = tokens.count();
+        int depth = 0;
+        while (p < n) {
+            TokenType t = tokens.type(p);
+            if (t == TokenType.PAREN_OPEN) depth++;
+            else if (t == TokenType.PAREN_CLOSE && --depth == 0) {
+                return p + 1 < n && tokens.type(p + 1) == TokenType.PAREN_OPEN;
+            }
+            p++;
+        }
+        return false;
+    }
+
+    /** {@code [a:b(:c)]} desugars to the {@code range} call real m3 emits. */
+    private static ValueSpecification rangeSugar(List<ValueSpecification> args) {
+        return new AppliedFunction("range", args);
+    }
+
+    private ValueSpecification parseCollectionBody() {
         List<ValueSpecification> values = new ArrayList<>();
         if (!atEnd() && peek() == TokenType.BRACKET_CLOSE) {
             pos++;
             return new PureCollection(values);
         }
+        // Slice/range literal — [start:end:step], [start:end], [:end] —
+        // desugars to a 'range' call with the same arity (real m3:
+        // AntlrContextToM3CoreInstance.sliceExpression emits functionName
+        // "range" with 1-3 params). Dispatch: leading ':' or a ':' after
+        // the first expression.
+        if (!atEnd() && peek() == TokenType.COLON) {
+            pos++; // consume ':'
+            ValueSpecification end = parseCombinedExpression();
+            expect(TokenType.BRACKET_CLOSE, "expected ']' to close range literal");
+            return rangeSugar(List.of(end));
+        }
         values.add(parseCombinedExpression());
+        if (!atEnd() && peek() == TokenType.COLON) {
+            pos++; // consume ':'
+            List<ValueSpecification> args = new ArrayList<>();
+            args.add(values.get(0));
+            args.add(parseCombinedExpression());
+            if (!atEnd() && peek() == TokenType.COLON) {
+                pos++;
+                args.add(parseCombinedExpression());
+            }
+            expect(TokenType.BRACKET_CLOSE, "expected ']' to close range literal");
+            return rangeSugar(args);
+        }
         while (!atEnd() && peek() == TokenType.COMMA) {
             pos++; // consume ','
             if (!atEnd() && peek() == TokenType.BRACKET_CLOSE) {
@@ -1330,7 +1408,34 @@ public final class SpecParser implements TokenStreamCursor {
             if (!atEnd() && peek() == TokenType.LESS_THAN) {
                 typeArgs = parseTypeArguments();
             }
+            // Optional instance NAME (^CO_Location atx(place=...)) — real
+            // m3 allows naming the fresh instance; nothing references the
+            // name in expression context, so it is consumed and dropped.
+            if (!atEnd() && isFqnSegmentToken(peek())
+                    && pos + 1 < tokens.count()
+                    && tokens.type(pos + 1) == TokenType.PAREN_OPEN) {
+                pos++;
+            }
             receiver = new PackageableElementPtr(className);
+        }
+        // Type-variable VALUES (^MyClassWithTypeVariables(10)(text='a')):
+        // a paren group followed by ANOTHER paren group carries the
+        // type-var arguments (real m3 typeVariableValues). Parsed as real
+        // expressions and DROPPED — nothing downstream models type
+        // variables yet, so constraints/derived props reading them fail
+        // loud at type-check, never silently.
+        if (!atEnd() && peek() == TokenType.PAREN_OPEN
+                && parenGroupFollowedByParen()) {
+            pos++; // consume '('
+            if (peek() != TokenType.PAREN_CLOSE) {
+                parseCombinedExpression();
+                while (!atEnd() && peek() == TokenType.COMMA) {
+                    pos++;
+                    parseCombinedExpression();
+                }
+            }
+            expect(TokenType.PAREN_CLOSE,
+                    "expected ')' to close type-variable values in ^NewInstance");
         }
         expect(TokenType.PAREN_OPEN, "expected '(' after class name or $variable in ^NewInstance");
         // LinkedHashMap to preserve source order for the small
@@ -1459,10 +1564,12 @@ public final class SpecParser implements TokenStreamCursor {
             pos++;
             return args;
         }
-        args.add(parseType());
-        while (!atEnd() && peek() == TokenType.COMMA) {
-            pos++; // consume ','
+        if (peek() != TokenType.PIPE) {   // <|*> — mult args only
             args.add(parseType());
+            while (!atEnd() && peek() == TokenType.COMMA) {
+                pos++; // consume ','
+                args.add(parseType());
+            }
         }
         // MULTIPLICITY type parameters (real M3: cast(@Property<Nil,Any|*>),
         // ^Result<TabularDataSet|1>(...)): parsed and discarded here — the

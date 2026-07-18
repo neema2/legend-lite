@@ -377,6 +377,13 @@ public final class Lexer {
         }
 
         char next = source.charAt(pos);
+        // Negative-year date literal: %-799997984-02-29 (PCT adjust.pure).
+        // Consume the sign and scan the date body as usual.
+        if (next == '-' && pos + 1 < length
+                && source.charAt(pos + 1) >= '0' && source.charAt(pos + 1) <= '9') {
+            pos++;
+            next = source.charAt(pos);
+        }
         if (next >= '0' && next <= '9') {
             boolean hasDash = false;
             boolean hasColon = false;
@@ -561,6 +568,14 @@ public final class Lexer {
         }
         if (c == '.' && pos + 1 < length && source.charAt(pos + 1) == '.') {
             emit(TokenType.DOT_DOT, pos, pos + 2); pos += 2; return true;
+        }
+        // Leading-dot float literal (.7654321, .01) — real pure's lexer
+        // admits a FLOAT with no integer part (M4Fragment.g4). Property
+        // names cannot start with a digit, so '.' + digit is unambiguous.
+        if (c == '.' && pos + 1 < length
+                && source.charAt(pos + 1) >= '0' && source.charAt(pos + 1) <= '9') {
+            scanNumericLiteral();
+            return true;
         }
         if (c == '&' && pos + 1 < length && source.charAt(pos + 1) == '&') {
             emit(TokenType.AND, pos, pos + 2); pos += 2; return true;
