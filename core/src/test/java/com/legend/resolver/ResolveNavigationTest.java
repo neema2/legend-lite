@@ -439,20 +439,22 @@ class ResolveNavigationTest {
     }
 
     @Test
-    @DisplayName("AUTO-MAP: class-typed hops in the CHAIN fold over the root (Firm.all().staff.name)")
+    @DisplayName("AUTO-MAP: the class-terminal hop FLATTENS over the joined source (Firm.all().staff.name)")
     void autoMapHopChainFolds() throws SQLException {
         String sql = sqlOfDriver("m::Firm.all().staff.name");
+        // SCALAR flattens ride the projection FUNNEL (LEFT JOIN — the full
+        // demand machinery: union dispatch, otherwise, navigate slots);
+        // only CLASS-RESULT flattens take the composed INNER re-root
+        // (autoMapClassResultMapReroots below)
         assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
-        // ACME's staff Ann/Cat via the PF join (Bob has no firm — absent;
-        // the LEFT JOIN keeps employee-less firms as null rows, none here)
         assertEquals(List.of("Ann", "Cat"), exec(sql).stream().sorted().toList());
     }
 
     @Test
-    @DisplayName("AUTO-MAP: ->map(e|scalar) over a hop chain composes into the same fold")
+    @DisplayName("AUTO-MAP: ->map(e|scalar) over a hop chain rides the same flatten")
     void autoMapHopMapComposes() throws SQLException {
         String sql = sqlOfDriver("m::Firm.all().staff->map(p|$p.name)");
-        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(1, count(sql, "JOIN"), sql);
         assertEquals(List.of("Ann", "Cat"), exec(sql).stream().sorted().toList());
     }
 
@@ -460,8 +462,29 @@ class ResolveNavigationTest {
     @DisplayName("AUTO-MAP: scalar filter over the exploded column becomes a relation filter")
     void autoMapScalarFilterOverExplodedColumn() throws SQLException {
         String sql = sqlOfDriver("m::Firm.all().staff.name->filter(n|$n == 'Cat')");
-        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(1, count(sql, "JOIN"), sql);
         assertEquals(List.of("Cat"), exec(sql));
+    }
+
+    @Test
+    @DisplayName("AUTO-MAP: class-RESULT map (->map(f|$f.staff->filter(...))) re-roots at the target")
+    void autoMapClassResultMapReroots() throws SQLException {
+        var r = Compiler.execute(MODEL,
+                "{| m::Firm.all()->map(f|$f.staff->filter(e|$e.name != 'Ann'))"
+                        + "->map(p|$p.name);}", "m::RT", conn);
+        var t = (com.legend.exec.ExecutionResult.Tabular) r;
+        assertEquals(List.of("Cat"), t.rows().stream()
+                .map(row -> String.valueOf(row.values().get(0))).sorted().toList());
+    }
+
+    @Test
+    @DisplayName("AUTO-MAP: explicit project KEEPS parent null rows (engine projection semantics)")
+    void projectKeepsParentNullRows() throws SQLException {
+        // project is NOT the flatten: the engine's projection golden keeps
+        // firms without staff as null rows via LEFT JOIN — only the
+        // class-terminal flatten drops them (pure collection semantics)
+        String sql = sqlOfDriver("m::Firm.all()->project(~[n: f|$f.staff.name])");
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
     }
 
     @Test

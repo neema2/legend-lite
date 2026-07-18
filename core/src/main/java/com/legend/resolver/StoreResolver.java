@@ -202,6 +202,22 @@ public final class StoreResolver {
                     resolveChain(f, context);
             case TypedProject p when isObjectSpace(p.source()) ->
                     resolveChain(p, context);
+            // a CLASS-TERMINAL hop chain at the ROOT (bare
+            // Firm.all().employees): object space — the flatten composes in
+            // collectOpChain and the envelope roots at the target.
+            case TypedPropertyAccess pa
+                    when pa.info().type() instanceof Type.ClassType
+                    && isObjectSpace(pa) ->
+                    resolveChain(pa, context);
+            // ->map(f|$f.assocEnd->filter(...)) — a CLASS-RESULT mapper:
+            // the auto-map flatten IS the mapper body with the source
+            // spliced for the param (flatten composition is associative);
+            // the resulting hop chain re-enters resolution.
+            case TypedMap m
+                    when isObjectSpace(m.source())
+                    && ((Type.FunctionType) m.mapper().info().type()).result()
+                            .type() instanceof Type.ClassType ->
+                    resolveNode(substituteParam(m.mapper(), m.source()), context);
             // a BARE object-space chain HEADED by toOne/first/at/distinct
             // (the eager run of a class-typed let: filter(...)->toOne()):
             // the chain resolver owns these in-pipeline (toOne = the
@@ -258,16 +274,6 @@ public final class StoreResolver {
                 yield resolveChain(scalarMapAsProject(m2.source(), m2.mapper(),
                         m2.info().multiplicity()), context);
             }
-            // AUTO-MAP (engine map.pure family): class-typed hop chains fold
-            // into one lambda over the object-space root — see foldScalarHop/
-            // foldHopMap/foldScalarHopFilter.
-            case TypedPropertyAccess pa when !(pa.info().type() instanceof Type.ClassType)
-                    && hopChainOf(pa.source()) != null ->
-                    foldScalarHop(pa, context);
-            case TypedMap m when hopChainOf(m.source()) != null
-                    && !(((Type.FunctionType) m.mapper().info().type()).result().type()
-                            instanceof Type.ClassType) ->
-                    foldHopMap(m, context);
             case TypedFilter f
                     when containsGetAll(f.source())
                     && !(f.source().info().type() instanceof Type.ClassType)
@@ -275,29 +281,8 @@ public final class StoreResolver {
                     && f.source() instanceof TypedPropertyAccess ->
                     foldScalarHopFilter(f, context);
             case TypedPropertyAccess pa when isObjectSpace(pa.source())
-                    && !(pa.info().type() instanceof Type.ClassType) -> {
-                ExprType elem =
-                        new ExprType(pa.info().type(),
-                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
-                String v = "p";
-                TypedLambda fn = new TypedLambda(List.of(v),
-                        List.of(new TypedPropertyAccess(
-                                new TypedVariable(v,
-                                        new ExprType(
-                                                sourceClassType(pa.source()),
-                                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
-                                pa.property(), elem)),
-                        new ExprType(
-                                new Type.FunctionType(
-                                        List.of(new Type.Param(
-                                                sourceClassType(pa.source()),
-                                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
-                                        new Type.Param(pa.info().type(),
-                                                pa.info().multiplicity())),
-                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-                yield resolveChain(scalarMapAsProject(pa.source(), fn,
-                        pa.info().multiplicity()), context);
-            }
+                    && !(pa.info().type() instanceof Type.ClassType) ->
+                    scalarReadAsProject(pa, context);
             case TypedLimit l when isObjectSpace(l.source()) ->
                     resolveChain(l, context);
             case TypedDrop d when isObjectSpace(d.source()) ->
@@ -487,6 +472,108 @@ public final class StoreResolver {
     }
 
     /** The element CLASS of an object-space chain (for synthetic lambdas). */
+    /** A scalar property read over an object-space chain as the
+     * single-column projection: EMBEDDED (non-assoc) class-hop prefixes
+     * peel INTO the reading lambda (the funnel's embedded dispatch owns
+     * them); ASSOCIATION hops stay in the chain for the flatten
+     * (collectOpChain re-roots at their target). */
+    private TypedSpec scalarReadAsProject(TypedPropertyAccess pa,
+            Context context) {
+        java.util.Deque<TypedPropertyAccess> path = new java.util.ArrayDeque<>();
+        TypedSpec src = pa.source();
+        // ALL class hops (association AND embedded) peel into the lambda:
+        // the funnel's positional rules own scalar path explosion - it
+        // routes associations through the full demand machinery (union
+        // dispatch, otherwise, navigate slots), which the flatten's direct
+        // AssociationBinding lookup cannot yet match. The flatten serves
+        // only the CLASS-RESULT shapes (bare class root, class-result
+        // maps), where no consuming lambda exists.
+        while (src instanceof TypedPropertyAccess hp
+                && hp.info().type() instanceof Type.ClassType) {
+            path.addFirst(hp);
+            src = hp.source();
+        }
+        Type rootClass = sourceClassType(src);
+        TypedSpec read = new TypedVariable("p", ExprType.one(rootClass));
+        for (TypedPropertyAccess hp : path) {
+            read = new TypedPropertyAccess(read, hp.property(), hp.info());
+        }
+        read = new TypedPropertyAccess(read, pa.property(), pa.info());
+        TypedLambda fn = new TypedLambda(List.of("p"), List.of(read),
+                new ExprType(
+                        new Type.FunctionType(
+                                List.of(new Type.Param(rootClass,
+                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                                new Type.Param(pa.info().type(),
+                                        pa.info().multiplicity())),
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        return resolveChain(scalarMapAsProject(src, fn,
+                pa.info().multiplicity()), context);
+    }
+
+    /** One re-pointed binding for the flatten's composed source: scalar
+     * bindings ride {@link Pipelines#prefixColumns}; an EMBEDDED binding
+     * (TypedNewInstance ctor over parent-alias columns) re-points each
+     * inner property expression, keeping the ctor. */
+    private static TypedSpec prefixBinding(TypedSpec b, String targetRowVar,
+            String prefix, String newRowVar, ExprType rowInfo) {
+        TypedSpec inner = b;
+        if (inner instanceof TypedNativeCall c && c.args().size() == 1
+                && c.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")
+                && c.args().get(0) instanceof TypedNewInstance) {
+            inner = c.args().get(0);
+        }
+        if (inner instanceof TypedNewInstance ctor) {
+            Map<String, TypedSpec> props = new LinkedHashMap<>();
+            for (var pe : ctor.properties().entrySet()) {
+                props.put(pe.getKey(), prefixBinding(pe.getValue(),
+                        targetRowVar, prefix, newRowVar, rowInfo));
+            }
+            return new TypedNewInstance(ctor.classFqn(), props, ctor.info());
+        }
+        return Pipelines.prefixColumns(b, targetRowVar, prefix,
+                v -> new com.legend.compiler.spec.typed.TypedVariable(
+                        newRowVar, rowInfo));
+    }
+
+    /**
+     * The AUTO-MAP FLATTEN's composed source (slice 3): the class-terminal
+     * hop {@code Source.all().assocEnd} re-roots the chain at the TARGET
+     * class over the JOINED pipeline — source extent &#8904; target pipeline
+     * on the association condition (row explosion = projection semantics),
+     * target bindings re-pointed through the join prefix. INNER join: the
+     * engine spells LEFT and its reader skips null-pk rows; the row sets
+     * are identical (documented emission divergence, golden advisory).
+     */
+    private ClassSource flattenSource(ClassSource src, String hop,
+            Context context) {
+        AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(
+                temporal, src, hop, context, false);
+        Pipelines.Materialized m = Pipelines.materialize(
+                src.pipeline(), java.util.Set.of(), src.classFqn());
+        Type.RelationType leftRow =
+                (Type.RelationType) m.pipeline().info().type();
+        List<Type.Column> cols = new ArrayList<>(leftRow.columns());
+        for (Type.Column c : aj.targetRow().columns()) {
+            cols.add(new Type.Column(aj.prefix() + c.name(),
+                    c.type(), c.multiplicity()));
+        }
+        Type.RelationType row = new Type.RelationType(cols);
+        ExprType rowInfo = new ExprType(row,
+                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        TypedSpec joined = new TypedJoin(m.pipeline(), aj.targetPipeline(),
+                innerKind(), aj.condition(),
+                Optional.of(aj.prefix()), rowInfo);
+        Map<String, TypedSpec> bindings = new LinkedHashMap<>();
+        for (var e : aj.target().bindings().entrySet()) {
+            bindings.put(e.getKey(), prefixBinding(e.getValue(),
+                    aj.target().rowVar(), aj.prefix(), src.rowVar(), rowInfo));
+        }
+        return new ClassSource(src.mappingFqn(), aj.target().classFqn(),
+                aj.target().setId(), joined, src.rowVar(), bindings, row);
+    }
+
     private static Type sourceClassType(TypedSpec chain) {
         Type t = chain.info().type();
         if (!(t instanceof Type.ClassType)) {
@@ -580,55 +667,6 @@ public final class StoreResolver {
                         List.of(rel), nc.info());
                 }
 
-    /** {@code Firm.all().employees.lastName}: the composed hop path as ONE
-     * projection lambda over the object-space root. */
-    private TypedSpec foldScalarHop(TypedPropertyAccess pa, Context context) {
-        HopChain hc = hopChainOf(pa.source());
-        Type rootClass = sourceClassType(hc.root());
-        TypedSpec read = new com.legend.compiler.spec.typed.TypedVariable(
-                "p", ExprType.one(rootClass));
-        for (TypedPropertyAccess hop : hc.hops()) {
-            read = new TypedPropertyAccess(read, hop.property(), hop.info());
-        }
-        read = new TypedPropertyAccess(read, pa.property(), pa.info());
-        TypedLambda fn = new TypedLambda(List.of("p"), List.of(read),
-                new ExprType(
-                        new Type.FunctionType(
-                                List.of(new Type.Param(rootClass,
-                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
-                                new Type.Param(pa.info().type(),
-                                        pa.info().multiplicity())),
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-        return resolveNode(scalarMapAsProject(hc.root(), fn,
-                com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY),
-                context);
-    }
-
-    /** {@code ->map(e|scalar)} over a hop chain: the mapper's param
-     * substitutes with the hop read and the composed lambda folds over
-     * the root. */
-    private TypedSpec foldHopMap(TypedMap m, Context context) {
-        HopChain hc = hopChainOf(m.source());
-        Type rootClass = sourceClassType(hc.root());
-        TypedSpec read = new com.legend.compiler.spec.typed.TypedVariable(
-                "p", ExprType.one(rootClass));
-        for (TypedPropertyAccess hop : hc.hops()) {
-            read = new TypedPropertyAccess(read, hop.property(), hop.info());
-        }
-        TypedSpec body = substituteParam(m.mapper(), read);
-        Type.Param res = ((Type.FunctionType) m.mapper().info().type()).result();
-        TypedLambda fn = new TypedLambda(List.of("p"), List.of(body),
-                new ExprType(
-                        new Type.FunctionType(
-                                List.of(new Type.Param(rootClass,
-                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
-                                res),
-                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-        return resolveNode(scalarMapAsProject(hc.root(), fn,
-                com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY),
-                context);
-    }
-
     /** Scalar-space filter over an exploded hop column: the folded source
      * is a ONE-COLUMN relation; the predicate's scalar param becomes a
      * read of that column. */
@@ -666,6 +704,18 @@ public final class StoreResolver {
     private static boolean isObjectSpace(TypedSpec source) {
         return switch (source) {
             case TypedGetAll ignored -> true;
+            // a CLASS-typed property HOP over an object-space chain IS
+            // object space (the auto-map flatten re-roots at its target —
+            // collectOpChain composes the joined source)
+            case TypedPropertyAccess pa
+                    when pa.info().type() instanceof Type.ClassType ->
+                    isObjectSpace(pa.source());
+            // ->map with a CLASS-result mapper stays in object space (the
+            // flatten's map spelling — collectOpChain beta-folds it)
+            case TypedMap m
+                    when ((Type.FunctionType) m.mapper().info().type()).result()
+                            .type() instanceof Type.ClassType ->
+                    isObjectSpace(m.source());
             case TypedFrom fr ->
                     isObjectSpace(fr.source());
             case TypedFilter f -> isObjectSpace(f.source());
@@ -1804,6 +1854,7 @@ public final class StoreResolver {
         }
         // 1. Collect the below-boundary op chain (top-down) to the getAll.
         List<TypedSpec> ops = new ArrayList<>();
+        String flattenHop = null;
         while (!(cur instanceof TypedGetAll)) {
             // Normalize collection natives with relation shapes BEFORE
             // collecting: first()/head() IS limit 1; class-space
@@ -1859,6 +1910,43 @@ public final class StoreResolver {
                 }
                 cur = fr.source();
                 continue;
+            }
+            // ->map(f|$f.assocEnd->...) with a CLASS-result mapper: the
+            // flatten IS the mapper body with the source spliced for the
+            // param (flatten composition is associative) - normalize and
+            // keep walking.
+            if (cur instanceof TypedMap cm
+                    && ((Type.FunctionType) cm.mapper().info().type()).result()
+                            .type() instanceof Type.ClassType) {
+                cur = substituteParam(cm.mapper(), cm.source());
+                continue;
+            }
+            // CLASS-TERMINAL ASSOCIATION HOP: the flatten boundary — the
+            // chain re-roots at the target over the JOIN. EMBEDDED class
+            // hops never reach this loop: consumers compose them into the
+            // reading lambda (the funnel's embedded dispatch owns them).
+            if (cur instanceof TypedPropertyAccess hp
+                    && hp.info().type() instanceof Type.ClassType
+                    && hp.source().info().type() instanceof Type.ClassType oc) {
+                if (ctx.findAssociationOf(oc.fqn(), hp.property()).isEmpty()) {
+                    throw new NotImplementedException("embedded class hop '"
+                            + hp.property() + "' in CHAIN position without a"
+                            + " scalar consumer is not supported yet");
+                }
+                if (flattenHop != null) {
+                    throw new NotImplementedException("multi-hop class flatten ('"
+                            + hp.property() + "." + flattenHop
+                            + "') is not supported yet");
+                }
+                flattenHop = hp.property();
+                cur = hp.source();
+                continue;
+            }
+            if (flattenHop != null) {
+                throw new NotImplementedException(
+                        "a class flatten over a FILTERED/transformed source"
+                        + " chain is not supported yet (op below the '"
+                        + flattenHop + "' hop)");
             }
             ops.add(cur);
             cur = switch (cur) {
@@ -1922,6 +2010,9 @@ public final class StoreResolver {
                         + '\u0000'
                         + (fctx.runtimeFqn() == null ? "" : context.runtimeFqn()));
 
+        if (flattenHop != null) {
+            cs = flattenSource(cs, flattenHop, fctx);
+        }
         return new OpChain(top, tree, implicitSerialize, ops, g, context, cs);
     }
 
@@ -2630,6 +2721,17 @@ public final class StoreResolver {
     static TypedEnumValue leftKind() {
         String fqn = "meta::pure::functions::relation::JoinKind";
         return new TypedEnumValue(fqn, "LEFT",
+                new ExprType(
+                        new Type.EnumType(fqn),
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+    }
+
+    /** INNER — the flatten's null-row guard by construction: the engine
+     * spells LEFT and its READER skips null-pk rows; the row sets are
+     * identical (deliberate documented emission divergence). */
+    static TypedEnumValue innerKind() {
+        String fqn = "meta::pure::functions::relation::JoinKind";
+        return new TypedEnumValue(fqn, "INNER",
                 new ExprType(
                         new Type.EnumType(fqn),
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
