@@ -202,6 +202,13 @@ public final class StoreResolver {
                     resolveChain(f, context);
             case TypedProject p when isObjectSpace(p.source()) ->
                     resolveChain(p, context);
+            // a BARE object-space chain HEADED by toOne/first/at/distinct
+            // (the eager run of a class-typed let: filter(...)->toOne()):
+            // the chain resolver owns these in-pipeline (toOne = the
+            // documented pass-through stand-in; at(k) = slice) — routing
+            // here keeps the eager run off the envelope-in-scalar wall.
+            case TypedNativeCall nc when isObjectSpace(nc) ->
+                    resolveChain(nc, context);
             // project DISTRIBUTES over a class-collection concatenate
             // (UNION ALL semantics): each side resolves as its own
             // object-space chain, sharing the projection columns.

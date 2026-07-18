@@ -465,6 +465,21 @@ class ResolveNavigationTest {
     }
 
     @Test
+    @DisplayName("AUTO-MAP: a toOne-headed class chain in root position evaluates (eager-let shape)")
+    void toOneHeadedRootEvaluates() throws SQLException {
+        // the eager run of `let row = ...->toOne()` — the chain resolver owns
+        // the head natives; scalar reads off the binding then evaluate per
+        // statement (toOne = the documented pass-through stand-in: a
+        // multi-row source surfaces at the value compare, never silently)
+        var r = Compiler.execute(MODEL,
+                "{| let row = m::Person.all()->filter(p|$p.name == 'Ann')->toOne();\n"
+                        + "$row.addr.city;}", "m::RT", conn);
+        var t = (com.legend.exec.ExecutionResult.Tabular) r;
+        assertEquals(1, t.rows().size());
+        assertEquals("NYC", t.rows().get(0).values().get(0));
+    }
+
+    @Test
     @DisplayName("P01: scalar isEmpty ACROSS a to-one crossing — IS NULL via the join, not EXISTS")
     void scalarIsEmptyAcrossToOneCrossing() throws SQLException {
         String sql = sqlOf("m::Person.all()->filter(p|$p.employer.legal->isEmpty())"
