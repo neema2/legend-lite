@@ -566,9 +566,15 @@ public final class Runner {
     /** Run one PARSED test through the pipeline. */
     public Outcome run(ParsedTest t) {
         // Statement-position HELPER calls β-expand (params bound as lets)
-        // so discovery and the harness both see the real body — a test
-        // reaching execute()/toSQLString() only through a helper was
-        // invisible to both (audit 19d B1, the 498-SHAPE cliff).
+        // for TWO reasons, verified separable by experiment (audit 20
+        // follow-up): (a) DISCOVERY — executeMappingRefs must see execute
+        // calls inside helpers to assemble the right module; (b) ASSERT
+        // VISIBILITY — a helper body carrying assertEquals is HARNESS
+        // vocabulary the platform can never type (G: unknown function),
+        // so TestBody must see the expanded statements to intercept them.
+        // The original execute-visibility rationale (audit 19d B1) is
+        // OBSOLETE since B2b made execute a platform native — the sweep
+        // with raw bodies regressed ONLY the assert-in-helper shape.
         List<com.legend.model.spec.ValueSpecification> body =
                 expandHelperCalls(t.fn().body(), t, 0);
         List<String> mappingRefs = executeMappingRefs(body, t);
