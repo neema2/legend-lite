@@ -511,6 +511,43 @@ public final class StoreResolver {
                 pa.info().multiplicity()), context);
     }
 
+    /** The NAVIGATE-SLOT flatten route: materialize the source pipeline
+     * with the hop's TypedNavigate step DEMANDED (the same machinery the
+     * funnel uses), then re-root at the step's target class with bindings
+     * re-pointed through the slot prefix. */
+    private ClassSource flattenNavSlot(ClassSource src, String alias,
+            TypedNavigate step) {
+        if (!(step.target() instanceof TypedGetAll tg)) {
+            throw new NotImplementedException("class flatten through a"
+                    + " CHAINED navigate step ('" + alias
+                    + "') is not supported yet");
+        }
+        String targetClass = tg.classFqn();
+        ClassSource t = sources.get(src.mappingFqn(), targetClass);
+        Pipelines.Materialized m = Pipelines.materialize(
+                src.pipeline(), java.util.Set.of(), java.util.Set.of(alias),
+                src.classFqn(),
+                (a, tc) -> Pipelines.materialize(
+                        sources.get(src.mappingFqn(), tc).pipeline(),
+                        java.util.Set.of(), tc).pipeline());
+        String prefix = m.slotPrefixes().get(alias);
+        if (prefix == null) {
+            throw new IllegalStateException("resolver bug: demanded navigate"
+                    + " slot '" + alias + "' produced no prefix");
+        }
+        Type.RelationType row =
+                (Type.RelationType) m.pipeline().info().type();
+        ExprType rowInfo = new ExprType(row,
+                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        Map<String, TypedSpec> bindings = new LinkedHashMap<>();
+        for (var e : t.bindings().entrySet()) {
+            bindings.put(e.getKey(), prefixBinding(e.getValue(),
+                    t.rowVar(), prefix, src.rowVar(), rowInfo));
+        }
+        return new ClassSource(src.mappingFqn(), targetClass, t.setId(),
+                m.pipeline(), src.rowVar(), bindings, row);
+    }
+
     /** One re-pointed binding for the flatten's composed source: scalar
      * bindings ride {@link Pipelines#prefixColumns}; an EMBEDDED binding
      * (TypedNewInstance ctor over parent-alias columns) re-points each
@@ -548,6 +585,17 @@ public final class StoreResolver {
      */
     private ClassSource flattenSource(ClassSource src, String hop,
             Context context) {
+        // ROUTE by the hop's MAPPING: a class-typed Join PM
+        // (employees: @Firm_Person) is a NAVIGATE SLOT — the pipeline
+        // already carries its TypedNavigate step; an AssociationMapping
+        // end routes through the association-binding predicate.
+        TypedSpec hopBinding = src.bindings().get(hop);
+        var navSteps = Pipelines.navSteps(src.pipeline());
+        String alias = hopBinding == null ? null
+                : navSlotAlias(hopBinding, src.rowVar(), navSteps.keySet());
+        if (alias != null) {
+            return flattenNavSlot(src, alias, navSteps.get(alias));
+        }
         AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(
                 temporal, src, hop, context, false);
         Pipelines.Materialized m = Pipelines.materialize(
