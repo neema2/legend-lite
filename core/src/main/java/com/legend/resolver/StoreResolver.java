@@ -237,42 +237,8 @@ public final class StoreResolver {
                     && (nc.callee().qualifiedName().equals(
                                     "meta::pure::functions::collection::size")
                             || nc.callee().qualifiedName().equals(
-                                    "meta::pure::functions::collection::count")) -> {
-                Type intType =
-                        Type.Primitive.INTEGER;
-                ExprType oneInt =
-                        new ExprType(intType,
-                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
-                ExprType rowParam =
-                        new ExprType(
-                                nc.args().get(0).info().type(),
-                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
-                TypedLambda one = new TypedLambda(List.of("p"),
-                        List.of(new TypedCInteger(1L, oneInt)),
-                        new ExprType(
-                                new Type.FunctionType(
-                                        List.of(new Type.Param(
-                                                rowParam.type(), rowParam.multiplicity())),
-                                        new Type.Param(
-                                                intType,
-                                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
-                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-                Type.RelationType relType =
-                        new Type.RelationType(List.of(
-                                new Type.Column(
-                                        "c", intType,
-                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
-                TypedProject proj = new TypedProject(nc.args().get(0),
-                        List.of(new TypedFuncCol("c", one)),
-                        new ExprType(relType,
-                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
-                TypedSpec rel = resolveChain(proj, context);
-                var relSize = ctx.findFunction("meta::pure::functions::relation::size")
-                        .stream().findFirst().orElseThrow(() -> new IllegalStateException(
-                                "relation size overload missing from the catalog"));
-                yield new TypedNativeCall(relSize,
-                        List.of(rel), nc.info());
-            }
+                                    "meta::pure::functions::collection::count")) ->
+                    classExtentCount(nc, context);
             // ->map(p|$p.scalarExpr) over instances IS the single-column
             // projection (the map-terminal invariant); Person.all().prop is
             // its property-access spelling (to-many paths explode via the
@@ -285,6 +251,22 @@ public final class StoreResolver {
                 yield resolveChain(scalarMapAsProject(m2.source(), m2.mapper(),
                         m2.info().multiplicity()), context);
             }
+            // AUTO-MAP (engine map.pure family): class-typed hop chains fold
+            // into one lambda over the object-space root — see foldScalarHop/
+            // foldHopMap/foldScalarHopFilter.
+            case TypedPropertyAccess pa when !(pa.info().type() instanceof Type.ClassType)
+                    && hopChainOf(pa.source()) != null ->
+                    foldScalarHop(pa, context);
+            case TypedMap m when hopChainOf(m.source()) != null
+                    && !(((Type.FunctionType) m.mapper().info().type()).result().type()
+                            instanceof Type.ClassType) ->
+                    foldHopMap(m, context);
+            case TypedFilter f
+                    when containsGetAll(f.source())
+                    && !(f.source().info().type() instanceof Type.ClassType)
+                    && !(f.source().info().type() instanceof Type.RelationType)
+                    && f.source() instanceof TypedPropertyAccess ->
+                    foldScalarHopFilter(f, context);
             case TypedPropertyAccess pa when isObjectSpace(pa.source())
                     && !(pa.info().type() instanceof Type.ClassType) -> {
                 ExprType elem =
@@ -522,6 +504,147 @@ public final class StoreResolver {
         return new TypedProject(source,
                 List.of(new TypedFuncCol(name, mapper)),
                 new ExprType(row, valueMult));
+    }
+
+    /** A run of CLASS-typed property hops bottoming at an object-space
+     * chain (the auto-map family's `Firm.all().employees` prefix). */
+    private record HopChain(TypedSpec root, List<TypedPropertyAccess> hops) {
+    }
+
+    private static HopChain hopChainOf(TypedSpec n) {
+        java.util.ArrayDeque<TypedPropertyAccess> hops = new java.util.ArrayDeque<>();
+        TypedSpec cur = n;
+        while (cur instanceof TypedPropertyAccess pa
+                && pa.info().type() instanceof Type.ClassType) {
+            hops.addFirst(pa);
+            cur = pa.source();
+        }
+        return !hops.isEmpty() && isObjectSpace(cur)
+                ? new HopChain(cur, List.copyOf(hops)) : null;
+    }
+
+    /** size()/count() over a class extent = the ROW COUNT of the resolved
+     * pipeline: project ONE constant column (no slot demand — engine emits
+     * select count(*)) and count the relation. */
+    private TypedSpec classExtentCount(TypedNativeCall nc, Context context) {
+
+                Type intType =
+                        Type.Primitive.INTEGER;
+                ExprType oneInt =
+                        new ExprType(intType,
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+                ExprType rowParam =
+                        new ExprType(
+                                nc.args().get(0).info().type(),
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+                TypedLambda one = new TypedLambda(List.of("p"),
+                        List.of(new TypedCInteger(1L, oneInt)),
+                        new ExprType(
+                                new Type.FunctionType(
+                                        List.of(new Type.Param(
+                                                rowParam.type(), rowParam.multiplicity())),
+                                        new Type.Param(
+                                                intType,
+                                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+                Type.RelationType relType =
+                        new Type.RelationType(List.of(
+                                new Type.Column(
+                                        "c", intType,
+                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)));
+                TypedProject proj = new TypedProject(nc.args().get(0),
+                        List.of(new TypedFuncCol("c", one)),
+                        new ExprType(relType,
+                                com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+                TypedSpec rel = resolveChain(proj, context);
+                var relSize = ctx.findFunction("meta::pure::functions::relation::size")
+                        .stream().findFirst().orElseThrow(() -> new IllegalStateException(
+                                "relation size overload missing from the catalog"));
+                return new TypedNativeCall(relSize,
+                        List.of(rel), nc.info());
+                }
+
+    /** {@code Firm.all().employees.lastName}: the composed hop path as ONE
+     * projection lambda over the object-space root. */
+    private TypedSpec foldScalarHop(TypedPropertyAccess pa, Context context) {
+        HopChain hc = hopChainOf(pa.source());
+        Type rootClass = sourceClassType(hc.root());
+        TypedSpec read = new com.legend.compiler.spec.typed.TypedVariable(
+                "p", ExprType.one(rootClass));
+        for (TypedPropertyAccess hop : hc.hops()) {
+            read = new TypedPropertyAccess(read, hop.property(), hop.info());
+        }
+        read = new TypedPropertyAccess(read, pa.property(), pa.info());
+        TypedLambda fn = new TypedLambda(List.of("p"), List.of(read),
+                new ExprType(
+                        new Type.FunctionType(
+                                List.of(new Type.Param(rootClass,
+                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                                new Type.Param(pa.info().type(),
+                                        pa.info().multiplicity())),
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        return resolveNode(scalarMapAsProject(hc.root(), fn,
+                com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY),
+                context);
+    }
+
+    /** {@code ->map(e|scalar)} over a hop chain: the mapper's param
+     * substitutes with the hop read and the composed lambda folds over
+     * the root. */
+    private TypedSpec foldHopMap(TypedMap m, Context context) {
+        HopChain hc = hopChainOf(m.source());
+        Type rootClass = sourceClassType(hc.root());
+        TypedSpec read = new com.legend.compiler.spec.typed.TypedVariable(
+                "p", ExprType.one(rootClass));
+        for (TypedPropertyAccess hop : hc.hops()) {
+            read = new TypedPropertyAccess(read, hop.property(), hop.info());
+        }
+        TypedSpec body = substituteParam(m.mapper(), read);
+        Type.Param res = ((Type.FunctionType) m.mapper().info().type()).result();
+        TypedLambda fn = new TypedLambda(List.of("p"), List.of(body),
+                new ExprType(
+                        new Type.FunctionType(
+                                List.of(new Type.Param(rootClass,
+                                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE)),
+                                res),
+                        com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
+        return resolveNode(scalarMapAsProject(hc.root(), fn,
+                com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY),
+                context);
+    }
+
+    /** Scalar-space filter over an exploded hop column: the folded source
+     * is a ONE-COLUMN relation; the predicate's scalar param becomes a
+     * read of that column. */
+    private TypedSpec foldScalarHopFilter(TypedFilter f, Context context) {
+        TypedSpec rel = resolveNode(f.source(), context);
+        if (!(rel.info().type() instanceof Type.RelationType rt)
+                || rt.columns().size() != 1) {
+            throw new NotImplementedException("scalar filter over a"
+                    + " class-derived collection did not fold to a"
+                    + " one-column relation");
+        }
+        Type.RelationType.Column col = rt.columns().get(0);
+        TypedSpec rowRead = new TypedPropertyAccess(
+                new com.legend.compiler.spec.typed.TypedVariable(
+                        "r", ExprType.one(rt)),
+                col.name(), new ExprType(col.type(), col.multiplicity()));
+        TypedSpec pred = substituteParam(f.predicate(), rowRead);
+        TypedLambda fn = new TypedLambda(List.of("r"), List.of(pred),
+                f.predicate().info());
+        return new TypedFilter(rel, fn, rel.info());
+    }
+
+    /** &beta;-substitute a one-param lambda's variable with {@code read} —
+     * via the inliner's LET reduction (one substitution engine, no second
+     * walker). */
+    private TypedSpec substituteParam(TypedLambda lam, TypedSpec read) {
+        java.util.List<TypedSpec> body = new java.util.ArrayList<>();
+        body.add(new com.legend.compiler.spec.typed.TypedLet(
+                lam.parameters().get(0), read, read.info()));
+        body.addAll(lam.body());
+        return new com.legend.compiler.spec.UserCallInliner(specs)
+                .inlineBody(body).get(0);
     }
 
     private static boolean isObjectSpace(TypedSpec source) {

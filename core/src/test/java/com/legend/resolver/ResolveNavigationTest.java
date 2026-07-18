@@ -85,6 +85,18 @@ class ResolveNavigationTest {
         return new DuckDb().render(new Lowerer().lower(resolved));
     }
 
+    /** Driver-style resolution (runtime as API argument — the corpus's
+     * no-from() shape; scalar-collection roots cannot spell from()). */
+    private static String sqlOfDriver(String query) {
+        var ctx = Compiler.compileModel(MODEL);
+        SpecCompiler specs = new SpecCompiler(ctx);
+        List<TypedSpec> body = specs.typeQueryBody(
+                NameResolver.resolveQuery(SpecParser.parse(query)));
+        List<TypedSpec> resolved = new StoreResolver(ctx, specs)
+                .resolve(body, "m::RT");
+        return new DuckDb().render(new Lowerer().lower(resolved));
+    }
+
     private List<String> exec(String sql) throws SQLException {
         List<String> rows = new ArrayList<>();
         try (Statement st = conn.createStatement(); ResultSet rs = st.executeQuery(sql)) {
@@ -424,6 +436,32 @@ class ResolveNavigationTest {
         // silently DROPPED the null row (task #62).
         assertEquals(1, count(sql, "IS NULL"), sql);
         assertEquals(List.of("Bob"), exec(sql));
+    }
+
+    @Test
+    @DisplayName("AUTO-MAP: class-typed hops in the CHAIN fold over the root (Firm.all().staff.name)")
+    void autoMapHopChainFolds() throws SQLException {
+        String sql = sqlOfDriver("m::Firm.all().staff.name");
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        // ACME's staff Ann/Cat via the PF join (Bob has no firm — absent;
+        // the LEFT JOIN keeps employee-less firms as null rows, none here)
+        assertEquals(List.of("Ann", "Cat"), exec(sql).stream().sorted().toList());
+    }
+
+    @Test
+    @DisplayName("AUTO-MAP: ->map(e|scalar) over a hop chain composes into the same fold")
+    void autoMapHopMapComposes() throws SQLException {
+        String sql = sqlOfDriver("m::Firm.all().staff->map(p|$p.name)");
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(List.of("Ann", "Cat"), exec(sql).stream().sorted().toList());
+    }
+
+    @Test
+    @DisplayName("AUTO-MAP: scalar filter over the exploded column becomes a relation filter")
+    void autoMapScalarFilterOverExplodedColumn() throws SQLException {
+        String sql = sqlOfDriver("m::Firm.all().staff.name->filter(n|$n == 'Cat')");
+        assertEquals(1, count(sql, "LEFT OUTER JOIN"), sql);
+        assertEquals(List.of("Cat"), exec(sql));
     }
 
     @Test

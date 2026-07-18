@@ -20,11 +20,11 @@ in-process Alloy-shaped path).
 | family | tests | pass | fail | error | shape |
 |---|---|---|---|---|---|
 | aggregationAware/test/rewrite | 13 | 0 | 0 | 13 | 0 |
-| aggregationAware/test/rewrite/NOP | 15 | 0 | 0 | 9 | 6 |
+| aggregationAware/test/rewrite/NOP | 15 | 0 | 0 | 8 | 7 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 103 | 0 | 0 | 10 | 93 |
-| functions/tests | 258 | 124 | 5 | 109 | 20 |
+| functions/tests | 258 | 130 | 6 | 102 | 20 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 76 | 7 | 59 | 13 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -52,7 +52,7 @@ in-process Alloy-shaped path).
 | tests/advanced | 68 | 17 | 0 | 40 | 11 |
 | tests/datatype | 5 | 1 | 0 | 4 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 |
-| tests/mapping | 10 | 3 | 2 | 5 | 0 |
+| tests/mapping | 10 | 5 | 3 | 2 | 0 |
 | tests/mapping/association | 23 | 7 | 0 | 16 | 0 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 12 | 0 | 20 | 0 |
 | tests/mapping/distinct | 18 | 14 | 0 | 4 | 0 |
@@ -67,7 +67,7 @@ in-process Alloy-shaped path).
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
 | tests/mapping/inheritance | 45 | 14 | 0 | 31 | 0 |
 | tests/mapping/innerJoin | 2 | 0 | 0 | 2 | 0 |
-| tests/mapping/join | 28 | 19 | 2 | 7 | 0 |
+| tests/mapping/join | 28 | 20 | 2 | 6 | 0 |
 | tests/mapping/merge | 1 | 0 | 0 | 1 | 0 |
 | tests/mapping/modelJoin | 47 | 12 | 1 | 34 | 0 |
 | tests/mapping/multigrain | 5 | 3 | 0 | 2 | 0 |
@@ -84,7 +84,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 2 | 18 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2497 | **1012** | 42 | 853 | 590 |
+| **total** | 2497 | **1021** | 44 | 841 | 591 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4292,8 +4292,8 @@ in-process Alloy-shaped path).
 ### top error buckets
 
 - 26x a bare lambda has no type outside a call position (lambdas type against their call's signature)
-- 25x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 19x unknown type 'TabularDataSet' in @TabularDataSet
+- 15x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 15x serialize expects (classCollection, #{Class{…}}#)
 - 14x toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - 13x expected at most one value, got many ([*])
@@ -4301,9 +4301,9 @@ in-process Alloy-shaped path).
 - 12x scalar lowering not yet implemented for TypedSerializeGraph
 - 11x lowering not yet implemented for TypedNativeCall
 - 11x graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- 10x class query under TypedMap is not resolvable yet (H2 vocabulary)
+- 10x class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
 - 10x unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
-- 9x class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
+- 9x class query under TypedMap is not resolvable yet (H2 vocabulary)
 - 8x class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
 - 8x relation has no column 'aID'
 - 7x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
@@ -4338,7 +4338,7 @@ in-process Alloy-shaped path).
 - ERROR testRewriteEmployeeToSalesToProductToProdLine [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
 - ERROR testRewriteWithMilestonedDescriptionPropertyAccess [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
 - SHAPE testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
-- ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- SHAPE testRewriteFilter [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
 - SHAPE testRewriteProjectFunction [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
 - SHAPE testRewriteProjectCol [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
 - SHAPE testRewriteProjectFunctionMulti [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
@@ -4346,7 +4346,7 @@ in-process Alloy-shaped path).
 - ERROR testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: ~Product ID Added 2: mapped/aggregate column specifications need an enclosing call to type against
 - SHAPE testRewriteTDSGroupBy [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
 - ERROR testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
-- ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
 - ERROR testRewriteProjectFunction [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
 - ERROR testRewriteProjectCol [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
 - ERROR testRewriteProjectFunctionMulti [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
@@ -4464,7 +4464,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Product], multiplicity=Bounded[lower=1, upper=1]]], predicate=TypedLambda[parameters=[p], body=[TypedNa
 - ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
@@ -4526,19 +4526,13 @@ in-process Alloy-shaped path).
 - FAIL testSimpleTriangularJoinViaIsEmpty [functions/tests]: assertEquals: expected 0, got 4
 - ERROR testIsEmptyOnQualifiedPropertyFollowedByClassPropertyInput [functions/tests]: relation has no column 'name' in scalar read
 - SHAPE testIsEmptyOnCollection [functions/tests]: no execute(|...) call
-- ERROR testFilterOnSimpleTypeProperty [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testFilterThenMapAndReturnObject [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testFilterOnSimpleTypePropertyDeep [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testFilterOnSimpleTypePropertyEq [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testAssociationToManyAutoMap [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testAssociationToOneAutoMap [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testAssociationDeep [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testAdvancedDerivedPropertyThroughAssociation [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=ExprType
 - ERROR testFilter [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testFilterPostMapWithObject [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
 - ERROR testAutoMapBooleanFilterWithProperty [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testGlobalAggregation [functions/tests]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testSubAggregationMultiLevel [functions/tests]: class query under TypedMap is not resolvable yet (H2 vocabulary)
+- FAIL testSubAggregationMultiLevel [functions/tests]: assertSize: expected 7, got 4
 - ERROR testSubAggregationMultiLevelJoinString [functions/tests]: no overload of 'meta::pure::functions::string::joinStrings' accepts 1 argument(s)
 - ERROR testSubAggregationUsingIf [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=ExprType
 - ERROR testSequenceMapWithConfusingSetImplementation [functions/tests]: unknown function 'meta::relational::tests::mapping::filter::model::store::createTablesAndFillDb'
@@ -5358,10 +5352,8 @@ in-process Alloy-shaped path).
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: unknown function 'toJSON'
 - ERROR testProjectThroughAssociation [tests/injection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]], property=trades, info=ExprType
 - ERROR testProjectThroughAssociationAutoMap [tests/injection]: in call to 'meta::relational::tests::injection::model::Trade$prop$productAtTimeOfTrade', argument 1: expected at most one value, got many ([*])
-- ERROR testGet [tests/mapping]: scalar lowering not yet implemented for TypedFilter
-- ERROR testGet [tests/mapping]: scalar lowering not yet implemented for TypedFilter
 - ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall
-- ERROR testGet [tests/mapping]: scalar lowering not yet implemented for TypedFilter
+- FAIL testGet [tests/mapping]: assertSize: expected 1, got 0
 - FAIL testQuery [tests/mapping]: assertSize: expected 1, got 2
 - ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall
 - FAIL retrieveDateWithTimeZone [tests/mapping]: assertEquals: expected 2016-02-05 21:00:00.123456, got 2016-02-05 21:00:00.123456789
@@ -5450,7 +5442,7 @@ in-process Alloy-shaped path).
 - ERROR testPropertyMappingsForA [tests/mapping/extends]: association property '$a.e' used other than as a navigation head (class-typed value / isEmpty / whole-instance) is not supported yet
 - ERROR testPropertyMappingsForB [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
 - ERROR testPropertyMappingsForC [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR testStoreSubstitutionForB [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::BMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::B': [meta::relational::tests::mapp
 - ERROR testStoreSubstitutionForC [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::CMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::C': [meta::relational::tests::mapp
@@ -5507,8 +5499,7 @@ in-process Alloy-shaped path).
 - ERROR testSubTypeMappingValidWhenMappedExplicitly [tests/mapping/inheritance]: unknown function '_classMappingByClass'
 - ERROR testIsolationOfInnerJoins [tests/mapping/innerJoin]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=c, info=ExprType[type=ClassType[fqn=meta::relational::tests::mapping::innerjoin::isolation::Car], multiplicity=Bounded[lower=
 - ERROR testIsolationForFiltersWithoutAliasAndInnerJoins [tests/mapping/innerJoin]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=c, info=ExprType[type=ClassType[fqn=meta::relational::tests::mapping::innerjoin::isolation::Car], multiplicity=Bounded[lower=
-- ERROR testFilterOnSimpleTypePropertyDeepWithJoinInMapping [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
-- ERROR testFilterOnSimpleTypePropertyDeepWithJoinInMappingNotUsed [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- ERROR testFilterOnSimpleTypePropertyDeepWithJoinInMapping [tests/mapping/join]: Binder Error: Referenced table "t2" not found! | Candidate tables: "t0" |  | LINE 4: ...RSON_ID, t2.EXTRAINFO AS Person_PersonExtension_EXTRAINFO, t2.NUMBER AS Person_PersonExtension_NUMBER, t2.AGE AS Perso... |                                                                       ^
 - ERROR testFilterDeepWithJoinInMappingInMiddle [tests/mapping/join]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - FAIL testMultipleJoinsInPropertyMappingWithDatesInClass [tests/mapping/join]: assertSameElements: expected [Row1, Row2, Row3, Row1, Row2, Row3], got [Row1, Row2, Row3]
 - ERROR testMultipleJoinsInPropertyMappingWithDateInJoin [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::advancedRelationalMapping2$class$meta::relational::tests::mapping::join::model::domain::TypeBuiltOutOfMultipleJoins': no overload of 'meta::pure::functions::boolean::lessThanEqual' structurally matches the argument types
