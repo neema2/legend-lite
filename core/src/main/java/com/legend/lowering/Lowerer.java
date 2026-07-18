@@ -512,6 +512,16 @@ public final class Lowerer {
 
             case TypedPivot pv -> pivot(pv);
 
+            // the Typer's `.rows` MARKER (identity over a relation value —
+            // the K result frame's row-index/envelope disambiguator): the
+            // resolver erases it on resolved paths; this is the defensive
+            // FLOOR for G-direct paths (audit 20c H1 — the marker leaked
+            // to this switch's default on the plain compile path).
+            case TypedPropertyAccess pa
+                    when pa.property().equals("rows")
+                    && pa.source().info().type() instanceof Type.RelationType ->
+                    relation(pa.source());
+
             // STORE-ONLY nodes: reaching the lowerer is not a missing rule —
             // it means the Phase H resolver failed to rewrite them away. Say
             // so, instead of the frontier default's misdiagnosis.

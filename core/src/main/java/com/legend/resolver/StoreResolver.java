@@ -321,6 +321,15 @@ public final class StoreResolver {
             // Relation-space wrappers over a chain that bottoms at a getAll:
             // rebuild with the resolved source. (Each wrapper keeps its own
             // info — relation-space types are stable across resolution.)
+            // the Typer's `.rows` MARKER (identity over a relation value):
+            // it exists so the K-side result frame can tell row-index reads
+            // from Result-envelope reads; EVERY lowering path passes through
+            // this resolver, so erasure here reaches all of them (audit 20c
+            // H1 — the K-hook-only erasure leaked on the plain compile path)
+            case TypedPropertyAccess pa
+                    when pa.property().equals("rows")
+                    && pa.source().info().type() instanceof Type.RelationType ->
+                    resolveNode(pa.source(), context);
             // a COLUMN READ over a relation-shaped chain ($tds.rows.id —
             // the TDS getter desugar): rebuild over the resolved source
             case TypedPropertyAccess pa

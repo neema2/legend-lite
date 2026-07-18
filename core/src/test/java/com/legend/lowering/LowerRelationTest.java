@@ -744,6 +744,17 @@ class LowerRelationTest {
         assertEquals(List.of("2|b"), exec(sql));
     }
 
+    @Test
+    @DisplayName("audit 20c H1: .rows over a relation is identity on the G-direct path (marker floor)")
+    void rowsMarkerErasesOnGDirectPath() throws SQLException {
+        // the Typer keeps `.rows` as a MARKER node (the K result frame's
+        // row-index/envelope disambiguator); this G→Lowerer path bypasses
+        // the resolver, so the lowerer's floor arm must erase it — the leak
+        // regressed this exact spelling (audit 20c).
+        String sql = sqlOf("#TDS\n  id, name\n  1, a\n  2, b\n#.rows->size()");
+        assertEquals(List.of("2"), exec(sql));
+    }
+
     // ---- audit pins (H3b): the sort/limit ordering guard ----
 
     @Test
