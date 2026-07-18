@@ -2516,13 +2516,15 @@ final class ElementParserTest {
     }
 
     @Test
-    void associationMappingRejectsLeadingStar() {
-        ParseException e = assertThrows(ParseException.class, () ->
-                ElementParser.parse(
-                        "Mapping my::M ( *my::A: Relational { AssociationMapping ( "
-                        + "firm: [db::DB] @J ) } )"));
-        assertTrue(e.getMessage().toLowerCase().contains("association"),
-                () -> "expected association-related error, got: " + e.getMessage());
+    void associationMappingToleratesLeadingStarAndSetId() {
+        // ENGINE parity (corpus: *Vehicle_VehicleOwner, Trade_LegalEntity
+        // [trade_legal]): the reference grammar accepts both on an
+        // association mapping header; the star is meaningless and the id
+        // names the element - neither changes binding semantics.
+        var m = ElementParser.parse(
+                "Mapping my::M ( *my::A[someId]: Relational { AssociationMapping ( "
+                + "firm: [db::DB] @J ) } )");
+        assertEquals(1, m.elements().size());
     }
 
     @Test

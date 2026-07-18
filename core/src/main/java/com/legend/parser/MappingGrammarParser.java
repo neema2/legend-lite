@@ -256,15 +256,14 @@ final class MappingGrammarParser {
             p.advance();
             p.expect(TokenType.BRACE_OPEN);
             // Legacy nested AssociationMapping (`Relational { AssociationMapping (...) }`).
+            // The ENGINE grammar tolerates both a leading '*' and a [setId]
+            // on the header (corpus: testInheritanceRelationalMilestoned's
+            // *Vehicle_VehicleOwner, modelJoins' Trade_LegalEntity
+            // [trade_legal]) — the star is meaningless for associations and
+            // the id names the mapping element; neither changes binding
+            // semantics here (bindings key by association FQN), so both are
+            // ACCEPTED and dropped, matching the reference parser.
             if (!pure && p.peek() == TokenType.ASSOCIATION_MAPPING) {
-                if (root) {
-                    throw p.error("Association mappings cannot be marked root (the leading '*' "
-                            + "is only valid for class mappings)");
-                }
-                if (setId != null || extendsSetId != null) {
-                    throw p.error("Association mappings do not accept [setId] or extends [parentId] "
-                            + "on the header");
-                }
                 p.advance(); // consume AssociationMapping keyword
                 AssociationMapping am = parseAssociationMappingBody(elementPath);
                 p.expect(TokenType.BRACE_CLOSE);
@@ -400,6 +399,13 @@ final class MappingGrammarParser {
                         }
                         depth--;
                     } else if (t == TokenType.COMMA && depth == 0) {
+                        break;
+                    } else if (depth == 0 && p.isIdentifierToken(t)
+                            && p.peek(1) == TokenType.BRACKET_OPEN
+                            && p.pos > exprStart) {
+                        // the NEXT xprop's `name[src, tgt]:` head — the
+                        // corpus's testMappingCrossStore misses a comma
+                        // between entries (engine's scanner stops here too)
                         break;
                     }
                     p.advance();
@@ -1325,7 +1331,33 @@ final class MappingGrammarParser {
 
         List<ClassMapping.Pure.PropertyBinding> bindings = new ArrayList<>();
         while (p.peek() != TokenType.BRACE_CLOSE && !p.atEnd()) {
+            // +localProp : Type[m] : expr — the M2M LOCAL property spelling
+            // (engine: a mapping-local property extending the target). The
+            // declared type/multiplicity annotations are consumed; the
+            // binding records name+expression like any other (an unknown
+            // property stays loud downstream — parse-level unlock only).
+            boolean local = p.match(TokenType.PLUS);
             String propName = p.parseIdentifier();
+            // prop* : expr — the M2M EXPLOSION marker (collection-valued
+            // source paths fan out per element); consumed, the expression
+            // carries the collection shape either way
+            p.match(TokenType.STAR);
+            if (local) {
+                p.expect(TokenType.COLON);
+                p.parseType();
+                p.parseMultiplicity();
+            }
+            // prop[targetSetId] : expr / prop[src, tgt] : expr — the M2M
+            // target-set route. Consumed; set routing on the M2M side is
+            // resolved downstream (loud when it matters).
+            if (p.peek() == TokenType.BRACKET_OPEN) {
+                p.advance();
+                p.parseIdentifier();
+                if (p.match(TokenType.COMMA)) {
+                    p.parseIdentifier();
+                }
+                p.expect(TokenType.BRACKET_CLOSE);
+            }
             p.expect(TokenType.COLON);
             int start = p.pos;
             scanPureExpression(/*stopOnPropertyBindingStart=*/ false);

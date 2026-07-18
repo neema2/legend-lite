@@ -294,6 +294,14 @@ public final class ElementParser implements TokenStreamCursor {
             mappingGrammar.skipBalancedBlock();
             return true;
         }
+        // a STRAY top-level closer: the corpus\u0027s own
+        // m2m2rExecutionPlanTests.pure carries an unbalanced extra )
+        // (opens=4, closes=5) that the engine tolerates; skip exactly
+        // this token, never other junk
+        if (peek() == TokenType.PAREN_CLOSE) {
+            advance();
+            return true;
+        }
         return false;
     }
 
