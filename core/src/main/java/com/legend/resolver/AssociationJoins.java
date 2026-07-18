@@ -74,7 +74,13 @@ final class AssociationJoins {
         TypedSpec tPipe0 = temporal.temporalTargetPipe(cs, t, head,
                 temporal.applyJoinTemporalFilters(tMat.pipeline(), t, Map.of()));
         // a lifted head's parked material (filter / union branches)
-        // applies to the aggregated target exactly like the plain routes
+        // applies to the aggregated target exactly like the plain routes;
+        // a CORRELATED pred cannot apply here — loud, never dropped
+        if (synthetics.correlatedPred(head) != null) {
+            throw new NotImplementedException("correlated filtered navigation"
+                    + " '" + SyntheticHeads.realHead(head) + "' is not"
+                    + " supported on the aggregated route yet");
+        }
         tPipe0 = synthetics.applyToPipe(head, tPipe0, (p, pred) ->
                 StoreResolver.predFilteredPipe(p, t, tMat.slotPrefixes(),
                         pred, cs.mappingFqn()));
@@ -312,6 +318,18 @@ final class AssociationJoins {
                     new ExprType(swapped,
                             com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         }
+        // A CORRELATED lifted predicate ANDs into the CONDITION — the one
+        // place both rows are in scope: its own param substitutes against
+        // the TARGET bindings over the condition's target row; the residual
+        // OUTER-variable reads substitute against the PARENT's bindings
+        // over the condition's source row (audit 14 B-F1's correlation
+        // pass). Runs BEFORE key collection so the pred's target reads
+        // widen distinct/union keys too.
+        TypedLambda corr = synthetics.correlatedPred(head);
+        if (corr != null) {
+            oriented = andCorrelatedIntoCondition(oriented, corr, cs, target,
+                    tMat.slotPrefixes());
+        }
         // TARGET-SIDE join-key collection: a distinct-narrowed target must
         // expose the key columns the association condition binds on.
         Set<String> tgtReads = new LinkedHashSet<>();
@@ -333,5 +351,78 @@ final class AssociationJoins {
                 (Type.RelationType)
                         tPipe.info().type(),
                 oriented, tMat.slotPrefixes());
+    }
+
+    /** The correlation pass: two sequential substitutions over the lifted
+     * predicate — own param via TARGET bindings onto the condition's
+     * target row; each residual FREE variable via the PARENT's bindings
+     * onto the condition's source row — then AND into the condition body. */
+    private TypedLambda andCorrelatedIntoCondition(TypedLambda cond,
+            TypedLambda pred, ClassSource parent, ClassSource target,
+            Map<String, String> targetSlotPrefixes) {
+        String srcParam = cond.parameters().get(0);
+        String tgtParam = cond.parameters().get(1);
+        Set<String> unconvertedTgt = new LinkedHashSet<>(
+                Pipelines.slotAliases(target.pipeline()));
+        unconvertedTgt.removeAll(targetSlotPrefixes.keySet());
+        var ft = (Type.FunctionType) cond.info().type();
+        Type.RelationType srcRow = rowOf(ft.params().get(0).type());
+        Type.RelationType tgtRow = rowOf(ft.params().get(1).type());
+        // pass 1: the pred's own param -> target bindings over tgtParam
+        Substitution tgtSub = new Substitution(new Substitution.Target(
+                new Substitution.RowScope(pred.parameters().get(0), tgtParam,
+                        target.classFqn(), target.mappingFqn(),
+                        target.rowVar(), target.bindings(), tgtRow,
+                        unconvertedTgt, targetSlotPrefixes, Map.of()),
+                Substitution.Registries.NONE, Substitution.TemporalView.NONE,
+                true, true));
+        TypedLambda pass1 = tgtSub.rewriteLambda(pred);
+        // pass 2: each residual free variable -> parent bindings over srcParam
+        TypedSpec body = pass1.body().get(pass1.body().size() - 1);
+        Set<String> free = new LinkedHashSet<>();
+        collectVarNames(body, free);
+        free.remove(tgtParam);
+        free.remove(srcParam);
+        for (String outer : free) {
+            Substitution srcSub = new Substitution(new Substitution.Target(
+                    new Substitution.RowScope(outer, srcParam,
+                            parent.classFqn(), parent.mappingFqn(),
+                            parent.rowVar(), parent.bindings(),
+                            srcRow,
+                            new LinkedHashSet<>(
+                                    Pipelines.slotAliases(parent.pipeline())),
+                            Map.of(), Map.of()),
+                    Substitution.Registries.NONE,
+                    Substitution.TemporalView.NONE, true, true));
+            body = srcSub.rewriteLambda(new com.legend.compiler.spec.typed
+                    .TypedLambda(List.of(outer), List.of(body), pred.info()))
+                    .body().get(0);
+        }
+        var andFns = ctx.findFunction("meta::pure::functions::boolean::and")
+                .stream().filter(f -> f.parameters().size() == 2).toList();
+        if (andFns.size() != 1) {
+            throw new IllegalStateException("resolver bug: expected one 2-arg"
+                    + " boolean::and, found " + andFns.size());
+        }
+        TypedSpec existing = cond.body().get(cond.body().size() - 1);
+        TypedSpec anded = new com.legend.compiler.spec.typed.TypedNativeCall(
+                andFns.get(0), List.of(existing, body), existing.info());
+        return new TypedLambda(cond.parameters(), List.of(anded), cond.info());
+    }
+
+    private static void collectVarNames(
+            com.legend.compiler.spec.typed.TypedSpec n, Set<String> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v) {
+            out.add(v.name());
+        }
+        n.children().forEach(c -> collectVarNames(c, out));
+    }
+
+    private static Type.RelationType rowOf(Type t) {
+        if (t instanceof Type.RelationType rt) {
+            return rt;
+        }
+        throw new IllegalStateException("resolver bug: association condition"
+                + " param is not relation-typed: " + t.typeName());
     }
 }

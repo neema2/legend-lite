@@ -117,7 +117,13 @@ final class SyntheticHeads {
     }
 
     boolean hasPred(String head) {
-        return preds.containsKey(head) || branchPreds.containsKey(head);
+        return preds.containsKey(head) || branchPreds.containsKey(head)
+                || corrPreds.containsKey(head);
+    }
+
+    /** The CORRELATED predicate parked on {@code head}, or null. */
+    TypedLambda correlatedPred(String head) {
+        return corrPreds.get(head);
     }
 
     /** ALL predicates parked on a head: singleton for a {@code #fN} head,
@@ -126,6 +132,9 @@ final class SyntheticHeads {
      * pull the target's slots exactly like a single lifted predicate. */
     List<TypedLambda> allPreds(String head) {
         TypedLambda single = preds.get(head);
+        if (single == null) {
+            single = corrPreds.get(head);
+        }
         if (single != null) {
             return List.of(single);
         }
@@ -206,11 +215,6 @@ final class SyntheticHeads {
                 && f.info().type()
                         instanceof Type.ClassType
                 && isLiftableNav(f.source())
-                // the predicate must be CLOSED over its own parameter: an
-                // outer-variable read has no correlation pass on this route
-                // and a column-name collision would silently self-correlate
-                // (audit 14 B-F1) — unlifted shapes keep their loud wall
-                && predClosedOverParam(f.predicate())
                 && !(pa.info().multiplicity()
                         instanceof com.legend.compiler.element.type
                                 .Multiplicity.Bounded b
@@ -229,7 +233,15 @@ final class SyntheticHeads {
                 renamed = new TypedPropertyAccess(
                         hp.source(), synth, hp.info());
             }
-            preds.put(synth, f.predicate());
+            // CLOSED predicates park on the target pipeline; a predicate
+            // reading the OUTER row parks CORRELATED — applied at the join
+            // CONDITION where both rows are in scope (the correlation pass
+            // audit 14 B-F1 deferred).
+            if (predClosedOverParam(f.predicate())) {
+                preds.put(synth, f.predicate());
+            } else {
+                corrPreds.put(synth, f.predicate());
+            }
             return new TypedPropertyAccess(
                     renamed, pa.property(), pa.info());
         }
@@ -653,6 +665,13 @@ final class SyntheticHeads {
     /** Lifted filtered-navigation heads: synthetic name → the user
      * predicate parked on the head ({@link #liftFilteredHeads}).
      * Append-only across nested resolutions — names are counter-unique. */
+    /** CORRELATED lifted predicates (read the OUTER lambda's row too):
+     * applied at the association JOIN CONDITION, where both rows are in
+     * scope — never at the target pipeline (audit 14 B-F1's correlation
+     * pass, finally built). */
+    private final Map<String, TypedLambda> corrPreds =
+            new java.util.LinkedHashMap<>();
+
     private final Map<String, TypedLambda> preds =
             new LinkedHashMap<>();
 

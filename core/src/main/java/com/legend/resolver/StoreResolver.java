@@ -472,6 +472,19 @@ public final class StoreResolver {
     }
 
     /** The element CLASS of an object-space chain (for synthetic lambdas). */
+    /** A CORRELATED lifted predicate is only applicable at the association
+     * route's join CONDITION (both rows in scope). Every OTHER consumer of
+     * a synthetic head must refuse LOUDLY — applying only the closed
+     * predicates would silently DROP the correlation (wrong rows). */
+    private void requireNoCorrelatedPred(String head, String where) {
+        if (synthetics.correlatedPred(head) != null) {
+            throw new NotImplementedException("correlated filtered navigation"
+                    + " '" + SyntheticHeads.realHead(head) + "' is not"
+                    + " supported on the " + where + " route yet (the"
+                    + " predicate reads the outer row)");
+        }
+    }
+
     /** A scalar property read over an object-space chain as the
      * single-column projection: EMBEDDED (non-assoc) class-hop prefixes
      * peel INTO the reading lambda (the funnel's embedded dispatch owns
@@ -1113,6 +1126,7 @@ public final class StoreResolver {
             // the outer join-stamping never double-stamps it
             String liftedHead = navHeadByAlias.getOrDefault(alias, alias);
             if (synthetics.hasPred(liftedHead)) {
+                requireNoCorrelatedPred(liftedHead, "navigate-slot");
                 ClassSource target = sources.get(cs.mappingFqn(), targetClass);
                 NavMaterializer.NavMat mat = navMats.get(alias);
                 navMats.put(alias, new NavMaterializer.NavMat(
@@ -1247,6 +1261,7 @@ public final class StoreResolver {
                 final TypedSpec tp = tPipe;
                 final var tpx = tPrefixes;
                 final ClassSource tt = t;
+                requireNoCorrelatedPred(leafName, "exists-navigation");
                 tPipe = synthetics.applyToPipe(leafName, tp, (p, pred) ->
                         predFilteredPipe(p, tt, tpx, pred, cs.mappingFqn()));
             } else if (ctx.findAssociationOf(parent.classFqn(), leaf)
@@ -1641,6 +1656,7 @@ public final class StoreResolver {
                 TypedSpec tTemporal = temporal.temporalTargetPipe(cs, t, head,
                         temporal.applyJoinTemporalFilters(tPipe0, t, Map.of()));
                 final ClassSource ft = t;
+                requireNoCorrelatedPred(head, "aggregated-navigation");
                 tTemporal = synthetics.applyToPipe(head, tTemporal,
                         (p, pred) -> predFilteredPipe(p, ft,
                                 tMat0.slotPrefixes(), pred, cs.mappingFqn()));
@@ -1844,6 +1860,7 @@ public final class StoreResolver {
             TypedSpec tPipe = temporal.temporalTargetPipe(cs, target, headKey,
                     temporal.applyJoinTemporalFilters(mat.pipeline(), target,
                             Map.of()));
+            requireNoCorrelatedPred(headKey, "navigate-step chain");
             tPipe = synthetics.applyToPipe(headKey, tPipe, (p, pred) ->
                     predFilteredPipe(p, target, mat.slotPrefixes(),
                             pred, cs.mappingFqn()));
