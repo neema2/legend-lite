@@ -283,7 +283,26 @@ final class StatementExecutor {
         if (v instanceof String s && (s.contains("{") || s.contains("["))) {
             return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'";
         }
+        // temporal cells print PURE's toString forms, never the JDBC
+        // carrier's (java.sql.Timestamp spells '2024-01-29 00:32:34.0'
+        // where pure pins '2024-01-29T00:32:34.000+0000' — the over.pure
+        // and asOfJoin grids). Wall-clock-as-UTC: the connection runs
+        // SET TimeZone='UTC'.
+        if (v instanceof java.sql.Timestamp ts) {
+            return pureDateTime(ts.toLocalDateTime());
+        }
+        if (v instanceof java.time.LocalDateTime ldt) {
+            return pureDateTime(ldt);
+        }
+        if (v instanceof java.sql.Date d) {
+            return d.toLocalDate().toString();
+        }
         return String.valueOf(v);
+    }
+
+    private static String pureDateTime(java.time.LocalDateTime ldt) {
+        return ldt.format(java.time.format.DateTimeFormatter
+                .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS")) + "+0000";
     }
 
     // =====================================================================
