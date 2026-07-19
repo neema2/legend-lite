@@ -24,7 +24,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 147 | 6 | 85 | 20 |
+| functions/tests | 258 | 151 | 7 | 80 | 20 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 79 | 7 | 56 | 13 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -55,7 +55,7 @@ in-process Alloy-shaped path).
 | tests/injection | 3 | 1 | 0 | 2 | 0 |
 | tests/mapping | 10 | 5 | 3 | 2 | 0 |
 | tests/mapping/association | 23 | 7 | 0 | 16 | 0 |
-| tests/mapping/classMappingFilterWithInnerJoin | 32 | 13 | 0 | 19 | 0 |
+| tests/mapping/classMappingFilterWithInnerJoin | 32 | 14 | 0 | 18 | 0 |
 | tests/mapping/distinct | 18 | 14 | 0 | 4 | 0 |
 | tests/mapping/dynaJoin | 5 | 4 | 1 | 0 | 0 |
 | tests/mapping/embedded | 63 | 44 | 2 | 14 | 3 |
@@ -74,9 +74,9 @@ in-process Alloy-shaped path).
 | tests/mapping/multigrain | 5 | 3 | 0 | 2 | 0 |
 | tests/mapping/propertyfunc | 6 | 6 | 0 | 0 | 0 |
 | tests/mapping/relation | 93 | 42 | 1 | 7 | 43 |
-| tests/mapping/relation/aggregation | 9 | 0 | 0 | 9 | 0 |
+| tests/mapping/relation/aggregation | 9 | 8 | 0 | 1 | 0 |
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
-| tests/mapping/sqlFunction | 74 | 58 | 3 | 13 | 0 |
+| tests/mapping/sqlFunction | 74 | 59 | 3 | 12 | 0 |
 | tests/mapping/tree | 12 | 0 | 0 | 12 | 0 |
 | tests/mapping/union | 124 | 57 | 0 | 60 | 7 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 4 | 0 |
@@ -85,7 +85,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 3 | 17 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1067** | 52 | 812 | 607 |
+| **total** | 2538 | **1081** | 53 | 797 | 607 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4430,7 +4430,6 @@ in-process Alloy-shaped path).
 ### top error buckets
 
 - 19x unknown class '' in ^(…)
-- 19x unknown type 'TabularDataSet' in @TabularDataSet
 - 15x serialize expects (classCollection, #{Class{…}}#)
 - 14x from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 - 14x toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
@@ -4459,6 +4458,7 @@ in-process Alloy-shaped path).
 - 5x '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 5x unknown function 'generateObjectReferences'
 - 5x class query under TypedMap is not resolvable yet (H2 vocabulary)
+- 5x Unknown type: 'Table' is not a known primitive, class, or enum
 
 ### per-test outcomes (non-passing)
 
@@ -4609,7 +4609,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Product], multiplicity=Bounded[lower=1, upper=1]]], predicate=TypedLambda[parameters=[p], body=[TypedNa
 - ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
@@ -4656,11 +4656,7 @@ in-process Alloy-shaped path).
 - ERROR testGetterTwice [functions/tests]: a class flatten over a FILTERED/transformed source chain is not supported yet (op below the 'employees' hop)
 - ERROR testInWithOneValue [functions/tests]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary): TypedCast[source=TypedCollection[elements=[TypedCString[value=John, info=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]]], target=Class
 - SHAPE testInWithinQualifiedPropertyCollectionAsLiteralList [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testInExecutionWithTempTableForStrings [functions/tests]: unknown type 'TabularDataSet' in @TabularDataSet
-- ERROR testInExecutionWithTempTableForNumbers [functions/tests]: unknown type 'TabularDataSet' in @TabularDataSet
-- ERROR testInExecutionWithTempTableForDates [functions/tests]: unknown type 'TabularDataSet' in @TabularDataSet
-- ERROR testInExecutionWithTempTableForDateTimes [functions/tests]: unknown type 'TabularDataSet' in @TabularDataSet
-- ERROR testInExecutionWithTempTableForDateTimesWithTz [functions/tests]: unknown type 'TabularDataSet' in @TabularDataSet
+- FAIL testInExecutionWithTempTableForDateTimesWithTz [functions/tests]: assertSize: expected 5, got 0
 - ERROR testInExecutionWithTempTableAndQueryChaining [functions/tests]: object-space expression node TypedGetAll is not substitutable yet (H2 vocabulary): TypedGetAll[classFqn=meta::relational::tests::model::simple::ValidPerson, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::ValidPerson], multiplicity=Bounded
 - ERROR testInExecutionWithTempTableAndQueryChainingOnIntegerColumn [functions/tests]: object-space expression node TypedGetAll is not substitutable yet (H2 vocabulary): TypedGetAll[classFqn=meta::relational::tests::model::simple::ValidPerson, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::ValidPerson], multiplicity=Bounded
 - ERROR testInExecutionWithTempTableAndQueryChainingAndChainConnection [functions/tests]: unknown class 'meta::external::store::model::ModelStore' in ^meta::external::store::model::ModelStore(…)
@@ -5038,7 +5034,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -5529,7 +5525,6 @@ in-process Alloy-shaped path).
 - ERROR testTargetViewPropertyQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testTableToViewMapping' (Join 'Firm_Person' not found in db 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::store::t
 - ERROR testSourceViewRootQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must ex
 - ERROR testSourceViewPropertyQueryWithInnerJoinClassMappingViewFilter [tests/mapping/classMappingFilterWithInnerJoin]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::testViewToViewMapping' (Join 'myFirmView_myPersonView' targets view 'myFirmView'; views as JOIN TARGETS are a roadmap feature (the view must ex
-- ERROR testInnerJoinClassMappingFilterProjectingPropertiesUsingFilterJoin [tests/mapping/classMappingFilterWithInnerJoin]: unknown type 'TabularDataSet' in @TabularDataSet
 - ERROR testMilestoneDatePropogationThruExistsConditionalClause [tests/mapping/classMappingFilterWithInnerJoin]: 'meta::relational::tests::milestoning::Order' is not a known class, mapping, runtime, connection, or database
 - ERROR testMergeForClassMappingInnerJoinFilter [tests/mapping/classMappingFilterWithInnerJoin]: property 'employees2' of class 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::model::Firm' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithMultipleClassMappings'
 - ERROR testMergeForClassMappingInnerJoinFilter1 [tests/mapping/classMappingFilterWithInnerJoin]: property 'employees3' of class 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::model::Firm' is not mapped in mapping 'meta::relational::tests::mapping::classMappingFilterWithInnerJoin::mapping::mappingWithMultipleClassMappings'
@@ -5730,22 +5725,13 @@ in-process Alloy-shaped path).
 - ERROR testMappingWithProcessingTemporalMilestoningAllVersionsInRange [tests/mapping/relation]: milestoning column 'IN_Z' is not on the pipeline row of 'meta::relational::tests::mapping::relation::ProcessingTemporalPerson'
 - ERROR testMappingWithBusinessTemporalMilestoningAllVersionsInRange [tests/mapping/relation]: milestoning column 'FROM_Z' is not on the pipeline row of 'meta::relational::tests::mapping::relation::BusinessTemporalPerson'
 - ERROR testMixedTemporalMappingWithAllVersionsInRange1 [tests/mapping/relation]: milestoning column 'FROM_Z' is not on the pipeline row of 'meta::relational::tests::mapping::relation::BusinessTemporalFirm'
-- ERROR testSubAggregationOnRelationMapping [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
-- ERROR testSubAggregationOnRelationMappingWithSimpleProperty [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
-- ERROR testTwoSubAggregationOnRelationMapping [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
-- ERROR testSubAggregationSumOnRelationMapping [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
-- ERROR testSubAggregationMaxOnRelationMapping [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
-- ERROR testSubAggregationMinOnRelationMapping [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
-- ERROR testSubAggregationCountOnlyOnRelationMapping [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
-- ERROR testSubAggregationWithIfOnRelationMapping [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
-- ERROR testSubAggregationJoinStringsOnRelationMapping [tests/mapping/relation/aggregation]: unknown type 'TabularDataSet' in @TabularDataSet
+- ERROR testSubAggregationJoinStringsOnRelationMapping [tests/mapping/relation/aggregation]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedPropertyAccess[source=TypedVariable[name=x, info=ExprType[type=ClassType[fqn=meta::relational::tests::mapping::relation::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, inf
 - FAIL testSelfJoinPropertyMappingOverlap [tests/mapping/selfJoin]: assertEquals: expected [ROOT, TDSNull, TDSNull], got [Federation, Firm X, ROOT]
 - FAIL testSelfJoinPropertyMappingWithDynaFunction [tests/mapping/selfJoin]: assertEquals: expected [ROOT, TDSNull, TDSNull, true], got [Banking_c1_c1, Firm X, ROOT, false]
 - ERROR testTriminNotSybaseASE [tests/mapping/sqlFunction]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - ERROR testProject [tests/mapping/sqlFunction]: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[], VARCHAR, [ANY...]) -> ANY |  |  | LINE 1: SELECT list_aggregate(t0.int1, 'stddev_samp') AS stdDev
 - ERROR testProject [tests/mapping/sqlFunction]: Binder Error: No function matches the given name and argument types 'list_aggregate(INTEGER, STRING_LITERAL)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_aggregate(ANY[], VARCHAR, [ANY...]) -> ANY |  |  | LINE 1: SELECT list_aggregate(t0.int1, 'stddev_pop') AS stdDevP
-- ERROR testProject [tests/mapping/sqlFunction]: unknown type 'TabularDataSet' in @TabularDataSet
-- ERROR testFilter [tests/mapping/sqlFunction]: unknown type 'TabularDataSet' in @TabularDataSet
+- ERROR testProject [tests/mapping/sqlFunction]: unknown function 'assertEqWithinTolerance'
 - ERROR testToSQLStringToStringInDB2 [tests/mapping/sqlFunction]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - ERROR testToSQLStringConcatInDB2 [tests/mapping/sqlFunction]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - FAIL testToSQLStringParseDecimalExecutioninH2 [tests/mapping/sqlFunction]: assertEquals: expected [123.45, 100.01], got [123.450021000000000000, 100.009000000000000000]
@@ -5838,8 +5824,8 @@ in-process Alloy-shaped path).
 - ERROR testUnionedViewsToViewToUnion [tests/mapping/union]: class 'meta::relational::tests::mapping::union::multipleChainedJoins::model::Y' is not mapped in mapping 'meta::relational::tests::mapping::union::multipleChainedJoins::mapping::unionOfViewsToViewToUnion' (Operation union over a VIEW-backed member set is not supported yet; mapping=meta::relational::
 - ERROR testUnionTwoRelationMappings_EmbeddedFirmProject [tests/mapping/union/relation]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEmbeddedFirm' (union member 'meta::relational::tests::model::simple::Person': relation column mapping for property 'firm' has no 
 - ERROR testUnionTwoRelationMappings_EmbeddedFirmFilter [tests/mapping/union/relation]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEmbeddedFirm' (union member 'meta::relational::tests::model::simple::Person': relation column mapping for property 'firm' has no 
-- ERROR testUnionTwoRelationMappings_EmbeddedFirmProject_Tds [tests/mapping/union/relation]: unknown type 'TabularDataSet' in @TabularDataSet
-- ERROR testUnionTwoRelationMappings_EmbeddedFirmFilter_Tds [tests/mapping/union/relation]: unknown type 'TabularDataSet' in @TabularDataSet
+- ERROR testUnionTwoRelationMappings_EmbeddedFirmProject_Tds [tests/mapping/union/relation]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEmbeddedFirm' (union member 'meta::relational::tests::model::simple::Person': relation column mapping for property 'firm' has no 
+- ERROR testUnionTwoRelationMappings_EmbeddedFirmFilter_Tds [tests/mapping/union/relation]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEmbeddedFirm' (union member 'meta::relational::tests::model::simple::Person': relation column mapping for property 'firm' has no 
 - ERROR testIsNotEmptyForRelational_returnsTrue [tests/platformOperations]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 - ERROR testIsNotEmptyForRelational_returnsFalse [tests/platformOperations]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 - ERROR testIsEmptyForRelational_returnsFalse [tests/platformOperations]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall

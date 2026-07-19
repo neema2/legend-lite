@@ -1409,6 +1409,17 @@ final class Typer {
                     "unsupported type annotation form: " + te.getClass().getSimpleName());
         }
         String name = nr.name();
+        // The legacy TDS surface: a NOMINAL — the value level is the
+        // relation carrier (CastChecker treats cast(@TabularDataSet) over
+        // a relation as a schema-preserving assertion). Bare-name
+        // acceptance follows the prelude-fallback pattern below.
+        if (com.legend.compiler.element.type.PlatformTypes.TABULAR_DATA_SET
+                        .equals(name)
+                || "TabularDataSet".equals(name)) {
+            return new Type.GenericType(
+                    com.legend.compiler.element.type.PlatformTypes.TABULAR_DATA_SET,
+                    List.of());
+        }
         return ctx.findType(name)
                 .or(() -> name.contains("::")
                         ? Optional.empty()

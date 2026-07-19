@@ -23,6 +23,10 @@ public final class PlatformTypes {
     public static final String LIST = "meta::pure::functions::collection::List";
     public static final String PAIR = "meta::pure::functions::collection::Pair";
     public static final String FUNCTION = "meta::pure::metamodel::function::Function";
+    /** The legacy TDS surface — ≡ the relation carrier at the value level
+     * ({@code cast(@TabularDataSet)} is a type ASSERTION, never a wire
+     * conversion). */
+    public static final String TABULAR_DATA_SET = "meta::pure::tds::TabularDataSet";
 
     /**
      * The K-native JDBC boundary: raw-SQL execution over the ambient

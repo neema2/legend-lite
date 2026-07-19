@@ -25,6 +25,18 @@ final class CastChecker {
         if (a.args().size() != 2 || !(a.args().get(1) instanceof TypedTypeRef ref)) {
             throw new TypeInferenceException(af.function() + " expects (source, @Type)");
         }
+        // cast(@TabularDataSet) over a relation value: the engine's TDS IS
+        // the relation carrier — a type ASSERTION, identity by emission;
+        // the SOURCE (with its row schema) is the result, so downstream
+        // rows.getString('col') keeps the columns. A non-relation source
+        // falls through to the plain TypedCast and stays loud downstream.
+        if (ref.target() instanceof com.legend.compiler.element.type.Type.GenericType g
+                && com.legend.compiler.element.type.PlatformTypes.TABULAR_DATA_SET
+                        .equals(g.rawFqn())
+                && a.args().get(0).info().type()
+                        instanceof com.legend.compiler.element.type.Type.RelationType) {
+            return a.args().get(0);
+        }
         return new TypedCast(a.args().get(0), ref.target(), a.out());
     }
 }
