@@ -145,13 +145,13 @@ final class NavMaterializer {
                 }
                 continue;
             }
-            StoreResolver.collectAliasReads(b, t.rowVar(), tSlots, tDemand);
+            CorrelatedSubselects.collectAliasReads(b, t.rowVar(), tSlots, tDemand);
             demandSlotSubTail(temporal, t, tail, b, tSlots,
                     tNavSteps, tDemand, tNavs, subTails, chainPrefix, hopCtx);
         }
         for (TypedLambda sp : parkedPreds) {
             for (TypedSpec sb : sp.body()) {
-                StoreResolver.collectAliasReads(sb,
+                CorrelatedSubselects.collectAliasReads(sb,
                         sp.parameters().get(0), tSlots, tDemand);
             }
         }

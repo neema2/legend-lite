@@ -65,7 +65,7 @@ final class AssociationJoins {
             for (String leaf : leaves) {
                 TypedSpec b = t.bindings().get(leaf);
                 if (b != null) {
-                    StoreResolver.collectAliasReads(b, t.rowVar(), targetSlots, targetDemand);
+                    CorrelatedSubselects.collectAliasReads(b, t.rowVar(), targetSlots, targetDemand);
                 }
             }
         }
@@ -308,7 +308,7 @@ final class AssociationJoins {
             for (String leaf : demandedLeaves) {
                 TypedSpec b = target.bindings().get(leaf);
                 if (b != null) {
-                    StoreResolver.collectAliasReads(b, target.rowVar(), targetSlots, targetDemand);
+                    CorrelatedSubselects.collectAliasReads(b, target.rowVar(), targetSlots, targetDemand);
                 }
             }
         }

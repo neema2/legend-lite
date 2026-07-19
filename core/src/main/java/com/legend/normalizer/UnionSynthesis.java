@@ -544,6 +544,70 @@ final class UnionSynthesis {
         return false;
     }
 
+    /**
+     * SUBTYPE COLUMNS (engine router subType dispatch): each member whose
+     * class is a proper SUBCLASS of the union root carries every scalar
+     * property it maps under a class-qualified synthetic column
+     * ({@link ClassMapping#subTypeColumn}) — its own thread reads the
+     * mapped value, every other thread a typed NULL — so
+     * {@code ->subType(@Sub).prop} reads NULL off non-member rows by
+     * construction. Forced casts of SHARED properties included: the
+     * subtype column is thread-local, never the aligned column.
+     */
+    private static Map<String, LinkedHashSet<String>> subTypeDispatchProps(
+            String className, List<ClassMapping> members,
+            List<MappingNormalizer.RelationalParts> parts, ModelBuilder model) {
+        Map<String, LinkedHashSet<String>> subTypeProps = new LinkedHashMap<>();
+        for (int j = 0; j < members.size(); j++) {
+            String memberClass = members.get(j).className();
+            if (memberClass.equals(className)) {
+                continue;
+            }
+            ClassDefinition mcd = model.findClass(memberClass).orElse(null);
+            for (String prop : parts.get(j).fields().keySet()) {
+                TypeExpression t = mcd == null ? null
+                        : MappingNormalizer.findPropertyTypeDeep(mcd, prop, model);
+                boolean scalar = t instanceof TypeExpression.NameRef nr
+                        && model.findClass(nr.name()).isEmpty();
+                if (scalar) {
+                    subTypeProps.computeIfAbsent(memberClass,
+                            k -> new LinkedHashSet<>()).add(prop);
+                }
+            }
+        }
+        return subTypeProps;
+    }
+
+    /** One thread's subtype-dispatch columns — same order in every thread. */
+    private static void addSubTypeDispatchCols(
+            Map<String, LinkedHashSet<String>> subTypeProps,
+            ClassMapping member, MappingNormalizer.RelationalParts pp,
+            ModelBuilder model, List<ColSpec> cols) {
+        for (var stEn : subTypeProps.entrySet()) {
+            ClassDefinition subDef = model.findClass(stEn.getKey()).orElse(null);
+            boolean own = member.className().equals(stEn.getKey());
+            for (String prop : stEn.getValue()) {
+                KeyExpression mapped = own ? pp.fields().get(prop) : null;
+                ValueSpecification value = mapped == null
+                        ? MappingNormalizer.nullOfDeclaredType(subDef, prop, model)
+                        : MappingNormalizer.coerceToDeclaredNumeric(
+                                mapped.value(), prop, stEn.getKey(), model);
+                TypeExpression dt = subDef == null ? null
+                        : MappingNormalizer.findPropertyTypeDeep(subDef, prop, model);
+                if (dt instanceof TypeExpression.NameRef dn
+                        && "String".equals(MappingNormalizer.simpleTypeName(dn.name()))) {
+                    value = new AppliedFunction("cast", List.of(value,
+                            new TypeAnnotation.Named(
+                                    new TypeExpression.NameRef("String"))));
+                }
+                value = new AppliedFunction("toOne", List.of(value));
+                cols.add(new ColSpec(ClassMapping.subTypeColumn(stEn.getKey(), prop),
+                        new LambdaFunction(List.of(pp.rowBind()),
+                                List.of(value)), null));
+            }
+        }
+    }
+
     /** The shared-property UNION ALL over resolved member sets. */
     static ValueSpecification synthMemberUnion(LegacyMappingDefinition md,
             String className, List<? extends ClassMapping> memberSets,
@@ -661,6 +725,8 @@ final class UnionSynthesis {
         collectInboundRouteKeys(md, model,
                 members.stream().map(MappingNormalizer::setIdOf).toList(),
                 members, srcKeysByOrdinal);
+        Map<String, LinkedHashSet<String>> subTypeProps =
+                subTypeDispatchProps(className, members, parts, model);
         ValueSpecification union = null;
         int ordinal = -1;
         for (MappingNormalizer.RelationalParts pp : parts) {
@@ -696,6 +762,8 @@ final class UnionSynthesis {
                 cols.add(new ColSpec(prop, new LambdaFunction(
                         List.of(pp.rowBind()), List.of(value)), null));
             }
+            addSubTypeDispatchCols(subTypeProps, members.get(ordinal), pp,
+                    model, cols);
             // lifted-navigation source keys: this thread reads its OWN key
             // columns under their member-suffixed names; other ordinals'
             // keys are typed NULL (nullable — no toOne wrap)

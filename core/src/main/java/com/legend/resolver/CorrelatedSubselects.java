@@ -302,7 +302,7 @@ private static List<String> parentEquiKeys(TypedLambda cond, String head) {
                     continue;
                 }
             }
-            StoreResolver.collectAliasReads(hb, cs.rowVar(), slots, slotDemand);
+            collectAliasReads(hb, cs.rowVar(), slots, slotDemand);
         }
         slotDemand = Pipelines.closeOverConditions(cs.pipeline(), slotDemand);
         Pipelines.Materialized mat = navDemand.isEmpty()
@@ -744,5 +744,102 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         }
     }
 
+    /**
+     * subType(@Sub) reads over the instance variable: register each
+     * demanded SUBTYPE's binding table under the subtype key so
+     * property reads through the cast dispatch to the SUB class's
+     * bindings, renamed onto the parent row (engine same-source
+     * inheritance: the cast never joins — non-members read the sub's
+     * columns as NULL naturally). Single-source only: a sub whose
+     * bindings read columns outside the parent row (its own table,
+     * or its own join slots via the AssocSub slot wall) stays loud.
+     */
+    static void registerSubTypeSubs(ClassSource cs, TypedSpec top,
+            ClassSources sources,
+            Map<String, Substitution.AssocSub> assocs) {
+        Set<String> fqns = new LinkedHashSet<>();
+        collectSubTypeFqns(top, fqns);
+        for (String fqn : fqns) {
+            if (fqn.equals(cs.classFqn())
+                    || assocs.containsKey(Substitution.SUBTYPE_KEY + fqn)) {
+                continue;
+            }
+            // UNION/INHERITANCE parent: the synthesis carries each member
+            // subclass's mapped properties as class-qualified thread-local
+            // columns (NULL in other threads) — the cast's binding table
+            // is those column reads off the union row
+            String stPrefix = com.legend.model.ClassMapping.subTypeColumnPrefix(fqn);
+            Map<String, TypedSpec> stBindings = new LinkedHashMap<>();
+            for (Type.Column c : cs.rowType().columns()) {
+                if (c.name().startsWith(stPrefix)) {
+                    stBindings.put(c.name().substring(stPrefix.length()),
+                            new TypedPropertyAccess(
+                                    new TypedVariable(cs.rowVar(),
+                                            ExprType.one(cs.rowType())),
+                                    c.name(),
+                                    new ExprType(c.type(), c.multiplicity())));
+                }
+            }
+            if (!stBindings.isEmpty()) {
+                assocs.put(Substitution.SUBTYPE_KEY + fqn,
+                        new Substitution.AssocSub("", cs.rowVar(),
+                                stBindings, fqn, Set.of()));
+                continue;
+            }
+            if (!sources.binds(cs.mappingFqn(), fqn)) {
+                continue;
+            }
+            ClassSource sub = sources.get(cs.mappingFqn(), fqn);
+            Set<String> cols = new LinkedHashSet<>();
+            for (TypedSpec b : sub.bindings().values()) {
+                StoreResolver.collectVarColumnReads(b, sub.rowVar(), cols);
+            }
+            Set<String> parentCols = new LinkedHashSet<>();
+            for (Type.Column c : cs.rowType().columns()) {
+                parentCols.add(c.name().toLowerCase());
+            }
+            for (String col : cols) {
+                if (!parentCols.contains(col.toLowerCase())) {
+                    throw new NotImplementedException("subType(@" + fqn
+                            + ") over a subtype mapped to its own source"
+                            + " (reads column '" + col + "' outside the"
+                            + " parent row) is not supported yet");
+                }
+            }
+            assocs.put(Substitution.SUBTYPE_KEY + fqn,
+                    new Substitution.AssocSub("", sub.rowVar(),
+                            sub.bindings(), fqn,
+                            Pipelines.slotAliases(sub.pipeline())));
+        }
+    }
+
+    /** Class targets of subType calls over a variable, anywhere in the chain. */
+    private static void collectSubTypeFqns(TypedSpec n, Set<String> out) {
+        if (n instanceof TypedNativeCall nc
+                && nc.callee().qualifiedName()
+                        .equals("meta::pure::functions::lang::subType")
+                && !nc.args().isEmpty()
+                && nc.args().get(0) instanceof TypedVariable
+                && nc.info().type() instanceof Type.ClassType ct) {
+            out.add(ct.fqn());
+        }
+        for (TypedSpec c : n.children()) {
+            collectSubTypeFqns(c, out);
+        }
+    }
+
+    /** Slot aliases a binding expression reads ($row.alias...). */
+    static void collectAliasReads(TypedSpec n, String rowVar,
+            Set<String> slotAliases, Set<String> out) {
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v
+                && v.name().equals(rowVar)
+                && slotAliases.contains(pa.property())) {
+            out.add(pa.property());
+        }
+        for (TypedSpec c : n.children()) {
+            collectAliasReads(c, rowVar, slotAliases, out);
+        }
+    }
 
 }

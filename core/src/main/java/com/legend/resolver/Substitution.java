@@ -56,6 +56,10 @@ import java.util.Set;
  */
 final class Substitution {
 
+    /** Registry-key prefix for subType(@Sub) binding tables — never a
+     * property name, so it cannot collide with navigation heads. */
+    static final String SUBTYPE_KEY = "subType$";
+
     /** HOW READS LAND ON THE ROW: the user lambda's variable, the fresh
      * row var replacing it, the class/mapping identity, the binding table
      * written over {@code sourceRowVar}, the materialized row type, and
@@ -775,6 +779,8 @@ final class Substitution {
         return switch (n) {
             case TypedPropertyAccess pa when filteredNavLeafRead(pa) != null ->
                     filteredNavLeafRead(pa);
+            case TypedPropertyAccess pa when subTypeLeafRead(pa) != null ->
+                    subTypeLeafRead(pa);
             case TypedVariable v when v.name().equals(target.userVar()) ->
                     throw new NotImplementedException(
                             "object-space use of the instance variable '$" + v.name()
@@ -1444,6 +1450,30 @@ final class Substitution {
                     projected.info());
         }
         return projected;
+    }
+
+    /** $r->subType(@Sub).prop — the cast is a same-source dispatch: the
+     * read resolves through the SUB class's registered binding table
+     * renamed onto the row (non-member rows read the sub's columns as
+     * NULL naturally). Null when the source is not a subType cast of
+     * the instance variable; a cast whose subtype has no registration
+     * (unmapped subtype, own-source subtype, or a nested position whose
+     * registries never saw the scan) stays loud. */
+    private TypedSpec subTypeLeafRead(TypedPropertyAccess pa) {
+        if (!(pa.source() instanceof TypedNativeCall nc)
+                || !nc.callee().qualifiedName()
+                        .equals("meta::pure::functions::lang::subType")
+                || nc.args().isEmpty()
+                || !(nc.args().get(0) instanceof TypedVariable v)
+                || !v.name().equals(target.userVar())
+                || !(nc.info().type() instanceof Type.ClassType ct)) {
+            return null;
+        }
+        if (!target.assocs().containsKey(SUBTYPE_KEY + ct.fqn())) {
+            throw new NotImplementedException("subType(@" + ct.fqn()
+                    + ") in this position is not supported yet");
+        }
+        return assocLeaf(SUBTYPE_KEY + ct.fqn(), pa.property());
     }
 
     private TypedSpec rewriteExists(TypedNativeCall call, ExistsSub ex,

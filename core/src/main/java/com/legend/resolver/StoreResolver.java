@@ -1151,7 +1151,7 @@ public final class StoreResolver {
             for (List<String> path : paths) {
                 TypedSpec binding = cs.bindings().get(SyntheticHeads.realHead(path.get(0)));
                 if (binding != null) {
-                    collectAliasReads(binding, cs.rowVar(), slotAliases, demanded);
+                    CorrelatedSubselects.collectAliasReads(binding, cs.rowVar(), slotAliases, demanded);
                 }
             }
         }
@@ -1839,7 +1839,7 @@ public final class StoreResolver {
                 for (String leaf : innerLeaves) {
                     TypedSpec lb = t.bindings().get(leaf);
                     if (lb != null) {
-                        collectAliasReads(lb, t.rowVar(), tSlots0, tDemand0);
+                        CorrelatedSubselects.collectAliasReads(lb, t.rowVar(), tSlots0, tDemand0);
                     }
                 }
                 tDemand0 = Pipelines.closeOverConditions(t.pipeline(), tDemand0);
@@ -2607,6 +2607,11 @@ public final class StoreResolver {
                 navPlan.corrNavHeads(), navPlan.navTails());
         List<AssociationJoins.AssocJoin> assocJoins = assocPlan.assocJoins();
         Map<String, AssociationJoins.AssocJoin> joinsByChain = assocPlan.joinsByChain();
+
+        // subType(@Sub) casts dispatch through the SUBTYPE's binding
+        // table (same-source inheritance) — registered after
+        // materialization so the scan never perturbs join demand
+        CorrelatedSubselects.registerSubTypeSubs(cs, top, sources, assocs);
 
         // 2a'. JOIN-KEY COLLECTION under mapping ~distinct (engine L5135):
         // demanded joins' source-side key columns must survive the
@@ -3401,20 +3406,6 @@ public final class StoreResolver {
         }
         for (TypedSpec c : n.children()) {
             collectVarColumnReads(c, var, out);
-        }
-    }
-
-    /** Slot aliases a binding expression reads ($row.alias...). */
-    static void collectAliasReads(TypedSpec n, String rowVar,
-                                          Set<String> slotAliases, Set<String> out) {
-        if (n instanceof TypedPropertyAccess pa
-                && pa.source() instanceof TypedVariable v
-                && v.name().equals(rowVar)
-                && slotAliases.contains(pa.property())) {
-            out.add(pa.property());
-        }
-        for (TypedSpec c : n.children()) {
-            collectAliasReads(c, rowVar, slotAliases, out);
         }
     }
 

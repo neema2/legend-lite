@@ -42,6 +42,22 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
         ClassMapping.Pure, ClassMapping.Union, ClassMapping.RelationFunction,
         ClassMapping.Inheritance {
 
+    /**
+     * NAMING CONTRACT between union synthesis (normalizer) and the
+     * resolver's subType registration — both ends call these, neither
+     * re-derives by pattern: the union thread column carrying subtype
+     * {@code classFqn}'s mapped {@code prop} (its own member thread reads
+     * the mapped value, every other thread a typed NULL).
+     */
+    static String subTypeColumn(String classFqn, String prop) {
+        return subTypeColumnPrefix(classFqn) + prop;
+    }
+
+    /** Prefix of every subtype-dispatch column of {@code classFqn}. */
+    static String subTypeColumnPrefix(String classFqn) {
+        return "stc_" + classFqn.replace("::", "__") + "___";
+    }
+
     /** Fully-qualified class name being mapped. */
     String className();
 
