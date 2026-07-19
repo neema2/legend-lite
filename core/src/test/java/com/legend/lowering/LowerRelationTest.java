@@ -569,7 +569,7 @@ class LowerRelationTest {
     void letChainQuery() throws SQLException {
         String sql = sqlOfBody("|let first = 'John'; let last = 'Smith';"
                 + " let full = $first + ' ' + $last; $full;");
-        assertEquals("SELECT 'John' || ' ' || 'Smith' AS value", sql,
+        assertEquals("SELECT concat('John', ' ', 'Smith') AS value", sql,
                 "lets substitute through; ONE flat scalar select");
         assertEquals(List.of("John Smith"), exec(sql));
     }

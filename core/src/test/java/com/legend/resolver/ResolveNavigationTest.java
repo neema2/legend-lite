@@ -311,9 +311,12 @@ class ResolveNavigationTest {
                 + " p|$p.employer.legal + '/' + $p.boss.name])->from(m::RT)");
         assertEquals(2, count(sql, "LEFT OUTER JOIN"), sql);
         assertEquals(1, count(sql, "SELECT"), sql);
-        assertEquals(List.of("ACME/Bob", "null", "null"),
+        assertEquals(List.of("/", "ACME/", "ACME/Bob"),
                 exec(sql).stream().sorted().toList(),
-                "NULL string concat propagates per SQL semantics");
+                "NULL-IGNORING concat — the engine's emission (H2 CONCAT /"
+                        + " DuckDB concat both skip NULL args on join"
+                        + " misses; testQualifierWithVariableArg golden"
+                        + " rows pin ' ', never NULL)");
     }
 
     @Test

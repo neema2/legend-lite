@@ -382,17 +382,6 @@ public final class EngineStyleH2 extends AnsiSqlRenderer {
         return out.toString();
     }
 
-    private static java.util.List<SqlExpr> flattenConcat(java.util.List<SqlExpr> a) {
-        java.util.List<SqlExpr> out = new java.util.ArrayList<>();
-        for (SqlExpr e : a) {
-            if (e instanceof SqlExpr.Call c && c.fn() == com.legend.sql.SqlFn.CONCAT) {
-                out.addAll(flattenConcat(c.args()));
-            } else {
-                out.add(e);
-            }
-        }
-        return out;
-    }
 
     @Override
     protected String variantAwareCast(SqlExpr.Cast c) {

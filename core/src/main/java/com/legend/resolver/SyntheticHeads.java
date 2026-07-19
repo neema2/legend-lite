@@ -215,6 +215,22 @@ final class SyntheticHeads {
     }
 
     private TypedSpec liftFilteredHeads(TypedSpec n, boolean enabled) {
+        // ->map(e|$e.leaf) over a (filtered) class navigation IS the
+        // property-path spelling — normalize and take the lift arm (the
+        // qualifier-inlined aggregate shape:
+        // joinStrings(map(filter(head, pred), .leaf)); #69).
+        if (enabled && n instanceof TypedMap tm
+                && tm.mapper().parameters().size() == 1
+                && tm.mapper().body().size() == 1
+                && tm.mapper().body().get(0) instanceof TypedPropertyAccess mb
+                && mb.source() instanceof com.legend.compiler.spec.typed
+                        .TypedVariable mv
+                && mv.name().equals(tm.mapper().parameters().get(0))
+                && tm.source() instanceof TypedFilter
+                && tm.source().info().type() instanceof Type.ClassType) {
+            return liftFilteredHeads(new TypedPropertyAccess(
+                    tm.source(), mb.property(), tm.info()), enabled);
+        }
         if (enabled
                 && n instanceof TypedPropertyAccess pa
                 && pa.source() instanceof TypedFilter f
@@ -251,6 +267,45 @@ final class SyntheticHeads {
             }
             return new TypedPropertyAccess(
                     renamed, pa.property(), pa.info());
+        }
+        // COMPUTED-mapper aggregation source (#69) —
+        // map(filter(nav), λe.<computed>) where the mapper body is NOT a
+        // plain property read (derived-property β-inlines: concat(...)).
+        // The filtered SOURCE lifts into a synthetic head exactly like the
+        // leaf-read spelling; the mapper rides along and substitutes
+        // through the target's bindings at the aggregation fold.
+        if (enabled && n instanceof TypedMap tm2
+                && tm2.mapper().parameters().size() == 1
+                && tm2.source() instanceof TypedFilter f0
+                && f0.predicate().parameters().size() == 1
+                && f0.info().type() instanceof Type.ClassType
+                && isLiftableNav(f0.source())
+                && !(tm2.info().multiplicity()
+                        instanceof com.legend.compiler.element.type
+                                .Multiplicity.Bounded mb2
+                        && Integer.valueOf(1).equals(mb2.upper()))) {
+            TypedSpec head = liftFilteredHeads(f0.source(), true);
+            TypedSpec renamed;
+            String synth;
+            if (head instanceof com.legend.compiler.spec.typed
+                    .TypedMilestonedAccess ma) {
+                synth = mintFilteredName(ma.property());
+                renamed = new TypedMilestonedAccess(
+                        ma.source(), synth, ma.dates(), ma.sweep(), ma.info());
+            } else {
+                var hp = (TypedPropertyAccess) head;
+                synth = mintFilteredName(hp.property());
+                renamed = new TypedPropertyAccess(
+                        hp.source(), synth, hp.info());
+            }
+            if (predClosedOverParam(f0.predicate())) {
+                preds.put(synth, f0.predicate());
+            } else {
+                corrPreds.put(synth, f0.predicate());
+            }
+            return new TypedMap(renamed,
+                    (TypedLambda) liftFilteredHeads(tm2.mapper(), enabled),
+                    tm2.info());
         }
         // CONCATENATED navigation streams read as a bare collection —
         // $p.head->filter(f1).leaf spelled over concatenate(...): every

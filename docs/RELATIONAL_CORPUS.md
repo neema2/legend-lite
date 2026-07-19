@@ -24,9 +24,9 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 151 | 7 | 81 | 19 |
+| functions/tests | 258 | 152 | 7 | 80 | 19 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
-| functions/tests/projection | 155 | 78 | 7 | 57 | 13 |
+| functions/tests/projection | 155 | 87 | 5 | 50 | 13 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 143 | 17 | 10 | 114 | 2 |
 | graphFetch/tests/union | 15 | 2 | 0 | 13 | 0 |
@@ -57,8 +57,8 @@ in-process Alloy-shaped path).
 | tests/mapping/association | 23 | 7 | 0 | 16 | 0 |
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 14 | 0 | 18 | 0 |
 | tests/mapping/distinct | 18 | 14 | 0 | 4 | 0 |
-| tests/mapping/dynaJoin | 5 | 4 | 1 | 0 | 0 |
-| tests/mapping/embedded | 63 | 43 | 2 | 15 | 3 |
+| tests/mapping/dynaJoin | 5 | 5 | 0 | 0 | 0 |
+| tests/mapping/embedded | 63 | 44 | 1 | 15 | 3 |
 | tests/mapping/enumeration | 26 | 10 | 4 | 9 | 3 |
 | tests/mapping/extends | 23 | 10 | 2 | 5 | 6 |
 | tests/mapping/extends/union | 8 | 1 | 0 | 7 | 0 |
@@ -85,7 +85,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 3 | 17 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1085** | 53 | 793 | 607 |
+| **total** | 2538 | **1097** | 49 | 785 | 607 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4611,6 +4611,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Product], multiplicity=Bounded[lower=1, upper=1]]], predicate=TypedLambda[parameters=[p], body=[TypedNa
+- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -4664,14 +4665,12 @@ in-process Alloy-shaped path).
 - ERROR testIsolationOfInputToIsEmptyWithForcedFiltersOnInput [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testInputNotIsolatedWhenPropertyPathIsToOne [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - ERROR testIsolationOfTheSameInputInABooleanExprWhereOneSideIsEmpty [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- FAIL testSimpleTriangularJoinViaIsEmpty [functions/tests]: assertEquals: expected 0, got 4
 - ERROR testIsEmptyOnQualifiedPropertyFollowedByClassPropertyInput [functions/tests]: relation has no column 'name' in scalar read
 - SHAPE testIsEmptyOnCollection [functions/tests]: no execute(|...) call
 - ERROR testFilterThenMapAndReturnObject [functions/tests]: a class flatten over a FILTERED/transformed source chain is not supported yet (op below the 'employees' hop)
 - ERROR testAdvancedDerivedPropertyThroughAssociation [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=ExprType
 - FAIL testSubAggregationMultiLevel [functions/tests]: assertSameElements: expected [12.0, 22.0, 22.0, 23.0, 32.0, 34.0, 35.0], got [23, 22, 12, 22, 34, 32, 35]
 - ERROR testSubAggregationMultiLevelJoinString [functions/tests]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=Ex
-- ERROR testSubAggregationUsingIf [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=ExprType
 - ERROR testSequenceMapWithConfusingSetImplementation [functions/tests]: unknown function 'meta::relational::tests::mapping::filter::model::store::createTablesAndFillDb'
 - ERROR testUsingSameAggFunctionTwice [functions/tests]: scalar lowering not yet implemented for TypedSort
 - ERROR testUsingSameAggFunctionTwiceUsingQualifier [functions/tests]: scalar lowering not yet implemented for TypedSort
@@ -4714,7 +4713,6 @@ in-process Alloy-shaped path).
 - SHAPE testSortByLambda_QueryWithParameters_Plan [functions/tests]: no execute(|...) call
 - ERROR testLoadCsv [functions/tests/loadCsvToDbTable]: Unknown type: 'Table' is not a known primitive, class, or enum
 - ERROR testDeepSubAggregation [functions/tests/projection]: aggregate 'meta::pure::functions::collection::count' over the multi-hop to-many navigation employees.address.name is not supported yet
-- ERROR testSubAggregationWithIf [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=ExprType
 - ERROR testSubAggregationWithJoinStringsOrderBy [functions/tests/projection]: object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=Ex
 - ERROR testSubAggregationWithDeepAndOverlap [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=ExprType
 - ERROR testSubAggregationWithDeepAndOverlap_WithColVar [functions/tests/projection]: project expects ~[…] column specifications
@@ -4756,10 +4754,6 @@ in-process Alloy-shaped path).
 - SHAPE testNestedPlusFunctionAndMappingDynaFunction [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testNestedPlusFunctionAndNestedMappingDynaFunction [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testSameBehaviorForNestedAddAndPlus [functions/tests/projection]: sql-only: 2 advisory golden-SQL assert(s), no row verification
-- ERROR testProjectReferenceInRhsFilterWithDistinctVarNamesViaQualifiedProperty [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=emplo
-- ERROR testProjectReferenceInRhsFilterWithConflictingVarNamesViaQualifiedProperty [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=emplo
-- ERROR testProjectReferenceInRhsFilterWithPotentiallyConflictingVarNamesViaQualifiedProperty [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=e, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=emplo
-- ERROR testProjectReferenceInRhsFilterWithDistinctVarNamesViaNonPropertyFunctionExpression [functions/tests/projection]: Binder Error: Table "t0" does not have a column named "address_NAME" |  | Candidate bindings: : "addressId" |  | LINE 8: ) AS t4 ON t0.ID = t4.FIRMID AND (t4.address_NAME = t0.address_NAME OR t4.manager_FIRSTNAME || ' ' || t4.manage... |                                                             ^
 - ERROR testVariableReferenceInFilterWithSameNameAsThatInParentProject [functions/tests/projection]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
 - ERROR testVariableReferenceInMapWithSameNameAsThatInParentProject [functions/tests/projection]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
 - ERROR testVariableReferenceInMapWithNestedFilter [functions/tests/projection]: expected at most one value, got many ([*])
@@ -4776,10 +4770,6 @@ in-process Alloy-shaped path).
 - ERROR testQualifierBeforeProject [functions/tests/projection]: embedded class hop 'product' in CHAIN position without a scalar consumer is not supported yet
 - ERROR testNestedIfWithIsEmpty [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=_path, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1
 - ERROR testNestedIfWithIsEmptyCanReturnNull [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=_path, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1
-- FAIL testQualifierWithVariableArg [functions/tests/projection]: assertEquals: expected [Firm X~ , Firm A~ , Firm B~ , Firm C~ ], got [Firm X~TDSNull, Firm A~TDSNull, Firm B~TDSNull, Firm C~TDSNull]
-- FAIL testQualifierWithVariableArgReferencedFirstInFilterEqualCriteria [functions/tests/projection]: assertEquals: expected [Firm X~ , Firm A~ , Firm B~ , Firm C~ ], got [Firm X~TDSNull, Firm A~TDSNull, Firm B~TDSNull, Firm C~TDSNull]
-- ERROR testQualifierWithVariableArgWithComplexTypeProperty [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=emplo
-- ERROR testQualifierWithVariableArgWithComplexTypePropertyAndSubsequentComplexTypePropertyCall [functions/tests/projection]: Binder Error: Table "t0" does not have a column named "address_NAME" |  | Candidate bindings: : "addressId" |  | LINE 8: ) AS t4 ON t0.ID = t4.FIRMID AND (t4.address_NAME = t0.address_NAME OR t4.manager_FIRSTNAME || ' ' || t4.manage... |                                                             ^
 - ERROR testAllOneSimplePropertyWithColsFromFunction [functions/tests/projection]: project expects ~[…] column specifications
 - SHAPE testAllOneSimplePropertyUsingOpenVariables [functions/tests/projection]: no execute(|...) call
 - ERROR testViewAllOneSimpleProperty [functions/tests/projection]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
@@ -5529,7 +5519,6 @@ in-process Alloy-shaped path).
 - ERROR testDistinctMappingWithFullDenormSelfJoinsWithFilterOnJoin [tests/mapping/distinct]: store resolution left getAll(meta::relational::tests::mapping::distinct::model::domain::Classification) unresolved — the query shape around it is not supported by the resolver yet
 - ERROR testDistinctMappingWithFullDenormSelfJoinsWithTwoFiltersOnJoin [tests/mapping/distinct]: store resolution left getAll(meta::relational::tests::mapping::distinct::model::domain::Classification) unresolved — the query shape around it is not supported by the resolver yet
 - ERROR testDistinctMappingWithCaseStatement [tests/mapping/distinct]: store resolution left getAll(meta::relational::tests::mapping::distinct::model::domain::Classification) unresolved — the query shape around it is not supported by the resolver yet
-- FAIL testFilterOnMultiLevelJoinWithNonAggregateFunction [tests/mapping/dynaJoin]: assertEquals: expected [New,Hoboken, Correct,New York, Settle,New York, New,New York, Cancel,San Fransisco], got [New,TDSNull, Correct,TDSNull, Settle,TDSNull, New,TDSNull, Cancel,TDSNull]
 - ERROR testDenormMappingOneToManyProjectLambdaSyntaxWithMap [tests/mapping/embedded]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
 - ERROR testProjectToEmbedded [tests/mapping/embedded]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
 - ERROR testDenormMappingWithQualifierWithIfAndEquals [tests/mapping/embedded]: derived property 'isFirmX' over a [0..1] receiver has a body outside the null-strict whitelist — empty-receiver semantics needs the presence-guarded emission (roadmap)
@@ -5549,7 +5538,6 @@ in-process Alloy-shaped path).
 - ERROR testMilestonedExtendsEmbeddedGraphFetch [tests/mapping/embedded]: graph child 'firm' of class 'meta::relational::tests::mapping::embedded::advanced::model::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - ERROR testMilestonedInlineGraphFetchWithEnumProperty [tests/mapping/embedded]: graph child 'genderInfo' of class 'meta::relational::tests::mapping::embedded::advanced::model::PersonWithGenderInfo' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - ERROR testSubType [tests/mapping/embedded]: class-typed property '$p.issuer' used as a whole value is graph output (Phase H4)
-- FAIL testQualifierProperty [tests/mapping/embedded]: assertEquals: expected name,c2,c3\nBond 1,issuer1,holder1\n, got []
 - SHAPE testEnumTheSame [tests/mapping/enumeration]: no execute(|...) call
 - ERROR testMapping [tests/mapping/enumeration]: runtime 'rcorpus::Rt' has 2 mappings binding class 'meta::relational::tests::mapping::enumeration::model::domain::Employee' (of 2 candidates); class-query dispatch needs exactly one
 - ERROR testEnumInRelation [tests/mapping/enumeration]: unknown type 'meta::pure::metamodel::relation::TDS' in @meta::pure::metamodel::relation::TDS
@@ -5575,7 +5563,7 @@ in-process Alloy-shaped path).
 - ERROR testPropertyMappingsForA [tests/mapping/extends]: association property '$a.e' used other than as a navigation head (class-typed value / isEmpty / whole-instance) is not supported yet
 - ERROR testPropertyMappingsForB [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
 - ERROR testPropertyMappingsForC [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR testStoreSubstitutionForB [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::BMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::B': [meta::relational::tests::mapp
 - ERROR testStoreSubstitutionForC [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::CMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::C': [meta::relational::tests::mapp

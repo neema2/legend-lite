@@ -4565,7 +4565,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Verify multi-column pivot uses __|__ separator for column names
         // Column names should be like UK__|__LDN_|__weightedSum
-        assertTrue(sql.contains("|| '__|__' ||"), "Multi-column pivot should concatenate with __|__ separator");
+        assertTrue(sql.contains("'__|__'"), "Multi-column pivot should concatenate with __|__ separator");
     }
 
     /**
@@ -4594,7 +4594,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
         // grouping)
         assertTrue(sql.contains("EXCLUDE"), "Should use EXCLUDE to remove pivot columns");
         // Verify the concatenation with __|__ separator is in the SQL
-        assertTrue(sql.contains("|| '__|__' ||"), "Should use __|__ separator for multi-column pivot");
+        assertTrue(sql.contains("'__|__'"), "Should use __|__ separator for multi-column pivot");
         // Synthetic pivot-key column name is minted via ctx.nextAlias() —
         // assert structural shape (EXCLUDE drops both source columns)
         // rather than the exact spelling of the synthetic alias.

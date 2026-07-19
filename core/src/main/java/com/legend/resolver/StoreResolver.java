@@ -85,6 +85,7 @@ public final class StoreResolver {
     private final NavMaterializer navMaterializer;
     /** Association-route join material (stateless service). */
     private final AssociationJoins assocMaterial;
+    private final CorrelatedSubselects corrSubs;
     /** THE per-resolution temporal frame (root context + chain specs +
      * stamping machinery) — set at op-chain collection, specs attached
      * after the demand scan; nested sibling resolutions overwrite at
@@ -104,6 +105,7 @@ public final class StoreResolver {
                 Map.of());
         this.assocMaterial = new AssociationJoins(ctx, sources, specs,
                 synthetics);
+        this.corrSubs = new CorrelatedSubselects(sources, assocMaterial);
         this.navMaterializer = new NavMaterializer(sources, assocMaterial);
     }
 
@@ -1132,7 +1134,8 @@ public final class StoreResolver {
             Map<String, String> navHeadByAlias,
             Map<String, String> extraNavHeads,
             Map<String, List<List<String>>> extraNavTails,
-            Map<String, TypedNavigate> navSteps) {}
+            Map<String, TypedNavigate> navSteps,
+            Map<String, String> corrNavHeads) {}
 
     /** PHASE — slot + navigate-step demand: heads whose bindings read
      * join slots demand them; class-typed Join PM heads materialize their
@@ -1169,6 +1172,7 @@ public final class StoreResolver {
         Map<String, String> extraNavHeads = new LinkedHashMap<>();
         Map<String, List<List<String>>> extraNavTails =
                 new LinkedHashMap<>();
+        Map<String, String> corrNavHeads = new LinkedHashMap<>();
         for (List<String> path : paths) {
             if (path.size() < 2) {
                 continue;
@@ -1253,6 +1257,18 @@ public final class StoreResolver {
                     .add(path.subList(mid, path.size()));
             navTails.get(alias).addAll(predTails);
             navHeadByAlias.put(alias, headKey);
+            // #69 EXPLODING parent-copy reroute: a correlated pred whose
+            // OUTER reads hop a parent NAV can never compose on the flat
+            // navigate step's ON — the head leaves the slot spine (the
+            // slot stays unmaterialized) and joins as an AssocJoin whose
+            // target is the parent-copy subselect (fold 2b).
+            TypedLambda cpH = mid == 1
+                    ? synthetics.correlatedPred(path.get(0)) : null;
+            if (cpH != null && assocMaterial.corrPredDemandsParentNav(cpH)
+                    && !demandedNavs.contains(alias)) {
+                corrNavHeads.putIfAbsent(headKey, alias);
+                continue;
+            }
             if (demandedNavs.contains(alias)) {
                 continue;
             }
@@ -1320,7 +1336,8 @@ public final class StoreResolver {
         }
 
         return new NavPlan(demanded, demandedNavs, assocs, navMats, navTails,
-                navHeadByAlias, extraNavHeads, extraNavTails, navSteps);
+                navHeadByAlias, extraNavHeads, extraNavTails, navSteps,
+                corrNavHeads);
     }
 
     /** PHASE 2a'' — CLASS-TYPED LEAF under an emptiness call:
@@ -1621,18 +1638,29 @@ public final class StoreResolver {
         //     first-demand order) onto the pipeline.
         TypedSpec withJoins = keyWidenedPipe;
         for (AssociationJoins.AssocJoin aj : assocJoins) {
+            TypedSpec joinTarget = aj.targetPipeline();
+            Type.RelationType joinTargetRow = aj.targetRow();
+            TypedLambda joinCond = aj.condition();
+            if (aj.corrSubPred() != null) {
+                CorrelatedSubselects.ExplodingSub ex =
+                        corrSubs.explodingSubselect(cs, aj,
+                                (Type.RelationType) withJoins.info().type());
+                joinTarget = ex.target();
+                joinTargetRow = ex.row();
+                joinCond = ex.cond();
+            }
             Type.RelationType leftRow =
                     (Type.RelationType)
                             withJoins.info().type();
             List<Type.Column> cols =
                     new ArrayList<>(leftRow.columns());
             for (Type.Column c
-                    : aj.targetRow().columns()) {
+                    : joinTargetRow.columns()) {
                 cols.add(new Type.Column(
                         aj.prefix() + c.name(), c.type(), c.multiplicity()));
             }
             withJoins = new TypedJoin(withJoins,
-                    aj.targetPipeline(), leftKind(), aj.condition(),
+                    joinTarget, leftKind(), joinCond,
                     Optional.of(aj.prefix()),
                     new ExprType(
                             new Type.RelationType(cols),
@@ -1652,21 +1680,37 @@ public final class StoreResolver {
             String head = entry.getKey();
             Set<String> leaves = new LinkedHashSet<>();
             for (AggDemand d : entry.getValue()) {
-                leaves.add(d.leaf());
+                leaves.addAll(d.demandLeaves());
             }
             AssociationJoins.AssocJoin aj = aggMaterials.get(head);
             aggAssocJoins.add(aj);
-            List<String> keyCols = targetEquiKeys(aj.condition(), head);
+            // #69 THE CORRELATED-AGGREGATE SUBSELECT (engine parent-copy
+            // architecture): a correlated pred's parent-nav reads can
+            // never resolve in the outer ON — the subselect re-joins the
+            // PARENT extent (with the navs the pred demands), filters by
+            // the pred over the joined row, groups by the PARENT-side
+            // equi keys, and joins back on key equality.
+            TypedLambda corrAgg = synthetics.correlatedPred(head);
+            CorrelatedSubselects.CorrAggSub cas =
+                    corrSubs.corrAggSubSource(cs, head, aj, corrAgg);
+            String corrRowVar = cas.rowVar();
+            String corrTp = cas.targetPrefix();
+            Type.RelationType corrJoinedRow = cas.joinedRow();
+            TypedSpec subSource = cas.subSource();
+            List<String> keyCols = cas.keyCols();
+            Type.RelationType keyRow = cas.keyRow();
+            CorrelatedSubselects.ParentCopy pc = cas.pc();
             List<TypedGroupBy.GroupKey>
                     keys = new ArrayList<>();
             List<Type.Column>
                     subCols = new ArrayList<>();
             for (String k : keyCols) {
-                var col = aj.targetRow().columns().stream()
+                var col = keyRow.columns().stream()
                         .filter(c -> c.name().equals(k)).findFirst()
                         .orElseThrow(() -> new IllegalStateException(
                                 "resolver bug: equi-key column '" + k
-                                        + "' missing from the target row"));
+                                        + "' missing from the "
+                                        + "grouping row"));
                 keys.add(new TypedGroupBy.GroupKey(
                         k, Optional.empty()));
                 subCols.add(col);
@@ -1678,66 +1722,10 @@ public final class StoreResolver {
                     aj.targetRow(), com.legend.compiler.element.type.Multiplicity
                             .Bounded.ONE);
             for (AggDemand d : entry.getValue()) {
-                TypedSpec leafBinding = aj.target().bindings().get(d.leaf());
-                if (leafBinding == null) {
-                    throw new MappingResolutionException("property '" + d.leaf()
-                            + "' of class '" + aj.target().classFqn()
-                            + "' has no binding in mapping '" + cs.mappingFqn()
-                            + "' (aggregated navigation leaf)",
-                            aj.target().classFqn());
-                }
                 String alias = "agg_" + ord++;
-                TypedLambda map = new TypedLambda(
-                        List.of(aj.target().rowVar()),
-                        List.of(leafBinding),
-                        new ExprType(
-                                new Type.FunctionType(
-                                        List.of(new com.legend.compiler
-                                                .element.type.Type.Param(aj.targetRow(),
-                                                com.legend.compiler.element.type
-                                                        .Multiplicity.Bounded.ONE)),
-                                        new Type.Param(
-                                                leafBinding.info().type(),
-                                                leafBinding.info().multiplicity())),
-                                com.legend.compiler.element.type.Multiplicity
-                                        .Bounded.ONE));
-                String yv = "_y";
-                List<TypedSpec> reduceArgs = new ArrayList<>();
-                reduceArgs.add(new TypedVariable(yv,
-                        new ExprType(
-                                leafBinding.info().type(),
-                                com.legend.compiler.element.type.Multiplicity
-                                        .Bounded.ZERO_MANY)));
-                for (int i = 1; i < d.node().args().size(); i++) {
-                    TypedSpec extra = d.node().args().get(i);
-                    if (referencesVar(extra, aj.target().rowVar())) {
-                        throw new NotImplementedException("aggregate '"
-                                + d.node().callee().qualifiedName()
-                                + "' over navigation '" + head + "' with an"
-                                + " instance-dependent extra argument is not"
-                                + " supported");
-                    }
-                    reduceArgs.add(extra);
-                }
-                TypedSpec reduceCall = new com.legend.compiler.spec.typed
-                        .TypedNativeCall(d.node().callee(), reduceArgs,
-                        d.node().info());
-                TypedLambda reduce = new TypedLambda(List.of(yv),
-                        List.of(reduceCall),
-                        new ExprType(
-                                new Type.FunctionType(
-                                        List.of(new com.legend.compiler
-                                                .element.type.Type.Param(
-                                                leafBinding.info().type(),
-                                                com.legend.compiler.element.type
-                                                        .Multiplicity.Bounded.ZERO_MANY)),
-                                        new Type.Param(
-                                                d.node().info().type(),
-                                                d.node().info().multiplicity())),
-                                com.legend.compiler.element.type.Multiplicity
-                                        .Bounded.ONE));
-                aggs.add(new TypedAggCol(alias,
-                        map, reduce));
+                aggs.add(corrSubs.aggColFor(cs, head, aj, d, alias,
+                        corrAgg, corrTp, corrRowVar, corrJoinedRow,
+                        cas.pc()));
                 subCols.add(new Type.RelationType
                         .Column(alias, d.node().info().type(),
                         com.legend.compiler.element.type.Multiplicity
@@ -1745,7 +1733,7 @@ public final class StoreResolver {
             }
             var subRow = new Type.RelationType(subCols);
             TypedSpec sub = new TypedGroupBy(
-                    aj.targetPipeline(), keys, aggs,
+                    subSource, keys, aggs,
                     new ExprType(subRow,
                             com.legend.compiler.element.type.Multiplicity
                                     .Bounded.ONE));
@@ -1759,8 +1747,12 @@ public final class StoreResolver {
                 cols.add(new Type.RelationType
                         .Column(prefix + c.name(), c.type(), c.multiplicity()));
             }
+            TypedLambda backCond = corrAgg == null ? aj.condition()
+                    : assocMaterial.pkEqualityCond(keyCols,
+                            (Type.RelationType)
+                                    withJoins.info().type(), subRow);
             withJoins = new TypedJoin(withJoins,
-                    sub, leftKind(), aj.condition(),
+                    sub, leftKind(), backCond,
                     Optional.of(prefix),
                     new ExprType(
                             new Type.RelationType(cols),
@@ -1968,7 +1960,9 @@ public final class StoreResolver {
             Map<String, TypedNavigate> navSteps,
             Map<String, String> extraNavHeads,
             Map<String, List<List<String>>> extraNavTails,
-            Map<String, Substitution.AssocSub> assocs) {
+            Map<String, Substitution.AssocSub> assocs,
+            Map<String, String> corrNavHeads,
+            Map<String, List<List<String>>> navTailsByAlias) {
         List<AssociationJoins.AssocJoin> assocJoins = new ArrayList<>();
         Map<String, AssociationJoins.AssocJoin> joinsByChain = new LinkedHashMap<>();
         // Per chain-prefix leaf demand: for [firm, country], hop 'firm'
@@ -2108,6 +2102,44 @@ public final class StoreResolver {
                             tPipe.info().type(),
                     nav.predicate(), mat.slotPrefixes());
             assocJoins.add(aj);
+            assocs.put(headKey, new Substitution.AssocSub(aj.prefix(),
+                    target.rowVar(), target.bindings(), target.classFqn(),
+                    Pipelines.slotAliases(target.pipeline()),
+                    mat.slotPrefixes(), null, null,
+                    temporal.milestoneColumnsOf(target.pipeline(), target.classFqn()),
+                    mat.subNavs()));
+        }
+
+        // 2a-c. #69 CORRELATED-slot reroute: heads whose correlated pred
+        // demands a parent NAV left the slot spine (registerNavigations) —
+        // each joins as an AssocJoin carrying the pred for the fold's
+        // exploding parent-copy subselect. The head's CLOSED preds still
+        // apply in-target (applyToPipe passes corr-only heads through).
+        for (var ch : corrNavHeads.entrySet()) {
+            String headKey = ch.getKey();
+            String alias = ch.getValue();
+            var nav = navSteps.get(alias);
+            String targetClass = ((TypedGetAll)
+                    nav.target()).classFqn();
+            ClassSource target = sources.get(cs.mappingFqn(), targetClass);
+            NavMaterializer.NavMat mat = navMaterializer.navTargetMaterialized(
+                    temporal, cs.mappingFqn(), targetClass,
+                    navTailsByAlias.getOrDefault(alias, List.of()),
+                    headKey, null);
+            TypedSpec tPipe = temporal.temporalTargetPipe(cs, target, headKey,
+                    temporal.applyJoinTemporalFilters(mat.pipeline(), target,
+                            Map.of()));
+            tPipe = synthetics.applyToPipe(headKey, tPipe, (p, pred) ->
+                    predFilteredPipe(p, target, mat.slotPrefixes(),
+                            pred, cs.mappingFqn()));
+            AssociationJoins.AssocJoin aj = new AssociationJoins.AssocJoin(
+                    AssociationJoins.prefixFor(headKey, cs), target, tPipe,
+                    (Type.RelationType)
+                            tPipe.info().type(),
+                    nav.predicate(), mat.slotPrefixes(), mat.subNavs(),
+                    synthetics.correlatedPred(headKey));
+            assocJoins.add(aj);
+            joinsByChain.put(headKey, aj);
             assocs.put(headKey, new Substitution.AssocSub(aj.prefix(),
                     target.rowVar(), target.bindings(), target.classFqn(),
                     Pipelines.slotAliases(target.pipeline()),
@@ -2499,7 +2531,8 @@ public final class StoreResolver {
                 registerExistsSubs(cs, paths, filterPaths, ops, context, assocs);
 
         AssocPlan assocPlan = registerAssociationJoins(cs, paths, context,
-                navSteps, extraNavHeads, extraNavTails, assocs);
+                navSteps, extraNavHeads, extraNavTails, assocs,
+                navPlan.corrNavHeads(), navPlan.navTails());
         List<AssociationJoins.AssocJoin> assocJoins = assocPlan.assocJoins();
         Map<String, AssociationJoins.AssocJoin> joinsByChain = assocPlan.joinsByChain();
 
@@ -2509,16 +2542,8 @@ public final class StoreResolver {
         // over the widened row, exactly the engine's query-dependent
         // distinct tuple). Aggregated-navigation materials build here so
         // their conditions participate.
-        Map<String, AssociationJoins.AssocJoin> aggMaterials = new LinkedHashMap<>();
-        for (var entry : aggDemands.entrySet()) {
-            Set<String> leaves = new LinkedHashSet<>();
-            for (AggDemand dm : entry.getValue()) {
-                leaves.add(dm.leaf());
-            }
-            aggMaterials.put(entry.getKey(),
-                    assocMaterial.aggJoinMaterial(temporal, cs, entry.getKey(),
-                            context, leaves));
-        }
+        Map<String, AssociationJoins.AssocJoin> aggMaterials =
+                corrSubs.buildAggMaterials(temporal, cs, context, aggDemands);
         Set<String> joinKeyReads = new LinkedHashSet<>();
         for (AssociationJoins.AssocJoin aj : assocJoins) {
             collectParamColumnReads(aj.condition(), joinKeyReads);
@@ -2774,7 +2799,7 @@ public final class StoreResolver {
     }
 
     /** The demand half of the shared funnel: every $p.<path> read in a lambda. */
-    private static void consumedPaths(TypedSpec n, String userVar,
+    static void consumedPaths(TypedSpec n, String userVar,
                                       Set<List<String>> out) {
         List<String> path = Substitution.pathOf(n, userVar);
         if (path != null) {
@@ -2816,8 +2841,31 @@ public final class StoreResolver {
      * position: {@code $f.employees.age->max()}. Substitutes as a column
      * read off the head's grouped-subselect join (engine subAggregation
      * shape) — the path is NOT bare-demanded, so no row explosion. */
-    private record AggDemand(TypedNativeCall node,
-                             String leaf) {}
+    record AggDemand(TypedNativeCall node,
+            String leaf, TypedLambda mapper) {
+
+        AggDemand(TypedNativeCall node, String leaf) {
+            this(node, leaf, null);
+        }
+
+        /** Target-side property heads this demand reads (leaf name, or
+         * the computed mapper's own-param path heads) — feeds the
+         * target's slot demand. */
+        List<String> demandLeaves() {
+            if (leaf != null) {
+                return List.of(leaf);
+            }
+            Set<List<String>> ps = new LinkedHashSet<>();
+            for (TypedSpec b : mapper.body()) {
+                consumedPaths(b, mapper.parameters().get(0), ps);
+            }
+            List<String> out = new ArrayList<>();
+            for (List<String> pth : ps) {
+                out.add(pth.get(0));
+            }
+            return out;
+        }
+    }
 
     /**
      * The agg-aware projection-position scan: aggregates over TO-MANY
@@ -2838,6 +2886,28 @@ public final class StoreResolver {
                 && AGG_FQNS.contains(nc.callee().qualifiedName())) {
             List<String> path =
                     Substitution.pathOf(nc.args().get(0), userVar);
+            // AGG(map(<nav>, λe.<scalar body>)) — the qualifier-inlined
+            // COMPUTED-mapper spelling (#69): the mapper body aggregates
+            // inside the grouped subselect, substituted through the
+            // target's bindings at the fold.
+            if (nc.args().get(0) instanceof TypedMap tmap
+                    && tmap.mapper().parameters().size() == 1
+                    && !(tmap.mapper().info().type()
+                            instanceof Type.FunctionType mft
+                            && mft.result().type() instanceof Type.ClassType)) {
+                List<String> srcPath =
+                        Substitution.pathOf(tmap.source(), userVar);
+                if (srcPath != null && srcPath.size() == 1
+                        && isToManyAssocHead(cs, srcPath.get(0))) {
+                    aggOut.computeIfAbsent(srcPath.get(0),
+                                    k -> new ArrayList<>())
+                            .add(new AggDemand(nc, null, tmap.mapper()));
+                    for (int i = 1; i < nc.args().size(); i++) {
+                        aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut);
+                    }
+                    return;
+                }
+            }
             if (path != null && path.size() == 2
                     && isToManyAssocHead(cs, path.get(0))) {
                 aggOut.computeIfAbsent(path.get(0), k -> new ArrayList<>())
@@ -2979,68 +3049,27 @@ public final class StoreResolver {
      * aggregated subselect. Any other condition shape is loud: joining a
      * grouped subselect on it could match multiple groups (fan-out).
      */
-    private static List<String> targetEquiKeys(TypedLambda cond,
-                                                         String head) {
-        List<String> keys = new ArrayList<>();
-        if (!collectEquiKeys(cond.body().get(cond.body().size() - 1),
-                cond.parameters().get(0), cond.parameters().get(1), keys)
-                || keys.isEmpty()) {
-            throw new NotImplementedException("aggregate over navigation '"
-                    + head + "' requires a conjunctive equi-join association"
-                    + " condition (grouped-subselect emission)");
-        }
-        return keys;
-    }
+    /** PARENT-side equi columns of the association condition (roles
+     * swapped vs {@link #targetEquiKeys}) — the group/join-back keys of
+     * the correlated aggregated subselect (#69 parent-copy emission). */
 
-    private static boolean collectEquiKeys(TypedSpec n, String srcVar,
-                                           String tgtVar,
-                                           List<String> out) {
-        if (!(n instanceof TypedNativeCall c)) {
-            return false;
-        }
-        String q = c.callee().qualifiedName();
-        if (q.equals("meta::pure::functions::boolean::and")) {
-            return c.args().stream()
-                    .allMatch(a -> collectEquiKeys(a, srcVar, tgtVar, out));
-        }
-        if (q.equals("meta::pure::functions::boolean::equal")
-                && c.args().size() == 2) {
-            TypedSpec a = c.args().get(0);
-            TypedSpec b = c.args().get(1);
-            String aCol = bareColumnOn(a, tgtVar);
-            String bCol = bareColumnOn(b, tgtVar);
-            if (bCol != null && !referencesVar(a, tgtVar)) {
-                out.add(bCol);
-                return true;
-            }
-            if (aCol != null && !referencesVar(b, tgtVar)) {
-                out.add(aCol);
-                return true;
-            }
-        }
-        return false;
-    }
 
-    private static String bareColumnOn(TypedSpec n, String var) {
-        return n instanceof TypedPropertyAccess pa
-                && pa.source() instanceof TypedVariable v
-                && v.name().equals(var) ? pa.property() : null;
-    }
 
-    private static boolean referencesVar(TypedSpec n, String var) {
-        if (n instanceof TypedVariable v
-                && v.name().equals(var)) {
-            return true;
-        }
-        for (TypedSpec c : n.children()) {
-            if (referencesVar(c, var)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** Per-getAll temporal context (M3 propagation): the root fetch's dates
+    /** Aggregated-navigation materials: per head, the target join material
+     * with the demands' leaf + computed-mapper nav paths (#69). */
+        /** #69 correlated-aggregate sub SOURCE (fold 2c): uncorrelated heads
+     * group the plain target; a correlated pred re-joins the PARENT extent
+     * (parent-copy), filters by the pred over the joined row, and groups
+     * by the PARENT-side equi keys. */
+            /** #69 EXPLODING parent-copy subselect emission (fold 2b) — the
+     * rerouted correlated head's join material. */
+            /** One projected column {@code name := $rowVar.readCol} of the
+     * exploding subselect (#69). */
+                /** The parent-extent COPY inside a correlated aggregated subselect:
+     * the parent pipeline materialized with the slots and navigate steps
+     * the correlated pred's OUTER reads demand, plus depth-1 SubNavs for
+     * the substitution (deeper hops stay loud). */
+        /** Per-getAll temporal context (M3 propagation): the root fetch's dates
      * and strategy flow to SAME-STRATEGY targets navigated through temporal
      * parents (engine: milestoning context does NOT propagate through
      * non-temporal intermediates). Set at each getAll resolution entry. */
@@ -3163,7 +3192,7 @@ public final class StoreResolver {
             // heads route through the navigate slot; associations fall
             // through to the assoc route)
             AssociationJoins.AssocJoin aj2 = assocMaterial.aggJoinMaterial(
-                    temporal, t, h, context, hLeaves);
+                    temporal, t, h, context, hLeaves, Set.of());
             List<Type.Column> cols = new ArrayList<>(
                     ((Type.RelationType) pipe.info().type()).columns());
             for (Type.Column c : aj2.targetRow().columns()) {

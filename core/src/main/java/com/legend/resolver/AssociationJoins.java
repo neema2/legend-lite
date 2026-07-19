@@ -44,7 +44,8 @@ final class AssociationJoins {
     /** The join material for an aggregated to-many head: the association
      * route, or the navigate-slot route (class-typed Join PM). */
     AssocJoin aggJoinMaterial(TemporalFrame temporal, ClassSource cs, String head, StoreResolver.Context context,
-                                      Set<String> leaves) {
+                                      Set<String> leaves,
+                                      Set<List<String>> tgtNavPaths) {
         // synthetic identities (#fN/#cN) bind by their REAL property — the
         // raw lookup missed the navigate-slot route and fell into the
         // association route, which errors when the property is PM-mapped
@@ -69,33 +70,99 @@ final class AssociationJoins {
             }
         }
         targetDemand = Pipelines.closeOverConditions(t.pipeline(), targetDemand);
-        Pipelines.Materialized tMat = Pipelines.materialize(
-                t.pipeline(), targetDemand, t.classFqn());
+        // #69: the correlated pred's / computed mapper's TARGET-side reads
+        // may hop the target's OWN class-typed nav steps ($e.address.name
+        // over the aggregated rows) — demand those steps and build depth-1
+        // SubNavs for the composition's pass-1 dispatch (mirrors the
+        // exists route). Deeper hops stay loud (empty children).
+        TypedLambda corrN = synthetics.correlatedPred(head);
+        Set<List<String>> predPaths = new LinkedHashSet<>(tgtNavPaths);
+        if (corrN != null) {
+            for (TypedSpec b : corrN.body()) {
+                StoreResolver.consumedPaths(b,
+                        corrN.parameters().get(0), predPaths);
+            }
+        }
+        var tNavSteps = Pipelines.navSteps(t.pipeline());
+        Map<String, String> predNavAliases = new java.util.LinkedHashMap<>();
+        Set<String> tNavDemand = new LinkedHashSet<>();
+        for (List<String> pp : predPaths) {
+            if (pp.size() < 2) {
+                continue;
+            }
+            TypedSpec hb = t.bindings().get(pp.get(0));
+            String al = hb == null ? null
+                    : StoreResolver.navSlotAlias(hb, t.rowVar(),
+                            tNavSteps.keySet());
+            if (al != null) {
+                tNavDemand.add(al);
+                predNavAliases.put(pp.get(0), al);
+            }
+        }
+        Pipelines.Materialized tMat = tNavDemand.isEmpty()
+                ? Pipelines.materialize(
+                        t.pipeline(), targetDemand, t.classFqn())
+                : Pipelines.materialize(
+                        t.pipeline(), targetDemand, tNavDemand, t.classFqn(),
+                        (al2, tc2) -> Pipelines.materialize(
+                                sources.get(cs.mappingFqn(), tc2).pipeline(),
+                                java.util.Set.of(), tc2).pipeline());
+        Map<String, Substitution.SubNav> tSubNavs = new java.util.LinkedHashMap<>();
+        for (var pne : predNavAliases.entrySet()) {
+            String pfx = tMat.slotPrefixes().get(pne.getValue());
+            var stepT = tNavSteps.get(pne.getValue()).target();
+            if (pfx == null || !(stepT instanceof TypedGetAll stg)) {
+                continue;
+            }
+            ClassSource sub = sources.get(cs.mappingFqn(), stg.classFqn());
+            tSubNavs.put(pne.getKey(), new Substitution.SubNav(
+                    pfx, sub.rowVar(), sub.bindings()));
+        }
         TypedSpec tPipe0 = temporal.temporalTargetPipe(cs, t, head,
                 temporal.applyJoinTemporalFilters(tMat.pipeline(), t, Map.of()));
         // a lifted head's parked material (filter / union branches)
-        // applies to the aggregated target exactly like the plain routes;
-        // a CORRELATED pred cannot apply here — loud, never dropped
-        if (synthetics.correlatedPred(head) != null) {
-            throw new NotImplementedException("correlated filtered navigation"
-                    + " '" + SyntheticHeads.realHead(head) + "' is not"
-                    + " supported on the aggregated route yet");
-        }
+        // applies to the aggregated target exactly like the plain routes.
+        // A CORRELATED pred does NOT apply here — it composes into the
+        // aggregated subselect's WHERE at the FOLD (parent-copy
+        // architecture, #69); the fold re-checks the head and is loud if
+        // it cannot compose (applyToPipe passes corr-only heads through
+        // unchanged, never silently filtering).
         tPipe0 = synthetics.applyToPipe(head, tPipe0, (p, pred) ->
                 StoreResolver.predFilteredPipe(p, t, tMat.slotPrefixes(),
                         pred, cs.mappingFqn()));
         return new AssocJoin(prefixFor(head, cs), t, tPipe0,
                 (Type.RelationType)
                         tPipe0.info().type(),
-                nav.predicate(), tMat.slotPrefixes());
+                nav.predicate(), tMat.slotPrefixes(), tSubNavs);
     }
 
-    /** A demanded association navigation, ready to emit as a prefixed LEFT join. */
+    /** A demanded association navigation, ready to emit as a prefixed LEFT
+     * join. {@code targetSubNavs}: the target's OWN demanded class-typed
+     * nav steps (#69 — the correlated pred / computed mapper read through
+     * them inside the aggregated subselect). */
     record AssocJoin(String prefix, ClassSource target,
                              TypedSpec targetPipeline,
                              Type.RelationType targetRow,
                              TypedLambda condition,
-                             Map<String, String> targetSlotPrefixes) {}
+                             Map<String, String> targetSlotPrefixes,
+                             Map<String, Substitution.SubNav> targetSubNavs,
+                             TypedLambda corrSubPred) {
+
+        AssocJoin(String prefix, ClassSource target, TypedSpec targetPipeline,
+                  Type.RelationType targetRow, TypedLambda condition,
+                  Map<String, String> targetSlotPrefixes) {
+            this(prefix, target, targetPipeline, targetRow, condition,
+                    targetSlotPrefixes, Map.of(), null);
+        }
+
+        AssocJoin(String prefix, ClassSource target, TypedSpec targetPipeline,
+                  Type.RelationType targetRow, TypedLambda condition,
+                  Map<String, String> targetSlotPrefixes,
+                  Map<String, Substitution.SubNav> targetSubNavs) {
+            this(prefix, target, targetPipeline, targetRow, condition,
+                    targetSlotPrefixes, targetSubNavs, null);
+        }
+    }
 
     /**
      * A chained hop's prefix, ordinal-bumped against the ACCUMULATED column
@@ -326,9 +393,20 @@ final class AssociationJoins {
         // pass). Runs BEFORE key collection so the pred's target reads
         // widen distinct/union keys too.
         TypedLambda corr = synthetics.correlatedPred(head);
+        TypedLambda corrSub = null;
         if (corr != null) {
-            oriented = andCorrelatedIntoCondition(oriented, corr, cs, target,
-                    tMat.slotPrefixes());
+            // ROUTE RULE (engine parity, testFunctionVariables goldens):
+            // a pred whose OUTER reads are plain parent properties
+            // composes into the flat join ON (both rows in scope); a pred
+            // demanding a parent NAV hop ($f.address.name) can never
+            // resolve there — it rides the parent-copy subselect at the
+            // fold (#69, the exploding variant of the aggregated shape).
+            if (corrPredDemandsParentNav(corr)) {
+                corrSub = corr;
+            } else {
+                oriented = andCorrelatedIntoCondition(oriented, corr, cs,
+                        target, tMat.slotPrefixes());
+            }
         }
         // TARGET-SIDE join-key collection: a distinct-narrowed target must
         // expose the key columns the association condition binds on.
@@ -350,13 +428,35 @@ final class AssociationJoins {
         return new AssocJoin(prefixFor(head, cs), target, tPipe,
                 (Type.RelationType)
                         tPipe.info().type(),
-                oriented, tMat.slotPrefixes());
+                oriented, tMat.slotPrefixes(), Map.of(), corrSub);
     }
 
     /** The correlation pass: two sequential substitutions over the lifted
      * predicate — own param via TARGET bindings onto the condition's
      * target row; each residual FREE variable via the PARENT's bindings
      * onto the condition's source row — then AND into the condition body. */
+    /** True when a correlated pred's OUTER reads hop a parent NAVIGATION
+     * ($f.address.name — depth >= 2): those can never resolve on the flat
+     * join ON's source row; the pred rides the parent-copy subselect. */
+    boolean corrPredDemandsParentNav(TypedLambda pred) {
+        Set<String> free = new LinkedHashSet<>();
+        for (TypedSpec b : pred.body()) {
+            collectFreeVars(b, new LinkedHashSet<>(pred.parameters()), free);
+        }
+        for (String outer : free) {
+            Set<List<String>> paths = new LinkedHashSet<>();
+            for (TypedSpec b : pred.body()) {
+                StoreResolver.consumedPaths(b, outer, paths);
+            }
+            for (List<String> p : paths) {
+                if (p.size() >= 2) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     TypedLambda andCorrelatedIntoCondition(TypedLambda cond,
             TypedLambda pred, ClassSource parent, ClassSource target,
             Map<String, String> targetSlotPrefixes) {
@@ -459,6 +559,186 @@ final class AssociationJoins {
         TypedSpec anded = new com.legend.compiler.spec.typed.TypedNativeCall(
                 andFns.get(0), List.of(existing, body), existing.info());
         return new TypedLambda(cond.parameters(), List.of(anded), cond.info());
+    }
+
+    /**
+     * The correlated predicate rewritten onto the SINGLE joined row of the
+     * aggregated subselect (the engine's parent-copy architecture, #69):
+     * the pred's own param reads TARGET bindings prefixed with
+     * {@code targetPrefix}; each free OUTER variable reads the
+     * PARENT-COPY's bindings (parent columns unprefixed on the joined
+     * row, the copy's own demanded nav columns via its slot prefixes and
+     * depth-1 SubNavs). Same alpha/capture discipline as the ON-clause
+     * composition (audit 22a).
+     */
+    TypedLambda corrPredOnJoinedRow(TypedLambda pred, ClassSource parent,
+            ClassSource target, String targetPrefix,
+            Map<String, String> targetSlotPrefixes,
+            Map<String, Substitution.SubNav> targetSubNavs,
+            Map<String, String> parentCopySlotPrefixes,
+            Map<String, Substitution.SubNav> parentCopySubNavs,
+            String rowVar, Type.RelationType rowType) {
+        Set<String> taken = new LinkedHashSet<>(pred.parameters());
+        for (TypedSpec b : pred.body()) {
+            collectVarNames(b, taken);
+        }
+        taken.add(rowVar);
+        String ct = freshName("_ct", taken);
+        String csv = freshName("_cs", taken);
+        Set<String> free = new LinkedHashSet<>();
+        for (TypedSpec b : pred.body()) {
+            collectFreeVars(b, new LinkedHashSet<>(pred.parameters()), free);
+        }
+        var rowInfo = new ExprType(rowType,
+                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        Set<String> unconvertedTgt = new LinkedHashSet<>(
+                Pipelines.slotAliases(target.pipeline()));
+        unconvertedTgt.removeAll(targetSlotPrefixes.keySet());
+        Map<String, Substitution.AssocSub> tgtAssocs = new java.util.LinkedHashMap<>();
+        for (var e : targetSubNavs.entrySet()) {
+            var sn = e.getValue();
+            tgtAssocs.put(e.getKey(), new Substitution.AssocSub(
+                    sn.prefix(), sn.rowVar(), sn.bindings(),
+                    target.classFqn() + "." + e.getKey(),
+                    java.util.Set.of(), Map.of(), ct, rowType,
+                    Map.of(), sn.children()));
+        }
+        Substitution tgtSub = new Substitution(new Substitution.Target(
+                new Substitution.RowScope(pred.parameters().get(0), ct,
+                        target.classFqn(), target.mappingFqn(),
+                        target.rowVar(), target.bindings(), rowType,
+                        unconvertedTgt, targetSlotPrefixes, Map.of()),
+                new Substitution.Registries(tgtAssocs, java.util.Set.of(),
+                        Map.of(), Map.of(), null, null),
+                Substitution.TemporalView.NONE,
+                true, true));
+        TypedLambda pass1 = tgtSub.rewriteLambda(pred);
+        TypedSpec body = pass1.body().get(pass1.body().size() - 1);
+        Map<String, Substitution.AssocSub> copyAssocs = new java.util.LinkedHashMap<>();
+        for (var e : parentCopySubNavs.entrySet()) {
+            var sn = e.getValue();
+            copyAssocs.put(e.getKey(), new Substitution.AssocSub(
+                    sn.prefix(), sn.rowVar(), sn.bindings(),
+                    parent.classFqn() + "." + e.getKey(),
+                    java.util.Set.of(), Map.of(), csv, rowType,
+                    Map.of(), sn.children()));
+        }
+        Set<String> unconvertedPar = new LinkedHashSet<>(
+                Pipelines.slotAliases(parent.pipeline()));
+        unconvertedPar.removeAll(parentCopySlotPrefixes.keySet());
+        for (String outer : free) {
+            Substitution srcSub = new Substitution(new Substitution.Target(
+                    new Substitution.RowScope(outer, csv,
+                            parent.classFqn(), parent.mappingFqn(),
+                            parent.rowVar(), parent.bindings(), rowType,
+                            unconvertedPar, parentCopySlotPrefixes, Map.of()),
+                    new Substitution.Registries(copyAssocs, java.util.Set.of(),
+                            Map.of(), Map.of(), null, null),
+                    Substitution.TemporalView.NONE, true, true));
+            body = srcSub.rewriteLambda(new com.legend.compiler.spec.typed
+                    .TypedLambda(List.of(outer), List.of(body), pred.info()))
+                    .body().get(0);
+        }
+        // land both sides on the ONE joined row: target reads prefix,
+        // parent-copy reads rename (parent columns ride unprefixed)
+        body = Pipelines.prefixColumns(body, ct, targetPrefix,
+                v -> new com.legend.compiler.spec.typed.TypedVariable(
+                        rowVar, rowInfo));
+        body = Pipelines.rewriteRowReads(body, csv, Map.of(), java.util.Set.of(),
+                v -> new com.legend.compiler.spec.typed.TypedVariable(
+                        rowVar, rowInfo));
+        // the result kind is the INPUT lambda's (a Boolean pred, or a
+        // computed mapper's scalar — this rewriter serves both)
+        Type.Param res = pred.info().type() instanceof Type.FunctionType pft
+                ? pft.result()
+                : new Type.Param(Type.Primitive.BOOLEAN,
+                        com.legend.compiler.element.type.Multiplicity
+                                .Bounded.ONE);
+        return new com.legend.compiler.spec.typed.TypedLambda(
+                List.of(rowVar), List.of(body),
+                new ExprType(
+                        new Type.FunctionType(
+                                List.of(new Type.Param(rowType,
+                                        com.legend.compiler.element.type
+                                                .Multiplicity.Bounded.ONE)),
+                                res),
+                        com.legend.compiler.element.type.Multiplicity
+                                .Bounded.ONE));
+    }
+
+    /** {@code λ(s,t). AND_k s.k == t.k} — the parent-key join-back of the
+     * correlated aggregated subselect (key names preserved on both sides). */
+    TypedLambda pkEqualityCond(List<String> keys,
+            Type.RelationType srcRow, Type.RelationType subRow) {
+        return pkEqualityCond(keys, keys, srcRow, subRow);
+    }
+
+    /** As above with the sub-side key columns RENAMED ({@code subKeys}
+     * aligned with {@code keys}) — the exploding subselect projects parent
+     * keys under collision-proof aliases. */
+    TypedLambda pkEqualityCond(List<String> keys, List<String> subKeys,
+            Type.RelationType srcRow, Type.RelationType subRow) {
+        var eqFns = ctx.findFunction("meta::pure::functions::boolean::equal")
+                .stream().filter(f -> f.parameters().size() == 2).toList();
+        var andFns = ctx.findFunction("meta::pure::functions::boolean::and")
+                .stream().filter(f -> f.parameters().size() == 2).toList();
+        if (eqFns.size() != 1 || andFns.size() != 1) {
+            throw new IllegalStateException("resolver bug: expected one 2-arg"
+                    + " boolean::equal and boolean::and");
+        }
+        var boolOne = new ExprType(Type.Primitive.BOOLEAN,
+                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        TypedSpec acc = null;
+        for (int ki = 0; ki < keys.size(); ki++) {
+            String k = keys.get(ki);
+            String sk = subKeys.get(ki);
+            var sCol = srcRow.columns().stream()
+                    .filter(c -> c.name().equals(k)).findFirst()
+                    .orElseThrow(() -> new IllegalStateException(
+                            "resolver bug: parent key '" + k
+                            + "' missing from the source row"));
+            TypedSpec eq = new TypedNativeCall(eqFns.get(0), List.of(
+                    new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                            new com.legend.compiler.spec.typed.TypedVariable("s",
+                                    new ExprType(srcRow,
+                                            com.legend.compiler.element.type
+                                                    .Multiplicity.Bounded.ONE)),
+                            k, new ExprType(sCol.type(), sCol.multiplicity())),
+                    new com.legend.compiler.spec.typed.TypedPropertyAccess(
+                            new com.legend.compiler.spec.typed.TypedVariable("t",
+                                    new ExprType(subRow,
+                                            com.legend.compiler.element.type
+                                                    .Multiplicity.Bounded.ONE)),
+                            sk, new ExprType(sCol.type(), sCol.multiplicity()))),
+                    boolOne);
+            acc = acc == null ? eq
+                    : new TypedNativeCall(andFns.get(0), List.of(acc, eq), boolOne);
+        }
+        return new com.legend.compiler.spec.typed.TypedLambda(
+                List.of("s", "t"), List.of(acc),
+                new ExprType(
+                        new Type.FunctionType(
+                                List.of(new Type.Param(srcRow,
+                                        com.legend.compiler.element.type
+                                                .Multiplicity.Bounded.ONE),
+                                        new Type.Param(subRow,
+                                        com.legend.compiler.element.type
+                                                .Multiplicity.Bounded.ONE)),
+                                new Type.Param(Type.Primitive.BOOLEAN,
+                                        com.legend.compiler.element.type
+                                                .Multiplicity.Bounded.ONE)),
+                        com.legend.compiler.element.type.Multiplicity
+                                .Bounded.ONE));
+    }
+
+    private static String freshName(String base, Set<String> taken) {
+        String n = base;
+        int k = 2;
+        while (taken.contains(n)) {
+            n = base + k++;
+        }
+        taken.add(n);
+        return n;
     }
 
     private static void collectVarNames(

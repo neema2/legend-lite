@@ -55,7 +55,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             Map.entry(SqlFn.GREATER_EQUAL, new Infix(">=", 4)),
             Map.entry(SqlFn.PLUS, new Infix("+", 5)),
             Map.entry(SqlFn.MINUS, new Infix("-", 5)),
-            Map.entry(SqlFn.CONCAT, new Infix("||", 5)),
             Map.entry(SqlFn.TIMES, new Infix("*", 6)));
 
     @Override
@@ -306,8 +305,16 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         List<SqlExpr> a = c.args();
         return switch (c.fn()) {
             case AND, OR, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL,
-                 PLUS, MINUS, TIMES, CONCAT ->
+                 PLUS, MINUS, TIMES ->
                     throw new IllegalStateException("infix operator fell through: " + c.fn());
+            // NULL-IGNORING flat concat — the node's semantics are the
+            // engine's (H2 CONCAT / DuckDB concat both skip NULL args):
+            // a LEFT-JOIN-missed operand yields the other side, never
+            // NULL. The '||' spelling propagates NULL — a row-value
+            // divergence on join misses (testQualifierWithVariableArg).
+            case CONCAT -> "concat(" + flattenConcat(a).stream()
+                    .map(x -> expr(x, 0))
+                    .collect(java.util.stream.Collectors.joining(", ")) + ")";
             case NOT -> {
                 String inner = "NOT " + expr(a.get(0), 3);
                 yield 3 < parentPrec ? "(" + inner + ")" : inner;
@@ -738,4 +745,19 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return inlineMode ? sb.append(" ")
                 : sb.append("\n").append("  ".repeat(depth));
     }
+
+    /** Nested CONCAT calls splice into ONE flat argument list (the engine
+     * emits concat(a, '_', b), never concat(concat(a, '_'), b)). */
+    protected static java.util.List<SqlExpr> flattenConcat(java.util.List<SqlExpr> a) {
+        java.util.List<SqlExpr> out = new java.util.ArrayList<>();
+        for (SqlExpr e : a) {
+            if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.CONCAT) {
+                out.addAll(flattenConcat(c.args()));
+            } else {
+                out.add(e);
+            }
+        }
+        return out;
+    }
+
 }

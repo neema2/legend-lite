@@ -247,7 +247,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
             // Synthetic key column name is minted via ctx.nextAlias(),
             // so assert structural shape rather than its exact spelling.
             assertTrue(sql.contains("EXCLUDE"), "Should use EXCLUDE to remove pivot columns");
-            assertTrue(sql.contains("|| '__|__' ||"), "Should use __|__ separator");
+            assertTrue(sql.contains("'__|__'"), "Should use __|__ separator");
 
             var result = executeRelation(pure);
             // 2 rows (year groups), 4 cols: year + 3 spread totals.
@@ -678,7 +678,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
             // Single-column pivot must NOT take the multi-column path:
             // no SelectExcept wrapper, no separator concatenation.
             assertFalse(sql.contains("EXCLUDE"), "Single-column pivot should not emit EXCLUDE");
-            assertFalse(sql.contains("|| '__|__' ||"),
+            assertFalse(sql.contains("'__|__'"),
                     "Single-column pivot should not synthesize a composite key");
         }
 
@@ -698,7 +698,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
             // PIVOT key, not its exact spelling.
             assertTrue(sql.matches("(?s).*EXCLUDE \\(\"country\", \"city\"\\),.*"),
                     "EXCLUDE should drop the source pivot columns");
-            assertTrue(sql.contains("|| '__|__' ||"),
+            assertTrue(sql.contains("'__|__'"),
                     "Should concatenate pivot columns with __|__ separator");
             assertTrue(sql.contains("\"_|__total\""), "Should alias aggregate as \"_|__total\"");
         }
