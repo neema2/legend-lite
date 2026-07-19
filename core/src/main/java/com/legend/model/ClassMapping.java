@@ -58,6 +58,19 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
         return "stc_" + classFqn.replace("::", "__") + "___";
     }
 
+    /** Whether {@code col} is a subtype-dispatch column (of any class). */
+    static boolean isSubTypeColumn(String col) {
+        return col.startsWith("stc_") && col.contains("___");
+    }
+
+    /**
+     * Pseudo-prop of the MEMBERSHIP WITNESS column (emitted only for cast
+     * targets with PARTIAL membership; never a real property name).
+     */
+    static String memberWitness() {
+        return "$member";
+    }
+
     /** Fully-qualified class name being mapped. */
     String className();
 

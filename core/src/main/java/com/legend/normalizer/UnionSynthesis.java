@@ -564,18 +564,69 @@ final class UnionSynthesis {
                 continue;
             }
             ClassDefinition mcd = model.findClass(memberClass).orElse(null);
-            for (String prop : parts.get(j).fields().keySet()) {
-                TypeExpression t = mcd == null ? null
-                        : MappingNormalizer.findPropertyTypeDeep(mcd, prop, model);
-                boolean scalar = t instanceof TypeExpression.NameRef nr
-                        && model.findClass(nr.name()).isEmpty();
-                if (scalar) {
-                    subTypeProps.computeIfAbsent(memberClass,
-                            k -> new LinkedHashSet<>()).add(prop);
+            // cast TARGETS: the member class and every ancestor strictly
+            // below the union root — a cast to an INTERMEDIATE class
+            // (subType(@RoadVehicle) over a Car|Bicycle union) is owned by
+            // every conforming member thread
+            for (String target : selfAndAncestorsBelow(memberClass, className,
+                    model)) {
+                ClassDefinition tcd = model.findClass(target).orElse(null);
+                for (String prop : parts.get(j).fields().keySet()) {
+                    TypeExpression t = mcd == null ? null
+                            : MappingNormalizer.findPropertyTypeDeep(mcd, prop, model);
+                    boolean scalar = t instanceof TypeExpression.NameRef nr
+                            && model.findClass(nr.name()).isEmpty();
+                    boolean visibleOnTarget = tcd != null
+                            && MappingNormalizer.findPropertyTypeDeep(tcd, prop,
+                                    model) != null;
+                    if (scalar && visibleOnTarget) {
+                        subTypeProps.computeIfAbsent(target,
+                                k -> new LinkedHashSet<>()).add(prop);
+                    }
+                }
+            }
+        }
+        // MEMBERSHIP WITNESS: a cast target some member does NOT conform
+        // to needs row RESTRICTION at to-many navigation positions — emit
+        // a witness column (TRUE in conforming threads, NULL elsewhere).
+        // Total-membership targets get NO witness: the cast is row-neutral.
+        for (var en : subTypeProps.entrySet()) {
+            for (ClassMapping m : members) {
+                if (!m.className().equals(className)
+                        && !isSubclassOf(m.className(), en.getKey(), model)) {
+                    en.getValue().add(MEMBER_WITNESS);
+                    break;
                 }
             }
         }
         return subTypeProps;
+    }
+
+    static final String MEMBER_WITNESS = ClassMapping.memberWitness();
+
+    /** {@code cls} plus its transitive superclasses, excluding {@code root}
+     * and anything above it. */
+    private static LinkedHashSet<String> selfAndAncestorsBelow(String cls,
+            String root, ModelBuilder model) {
+        LinkedHashSet<String> out = new LinkedHashSet<>();
+        ArrayDeque<String> work = new ArrayDeque<>();
+        work.add(cls);
+        while (!work.isEmpty()) {
+            String cur = work.poll();
+            if (cur.equals(root) || !out.add(cur)) {
+                continue;
+            }
+            ClassDefinition cd = model.findClass(cur).orElse(null);
+            if (cd == null) {
+                continue;
+            }
+            for (TypeExpression sup : cd.superClasses()) {
+                if (sup instanceof TypeExpression.NameRef nr) {
+                    work.add(nr.name());
+                }
+            }
+        }
+        return out;
     }
 
     /** One thread's subtype-dispatch columns — same order in every thread. */
@@ -585,8 +636,24 @@ final class UnionSynthesis {
             ModelBuilder model, List<ColSpec> cols) {
         for (var stEn : subTypeProps.entrySet()) {
             ClassDefinition subDef = model.findClass(stEn.getKey()).orElse(null);
-            boolean own = member.className().equals(stEn.getKey());
+            boolean own = isSubclassOf(member.className(), stEn.getKey(), model);
             for (String prop : stEn.getValue()) {
+                if (prop.equals(MEMBER_WITNESS)) {
+                    // toOne types both threads identically (literal vs NULL
+                    // cast); lowering is erasure — the witness stays NULL
+                    ValueSpecification w = own ? new CBoolean(true)
+                            : new AppliedFunction("toOne", List.of(
+                                    new AppliedFunction("cast", List.of(
+                                            new PureCollection(List.of()),
+                                            new TypeAnnotation.Named(
+                                                    new TypeExpression.NameRef(
+                                                            "Boolean"))))));
+                    cols.add(new ColSpec(
+                            ClassMapping.subTypeColumn(stEn.getKey(), prop),
+                            new LambdaFunction(List.of(pp.rowBind()),
+                                    List.of(w)), null));
+                    continue;
+                }
                 KeyExpression mapped = own ? pp.fields().get(prop) : null;
                 ValueSpecification value = mapped == null
                         ? MappingNormalizer.nullOfDeclaredType(subDef, prop, model)

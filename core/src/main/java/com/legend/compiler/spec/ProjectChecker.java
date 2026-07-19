@@ -1,5 +1,8 @@
 package com.legend.compiler.spec;
 
+import com.legend.compiler.element.type.ExprType;
+import com.legend.compiler.element.type.Multiplicity;
+import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedProject;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.model.spec.AppliedFunction;
@@ -31,7 +34,34 @@ final class ProjectChecker {
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
         AppliedFunction modern = normalizeLegacyForms(af);
         Application a = t.checkGeneric(withMappedColumns(modern), env);
-        return new TypedProject(a.args().get(0), Args.funcCols(a.args().get(1)), a.out());
+        return new TypedProject(a.args().get(0), Args.funcCols(a.args().get(1)),
+                clampTdsCells(a.out()));
+    }
+
+    /**
+     * TDS cells are SCALARS (engine contract): a [*]-valued projection
+     * column EXPLODES into one row per value — the resulting column is
+     * [0..1], never a list cell (a list-typed column would mis-lower
+     * downstream cell reads, e.g. isEmpty as list-length).
+     */
+    private static ExprType clampTdsCells(ExprType out) {
+        if (!(out.type() instanceof Type.RelationType rt)) {
+            return out;
+        }
+        List<Type.Column> cols = new java.util.ArrayList<>(rt.columns().size());
+        boolean changed = false;
+        for (Type.Column c : rt.columns()) {
+            if (c.multiplicity().isMany()) {
+                cols.add(new Type.Column(c.name(), c.type(),
+                        Multiplicity.Bounded.ZERO_ONE));
+                changed = true;
+            } else {
+                cols.add(c);
+            }
+        }
+        return changed ? new ExprType(
+                new Type.RelationType(cols, rt.dynamicColumns()),
+                out.multiplicity()) : out;
     }
 
     /**

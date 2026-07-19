@@ -404,6 +404,31 @@ final class Substitution {
             out.add(ma.property());
             return out;
         }
+        // ->subType(@Sub).prop: canonicalize to the class-qualified
+        // subtype-dispatch leaf (ClassMapping.subTypeColumn) — the union
+        // synthesis projects it thread-local, so the read is an ordinary
+        // (nav) leaf; a single-element result (cast on the head var) is
+        // consumed by the SUBTYPE_KEY switch arm instead
+        if (n instanceof TypedPropertyAccess pa0
+                && pa0.source() instanceof TypedNativeCall sc
+                && sc.callee().qualifiedName()
+                        .equals("meta::pure::functions::lang::subType")
+                && !sc.args().isEmpty()
+                && sc.info().type() instanceof Type.ClassType sct) {
+            if (sc.args().get(0) instanceof TypedVariable v0
+                    && v0.name().equals(userVar)) {
+                return List.of(com.legend.model.ClassMapping
+                        .subTypeColumn(sct.fqn(), pa0.property()));
+            }
+            List<String> inner = pathOf(sc.args().get(0), userVar);
+            if (inner == null) {
+                return null;
+            }
+            List<String> out = new ArrayList<>(inner);
+            out.add(com.legend.model.ClassMapping
+                    .subTypeColumn(sct.fqn(), pa0.property()));
+            return out;
+        }
         if (!(n instanceof TypedPropertyAccess pa)) {
             return null;
         }
@@ -933,6 +958,22 @@ final class Substitution {
                     + " '" + head + "." + leaf + "' — the demand scan and the"
                     + " rewrite disagreed");
         }
+        // A subtype-dispatch leaf whose class carries a MEMBERSHIP WITNESS
+        // (partial membership) needs row RESTRICTION at this to-many
+        // position (engine routes the navigation to conforming member sets
+        // only) — not routed yet, and a plain join would emit WRONG ROWS
+        // (NULL-celled non-members surviving the explosion)
+        if (com.legend.model.ClassMapping.isSubTypeColumn(leaf)) {
+            for (String k : a.targetBindings().keySet()) {
+                String w = com.legend.model.ClassMapping.memberWitness();
+                if (k.endsWith("___" + w) && leaf.startsWith(
+                        k.substring(0, k.length() - w.length()))) {
+                    throw new NotImplementedException("subType(@...) over a"
+                            + " navigation whose target has PARTIAL membership"
+                            + " (row restriction) is not supported yet");
+                }
+            }
+        }
         TypedSpec leafBinding = a.targetBindings().get(leaf);
         if (leafBinding == null) {
             // GENERATED temporal-context property on the TARGET instance:
@@ -1052,6 +1093,7 @@ final class Substitution {
             case TypedCBoolean ignored -> n;
             case TypedCDate ignored -> n;
             case TypedEnumValue ignored -> n;
+            case com.legend.compiler.spec.typed.TypedTypeRef ignored -> n;
             case TypedLambda l -> {
                 if (l.parameters().contains(param)) {
                     yield l;   // shadowing: substitution stops

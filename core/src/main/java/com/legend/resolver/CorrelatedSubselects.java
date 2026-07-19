@@ -768,11 +768,16 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             // subclass's mapped properties as class-qualified thread-local
             // columns (NULL in other threads) — the cast's binding table
             // is those column reads off the union row
+            // the contract marker may ride under a materialization slot
+            // prefix (auto-map hop rows carry the union's columns
+            // hop-prefixed) — match the marker anywhere, read the FULL
+            // column name
             String stPrefix = com.legend.model.ClassMapping.subTypeColumnPrefix(fqn);
             Map<String, TypedSpec> stBindings = new LinkedHashMap<>();
             for (Type.Column c : cs.rowType().columns()) {
-                if (c.name().startsWith(stPrefix)) {
-                    stBindings.put(c.name().substring(stPrefix.length()),
+                int at = c.name().indexOf(stPrefix);
+                if (at >= 0) {
+                    stBindings.put(c.name().substring(at + stPrefix.length()),
                             new TypedPropertyAccess(
                                     new TypedVariable(cs.rowVar(),
                                             ExprType.one(cs.rowType())),
@@ -798,13 +803,20 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             for (Type.Column c : cs.rowType().columns()) {
                 parentCols.add(c.name().toLowerCase());
             }
+            // a sub reading columns outside the parent row is not servable
+            // same-source — SKIP (not throw): the cast may sit in a NAV
+            // position served by the path funnel's subtype-leaf
+            // canonicalization; a truly unservable read goes loud at the
+            // read site
+            boolean sameSource = true;
             for (String col : cols) {
                 if (!parentCols.contains(col.toLowerCase())) {
-                    throw new NotImplementedException("subType(@" + fqn
-                            + ") over a subtype mapped to its own source"
-                            + " (reads column '" + col + "' outside the"
-                            + " parent row) is not supported yet");
+                    sameSource = false;
+                    break;
                 }
+            }
+            if (!sameSource) {
+                continue;
             }
             assocs.put(Substitution.SUBTYPE_KEY + fqn,
                     new Substitution.AssocSub("", sub.rowVar(),

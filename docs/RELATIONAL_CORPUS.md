@@ -66,7 +66,7 @@ in-process Alloy-shaped path).
 | tests/mapping/groupBy | 10 | 8 | 0 | 2 | 0 |
 | tests/mapping/inClause | 4 | 0 | 0 | 0 | 4 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
-| tests/mapping/inheritance | 47 | 25 | 0 | 22 | 0 |
+| tests/mapping/inheritance | 47 | 32 | 0 | 15 | 0 |
 | tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 |
 | tests/mapping/join | 28 | 20 | 2 | 6 | 0 |
 | tests/mapping/merge | 1 | 0 | 0 | 1 | 0 |
@@ -85,7 +85,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1158** | 55 | 712 | 613 |
+| **total** | 2538 | **1165** | 55 | 705 | 613 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4677,7 +4677,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Product], multiplicity=Bounded[lower=1, upper=1]]], predicate=TypedLambda[parameters=[p], body=[TypedNa
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -5082,7 +5082,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -5105,7 +5105,7 @@ in-process Alloy-shaped path).
 - ERROR testLatestMilestoneDatePropogationFromTypeQueryDoesNotOverrideThatSpecifiedAsArgToMilestonedQpInFilter [milestoning/tests]: scalar lowering not yet implemented for TypedCLatestDate
 - ERROR testLatestMilestoneDateMappedTableDateDoesNotOverrideLatestDateFromChildPropertyInPropogation [milestoning/tests]: scalar lowering not yet implemented for TypedCLatestDate
 - ERROR testMilestoneDatePropogationThruExistsConditionalClause [milestoning/tests]: milestoned property access 'classification' on a NESTED navigation is not supported yet
-- ERROR testMilestoningContextIsPropogatedThroughSubType [milestoning/tests]: class-typed property '$o.product' used as a whole value is graph output (Phase H4)
+- ERROR testMilestoningContextIsPropogatedThroughSubType [milestoning/tests]: multi-hop navigation product.stc_meta__relational__tests__milestoning__Product___classification.description through an embedded/slot head is not supported yet
 - ERROR testInThruInclusiveUnionInThruInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::InThruInclusiveUnionInThruInclusiveMapping'
 - ERROR testOutFromInclusiveUnionOutFromInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::OutFromInclusiveUnionOutFromInclusiveMapping'
 - SHAPE testAssoWithOtherwise [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -5563,7 +5563,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestonedEmbeddedInlineGraphFetch [tests/mapping/embedded]: graph child 'address' of class 'meta::relational::tests::mapping::embedded::advanced::model::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - ERROR testMilestonedExtendsEmbeddedGraphFetch [tests/mapping/embedded]: graph child 'firm' of class 'meta::relational::tests::mapping::embedded::advanced::model::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - ERROR testMilestonedInlineGraphFetchWithEnumProperty [tests/mapping/embedded]: graph child 'genderInfo' of class 'meta::relational::tests::mapping::embedded::advanced::model::PersonWithGenderInfo' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- ERROR testSubType [tests/mapping/embedded]: class-typed property '$p.issuer' used as a whole value is graph output (Phase H4)
+- ERROR testSubType [tests/mapping/embedded]: property 'stc_meta__relational__tests__mapping__embedded__advanced__model__Party___name' of embedded 'issuer' on class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbedde
 - SHAPE testEnumTheSame [tests/mapping/enumeration]: no execute(|...) call
 - ERROR testMapping [tests/mapping/enumeration]: runtime 'rcorpus::Rt' has 2 mappings binding class 'meta::relational::tests::mapping::enumeration::model::domain::Employee' (of 2 candidates); class-query dispatch needs exactly one
 - ERROR testEnumInRelation [tests/mapping/enumeration]: unknown type 'meta::pure::metamodel::relation::TDS' in @meta::pure::metamodel::relation::TDS
@@ -5581,7 +5581,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- ERROR testPropertyMappingsForA [tests/mapping/extends]: association property '$a.e' used other than as a navigation head (class-typed value / isEmpty / whole-instance) is not supported yet
+- ERROR testPropertyMappingsForA [tests/mapping/extends]: property 'stc_meta__relational__tests__mapping__extend__model__F___fName' of class 'meta::relational::tests::mapping::extend::model::E' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
 - ERROR testPropertyMappingsForB [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
 - ERROR testPropertyMappingsForC [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
 - FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
@@ -5592,7 +5592,7 @@ in-process Alloy-shaped path).
 - ERROR testEmbeddedPropertyMappingForUnionForC [tests/mapping/extends/union]: property 'm1' of class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::union::embeddedPropertyMapping::testMapping'
 - ERROR testInlineEmbeddedPropertyMappingForUnionForB [tests/mapping/extends/union]: property 'm1' of class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::union::inlineEmbeddedPropertyMapping::testMapping'
 - ERROR testInlineEmbeddedPropertyMappingForUnionForC [tests/mapping/extends/union]: property 'm1' of class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::union::inlineEmbeddedPropertyMapping::testMapping'
-- ERROR testPropertyMappingsForA [tests/mapping/extends/union]: class-typed property '$a.e' used as a whole value is graph output (Phase H4)
+- ERROR testPropertyMappingsForA [tests/mapping/extends/union]: property 'stc_meta__relational__tests__mapping__extend__model__F___fName' of class 'meta::relational::tests::mapping::extend::model::E' is not mapped in mapping 'meta::relational::tests::mapping::extend::union::propertyMapping::testMapping'
 - ERROR testPropertyMappingsForB [tests/mapping/extends/union]: property 'e' of class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::union::propertyMapping::testMapping'
 - ERROR testPropertyMappingsForC [tests/mapping/extends/union]: property 'e' of class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::union::propertyMapping::testMapping'
 - ERROR filterMappingWithJoinInFilterAndPropertyGetAll [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::model::simple::Person' reads through a join slot; join-mediated mapping filters are H3-pending
@@ -5610,24 +5610,17 @@ in-process Alloy-shaped path).
 - ERROR testFilterProjectBooleanInFilter [tests/mapping/inheritance]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
 - ERROR testGetAll [tests/mapping/inheritance]: no SQL type for generic Class<meta::relational::tests::model::inheritance::RoadVehicle> at the lowering boundary
 - ERROR testSubTypeFilter [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
-- ERROR testSubTypeProjectWithAssociation [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
-- ERROR testSubTypeProjectShared [tests/mapping/inheritance]: subType(@meta::relational::tests::model::inheritance::RoadVehicle) over a subtype mapped to its own source (reads column 'wheelCount' outside the parent row) is not supported yet
-- ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/inheritance]: subType(@meta::relational::tests::model::inheritance::Car) over a subtype mapped to its own source (reads column 'engineType' outside the parent row) is not supported yet
-- ERROR testSubTypeGroupBy [tests/mapping/inheritance]: class-typed property '$p.vehicles' used as a whole value is graph output (Phase H4)
-- ERROR testSubTypeGroupByThroughMap [tests/mapping/inheritance]: subType(@meta::relational::tests::model::inheritance::Car) over a subtype mapped to its own source (reads column 'engineType' outside the parent row) is not supported yet
-- ERROR testEmbeddMappingInSubTypes [tests/mapping/inheritance]: class-typed property '$f.vehicles' used as a whole value is graph output (Phase H4)
+- ERROR testSubTypeProjectWithAssociation [tests/mapping/inheritance]: subType(@...) over a navigation whose target has PARTIAL membership (row restriction) is not supported yet
+- ERROR testEmbeddMappingInSubTypes [tests/mapping/inheritance]: class 'meta::relational::tests::model::inheritance::Vehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::inheritanceWithEmbedded' (Operation union members of 'meta::relational::tests::model::inheritance::Vehicle' map no scalar properties; mapping=meta::relational::tests:
 - ERROR testMilestonedSubTyping [tests/mapping/inheritance]: class 'meta::relational::tests::model::inheritance::milestoned::Vehicle' is not mapped in mapping 'meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping'
 - ERROR testMilestonedSubTypingWithDifferentDates [tests/mapping/inheritance]: class 'meta::relational::tests::model::inheritance::milestoned::Vehicle' is not mapped in mapping 'meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping'
 - ERROR testProjectAssociation [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::multiJoins::inheritance' (property 'vehicles' routes to union member set 'map1' via a CHAINED join — per-member chained joins are not supported yet; 
-- ERROR testForcedSubTypeProjectDirect [tests/mapping/inheritance]: property 'person' of class 'meta::relational::tests::model::inheritance::Bicycle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::multiJoins::inheritance'
-- ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/inheritance]: subType(@meta::relational::tests::model::inheritance::Car) over a subtype mapped to its own source (reads column 'person' outside the parent row) is not supported yet
+- ERROR testForcedSubTypeProjectDirect [tests/mapping/inheritance]: property 'stc_meta__relational__tests__model__inheritance__Bicycle___person' of class 'meta::relational::tests::model::inheritance::RoadVehicle' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::multiJoins::inheritance'
 - ERROR testFilterProjectBooleanInFilter [tests/mapping/inheritance]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
 - ERROR testGetAll [tests/mapping/inheritance]: no SQL type for generic Class<meta::relational::tests::model::inheritance::RoadVehicle> at the lowering boundary
 - ERROR testSubTypeFilter [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
-- ERROR testSubTypeProjectWithAssociation [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
-- ERROR testSubTypeProjectShared [tests/mapping/inheritance]: subType(@meta::relational::tests::model::inheritance::RoadVehicle) over a subtype mapped to its own source (reads column 'wheelCount' outside the parent row) is not supported yet
-- ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/inheritance]: subType(@meta::relational::tests::model::inheritance::Car) over a subtype mapped to its own source (reads column 'engineType' outside the parent row) is not supported yet
-- ERROR testProjectSubtype [tests/mapping/inheritance]: class-typed property '$t.product' used as a whole value is graph output (Phase H4)
+- ERROR testSubTypeProjectWithAssociation [tests/mapping/inheritance]: subType(@...) over a navigation whose target has PARTIAL membership (row restriction) is not supported yet
+- ERROR testProjectSubtype [tests/mapping/inheritance]: multi-hop navigation product.stc_meta__relational__tests__mapping__subType__MyProduct___rating.description through an embedded/slot head is not supported yet
 - ERROR testSubTypeMappingValidWhenMappedExplicitly [tests/mapping/inheritance]: unknown function '_classMappingByClass'
 - ERROR testFilterOnSimpleTypePropertyDeepWithJoinInMapping [tests/mapping/join]: Binder Error: Referenced table "t2" not found! | Candidate tables: "t0" |  | LINE 4: ...RSON_ID, t2.EXTRAINFO AS Person_PersonExtension_EXTRAINFO, t2.NUMBER AS Person_PersonExtension_NUMBER, t2.AGE AS Perso... |                                                                       ^
 - ERROR testFilterDeepWithJoinInMappingInMiddle [tests/mapping/join]: navigation through class-typed slot property 'firm' is not supported yet
@@ -5788,7 +5781,7 @@ in-process Alloy-shaped path).
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_AddressIdKey [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_FirmIdKey_Unmapped [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_FirmIdKey_Mapped [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonExt1' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties'
+- ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'stc_meta__relational__tests__mapping__union__partial__PersonExt1___ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonBase' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties'
 - ERROR testSimpleQueryFromAssociationMapping [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping'
 - ERROR testSimpleQueryToAssociationMapping [tests/mapping/union]: property 'employees' of class 'meta::relational::tests::mapping::union::extend::Firm' has no binding in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
 - ERROR testProjectThroughAssoWithAssociationMapping [tests/mapping/union]: property 'employees' of class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping'

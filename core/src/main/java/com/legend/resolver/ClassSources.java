@@ -179,6 +179,21 @@ public final class ClassSources {
             bindings.put(e.getKey(), e.getValue());
         }
 
+        // SUBTYPE-DISPATCH pseudo-bindings: a union/inheritance synthesis
+        // carries class-qualified thread-local subtype columns
+        // (ClassMapping.subTypeColumn contract) in its row — expose each as
+        // a binding keyed by its own column name so subType(@Sub).prop
+        // reads dispatch through the ordinary binding table (nav positions
+        // included: assocLeaf resolves the synthetic leaf like any other)
+        for (Type.Column c : rowType.columns()) {
+            if (com.legend.model.ClassMapping.isSubTypeColumn(c.name())) {
+                bindings.put(c.name(), new TypedPropertyAccess(
+                        new TypedVariable(mapper.parameters().get(0),
+                                ExprType.one(rowType)),
+                        c.name(), new ExprType(c.type(), c.multiplicity())));
+            }
+        }
+
         // A ~func Relation pipeline may ITSELF be a class query
         // (PersonWithFirmId.all()->filter->project — the relation-family
         // MixedMapping): resolve it recursively with a FRESH resolver
