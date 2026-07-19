@@ -21,11 +21,15 @@ import java.util.stream.Collectors;
 public final class DuckDb extends AnsiSqlRenderer {
 
     /**
-     * JSON cells normalize to pure's CANONICAL COMPACT spelling — the
-     * Variant contract is the JSON text itself, and pure prints compact
-     * ({@code [1,2,3]}, {@code {"k":null}}) where DuckDB's own text
-     * spells decorative spaces ({@code [ 1, 2 , 3 ]}). Whitespace inside
-     * string literals is payload and survives.
+     * JSON cells normalize to pure's canonical COMPACT spelling. WATCHED
+     * STAND-IN (audit pct2-a F2, deletion adjudicated by sweep: -3 —
+     * wire cells that never pass the SQL {@code json()} channel need it):
+     * whitespace-outside-strings only — no number-lexeme reprint, no
+     * duplicate-key dedup (pure's Variant is a full Jackson reprint).
+     * Payload fidelity probe-verified (pct2-b F8); the missing
+     * canonicalizations have no fixture witnesses and fail LOUD
+     * (string-exact grid compare) when they ever bite. A real reprint
+     * needs a JSON reader in core — ledgered, not smuggled.
      */
     @Override
     public Object normalize(Object jdbcValue, com.legend.sql.SqlType type) {

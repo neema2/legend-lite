@@ -116,3 +116,9 @@ git commit (document deltas per-commit) && push origin main
   on MATCHING (including matching a failure line) — a red gate committed
   and pushed exactly once this way (4a6de11c, engine 2729/1; healed in
   the follow-up). Read the counts, THEN commit as a separate step.
+- A gate-grep that finds NOTHING is silent, not green: the pct leg's
+  aggregate line went missing from chained runs for several commits while
+  one Essential test was red (an A4a digit-count regression the frozen
+  1109 gate existed to catch; pct's surefire testFailureIgnore=true adds a
+  second silence layer). Verify PCT PER-CLASS counts (327/348/136/204/94
+  + aggregate 1109), never one aggregate grep.

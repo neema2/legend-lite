@@ -1230,7 +1230,10 @@ public final class Pure {
     // native (StatementExecutor.relationToString spells the '#TDS' grid) —
     // platform-owned, the reflective bodies never join the overload set.
     public static final NativeFunctionDefinition TO_STRING__RELATION_1 = signature("native function meta::pure::functions::relation::toString<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::type::String[1];");
-    public static final NativeFunctionDefinition TO_STRING__RELATION_1__BOOLEAN_1 = signature("native function meta::pure::functions::relation::toString<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], typesAndMuls:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::String[1];");
+    // NO 2-arg toString(rel, typesAndMuls) entry: a registered native with
+    // no execution owner in any layer sat here through two audits (pct-c
+    // F6, pct2-c) — a call now resolves to NO overload, loudly, until the
+    // typed-header spelling gets a real K owner.
     public static final NativeFunctionDefinition SIZE__T_MANY = signature("native function meta::pure::functions::collection::size<T>(col:T[*]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition SLICE__RELATION_1__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::relation::slice<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], start:meta::pure::metamodel::type::Integer[1], stop:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     public static final NativeFunctionDefinition SLICE__T_MANY__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::collection::slice<T>(set:T[*], start:meta::pure::metamodel::type::Integer[1], end:meta::pure::metamodel::type::Integer[1]):T[*];");

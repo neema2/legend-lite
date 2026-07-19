@@ -8,13 +8,13 @@
 
 | suite | files | parse-walled | `<<PCT.test>>` (textual) | discovered | **PASS** | FAIL | ERROR | SHAPE | element walls | body walls |
 |---|---|---|---|---|---|---|---|---|---|---|
-| essential | 177 | 8 | 329 | 327 | **288** | 15 | 15 | 9 | 16 | 635 |
+| essential | 177 | 8 | 329 | 327 | **287** | 16 | 15 | 9 | 16 | 635 |
 | grammar | 48 | 0 | 136 | 136 | **122** | 3 | 7 | 4 | 2 | 242 |
 | relation | 49 | 0 | 350 | 350 | **301** | 19 | 29 | 1 | 3 | 368 |
 | standard | 55 | 0 | 205 | 204 | **174** | 22 | 7 | 1 | 0 | 235 |
 | unclassified | 67 | 0 | 96 | 94 | **93** | 0 | 1 | 0 | 13 | 157 |
 | variant | 7 | 0 | 88 | 88 | **53** | 16 | 19 | 0 | 0 | 91 |
-| **total** | **403** | **8** | **1204** | **1199** | **1031** | **75** | **78** | **15** | | |
+| **total** | **403** | **8** | **1204** | **1199** | **1030** | **76** | **78** | **15** | | |
 
 ## Top ERROR buckets
 
@@ -69,6 +69,7 @@
 - FAIL meta::pure::functions::date::tests::testDateFromHour [essential:date/creation/date.pure]: assertEquals: expected 1973-11-13 23:00:00.0, got 1973-11-13T23
 - FAIL meta::pure::functions::date::tests::testDateFromMinute [essential:date/creation/date.pure]: assertEquals: expected 1973-11-13 23:09:00.0, got 1973-11-13T23:09
 - FAIL meta::pure::functions::date::tests::testDateFromSubSecond [essential:date/creation/date.pure]: assertEquals: expected 1973-11-13 23:09:11.0, got 1973-11-13T23:09:11.0
+- FAIL meta::pure::functions::date::tests::testAdjustByMicrosecondsBigNumber [essential:date/operation/adjust.pure]: assertEquals: expected 2021-06-21 09:37:37.499, got 2021-06-21T09:37:37.4990000
 - FAIL meta::pure::functions::math::tests::toDecimal::testIntToDecimal [essential:lang/cast/toDecimal.pure]: assertEquals: expected 8, got 8
 - FAIL meta::pure::functions::math::tests::rem::testRemError [essential:math/operation/rem.pure]: assertError: expected 'Cannot divide 5 by zero', got 'Invalid Input Error: Cannot divide 5 by zero'
 - FAIL meta::pure::functions::math::tests::testSquareRootError [essential:math/power/sqrt.pure]: assertError: expected 'Unable to compute sqrt of -1.0', got 'Invalid Input Error: Unable to compute sqrt of -1.0'

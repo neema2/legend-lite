@@ -106,8 +106,9 @@ public final class Executor {
     private static Object latticeKind(Object v, Type rootType, SqlQuery plan) {
         // The MIXED-ELEMENT IDENTITY channel: selections over mixed-kind
         // Number collections return each element's pure PRINT FORM as text
-        // ('2', '2.0', '7.345D') — parsed back to its own kind here. (DATE
-        // identities stay strings — the wire's date convention.)
+        // ('2', '2.0', '7.345D') — parsed back to its own kind here, and
+        // the DATE lattice below does the same (A4a; the old stay-string
+        // convention was the typing bug the comparator refused to bridge).
         if (rootType == Type.Primitive.NUMBER && v instanceof String s) {
             if (s.endsWith("D")) {
                 return new java.math.BigDecimal(s.substring(0, s.length() - 1));
@@ -125,12 +126,28 @@ public final class Executor {
         // was the A4 typing bug wireEquals correctly refused to bridge.
         if (rootType == Type.Primitive.DATE && v instanceof String s) {
             String iso = s.endsWith("+0000") ? s.substring(0, s.length() - 5) : s;
-            if (iso.length() == 10 && iso.charAt(4) == '-') {
-                return java.time.LocalDate.parse(iso);
-            }
-            if (iso.length() > 10 && iso.charAt(10) == 'T') {
-                return java.sql.Timestamp.valueOf(
-                        java.time.LocalDateTime.parse(iso));
+            try {
+                if (iso.length() == 10 && iso.charAt(4) == '-') {
+                    return java.time.LocalDate.parse(iso);
+                }
+                // A fraction with TRAILING ZEROS cannot round-trip a
+                // Timestamp: pure's subsecond DIGIT COUNT is part of the
+                // value ('.4990000' != '.499' — adjust-by-micros pins it
+                // through the pct parity gate), and Timestamp re-prints
+                // minimal digits. Non-round-trippable forms STAY on the
+                // string carrier.
+                int dot = iso.indexOf('.');
+                if (dot >= 0 && iso.endsWith("0")) {
+                    return v;
+                }
+                if (iso.length() > 10 && iso.charAt(10) == 'T') {
+                    return java.sql.Timestamp.valueOf(
+                            java.time.LocalDateTime.parse(iso));
+                }
+            } catch (java.time.format.DateTimeParseException e) {
+                // a shape that satisfied the guards but isn't a print form
+                // (audit pct2-a F3: 3-digit BC year '-499-01-01') — fall
+                // through to the passthrough; the compare stays loud
             }
             return v;   // not a print form — leave untouched, compare stays loud
         }

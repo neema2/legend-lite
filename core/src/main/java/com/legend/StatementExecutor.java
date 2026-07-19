@@ -301,6 +301,16 @@ final class StatementExecutor {
     }
 
     private static String pureDateTime(java.time.LocalDateTime ldt) {
+        // .SSS is the engine's EXACT TestTDS wire (fromCalendar %03d,
+        // always 3 digits) — but a SUB-millisecond value would truncate
+        // SILENTLY into a spelling identical to a correct pin (audit
+        // pct2-b M4's probe: two grids differing at micros compared
+        // EQUAL). No wire can carry it; the wall keeps it impossible.
+        if (ldt.getNano() % 1_000_000 != 0) {
+            throw new com.legend.error.NotImplementedException(
+                    "sub-millisecond DateTime in a TDS grid cell ("
+                            + ldt + ") — the engine wire is millisecond-wide");
+        }
         return ldt.format(java.time.format.DateTimeFormatter
                 .ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS")) + "+0000";
     }
