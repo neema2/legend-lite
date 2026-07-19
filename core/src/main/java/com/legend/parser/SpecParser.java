@@ -657,6 +657,13 @@ public final class SpecParser implements TokenStreamCursor {
                     }
                     yield parseQualifiedNameStart();
                 }
+                // a BARE `::` in value position is the ROOT-PACKAGE
+                // reference (corpus: ^Database(package = ::)) — a nominal
+                // element pointer; instance-metamodel consumers stay loud
+                if (t == TokenType.PATH_SEPARATOR) {
+                    advance();
+                    yield new PackageableElementPtr("::");
+                }
                 throw error("unsupported expression token: " + t
                         + " ('" + safeText() + "')");
             }

@@ -380,6 +380,22 @@ public final class ElementParser implements TokenStreamCursor {
 
         List<String> typeParams = parseClassTypeParams();
 
+        // PROJECTION class: `Class X projects Y { > name [expr] | +[props]
+        // | * }` (engine class-projection grammar). Parsed as a NOMINAL
+        // element so referencing mappings/queries resolve the name; the
+        // projection semantics (flattened derived surface) stay loud
+        // downstream — parse-level unlock only.
+        if (peek() == TokenType.VALID_STRING && "projects".equals(safeText())) {
+            advance();
+            parseQualifiedName();      // the projected source class
+            if (peek() == TokenType.BRACE_OPEN) {
+                mappingGrammar.skipBalancedBlock();
+            }
+            return new ClassDefinition(qualifiedName, typeParams, List.of(),
+                    List.of(), List.of(), List.of(), stereotypes,
+                    taggedValues, isNative);
+        }
+
         List<TypeExpression> superClasses = new ArrayList<>();
         if (match(TokenType.EXTENDS)) {
             superClasses.add(parseType());
@@ -680,11 +696,31 @@ public final class ElementParser implements TokenStreamCursor {
     // ============================================================
 
     /** {@code Association <<stereos>> {tags} qualifiedName { end1; end2; }} */
-    private AssociationDefinition parseAssociation() {
+    private PackageableElement parseAssociation() {
         expect(TokenType.ASSOCIATION);
         parseStereotypes();   // parity: engine consumes and drops
         parseTaggedValues();  // parity: engine consumes and drops
         String qualifiedName = parseQualifiedName();
+        // PROJECTION association: `Association X projects Y<A, B>` — a
+        // nominal registration only (like projection classes); the
+        // projected navigation semantics stay loud downstream.
+        if (peek() == TokenType.VALID_STRING && "projects".equals(safeText())) {
+            advance();
+            parseQualifiedName();
+            if (peek() == TokenType.LESS_THAN) {
+                // <A, B> type arguments — consume to the matching '>'
+                advance();
+                int depth = 1;
+                while (!atEnd() && depth > 0) {
+                    if (peek() == TokenType.LESS_THAN) depth++;
+                    if (peek() == TokenType.GREATER_THAN) depth--;
+                    advance();
+                }
+            }
+            return new ClassDefinition(qualifiedName, List.of(), List.of(),
+                    List.of(), List.of(), List.of(), List.of(), List.of(),
+                    false);
+        }
         expect(TokenType.BRACE_OPEN);
 
         List<AssociationEndDefinition> ends = new ArrayList<>();
