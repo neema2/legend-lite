@@ -129,11 +129,23 @@ class PctCorpusRunner {
             buildFailure = bucket(t.getClass().getSimpleName() + ": " + t.getMessage());
         }
 
+        // -Dpct.only=<fqn substring>: run the matching tests alone and
+        // print their FULL outcome details (the scoreboard caps details
+        // for diffability; single-test debugging needs the whole grid).
+        String only = System.getProperty("pct.only", "");
         List<TestResult> testResults = new ArrayList<>();
         if (ctx != null) {
             for (FileCensus f : files) {
                 for (PctTest t : f.tests()) {
-                    testResults.add(runTest(ctx, f, t));
+                    if (!only.isEmpty() && !t.fqn().contains(only)) {
+                        continue;
+                    }
+                    TestResult r = runTest(ctx, f, t);
+                    if (!only.isEmpty()) {
+                        System.out.println("[pct.only] " + r.outcome() + " "
+                                + r.fqn() + "\n" + r.detail());
+                    }
+                    testResults.add(r);
                 }
             }
         }
@@ -178,7 +190,7 @@ class PctCorpusRunner {
             String msg = e.getMessage() == null
                     ? e.getClass().getSimpleName()
                     : e.getMessage();
-            return new TestResult(t.fqn(), f.rel(), Outcome.ERROR, bucket(msg));
+            return new TestResult(t.fqn(), f.rel(), Outcome.ERROR, msg);
         }
     }
 
@@ -208,11 +220,11 @@ class PctCorpusRunner {
     private static TestResult classify(PctTest t, FileCensus f, TestBody.Outcome out) {
         return switch (out) {
             case TestBody.Outcome.Unsupported u ->
-                    new TestResult(t.fqn(), f.rel(), Outcome.SHAPE, bucket(u.reason()));
+                    new TestResult(t.fqn(), f.rel(), Outcome.SHAPE, u.reason());
             case TestBody.Outcome.Ran r -> {
                 if (!r.failures().isEmpty()) {
                     yield new TestResult(t.fqn(), f.rel(), Outcome.FAIL,
-                            bucket(r.failures().get(0)));
+                            r.failures().get(0));
                 }
                 if (r.verified() == 0 && r.advisory() > 0) {
                     yield new TestResult(t.fqn(), f.rel(), Outcome.SHAPE,
@@ -377,7 +389,7 @@ class PctCorpusRunner {
                 if (r.outcome() == Outcome.FAIL) {
                     sb.append("- FAIL ").append(r.fqn()).append(" [")
                             .append(s.suite().name()).append(':').append(r.file())
-                            .append("]: ").append(r.detail()).append('\n');
+                            .append("]: ").append(bucket(r.detail())).append('\n');
                 }
             }
         }
@@ -389,7 +401,7 @@ class PctCorpusRunner {
                 if (r.outcome() == Outcome.ERROR) {
                     sb.append("- ERROR ").append(r.fqn()).append(" [")
                             .append(s.suite().name()).append(':').append(r.file())
-                            .append("]: ").append(r.detail()).append('\n');
+                            .append("]: ").append(bucket(r.detail())).append('\n');
                 }
             }
         }

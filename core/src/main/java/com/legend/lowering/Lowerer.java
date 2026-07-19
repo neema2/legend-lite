@@ -1290,6 +1290,11 @@ public final class Lowerer {
                 return sortOnto(base, s);
             }
             keys.add(new SqlSelect.SortKey(e, k.ascending(), null));
+            // NO explicit null order on PLAIN sort — engine parity: the real
+            // engine emits no NULLS clause here and the corpus goldens pin
+            // H2 defaults (corpus gate: -9 with pure nulls-largest). Pure
+            // interpreted sorts nulls LARGEST — a real engine-vs-relational
+            // divergence; over() keeps its engine-verified explicit pin.
         }
         return base.withOrderBy(keys);
     }
@@ -1325,6 +1330,11 @@ public final class Lowerer {
                         + "' cannot be resolved after isolation");
             }
             keys.add(new SqlSelect.SortKey(e, k.ascending(), null));
+            // NO explicit null order on PLAIN sort — engine parity: the real
+            // engine emits no NULLS clause here and the corpus goldens pin
+            // H2 defaults (corpus gate: -9 with pure nulls-largest). Pure
+            // interpreted sorts nulls LARGEST — a real engine-vs-relational
+            // divergence; over() keeps its engine-verified explicit pin.
         }
         return base.withOrderBy(keys);
     }

@@ -21,7 +21,7 @@
 | count | detail |
 |---|---|
 | 9 | `unknown function 'chunk'` |
-| 5 | `Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!\\n or: Referenced column "_i0" was not found because the FROM clause is missing` |
+| 5 | `Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!\n or: Referenced column "_i0" was not found because the FROM clause is missing` |
 | 5 | `TDS column type 'Integer[1]' is not a known primitive` |
 | 4 | `Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!` |
 | 4 | `unknown class 'CO_Firm' in ^CO_Firm(…)` |
@@ -39,7 +39,7 @@
 | 1 | `Conversion Error: date field value out of range: "33803336-12-17"` |
 | 1 | `Conversion Error: date field value out of range: "800002016-02-29"` |
 | 1 | `Conversion Error: timestamp field value out of range: "1410404-07-12T00:00:00"` |
-| 1 | `Parser Error: unterminated quoted string at or near "'"\\n\\nLINE 1: SELECT '\\n               ^` |
+| 1 | `Parser Error: unterminated quoted string at or near "'"\n\nLINE 1: SELECT '\n               ^` |
 | 1 | `TDS column type 'String[1]' is not a known primitive` |
 | 1 | `The type meta::pure::functions::variant::convert::tests::to::Person is not supported yet!` |
 | 1 | `The type meta::pure::functions::variant::convert::tests::to::Pet is not supported yet!` |
