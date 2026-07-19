@@ -25,10 +25,13 @@ final class NavMaterializer {
 
     private final ClassSources sources;
     private final AssociationJoins assocs;
+    private final SyntheticHeads synthetics;
 
-    NavMaterializer(ClassSources sources, AssociationJoins assocs) {
+    NavMaterializer(ClassSources sources, AssociationJoins assocs,
+            SyntheticHeads synthetics) {
         this.sources = sources;
         this.assocs = assocs;
+        this.synthetics = synthetics;
     }
 
     /**
@@ -90,7 +93,8 @@ final class NavMaterializer {
             if (tail.isEmpty()) {
                 continue;
             }
-            TypedSpec b = t.bindings().get(tail.get(0));
+            TypedSpec b = t.bindings().get(
+                    SyntheticHeads.realHead(tail.get(0)));
             if (b == null) {
                 // ASSOC-SUB (union V3): the tail continues through an
                 // ASSOCIATION end on this target (head y is a nav slot, z
@@ -98,8 +102,12 @@ final class NavMaterializer {
                 // hop only; deeper tails and context-less temporal targets
                 // keep their loud walls.
                 if (tail.size() == 2) {
+                    // a SYNTHETIC (filter-lifted) sub-head resolves by its
+                    // REAL property; associationJoin below parks the pred
+                    // on the sub-target (#70 — testQualifierInLambdaDeep)
                     var subClsOpt = assocs.assocTargetClassOf(
-                            targetClassFqn, tail.get(0));
+                            targetClassFqn,
+                            SyntheticHeads.realHead(tail.get(0)));
                     // a UNION-mapped assoc target needs per-member routed
                     // conditions (V4) — the plain predicate returns PARTIAL
                     // rows; stays loud until that rung is built
@@ -125,6 +133,12 @@ final class NavMaterializer {
             }
             StoreResolver.collectAliasReads(b, t.rowVar(), tSlots, tDemand);
             if (tail.size() >= 2) {
+                // a CORRELATED pred on a filtered sub-hop cannot park
+                // in-target — leave the step undemanded (loud read),
+                // never an unfiltered join (wrong rows)
+                if (synthetics.correlatedPred(tail.get(0)) != null) {
+                    continue;
+                }
                 String subAlias = StoreResolver.navSlotAlias(b, t.rowVar(), tNavSteps.keySet());
                 if (subAlias != null) {
                     // audit 12 F2: a TEMPORAL (or gated) sub-target must NOT
@@ -188,7 +202,8 @@ final class NavMaterializer {
         final Map<String, String> midByAlias = new LinkedHashMap<>();
         for (List<String> tail : tails) {
             if (tail.size() >= 2) {
-                TypedSpec b2 = t.bindings().get(tail.get(0));
+                TypedSpec b2 = t.bindings().get(
+                        SyntheticHeads.realHead(tail.get(0)));
                 String a2 = b2 == null ? null
                         : StoreResolver.navSlotAlias(b2, t.rowVar(), tNavSteps.keySet());
                 if (a2 != null) {
@@ -209,6 +224,18 @@ final class NavMaterializer {
                     subMats.put(alias, subMat);
                     subClsByAlias.put(alias, cls);
                     TypedSpec sub = subMat.pipeline();
+                    // a filter-LIFTED sub-hop's parked pred applies to the
+                    // sub-target pipeline (engine golden
+                    // testQualifierInLambdaDeep: the filtered subselect
+                    // joins the chain; correlated heads never demand here)
+                    String synthProp = midByAlias.get(alias);
+                    if (synthProp != null) {
+                        final NavMat sm2 = subMat;
+                        sub = synthetics.applyToPipe(synthProp, sub,
+                                (pp, pred) -> StoreResolver.predFilteredPipe(
+                                        pp, sources.get(mappingFqn, cls),
+                                        sm2.slotPrefixes(), pred, mappingFqn));
+                    }
                     // per-hop temporal filter: the sub-hop's chain-keyed
                     // spec or propagated context (parent = THIS target)
                     if (temporal.temporalStrategy(cls) != null && chainPrefix != null) {

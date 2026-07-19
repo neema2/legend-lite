@@ -233,15 +233,23 @@ final class SyntheticHeads {
         }
         if (enabled
                 && n instanceof TypedPropertyAccess pa
-                && pa.source() instanceof TypedFilter f
+                && filterBehindToOne(pa.source()) instanceof TypedFilter f
                 && f.predicate().parameters().size() == 1
                 && f.info().type()
                         instanceof Type.ClassType
                 && isLiftableNav(f.source())
+                // scalar ([0..1]) reads: DEPTH-1 heads stay with the
+                // correlated-scalar arm (filteredNavLeafRead — the
+                // complementary split); a DEEP head has no scalar arm and
+                // lifts into the chained assoc-join route, whose LEFT
+                // joins deliver NULL on no match (engine golden
+                // testQualifierInLambdaDeep: the closed pred wraps the
+                // chained hop's target subselect).
                 && !(pa.info().multiplicity()
                         instanceof com.legend.compiler.element.type
                                 .Multiplicity.Bounded b
-                        && Integer.valueOf(1).equals(b.upper()))) {
+                        && Integer.valueOf(1).equals(b.upper())
+                        && directlyOnVar(f.source()))) {
             TypedSpec head = liftFilteredHeads(f.source(), true);
             TypedSpec renamed;
             String synth;
@@ -611,6 +619,33 @@ final class SyntheticHeads {
             return navBottomsAtVar(ma.source());
         }
         return false;
+    }
+
+    /** The filter node, looking through a conform-by-emission
+     * {@code ->toOne()} wrapper (a qualifier body's own coercion —
+     * multiplicity-only, SQL-erased; the read semantics are the LEFT
+     * join's NULL-on-no-match either way). */
+    private static TypedSpec filterBehindToOne(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                && c.args().size() == 1
+                && c.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")) {
+            return c.args().get(0);
+        }
+        return n;
+    }
+
+    /** The navigation's receiver IS the lambda variable (depth-1 head). */
+    private static boolean directlyOnVar(TypedSpec n) {
+        return switch (n) {
+            case TypedPropertyAccess pa ->
+                    pa.source() instanceof com.legend.compiler.spec.typed
+                            .TypedVariable;
+            case TypedMilestonedAccess ma ->
+                    ma.source() instanceof com.legend.compiler.spec.typed
+                            .TypedVariable;
+            default -> false;
+        };
     }
 
     private static boolean navBottomsAtVar(TypedSpec n) {

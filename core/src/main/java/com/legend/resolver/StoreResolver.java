@@ -106,7 +106,8 @@ public final class StoreResolver {
         this.assocMaterial = new AssociationJoins(ctx, sources, specs,
                 synthetics);
         this.corrSubs = new CorrelatedSubselects(sources, assocMaterial);
-        this.navMaterializer = new NavMaterializer(sources, assocMaterial);
+        this.navMaterializer = new NavMaterializer(sources, assocMaterial,
+                synthetics);
     }
 
     /** Resolve every statement of a query body (lets + final expression). */
@@ -2002,15 +2003,19 @@ public final class StoreResolver {
                     parentPrefix = known.prefix();
                     continue;
                 }
-                if (hop > 0 && synthetics.hasPred(path.get(hop))) {
-                    // a FILTERED navigation as a chained MID hop
-                    // ($x.firm.employees->filter(...).leaf): the engine's
-                    // expected rows for this shape disagree with plain
-                    // in-target pred placement (relation-family golden) —
-                    // needs its own golden-comparison cycle; loud until then
+                if (hop > 0 && synthetics.hasPred(path.get(hop))
+                        && synthetics.correlatedPred(path.get(hop)) != null) {
+                    // a CORRELATED pred on a chained MID hop: the
+                    // parent-copy reroute serves only hop-0 heads so far —
+                    // loud until the chained variant is built. CLOSED
+                    // preds fall through: associationJoin parks them on
+                    // the hop's target pipeline (engine golden
+                    // testQualifierInLambdaDeep — the filtered subselect
+                    // joins the chain).
                     throw new com.legend.error.NotImplementedException(
-                            "filtered navigation as a chained association"
-                            + " hop ('" + SyntheticHeads.realHead(path.get(hop))
+                            "correlated filtered navigation as a chained"
+                            + " association hop ('"
+                            + SyntheticHeads.realHead(path.get(hop))
                             + "' at '" + chainKey + "') is not supported yet");
                 }
                 AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(temporal, parent, path.get(hop), context, false,
