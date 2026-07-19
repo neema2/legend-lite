@@ -559,7 +559,7 @@ public final class TestBody {
                     "assertEqualsH2Compatible", "assertNotEquals",
                     "assertSameElements" -> assertEqualityFamily(af, cx);
             case "assertEqWithinTolerance", "assertSize", "assertEmpty",
-                    "assertNotEmpty" -> assertSizeFamily(af, cx);
+                    "assertNotEmpty", "assertInstanceOf" -> assertSizeFamily(af, cx);
             case "assertTdsEquivalent", "assertError" ->
                     assertTdsErrorFamily(af, cx);
             case "assertSameSQL", "assertJsonStringsEqual" ->
@@ -656,6 +656,35 @@ public final class TestBody {
             throws java.sql.SQLException {
         List<ValueSpecification> args = af.parameters();
         switch (simpleName(af.function())) {
+            case "assertInstanceOf" -> {
+                // real semantics: $instance->instanceOf($type)
+                // (assertInstanceOf.pure). PRIMITIVE targets check the wire
+                // value's own kind; class targets stay a loud SHAPE — the
+                // harness holds no instance graph to classify.
+                if (args.size() != 2 || !(args.get(1)
+                        instanceof com.legend.model.spec.PackageableElementPtr tp)) {
+                    return UNSUPPORTED_MARKER;
+                }
+                String target = tp.fullPath()
+                        .substring(tp.fullPath().lastIndexOf(':') + 1);
+                Object v = evalScalar(args.get(0), cx);
+                Boolean ok = switch (target) {
+                    case "Integer" -> v instanceof Long || v instanceof Integer
+                            || v instanceof java.math.BigInteger;
+                    case "Float" -> v instanceof Double || v instanceof Float;
+                    case "Decimal" -> v instanceof java.math.BigDecimal;
+                    case "Number" -> v instanceof Number;
+                    case "String" -> v instanceof String;
+                    case "Boolean" -> v instanceof Boolean;
+                    default -> null;   // class-typed target: wall
+                };
+                if (ok == null) {
+                    return UNSUPPORTED_MARKER;
+                }
+                return ok ? null : "assertInstanceOf: expected " + target
+                        + ", got " + (v == null ? "null"
+                                : v.getClass().getSimpleName());
+            }
             case "assertEqWithinTolerance" -> {
                 if (args.size() != 3) {
                     return UNSUPPORTED_MARKER;

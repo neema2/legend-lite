@@ -8,13 +8,13 @@
 
 | suite | files | parse-walled | `<<PCT.test>>` (textual) | discovered | **PASS** | FAIL | ERROR | SHAPE | element walls | body walls |
 |---|---|---|---|---|---|---|---|---|---|---|
-| essential | 177 | 8 | 329 | 327 | **287** | 16 | 15 | 9 | 16 | 635 |
-| grammar | 48 | 0 | 136 | 136 | **122** | 3 | 7 | 4 | 2 | 242 |
+| essential | 177 | 8 | 329 | 327 | **292** | 11 | 15 | 9 | 16 | 635 |
+| grammar | 48 | 0 | 136 | 136 | **123** | 2 | 7 | 4 | 2 | 242 |
 | relation | 49 | 0 | 350 | 350 | **301** | 19 | 29 | 1 | 3 | 368 |
-| standard | 55 | 0 | 205 | 204 | **174** | 22 | 7 | 1 | 0 | 235 |
+| standard | 55 | 0 | 205 | 204 | **177** | 20 | 7 | 0 | 0 | 235 |
 | unclassified | 67 | 0 | 96 | 94 | **93** | 0 | 1 | 0 | 13 | 157 |
 | variant | 7 | 0 | 88 | 88 | **53** | 16 | 19 | 0 | 0 | 91 |
-| **total** | **403** | **8** | **1204** | **1199** | **1030** | **76** | **78** | **15** | | |
+| **total** | **403** | **8** | **1204** | **1199** | **1039** | **68** | **78** | **14** | | |
 
 ## Top ERROR buckets
 
@@ -58,30 +58,24 @@
 |---|---|
 | 6 | `assert form 'assertError/4' is not supported yet` |
 | 6 | `assert form 'assertIs/2' is not supported yet` |
-| 2 | `assert form 'assertInstanceOf/2' is not supported yet` |
+| 1 | `assert form 'assertInstanceOf/2' is not supported yet` |
 | 1 | `no verifying assertions` |
 
 ## FAIL ledger
 
 - FAIL meta::pure::functions::collection::tests::sort::testMixedSortNoComparator [essential:collection/order/sort.pure]: assertEquals: expected [-2.0, 1.0, 5.0, 171.0, 342.0], got [-2.0, 1, 5.0, 171, 342]
-- FAIL meta::pure::functions::collection::tests::slice::testSliceError [essential:collection/slice/slice.pure]: assertError: expected 'The low bound (3) can't be higher than the high bound (2) in a slice operation', got 'Invalid Input Error: The low bound (3) can't be higher than the high bound (2) in a slice operation'
 - FAIL meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes [essential:collection/transformation/removeDuplicates.pure]: assertEquals: expected [1, 2, 3, 1, 3], got [1, 3, 1, 2, 3]
 - FAIL meta::pure::functions::date::tests::testDateFromHour [essential:date/creation/date.pure]: assertEquals: expected 1973-11-13 23:00:00.0, got 1973-11-13T23
 - FAIL meta::pure::functions::date::tests::testDateFromMinute [essential:date/creation/date.pure]: assertEquals: expected 1973-11-13 23:09:00.0, got 1973-11-13T23:09
 - FAIL meta::pure::functions::date::tests::testDateFromSubSecond [essential:date/creation/date.pure]: assertEquals: expected 1973-11-13 23:09:11.0, got 1973-11-13T23:09:11.0
 - FAIL meta::pure::functions::date::tests::testAdjustByMicrosecondsBigNumber [essential:date/operation/adjust.pure]: assertEquals: expected 2021-06-21 09:37:37.499, got 2021-06-21T09:37:37.4990000
 - FAIL meta::pure::functions::math::tests::toDecimal::testIntToDecimal [essential:lang/cast/toDecimal.pure]: assertEquals: expected 8, got 8
-- FAIL meta::pure::functions::math::tests::rem::testRemError [essential:math/operation/rem.pure]: assertError: expected 'Cannot divide 5 by zero', got 'Invalid Input Error: Cannot divide 5 by zero'
-- FAIL meta::pure::functions::math::tests::testSquareRootError [essential:math/power/sqrt.pure]: assertError: expected 'Unable to compute sqrt of -1.0', got 'Invalid Input Error: Unable to compute sqrt of -1.0'
-- FAIL meta::pure::functions::math::tests::trigonometry::testArcCosineError [essential:math/trigonometry/acos.pure]: assertError: expected 'Unable to compute acos of 2.0', got 'Invalid Input Error: Unable to compute acos of 2.0'
-- FAIL meta::pure::functions::math::tests::trigonometry::testArcSineError [essential:math/trigonometry/asin.pure]: assertError: expected 'Unable to compute asin of 2.0', got 'Invalid Input Error: Unable to compute asin of 2.0'
 - FAIL meta::pure::functions::string::tests::parseDate::testParseDateWithZ [essential:string/parse/parseDate.pure]: assertEquals: expected 2014-02-27 10:01:35.231, got 2014-02-27T05:01:35.231-05:00
 - FAIL meta::pure::functions::string::tests::parseDate::testParseDateWithTimezone [essential:string/parse/parseDate.pure]: assertEquals: expected 2014-02-27 15:01:35.231, got 2014-02-27T10:01:35.231-05:00
 - FAIL meta::pure::functions::string::tests::toString::testPersonToString [essential:string/toString/toString.pure]: assert did not hold (false)
 - FAIL meta::pure::functions::string::tests::toString::testComplexClassToString [essential:string/toString/toString.pure]: assertEquals: expected // Warning: Good for gin -- Sad times no tonic, got {'errorType': NoTonic, 'errorMessage': Sad times}
 - FAIL meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive [grammar:boolean/equality/eq.pure]: assertFalse did not hold (true)
 - FAIL meta::pure::functions::math::tests::times::testDecimalTimes [grammar:math/operation/times.pure]: assertEquals: expected 353791.470, got 353791.47000000003
-- FAIL meta::pure::functions::collection::tests::range::testRangeStepError [grammar:math/sequence/range.pure]: assertError: expected 'range step must not be 0', got 'Invalid Input Error: range step must not be 0'
 - FAIL meta::pure::functions::relation::tests::over::testRange_ExplicitOffsets_WithNullValues_WithSinglePartition_WithOrderByDESC [relation:relation/functions/olap/over.pure]: assertEquals: expected #TDS\n   p,o,i,newCol\n   300,2,20,30\n   300,1,10,30\n   200,null,20,30\n   200,null,10,30\n   200,3,30,60\n   200,3,30,60\n   200,1,10,20\n   200,1,10,20\n   100,null,30,50\n   100,null,20,50\n   100,3,30,50\n   100,2,20,60\n   100,1,10,30\n   0,null,30,30\n   0,1,10,20\n   …
 - FAIL meta::pure::functions::relation::tests::over::testRange_UnboundedPreceding_NFollowing_WithNullValues_WithSinglePartition_WithOrderByDESC [relation:relation/functions/olap/over.pure]: assertEquals: expected #TDS\n   p,o,i,newCol\n   300,2,20,30\n   300,1,10,30\n   200,null,20,30\n   200,null,10,30\n   200,3,30,90\n   200,3,30,90\n   200,1,10,110\n   200,1,10,110\n   100,null,30,50\n   100,null,20,50\n   100,3,30,100\n   100,2,20,110\n   100,1,10,110\n   0,null,30,30\n   0,1,10,50…
 - FAIL meta::pure::functions::relation::tests::over::testRange_WithNumbers_NFollowing_NFollowing_WithoutPartition_WithSingleOrderBy [relation:relation/functions/olap/over.pure]: assertEquals: expected #TDS\n   menu_category,menu_cogs_usd,sum_cogs\n   Beverage,0.5,11.25\n   Beverage,0.65,10.25\n   Beverage,0.75,10.25\n   Dessert,0.5,11.25\n   Dessert,1.0,7.75\n   Dessert,1.25,7.75\n   Dessert,2.5,7.0\n   Dessert,3.0,4.0\n   Snack,1.25,7.75\n   Snack,2.25,7.0\n   Snack,4.0,nu…
@@ -121,8 +115,6 @@
 - FAIL meta::pure::functions::math::tests::mode::testMode_Number_Relation_Window [standard:math/aggregator/mode.pure]: assertEquals: expected #TDS\n   id,grp,value,newCol\n   7,0,10.0,10.0\n   4,1,10.0,10.0\n   5,1,2.0,10.0\n   8,1,7.0,10.0\n   10,1,10.0,10.0\n   1,2,1.0,1.0\n   2,3,7.0,7.0\n   3,3,7.0,7.0\n   9,4,4.0,4.0\n   6,5,9.0,9.0\n#, got #TDS\n   id,grp,value,newCol\n   7,0,10.00,10.00\n   4,1,10.00,10.00\n …
 - FAIL meta::pure::functions::math::tests::sum::testSum_Floats_Relation_Window [standard:math/aggregator/sum.pure]: assertEquals: expected #TDS\n   id,grp,name,newCol\n   10.1,0,J,10.1\n   2.2,1,B,17.6\n   6.6,1,F,17.6\n   8.8,1,H,17.6\n   1.1,2,A,6.6\n   5.5,2,E,6.6\n   3.3,3,C,11.0\n   7.7,3,G,11.0\n   4.4,4,D,4.4\n   9.9,5,I,9.9\n#, got #TDS\n   id,grp,name,newCol\n   10.10,0,J,10.1\n   2.20,1,B,17.6\n   6.60,…
 - FAIL meta::pure::functions::math::tests::sum::testSum_Numbers_Relation_Window [standard:math/aggregator/sum.pure]: assertEquals: expected #TDS\n   id,grp,name,newCol\n   10.1,0,J,10.1\n   2.2,1,B,17.6\n   6.6,1,F,17.6\n   8.8,1,H,17.6\n   1.1,2,A,6.6\n   5.5,2,E,6.6\n   3.3,3,C,11.0\n   7.7,3,G,11.0\n   4.4,4,D,4.4\n   9.9,5,I,9.9\n#, got #TDS\n   id,grp,name,newCol\n   10.10,0,J,10.1\n   2.20,1,B,17.6\n   6.60,…
-- FAIL meta::pure::functions::math::tests::bitShiftLeft::testBitShiftLeft_MoreThan62Bits [standard:tbd/bitShiftLeft.pure]: assertError: expected 'Unsupported number of bits to shift - max bits allowed is 62', got 'Invalid Input Error: Unsupported number of bits to shift - max bits allowed is 62'
-- FAIL meta::pure::functions::math::tests::bitShiftRight::testBitShiftRight_MoreThan62Bits [standard:tbd/bitShiftRight.pure]: assertError: expected 'Unsupported number of bits to shift - max bits allowed is 62', got 'Invalid Input Error: Unsupported number of bits to shift - max bits allowed is 62'
 - FAIL meta::pure::functions::variant::convert::tests::to::testToIntegerFromFloat [variant:functions/convert/to.pure]: assertError: no error was raised (expected 'Integer is not managed yet!')
 - FAIL meta::pure::functions::variant::convert::tests::to::testToIntegerFromStringFloat [variant:functions/convert/to.pure]: assertError: expected 'For input string: "1.25"', got 'Conversion Error: Failed to cast value to numerical: "1.25"\n\nLINE 1: SELECT CAST(json('"1.25"') AS BIGINT) AS value\n               ^'
 - FAIL meta::pure::functions::variant::convert::tests::to::testToBooleanFromBadString [variant:functions/convert/to.pure]: assertError: expected 'Invalid Pure Boolean: 'hello'', got 'Conversion Error: Failed to cast value to numerical: "hello"\n\nLINE 1: SELECT CAST(json('"hello"') AS BOOLEAN) AS value\n               ^'

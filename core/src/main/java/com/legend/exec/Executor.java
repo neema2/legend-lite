@@ -60,9 +60,25 @@ public final class Executor {
         // direct Statement's real error behind 'Attempting to execute an
         // unsuccessful or closed pending query result' (audit: 74 corpus
         // errors were unreadable); prepare() surfaces the actual message
-        try (java.sql.PreparedStatement st = connection.prepareStatement(sql);
-             ResultSet rs = st.executeQuery()) {
-            return switch (shape) {
+        try (java.sql.PreparedStatement st = connection.prepareStatement(sql)) {
+            ResultSet rs;
+            try {
+                rs = st.executeQuery();
+            } catch (SQLException e) {
+                // the lowering's DOMAIN GUARDS raise pure's exact messages
+                // through DuckDB error(), which prepends its category —
+                // strip that ONE transport prefix so a core-raised message
+                // surfaces verbatim (P3 error fidelity; other categories
+                // keep their prefixes, they are genuinely DuckDB's)
+                String m = e.getMessage();
+                String prefix = "Invalid Input Error: ";
+                if (m != null && m.startsWith(prefix)) {
+                    throw new SQLException(m.substring(prefix.length()), e);
+                }
+                throw e;
+            }
+            try (rs) {
+                return switch (shape) {
                 case TABULAR -> tabular(rs, plan, rootType, dialect);
                 case SCALAR -> new ExecutionResult.Scalar(
                         rs.next() ? latticeKind(cell(rs, plan, dialect, anyRoot),
@@ -84,7 +100,8 @@ public final class Executor {
                 }
                 case GRAPH -> new ExecutionResult.Graph(
                         rs.next() ? String.valueOf(rs.getObject(1)) : "[]", rootType.type());
-            };
+                };
+            }
         }
     }
 
