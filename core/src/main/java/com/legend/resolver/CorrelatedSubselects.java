@@ -521,7 +521,38 @@ private static boolean referencesVar(TypedSpec n, String var) {
                                         d.node().info().multiplicity())),
                         com.legend.compiler.element.type.Multiplicity
                                 .Bounded.ONE));
-        return new TypedAggCol(alias, map, reduce);
+        // ORDERED aggregation (sortBy before joinStrings): the key
+        // substitutes through the target's bindings onto the same sub
+        // row as the map body and rides on the agg col as the reducer's
+        // ORDER BY (string_agg(x, sep ORDER BY k)).
+        TypedLambda orderLambda = null;
+        if (d.orderKey() != null) {
+            Set<String> oFree = new LinkedHashSet<>();
+            for (TypedSpec b : d.orderKey().body()) {
+                collectVarNamesInto(b, oFree);
+            }
+            oFree.removeAll(d.orderKey().parameters());
+            if (!oFree.isEmpty()) {
+                throw new NotImplementedException("ordered aggregate key"
+                        + " over navigation '" + head + "' reads outer"
+                        + " variable(s) " + oFree + " — not supported yet");
+            }
+            orderLambda = corrAgg == null
+                    ? assocMaterial.corrPredOnJoinedRow(d.orderKey(),
+                            cs, aj.target(), "",
+                            aj.targetSlotPrefixes(),
+                            aj.targetSubNavs(), Map.of(),
+                            Map.of(), aj.target().rowVar(),
+                            aj.targetRow())
+                    : assocMaterial.corrPredOnJoinedRow(d.orderKey(),
+                            cs, aj.target(), corrTp,
+                            aj.targetSlotPrefixes(),
+                            aj.targetSubNavs(),
+                            pc.mat().slotPrefixes(), pc.subNavs(),
+                            corrRowVar, corrJoinedRow);
+        }
+        return new TypedAggCol(alias, map, reduce, orderLambda,
+                d.orderAsc());
     }
     /** The bare column a side of an equi conjunct reads on {@code var}. */
     private static String bareColumnOn(TypedSpec n, String var) {
@@ -902,6 +933,128 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                 com.legend.model.ClassMapping.subTypeColumn(sct.fqn(),
                         pa.property()),
                 pa.info());
+    }
+
+    /** ORDERING CONTRACT (audit 15 B3): aggReads is IDENTITY-keyed on the
+     * scanned nodes — this scan must run AFTER every identity-changing
+     * rewrite (splitDatedHeads etc.) and its keys are consumed in the SAME
+     * resolveObject pass. A rewrite inserted between scan and substitution
+     * dangles the keys silently. */
+    static void aggScan(TypedSpec n, String userVar, ClassSource cs,
+                         Map<String, List<StoreResolver.AggDemand>> aggOut,
+                         Set<List<String>> bareOut,
+                         java.util.function.BiPredicate<ClassSource, String> toManyHead) {
+        if (n instanceof TypedNativeCall nc
+                && !nc.args().isEmpty()
+                && AGG_FQNS.contains(nc.callee().qualifiedName())) {
+            List<String> path =
+                    Substitution.pathOf(nc.args().get(0), userVar);
+            // AGG(PA(leaf, sortBy(<nav>, key))) — ORDERED aggregation:
+            // sortBy between the (lifted) navigation and the reducer is
+            // ORDER metadata; the demand re-routes exactly as the
+            // unordered spelling, the key rides into the grouped
+            // subselect's reducer (string_agg(x, sep ORDER BY k)).
+            if (nc.args().get(0) instanceof TypedPropertyAccess spa
+                    && spa.source() instanceof TypedSortBy ssb) {
+                List<String> sp = Substitution.pathOf(ssb.source(), userVar);
+                if (sp != null && sp.size() == 1
+                        && toManyHead.test(cs, sp.get(0))) {
+                    aggOut.computeIfAbsent(sp.get(0), k -> new ArrayList<>())
+                            .add(new StoreResolver.AggDemand(nc, spa.property(), null,
+                                    ssb.key(), ssb.ascending()));
+                    for (int i = 1; i < nc.args().size(); i++) {
+                        aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut, toManyHead);
+                    }
+                    return;
+                }
+            }
+            // AGG(map(<nav>, λe.<scalar body>)) — the qualifier-inlined
+            // COMPUTED-mapper spelling (#69): the mapper body aggregates
+            // inside the grouped subselect, substituted through the
+            // target's bindings at the fold. A sortBy on the map SOURCE
+            // is the same ORDER metadata as above.
+            if (nc.args().get(0) instanceof TypedMap tmap
+                    && tmap.mapper().parameters().size() == 1
+                    && !(tmap.mapper().info().type()
+                            instanceof Type.FunctionType mft
+                            && mft.result().type() instanceof Type.ClassType)) {
+                TypedSpec mapSrc = tmap.source();
+                TypedLambda mOrder = null;
+                boolean mAsc = true;
+                if (mapSrc instanceof TypedSortBy msb) {
+                    mOrder = msb.key();
+                    mAsc = msb.ascending();
+                    mapSrc = msb.source();
+                }
+                List<String> srcPath =
+                        Substitution.pathOf(mapSrc, userVar);
+                if (srcPath != null && srcPath.size() == 1
+                        && toManyHead.test(cs, srcPath.get(0))) {
+                    aggOut.computeIfAbsent(srcPath.get(0),
+                                    k -> new ArrayList<>())
+                            .add(new StoreResolver.AggDemand(nc, null, tmap.mapper(),
+                                    mOrder, mAsc));
+                    for (int i = 1; i < nc.args().size(); i++) {
+                        aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut, toManyHead);
+                    }
+                    return;
+                }
+            }
+            if (path != null && path.size() == 2
+                    && toManyHead.test(cs, path.get(0))) {
+                aggOut.computeIfAbsent(path.get(0), k -> new ArrayList<>())
+                        .add(new StoreResolver.AggDemand(nc, path.get(1)));
+                for (int i = 1; i < nc.args().size(); i++) {
+                    aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut, toManyHead);
+                }
+                return;   // the path is agg-consumed, not bare
+            }
+            // LOUD FALLTHROUGH (audit 9): any other aggregate whose argument
+            // crosses a to-many would bare-demand the path — the join
+            // explodes and the scalar reducer's to-one identity silently
+            // EATS the aggregate. Never silent.
+            if (path != null && path.size() > 2
+                    && toManyHead.test(cs, path.get(0))) {
+                throw new NotImplementedException("aggregate '"
+                        + nc.callee().qualifiedName() + "' over the multi-hop"
+                        + " to-many navigation " + String.join(".", path)
+                        + " is not supported yet");
+            }
+            if (path == null && containsToManyCrossing(nc.args().get(0), userVar, cs, toManyHead)) {
+                throw new NotImplementedException("aggregate '"
+                        + nc.callee().qualifiedName() + "' over an expression"
+                        + " containing a to-many navigation is not supported yet");
+            }
+        }
+        List<String> path = Substitution.pathOf(n, userVar);
+        if (path != null) {
+            bareOut.add(path);
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
+            return;   // shadowing: same stop as consumedPaths
+        }
+        for (TypedSpec c : n.children()) {
+            aggScan(c, userVar, cs, aggOut, bareOut, toManyHead);
+        }
+    }
+
+    /** Any {@code $p.<toManyHead>.<...>} read anywhere under {@code n}. */
+    static boolean containsToManyCrossing(TypedSpec n, String userVar,
+            ClassSource cs,
+            java.util.function.BiPredicate<ClassSource, String> toManyHead) {
+        List<String> path = Substitution.pathOf(n, userVar);
+        if (path != null && path.size() >= 2 && toManyHead.test(cs, path.get(0))) {
+            return true;
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
+            return false;
+        }
+        for (TypedSpec c : n.children()) {
+            if (containsToManyCrossing(c, userVar, cs, toManyHead)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** Slot aliases a binding expression reads ($row.alias...). */

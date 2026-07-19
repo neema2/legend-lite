@@ -13,7 +13,14 @@ import java.util.Objects;
  * @param map    the checked per-row value extraction ({@code {T[1]->K[0..1]}})
  * @param reduce the checked reduction over the grouped values ({@code {K[*]->V[0..1]}})
  */
-public record TypedAggCol(String name, TypedLambda map, TypedLambda reduce) {
+public record TypedAggCol(String name, TypedLambda map, TypedLambda reduce,
+        TypedLambda orderKey, boolean orderAsc) {
+
+    /** Un-ordered aggregation (the common case). */
+    public TypedAggCol(String name, TypedLambda map, TypedLambda reduce) {
+        this(name, map, reduce, null, true);
+    }
+
     public TypedAggCol {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(map, "map");

@@ -17,7 +17,14 @@ public sealed interface SqlAgg {
     List<SqlExpr> args();
 
     /** GROUP-BY-valid aggregate (also usable inside a window): SUM, COUNT, MIN, ... */
-    record Reducer(String fn, List<SqlExpr> args, boolean distinct) implements SqlAgg, SqlExpr {
+    record Reducer(String fn, List<SqlExpr> args, boolean distinct,
+            List<SqlSelect.SortKey> orderBy) implements SqlAgg, SqlExpr {
+
+        /** Order-insensitive aggregate (the common case). */
+        public Reducer(String fn, List<SqlExpr> args, boolean distinct) {
+            this(fn, args, distinct, List.of());
+        }
+
         public static Reducer of(String fn, SqlExpr... args) {
             return new Reducer(fn, List.of(args), false);
         }

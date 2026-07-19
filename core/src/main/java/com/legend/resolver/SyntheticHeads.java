@@ -290,6 +290,34 @@ final class SyntheticHeads {
             return liftFilteredHeads(new TypedPropertyAccess(
                     tm.source(), mb.property(), tm.info()), enabled);
         }
+        // sortBy over a FILTERED navigation (ordered sub-aggregation
+        // source: filter(nav)->sortBy(key).leaf->joinStrings(...)): the
+        // filter lifts into the synthetic filtered head exactly like the
+        // leaf-read spelling; the sortBy rides on the renamed head as
+        // ORDER metadata for the agg scan.
+        if (enabled && n instanceof TypedSortBy sb0
+                && sb0.source() instanceof TypedFilter fs
+                && fs.predicate().parameters().size() == 1
+                && fs.info().type() instanceof Type.ClassType
+                && isLiftableNav(fs.source())) {
+            TypedSpec head0 = liftFilteredHeads(fs.source(), true);
+            TypedSpec renamed0;
+            String synth0;
+            if (head0 instanceof com.legend.compiler.spec.typed
+                    .TypedMilestonedAccess ma0) {
+                synth0 = parkFiltered(ma0.property(), fs.predicate());
+                renamed0 = new TypedMilestonedAccess(ma0.source(), synth0,
+                        ma0.dates(), ma0.sweep(), ma0.info());
+            } else {
+                var hp0 = (TypedPropertyAccess) head0;
+                synth0 = parkFiltered(hp0.property(), fs.predicate());
+                renamed0 = new TypedPropertyAccess(hp0.source(), synth0,
+                        hp0.info());
+            }
+            return new TypedSortBy(renamed0,
+                    (TypedLambda) liftFilteredHeads(sb0.key(), enabled),
+                    sb0.ascending(), sb0.info());
+        }
         if (enabled
                 && n instanceof TypedPropertyAccess pa
                 && filterBehindToOne(pa.source()) instanceof TypedFilter f

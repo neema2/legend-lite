@@ -2547,8 +2547,9 @@ public final class StoreResolver {
             }
             if (op instanceof TypedSortBy sb) {
                 for (TypedSpec b : sb.key().body()) {
-                    aggScan(b, sb.key().parameters().get(0), cs,
-                            aggDemands, projectionPaths);
+                    CorrelatedSubselects.aggScan(b, sb.key().parameters().get(0), cs,
+                            aggDemands, projectionPaths,
+                            this::isToManyAssocHead);
                 }
             }
         }
@@ -2568,8 +2569,9 @@ public final class StoreResolver {
         } else {
             for (TypedLambda fn : terminalLambdas(top)) {
                 for (TypedSpec b : fn.body()) {
-                    aggScan(b, fn.parameters().get(0), cs,
-                            aggDemands, projectionPaths);
+                    CorrelatedSubselects.aggScan(b, fn.parameters().get(0), cs,
+                            aggDemands, projectionPaths,
+                            this::isToManyAssocHead);
                 }
                 synthetics.corrPredOuterDemand(fn, projectionPaths);
             }
@@ -2863,28 +2865,43 @@ public final class StoreResolver {
      * read off the head's grouped-subselect join (engine subAggregation
      * shape) — the path is NOT bare-demanded, so no row explosion. */
     record AggDemand(TypedNativeCall node,
-            String leaf, TypedLambda mapper) {
+            String leaf, TypedLambda mapper,
+            TypedLambda orderKey, boolean orderAsc) {
 
         AggDemand(TypedNativeCall node, String leaf) {
-            this(node, leaf, null);
+            this(node, leaf, null, null, true);
+        }
+
+        AggDemand(TypedNativeCall node, String leaf, TypedLambda mapper) {
+            this(node, leaf, mapper, null, true);
         }
 
         /** Target-side property heads this demand reads (leaf name, or
-         * the computed mapper's own-param path heads) — feeds the
-         * target's slot demand. */
+         * the computed mapper's / order key's own-param path heads) —
+         * feeds the target's slot demand. */
         List<String> demandLeaves() {
-            if (leaf != null) {
-                return List.of(leaf);
-            }
-            Set<List<String>> ps = new LinkedHashSet<>();
-            for (TypedSpec b : mapper.body()) {
-                consumedPaths(b, mapper.parameters().get(0), ps);
-            }
             List<String> out = new ArrayList<>();
-            for (List<String> pth : ps) {
-                out.add(pth.get(0));
+            if (leaf != null) {
+                out.add(leaf);
+            } else {
+                for (List<String> pth : lambdaHeads(mapper)) {
+                    out.add(pth.get(0));
+                }
+            }
+            if (orderKey != null) {
+                for (List<String> pth : lambdaHeads(orderKey)) {
+                    out.add(pth.get(0));
+                }
             }
             return out;
+        }
+
+        private static Set<List<String>> lambdaHeads(TypedLambda fn) {
+            Set<List<String>> ps = new LinkedHashSet<>();
+            for (TypedSpec b : fn.body()) {
+                consumedPaths(b, fn.parameters().get(0), ps);
+            }
+            return ps;
         }
     }
 
@@ -2894,95 +2911,6 @@ public final class StoreResolver {
      * bare demand exactly as {@link #consumedPaths} records it (one
      * traversal — the two demand kinds cannot double-count a path).
      */
-    /** ORDERING CONTRACT (audit 15 B3): aggReads is IDENTITY-keyed on the
-     * scanned nodes — this scan must run AFTER every identity-changing
-     * rewrite (splitDatedHeads etc.) and its keys are consumed in the SAME
-     * resolveObject pass. A rewrite inserted between scan and substitution
-     * dangles the keys silently. */
-    private void aggScan(TypedSpec n, String userVar, ClassSource cs,
-                         Map<String, List<AggDemand>> aggOut,
-                         Set<List<String>> bareOut) {
-        if (n instanceof TypedNativeCall nc
-                && !nc.args().isEmpty()
-                && CorrelatedSubselects.AGG_FQNS.contains(nc.callee().qualifiedName())) {
-            List<String> path =
-                    Substitution.pathOf(nc.args().get(0), userVar);
-            // AGG(map(<nav>, λe.<scalar body>)) — the qualifier-inlined
-            // COMPUTED-mapper spelling (#69): the mapper body aggregates
-            // inside the grouped subselect, substituted through the
-            // target's bindings at the fold.
-            if (nc.args().get(0) instanceof TypedMap tmap
-                    && tmap.mapper().parameters().size() == 1
-                    && !(tmap.mapper().info().type()
-                            instanceof Type.FunctionType mft
-                            && mft.result().type() instanceof Type.ClassType)) {
-                List<String> srcPath =
-                        Substitution.pathOf(tmap.source(), userVar);
-                if (srcPath != null && srcPath.size() == 1
-                        && isToManyAssocHead(cs, srcPath.get(0))) {
-                    aggOut.computeIfAbsent(srcPath.get(0),
-                                    k -> new ArrayList<>())
-                            .add(new AggDemand(nc, null, tmap.mapper()));
-                    for (int i = 1; i < nc.args().size(); i++) {
-                        aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut);
-                    }
-                    return;
-                }
-            }
-            if (path != null && path.size() == 2
-                    && isToManyAssocHead(cs, path.get(0))) {
-                aggOut.computeIfAbsent(path.get(0), k -> new ArrayList<>())
-                        .add(new AggDemand(nc, path.get(1)));
-                for (int i = 1; i < nc.args().size(); i++) {
-                    aggScan(nc.args().get(i), userVar, cs, aggOut, bareOut);
-                }
-                return;   // the path is agg-consumed, not bare
-            }
-            // LOUD FALLTHROUGH (audit 9): any other aggregate whose argument
-            // crosses a to-many would bare-demand the path — the join
-            // explodes and the scalar reducer's to-one identity silently
-            // EATS the aggregate. Never silent.
-            if (path != null && path.size() > 2
-                    && isToManyAssocHead(cs, path.get(0))) {
-                throw new NotImplementedException("aggregate '"
-                        + nc.callee().qualifiedName() + "' over the multi-hop"
-                        + " to-many navigation " + String.join(".", path)
-                        + " is not supported yet");
-            }
-            if (path == null && containsToManyCrossing(nc.args().get(0), userVar, cs)) {
-                throw new NotImplementedException("aggregate '"
-                        + nc.callee().qualifiedName() + "' over an expression"
-                        + " containing a to-many navigation is not supported yet");
-            }
-        }
-        List<String> path = Substitution.pathOf(n, userVar);
-        if (path != null) {
-            bareOut.add(path);
-        }
-        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
-            return;   // shadowing: same stop as consumedPaths
-        }
-        for (TypedSpec c : n.children()) {
-            aggScan(c, userVar, cs, aggOut, bareOut);
-        }
-    }
-
-    /** Any {@code $p.<toManyHead>.<...>} read anywhere under {@code n}. */
-    private boolean containsToManyCrossing(TypedSpec n, String userVar, ClassSource cs) {
-        List<String> path = Substitution.pathOf(n, userVar);
-        if (path != null && path.size() >= 2 && isToManyAssocHead(cs, path.get(0))) {
-            return true;
-        }
-        if (n instanceof TypedLambda l && l.parameters().contains(userVar)) {
-            return false;
-        }
-        for (TypedSpec c : n.children()) {
-            if (containsToManyCrossing(c, userVar, cs)) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     /**
      * The FILTER-position scan: a bare to-many crossing consumed AS A
@@ -3017,7 +2945,9 @@ public final class StoreResolver {
         if (n instanceof TypedNativeCall ac
                 && !ac.args().isEmpty()
                 && CorrelatedSubselects.AGG_FQNS.contains(ac.callee().qualifiedName())
-                && containsToManyCrossing(ac.args().get(0), userVar, cs)) {
+                && CorrelatedSubselects.containsToManyCrossing(
+                        ac.args().get(0), userVar, cs,
+                        this::isToManyAssocHead)) {
             throw new NotImplementedException("aggregate '"
                     + ac.callee().qualifiedName() + "' over a to-many"
                     + " navigation in FILTER position is not supported yet");

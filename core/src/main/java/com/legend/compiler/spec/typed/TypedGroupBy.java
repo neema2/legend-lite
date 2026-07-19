@@ -44,6 +44,9 @@ public record TypedGroupBy(TypedSpec source, List<GroupKey> keys, List<TypedAggC
         aggs.forEach(a -> {
             out.add(a.map());
             out.add(a.reduce());
+            if (a.orderKey() != null) {
+                out.add(a.orderKey());
+            }
         });
         return out;
     }

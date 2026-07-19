@@ -544,6 +544,9 @@ public final class Lowerer {
                             instanceof Type.RelationType ->
                     relation(nc.args().get(0));
 
+            case TypedNativeCall nc when isBareSingleColumnSort(nc) ->
+                    naturalSort(nc);
+
             // SANCTIONED frontier default (root package-info invariant is
             // scoped to hiding-prone switches): the not-yet-lowered TypedSpec
             // variants churn every milestone; each throws LOUD and NAMED.
@@ -767,7 +770,8 @@ public final class Lowerer {
                 && rc.source() instanceof TypedNativeCall) {
             SqlExpr inner = aggValue(base, new TypedAggCol(a.name(), a.map(),
                     new TypedLambda(a.reduce().parameters(),
-                            List.of(rc.source()), a.reduce().info())));
+                            List.of(rc.source()), a.reduce().info()),
+                    a.orderKey(), a.orderAsc()));
             return castByPolicy(inner, rc.source().info().type(), rc.target());
         }
         if (!(reduceBody instanceof TypedNativeCall call)) {
@@ -783,7 +787,8 @@ public final class Lowerer {
                 && Aggregates.reducerOrNull(innerAgg.callee()) != null) {
             SqlExpr inner = aggValue(base, new TypedAggCol(a.name(), a.map(),
                     new TypedLambda(a.reduce().parameters(),
-                            List.of(innerAgg), a.reduce().info())));
+                            List.of(innerAgg), a.reduce().info()),
+                    a.orderKey(), a.orderAsc()));
             List<SqlExpr> wrapped = new ArrayList<>();
             wrapped.add(inner);
             for (int i = 1; i < call.args().size(); i++) {
@@ -793,6 +798,14 @@ public final class Lowerer {
         }
         String fn = Aggregates.reducerFor(call.callee());
         TypedSpec mapBody = last(a.map());
+        // ORDER-SENSITIVE aggregation (sortBy before joinStrings): the key
+        // lowers in the SAME row scope as the map body and rides inside
+        // the SQL aggregate (string_agg(x, sep ORDER BY k))
+        List<SqlSelect.SortKey> aggOrder = a.orderKey() == null ? List.of()
+                : List.of(new SqlSelect.SortKey(
+                        scalar(last(a.orderKey()),
+                                (v, name) -> resolveOrThrow(base, name)),
+                        a.orderAsc(), null));
         // Reducer EXTRA arguments (joinStrings('_') carries its separator;
         // percentile carries p [+ ascending, continuous]): literal args ride
         // along after the value; variable refs are the reducer's own
@@ -962,7 +975,8 @@ public final class Lowerer {
         if ("STRING_AGG".equals(fn) && extra.size() == 3) {
             return SqlExpr.Call.of(SqlFn.CONCAT,
                     SqlExpr.Call.of(SqlFn.CONCAT, extra.get(0),
-                            new SqlAgg.Reducer(fn, List.of(value, extra.get(1)), false)),
+                            new SqlAgg.Reducer(fn, List.of(value, extra.get(1)),
+                                    false, aggOrder)),
                     extra.get(2));
         }
         // Descending DISCRETE percentile: the ceil(p*N)-th element of the
@@ -983,7 +997,7 @@ public final class Lowerer {
         List<SqlExpr> args = new ArrayList<>();
         args.add(value);
         args.addAll(extra);
-        return new SqlAgg.Reducer(fn, args, distinctValues);
+        return new SqlAgg.Reducer(fn, args, distinctValues, aggOrder);
     }
 
     /**
@@ -2575,6 +2589,27 @@ public final class Lowerer {
     private static SqlExpr asList(SqlExpr e, boolean many) {
         return many || e instanceof SqlExpr.ArrayLit || e instanceof SqlExpr.NullLit
                 ? e : new SqlExpr.ArrayLit(List.of(e));
+    }
+
+    /** Bare ->sort() over a SINGLE-COLUMN relation stream (assert
+     * vocabulary: $result.rows.values->sort()) — a multi-column relation
+     * has no natural order and stays at the loud frontier default. */
+    private static boolean isBareSingleColumnSort(TypedNativeCall nc) {
+        return "meta::pure::functions::collection::sort"
+                        .equals(nc.callee().qualifiedName())
+                && nc.args().size() == 1
+                && nc.args().get(0).info().type()
+                        instanceof Type.RelationType srt
+                && srt.columns().size() == 1;
+    }
+
+    /** Natural ascending order on the stream's one column. */
+    private SqlSelect naturalSort(TypedNativeCall nc) {
+        Type.RelationType srt =
+                (Type.RelationType) nc.args().get(0).info().type();
+        return relation(nc.args().get(0)).withOrderBy(List.of(
+                SqlSelect.SortKey.asc(new SqlExpr.Column(null,
+                        srt.columns().get(0).name()))));
     }
 
     /** An instance literal in relation position: {@code ^X(…)} or a collection of them. */

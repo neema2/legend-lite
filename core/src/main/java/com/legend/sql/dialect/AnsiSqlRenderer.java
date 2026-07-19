@@ -621,7 +621,15 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     protected String reducer(SqlAgg.Reducer r) {
         String args = r.args().isEmpty() ? "*" : list(r.args());
-        return r.fn() + "(" + (r.distinct() ? "DISTINCT " : "") + args + ")";
+        // ORDER-SENSITIVE aggregation (SQL standard <sort specification
+        // list> inside the aggregate: string_agg(x, sep ORDER BY k))
+        String order = r.orderBy().isEmpty() ? "" : " ORDER BY "
+                + r.orderBy().stream()
+                        .map(k -> expr(k.expr(), 0)
+                                + (k.ascending() ? " ASC" : " DESC"))
+                        .collect(java.util.stream.Collectors.joining(", "));
+        return r.fn() + "(" + (r.distinct() ? "DISTINCT " : "") + args
+                + order + ")";
     }
 
     // ==================================================================

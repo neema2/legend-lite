@@ -26,6 +26,9 @@ public record TypedAggregate(TypedSpec source, List<TypedAggCol> aggs, ExprType 
         aggs.forEach(a -> {
             out.add(a.map());
             out.add(a.reduce());
+            if (a.orderKey() != null) {
+                out.add(a.orderKey());
+            }
         });
         return out;
     }
