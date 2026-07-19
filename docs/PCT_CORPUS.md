@@ -8,13 +8,13 @@
 
 | suite | files | parse-walled | `<<PCT.test>>` (textual) | discovered | **PASS** | FAIL | ERROR | SHAPE | element walls | body walls |
 |---|---|---|---|---|---|---|---|---|---|---|
-| essential | 177 | 8 | 329 | 327 | **287** | 22 | 15 | 3 | 16 | 635 |
+| essential | 177 | 8 | 329 | 327 | **287** | 16 | 15 | 9 | 16 | 635 |
 | grammar | 48 | 0 | 136 | 136 | **122** | 3 | 7 | 4 | 2 | 242 |
-| relation | 49 | 0 | 350 | 350 | **251** | 73 | 25 | 1 | 3 | 368 |
-| standard | 55 | 0 | 205 | 204 | **168** | 31 | 4 | 1 | 0 | 235 |
+| relation | 49 | 0 | 350 | 350 | **268** | 52 | 29 | 1 | 3 | 368 |
+| standard | 55 | 0 | 205 | 204 | **165** | 31 | 7 | 1 | 0 | 235 |
 | unclassified | 67 | 0 | 96 | 94 | **93** | 0 | 1 | 0 | 13 | 157 |
 | variant | 7 | 0 | 88 | 88 | **47** | 22 | 19 | 0 | 0 | 91 |
-| **total** | **403** | **8** | **1204** | **1199** | **968** | **151** | **71** | **9** | | |
+| **total** | **403** | **8** | **1204** | **1199** | **982** | **124** | **78** | **15** | | |
 
 ## Top ERROR buckets
 
@@ -23,7 +23,9 @@
 | 9 | `unknown function 'chunk'` |
 | 5 | `Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!\\n or: Referenced column "_i0" was not found because the FROM clause is missing` |
 | 5 | `TDS column type 'Integer[1]' is not a known primitive` |
+| 4 | `Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!` |
 | 4 | `unknown class 'CO_Firm' in ^CO_Firm(…)` |
+| 3 | `Unsupported duration unit for StrictDate. Units can only be: [YEARS, DAYS, MONTHS, WEEKS]` |
 | 2 | `Conversion Error: Unimplemented type for cast (VARCHAR[] -> "NULL")` |
 | 2 | `in call to 'meta::pure::functions::relation::toString', argument 1: expected a Relation, got Integer` |
 | 2 | `no overload of 'meta::pure::functions::relation::filter' matches the argument types` |
@@ -48,32 +50,25 @@
 | 1 | `in call to 'meta::pure::functions::relation::toString', argument 1: expected a Relation, got String` |
 | 1 | `in call to 'meta::pure::functions::variant::convert::to', argument 4: expected Pair<String, Class<meta::pure::metamodel::type::Any>>, got meta::pure::metamodel::type::Nil` |
 | 1 | `in call to 'meta::pure::functions::variant::tests::convert::to::model::Person$prop$fullName', argument 1: expected at most one value, got many ([*])` |
-| 1 | `in function 'meta::pure::functions::relation::tests::composition::testVariantColumn_functionComposition_filterValues': no overload of 'meta::pure::functions::relation::filter' matches the argument types` |
-| 1 | `in function 'meta::pure::functions::variant::tests::convert::to::model::Person$prop$previousAddressesToString': no overload of 'meta::pure::functions::relation::toString' structurally matches the argument types` |
-| … | (15 more buckets) |
+| … | (17 more buckets) |
 
 ## Top SHAPE buckets
 
 | count | detail |
 |---|---|
+| 6 | `assert form 'assertError/4' is not supported yet` |
 | 6 | `assert form 'assertIs/2' is not supported yet` |
 | 2 | `assert form 'assertInstanceOf/2' is not supported yet` |
 | 1 | `no verifying assertions` |
 
 ## FAIL ledger
 
-- FAIL meta::pure::functions::collection::tests::at::testAtError [essential:collection/index/at.pure]: assertError: expected 'The system is trying to get an element at offset 2 where the collection is of size 2', got 'Invalid Input Error: The system is trying to get an element at offset 2 where the collection is of size 2'
 - FAIL meta::pure::functions::collection::tests::sort::testMixedSortNoComparator [essential:collection/order/sort.pure]: assertEquals: expected [-2.0, 1.0, 5.0, 171.0, 342.0], got [-2.0, 1, 5.0, 171, 342]
 - FAIL meta::pure::functions::collection::tests::slice::testSliceError [essential:collection/slice/slice.pure]: assertError: expected 'The low bound (3) can't be higher than the high bound (2) in a slice operation', got 'Invalid Input Error: The low bound (3) can't be higher than the high bound (2) in a slice operation'
 - FAIL meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes [essential:collection/transformation/removeDuplicates.pure]: assertEquals: expected [1, 2, 3, 1, 3], got [1, 3, 1, 2, 3]
 - FAIL meta::pure::functions::date::tests::testDateFromHour [essential:date/creation/date.pure]: assertEquals: expected 1973-11-13 23:00:00.0, got 1973-11-13T23
 - FAIL meta::pure::functions::date::tests::testDateFromMinute [essential:date/creation/date.pure]: assertEquals: expected 1973-11-13 23:09:00.0, got 1973-11-13T23:09
 - FAIL meta::pure::functions::date::tests::testDateFromSubSecond [essential:date/creation/date.pure]: assertEquals: expected 1973-11-13 23:09:11.0, got 1973-11-13T23:09:11.0
-- FAIL meta::pure::functions::date::tests::testNewDateError [essential:date/creation/date.pure]: assertError: expected 'Invalid month: 13', got 'Invalid Input Error: Invalid month: 13'
-- FAIL meta::pure::functions::date::tests::testDayOfMonthError [essential:date/extract/dayOfMonth.pure]: assertError: expected 'Cannot get day of month for 2017', got 'Invalid Input Error: Cannot get day of month for 2017'
-- FAIL meta::pure::functions::date::tests::testHourError [essential:date/extract/hour.pure]: assertError: expected 'Cannot get hour for 2017', got 'Invalid Input Error: Cannot get hour for 2017'
-- FAIL meta::pure::functions::date::tests::testMinuteError [essential:date/extract/minute.pure]: assertError: expected 'Cannot get minute for 2017', got 'Invalid Input Error: Cannot get minute for 2017'
-- FAIL meta::pure::functions::date::tests::testSecondError [essential:date/extract/second.pure]: assertError: expected 'Cannot get second for 2017', got 'Invalid Input Error: Cannot get second for 2017'
 - FAIL meta::pure::functions::date::tests::testAdjustByMicrosecondsBigNumber [essential:date/operation/adjust.pure]: assertEquals: expected 2021-06-21 09:37:37.499, got 2021-06-21T09:37:37.4990000
 - FAIL meta::pure::functions::math::tests::toDecimal::testIntToDecimal [essential:lang/cast/toDecimal.pure]: assertEquals: expected 8, got 8
 - FAIL meta::pure::functions::math::tests::rem::testRemError [essential:math/operation/rem.pure]: assertError: expected 'Cannot divide 5 by zero', got 'Invalid Input Error: Cannot divide 5 by zero'
@@ -87,9 +82,7 @@
 - FAIL meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive [grammar:boolean/equality/eq.pure]: assertFalse did not hold (true)
 - FAIL meta::pure::functions::math::tests::times::testDecimalTimes [grammar:math/operation/times.pure]: assertEquals: expected 353791.470, got 353791.47000000003
 - FAIL meta::pure::functions::collection::tests::range::testRangeStepError [grammar:math/sequence/range.pure]: assertError: expected 'range step must not be 0', got 'Invalid Input Error: range step must not be 0'
-- FAIL meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnIndexExtractionValue [relation:relation/functions/iteration/filter.pure]: assertEquals: expected #TDS\n   id,payload\n   1,'[1,2,3]'\n   2,'[4,5,6]'\n#, got #TDS\n   id,payload\n   1,[1,2,3]\n   2,[4,5,6]\n#
-- FAIL meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnKeyExtractionValue [relation:relation/functions/iteration/filter.pure]: assertEquals: expected #TDS\n   id,payload\n   1,'{"boolean":true,"integer":1,"string":"hello"}'\n#, got #TDS\n   id,payload\n   1,{"boolean":true,  "integer":1, "string":"hello"}\n#
-- FAIL meta::pure::functions::relation::tests::filter::testVariantColumn_filterOutputFromLambda [relation:relation/functions/iteration/filter.pure]: assertEquals: expected #TDS\n   id,payload\n   2,'[4,5,6]'\n   4,'[10,11,12]'\n#, got #TDS\n   id,payload\n   2,[4,5,6]\n   4,[10,11,12]\n#
+- FAIL meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnKeyExtractionValue [relation:relation/functions/iteration/filter.pure]: assertEquals: expected #TDS\n   id,payload\n   1,'{"boolean":true,"integer":1,"string":"hello"}'\n#, got #TDS\n   id,payload\n   1,'{"boolean":true,  "integer":1, "string":"hello"}'\n#
 - FAIL meta::pure::functions::relation::tests::over::testRange_ExplicitOffsets_WithNullValues_WithSinglePartition_WithOrderByDESC [relation:relation/functions/olap/over.pure]: assertEquals: expected #TDS\n   p,o,i,newCol\n   300,2,20,30\n   300,1,10,30\n   200,null,20,30\n   200,null,10,30\n   200,3,30,60\n   200,3,30,60\n   200,1,10,20\n   200,1,10,20\n   100,null,30,50\n   100,null,20,50\n   100,3,30,50\n   100,2,20,60\n   100,1,10,30\n   0,null,30,30\n   0,1,10,20\n   …
 - FAIL meta::pure::functions::relation::tests::over::testRange_UnboundedPreceding_NFollowing_WithNullValues_WithSinglePartition_WithOrderByDESC [relation:relation/functions/olap/over.pure]: assertEquals: expected #TDS\n   p,o,i,newCol\n   300,2,20,30\n   300,1,10,30\n   200,null,20,30\n   200,null,10,30\n   200,3,30,90\n   200,3,30,90\n   200,1,10,110\n   200,1,10,110\n   100,null,30,50\n   100,null,20,50\n   100,3,30,100\n   100,2,20,110\n   100,1,10,110\n   0,null,30,30\n   0,1,10,50…
 - FAIL meta::pure::functions::relation::tests::over::testRange_WithNumbers_NFollowing_NFollowing_WithoutPartition_WithSingleOrderBy [relation:relation/functions/olap/over.pure]: assertEquals: expected #TDS\n   menu_category,menu_cogs_usd,sum_cogs\n   Beverage,0.5,11.25\n   Beverage,0.65,10.25\n   Beverage,0.75,10.25\n   Dessert,0.5,11.25\n   Dessert,1.0,7.75\n   Dessert,1.25,7.75\n   Dessert,2.5,7.0\n   Dessert,3.0,4.0\n   Snack,1.25,7.75\n   Snack,2.25,7.0\n   Snack,4.0,nu…
@@ -125,12 +118,7 @@
 - FAIL meta::pure::functions::relation::tests::asOfJoin::testSimpleAsOfJoin_MultipleExpressions [relation:relation/functions/transformation/asofjoin.pure]: assertEquals: expected #TDS\n   key,time,value,key2,time2,value2\n   1,2000-10-25T06:30:00.000+0000,5000,null,null,null\n   1,2000-10-25T06:31:00.000+0000,4000,1,2000-10-25T06:30:10.000+0000,2000\n   3,2000-10-25T06:32:00.000+0000,3000,2,2000-10-25T06:31:20.000+0000,3000\n   4,2000-10-25T06:33:00.00…
 - FAIL meta::pure::functions::relation::tests::asOfJoin::testAsOfJoinWithKeyMatch [relation:relation/functions/transformation/asofjoin.pure]: assertEquals: expected #TDS\n   key,time,value,key2,time2,value2\n   1,2000-10-25T06:30:00.000+0000,5000,null,null,null\n   1,2000-10-25T06:31:00.000+0000,4000,1,2000-10-25T06:30:10.000+0000,2000\n   3,2000-10-25T06:32:00.000+0000,3000,null,null,null\n   4,2000-10-25T06:33:00.000+0000,1200,null,null…
 - FAIL meta::pure::functions::relation::tests::asOfJoin::testAsOfJoinWithKeyMatch_MultipleExpressions [relation:relation/functions/transformation/asofjoin.pure]: assertEquals: expected #TDS\n   key,time,value,key2,time2,value2\n   1,2000-10-25T06:30:00.000+0000,5000,null,null,null\n   1,2000-10-25T06:31:00.000+0000,4000,1,2000-10-25T06:30:10.000+0000,2000\n   3,2000-10-25T06:32:00.000+0000,3000,null,null,null\n   4,2000-10-25T06:33:00.000+0000,1200,null,null…
-- FAIL meta::pure::functions::relation::tests::extend::testVariantColumn [relation:relation/functions/transformation/extend.pure]: assertEquals: expected #TDS\n   id,payload,passthru\n   1,'[1,2,3]','[1,2,3]'\n   2,'[4,5,6]','[4,5,6]'\n   3,'[7,8,9]','[7,8,9]'\n   4,'[10,11,12]','[10,11,12]'\n   5,'[13,14,15]','[13,14,15]'\n#, got #TDS\n   id,payload,passthru\n   1,[1,2,3],[1,2,3]\n   2,[4,5,6],[4,5,6]\n   3,[7,8,9],[7,8,9]\n  …
-- FAIL meta::pure::functions::relation::tests::extend::testVariantColumn_indexExtraction [relation:relation/functions/transformation/extend.pure]: assertEquals: expected #TDS\n   id,payload,atCol0,atCol1\n   1,'[1,2,3]','1','2'\n   2,'[4,5,6]','4','5'\n   3,'[7,8,9]','7','8'\n   4,'[10,11,12]','10','11'\n   5,'[13,14,15]','13','14'\n#, got #TDS\n   id,payload,atCol0,atCol1\n   1,[1,2,3],1,2\n   2,[4,5,6],4,5\n   3,[7,8,9],7,8\n   4,[10,11,12],…
 - FAIL meta::pure::functions::relation::tests::extend::testVariantColumn_keyExtraction [relation:relation/functions/transformation/extend.pure]: assertEquals: expected #TDS\n   id,payload,booleanKey,integerKey,stringKey\n   1,'{"boolean":true,"integer":1,"string":"hello"}','true','1','"hello"'\n   2,'{"boolean":false,"integer":2,"string":"world"}','false','2','"world"'\n   3,'{"boolean":true,"integer":3,"string":"world"}','true','3','"world"…
-- FAIL meta::pure::functions::relation::tests::extend::testVariantColumn_filter [relation:relation/functions/transformation/extend.pure]: assertEquals: expected #TDS\n   id,payload,divBy2\n   1,'[1,2,3]','[2]'\n   2,'[4,5,6]','[4,6]'\n   3,'[7,8,9]','[8]'\n   4,'[10,11,12]','[10,12]'\n   5,'[13,14,15]','[14]'\n#, got #TDS\n   id,payload,divBy2\n   1,[1,2,3],[2]\n   2,[4,5,6],[4,6]\n   3,[7,8,9],[8]\n   4,[10,11,12],[10,12]\n   5,[13,1…
-- FAIL meta::pure::functions::relation::tests::extend::testVariantColumn_map [relation:relation/functions/transformation/extend.pure]: assertEquals: expected #TDS\n   id,payload,payloadMod\n   1,'[1,2,3]','[1,0,1]'\n   2,'[4,5,6]','[0,1,0]'\n   3,'[7,8,9]','[1,0,1]'\n   4,'[10,11,12]','[0,1,0]'\n   5,'[13,14,15]','[1,0,1]'\n#, got #TDS\n   id,payload,payloadMod\n   1,[1,2,3],[1,0,1]\n   2,[4,5,6],[0,1,0]\n   3,[7,8,9],[1,0,1]\n   4…
-- FAIL meta::pure::functions::relation::tests::extend::testVariantColumn_fold [relation:relation/functions/transformation/extend.pure]: assertEquals: expected #TDS\n   id,payload,payloadFoldMult\n   1,'[1,2,3]',6\n   2,'[4,5,6]',120\n   3,'[7,8,9]',504\n   4,'[10,11,12]',1320\n   5,'[13,14,15]',2730\n#, got #TDS\n   id,payload,payloadFoldMult\n   1,[1,2,3],6\n   2,[4,5,6],120\n   3,[7,8,9],504\n   4,[10,11,12],1320\n   5,[13,14,15],…
 - FAIL meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle [relation:relation/functions/transformation/pivot.pure]: assertTdsEquivalent: columns [city, country, 2000__|__newCol, 2011__|__newCol, 2012__|__newCol] vs [city, country, '2000__|__newCol', '2011__|__newCol', '2012__|__newCol']
 - FAIL meta::pure::functions::relation::tests::pivot::testPivot_SingleSingle_MultipleExpressions [relation:relation/functions/transformation/pivot.pure]: assertTdsEquivalent: columns [city, country, 2000__|__newCol, 2011__|__newCol, 2012__|__newCol] vs [city, country, '2000__|__newCol', '2011__|__newCol', '2012__|__newCol']
 - FAIL meta::pure::functions::relation::tests::pivot::testPivot_MultipleSingle [relation:relation/functions/transformation/pivot.pure]: assertTdsEquivalent: columns [year, UK__|__LDN__|__sum, USA__|__NYC__|__sum, USA__|__SAN__|__sum] vs [year, 'UK__|__LDN__|__sum', 'USA__|__NYC__|__sum', 'USA__|__SAN__|__sum']
@@ -142,24 +130,10 @@
 - FAIL meta::pure::functions::relation::tests::pivot::testPivot_MultipleMultiple_Dynamic_Aggregation [relation:relation/functions/transformation/pivot.pure]: assertTdsEquivalent: columns [year, UK__|__LDN__|__sum, UK__|__LDN__|__count, USA__|__NYC__|__sum, USA__|__NYC__|__count, USA__|__SAN__|__sum, USA__|__SAN__|__count] vs [year, 'UK__|__LDN__|__sum', 'UK__|__LDN__|__count', 'USA__|__NYC__|__sum', 'USA__|__NYC__|__count', 'USA__|__SAN__|__sum', 'USA__|…
 - FAIL meta::pure::functions::relation::tests::pivot::testStaticPivot_SingleSingle [relation:relation/functions/transformation/pivot.pure]: assertTdsEquivalent: columns [city, country, 2000__|__newCol, 2011__|__newCol] vs [city, country, '2000__|__newCol', '2011__|__newCol']
 - FAIL meta::pure::functions::relation::tests::pivot::testStaticPivot_SingleSingle_StringPivotValue [relation:relation/functions/transformation/pivot.pure]: assertTdsEquivalent: columns [week, numWorkers, MONDAY__|__newCol, TUESDAY__|__newCol] vs [week, numWorkers, 'MONDAY__|__newCol', 'TUESDAY__|__newCol']
-- FAIL meta::pure::functions::relation::tests::select::testSingleSelectWithQuotedColumn [relation:relation/functions/transformation/select.pure]: assertEquals: expected #TDS\n   'other kind'\n   a\n   b\n   c\n   d\n   e\n#, got #TDS\n   other kind\n   a\n   b\n   c\n   d\n   e\n#
-- FAIL meta::pure::functions::relation::tests::select::testSingleSelectWithQuotedColumn_MultipleExpressions [relation:relation/functions/transformation/select.pure]: assertEquals: expected #TDS\n   'other kind'\n   a\n   b\n   c\n   d\n   e\n#, got #TDS\n   other kind\n   a\n   b\n   c\n   d\n   e\n#
-- FAIL meta::pure::functions::relation::variant::tests::flatten::testFlatten_Variant_Array [relation:relation/functions/variant/flatten.pure]: assertEquals: expected #TDS\n   variant\n   '[1,2]'\n   '[3,4]'\n   '[5,6]'\n#, got #TDS\n   variant\n   [1,2]\n   [3,4]\n   [5,6]\n#
-- FAIL meta::pure::functions::relation::variant::tests::flatten::testFlatten_Variant_Map [relation:relation/functions/variant/flatten.pure]: assertEquals: expected #TDS\n   variant\n   '{"hello":[1,2]}'\n   '{"variant":[3,4]}'\n#, got #TDS\n   variant\n   {"hello":[1,2]}\n   {"variant":[3,4]}\n#
-- FAIL meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin [relation:relation/functions/variant/flatten.pure]: assertEquals: expected #TDS\n   id,payload,integers\n   1,'[1,2,3]',1\n   1,'[1,2,3]',2\n   1,'[1,2,3]',3\n   2,'[4,5,6]',4\n   2,'[4,5,6]',5\n   2,'[4,5,6]',6\n   3,'[7,8,9]',7\n   3,'[7,8,9]',8\n   3,'[7,8,9]',9\n   4,'[10,11,12]',10\n   4,'[10,11,12]',11\n   4,'[10,11,12]',12\n   5,'[13,14,15]',1…
 - FAIL meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Nested [relation:relation/functions/variant/flatten.pure]: assertEquals: expected #TDS\n   id,payload,firstFlattened,secondFlattened,value\n   1,'[{"key":[{"innerKey":[-2,-1,0]},{"innerKey":[1,2,3]}]},{"key":[{"innerKey":[4,5,6]}]},{"key":[{"innerKey":[7,8,9]}]}]','{"key":[{"innerKey":[-2,-1,0]},{"innerKey":[1,2,3]}]}','{"innerKey":[-2,-1,0]}',-2\n   1,'[{"…
-- FAIL meta::pure::functions::relation::tests::composition::testVariantArrayColumn_reverse [relation:relation/tests/composition.pure]: assertEquals: expected #TDS\n   id,payload,reversed\n   1,'[1,2,3]','[3,2,1]'\n   2,'[4,5,6]','[6,5,4]'\n   3,'[7,8,9]','[9,8,7]'\n   4,'[10,11,12]','[12,11,10]'\n   5,'[13,14,15]','[15,14,13]'\n#, got #TDS\n   id,payload,reversed\n   1,[1,2,3],[3,2,1]\n   2,[4,5,6],[6,5,4]\n   3,[7,8,9],[9,8,7]\n  …
-- FAIL meta::pure::functions::relation::tests::composition::testVariantColumn_extend_indexExtraction_filter [relation:relation/tests/composition.pure]: assertEquals: expected #TDS\n   id,payload,atCol0\n   1,'[1,2,3]',1\n   2,'[4,5,6]',4\n#, got #TDS\n   id,payload,atCol0\n   1,[1,2,3],1\n   2,[4,5,6],4\n#
-- FAIL meta::pure::functions::relation::tests::composition::testVariant_if [relation:relation/tests/composition.pure]: assertEquals: expected #TDS\n   id,array1,array2,ifOutput\n   1,'[2,1,3]','[-1,-2,-3]','[-1,-2,-3]'\n   2,'[5,6,4]','[-5,-6,-4]','[5,6,4]'\n   3,'[9,8,7]','[-9,-8,-7]','[-9,-8,-7]'\n   4,'[10,11,12]','[-10,-11,-12]','[10,11,12]'\n   5,'[15,13,14]','[-15,-13,-14]','[-15,-13,-14]'\n#, got #TDS\n   id,…
-- FAIL meta::pure::functions::relation::tests::composition::testVariantColumn_isEmpty [relation:relation/tests/composition.pure]: assertEquals: expected #TDS\n   id,payload,empty\n   0,'[]',true\n   1,'[1]',false\n   2,'[2,3,4]',false\n   3,'null',true\n#, got #TDS\n   id,payload,empty\n   0,[],true\n   1,[1],false\n   2,[2,3,4],false\n   3,null,true\n#
-- FAIL meta::pure::functions::relation::tests::composition::testVariantColumn_isNotEmpty [relation:relation/tests/composition.pure]: assertEquals: expected #TDS\n   id,payload,notEmpty\n   0,'[]',false\n   1,'[1]',true\n   2,'[2,3,4]',true\n   3,'null',false\n#, got #TDS\n   id,payload,notEmpty\n   0,[],false\n   1,[1],true\n   2,[2,3,4],true\n   3,null,false\n#
-- FAIL meta::pure::functions::relation::tests::composition::testVariantColumn_indexOf [relation:relation/tests/composition.pure]: assertEquals: expected #TDS\n   val,payload,index\n   1,'[1,2,3]',0\n   3,'[1,2,3]',2\n   4,'[1,2,3]',-1\n   5,'null',-1\n#, got #TDS\n   val,payload,index\n   1,[1,2,3],0\n   3,[1,2,3],2\n   4,[1,2,3],-1\n   5,null,-1\n#
-- FAIL meta::pure::functions::relation::tests::composition::testVariantColumn_contains [relation:relation/tests/composition.pure]: assertEquals: expected #TDS\n   id,payload,val,contains\n   1,'[1,2,3]',1,true\n   2,'[1,2,3]',4,false\n   3,'null',0,false\n#, got #TDS\n   id,payload,val,contains\n   1,[1,2,3],1,true\n   2,[1,2,3],4,false\n   3,null,0,false\n#
 - FAIL meta::pure::functions::relation::tests::composition::testNestedJoinArithmeticComparisonExpression [relation:relation/tests/composition.pure]: assertEquals: expected #TDS\n   id,val1,val2,order\n   1,-20,8,1\n   1,-19,8,1\n   1,-20,5,2\n   1,-19,5,2\n   1,-20,3,3\n   1,-19,3,3\n   1,2024,null,null\n   2,-21,8,4\n   2,-20,8,4\n   2,-19,8,4\n   2,-21,2,5\n   2,-20,2,5\n   2,-19,2,5\n   2,-21,1,6\n   2,-20,1,6\n   2,-19,1,6\n   3,-20,8,7\n   …
 - FAIL meta::pure::functions::relation::tests::composition::testStaticPivot_AfterConcatenate [relation:relation/tests/composition.pure]: assertTdsEquivalent: columns [id, A__|__newCol, B__|__newCol] vs [id, 'A__|__newCol', 'B__|__newCol']
 - FAIL meta::pure::functions::relation::tests::composition::testStaticPivot_AfterExtendConcatenate [relation:relation/tests/composition.pure]: assertTdsEquivalent: columns [id, rnk, A__|__newVal, B__|__newVal] vs [id, rnk, 'A__|__newVal', 'B__|__newVal']
-- FAIL meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings [relation:relation/tests/composition.pure]: assertEquals: expected #TDS\n   id,payload,joined\n   1,'[1,2,3]',1,2,3\n   2,'[4,5,6]',4,5,6\n   3,'[7,8,9]',7,8,9\n   4,'null',\n#, got #TDS\n   id,payload,joined\n   1,[1,2,3],1,2,3\n   2,[4,5,6],4,5,6\n   3,[7,8,9],7,8,9\n   4,null,\n#
-- FAIL meta::pure::functions::relation::tests::composition::testVariantMapColumn_keys_LateralFlatten [relation:relation/tests/composition.pure]: assertEquals: expected #TDS\n   id,payload,key\n   1,'{"a":1,"b":2}',a\n   1,'{"a":1,"b":2}',b\n   2,'{"c":3}',c\n#, got #TDS\n   id,payload,key\n   1,{"a":1,"b":2},a\n   1,{"a":1,"b":2},b\n   2,{"c":3},c\n#
 - FAIL meta::pure::functions::collection::tests::greatest::testGreatest_Date [standard:collection/greatest.pure]: assertEquals: expected 2025-02-10 20:10:20.0, got 2025-02-10T20:10:20+0000
 - FAIL meta::pure::functions::collection::tests::least::testLeast_Date [standard:collection/least.pure]: assertEquals: expected 2025-02-10, got 2025-02-10
 - FAIL meta::pure::functions::date::tests::max::testMax_Date [standard:date/aggregator/max.pure]: assertEquals: expected 2025-02-10 20:10:20.0, got 2025-02-10T20:10:20+0000
@@ -239,7 +213,11 @@
 - ERROR meta::pure::functions::collection::tests::first::testFirstComplex [grammar:collection/slice/first.pure]: unbound variable '$smith'
 - ERROR meta::pure::functions::collection::tests::getAll::testBasic [grammar:lang/all/all.pure]: runtime 'pctcorpus::Rt' has 0 mappings binding class 'meta::pure::metamodel::type::Class' (of 0 candidates); class-query dispatch needs exactly one
 - ERROR meta::pure::functions::relation::tests::eval::testSimpleEval [relation:relation/functions/eval.pure]: lowering not yet implemented for TypedNativeCall
+- ERROR meta::pure::functions::relation::tests::over::testRows_InvalidWindowFrameBoundary [relation:relation/functions/olap/over.pure]: Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!
+- ERROR meta::pure::functions::relation::tests::over::testRange_InvalidWindowFrameBoundary [relation:relation/functions/olap/over.pure]: Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!
 - ERROR meta::pure::functions::relation::tests::over::testRange_WithNumbers_CurrentRow_NFollowing_WithoutPartition_WithSingleOrderBy [relation:relation/functions/olap/over.pure]: TDS column type 'String[1]' is not a known primitive
+- ERROR meta::pure::functions::relation::tests::reduce::testRows_InvalidWindowFrameBoundary [relation:relation/functions/olap/reduce.pure]: Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!
+- ERROR meta::pure::functions::relation::tests::reduce::testRange_InvalidWindowFrameBoundary [relation:relation/functions/olap/reduce.pure]: Invalid window frame boundary - lower bound of window frame cannot be greater than the upper bound!
 - ERROR meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow [relation:relation/functions/transformation/extend.pure]: unknown function 'chunk'
 - ERROR meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle [relation:relation/functions/transformation/groupBy.pure]: unknown function 'chunk'
 - ERROR meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle_MultipleExpressions [relation:relation/functions/transformation/groupBy.pure]: unknown function 'chunk'
@@ -265,6 +243,9 @@
 - ERROR meta::pure::functions::relation::tests::composition::testVariantMapColumn_values_LateralFlatten [relation:relation/tests/composition.pure]: no overload of 'meta::pure::functions::relation::map' matches the argument types
 - ERROR meta::pure::functions::date::tests::max::testExtendMaxDate [standard:date/aggregator/max.pure]: TDS column type 'Integer[1]' is not a known primitive
 - ERROR meta::pure::functions::date::tests::min::testExtendMinDate [standard:date/aggregator/min.pure]: TDS column type 'Integer[1]' is not a known primitive
+- ERROR meta::pure::functions::date::tests::timeBucket::strictDate::testTimeBucketSeconds [standard:date/operation/timeBucket.pure]: Unsupported duration unit for StrictDate. Units can only be: [YEARS, DAYS, MONTHS, WEEKS]
+- ERROR meta::pure::functions::date::tests::timeBucket::strictDate::testTimeBucketMinutes [standard:date/operation/timeBucket.pure]: Unsupported duration unit for StrictDate. Units can only be: [YEARS, DAYS, MONTHS, WEEKS]
+- ERROR meta::pure::functions::date::tests::timeBucket::strictDate::testTimeBucketHours [standard:date/operation/timeBucket.pure]: Unsupported duration unit for StrictDate. Units can only be: [YEARS, DAYS, MONTHS, WEEKS]
 - ERROR meta::pure::functions::string::generation::tests::generateGuid::testGenerateGuidWithRelation [standard:tbd/generateGuid.pure]: unknown function 'columns'
 - ERROR meta::pure::functions::math::hashCode::tests::testHashCodeAggregate [standard:tbd/hashCode.pure]: unknown function 'columns'
 - ERROR meta::pure::functions::string::tests::char::testEmptyChar [unclassified:string/ascii/char.pure]: Parser Error: unterminated quoted string at or near "'"\n\nLINE 1: SELECT '\n               ^

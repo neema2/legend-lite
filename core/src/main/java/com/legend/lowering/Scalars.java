@@ -1800,6 +1800,16 @@ final class Scalars {
         // (2014-01-01T00:00:00.000+0000) — SQL's VARCHAR cast uses a space
         // separator and no offset. Other types keep the plain cast.
         for (String f : Pure.nativeKeysAt("toString")) {
+            // relation::toString is the K-DISPATCHED '#TDS' presentation
+            // native (StatementExecutor.relationToString) — joining the
+            // scalar cast family silently SCALARIZED it outside result
+            // position ('a' + $rel->toString() cast the subquery; audit
+            // pct-b H2). Excluded: a non-result-position use now falls to
+            // the lowerer's loud NotImplemented arm.
+            if (f.startsWith(com.legend.compiler.element.type.PlatformTypes
+                    .RELATION_TO_STRING + "(")) {
+                continue;
+            }
             RULES.put(f, (n, args) -> {
                 Type t = n.args().get(0).info().type();
                 // A DATE LITERAL's print form is fully static — subsecond

@@ -57,10 +57,20 @@ final class FunctionCompiler {
                 for (Function n : all) {
                     nativeKeys.add(n.signatureKey());
                 }
+                int supplanted = 0;
                 for (Function u : model.findFunction(fqn)) {
                     if (!nativeKeys.contains(u.signatureKey())) {
                         all.add(u);
+                    } else {
+                        supplanted++;
                     }
+                }
+                // NOT silent (audit pct-c F4): same once-per-FQN channel
+                // as the platform-owned suppression below
+                if (supplanted > 0 && SUPPRESSED_ONCE.add(fqn)) {
+                    System.err.println("[legend-lite] native '" + fqn + "': "
+                            + supplanted + " matching-signature user "
+                            + "definition(s) supplanted (native replaces stub)");
                 }
             }
         } else if (!model.findFunction(fqn).isEmpty()

@@ -191,7 +191,8 @@ retirement). Checkout roots via `-Dlegend.pure.root` / `-Dlegend.engine.root`
   the PCT tail: `assertEq`, `assertTrue`, `assertNotEq`, `assertNotSize`,
   `assertNotEmpty`, `assertContains`/`assertNotContains`, `assertInstanceOf`,
   `assertTdsEquivalent`, `assertError` (thrown-error expected; message
-  substring verified; line from real spans once P3 lands; column advisory).
+  EXACT — the real native's assertEquals semantics; positional pins SHAPE
+  until P3 spans land; compile-stage raises rethrow, never satisfy).
   `assertIs`/reflection = named walls. Unknown assert = SHAPE, never skipped.
 - **A4 — burn-down** by suite (grammar/essential first — mostly scalar
   expressions; then standard/unclassified; relation exercises `#TDS` literals

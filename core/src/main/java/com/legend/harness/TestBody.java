@@ -650,6 +650,16 @@ public final class TestBody {
                         || !(args.get(1) instanceof CString expected)) {
                     return UNSUPPORTED_MARKER;
                 }
+                // POSITIONAL pins (4-arg with non-empty line/column) are
+                // unverifiable until P3 source spans — SHAPE, never a
+                // silently-dropped conjunct scoring verified (audit 9
+                // principle; audit pct-b/c). Empty-collection positional
+                // args ([],[]) are the 2-arg form.
+                if (args.size() == 4
+                        && (!isEmptyCollection(args.get(2))
+                                || !isEmptyCollection(args.get(3)))) {
+                    return UNSUPPORTED_MARKER;
+                }
                 try {
                     for (ValueSpecification st : thunk.body()) {
                         evalScalar(st, lets, execStmts, execVars, execChains,
@@ -658,7 +668,15 @@ public final class TestBody {
                     return "assertError: no error was raised (expected '"
                             + expected.value() + "')";
                 } catch (com.legend.error.NotImplementedException nie) {
-                    throw nie;   // platform GAP, not the asserted error — stays SHAPE
+                    // platform GAP, not the asserted error — rethrown; the
+                    // runner books it as a loud ERROR
+                    throw nie;
+                } catch (com.legend.error.LegendCompileException ce) {
+                    // COMPILE-stage failure (parse/type): real pure would
+                    // fail the test function's compile, never satisfy
+                    // assertError (audit pct-b M: 'unknown function'
+                    // wrong-PASSed) — rethrown
+                    throw ce;
                 } catch (RuntimeException | java.sql.SQLException e) {
                     String actual = e.getMessage() == null
                             ? e.getClass().getSimpleName() : e.getMessage();
@@ -1569,6 +1587,13 @@ public final class TestBody {
         return '"' + s.replace("\"", "\"\"") + '"';
     }
 
+    /** The empty-collection literal {@code []} (assertError's absent
+     * line/column positional args). */
+    private static boolean isEmptyCollection(ValueSpecification vs) {
+        return vs instanceof com.legend.model.spec.PureCollection pc
+                && pc.values().isEmpty();
+    }
+
     /** A plain numeric LITERAL argument (assertTdsEquivalent's delta /
      * timeDelta); anything computed returns null and the assert stays a
      * loud SHAPE rather than guessing. */
@@ -1606,19 +1631,31 @@ public final class TestBody {
                 if (v1 == null || v2 == null) {
                     return cellMismatch(names1.get(c), r, v1, v2);
                 }
-                if (v1 instanceof Number n1 && v2 instanceof Number n2) {
+                // arm keying by DECLARED column types on BOTH sides (real
+                // tdsEquivalent.pure keys on classifierGenericType, never
+                // runtime value classes — value-keying opened a false-PASS
+                // channel on Any-typed columns; audit pct-a F5)
+                if (isNumberColumn(one.columns().get(c))
+                        && isNumberColumn(two.columns().get(c))
+                        && v1 instanceof Number n1 && v2 instanceof Number n2) {
                     if (Math.abs(n1.doubleValue() - n2.doubleValue()) > Math.abs(delta)) {
                         return cellMismatch(names1.get(c), r, v1, v2);
                     }
                     continue;
                 }
-                Double s1 = epochSeconds(v1);
-                Double s2 = epochSeconds(v2);
-                if (s1 != null && s2 != null) {
-                    if (Math.abs(s1 - s2) > Math.abs(timeDelta)) {
-                        return cellMismatch(names1.get(c), r, v1, v2);
+                if (isDateColumn(one.columns().get(c))
+                        && isDateColumn(two.columns().get(c))) {
+                    Double s1 = epochSeconds(v1);
+                    Double s2 = epochSeconds(v2);
+                    if (s1 != null && s2 != null) {
+                        // real: abs(dateDiff(a, b, SECONDS)) <= timeDelta —
+                        // dateDiff TRUNCATES whole seconds (a 1ms diff passes
+                        // timeDelta 0; fractional compare failed it)
+                        if ((long) Math.abs(s1 - s2) > Math.abs(timeDelta)) {
+                            return cellMismatch(names1.get(c), r, v1, v2);
+                        }
+                        continue;
                     }
-                    continue;
                 }
                 if (!wireEquals(v1, v2)) {
                     return cellMismatch(names1.get(c), r, v1, v2);
@@ -1628,15 +1665,39 @@ public final class TestBody {
         return null;
     }
 
+    private static boolean isNumberColumn(com.legend.exec.Column c) {
+        return c.pureType() instanceof com.legend.compiler.element.type.Type.Primitive p
+                && switch (p) {
+                    case INTEGER, FLOAT, DECIMAL, NUMBER -> true;
+                    default -> false;
+                };
+    }
+
+    private static boolean isDateColumn(com.legend.exec.Column c) {
+        return c.pureType() instanceof com.legend.compiler.element.type.Type.Primitive p
+                && switch (p) {
+                    case DATE, DATE_TIME, STRICT_DATE -> true;
+                    default -> false;
+                };
+    }
+
     private static String cellMismatch(String col, int row, Object v1, Object v2) {
         return "assertTdsEquivalent: cell " + col + "[" + row + "]: "
                 + v1 + " vs " + v2;
     }
 
     private static Double epochSeconds(Object v) {
+        // WALL-CLOCK-AS-UTC uniformly: JDBC Timestamp/Date getTime() maps
+        // the wall time through the JVM-DEFAULT zone (a TZ-dependent
+        // result on non-UTC machines — audit pct-b M4); the connection
+        // runs SET TimeZone='UTC', so the wall reading IS the value.
         return switch (v) {
-            case java.sql.Timestamp ts -> ts.getTime() / 1000.0;
-            case java.sql.Date d -> d.getTime() / 1000.0;
+            case java.sql.Timestamp ts ->
+                    (double) ts.toLocalDateTime().toEpochSecond(java.time.ZoneOffset.UTC)
+                            + ts.getNanos() / 1_000_000_000.0;
+            case java.sql.Date d ->
+                    (double) d.toLocalDate().atStartOfDay(java.time.ZoneOffset.UTC)
+                            .toEpochSecond();
             case java.time.LocalDate ld ->
                     (double) ld.atStartOfDay(java.time.ZoneOffset.UTC).toEpochSecond();
             case java.time.LocalDateTime ldt ->
@@ -1803,6 +1864,20 @@ public final class TestBody {
             case "map", "limit", "take", "drop", "slice", "rows", "toOne", "at",
                     "makeString", "toCSV", "toString", "from" ->
                     !af.parameters().isEmpty() && endsInSort(af.parameters().get(0));
+            // eval of a lambda IS its payload (the PCT adapter shape
+            // $f->eval(|...->sort()): the platform β-reduces before
+            // lowering, so the ORDER CONTRACT rides the payload's last
+            // statement. Without this arm every PCT sort assert silently
+            // fell to multiset compare — audit pct-b H1.
+            case "eval" -> {
+                for (int i = af.parameters().size() - 1; i >= 0; i--) {
+                    if (af.parameters().get(i) instanceof LambdaFunction lf
+                            && !lf.body().isEmpty()) {
+                        yield endsInSort(lf.body().get(lf.body().size() - 1));
+                    }
+                }
+                yield false;
+            }
             default -> false;
         };
     }

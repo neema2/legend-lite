@@ -390,8 +390,11 @@ public final class ElementParser implements TokenStreamCursor {
 
         // Type VARIABLES (real m3 typeVariableParameters):
         // Class X(x:Integer[1]) — value parameters on the type itself.
-        // Parsed and DROPPED: constraints referencing $x fail loud at
-        // type-check (nothing downstream models type variables yet).
+        // Parsed and DROPPED: a DERIVED-PROPERTY read of $x fails loud at
+        // type-check; a CONSTRAINT referencing $x is census-walled only —
+        // constraints are not enforced at instantiation in this platform
+        // (pre-existing), so the drop is observable there only through
+        // compileAllBodies (audit pct-b F5 sized this honestly).
         if (peek() == TokenType.PAREN_OPEN) {
             advance();
             if (peek() != TokenType.PAREN_CLOSE) {

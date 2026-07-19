@@ -85,6 +85,41 @@ class TestBodyTest {
     }
 
     @Test
+    void evalPayloadSortIsAnOrderContract() throws Exception {
+        // audit pct-b H1: endsInSort must see THROUGH eval — the PCT
+        // adapter shape $f->eval(|...->sort()) carries the payload's order
+        // contract. A reversed expectation must FAIL (multiset compare
+        // silently passed it before the eval arm).
+        TestBody.Outcome o = run("""
+                assertEquals([2, 1], {|[1,2]->sort()}->eval());
+                """);
+        assertInstanceOf(TestBody.Outcome.Ran.class, o, String.valueOf(o));
+        assertEquals(1, ((TestBody.Outcome.Ran) o).failures().size(),
+                String.valueOf(o));
+        assertHeld(run("""
+                assertEquals([1, 2], {|[2,1]->sort()}->eval());
+                """), 1);
+    }
+
+    @Test
+    void relationToStringOutsideResultPositionIsLoudNotScalarized() throws Exception {
+        // audit pct-b H2: relation::toString joined the scalar cast family
+        // and 'a' + $rel->toString() silently CAST the subquery ('a1').
+        // Excluded from the family, a non-result-position use hits the
+        // missing-binding throw (the no-fallback convention) — a loud
+        // NAMED wall, never a wrong value.
+        IllegalStateException e = org.junit.jupiter.api.Assertions.assertThrows(
+                IllegalStateException.class, () -> run("""
+                        assertEquals('a1', 'a' + #TDS
+                          val
+                          1
+                        #->toString());
+                        """));
+        assertTrue(e.getMessage().contains("relation::toString"),
+                () -> "want the named toString gap, got: " + e.getMessage());
+    }
+
+    @Test
     void executeBindsLazily_assertEqualsOverSortedChain() throws Exception {
         assertHeld(run("""
                 let result = execute(|Person.all()

@@ -236,27 +236,49 @@ final class StatementExecutor {
             if (c > 0) {
                 sb.append(',');
             }
-            sb.append(t.columns().get(c).name());
+            sb.append(tdsHeaderName(t.columns().get(c).name()));
         }
         sb.append('\n');
-        for (com.legend.exec.Row row : t.rows()) {
+        // real toString.pure: rows joinStrings('\n') + '\n' — an EMPTY
+        // relation still emits the blank line before '#'
+        for (int ri = 0; ri < t.rows().size(); ri++) {
             sb.append("   ");
             for (int c = 0; c < t.columns().size(); c++) {
                 if (c > 0) {
                     sb.append(',');
                 }
-                sb.append(tdsCell(row.get(c)));
+                sb.append(tdsCell(t.rows().get(ri).get(c), t.columns().get(c)));
             }
-            sb.append('\n');
+            if (ri < t.rows().size() - 1) {
+                sb.append('\n');
+            }
         }
-        sb.append('#');
+        sb.append('\n').append('#');
         return new ExecutionResult.Scalar(sb.toString(),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 
-    private static String tdsCell(Object v) {
+    /** toString.pure's header rule: trimmed; quoted UNLESS already
+     * quote-led or matching {@code ^[a-zA-Z0-9_]+$}. */
+    private static String tdsHeaderName(String raw) {
+        String name = raw.trim();
+        boolean simple = name.startsWith("'") || name.matches("^[a-zA-Z0-9_]+$");
+        return simple ? name : "'" + name + "'";
+    }
+
+    /** s.pure cell rules keyed on the DECLARED column type: empty variant
+     * -> quoted 'null', empty else -> null; Variant -> always-quoted with
+     * escapes; a String containing '{' or '[' -> quoted; else the value. */
+    private static String tdsCell(Object v,
+            com.legend.exec.Column col) {
+        boolean variant = com.legend.compiler.element.type.PlatformTypes
+                .isVariant(col.pureType());
         if (v == null) {
-            return "null";
+            return variant ? "'null'" : "null";
+        }
+        if (variant) {
+            return "'" + String.valueOf(v)
+                    .replace("\\", "\\\\").replace("'", "\\'") + "'";
         }
         if (v instanceof String s && (s.contains("{") || s.contains("["))) {
             return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'";
