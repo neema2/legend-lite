@@ -4500,14 +4500,13 @@ in-process Alloy-shaped path).
 - 19x unknown class '' in ^(…)
 - 15x toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - 15x serialize expects (classCollection, #{Class{…}}#)
-- 14x from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 - 11x graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - 10x class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
 - 10x unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
 - 8x class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
 - 8x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
 - 7x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - 7x object-space use of the instance variable '$p' other than property access is not supported yet
 - 6x unknown class 'meta::external::store::model::ModelStore' in ^meta::external::store::model::ModelStore(…)
@@ -4517,16 +4516,17 @@ in-process Alloy-shaped path).
 - 6x Unknown type: 'TabularDataSet' is not a known primitive, class, or enum
 - 6x renameColumns expects literal pair('old','new') mappings
 - 6x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=em…
+- 5x no overload of 'executionPlan' matches 2 argument(s) of these shapes
 - 5x '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 5x unknown function 'generateObjectReferences'
 - 5x class query under TypedMap is not resolvable yet (H2 vocabulary)
 - 5x Unknown type: 'Table' is not a known primitive, class, or enum
 - 5x mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
+- 5x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - 5x graph child 'firm' of class 'meta::relational::tests::model::simple::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - 5x Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
 - 5x lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
 - 5x only single-expression lambdas are supported yet
-- 4x Binder Error: subqueries in lambda expressions are not supported
 
 ### per-test outcomes (non-passing)
 
@@ -4622,8 +4622,8 @@ in-process Alloy-shaped path).
 - SHAPE twoDBRenameColumns [executionPlan/tests]: no execute(|...) call
 - SHAPE tdsJoinTwoDBExtend [executionPlan/tests]: no execute(|...) call
 - SHAPE tdsTwoJoinThreeDB [executionPlan/tests]: no execute(|...) call
-- ERROR testTwoMappingsOneRuntime [executionPlan/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
-- ERROR testTwoMappingsOneRuntimeWithoutExternalMapping [executionPlan/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- ERROR testTwoMappingsOneRuntime [executionPlan/tests]: no overload of 'executionPlan' matches 4 argument(s) of these shapes
+- ERROR testTwoMappingsOneRuntimeWithoutExternalMapping [executionPlan/tests]: no overload of 'executionPlan' matches 2 argument(s) of these shapes
 - ERROR testCrossDbPlanGenerationWithFromWithoutExternalMapping [executionPlan/tests]: no overload of 'meta::pure::tds::project' matches 2 argument(s) of these shapes
 - SHAPE testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes [executionPlan/tests]: no execute(|...) call
 - SHAPE testCrossDbPlanGenerationWithRelationUsesCorrectColumnTypes [executionPlan/tests]: no execute(|...) call
@@ -4649,7 +4649,7 @@ in-process Alloy-shaped path).
 - SHAPE testSupportStreamFlagWithSupportedAndUnSupportedUsages [executionPlan/tests]: no execute(|...) call
 - SHAPE testSupportStreamFlagWithTdsJoinForOneDB [executionPlan/tests]: no execute(|...) call
 - SHAPE testSupportStreamFlagithTdsJoinForTwoDB [executionPlan/tests]: no execute(|...) call
-- ERROR testSupportStreamFlagFromSimple [executionPlan/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- ERROR testSupportStreamFlagFromSimple [executionPlan/tests]: no overload of 'executionPlan' matches 2 argument(s) of these shapes
 - SHAPE testSQLCommentsInPlan [executionPlan/tests]: no execute(|...) call
 - SHAPE testSupportStreamFlagGraphFetchSimple [executionPlan/tests]: no execute(|...) call
 - ERROR testSupportStreamFlagWithGraphFetchAndFrom [executionPlan/tests]: ~legalName: mapped/aggregate column specifications need an enclosing call to type against
@@ -4660,12 +4660,12 @@ in-process Alloy-shaped path).
 - SHAPE testPlanWithLocalH2ConnectionWithSQL [executionPlan/tests]: no execute(|...) call
 - SHAPE testRelationalProjectionWithExternalFormat [executionPlan/tests]: no execute(|...) call
 - SHAPE testEnumPushDownWithExternalFormat [executionPlan/tests]: no execute(|...) call
-- ERROR testMultiExpressionWithPlatformAndFromFunction [executionPlan/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- ERROR testMultiExpressionWithPlatformAndFromFunction [executionPlan/tests]: no overload of 'executionPlan' matches 2 argument(s) of these shapes
 - SHAPE testGraphFetchH2TempTableStrategy [executionPlan/tests]: no execute(|...) call
 - SHAPE testGraphFetchH2TempTableStrategyWithQuoteIdentifiers [executionPlan/tests]: no execute(|...) call
 - SHAPE testTypedTDSWithEnum [executionPlan/tests]: no execute(|...) call
 - SHAPE testTypedTDSWithEnumFilter [executionPlan/tests]: no execute(|...) call
-- ERROR testExecutionPlanGenerationForLambdaFromWithEnumMapping [executionPlan/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- ERROR testExecutionPlanGenerationForLambdaFromWithEnumMapping [executionPlan/tests]: no overload of 'executionPlan' matches 2 argument(s) of these shapes
 - SHAPE planProjectWithDerivedProperty [executionPlan/tests]: no execute(|...) call
 - SHAPE planProjectWithDerivedProperty1 [executionPlan/tests]: no execute(|...) call
 - SHAPE planGraphFetchWithDerivedProperty [executionPlan/tests]: no execute(|...) call
@@ -4755,7 +4755,7 @@ in-process Alloy-shaped path).
 - ERROR testObjectReferenceInWithEmptyLists [functions/tests]: unknown function 'generateObjectReferences'
 - ERROR testObjectReferenceInWithBiTemporalMilestoning [functions/tests]: unknown function 'generateObjectReferences'
 - ERROR testObjectReferenceInWithObjReferenceOutput [functions/tests]: '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
-- ERROR testPaginated [functions/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- ERROR testPaginated [functions/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testPaginatedByVendor [functions/tests]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - SHAPE testPaginatedWithVariables [functions/tests]: harness wrapper 'runTest' carries no zero-arg lambda body
 - ERROR testDistinctSize [functions/tests]: object-space operation TypedDistinct is not supported yet
@@ -4852,7 +4852,7 @@ in-process Alloy-shaped path).
 - ERROR CrossStoreGraphFetchWithRelationalMilestoned [graphFetch/tests]: 'TradeLinkageMapping' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR CrossStoreGraphFetchWithRelationalMilestonedFlowDown [graphFetch/tests]: 'TradeLinkageMapping' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR CrossStoreGraphFetchWithRelationalMilestonedAllversions [graphFetch/tests]: graphFetch tree: class meta::pure::graphFetch::tests::XStore::milestoning::Trade has no property 'customerAllVersions'
-- ERROR CrossStoreGraphFetchWithRelationalMilestonedFlowDownM2M [graphFetch/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- ERROR CrossStoreGraphFetchWithRelationalMilestonedFlowDownM2M [graphFetch/tests]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - SHAPE testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint [graphFetch/tests]: no execute(|...) call
 - ERROR testSimpleUnionCrossStore [graphFetch/tests]: unknown class '' in ^(…)
 - ERROR testNestedUnionCrossStore [graphFetch/tests]: unknown class '' in ^(…)
@@ -5126,7 +5126,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinWithConstantDate [modelJoins]: no execute(|...) call
 - SHAPE testJoinWithInequalities [modelJoins]: no execute(|...) call
 - SHAPE testModelJoinForNonRelationalConcepts [modelJoins]: no execute(|...) call
-- ERROR testPersonToFirmUsingFromProject [modelJoins]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- ERROR testPersonToFirmUsingFromProject [modelJoins]: no overload of 'executionPlan' matches 2 argument(s) of these shapes
 - SHAPE testProp1 [modelToModelToRelational]: no execute(|...) call
 - SHAPE testProp2 [modelToModelToRelational]: no execute(|...) call
 - SHAPE testProp3 [modelToModelToRelational]: no execute(|...) call
@@ -5139,13 +5139,13 @@ in-process Alloy-shaped path).
 - ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
 - ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
-- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - ERROR testReplaceTablePostProcessor [postprocessor/tests]: Unknown type: 'Table' is not a known primitive, class, or enum
 - ERROR testReplaceTableMultiplePostProcessor [postprocessor/tests]: class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablesPostProcessor [postprocessor/tests]: Unknown type: 'Table' is not a known primitive, class, or enum
@@ -5190,8 +5190,8 @@ in-process Alloy-shaped path).
 - SHAPE testPrerouting42 [router/tests]: assert form 'assertRoundTrip/3' is not supported yet
 - SHAPE testRoutingOfSimpleQualifiedProperty [router/tests]: no execute(|...) call
 - ERROR testRoutingWithSubtypePropagation [router/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::lang::subType, typeParameters=[T], multiplicityParameters=[m], parameters=[TypedParameter[name=source, type=ClassType[fqn=meta::pu
-- ERROR testPlatformExpressionDependencyOnAFromExpression [router/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
-- ERROR testPlatformExpressionDependencyOnAFromExpression2 [router/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- ERROR testPlatformExpressionDependencyOnAFromExpression [router/tests]: no overload of 'routeFunction' matches 4 argument(s) of these shapes
+- ERROR testPlatformExpressionDependencyOnAFromExpression2 [router/tests]: no overload of 'routeFunction' matches 4 argument(s) of these shapes
 - SHAPE testCompositionInProject [router/tests]: no execute(|...) call
 - SHAPE testSimpleEval [router/tests]: no execute(|...) call
 - SHAPE testEvalFunctionOutputFromFunctionCall [router/tests]: no execute(|...) call
@@ -5821,10 +5821,10 @@ in-process Alloy-shaped path).
 - ERROR testUnionTwoRelationMappings_EmbeddedFirmFilter [tests/mapping/union/relation]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEmbeddedFirm' (union member 'meta::relational::tests::model::simple::Person': relation column mapping for property 'firm' has no 
 - ERROR testUnionTwoRelationMappings_EmbeddedFirmProject_Tds [tests/mapping/union/relation]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEmbeddedFirm' (union member 'meta::relational::tests::model::simple::Person': relation column mapping for property 'firm' has no 
 - ERROR testUnionTwoRelationMappings_EmbeddedFirmFilter_Tds [tests/mapping/union/relation]: class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::relation::mapping::unionOfTwoRelationMappingsWithEmbeddedFirm' (union member 'meta::relational::tests::model::simple::Person': relation column mapping for property 'firm' has no 
-- ERROR testIsNotEmptyForRelational_returnsTrue [tests/platformOperations]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
-- ERROR testIsNotEmptyForRelational_returnsFalse [tests/platformOperations]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
-- ERROR testIsEmptyForRelational_returnsFalse [tests/platformOperations]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
-- ERROR testIsEmptyForRelational_returnsTrue [tests/platformOperations]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- ERROR testIsNotEmptyForRelational_returnsTrue [tests/platformOperations]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
+- ERROR testIsNotEmptyForRelational_returnsFalse [tests/platformOperations]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
+- ERROR testIsEmptyForRelational_returnsFalse [tests/platformOperations]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
+- ERROR testIsEmptyForRelational_returnsTrue [tests/platformOperations]: no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - ERROR testGroupByWithFilterFunction_noDatePath [tests/query]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary): TypedCast[source=TypedIf[condition=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::boolean::lessThanEqual, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=left, ty
 - ERROR testDayOfWeek [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testAssociationMixedDeep [tests/query]: object-space operation TypedDistinct is not supported yet
