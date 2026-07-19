@@ -847,11 +847,55 @@ public final class InferenceKernel {
 
             case Type.GenericType g when g.rawFqn().equals(RELATION_FQN) ->
                     relationRow(actual) != null ? 1 : -1;
-            case Type.GenericType g ->
-                    (actual instanceof Type.GenericType ag && ag.rawFqn().equals(g.rawFqn())) ? 1 : -1;
+            case Type.GenericType g -> {
+                if (!(actual instanceof Type.GenericType ag)
+                        || !ag.rawFqn().equals(g.rawFqn())) {
+                    yield -1;
+                }
+                // Function<{...->V[m]}> carriers: a KNOWN function value
+                // must fit the formal's interior RESULT multiplicity —
+                // map's {T[1]->V[0..1]} overload cannot take a
+                // {Firm[1]->Integer[*]} argument; real pure selects the
+                // {T[1]->V[*]} overload (map.pure:28). Without this check
+                // the tighter-VALUE overload won the score and died at
+                // unification (testUsingFunctionInMapLambdaTakingAParameter).
+                if (g.arguments().size() == 1
+                        && g.arguments().get(0) instanceof Type.FunctionType ff
+                        && ag.arguments().size() == 1
+                        && ag.arguments().get(0) instanceof Type.FunctionType af) {
+                    if (af.params().size() != ff.params().size()) {
+                        yield -1;
+                    }
+                    if (ff.result().multiplicity() instanceof Multiplicity.Bounded fb
+                            && paramMultScore(fb, af.result().multiplicity(),
+                                    af.result().type()) < 0) {
+                        yield -1;
+                    }
+                }
+                yield 1;
+            }
 
             case Type.RelationType ignored -> (relationRow(actual) instanceof Type.RelationType) ? 1 : -1;
-            case Type.FunctionType ignored -> (actual instanceof Type.FunctionType) ? 1 : -1;
+            case Type.FunctionType ff -> {
+                if (!(actual instanceof Type.FunctionType af)) {
+                    yield -1;
+                }
+                if (af.params().size() != ff.params().size()) {
+                    yield -1;
+                }
+                // A KNOWN function value must fit the formal's RESULT
+                // multiplicity: map's {T[1]->V[0..1]} overload cannot take a
+                // {Firm[1]->Integer[*]} argument — real pure selects the
+                // {T[1]->V[*]} overload (map.pure:28). Without this interior
+                // check the tighter-VALUE overload won the score and died at
+                // unification (testUsingFunctionInMapLambdaTakingAParameter).
+                if (ff.result().multiplicity() instanceof Multiplicity.Bounded fb
+                        && paramMultScore(fb, af.result().multiplicity(),
+                                af.result().type()) < 0) {
+                    yield -1;
+                }
+                yield 1;
+            }
 
             // Schema algebra never appears as a parameter type to score against.
             case Type.SchemaAlgebra ignored -> -1;
