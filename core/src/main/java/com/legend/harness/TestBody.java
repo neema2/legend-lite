@@ -226,6 +226,34 @@ public final class TestBody {
     }
 
     /**
+     * The ORDER CONTRACT is the CALLER's semantics, not a harness guess:
+     *
+     * <ul>
+     *   <li>{@link #SQL_ORDER_POLICY} — relational-corpus semantics: the
+     *       corpus expectations encode H2's INCIDENTAL row order and we
+     *       execute on DuckDB, so an unsorted chain compares as a multiset
+     *       and only a sort-carrying chain (the {@code endsInSort} shape
+     *       walk) is an order contract.</li>
+     *   <li>{@link #PURE_ORDERED} — pure list semantics: expectations and
+     *       execution share ONE semantics (the PCT corpus — payloads are
+     *       pure expressions over literals; pure lists are ordered, full
+     *       stop). EVERY compare is ordered; an order divergence is an
+     *       honest FAIL naming a platform gap, and the shape walk is
+     *       irrelevant on this path.</li>
+     * </ul>
+     */
+    public enum OrderPolicy { SQL_ORDER_POLICY, PURE_ORDERED }
+
+    public static Outcome run(ModelContext ctx,
+            java.util.List<ValueSpecification> statements, ImportScope imports,
+            String runtimeFqn, Connection conn, boolean emptinessUnverifiable,
+            java.util.List<String> seedFailures)
+            throws java.sql.SQLException {
+        return run(ctx, statements, imports, runtimeFqn, conn,
+                emptinessUnverifiable, seedFailures, OrderPolicy.SQL_ORDER_POLICY);
+    }
+
+    /**
      * {@code seedFailures}: the caller's failed-seed LEDGER — setup calls
      * the body makes report per-statement raw-SQL failures here instead of
      * aborting (engine-harness tolerance), and a non-empty ledger makes
@@ -234,7 +262,7 @@ public final class TestBody {
     public static Outcome run(ModelContext ctx,
             java.util.List<ValueSpecification> statements, ImportScope imports,
             String runtimeFqn, Connection conn, boolean emptinessUnverifiable,
-            java.util.List<String> seedFailures)
+            java.util.List<String> seedFailures, OrderPolicy order)
             throws java.sql.SQLException {
         java.util.ArrayDeque<ValueSpecification> work =
                 new java.util.ArrayDeque<>(statements);
@@ -324,7 +352,7 @@ public final class TestBody {
                         eqf.parameters().get(0), lets, pairs);
                 if (perDriver != null) {
                     int[] counters = {verified, advisory};
-                    Outcome o = runPerDriverLoop(pairs, perDriver, lets,
+                    Outcome o = runPerDriverLoop(order, pairs, perDriver, lets,
                             execStmts, execVars, execChains, ctx, imports,
                             runtimeFqn, conn,
                             emptinessUnverifiable || seedFailures != null
@@ -340,7 +368,7 @@ public final class TestBody {
             if (stmt instanceof AppliedFunction af
                     && harnessVocabName(af.function())
                     && simpleName(af.function()).startsWith("assert")) {
-                String failure = checkAssert(af, lets, execStmts, execVars,
+                String failure = checkAssert(af, order, lets, execStmts, execVars,
                         execChains, ctx, imports,
                         runtimeFqn, conn, emptinessUnverifiable
                                 || seedFailures != null && !seedFailures.isEmpty());
@@ -482,7 +510,7 @@ public final class TestBody {
     private static final String ADVISORY_MARKER = new String("advisory");
 
     /** null = held; ADVISORY_MARKER = golden-SQL; UNSUPPORTED_MARKER; else the failure text. */
-    private static String checkAssert(AppliedFunction af,
+    private static String checkAssert(AppliedFunction af, OrderPolicy order,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             Map<String, ValueSpecification> execChains,
@@ -509,7 +537,7 @@ public final class TestBody {
                     // enough that blanket-unsupported stays honest
                     return UNSUPPORTED_MARKER;
                 }
-                Object v = evalScalar(args.get(0), lets, execStmts, execVars, execChains, ctx, imports,
+                Object v = evalScalar(args.get(0), order, lets, execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
                 boolean expect = af.function().equals("assert");
                 return Boolean.valueOf(expect).equals(v) ? null
@@ -534,14 +562,14 @@ public final class TestBody {
                 if (args.size() == 3 && af.function().equals("assertEqualsH2Compatible")) {
                     return ADVISORY_MARKER;
                 }
-                Eval e = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
+                Eval e = eval(args.get(0), order, lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 if (emptinessUnverifiable && e.size() == 0) {
                     // seeds failed: an EMPTY expectation would hollow-PASS
                     // against the empty tables (audit 9 — the assertSize-0/
                     // assertEmpty guard alone missed the equals spellings)
                     return UNSUPPORTED_MARKER;
                 }
-                Eval a = eval(args.get(1), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
+                Eval a = eval(args.get(1), order, lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 boolean equal = compare(e, a, /* ordered */ true);
                 if (af.function().equals("assertNotEquals")) {
                     return equal ? "assertNotEquals: both sides are " + e.render() : null;
@@ -553,11 +581,11 @@ public final class TestBody {
                 if (args.size() != 2) {
                     return UNSUPPORTED_MARKER;
                 }
-                Eval e = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
+                Eval e = eval(args.get(0), order, lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 if (emptinessUnverifiable && e.size() == 0) {
                     return UNSUPPORTED_MARKER;   // see the assertEquals guard
                 }
-                Eval a = eval(args.get(1), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
+                Eval a = eval(args.get(1), order, lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 return compare(e, a, /* ordered */ false) ? null
                         : "assertSameElements: expected " + e.render() + ", got " + a.render();
             }
@@ -565,11 +593,11 @@ public final class TestBody {
                 if (args.size() != 3) {
                     return UNSUPPORTED_MARKER;
                 }
-                Object e = evalScalar(args.get(0), lets, execStmts, execVars, execChains, ctx, imports,
+                Object e = evalScalar(args.get(0), order, lets, execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
-                Object a = evalScalar(args.get(1), lets, execStmts, execVars, execChains, ctx, imports,
+                Object a = evalScalar(args.get(1), order, lets, execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
-                Object tol = evalScalar(args.get(2), lets, execStmts, execVars, execChains, ctx,
+                Object tol = evalScalar(args.get(2), order, lets, execStmts, execVars, execChains, ctx,
                         imports, runtimeFqn, conn);
                 if (!(e instanceof Number en && a instanceof Number an
                         && tol instanceof Number tn)) {
@@ -585,12 +613,12 @@ public final class TestBody {
                 if (args.size() != 2) {
                     return UNSUPPORTED_MARKER;
                 }
-                Object n = evalScalar(args.get(1), lets, execStmts, execVars, execChains, ctx, imports,
+                Object n = evalScalar(args.get(1), order, lets, execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
                 if (emptinessUnverifiable && n instanceof Number zn && zn.longValue() == 0) {
                     return UNSUPPORTED_MARKER;
                 }
-                Eval a = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
+                Eval a = eval(args.get(0), order, lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 long actual = a.size();
                 return (n instanceof Number num && num.longValue() == actual) ? null
                         : "assertSize: expected " + n + ", got " + actual;
@@ -602,14 +630,14 @@ public final class TestBody {
                 if (emptinessUnverifiable) {
                     return UNSUPPORTED_MARKER;
                 }
-                Eval a = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
+                Eval a = eval(args.get(0), order, lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 return a.size() == 0 ? null : "assertEmpty: got " + a.size() + " values";
             }
             case "assertNotEmpty" -> {
                 if (args.size() != 1) {
                     return UNSUPPORTED_MARKER;
                 }
-                Eval a = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
+                Eval a = eval(args.get(0), order, lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 return a.size() > 0 ? null : "assertNotEmpty: got 0 values";
             }
             case "assertTdsEquivalent" -> {
@@ -625,11 +653,11 @@ public final class TestBody {
                 if (delta == null || timeDelta == null) {
                     return UNSUPPORTED_MARKER;
                 }
-                Eval one = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
+                Eval one = eval(args.get(0), order, lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 if (emptinessUnverifiable && one.size() == 0) {
                     return UNSUPPORTED_MARKER;   // see the assertEquals guard
                 }
-                Eval two = eval(args.get(1), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
+                Eval two = eval(args.get(1), order, lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 if (!(one.result() instanceof com.legend.exec.ExecutionResult.Tabular t1)
                         || !(two.result() instanceof com.legend.exec.ExecutionResult.Tabular t2)) {
                     return UNSUPPORTED_MARKER;
@@ -662,7 +690,7 @@ public final class TestBody {
                 }
                 try {
                     for (ValueSpecification st : thunk.body()) {
-                        evalScalar(st, lets, execStmts, execVars, execChains,
+                        evalScalar(st, order, lets, execStmts, execVars, execChains,
                                 ctx, imports, runtimeFqn, conn);
                     }
                     return "assertError: no error was raised (expected '"
@@ -696,12 +724,12 @@ public final class TestBody {
                 if (args.size() != 2) {
                     return UNSUPPORTED_MARKER;
                 }
-                Eval e = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports,
+                Eval e = eval(args.get(0), order, lets, execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
                 if (emptinessUnverifiable) {
                     return UNSUPPORTED_MARKER;
                 }
-                Eval a = eval(args.get(1), lets, execStmts, execVars, execChains, ctx, imports,
+                Eval a = eval(args.get(1), order, lets, execStmts, execVars, execChains, ctx, imports,
                         runtimeFqn, conn);
                 Object expected = jsonValueOf(e);
                 Object actual = jsonValueOf(a);
@@ -737,7 +765,7 @@ public final class TestBody {
 
     /** The per-driver golden loop body — null when every pair verified
      * clean; counters = {verified, advisory} accumulate in place. */
-    private static Outcome runPerDriverLoop(List<AppliedFunction> pairs,
+    private static Outcome runPerDriverLoop(OrderPolicy order, List<AppliedFunction> pairs,
             LambdaFunction perDriver, Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             Map<String, ValueSpecification> execChains, ModelContext ctx,
@@ -773,7 +801,7 @@ public final class TestBody {
                             && harnessVocabName(af2.function())
                             && simpleName(af2.function())
                                     .startsWith("assert")) {
-                        String failure = checkAssert(af2, loopLets,
+                        String failure = checkAssert(af2, order, loopLets,
                                 execStmts, execVars, execChains, ctx,
                                 imports, runtimeFqn, conn,
                                 unverifiable);
@@ -1030,7 +1058,7 @@ public final class TestBody {
         }
     }
 
-    private static Eval eval(ValueSpecification expr,
+    private static Eval eval(ValueSpecification expr, OrderPolicy order,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             Map<String, ValueSpecification> execChains,
@@ -1064,7 +1092,7 @@ public final class TestBody {
                 // csvJoinedEquals below applies the header/multiset/
                 // tolerant-cell policy instead
                 return new Eval(stripped2,
-                        endsInSort(orderView(innerCsv.parameters().get(0),
+                        ordered(order, orderView(innerCsv.parameters().get(0),
                                 execChains)), false,
                         "CSVJOIN:" + to.value());
             }
@@ -1083,7 +1111,7 @@ public final class TestBody {
                     ctx, imports, runtimeFqn, conn);
             if (stripped instanceof com.legend.exec.ExecutionResult.Tabular) {
                 return new Eval(stripped,
-                        endsInSort(orderView(tail.parameters().get(0),
+                        ordered(order, orderView(tail.parameters().get(0),
                                 execChains)),
                         true);
             }
@@ -1100,21 +1128,21 @@ public final class TestBody {
                         || simpleName(jf.function()).equals("joinStrings"))
                 && jf.parameters().size() == 2
                 && jf.parameters().get(1) instanceof CString sep
-                && !endsInSort(orderView(jf.parameters().get(0),
+                && !ordered(order, orderView(jf.parameters().get(0),
                         execChains))) {
             joinSep = sep.value();
         }
-        return new Eval(r, endsInSort(orderView(spliced, execChains)),
+        return new Eval(r, ordered(order, orderView(spliced, execChains)),
                 csv, joinSep);
     }
 
-    private static Object evalScalar(ValueSpecification expr,
+    private static Object evalScalar(ValueSpecification expr, OrderPolicy order,
             Map<String, ValueSpecification> lets,
             List<ValueSpecification> execStmts, java.util.Set<String> execVars,
             Map<String, ValueSpecification> execChains,
             ModelContext ctx, ImportScope imports, String runtimeFqn, Connection conn)
             throws java.sql.SQLException {
-        Eval e = eval(expr, lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
+        Eval e = eval(expr, order, lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
         List<Object> v = e.values();
         return v.size() == 1 ? v.get(0) : v;
     }
@@ -1845,6 +1873,13 @@ public final class TestBody {
             out.add(substitute(v, lets));
         }
         return out;
+    }
+
+    /** The caller's order contract for one compared side: PURE_ORDERED is
+     * unconditional (pure list semantics — the shape walk is irrelevant);
+     * SQL_ORDER_POLICY consults the {@link #endsInSort} chain walk. */
+    private static boolean ordered(OrderPolicy order, ValueSpecification chainView) {
+        return order == OrderPolicy.PURE_ORDERED || endsInSort(chainView);
     }
 
     /** The chain's OUTER tail carries a sort — its order is a contract. */

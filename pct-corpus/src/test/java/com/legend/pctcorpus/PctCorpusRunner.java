@@ -166,8 +166,13 @@ class PctCorpusRunner {
                                 + " parameters (expected the single adapter param)");
             }
             stmts.addAll(t.fn().body());
+            // PURE_ORDERED: PCT expectations and execution share pure's
+            // list semantics — every compare is an order contract; the
+            // corpus-side multiset leniency (H2-vs-DuckDB incidental row
+            // order) has no justification on this path.
             TestBody.Outcome out = TestBody.run(ctx, stmts,
-                    importScopeOf(t), RT_FQN, conn, false);
+                    importScopeOf(t), RT_FQN, conn, false, null,
+                    TestBody.OrderPolicy.PURE_ORDERED);
             return classify(t, f, out);
         } catch (RuntimeException | java.sql.SQLException e) {
             String msg = e.getMessage() == null
