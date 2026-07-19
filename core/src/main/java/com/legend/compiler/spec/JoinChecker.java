@@ -52,6 +52,11 @@ final class JoinChecker {
         if (af.parameters().size() == 5) {
             return withPrefix(t, af, env);
         }
+        if (af.parameters().size() == 4
+                && af.parameters().get(3) instanceof LambdaFunction lf0
+                && lf0.parameters().size() == 2) {
+            af = sideAgnosticTdsCond(t, af, env, lf0);
+        }
         Application a = t.checkGeneric(af, env);
         if (a.args().size() != 4 || !(a.args().get(2) instanceof TypedEnumValue kind)
                 || !(a.args().get(3) instanceof TypedLambda cond)) {
@@ -59,6 +64,84 @@ final class JoinChecker {
                     "join expects (rel1, rel2, JoinKind, {t,v|cond} [, 'prefix'])");
         }
         return new TypedJoin(a.args().get(0), a.args().get(1), kind, cond, Optional.empty(), a.out());
+    }
+
+    /** ENGINE-LEGACY tolerance: a TDS join condition's {@code get*('col')}
+     * reads resolve BY NAME across both rows (the corpus spells
+     * {@code {a,b|$a.getInteger('aID') == $b.getInteger('faID')}} with the
+     * sides swapped and the engine accepts it — testJoinAfterGroupByAfter-
+     * JoinInner). A read whose column is ABSENT on its own side and
+     * PRESENT on the other re-points to the other param before typing.
+     * Ambiguity (present on both) keeps the spelled side. */
+    private static AppliedFunction sideAgnosticTdsCond(Typer t,
+            AppliedFunction af, Env env, LambdaFunction lf) {
+        TypedSpec l = t.synth(af.parameters().get(0), env);
+        TypedSpec r = t.synth(af.parameters().get(1), env);
+        if (!(l.info().type() instanceof Type.RelationType lr)
+                || !(r.info().type() instanceof Type.RelationType rr)) {
+            return af;
+        }
+        java.util.Set<String> lc = new java.util.LinkedHashSet<>();
+        lr.columns().forEach(c -> lc.add(c.name()));
+        java.util.Set<String> rc = new java.util.LinkedHashSet<>();
+        rr.columns().forEach(c -> rc.add(c.name()));
+        String pa = lf.parameters().get(0).name();
+        String pb = lf.parameters().get(1).name();
+        ValueSpecification body = swapMisplacedReads(
+                lf.body().get(lf.body().size() - 1), pa, pb, lc, rc);
+        if (body == lf.body().get(lf.body().size() - 1)) {
+            return af;
+        }
+        java.util.List<ValueSpecification> nb =
+                new java.util.ArrayList<>(lf.body());
+        nb.set(nb.size() - 1, body);
+        java.util.List<ValueSpecification> np =
+                new java.util.ArrayList<>(af.parameters());
+        np.set(3, new LambdaFunction(lf.parameters(), nb));
+        return new AppliedFunction(af.function(), np);
+    }
+
+    private static final java.util.Set<String> TDS_GETTERS = java.util.Set.of(
+            "get", "getInteger", "getString", "getFloat", "getDecimal",
+            "getBoolean", "getDate", "getDateTime", "getStrictDate",
+            "getNumber", "getEnum");
+
+    private static ValueSpecification swapMisplacedReads(ValueSpecification n,
+            String pa, String pb, java.util.Set<String> lc,
+            java.util.Set<String> rc) {
+        if (n instanceof AppliedFunction gf
+                && TDS_GETTERS.contains(gf.function())
+                && gf.parameters().size() == 2
+                && gf.parameters().get(0) instanceof Variable v
+                && gf.parameters().get(1) instanceof CString col) {
+            boolean onA = v.name().equals(pa);
+            boolean onB = v.name().equals(pb);
+            if (onA && !lc.contains(col.value()) && rc.contains(col.value())) {
+                return new AppliedFunction(gf.function(), java.util.List.of(
+                        new Variable(pb), col));
+            }
+            if (onB && !rc.contains(col.value()) && lc.contains(col.value())) {
+                return new AppliedFunction(gf.function(), java.util.List.of(
+                        new Variable(pa), col));
+            }
+            return n;
+        }
+        if (n instanceof AppliedFunction fn2) {
+            boolean changed = false;
+            java.util.List<ValueSpecification> args = new java.util.ArrayList<>();
+            for (ValueSpecification c : fn2.parameters()) {
+                ValueSpecification c2 = swapMisplacedReads(c, pa, pb, lc, rc);
+                changed |= c2 != c;
+                args.add(c2);
+            }
+            return changed ? new AppliedFunction(fn2.function(), args) : n;
+        }
+        if (n instanceof AppliedProperty ap) {
+            ValueSpecification rcv = swapMisplacedReads(ap.receiver(), pa, pb, lc, rc);
+            return rcv == ap.receiver() ? n
+                    : new AppliedProperty(rcv, ap.property());
+        }
+        return n;
     }
 
     /**

@@ -47,7 +47,7 @@ in-process Alloy-shaped path).
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 266 | 140 | 1 | 97 | 28 |
+| tds/tests | 266 | 143 | 1 | 94 | 28 |
 | testDataGeneration/tests | 68 | 0 | 0 | 0 | 68 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 68 | 25 | 1 | 30 | 12 |
@@ -85,7 +85,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 3 | 17 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1120** | 53 | 756 | 609 |
+| **total** | 2538 | **1123** | 53 | 753 | 609 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4437,7 +4437,6 @@ in-process Alloy-shaped path).
 - 10x class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
 - 10x unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
 - 8x class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
-- 8x relation has no column 'aID'
 - 8x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
 - 7x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
@@ -4448,6 +4447,7 @@ in-process Alloy-shaped path).
 - 6x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
 - 6x scalar lowering not yet implemented for TypedCLatestDate
 - 6x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
+- 6x ~addr_length: mapped/aggregate column specifications need an enclosing call to type against
 - 6x unknown function 'columnValues'
 - 6x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=em…
 - 5x '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
@@ -4609,7 +4609,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Product], multiplicity=Bounded[lower=1, upper=1]]], predicate=TypedLambda[parameters=[p], body=[TypedNa
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -5018,7 +5018,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -5234,15 +5234,12 @@ in-process Alloy-shaped path).
 - ERROR testExtendAfterJoinOuter [tds/tests]: ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testJoinAfterExtendInner [tds/tests]: ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testJoinAfterExtendOuter [tds/tests]: ~name_length: mapped/aggregate column specifications need an enclosing call to type against
-- ERROR testJoinAfterGroupByAfterJoinInner [tds/tests]: relation has no column 'aID'
-- ERROR testJoinAfterGroupByAfterJoinOuter [tds/tests]: relation has no column 'aID'
-- ERROR testExtendAfterJoinAfterAfterGroupByAfterJoinInner [tds/tests]: relation has no column 'aID'
-- ERROR testExtendAfterJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: relation has no column 'aID'
-- ERROR testFilterAfterExtendJoinAfterAfterGroupByAfterJoinInner [tds/tests]: relation has no column 'aID'
-- ERROR testFilterAfterExtendJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: relation has no column 'aID'
-- ERROR testGroupByAfterFilterAfterExtendJoinAfterAfterGroupByAfterJoinInner [tds/tests]: relation has no column 'aID'
-- ERROR testGroupByAfterFilterAfterExtendJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: relation has no column 'aID'
-- ERROR testInnerJoinWithQualifiedPropertiesOnRight [tds/tests]: relation has no column 'eID'
+- ERROR testExtendAfterJoinAfterAfterGroupByAfterJoinInner [tds/tests]: ~addr_length: mapped/aggregate column specifications need an enclosing call to type against
+- ERROR testExtendAfterJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: ~addr_length: mapped/aggregate column specifications need an enclosing call to type against
+- ERROR testFilterAfterExtendJoinAfterAfterGroupByAfterJoinInner [tds/tests]: ~addr_length: mapped/aggregate column specifications need an enclosing call to type against
+- ERROR testFilterAfterExtendJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: ~addr_length: mapped/aggregate column specifications need an enclosing call to type against
+- ERROR testGroupByAfterFilterAfterExtendJoinAfterAfterGroupByAfterJoinInner [tds/tests]: ~addr_length: mapped/aggregate column specifications need an enclosing call to type against
+- ERROR testGroupByAfterFilterAfterExtendJoinAfterAfterGroupByAfterJoinOuter [tds/tests]: ~addr_length: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testJoinBySingleColumnNameRightOuter [tds/tests]: unknown function 'columnValues'
 - ERROR testJoinByCommonColumnName [tds/tests]: the column 'fID' already exists in the relation (personID:Integer[1], personName:String[1], fID:Integer[0..1])
 - ERROR testJoinByCommonColumnName_RightOuter [tds/tests]: the column 'fID' already exists in the relation (personID:Integer[1], personName:String[1], fID:Integer[0..1])
@@ -5550,7 +5547,7 @@ in-process Alloy-shaped path).
 - ERROR testPropertyMappingsForA [tests/mapping/extends]: association property '$a.e' used other than as a navigation head (class-typed value / isEmpty / whole-instance) is not supported yet
 - ERROR testPropertyMappingsForB [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
 - ERROR testPropertyMappingsForC [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR testStoreSubstitutionForB [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::BMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::B': [meta::relational::tests::mapp
 - ERROR testStoreSubstitutionForC [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::CMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::C': [meta::relational::tests::mapp
