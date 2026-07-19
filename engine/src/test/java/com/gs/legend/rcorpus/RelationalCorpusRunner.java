@@ -56,7 +56,31 @@ public class RelationalCorpusRunner {
                 Corpus.read("tests/relationalSetUp.pure"),
                 // the corpus's OWN executeInDb wrapper surface — its 2-arg
                 // wrapper inlines to the 4-arg K-native leaf (S4)
-                Corpus.read("relationalExtension.pure"));
+                Corpus.read("relationalExtension.pure"),
+                // engine-core collection helpers the corpus consumes
+                // (VERBATIM from legend-engine core/pure/corefunctions/
+                // collectionExtension.pure:155-166 — only the pair the
+                // tests name; the whole file would double-register
+                // natives we already carry)
+                """
+                function meta::pure::functions::collection::uniqueValueOnly<T>(values : T[*]):T[0..1]
+                {
+                   $values->uniqueValueOnly([]->cast(@T));
+                }
+
+                function meta::pure::functions::collection::uniqueValueOnly<T>(values : T[*], defaultValue : T[0..1]):T[0..1]
+                {
+                   if($values->distinct()->size() == 1,
+                      | $values->meta::pure::functions::collection::max(),
+                      | $defaultValue
+                      );
+                }
+
+                function meta::pure::tds::extensions::firstNotNull<T>(set:T[*]):T[0..1]
+                {
+                  $set->filter(v | $v != TDSNull)->first();
+                }
+                """);
         Runner runner = new Runner(shared, shared);
         // BeforePackage setups live NEXT TO the tests (functions/tests,
         // query, mapping families) — scan every covered file plus the
@@ -182,7 +206,21 @@ public class RelationalCorpusRunner {
                             l.startsWith("Class ")
                             || l.startsWith("function ")
                             || l.startsWith("Mapping "));
-                if (storeOnly) {
+                // FUNCTION-ONLY parent files (tds/tdsExtension.pure,
+                // tds/tds.pure): a parent source defining only pure
+                // FUNCTIONS is as conflict-free as a store — no model
+                // elements to collide (the reverted ancestor experiment
+                // tripped on parent CLASS models, never function libs)
+                boolean funcOnly = !Runner.hasTestFunctions(src2)
+                        && src2.lines().anyMatch(l ->
+                            l.startsWith("function "))
+                        && src2.lines().noneMatch(l ->
+                            l.startsWith("Class ")
+                            || l.startsWith("Database ")
+                            || l.startsWith("Enum ")
+                            || l.startsWith("Association ")
+                            || l.startsWith("Mapping "));
+                if (storeOnly || funcOnly) {
                     familySources.add(0, src2);
                 }
                 }

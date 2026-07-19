@@ -237,6 +237,48 @@ final class Typer {
                 && af.parameters().get(1) instanceof CString name) {
             return synth(new ColSpec(name.value(), fn, null), env);
         }
+        // renameColumn(tds,'a','b') / renameColumns(tds, pair('a','b')...)
+        // — engine tds.pure host-graph bodies; desugar to the modern
+        // rename native (STATIC pair literals only; else loud below)
+        if (af.function().endsWith("renameColumn") && af.parameters().size() == 3
+                && af.parameters().get(1) instanceof CString ro
+                && af.parameters().get(2) instanceof CString rn) {
+            return synth(new AppliedFunction("rename", List.of(
+                    af.parameters().get(0),
+                    new ColSpec(ro.value(), null, null),
+                    new ColSpec(rn.value(), null, null))), env);
+        }
+        if (af.function().endsWith("renameColumns") && af.parameters().size() == 2) {
+            List<ValueSpecification> pairs =
+                    af.parameters().get(1) instanceof PureCollection pc
+                            ? pc.values() : List.of(af.parameters().get(1));
+            ValueSpecification acc = af.parameters().get(0);
+            for (ValueSpecification pv : pairs) {
+                if (!(pv instanceof AppliedFunction pf
+                        && pf.function().endsWith("pair")
+                        && pf.parameters().size() == 2
+                        && pf.parameters().get(0) instanceof CString po
+                        && pf.parameters().get(1) instanceof CString pn)) {
+                    throw new TypeInferenceException("renameColumns expects"
+                            + " literal pair('old','new') mappings");
+                }
+                acc = new AppliedFunction("rename", List.of(acc,
+                        new ColSpec(po.value(), null, null),
+                        new ColSpec(pn.value(), null, null)));
+            }
+            return synth(acc, env);
+        }
+        // columnValues(tds,'c') — engine tds.pure host-graph body; the
+        // platform spelling is the rows-mapped cell read
+        if (af.function().endsWith("columnValues") && af.parameters().size() == 2
+                && af.parameters().get(1) instanceof CString cvCol) {
+            return synth(new AppliedFunction("map", List.of(
+                    new AppliedProperty(af.parameters().get(0), "rows"),
+                    new LambdaFunction(List.of(new Variable("_cvr")),
+                            List.of(new AppliedFunction("get", List.of(
+                                    new Variable("_cvr"),
+                                    new CString(cvCol.value()))))))), env);
+        }
         // $r.getString('COL') / getInteger / ... — TDSRow typed accessors
         // read the named COLUMN of the relation row (a plain property
         // access post-desugar; a type mismatch is loud downstream). The
