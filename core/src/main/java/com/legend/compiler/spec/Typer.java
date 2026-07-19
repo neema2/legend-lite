@@ -483,6 +483,7 @@ final class Typer {
             case FLATTEN -> FlattenChecker.check(this, af, env);
             case PIVOT -> PivotChecker.check(this, af, env);
             case TABLE_REFERENCE -> TableReferenceChecker.check(this, af);
+            case TABLE_TO_TDS -> TableReferenceChecker.checkTableToTds(this, af, env);
             case PROJECT -> ProjectChecker.check(this, af, env);
             case EXTEND -> ExtendChecker.check(this, af, env);
             case GROUP_BY -> GroupByChecker.check(this, af, env);

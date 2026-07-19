@@ -47,7 +47,7 @@ in-process Alloy-shaped path).
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 266 | 134 | 1 | 104 | 27 |
+| tds/tests | 266 | 140 | 1 | 97 | 28 |
 | testDataGeneration/tests | 68 | 0 | 0 | 0 | 68 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 68 | 19 | 0 | 38 | 11 |
@@ -85,7 +85,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 3 | 17 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1081** | 53 | 797 | 607 |
+| **total** | 2538 | **1087** | 53 | 790 | 608 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4442,8 +4442,7 @@ in-process Alloy-shaped path).
 - 8x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
 - 7x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 7x in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
-- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- 7x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
+- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - 7x ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - 7x object-space use of the instance variable '$p' other than property access is not supported yet
 - 7x filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
@@ -4452,13 +4451,14 @@ in-process Alloy-shaped path).
 - 6x no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
 - 6x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
 - 6x scalar lowering not yet implemented for TypedCLatestDate
+- 6x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - 6x unknown function 'columnValues'
-- 6x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - 6x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=em…
 - 5x '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 5x unknown function 'generateObjectReferences'
 - 5x class query under TypedMap is not resolvable yet (H2 vocabulary)
 - 5x Unknown type: 'Table' is not a known primitive, class, or enum
+- 5x mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
 
 ### per-test outcomes (non-passing)
 
@@ -5034,7 +5034,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -5091,13 +5091,13 @@ in-process Alloy-shaped path).
 - ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
 - ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
-- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - ERROR testReplaceTablePostProcessor [postprocessor/tests]: Unknown type: 'Table' is not a known primitive, class, or enum
 - ERROR testReplaceTableMultiplePostProcessor [postprocessor/tests]: class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablesPostProcessor [postprocessor/tests]: Unknown type: 'Table' is not a known primitive, class, or enum
@@ -5205,13 +5205,13 @@ in-process Alloy-shaped path).
 - ERROR simpleGroupByAnd [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::and'
 - ERROR simpleGroupByOr [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::or'
 - ERROR groupByAfterConcatenate [tds/tests]: Binder Error: No function matches the given name and argument types 'list_sort(BIGINT)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(ANY[], VARCHAR) -> ANY[] | 	list_sort(ANY[], VARCHAR, VARCHAR) -> ANY[] |  |  | LINE 1: SELECT list_so
-- ERROR testTableToTDSWithQuotedColumns [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
+- SHAPE testTableToTDSWithQuotedColumns [tds/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - ERROR testGroupByWithWavgAggregation [tds/tests]: unknown function 'wavgRowMapper'
 - ERROR testGroupByWithMultipleWavgAggregation [tds/tests]: unknown function 'wavgRowMapper'
 - SHAPE testSimpleSliceZeroSameAsTake [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testSimpleSortAscWithPreval [tds/tests]: no overload of 'meta::pure::router::preeval::preval' matches 2 argument(s) of these shapes
 - ERROR testSortQuotes [tds/tests]: unknown function 'enumValues'
-- ERROR testTableToTDSWithQuotes [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
+- ERROR testTableToTDSWithQuotes [tds/tests]: in call to 'meta::pure::tds::desc', argument 1: expected ColSpec<T>, got String
 - ERROR testMultiConcatenate [tds/tests]: lowering not yet implemented for TypedCollection
 - ERROR testTDSContainsType1 [tds/tests]: no overload of 'tdsContains' matches 3 argument(s) of these shapes
 - ERROR testTDSContainsType1Negation [tds/tests]: no overload of 'tdsContains' matches 3 argument(s) of these shapes
@@ -5237,11 +5237,11 @@ in-process Alloy-shaped path).
 - ERROR testNull [tds/tests]: ~isNull: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testStringConcatSQLGeneration [tds/tests]: ~exprString3: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testIfWithEmptyExtension [tds/tests]: ~extended: mapped/aggregate column specifications need an enclosing call to type against
-- ERROR testExtendWithQuotedColumnWithTableToTDS [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
+- ERROR testExtendWithQuotedColumnWithTableToTDS [tds/tests]: ~name_again: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testExtendsWithInClause [tds/tests]: ~stringExtends1: mapped/aggregate column specifications need an enclosing call to type against
 - FAIL testFilterOnEnum [tds/tests]: assertEquals: expected CITY, got [New York, CITY]
 - ERROR testInOnColumnInSubselect [tds/tests]: no overload of 'olapGroupBy' matches 5 argument(s) of these shapes
-- ERROR testFilterOnQuotedColumnFromTableToTds [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
+- ERROR testFilterOnQuotedColumnFromTableToTds [tds/tests]: relation has no column '"FIRST NAME"'
 - ERROR testFirstNotNullFunction [tds/tests]: unknown function 'meta::pure::tds::extensions::firstNotNull'
 - ERROR testChainPostFilter [tds/tests]: unknown class 'meta::external::store::model::ModelStore' in ^meta::external::store::model::ModelStore(…)
 - ERROR testRightOuterJoinSimple [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
@@ -5269,7 +5269,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinFuncByColToQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testJoinFuncByColAfterQueryWithConcatenateToQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testJoinByColToQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testTableToTDSWithQuotesGroupBy [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
+- ERROR testTableToTDSWithQuotesGroupBy [tds/tests]: relation has no column '"FIRST NAME"'
 - SHAPE testJoinByColAfterQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testJoinByColAfterQueryWithConcatenateToQueryWithConcatenate [tds/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testSimpleJoin [tds/tests]: no verifying assertions
@@ -5283,7 +5283,7 @@ in-process Alloy-shaped path).
 - ERROR testProjectWithColumnSubSet [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testProjectWithColumnSubSetFunctions [tds/tests]: no overload of 'projectWithColumnSubset' matches 4 argument(s) of these shapes
 - ERROR testProjectWithColumnSubSetSQLTest [tds/tests]: ~first_name: mapped/aggregate column specifications need an enclosing call to type against
-- ERROR testProjectWithQuotedColumnFromTableToTDS [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
+- ERROR testProjectWithQuotedColumnFromTableToTDS [tds/tests]: relation has no column '"FIRST NAME"'
 - ERROR testRestrictOnGroupByColumn_SubSetOfGroupByColumns [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - ERROR testRestrictHandlesQueryPathsCorrectlyOnRename [tds/tests]: ~age_new: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testRestrictWithPostProcessor [tds/tests]: unknown class '' in ^(…)
@@ -5305,14 +5305,8 @@ in-process Alloy-shaped path).
 - ERROR testPercentileWindowFunction [tds/tests]: no overload of 'func' matches 2 argument(s) of these shapes
 - ERROR testDistinctBeforeWindowFunction [tds/tests]: no overload of 'func' matches 2 argument(s) of these shapes
 - ERROR testDistinctAfterWindowFunction [tds/tests]: no overload of 'func' matches 2 argument(s) of these shapes
-- ERROR testProjectStringColumn [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
-- ERROR testInnerJoinTabletoObject [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::dbInc], CString[value=default], CString[value=personTable]]
-- ERROR testSimpleFilter [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
-- ERROR testExtendStringLiteral [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
-- ERROR testSimpleConcatenate [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::dbInc], CString[value=default], CString[value=personTable]]
-- ERROR testSimpleSortAsc [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
-- ERROR simpleGroupCount [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
-- ERROR testSimpleDistinctWithTake [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
+- ERROR testExtendStringLiteral [tds/tests]: ~hello: mapped/aggregate column specifications need an enclosing call to type against
+- ERROR simpleGroupCount [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - SHAPE iqrClassifyTest [tds/tests]: no execute(|...) call
 - SHAPE zScoreTest [tds/tests]: no execute(|...) call
 - ERROR columnValueDifferenceTest [tds/tests]: ~isNullTradeDate: mapped/aggregate column specifications need an enclosing call to type against
@@ -5329,7 +5323,7 @@ in-process Alloy-shaped path).
 - ERROR testChainedRenameColumns [tds/tests]: unknown function 'renameColumns'
 - ERROR testRenameColumnsAfterGroupBy [tds/tests]: no overload of 'meta::pure::tds::agg' matches 3 argument(s) of these shapes
 - ERROR testRenameColumnsAfterConcatenate [tds/tests]: unknown function 'renameColumns'
-- ERROR testRenameColumnsWithQuotes [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
+- ERROR testRenameColumnsWithQuotes [tds/tests]: unknown function 'renameColumns'
 - SHAPE resolveSchemaTest [tds/tests]: no execute(|...) call
 - SHAPE testConstant [testDataGeneration/tests]: no execute(|...) call
 - SHAPE testSimpleSingleTable [testDataGeneration/tests]: no execute(|...) call

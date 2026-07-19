@@ -31,21 +31,66 @@ final class TableReferenceChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af) {
-        if (af.parameters().size() != 2
+        int n = af.parameters().size();
+        // Two spellings: the #>{db.TABLE}# desugar (db, 'TABLE') and the
+        // REAL engine 3-arg form (db, 'SCHEMA', 'TABLE') —
+        // storeContract.pure tableReference_Database_1__String_1__String_1__Table_1_.
+        // A 'default' schema collapses to the bare name; any other schema
+        // qualifies dotted (the ~mainTable convention findTableDef matches).
+        if ((n != 2 && n != 3)
                 || !(af.parameters().get(0) instanceof PackageableElementPtr dbRef)
-                || !(af.parameters().get(1) instanceof CString tableName)) {
+                || !(af.parameters().get(n - 1) instanceof CString tableName)
+                || (n == 3 && !(af.parameters().get(1) instanceof CString))) {
             throw new TypeInferenceException(
-                    "tableReference expects (database, 'TABLE'); got " + af.parameters());
+                    "tableReference expects (database, ['SCHEMA',] 'TABLE'); got "
+                    + af.parameters());
+        }
+        String name = tableName.value();
+        if (n == 3) {
+            String schemaName = ((CString) af.parameters().get(1)).value();
+            if (!schemaName.isEmpty() && !"default".equals(schemaName)) {
+                name = schemaName + "." + name;
+            }
         }
         // Validate the call against the registered native signature — never ignored.
+        java.util.List<ExprType> sigArgs = new java.util.ArrayList<>();
+        for (int i = 0; i < n; i++) {
+            sigArgs.add(ExprType.one(Type.Primitive.STRING));
+        }
         InferenceKernel.Resolution sig = t.kernel().resolveOverload(
-                t.model().findFunction(CoreFn.TABLE_REFERENCE.parseName()),
-                List.of(ExprType.one(Type.Primitive.STRING), ExprType.one(Type.Primitive.STRING)));
+                t.model().findFunction(CoreFn.TABLE_REFERENCE.parseName()), sigArgs);
 
-        Type.RelationType schema = t.model().findTable(dbRef.fullPath(), tableName.value())
+        final String resolvedName = name;
+        Type.RelationType schema = t.model().findTable(dbRef.fullPath(), resolvedName)
                 .orElseThrow(() -> new TypeInferenceException(
-                        "unknown table '" + tableName.value() + "' in database '" + dbRef.fullPath() + "'"));
-        return new TypedTableReference(dbRef.fullPath(), tableName.value(),
+                        "unknown table '" + resolvedName + "' in database '" + dbRef.fullPath() + "'"));
+        return new TypedTableReference(dbRef.fullPath(), resolvedName,
                 new ExprType(schema, sig.output().multiplicity()));
+    }
+
+    /**
+     * {@code tableToTDS(table)} — the engine's Table&rarr;TDS wrapper
+     * (tableToTDS.pure:22). Over OUR carrier the table reference already
+     * IS the relation value: validated against the registered signature,
+     * emitted as IDENTITY (the source, schema preserved — downstream
+     * project/rows reads keep the resolved columns). A non-relation
+     * argument is loud.
+     */
+    static TypedSpec checkTableToTds(Typer t, AppliedFunction af, Env env) {
+        if (af.parameters().size() != 1) {
+            throw new TypeInferenceException(
+                    "tableToTDS expects one table argument; got " + af.parameters().size());
+        }
+        TypedSpec table = t.synth(af.parameters().get(0), env);
+        if (!(table.info().type() instanceof Type.RelationType)) {
+            throw new TypeInferenceException(
+                    "tableToTDS expects a table reference; got "
+                    + table.info().type().typeName());
+        }
+        // Validate against the registered native signature — never ignored.
+        t.kernel().resolveOverload(
+                t.model().findFunction(CoreFn.TABLE_TO_TDS.parseName()),
+                List.of(table.info()));
+        return table;
     }
 }

@@ -1269,6 +1269,13 @@ public final class Pure {
     public static final NativeFunctionDefinition SUM__INTEGER_MANY = signature("native function meta::pure::functions::math::sum(numbers:meta::pure::metamodel::type::Integer[*]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition SUM__NUMBER_MANY = signature("native function meta::pure::functions::math::sum(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1];");
     public static final NativeFunctionDefinition TABLE_REFERENCE__STRING_1__STRING_1 = signature("native function meta::relational::functions::database::tableReference(db:meta::pure::metamodel::type::String[1], name:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
+    // tableToTDS (REAL: meta::pure::tds::tableToTDS(table:Table[1]):TableTDS[1],
+    // tableToTDS.pure:22) — over OUR relation carrier the table reference IS
+    // the TDS value; the checker validates and emits identity.
+    public static final NativeFunctionDefinition TABLE_TO_TDS__RELATION_1 = signature("native function meta::pure::tds::tableToTDS(table:meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
+    // REAL engine form (storeContract.pure: tableReference_Database_1__String_1__String_1__Table_1_):
+    // (db, SCHEMA, table) — the corpus calls it directly with a schema name.
+    public static final NativeFunctionDefinition TABLE_REFERENCE__STRING_1__STRING_1__STRING_1 = signature("native function meta::relational::functions::database::tableReference(db:meta::pure::metamodel::type::String[1], schema:meta::pure::metamodel::type::String[1], name:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1];");
     public static final NativeFunctionDefinition TAIL__T_MANY = signature("native function meta::pure::functions::collection::tail<T>(set:T[*]):T[*];");
     public static final NativeFunctionDefinition TAKE__RELATION_1__INTEGER_1 = signature("native function meta::pure::functions::collection::take<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], size:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     public static final NativeFunctionDefinition TAKE__T_MANY__INTEGER_1 = signature("native function meta::pure::functions::collection::take<T>(set:T[*], size:meta::pure::metamodel::type::Integer[1]):T[*];");

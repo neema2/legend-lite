@@ -37,6 +37,8 @@ public enum CoreFn {
     NEW("new"),
     /** {@code #>{db.TABLE}#} &mdash; a physical table reference resolved through the store. */
     TABLE_REFERENCE("tableReference"),
+    /** {@code tableToTDS(tableReference(...))} &mdash; the engine's Table&rarr;TDS wrapper; identity over the relation carrier. */
+    TABLE_TO_TDS("tableToTDS"),
     /** {@code project} &mdash; builds a relation schema from projection lambdas / colspecs. */
     PROJECT("project"),
     /** Relation {@code sort(asc(~col), &hellip;)}; collection sort delegates to the generic path. */

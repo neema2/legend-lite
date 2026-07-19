@@ -541,6 +541,8 @@ meta::pure::functions::math::sum(numbers:meta::pure::metamodel::type::Float[*]):
 meta::pure::functions::math::sum(numbers:meta::pure::metamodel::type::Integer[*]):meta::pure::metamodel::type::Integer[1]
 meta::pure::functions::math::sum(numbers:meta::pure::metamodel::type::Number[*]):meta::pure::metamodel::type::Number[1]
 meta::relational::functions::database::tableReference(db:meta::pure::metamodel::type::String[1], name:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]
+meta::pure::tds::tableToTDS(table:meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]
+meta::relational::functions::database::tableReference(db:meta::pure::metamodel::type::String[1], schema:meta::pure::metamodel::type::String[1], name:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]
 meta::pure::functions::collection::tail<T>(set:T[*]):T[*]
 meta::pure::functions::collection::take<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], size:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::relation::Relation<T>[1]
 meta::pure::functions::collection::take<T>(set:T[*], size:meta::pure::metamodel::type::Integer[1]):T[*]
