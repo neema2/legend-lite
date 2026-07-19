@@ -128,7 +128,7 @@ final class AssociationJoins {
         // it cannot compose (applyToPipe passes corr-only heads through
         // unchanged, never silently filtering).
         tPipe0 = synthetics.applyToPipe(head, tPipe0, (p, pred) ->
-                StoreResolver.predFilteredPipe(p, t, tMat.slotPrefixes(),
+                CorrelatedSubselects.predFilteredPipe(p, t, tMat.slotPrefixes(),
                         pred, cs.mappingFqn()));
         return new AssocJoin(prefixFor(head, cs), t, tPipe0,
                 (Type.RelationType)
@@ -423,7 +423,7 @@ final class AssociationJoins {
         // milestoned table alias filters — the dead wall this replaces)
         tPipe = temporal.applyJoinTemporalFilters(tPipe, target, Map.of());
         tPipe = synthetics.applyToPipe(head, tPipe, (p, pred) ->
-                StoreResolver.predFilteredPipe(p, target, tMat.slotPrefixes(),
+                CorrelatedSubselects.predFilteredPipe(p, target, tMat.slotPrefixes(),
                         pred, cs.mappingFqn()));
         return new AssocJoin(prefixFor(head, cs), target, tPipe,
                 (Type.RelationType)

@@ -1300,9 +1300,17 @@ public final class StoreResolver {
             var nav = navSteps.get(alias);
             String targetClass = ((TypedGetAll)
                     nav.target()).classFqn();
+            // the lifted head's parked preds thread as parkedPreds: their
+            // DIRECT slot-alias reads join the demand (the sub-route's
+            // rule, applied to the TOP materialization too — the Fork
+            // concat-branch preds read the target's address slot)
+            String bareKey0 = navHeadByAlias.getOrDefault(alias, alias);
+            bareKey0 = bareKey0.substring(bareKey0.lastIndexOf('.') + 1);
             navMats.put(alias, navMaterializer.navTargetMaterialized(temporal, cs.mappingFqn(), targetClass,
                     navTails.getOrDefault(alias, List.of()),
-                    navHeadByAlias.getOrDefault(alias, alias), null));
+                    navHeadByAlias.getOrDefault(alias, alias),
+                    TemporalContext.NONE,
+                    synthetics.allPreds(bareKey0)));
             // a LIFTED head's predicate applies INSIDE the join target
             // (engine: the chain filter parks on the navigation's join-tree
             // node); the composite right side carries its own filters, so
@@ -1320,8 +1328,9 @@ public final class StoreResolver {
                 NavMaterializer.NavMat mat = navMats.get(alias);
                 navMats.put(alias, new NavMaterializer.NavMat(
                         synthetics.applyToPipe(predKey, mat.pipeline(),
-                                (p, pred) -> predFilteredPipe(p, target,
-                                        mat.slotPrefixes(), pred, cs.mappingFqn())),
+                                (p, pred) -> CorrelatedSubselects.predFilteredPipe(p, target,
+                                        mat.slotPrefixes(), mat.subNavs(),
+                                        pred, cs.mappingFqn())),
                         mat.slotPrefixes(), mat.stripped(), mat.subNavs()));
             }
         }
@@ -1460,7 +1469,7 @@ public final class StoreResolver {
                 final ClassSource tt = t;
                 requireNoCorrelatedPred(leafName, "exists-navigation");
                 tPipe = synthetics.applyToPipe(leafName, tp, (p, pred) ->
-                        predFilteredPipe(p, tt, tpx, pred, cs.mappingFqn()));
+                        CorrelatedSubselects.predFilteredPipe(p, tt, tpx, pred, cs.mappingFqn()));
             } else if (ctx.findAssociationOf(parent.classFqn(), leaf)
                     .isPresent()) {
                 // the nested predicate's path HEADS demand target slots —
@@ -1843,12 +1852,19 @@ public final class StoreResolver {
                 TypedLambda corrNav0 = synthetics.correlatedPred(head);
                 Map<String, String> predNavAliases = new LinkedHashMap<>();
                 Set<String> tNavDemand = new LinkedHashSet<>();
-                if (corrNav0 != null) {
+                {
                     var tNavSteps = Pipelines.navSteps(t.pipeline());
                     Set<List<String>> predPaths0 = new LinkedHashSet<>();
-                    for (TypedSpec b : corrNav0.body()) {
-                        consumedPaths(b, corrNav0.parameters().get(0), predPaths0);
+                    if (corrNav0 != null) {
+                        for (TypedSpec b : corrNav0.body()) {
+                            consumedPaths(b, corrNav0.parameters().get(0),
+                                    predPaths0);
+                        }
                     }
+                    // NOTE (#70): CLOSED preds' target-nav reads stay
+                    // UNDEMANDED — enabling exposes the multi-identity
+                    // to-many projection explosion (Fork: 4 vs 16; the
+                    // engine isolates PER PROJECTED COLUMN); loud backstop.
                     for (List<String> pp : predPaths0) {
                         if (pp.size() < 2) {
                             continue;
@@ -1907,9 +1923,11 @@ public final class StoreResolver {
                             navCond, corrNav, cs, t, tMat0.slotPrefixes(),
                             parentAssocs, tSubNavs);
                 }
+                final Map<String, Substitution.SubNav> ftSubNavs = tSubNavs;
                 tTemporal = synthetics.applyToPipe(head, tTemporal,
-                        (p, pred) -> predFilteredPipe(p, ft,
-                                tMat0.slotPrefixes(), pred, cs.mappingFqn()));
+                        (p, pred) -> CorrelatedSubselects.predFilteredPipe(p, ft,
+                                tMat0.slotPrefixes(), ftSubNavs,
+                                pred, cs.mappingFqn()));
                 Pipelines.Materialized tMat = new Pipelines.Materialized(
                         tTemporal, tMat0.slotPrefixes(), tMat0.stripped());
                 boolean navToMany = !(ctx.findProperty(cs.classFqn(), SyntheticHeads.realHead(head))
@@ -2143,8 +2161,8 @@ public final class StoreResolver {
             String exPredKey = headKey.substring(headKey.lastIndexOf('.') + 1);
             requireNoCorrelatedPred(exPredKey, "navigate-step chain");
             tPipe = synthetics.applyToPipe(exPredKey, tPipe, (p, pred) ->
-                    predFilteredPipe(p, target, mat.slotPrefixes(),
-                            pred, cs.mappingFqn()));
+                    CorrelatedSubselects.predFilteredPipe(p, target, mat.slotPrefixes(),
+                            mat.subNavs(), pred, cs.mappingFqn()));
             AssociationJoins.AssocJoin aj = new AssociationJoins.AssocJoin(AssociationJoins.prefixFor(headKey, cs), target, tPipe,
                     (Type.RelationType)
                             tPipe.info().type(),
@@ -2178,8 +2196,8 @@ public final class StoreResolver {
                     temporal.applyJoinTemporalFilters(mat.pipeline(), target,
                             Map.of()));
             tPipe = synthetics.applyToPipe(headKey, tPipe, (p, pred) ->
-                    predFilteredPipe(p, target, mat.slotPrefixes(),
-                            pred, cs.mappingFqn()));
+                    CorrelatedSubselects.predFilteredPipe(p, target, mat.slotPrefixes(),
+                            mat.subNavs(), pred, cs.mappingFqn()));
             AssociationJoins.AssocJoin aj = new AssociationJoins.AssocJoin(
                     AssociationJoins.prefixFor(headKey, cs), target, tPipe,
                     (Type.RelationType)
@@ -2804,26 +2822,11 @@ public final class StoreResolver {
      * INSIDE (engine JTN parity), so unmatched parents keep their NULL
      * row and the outer join-stamping never double-stamps.
      */
-    static TypedSpec predFilteredPipe(TypedSpec tPipe, ClassSource target,
-            Map<String, String> slotPrefixes, TypedLambda pred,
-            String mappingFqn) {
-        Set<String> unconverted = new LinkedHashSet<>(
-                Pipelines.slotAliases(target.pipeline()));
-        unconverted.removeAll(slotPrefixes.keySet());
-        Substitution predSub = new Substitution(new Substitution.Target(
-                new Substitution.RowScope(pred.parameters().get(0),
-                        target.rowVar(), target.classFqn(), mappingFqn,
-                        target.rowVar(), target.bindings(),
-                        (Type.RelationType)
-                                tPipe.info().type(),
-                        unconverted, slotPrefixes, Map.of()),
-                Substitution.Registries.NONE, Substitution.TemporalView.NONE,
-                true, true));
-        return new TypedFilter(tPipe, predSub.rewriteLambda(pred),
-                tPipe.info());
-    }
-
-    private static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
+        /** As above with the target's MATERIALIZED nav-step SubNavs: a pred's
+     * depth-2 reads through class-typed slot heads ($e.address.name — the
+     * Fork family) dispatch through AssocSub registries built from them
+     * (the corrPredOnJoinedRow pass-1 rule, shared). */
+        private static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         for (TypedSpec b : lambda.body()) {
             consumedPaths(b, lambda.parameters().get(0), out);
         }

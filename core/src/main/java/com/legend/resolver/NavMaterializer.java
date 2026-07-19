@@ -307,7 +307,7 @@ final class NavMaterializer {
             if (synthProp != null) {
                 final NavMat sm2 = subMat;
                 sub = synthetics.applyToPipe(synthProp, sub,
-                        (pp, pred) -> StoreResolver.predFilteredPipe(
+                        (pp, pred) -> CorrelatedSubselects.predFilteredPipe(
                                 pp, sources.get(mappingFqn, cls),
                                 sm2.slotPrefixes(), pred, mappingFqn));
             }
@@ -517,8 +517,9 @@ final class NavMaterializer {
             final NavMat xm2 = xMat;
             ClassSource xCs = sources.get(mappingFqn, xg.classFqn());
             TypedSpec xPipe = synthetics.applyToPipe(prop, xMat.pipeline(),
-                    (pp, pred) -> StoreResolver.predFilteredPipe(
-                            pp, xCs, xm2.slotPrefixes(), pred, mappingFqn));
+                    (pp, pred) -> CorrelatedSubselects.predFilteredPipe(
+                            pp, xCs, xm2.slotPrefixes(), xm2.subNavs(),
+                            pred, mappingFqn));
             // the synthetic identity's own suffix keys the join prefix
             // (synonyms#f1 -> alias_f1_) — deterministic, collision-free
             // per identity by construction

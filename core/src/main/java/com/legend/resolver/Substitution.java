@@ -1387,11 +1387,19 @@ final class Substitution {
         // 2. the user predicate, substituted against the TARGET's bindings
         //    (outer reads correlate through a second pass — same as exists)
         TypedLambda predLam = f.predicate();
+        // the pred's target-side reads may hop the target's OWN
+        // class-typed slots ($e.address.name — the qualifier-with-
+        // operation family): the registration MATERIALIZED those slots
+        // (innerLeaves demand) — dispatch through the recorded prefixes;
+        // only the un-materialized aliases stay loud
+        Set<String> unconvertedT = new java.util.LinkedHashSet<>(
+                ex.targetSlotAliases());
+        unconvertedT.removeAll(ex.targetSlotPrefixes().keySet());
         Substitution predSub = new Substitution(new Target(
                 new RowScope(predLam.parameters().get(0), tRenamed,
                         ex.targetClassFqn(), target.mappingFqn(),
                         ex.targetRowVar(), ex.targetBindings(), ex.targetRow(),
-                        ex.targetSlotAliases(), Map.of(), Map.of()),
+                        unconvertedT, ex.targetSlotPrefixes(), Map.of()),
                 ex.innerRegs(), TemporalView.NONE, true, true));
         TypedLambda inner = predSub.rewriteLambda(predLam);
         TypedLambda innerOuter = new TypedLambda(inner.parameters(),

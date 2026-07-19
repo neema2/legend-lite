@@ -698,4 +698,44 @@ static void collectParamColumnReads(TypedLambda cond, Set<String> out) {
     }
 
 
+static TypedSpec predFilteredPipe(TypedSpec tPipe, ClassSource target,
+            Map<String, String> slotPrefixes, TypedLambda pred,
+            String mappingFqn) {
+        return predFilteredPipe(tPipe, target, slotPrefixes, Map.of(),
+                pred, mappingFqn);
+    }
+
+
+static TypedSpec predFilteredPipe(TypedSpec tPipe, ClassSource target,
+            Map<String, String> slotPrefixes,
+            Map<String, Substitution.SubNav> subNavs, TypedLambda pred,
+            String mappingFqn) {
+        Set<String> unconverted = new LinkedHashSet<>(
+                Pipelines.slotAliases(target.pipeline()));
+        unconverted.removeAll(slotPrefixes.keySet());
+        Type.RelationType rowT = (Type.RelationType) tPipe.info().type();
+        Map<String, Substitution.AssocSub> navAssocs = new LinkedHashMap<>();
+        for (var e : subNavs.entrySet()) {
+            var sn = e.getValue();
+            navAssocs.put(e.getKey(), new Substitution.AssocSub(
+                    sn.prefix(), sn.rowVar(), sn.bindings(),
+                    target.classFqn() + "." + e.getKey(),
+                    Set.of(), Map.of(), target.rowVar(), rowT,
+                    Map.of(), sn.children()));
+        }
+        Substitution predSub = new Substitution(new Substitution.Target(
+                new Substitution.RowScope(pred.parameters().get(0),
+                        target.rowVar(), target.classFqn(), mappingFqn,
+                        target.rowVar(), target.bindings(), rowT,
+                        unconverted, slotPrefixes, Map.of()),
+                navAssocs.isEmpty() ? Substitution.Registries.NONE
+                        : new Substitution.Registries(navAssocs, Set.of(),
+                                Map.of(), Map.of(), null, null),
+                Substitution.TemporalView.NONE,
+                true, true));
+        return new TypedFilter(tPipe, predSub.rewriteLambda(pred),
+                tPipe.info());
+    }
+
+
 }
