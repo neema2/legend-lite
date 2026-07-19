@@ -8,13 +8,13 @@
 
 | suite | files | parse-walled | `<<PCT.test>>` (textual) | discovered | **PASS** | FAIL | ERROR | SHAPE | element walls | body walls |
 |---|---|---|---|---|---|---|---|---|---|---|
-| essential | 177 | 8 | 329 | 327 | **287** | 16 | 15 | 9 | 16 | 635 |
+| essential | 177 | 8 | 329 | 327 | **288** | 15 | 15 | 9 | 16 | 635 |
 | grammar | 48 | 0 | 136 | 136 | **122** | 3 | 7 | 4 | 2 | 242 |
 | relation | 49 | 0 | 350 | 350 | **301** | 19 | 29 | 1 | 3 | 368 |
-| standard | 55 | 0 | 205 | 204 | **166** | 30 | 7 | 1 | 0 | 235 |
+| standard | 55 | 0 | 205 | 204 | **172** | 24 | 7 | 1 | 0 | 235 |
 | unclassified | 67 | 0 | 96 | 94 | **93** | 0 | 1 | 0 | 13 | 157 |
 | variant | 7 | 0 | 88 | 88 | **53** | 16 | 19 | 0 | 0 | 91 |
-| **total** | **403** | **8** | **1204** | **1199** | **1022** | **84** | **78** | **15** | | |
+| **total** | **403** | **8** | **1204** | **1199** | **1029** | **77** | **78** | **15** | | |
 
 ## Top ERROR buckets
 
@@ -69,7 +69,6 @@
 - FAIL meta::pure::functions::date::tests::testDateFromHour [essential:date/creation/date.pure]: assertEquals: expected 1973-11-13 23:00:00.0, got 1973-11-13T23
 - FAIL meta::pure::functions::date::tests::testDateFromMinute [essential:date/creation/date.pure]: assertEquals: expected 1973-11-13 23:09:00.0, got 1973-11-13T23:09
 - FAIL meta::pure::functions::date::tests::testDateFromSubSecond [essential:date/creation/date.pure]: assertEquals: expected 1973-11-13 23:09:11.0, got 1973-11-13T23:09:11.0
-- FAIL meta::pure::functions::date::tests::testAdjustByMicrosecondsBigNumber [essential:date/operation/adjust.pure]: assertEquals: expected 2021-06-21 09:37:37.499, got 2021-06-21T09:37:37.4990000
 - FAIL meta::pure::functions::math::tests::toDecimal::testIntToDecimal [essential:lang/cast/toDecimal.pure]: assertEquals: expected 8, got 8
 - FAIL meta::pure::functions::math::tests::rem::testRemError [essential:math/operation/rem.pure]: assertError: expected 'Cannot divide 5 by zero', got 'Invalid Input Error: Cannot divide 5 by zero'
 - FAIL meta::pure::functions::math::tests::testSquareRootError [essential:math/power/sqrt.pure]: assertError: expected 'Unable to compute sqrt of -1.0', got 'Invalid Input Error: Unable to compute sqrt of -1.0'
@@ -101,12 +100,6 @@
 - FAIL meta::pure::functions::relation::tests::composition::testNestedJoinArithmeticComparisonExpression [relation:relation/tests/composition.pure]: assertEquals: expected #TDS\n   id,val1,val2,order\n   1,-20,8,1\n   1,-19,8,1\n   1,-20,5,2\n   1,-19,5,2\n   1,-20,3,3\n   1,-19,3,3\n   1,2024,null,null\n   2,-21,8,4\n   2,-20,8,4\n   2,-19,8,4\n   2,-21,2,5\n   2,-20,2,5\n   2,-19,2,5\n   2,-21,1,6\n   2,-20,1,6\n   2,-19,1,6\n   3,-20,8,7\n   …
 - FAIL meta::pure::functions::relation::tests::composition::testStaticPivot_AfterConcatenate [relation:relation/tests/composition.pure]: assertTdsEquivalent: columns [id, A__|__newCol, B__|__newCol] vs [id, 'A__|__newCol', 'B__|__newCol']
 - FAIL meta::pure::functions::relation::tests::composition::testStaticPivot_AfterExtendConcatenate [relation:relation/tests/composition.pure]: assertTdsEquivalent: columns [id, rnk, A__|__newVal, B__|__newVal] vs [id, rnk, 'A__|__newVal', 'B__|__newVal']
-- FAIL meta::pure::functions::collection::tests::greatest::testGreatest_Date [standard:collection/greatest.pure]: assertEquals: expected 2025-02-10 20:10:20.0, got 2025-02-10T20:10:20+0000
-- FAIL meta::pure::functions::collection::tests::least::testLeast_Date [standard:collection/least.pure]: assertEquals: expected 2025-02-10, got 2025-02-10
-- FAIL meta::pure::functions::date::tests::max::testMax_Date [standard:date/aggregator/max.pure]: assertEquals: expected 2025-02-10 20:10:20.0, got 2025-02-10T20:10:20+0000
-- FAIL meta::pure::functions::date::tests::max::testMax_DateArray [standard:date/aggregator/max.pure]: assertEquals: expected 2025-02-10 20:10:20.0, got 2025-02-10T20:10:20+0000
-- FAIL meta::pure::functions::date::tests::min::testMin_Date [standard:date/aggregator/min.pure]: assertEquals: expected 2025-02-10, got 2025-02-10
-- FAIL meta::pure::functions::date::tests::min::testMin_DateArray [standard:date/aggregator/min.pure]: assertEquals: expected 2025-02-10, got 2025-02-10
 - FAIL meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketSeconds [standard:date/operation/timeBucket.pure]: assertEquals: expected 2024-01-31 00:32:34.0, got 2024-01-31T00:32:34.000000000
 - FAIL meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMinutes [standard:date/operation/timeBucket.pure]: assertEquals: expected 2024-01-31 00:32:00.0, got 2024-01-31T00:32:00.000000000
 - FAIL meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketHours [standard:date/operation/timeBucket.pure]: assertEquals: expected 2024-01-31 00:00:00.0, got 2024-01-31T00:00:00.000000000

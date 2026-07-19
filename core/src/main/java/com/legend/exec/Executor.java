@@ -117,6 +117,23 @@ public final class Executor {
             }
             return Long.valueOf(s);
         }
+        // The DATE lattice's identity channel, SYMMETRICAL with NUMBER's:
+        // mixed date KINDS (StrictDate+DateTime under abstract Date) travel
+        // as pure print forms and parse BACK to their own kinds here —
+        // date-only is a StrictDate (LocalDate), time-carrying is a
+        // DateTime (Timestamp, wall-clock-as-UTC). Leaving them as strings
+        // was the A4 typing bug wireEquals correctly refused to bridge.
+        if (rootType == Type.Primitive.DATE && v instanceof String s) {
+            String iso = s.endsWith("+0000") ? s.substring(0, s.length() - 5) : s;
+            if (iso.length() == 10 && iso.charAt(4) == '-') {
+                return java.time.LocalDate.parse(iso);
+            }
+            if (iso.length() > 10 && iso.charAt(10) == 'T') {
+                return java.sql.Timestamp.valueOf(
+                        java.time.LocalDateTime.parse(iso));
+            }
+            return v;   // not a print form — leave untouched, compare stays loud
+        }
         if (rootType == Type.Primitive.DATE && v instanceof java.sql.Timestamp t
                 && t.toLocalDateTime().toLocalTime()
                         .equals(java.time.LocalTime.MIDNIGHT)) {
