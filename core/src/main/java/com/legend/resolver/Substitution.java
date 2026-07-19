@@ -1036,6 +1036,9 @@ final class Substitution {
             case TypedIf i -> new TypedIf(inlineParam(i.condition(), param, source),
                     inlineParam(i.thenBranch(), param, source),
                     i.elseBranch().map(e -> inlineParam(e, param, source)), i.info());
+            case TypedCollection c -> new TypedCollection(
+                    c.elements().stream().map(e ->
+                            inlineParam(e, param, source)).toList(), c.info());
             case TypedCString ignored -> n;
             case TypedCInteger ignored -> n;
             case TypedCFloat ignored -> n;

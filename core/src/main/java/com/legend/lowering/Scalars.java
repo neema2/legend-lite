@@ -1708,8 +1708,15 @@ final class Scalars {
                 Type val = n.args().get(1).info().type();
                 if (elem == Type.Primitive.STRING && isToOne(n.args().get(0))
                         && !(args.get(0) instanceof SqlExpr.ArrayLit)) {
-                    return new SqlExpr.Call(SqlFn.GREATER, List.of(
-                            new SqlExpr.Call(SqlFn.STRPOS, args), new SqlExpr.IntLit(0)));
+                    // pure [0..1] overload body inlines HERE (engine
+                    // stringExtension.pure:21 contains(String[0..1],
+                    // String[1]) = isNotEmpty && contains) — same guard as
+                    // startsWith/endsWith; STRPOS' accidental NULL>0 was
+                    // filter-equivalent but NULL != false in value position
+                    return NullSemantics.optionalOperandGuards(n, args,
+                            new SqlExpr.Call(SqlFn.GREATER, List.of(
+                                    new SqlExpr.Call(SqlFn.STRPOS, args),
+                                    new SqlExpr.IntLit(0))));
                 }
                 // A heterogeneous (Any) list is variant-wrapped — wrap the
                 // needle the same way so containment compares JSON to JSON.
