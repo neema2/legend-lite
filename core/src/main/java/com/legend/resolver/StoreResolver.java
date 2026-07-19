@@ -487,7 +487,8 @@ public final class StoreResolver {
     private TypedSpec augmentNavPredicates(TypedSpec pipe, ClassSource cs,
             Map<String, String> navHeadByAlias, Set<String> demandedNavs,
             Set<String> composed,
-            Map<String, Substitution.AssocSub> parentAssocs) {
+            Map<String, Substitution.AssocSub> parentAssocs,
+            Map<String, NavMaterializer.NavMat> navMats) {
         // audit 21b F1: this walk must reach every navigate step
         // Pipelines.navSteps reaches — a scalar-through-join PM declared
         // after the class-typed Join PM leaves the TypedNavigate below a
@@ -497,16 +498,20 @@ public final class StoreResolver {
         // check backstops any spine node this walk still misses.
         if (pipe instanceof TypedNavigate nav && nav.alias().isPresent()) {
             TypedSpec src = augmentNavPredicates(nav.source(), cs,
-                    navHeadByAlias, demandedNavs, composed, parentAssocs);
+                    navHeadByAlias, demandedNavs, composed, parentAssocs,
+                    navMats);
             String head = navHeadByAlias.getOrDefault(nav.alias().get(),
                     nav.alias().get());
             TypedLambda corr = synthetics.correlatedPred(head);
             if (corr != null && demandedNavs.contains(nav.alias().get())
                     && nav.target() instanceof TypedGetAll ga) {
                 ClassSource target = sources.get(cs.mappingFqn(), ga.classFqn());
+                NavMaterializer.NavMat mat = navMats.get(nav.alias().get());
                 TypedLambda aug = assocMaterial.andCorrelatedIntoCondition(
-                        nav.predicate(), corr, cs, target, Map.of(),
-                        parentAssocs);
+                        nav.predicate(), corr, cs, target,
+                        mat != null ? mat.slotPrefixes() : Map.of(),
+                        parentAssocs,
+                        mat != null ? mat.subNavs() : Map.of());
                 composed.add(nav.alias().get());
                 return new TypedNavigate(src, nav.alias(), nav.target(),
                         aug, nav.form(), nav.info());
@@ -517,13 +522,15 @@ public final class StoreResolver {
         }
         if (pipe instanceof TypedFilter f) {
             TypedSpec src = augmentNavPredicates(f.source(), cs,
-                    navHeadByAlias, demandedNavs, composed, parentAssocs);
+                    navHeadByAlias, demandedNavs, composed, parentAssocs,
+                    navMats);
             return src == f.source() ? pipe
                     : new TypedFilter(src, f.predicate(), f.info());
         }
         if (pipe instanceof com.legend.compiler.spec.typed.TypedJoinSlot js) {
             TypedSpec src = augmentNavPredicates(js.source(), cs,
-                    navHeadByAlias, demandedNavs, composed, parentAssocs);
+                    navHeadByAlias, demandedNavs, composed, parentAssocs,
+                    navMats);
             return src == js.source() ? pipe
                     : new com.legend.compiler.spec.typed.TypedJoinSlot(src,
                             js.alias(), js.target(), js.condition(), js.info());
@@ -1487,7 +1494,8 @@ public final class StoreResolver {
             Map<String, Substitution.AssocSub> parentAssocs) {
         Set<String> corrComposed = new LinkedHashSet<>();
         TypedSpec csPipe = augmentNavPredicates(cs.pipeline(), cs,
-                navHeadByAlias, demandedNavs, corrComposed, parentAssocs);
+                navHeadByAlias, demandedNavs, corrComposed, parentAssocs,
+                navMats);
         // audit 21b F1 backstop: a demanded navigate head carrying a
         // correlated predicate that the augment walk did NOT compose has
         // exactly one fate — loud. The lifted-pred apply site skips

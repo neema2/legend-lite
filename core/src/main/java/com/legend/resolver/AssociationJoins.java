@@ -361,13 +361,14 @@ final class AssociationJoins {
             TypedLambda pred, ClassSource parent, ClassSource target,
             Map<String, String> targetSlotPrefixes) {
         return andCorrelatedIntoCondition(cond, pred, parent, target,
-                targetSlotPrefixes, Map.of());
+                targetSlotPrefixes, Map.of(), Map.of());
     }
 
     TypedLambda andCorrelatedIntoCondition(TypedLambda cond,
             TypedLambda pred, ClassSource parent, ClassSource target,
             Map<String, String> targetSlotPrefixes,
-            Map<String, Substitution.AssocSub> parentAssocs) {
+            Map<String, Substitution.AssocSub> parentAssocs,
+            Map<String, Substitution.SubNav> targetSubNavs) {
         // F2 (audit 21b): the condition's binders are emission-literal
         // names ({s,t} on the navigate route, {srcRow,tgtRow} on the
         // association route). A user variable sharing a name would be
@@ -402,13 +403,28 @@ final class AssociationJoins {
                 parent.rowType());
         Type.RelationType tgtRow = rowOr(ft.params().get(1).type(),
                 target.rowType());
-        // pass 1: the pred's own param -> target bindings over tgtParam
+        // pass 1: the pred's own param -> target bindings over tgtParam.
+        // #69: the pred's TARGET-side reads may navigate the target's OWN
+        // class-typed heads ($e.address.name over the navigated rows) —
+        // the target's materialized SubNav tree dispatches them, with the
+        // read landing prefixed on the condition's target row.
+        Map<String, Substitution.AssocSub> tgtAssocs = new java.util.LinkedHashMap<>();
+        for (var sne : targetSubNavs.entrySet()) {
+            var sn = sne.getValue();
+            tgtAssocs.put(sne.getKey(), new Substitution.AssocSub(
+                    sn.prefix(), sn.rowVar(), sn.bindings(),
+                    target.classFqn() + "." + sne.getKey(),
+                    java.util.Set.of(), Map.of(), tgtParam, tgtRow,
+                    Map.of(), sn.children()));
+        }
         Substitution tgtSub = new Substitution(new Substitution.Target(
                 new Substitution.RowScope(pred.parameters().get(0), tgtParam,
                         target.classFqn(), target.mappingFqn(),
                         target.rowVar(), target.bindings(), tgtRow,
                         unconvertedTgt, targetSlotPrefixes, Map.of()),
-                Substitution.Registries.NONE, Substitution.TemporalView.NONE,
+                new Substitution.Registries(tgtAssocs, java.util.Set.of(),
+                        Map.of(), Map.of(), null, null),
+                Substitution.TemporalView.NONE,
                 true, true));
         TypedLambda pass1 = tgtSub.rewriteLambda(pred);
         // pass 2: each residual free variable (collected pre-pass-1,
