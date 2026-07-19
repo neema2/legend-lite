@@ -446,10 +446,25 @@ final class Scalars {
             });
         }
 
-        for (String f : Pure.nativeKeysAt("adjust")) {
+        // day-of-week anchored shifts — semantics + formula in DateShifts
+        for (var sh : Map.of("mostRecentDayOfWeek", false,
+                "previousDayOfWeek", true).entrySet()) {
+            for (String f : Pure.nativeKeysAt(sh.getKey())) {
+                RULES.put(f, (n, args) -> DateShifts.dayOfWeekShift(n, args,
+                        enumName(n.args().get(n.args().size() == 1 ? 0 : 1)),
+                        n.args().size() == 2
+                                ? dateArg(n.args().get(0), args.get(0)) : null,
+                        sh.getValue()));
+            }
+        }
+        for (String f : Pure.nativeKeysAt("firstDayOfWeek")) {
+            RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.DATE_TRUNC,
+                    new SqlExpr.StringLit("week"),
+                    dateArg(n.args().get(0), args.get(0))));
+        }        for (String f : Pure.nativeKeysAt("adjust")) {
             RULES.put(f, (n, args) -> {
                 SqlExpr added = new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
-                        new SqlExpr.StringLit(intervalFn(n.args().get(2))),
+                        new SqlExpr.StringLit(DateShifts.intervalFn(enumName(n.args().get(2)))),
                         args.get(1), dateArg(n.args().get(0), args.get(0))));
                 // A PARTIAL-date operand keeps its precision: pad in (dateArg),
                 // adjust, then truncate BACK to the written form —
@@ -526,7 +541,7 @@ final class Scalars {
                     }
                 }
                 SqlExpr bucketed = new SqlExpr.Call(SqlFn.TIME_BUCKET, List.of(
-                        new SqlExpr.StringLit(intervalFn(n.args().get(2))),
+                        new SqlExpr.StringLit(DateShifts.intervalFn(enumName(n.args().get(2)))),
                         args.get(1), dateArg(n.args().get(0), args.get(0))));
                 if (strict) {
                     return new SqlExpr.Cast(bucketed, SqlType.Scalar.DATE);
@@ -569,7 +584,7 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("fromEpochValue")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
                     new SqlExpr.StringLit(n.args().size() > 1
-                            ? intervalFn(n.args().get(1)) : "to_seconds"),
+                            ? DateShifts.intervalFn(enumName(n.args().get(1))) : "to_seconds"),
                     args.get(0),
                     new SqlExpr.TimestampLit("1970-01-01 00:00:00"))));
         }
@@ -2788,23 +2803,7 @@ final class Scalars {
                 "no TDS cell rendering for Pure type " + type.typeName());
     }
     /** The DuckDB interval-constructor for a DurationUnit enum literal. */
-    private static String intervalFn(TypedSpec unit) {
-        return switch (enumName(unit)) {
-            case "YEARS" -> "to_years";
-            case "MONTHS" -> "to_months";
-            case "WEEKS" -> "to_weeks";
-            case "DAYS" -> "to_days";
-            case "HOURS" -> "to_hours";
-            case "MINUTES" -> "to_minutes";
-            case "SECONDS" -> "to_seconds";
-            case "MILLISECONDS" -> "to_milliseconds";
-            case "MICROSECONDS" -> "to_microseconds";
-            default -> throw new IllegalStateException(
-                    "unknown DurationUnit for interval arithmetic: " + enumName(unit));
-        };
-    }
-
-    /** The date_diff part name for a DurationUnit enum literal. */
+        /** The date_diff part name for a DurationUnit enum literal. */
     private static String diffPart(TypedSpec unit) {
         return switch (enumName(unit)) {
             case "YEARS" -> "year";
@@ -3436,7 +3435,12 @@ final class Scalars {
                 + "' has no capturing group " + k);
     }
 
-    private static String enumName(TypedSpec arg) {
+
+    /** ISO day numbers of the pure {@code DayOfWeek} enum (Monday=1). */
+        /** {@code mostRecentDayOfWeek}/{@code previousDayOfWeek}: the anchored
+     * shift per the engine H2 formula. {@code strict} excludes the anchor
+     * day itself (previous). */
+        private static String enumName(TypedSpec arg) {
         if (arg instanceof TypedEnumValue ev) {
             return ev.value();
         }

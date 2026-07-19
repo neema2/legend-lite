@@ -711,6 +711,15 @@ public final class Pure {
     public static final NativeFunctionDefinition DAY_OF_MONTH__DATE_1 = signature("native function meta::pure::functions::date::dayOfMonth(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition DAY_OF_WEEK_NUMBER__DATE_1 = signature("native function meta::pure::functions::date::dayOfWeekNumber(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition DAY_OF_WEEK__DATE_1 = signature("native function meta::pure::functions::date::dayOfWeek(d:meta::pure::metamodel::type::Date[1]):meta::pure::functions::date::DayOfWeek[1];");
+    // day-of-week anchored shifts (engine pureToSQLQuery dyna pairs; the
+    // H2 dialect emission is the semantic source — duckdbExtension has
+    // them commented out): mostRecent = latest date <= anchor on the
+    // target day (same-day allowed); previous excludes the anchor day.
+    public static final NativeFunctionDefinition MOST_RECENT_DAY_OF_WEEK__DAY_1 = signature("native function meta::pure::functions::date::mostRecentDayOfWeek(day:meta::pure::functions::date::DayOfWeek[1]):meta::pure::metamodel::type::Date[1];");
+    public static final NativeFunctionDefinition MOST_RECENT_DAY_OF_WEEK__DATE_1__DAY_1 = signature("native function meta::pure::functions::date::mostRecentDayOfWeek(d:meta::pure::metamodel::type::Date[1], day:meta::pure::functions::date::DayOfWeek[1]):meta::pure::metamodel::type::Date[1];");
+    public static final NativeFunctionDefinition PREVIOUS_DAY_OF_WEEK__DAY_1 = signature("native function meta::pure::functions::date::previousDayOfWeek(day:meta::pure::functions::date::DayOfWeek[1]):meta::pure::metamodel::type::Date[1];");
+    public static final NativeFunctionDefinition PREVIOUS_DAY_OF_WEEK__DATE_1__DAY_1 = signature("native function meta::pure::functions::date::previousDayOfWeek(d:meta::pure::metamodel::type::Date[1], day:meta::pure::functions::date::DayOfWeek[1]):meta::pure::metamodel::type::Date[1];");
+    public static final NativeFunctionDefinition FIRST_DAY_OF_WEEK__DATE_1 = signature("native function meta::pure::functions::date::firstDayOfWeek(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Date[1];");
     public static final NativeFunctionDefinition DAY_OF_YEAR__DATE_1 = signature("native function meta::pure::functions::date::dayOfYear(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition DECODE_BASE64__STRING_1 = signature("native function meta::pure::functions::string::decodeBase64(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition DENSE_RANK__RELATION_1__WINDOW_1__T_1 = signature("native function meta::pure::functions::relation::denseRank<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], row:T[1]):meta::pure::metamodel::type::Integer[1];");

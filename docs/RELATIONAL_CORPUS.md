@@ -26,7 +26,7 @@ in-process Alloy-shaped path).
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
 | functions/tests | 258 | 153 | 7 | 79 | 19 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
-| functions/tests/projection | 155 | 92 | 5 | 44 | 14 |
+| functions/tests/projection | 155 | 94 | 6 | 39 | 16 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 143 | 17 | 10 | 114 | 2 |
 | graphFetch/tests/union | 15 | 2 | 0 | 13 | 0 |
@@ -82,10 +82,10 @@ in-process Alloy-shaped path).
 | tests/mapping/union/relation | 15 | 11 | 0 | 4 | 0 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
 | tests/query | 83 | 60 | 1 | 21 | 1 |
-| transform/fromPure/tests | 50 | 15 | 3 | 17 | 15 |
+| transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1144** | 54 | 729 | 611 |
+| **total** | 2538 | **1146** | 56 | 723 | 613 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4609,7 +4609,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Product], multiplicity=Bounded[lower=1, upper=1]]], predicate=TypedLambda[parameters=[p], body=[TypedNa
 - FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
@@ -4725,17 +4725,15 @@ in-process Alloy-shaped path).
 - ERROR testConcatenationOfTdsQueriesWithGroupBy [functions/tests/projection]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
 - ERROR testConcatenationOfTdsQueriesWithFilterAndGroupBy [functions/tests/projection]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
 - FAIL testAdjustWithMicroseconds [functions/tests/projection]: assertSameElements: expected 2014-12-04 15:22:23.123456, got 2014-12-04 15:22:23.123456789
-- ERROR testFirstDayOfWeek [functions/tests/projection]: unknown function 'firstDayOfWeek'
+- SHAPE testFirstDayOfWeek [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testFirstDayOfThisMonth [functions/tests/projection]: unknown function 'firstDayOfThisMonth'
 - SHAPE testFirstDayOfMonth [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testFirstDayOfThisQuarter [functions/tests/projection]: unknown function 'firstDayOfThisQuarter'
 - SHAPE testFirstDayOfQuarter [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testFirstDayOfThisYear [functions/tests/projection]: unknown function 'firstDayOfThisYear'
 - SHAPE testFirstDayOfYear [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testMostRecentDayOfWeek [functions/tests/projection]: unknown function 'mostRecentDayOfWeek'
-- ERROR testPreviousDayOfWeek [functions/tests/projection]: unknown function 'previousDayOfWeek'
-- ERROR testMostRecentDayOfWeekWithDate [functions/tests/projection]: unknown function 'mostRecentDayOfWeek'
-- ERROR testPreviousDayOfWeekWithDate [functions/tests/projection]: unknown function 'previousDayOfWeek'
+- FAIL testMostRecentDayOfWeek [functions/tests/projection]: assertEquals: expected select "root".tradeDate as "date" from tradeTable as "root" where "root".tradeDate = dateadd(day, case when (2 - extract(dow from cast(now() as date))) > 0 then (2 - extract(dow from cast(now() as date))) - 7 else 2 - extract(dow from cast(now() as date)) end, cast(now() as da
+- SHAPE testPreviousDayOfWeek [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testSimpleExists [functions/tests/projection]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testExistsAsNullWithSubType [functions/tests/projection]: in function 'meta::relational::tests::projection::exists::mappingForMultipleSubTypes$class$meta::relational::tests::projection::exists::ClassFunction': property 'fnScope' of 'meta::relational::tests::projection::exists::ClassFunction': expected meta::relational::tests::projection::exists::FunctionSc
 - ERROR testSavedRootPropogatedCorrectlyThroughFilter [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedMap[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], mapper=TypedLambda[parameters=[f], bod
@@ -5019,7 +5017,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -5768,7 +5766,7 @@ in-process Alloy-shaped path).
 - ERROR testIsEmptyForRelational_returnsFalse [tests/platformOperations]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 - ERROR testIsEmptyForRelational_returnsTrue [tests/platformOperations]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 - ERROR testGroupByWithFilterFunction_noDatePath [tests/query]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary): TypedCast[source=TypedIf[condition=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::boolean::lessThanEqual, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=left, ty
-- ERROR testDayOfWeek [tests/query]: unknown function 'mostRecentDayOfWeek'
+- ERROR testDayOfWeek [tests/query]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
 - ERROR testAssociationMixedDeep [tests/query]: object-space operation TypedDistinct is not supported yet
 - ERROR testAssociationToManyWithTwoSeparateExists [tests/query]: object-space operation TypedDistinct is not supported yet
 - ERROR testWithParameterToClassNestedSelect [tests/query]: class query under TypedLambda is not resolvable yet (H2 vocabulary)
@@ -5817,7 +5815,7 @@ in-process Alloy-shaped path).
 - SHAPE testToSqlGenerationFirstDayOfThisYear [transform/fromPure/tests]: per-driver golden loop declares DatabaseType.DB2 — only the H2 renderer is built
 - FAIL testToSqlGenerationFirstDayOfQuarter_H2 [transform/fromPure/tests]: assertEquals: expected select cast(cast(date_trunc('quarter', "root".tradeDate) as timestamp) as date) as "date" from tradeTable as "root", got select date_trunc('quarter', "root".tradeDate) as "date" from tradeTable as "root"
 - ERROR testToSqlGenerationFirstDayOfQuarter_DB2 [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
-- ERROR testToSqlGenerationFirstDayOfWeek [transform/fromPure/tests]: unknown function 'firstDayOfWeek'
+- FAIL testToSqlGenerationFirstDayOfWeek [transform/fromPure/tests]: assertEquals: expected select cast(cast(date_trunc('week', "root".tradeDate) as timestamp) as date) as "date" from tradeTable as "root", got select date_trunc('week', "root".tradeDate) as "date" from tradeTable as "root"
 - ERROR testToSQLStringWithRepeatString [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - ERROR testToSQLStringWithReplace [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - SHAPE testSqlGenerationDivide_AllDBs [transform/fromPure/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
