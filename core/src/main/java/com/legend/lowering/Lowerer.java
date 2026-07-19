@@ -925,6 +925,12 @@ public final class Lowerer {
                             new SqlExpr.IntLit(Long.MIN_VALUE)),
                     SqlType.Scalar.BIGINT);
         }
+        // 1-arg joinStrings joins with the EMPTY separator
+        // (stringExtension.pure:253) — DuckDB's bare STRING_AGG(x)
+        // defaults to a COMMA, which would be silently wrong.
+        if ("STRING_AGG".equals(fn) && extra.isEmpty()) {
+            extra.add(new SqlExpr.StringLit(""));
+        }
         // joinStrings(prefix, sep, suffix): STRING_AGG takes only the
         // separator — prefix/suffix concatenate AROUND the aggregate
         // (the audit: three extras produced an invalid 4-arg string_agg).

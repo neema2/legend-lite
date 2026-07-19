@@ -1220,6 +1220,20 @@ final class Typer {
                 && ctx.findProperty(ct.fqn(), ap.property()).orElse(null)
                         instanceof Property.Derived d
                 && d.parameters().isEmpty()) {
+            // AUTO-MAP (real pure — map.pure grammarDoc: "map is auto
+            // generated when the . operator is used to access a property
+            // value on a element of multiplicity different from [1]"): a
+            // to-many receiver maps the derived read per element
+            // (qualifier(...).name over Person[*] — the body fn's `this`
+            // is [1] and would otherwise fail overload resolution).
+            if (source.info().multiplicity().isMany()) {
+                return synth(new AppliedFunction("map", List.of(ap.receiver(),
+                        new LambdaFunction(
+                                List.of(new Variable("_am0")),
+                                List.of(new AppliedProperty(
+                                        new Variable("_am0"), ap.property()))))),
+                        env);
+            }
             return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(),
                     List.of(ap.receiver())), env);
         }
