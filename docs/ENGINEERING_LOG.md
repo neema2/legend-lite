@@ -57,12 +57,22 @@ git commit (document deltas per-commit) && push origin main
 
 ## Current state (as of the audit-21 fix slice)
 
-- Corpus **1055 pass / 52 fail of 2538** (parse completion 28245c49:
+- Corpus **1085 pass / 53 fail of 2538** (parse completion 28245c49:
   541/541 corpus files parse — every remaining non-pass is semantic).
-  Core 1497, engine 2729, PCT 1109. The 2 fails beyond f51 are documented
-  ERROR→FAIL progressions (intra-STRING_AGG element order — H2 scan order
-  vs DuckDB, same multiset; and the EngineStyleH2 listagg/d#-alias respell
-  rungs on testToSQLStringJoinStrings).
+  Core 1497, engine 2729, PCT 1109.
+- ef628eb6 AUDIT 22 (findings in docs/audit-22{a,b}-*.md): five probed
+  silent-wrong-value holes closed — Variant-root JSON decode gate,
+  exactly-[1]+post-substitution β-reduce guards, [0..1] derived reads
+  gated by EMPTY-PRESERVING strictness (ban list; 3 non-strict corpus
+  qualifiers wall pending the join-aware presence emission),
+  LIST_TRANSFORM flatten, arity-keyed isDistinct marker, zero-read
+  mapper wall, rows-toOne READER enforcement, sole-definition
+  re-synthesis, comparator row-cohesion + mixed flat-vs-TDS false.
+  TWO reverted attempts logged in the commit: the if/isEmpty presence
+  guard (emptiness materialized through a DIFFERENT join instance than
+  the value read — wrong values) and the size-over-[1] fold (a relation
+  VALUE's [1] is one relation, not one row). Lesson: emptiness tests
+  and value reads must share ONE join instance.
 - d1dd7ca6: overload scoring — Function-carrier args check interior
   RESULT multiplicity (map's [0..1] overload was beating the correct [*]
   one, then dying at unification). NEXT MECHANISM RUNG: higher-order
