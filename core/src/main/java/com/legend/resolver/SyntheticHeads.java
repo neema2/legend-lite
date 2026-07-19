@@ -834,4 +834,46 @@ final class SyntheticHeads {
      * NULL row is the point) must NOT fire inside them. */
     private final Set<TypedLambda> valuesLambdas =
             Collections.newSetFromMap(new IdentityHashMap<>());
+    /** A lifted head's (and a drilled synthetic MID component's) predicate
+     * reads are TAILS too: they pull the target's own slots exactly like
+     * demanded leaves. */
+    List<List<String>> predTailsFor(List<String> path, int mid) {
+        List<List<String>> predTails = new java.util.ArrayList<>();
+        Set<String> predComponents = new java.util.LinkedHashSet<>();
+        predComponents.add(path.get(0));
+        if (mid > 1) {
+            predComponents.add(path.get(mid - 1));
+        }
+        for (String pcpt : predComponents) {
+            for (TypedLambda liftedPred : allPreds(pcpt)) {
+                Set<List<String>> predPaths = new java.util.LinkedHashSet<>();
+                for (TypedSpec b : liftedPred.body()) {
+                    StoreResolver.consumedPaths(b, liftedPred.parameters().get(0),
+                            predPaths);
+                }
+                predTails.addAll(predPaths);
+            }
+        }
+        return predTails;
+    }
+
+
+    /** #69 (audit-22 follow-on): a CORRELATED pred's OUTER-variable
+     * reads are PARENT demand — the lift moved the only occurrence of
+     * {@code $f.<head>...} out of the projection column, so the ordinary
+     * scans no longer see it and the head's navigate material never
+     * registered (the Substitution 'class-typed slot' wall family). */
+    void corrPredOuterDemand(TypedLambda fn, Set<List<String>> out) {
+        if (fn.parameters().isEmpty()) {
+            return;
+        }
+        String uv = fn.parameters().get(0);
+        for (TypedLambda corr : allCorrelatedPreds()) {
+            for (TypedSpec b : corr.body()) {
+                StoreResolver.consumedPaths(b, uv, out);
+            }
+        }
+    }
+
+
 }

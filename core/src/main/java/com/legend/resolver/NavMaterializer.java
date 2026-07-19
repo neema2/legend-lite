@@ -5,6 +5,7 @@ package com.legend.resolver;
 
 import com.legend.compiler.spec.typed.TypedGetAll;
 import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedSpec;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -62,6 +63,17 @@ final class NavMaterializer {
     NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
             String targetClassFqn, List<List<String>> tails,
             String chainPrefix, TemporalContext inherited) {
+        return navTargetMaterialized(temporal, mappingFqn, targetClassFqn,
+                tails, chainPrefix, inherited, List.of());
+    }
+
+    /** {@code parkedPreds}: filter-lifted preds that will apply to THIS
+     * target — their DIRECT slot-alias reads (β-inlined qualifier bodies)
+     * join the demand; property-path reads ride {@code tails}. */
+    NavMat navTargetMaterialized(TemporalFrame temporal, String mappingFqn,
+            String targetClassFqn, List<List<String>> tails,
+            String chainPrefix, TemporalContext inherited,
+            List<TypedLambda> parkedPreds) {
         ClassSource t = sources.get(mappingFqn, targetClassFqn);
         // TEMPORAL GATE (same discipline as the union lift): the nested
         // materialization does not yet thread per-hop milestoning context
@@ -132,71 +144,23 @@ final class NavMaterializer {
                 continue;
             }
             StoreResolver.collectAliasReads(b, t.rowVar(), tSlots, tDemand);
-            if (tail.size() >= 2) {
-                // a CORRELATED pred on a filtered sub-hop cannot park
-                // in-target — leave the step undemanded (loud read),
-                // never an unfiltered join (wrong rows)
-                if (synthetics.correlatedPred(tail.get(0)) != null) {
-                    continue;
-                }
-                String subAlias = StoreResolver.navSlotAlias(b, t.rowVar(), tNavSteps.keySet());
-                if (subAlias != null) {
-                    // audit 12 F2: a TEMPORAL (or gated) sub-target must NOT
-                    // materialize unfiltered under a non-temporal parent —
-                    // the recursion's own gate returns a raw pipeline but
-                    // cannot stop THIS level's join. Leave the sub-step
-                    // undemanded: the leaf read stays LOUD downstream.
-                    String subCls = ((TypedGetAll)
-                            tNavSteps.get(subAlias).target()).classFqn();
-                    ClassSource subT = sources.get(mappingFqn, subCls);
-                    // TEMPORAL sub-target: liftable when its CHAIN-KEYED
-                    // spec (explicit hop date) or propagated context can
-                    // filter it (temporalTargetPipe in the resolver lambda
-                    // below); no chain prefix or no context = stays loud.
-                    boolean temporalSub = temporal.temporalStrategy(subCls) != null;
-                    if (temporalSub && (chainPrefix == null
-                            // a chain-keyed SPEC of any form (point, range
-                            // sweep) is a usable context — temporalTargetPipe
-                            // in the resolver lambda handles each; only the
-                            // spec-less no-propagation case stays loud
-                            || (temporal.spec(
-                                    chainPrefix + "." + tail.get(0)) == null
-                                && temporal.contextAt(chainPrefix + "." + tail.get(0),
-                                    subCls, hopCtx).isEmpty())
-                            // SNAPSHOT sub-unions stay loud: the engine
-                            // mints a join PER dated-QP CALL SITE there
-                            // (filter+project occurrences fan separately —
-                            // expected 16 = our merged 8 x 2); from/thru
-                            // sub-unions merge (partiallyMilestoning golden
-                            // passes with the shared join). Per-call join
-                            // identity is its own rung.
-                            || (StoreResolver.containsConcatenate(subT.pipeline())
-                                    && temporal.hasSnapshotScan(subT.pipeline())))) {
-                        continue;
-                    }
-                    // milestoned SLOT TARGETS inside the sub's own pipeline
-                    // are filterable when the SUB hop has a date context —
-                    // the recursion's own slotDates/filterMilestonedJoin-
-                    // Targets pass stamps them (audit 14 ungate: the
-                    // blanket gate predated per-hop context threading);
-                    // context-less they'd fan versions out — stays loud
-                    boolean subHasContext = chainPrefix != null
-                            && (temporal.spec(
-                                    chainPrefix + "." + tail.get(0)) != null
-                                || !temporal.contextAt(
-                                    chainPrefix + "." + tail.get(0),
-                                    subCls, hopCtx).isEmpty());
-                    if ((temporal.hasMilestonedSlotTarget(subT.pipeline())
-                                    && !subHasContext)
-                            || StoreResolver.containsFilter(subT.pipeline())) {
-                        continue;
-                    }
-                    tNavs.add(subAlias);
-                    subTails.computeIfAbsent(subAlias, k -> new ArrayList<>())
-                            .add(tail.subList(1, tail.size()));
-                }
+            demandSlotSubTail(temporal, t, tail, b, tSlots,
+                    tNavSteps, tDemand, tNavs, subTails, chainPrefix, hopCtx);
+        }
+        for (TypedLambda sp : parkedPreds) {
+            for (TypedSpec sb : sp.body()) {
+                StoreResolver.collectAliasReads(sb,
+                        sp.parameters().get(0), tSlots, tDemand);
             }
         }
+        // NOTE (#70): a demanded nav step's JOIN PREDICATE reading other
+        // joinslot sub-rows (the tree optimization-table pattern) is NOT
+        // demanded here on purpose — the optimization chains declare
+        // (INNER) hops (orgs: @a > (INNER) @b) that our slot emission
+        // does not thread yet; demanding them emits LEFT where the
+        // mapping says INNER (row-count wrong: JoinIsolationDeeper
+        // expected 4, got 11). The stripped-slot backstop keeps these
+        // LOUD until the JoinType threading rung lands.
         tDemand = Pipelines.closeOverConditions(t.pipeline(), tDemand);
         final TemporalContext slotCtx = hopCtx;
         final Map<String, String> midByAlias = new LinkedHashMap<>();
@@ -217,9 +181,17 @@ final class NavMaterializer {
                     if (!midByAlias.get(a2).equals(tail.get(0))
                             && synthetics.correlatedPred(tail.get(0)) == null) {
                         extraSubHeads.putIfAbsent(tail.get(0), a2);
-                        extraSubTails.computeIfAbsent(tail.get(0),
-                                        k -> new ArrayList<>())
-                                .add(tail.subList(1, tail.size()));
+                        List<List<String>> xt = extraSubTails.computeIfAbsent(
+                                tail.get(0), k -> new ArrayList<>());
+                        xt.add(tail.subList(1, tail.size()));
+                        for (TypedLambda sp : synthetics.allPreds(tail.get(0))) {
+                            Set<List<String>> spp = new LinkedHashSet<>();
+                            for (TypedSpec sb : sp.body()) {
+                                StoreResolver.consumedPaths(sb,
+                                        sp.parameters().get(0), spp);
+                            }
+                            xt.addAll(spp);
+                        }
                     }
                 }
             }
@@ -229,11 +201,14 @@ final class NavMaterializer {
         Pipelines.Materialized matM = Pipelines.materialize(
                 t.pipeline(), tDemand, tNavs,
                 targetClassFqn, (alias, cls) -> {
+                    String midProp = midByAlias.get(alias);
                     NavMat subMat = navTargetMaterialized(temporal, mappingFqn, cls,
                             subTails.getOrDefault(alias, List.of()),
                             chainPrefix == null ? null
-                                    : chainPrefix + "." + midByAlias.get(alias),
-                            hopCtx);
+                                    : chainPrefix + "." + midProp,
+                            hopCtx,
+                            midProp == null ? List.of()
+                                    : synthetics.allPreds(midProp));
                     subMats.put(alias, subMat);
                     subClsByAlias.put(alias, cls);
                     TypedSpec sub = subMat.pipeline();
@@ -296,6 +271,96 @@ final class NavMaterializer {
         return new NavMat(pipe, matM.slotPrefixes(), matM.stripped(), subTree);
     }
 
+
+    /** The SLOT sub-route demand for one 2+-hop tail: gates (temporal /
+     * filtered / correlated), sub-alias demand + sub-tails, and the
+     * lifted-pred tails (extracted seam of navTargetMaterialized). */
+    private void demandSlotSubTail(TemporalFrame temporal, ClassSource t,
+            List<String> tail, TypedSpec b, Set<String> tSlots,
+            Map<String, com.legend.compiler.spec.typed.TypedNavigate> tNavSteps,
+            Set<String> tDemand, Set<String> tNavs,
+            Map<String, List<List<String>>> subTails,
+            String chainPrefix, TemporalContext hopCtx) {
+        String mappingFqn = t.mappingFqn();
+        if (tail.size() >= 2) {
+            // a CORRELATED pred on a filtered sub-hop cannot park
+            // in-target — leave the step undemanded (loud read),
+            // never an unfiltered join (wrong rows)
+            if (synthetics.correlatedPred(tail.get(0)) != null) {
+                return;
+            }
+            String subAlias = StoreResolver.navSlotAlias(b, t.rowVar(), tNavSteps.keySet());
+            if (subAlias != null) {
+                // audit 12 F2: a TEMPORAL (or gated) sub-target must NOT
+                // materialize unfiltered under a non-temporal parent —
+                // the recursion's own gate returns a raw pipeline but
+                // cannot stop THIS level's join. Leave the sub-step
+                // undemanded: the leaf read stays LOUD downstream.
+                String subCls = ((TypedGetAll)
+                        tNavSteps.get(subAlias).target()).classFqn();
+                ClassSource subT = sources.get(mappingFqn, subCls);
+                // TEMPORAL sub-target: liftable when its CHAIN-KEYED
+                // spec (explicit hop date) or propagated context can
+                // filter it (temporalTargetPipe in the resolver lambda
+                // below); no chain prefix or no context = stays loud.
+                boolean temporalSub = temporal.temporalStrategy(subCls) != null;
+                if (temporalSub && (chainPrefix == null
+                        // a chain-keyed SPEC of any form (point, range
+                        // sweep) is a usable context — temporalTargetPipe
+                        // in the resolver lambda handles each; only the
+                        // spec-less no-propagation case stays loud
+                        || (temporal.spec(
+                                chainPrefix + "." + tail.get(0)) == null
+                            && temporal.contextAt(chainPrefix + "." + tail.get(0),
+                                subCls, hopCtx).isEmpty())
+                        // SNAPSHOT sub-unions stay loud: the engine
+                        // mints a join PER dated-QP CALL SITE there
+                        // (filter+project occurrences fan separately —
+                        // expected 16 = our merged 8 x 2); from/thru
+                        // sub-unions merge (partiallyMilestoning golden
+                        // passes with the shared join). Per-call join
+                        // identity is its own rung.
+                        || (StoreResolver.containsConcatenate(subT.pipeline())
+                                && temporal.hasSnapshotScan(subT.pipeline())))) {
+                    return;
+                }
+                // milestoned SLOT TARGETS inside the sub's own pipeline
+                // are filterable when the SUB hop has a date context —
+                // the recursion's own slotDates/filterMilestonedJoin-
+                // Targets pass stamps them (audit 14 ungate: the
+                // blanket gate predated per-hop context threading);
+                // context-less they'd fan versions out — stays loud
+                boolean subHasContext = chainPrefix != null
+                        && (temporal.spec(
+                                chainPrefix + "." + tail.get(0)) != null
+                            || !temporal.contextAt(
+                                chainPrefix + "." + tail.get(0),
+                                subCls, hopCtx).isEmpty());
+                if ((temporal.hasMilestonedSlotTarget(subT.pipeline())
+                                && !subHasContext)
+                        || StoreResolver.containsFilter(subT.pipeline())) {
+                    return;
+                }
+                tNavs.add(subAlias);
+                subTails.computeIfAbsent(subAlias, k -> new ArrayList<>())
+                        .add(tail.subList(1, tail.size()));
+                // a filter-LIFTED sub-hop's parked pred reads are
+                // TAILS too: they pull the sub-target's own slots
+                // exactly like demanded leaves (the top-level route's
+                // predTails rule, mirrored — an undemanded pred slot
+                // read trips the stripped-slot backstop)
+                for (TypedLambda sp : synthetics.allPreds(tail.get(0))) {
+                    Set<List<String>> spp = new LinkedHashSet<>();
+                    for (TypedSpec sb : sp.body()) {
+                        StoreResolver.consumedPaths(sb,
+                                sp.parameters().get(0), spp);
+                    }
+                    subTails.get(subAlias).addAll(spp);
+                }
+            }
+        }
+    }
+
     /** ASSOC-SUB folds (union V3): each collected end joins its target
      * INSIDE the materialized pipeline (the same descriptor->emission the
      * root uses) and rides the SubNav tree — the composed prefix (y_ + z_)
@@ -354,7 +419,7 @@ final class NavMaterializer {
             NavMat xMat = navTargetMaterialized(temporal, mappingFqn,
                     xg.classFqn(),
                     extraSubTails.getOrDefault(prop, List.of()),
-                    subChain, hopCtx);
+                    subChain, hopCtx, synthetics.allPreds(prop));
             final NavMat xm2 = xMat;
             ClassSource xCs = sources.get(mappingFqn, xg.classFqn());
             TypedSpec xPipe = synthetics.applyToPipe(prop, xMat.pipeline(),

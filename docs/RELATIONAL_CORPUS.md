@@ -50,7 +50,7 @@ in-process Alloy-shaped path).
 | tds/tests | 266 | 140 | 1 | 97 | 28 |
 | testDataGeneration/tests | 68 | 0 | 0 | 0 | 68 |
 | tests | 39 | 0 | 0 | 0 | 39 |
-| tests/advanced | 68 | 19 | 0 | 38 | 11 |
+| tests/advanced | 68 | 19 | 0 | 37 | 12 |
 | tests/datatype | 5 | 3 | 1 | 1 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 |
 | tests/mapping | 10 | 5 | 3 | 2 | 0 |
@@ -67,7 +67,7 @@ in-process Alloy-shaped path).
 | tests/mapping/inClause | 4 | 0 | 0 | 0 | 4 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
 | tests/mapping/inheritance | 47 | 23 | 0 | 24 | 0 |
-| tests/mapping/innerJoin | 2 | 0 | 0 | 2 | 0 |
+| tests/mapping/innerJoin | 2 | 2 | 0 | 0 | 0 |
 | tests/mapping/join | 28 | 20 | 2 | 6 | 0 |
 | tests/mapping/merge | 1 | 0 | 0 | 1 | 0 |
 | tests/mapping/modelJoin | 47 | 12 | 1 | 34 | 0 |
@@ -85,7 +85,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 3 | 17 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1104** | 50 | 776 | 608 |
+| **total** | 2538 | **1106** | 50 | 773 | 609 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4441,7 +4441,7 @@ in-process Alloy-shaped path).
 - 8x relation has no column 'aID'
 - 8x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
 - 7x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - 7x ~name_length: mapped/aggregate column specifications need an enclosing call to type against
 - 7x object-space use of the instance variable '$p' other than property access is not supported yet
 - 7x filter predicate references column 'personTableToOrgTreeOptimizationTable_ancestor', unresolvable even after isolation
@@ -5018,7 +5018,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -5075,13 +5075,13 @@ in-process Alloy-shaped path).
 - ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
 - ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
-- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - ERROR testReplaceTablePostProcessor [postprocessor/tests]: Unknown type: 'Table' is not a known primitive, class, or enum
 - ERROR testReplaceTableMultiplePostProcessor [postprocessor/tests]: class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablesPostProcessor [postprocessor/tests]: Unknown type: 'Table' is not a known primitive, class, or enum
@@ -5416,8 +5416,8 @@ in-process Alloy-shaped path).
 - SHAPE testRelationalDefaultSchemaMapper [tests]: no execute(|...) call
 - SHAPE testRelationalMapperWithJoin [tests]: no execute(|...) call
 - SHAPE testRelationalMapperTwoDBs [tests]: no execute(|...) call
-- ERROR test1 [tests/advanced]: multi-hop navigation money.usdRates#f0.rate through an embedded/slot head is not supported yet
-- ERROR test2 [tests/advanced]: multi-hop navigation money.usdRates#f0.rate through an embedded/slot head is not supported yet
+- SHAPE test1 [tests/advanced]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- ERROR test2 [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=c, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Contract], multiplicity=Bounded[lower=1, upper=1]
 - ERROR failMoveFilterInOnClauseJoin [tests/advanced]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Synonym_SynonymType' (the demand scan and the rewrite disagreed)
 - ERROR failMoveFilterInOnClauseModel [tests/advanced]: navigation through class-typed slot property 'type' is not supported yet
 - SHAPE failMoveFilterOnTop [tests/advanced]: no execute(|...) call
@@ -5603,8 +5603,6 @@ in-process Alloy-shaped path).
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/inheritance]: object-space use of the instance variable '$p' other than property access is not supported yet
 - ERROR testProjectSubtype [tests/mapping/inheritance]: class-typed property '$t.product' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeMappingValidWhenMappedExplicitly [tests/mapping/inheritance]: unknown function '_classMappingByClass'
-- ERROR testIsolationOfInnerJoins [tests/mapping/innerJoin]: multi-hop navigation org.ancestors#f0.name through an embedded/slot head is not supported yet
-- ERROR testIsolationForFiltersWithoutAliasAndInnerJoins [tests/mapping/innerJoin]: multi-hop navigation org.ancestors#f0.name through an embedded/slot head is not supported yet
 - ERROR testFilterOnSimpleTypePropertyDeepWithJoinInMapping [tests/mapping/join]: Binder Error: Referenced table "t2" not found! | Candidate tables: "t0" |  | LINE 4: ...RSON_ID, t2.EXTRAINFO AS Person_PersonExtension_EXTRAINFO, t2.NUMBER AS Person_PersonExtension_NUMBER, t2.AGE AS Perso... |                                                                       ^
 - ERROR testFilterDeepWithJoinInMappingInMiddle [tests/mapping/join]: navigation through class-typed slot property 'firm' is not supported yet
 - FAIL testMultipleJoinsInPropertyMappingWithDatesInClass [tests/mapping/join]: assertSameElements: expected [Row1, Row2, Row3, Row1, Row2, Row3], got [Row1, Row2, Row3]

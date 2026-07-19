@@ -1214,8 +1214,13 @@ public final class StoreResolver {
                 }
                 if (inner instanceof TypedNewInstance ni
                         && mid + 1 < path.size()
-                        && ni.properties().containsKey(path.get(mid))) {
-                    drill = ni.properties().get(path.get(mid));
+                        && ni.properties().containsKey(
+                                SyntheticHeads.realHead(path.get(mid)))) {
+                    // a SYNTHETIC (filter-lifted) mid component drills by
+                    // its REAL property; the parked pred applies at the
+                    // slot materialization below (#70 embedded sub-chains)
+                    drill = ni.properties().get(
+                            SyntheticHeads.realHead(path.get(mid)));
                     mid++;
                 } else {
                     drill = inner;
@@ -1230,15 +1235,7 @@ public final class StoreResolver {
             // a lifted head's predicate reads are TAILS too: they pull the
             // target's own slots exactly like demanded leaves
             List<List<String>> predTails =
-                    new ArrayList<>();
-            for (TypedLambda liftedPred : synthetics.allPreds(path.get(0))) {
-                Set<List<String>> predPaths =
-                        new LinkedHashSet<>();
-                for (TypedSpec b : liftedPred.body()) {
-                    consumedPaths(b, liftedPred.parameters().get(0), predPaths);
-                }
-                predTails.addAll(predPaths);
-            }
+                    synthetics.predTailsFor(path, mid);
             // JOIN IDENTITY: a SECOND head identity on one physical slot
             // routes through its own prefixed join (below) — the slot
             // itself materializes once for the first identity.
@@ -1268,6 +1265,13 @@ public final class StoreResolver {
             if (cpH != null && assocMaterial.corrPredDemandsParentNav(cpH)
                     && !demandedNavs.contains(alias)) {
                 corrNavHeads.putIfAbsent(headKey, alias);
+                continue;
+            }
+            if (mid > 1 && path.subList(0, mid).stream()
+                    .anyMatch(c -> synthetics.correlatedPred(c) != null)) {
+                // a CORRELATED pred on an embedded-drilled chain component
+                // has no composition route yet — leave the step undemanded
+                // (loud read), never an unfiltered join
                 continue;
             }
             if (demandedNavs.contains(alias)) {
@@ -1304,12 +1308,18 @@ public final class StoreResolver {
             // node); the composite right side carries its own filters, so
             // the outer join-stamping never double-stamps it
             String liftedHead = navHeadByAlias.getOrDefault(alias, alias);
-            if (synthetics.hasPred(liftedHead)
-                    && synthetics.correlatedPred(liftedHead) == null) {
+            // preds park under the BARE synthetic head — a DOTTED chain
+            // key (embedded drill: money.usdRates#f0) keys the pred by
+            // its LAST component (silent-skip here = unfiltered join =
+            // wrong rows)
+            String predKey = liftedHead.substring(
+                    liftedHead.lastIndexOf('.') + 1);
+            if (synthetics.hasPred(predKey)
+                    && synthetics.correlatedPred(predKey) == null) {
                 ClassSource target = sources.get(cs.mappingFqn(), targetClass);
                 NavMaterializer.NavMat mat = navMats.get(alias);
                 navMats.put(alias, new NavMaterializer.NavMat(
-                        synthetics.applyToPipe(liftedHead, mat.pipeline(),
+                        synthetics.applyToPipe(predKey, mat.pipeline(),
                                 (p, pred) -> predFilteredPipe(p, target,
                                         mat.slotPrefixes(), pred, cs.mappingFqn())),
                         mat.slotPrefixes(), mat.stripped(), mat.subNavs()));
@@ -1340,6 +1350,7 @@ public final class StoreResolver {
                 navHeadByAlias, extraNavHeads, extraNavTails, navSteps,
                 corrNavHeads);
     }
+
 
     /** PHASE 2a'' — CLASS-TYPED LEAF under an emptiness call:
      * registers the DOTTED-path correlated-EXISTS material (engine:
@@ -2098,8 +2109,13 @@ public final class StoreResolver {
             TypedSpec tPipe = temporal.temporalTargetPipe(cs, target, headKey,
                     temporal.applyJoinTemporalFilters(mat.pipeline(), target,
                             Map.of()));
-            requireNoCorrelatedPred(headKey, "navigate-step chain");
-            tPipe = synthetics.applyToPipe(headKey, tPipe, (p, pred) ->
+            // preds park under the BARE synthetic component — a dotted
+            // chain key must strip to it here or the identity's pred is
+            // silently dropped (unfiltered join = wrong values; the
+            // isolation 'filters without alias' family)
+            String exPredKey = headKey.substring(headKey.lastIndexOf('.') + 1);
+            requireNoCorrelatedPred(exPredKey, "navigate-step chain");
+            tPipe = synthetics.applyToPipe(exPredKey, tPipe, (p, pred) ->
                     predFilteredPipe(p, target, mat.slotPrefixes(),
                             pred, cs.mappingFqn()));
             AssociationJoins.AssocJoin aj = new AssociationJoins.AssocJoin(AssociationJoins.prefixFor(headKey, cs), target, tPipe,
@@ -2473,7 +2489,7 @@ public final class StoreResolver {
                 // #69: outer reads in corrPreds may root at THIS filter's
                 // param too (the RhsFilter family) — same parent demand
                 // as the terminal-lambda scan
-                corrPredOuterDemand(f.predicate(), filterPaths);
+                synthetics.corrPredOuterDemand(f.predicate(), filterPaths);
             }
             if (op instanceof TypedSortBy sb) {
                 for (TypedSpec b : sb.key().body()) {
@@ -2501,7 +2517,7 @@ public final class StoreResolver {
                     aggScan(b, fn.parameters().get(0), cs,
                             aggDemands, projectionPaths);
                 }
-                corrPredOuterDemand(fn, projectionPaths);
+                synthetics.corrPredOuterDemand(fn, projectionPaths);
             }
         }
         Set<List<String>> paths = new LinkedHashSet<>(filterPaths);
@@ -2778,23 +2794,6 @@ public final class StoreResolver {
                 true, true));
         return new TypedFilter(tPipe, predSub.rewriteLambda(pred),
                 tPipe.info());
-    }
-
-    /** #69 (audit-22 follow-on): a CORRELATED pred's OUTER-variable
-     * reads are PARENT demand — the lift moved the only occurrence of
-     * {@code $f.<head>...} out of the projection column, so the ordinary
-     * scans no longer see it and the head's navigate material never
-     * registered (the Substitution 'class-typed slot' wall family). */
-    private void corrPredOuterDemand(TypedLambda fn, Set<List<String>> out) {
-        if (fn.parameters().isEmpty()) {
-            return;
-        }
-        String uv = fn.parameters().get(0);
-        for (TypedLambda corr : synthetics.allCorrelatedPreds()) {
-            for (TypedSpec b : corr.body()) {
-                consumedPaths(b, uv, out);
-            }
-        }
     }
 
     private static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
