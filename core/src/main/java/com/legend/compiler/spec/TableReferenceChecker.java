@@ -97,6 +97,17 @@ final class TableReferenceChecker {
                     "tableToTDS expects a table reference; got "
                     + table.info().type().typeName());
         }
+        // ENGINE: tableToTDS(table:Table[1]) — a relation EXPRESSION is
+        // not a Table (audit 22b F5: the leniency accepted
+        // tableToTDS(#>{db.T}#->filter(...)) that the engine refuses to
+        // compile). Loud beats silently-wider.
+        if (!(table instanceof com.legend.compiler.spec.typed
+                .TypedTableReference)) {
+            throw new TypeInferenceException(
+                    "tableToTDS expects a TABLE reference (engine"
+                    + " Table[1]); a derived relation expression is not a"
+                    + " Table");
+        }
         // Validate against the registered native signature — never ignored.
         t.kernel().resolveOverload(
                 t.model().findFunction(CoreFn.TABLE_TO_TDS.parseName()),

@@ -48,6 +48,18 @@ final class MatchChecker {
         Optional<TypedSpec> extra = params.size() == 3
                 ? Optional.of(t.synth(params.get(2), env)) : Optional.empty();
 
+        // M4 (audit 22a): a [0..1] input statically matching BOTH a [1]
+        // branch and a zero-accepting branch of the SAME type dispatches
+        // on RUNTIME COUNT in real pure (Match.java walks values.size()).
+        // Static first-accepting binding null-propagates through the [1]
+        // branch where pure takes the empty branch — silent wrong value.
+        // Emission: if(isNotEmpty(input), <[1] branch>, <empty branch>).
+        TypedSpec runtimeDispatch = optionalRuntimeDispatch(
+                t, input, extra, branches(params.get(1)), env);
+        if (runtimeDispatch != null) {
+            return runtimeDispatch;
+        }
+
         for (LambdaFunction branch : branches(params.get(1))) {
             if (branch.parameters().isEmpty() || branch.parameters().size() > 2
                     || branch.body().size() != 1) {
@@ -90,6 +102,94 @@ final class MatchChecker {
         }
         throw new TypeInferenceException("match: no branch matches input type '"
                 + input.info().type().typeName() + input.info().multiplicity().text() + "'");
+    }
+
+
+    /** The runtime-count dispatch emission for a {@code [0..1]} input over
+     * multiplicity-discriminating branches; null when the static rule
+     * applies (single accepting branch / not optional / mixed shapes). */
+    private static TypedSpec optionalRuntimeDispatch(Typer t, TypedSpec input,
+            Optional<TypedSpec> extra, List<LambdaFunction> branchList, Env env) {
+        if (extra.isPresent()) {
+            return null;
+        }
+        if (!(input.info().multiplicity() instanceof Multiplicity.Bounded ib)
+                || ib.lower() != 0 || !Integer.valueOf(1).equals(ib.upper())) {
+            return null;
+        }
+        LambdaFunction oneBranch = null;
+        LambdaFunction emptyBranch = null;
+        for (LambdaFunction branch : branchList) {
+            if (branch.parameters().size() != 1 || branch.body().size() != 1) {
+                return null;
+            }
+            Variable param = branch.parameters().get(0);
+            if (param.type() == null) {
+                return null;
+            }
+            Type branchType = t.namedType(param.type());
+            if (!t.kernel().accepts(branchType, input.info().type())) {
+                continue;
+            }
+            Multiplicity bm = param.multiplicity() == null ? null
+                    : Multiplicity.from(param.multiplicity());
+            boolean demandsOne = bm instanceof Multiplicity.Bounded bb
+                    && bb.lower() == 1 && Integer.valueOf(1).equals(bb.upper());
+            boolean acceptsEmpty = bm == null
+                    || (bm instanceof Multiplicity.Bounded be && be.lower() == 0);
+            if (oneBranch == null && demandsOne) {
+                oneBranch = branch;
+            } else if (oneBranch != null && emptyBranch == null && acceptsEmpty) {
+                emptyBranch = branch;
+                break;
+            } else if (oneBranch == null) {
+                // first accepting branch already tolerates empty — the
+                // static rule is runtime-correct
+                return null;
+            }
+        }
+        if (oneBranch == null || emptyBranch == null) {
+            return null;
+        }
+        TypedSpec thenArm = branchMatch(t, input, oneBranch, env,
+                Multiplicity.Bounded.ONE);
+        TypedSpec elseArm = branchMatch(t, input, emptyBranch, env, null);
+        if (!thenArm.info().type().equals(elseArm.info().type())) {
+            return null;   // mixed result types: keep the static rule
+        }
+        var one = t.model().findFunction(
+                        "meta::pure::functions::collection::isNotEmpty").stream()
+                .filter(f -> f.parameters().size() == 1)
+                .findFirst().orElse(null);
+        if (one == null) {
+            return null;
+        }
+        var boolOne = new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE);
+        TypedSpec cond = new com.legend.compiler.spec.typed.TypedNativeCall(
+                one, List.of(input), boolOne);
+        Multiplicity outM = thenArm.info().multiplicity()
+                .equals(elseArm.info().multiplicity())
+                ? thenArm.info().multiplicity()
+                : Multiplicity.Bounded.ZERO_ONE;
+        return new com.legend.compiler.spec.typed.TypedIf(cond, thenArm,
+                Optional.of(elseArm),
+                new ExprType(thenArm.info().type(), outM));
+    }
+
+    /** One branch typed as its own TypedMatch over the input ({@code
+     * boundOverride} pins the param's multiplicity for the presence arm). */
+    private static TypedSpec branchMatch(Typer t, TypedSpec input,
+            LambdaFunction branch, Env env, Multiplicity boundOverride) {
+        Variable param = branch.parameters().get(0);
+        Type branchType = t.namedType(param.type());
+        Multiplicity bound = boundOverride != null ? boundOverride
+                : param.multiplicity() != null
+                        ? Multiplicity.from(param.multiplicity())
+                        : input.info().multiplicity();
+        Env scope = env.with(param.name(), new ExprType(branchType, bound));
+        TypedSpec body = t.synth(branch.body().get(0), scope);
+        return new TypedMatch(input, param.name(), body, Optional.empty(),
+                Optional.empty(), body.info());
     }
 
     /** A many-valued input needs a branch whose declared multiplicity can hold it (engine rule). */
