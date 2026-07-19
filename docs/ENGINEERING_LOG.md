@@ -57,12 +57,20 @@ git commit (document deltas per-commit) && push origin main
 
 ## Current state (as of the audit-21 fix slice)
 
-- Corpus **1036 pass / 50 fail of 2538** (parse completion 28245c49:
+- Corpus **1045 pass / 50 fail of 2538** (parse completion 28245c49:
   541/541 corpus files parse — every remaining non-pass is semantic).
-  Core 1497, engine 2729, PCT 1109. The audit-21 fix slice moved 3
-  qualifier-family ERRORs to PASS (F2 capture fix) with a byte-identical
-  FAIL ledger, plus the flat-cells comparator rule (rows.values compares
-  raw cells, column names out — engine TDSRow semantics).
+  Core 1497, engine 2729, PCT 1109.
+- f338b644 (inheritance-union dispatch, +9): union/inheritance route
+  classification happens in the QUERIED mapping's closure (engine
+  router) — normalizeMapping re-synthesizes an INCLUDED class under the
+  including mapping when a set-routed property's target class gains an
+  Operation mapping there (routedTargetGainsOperation; local binding
+  shadows included). Self-join member keys ({target}.col =
+  TargetColumnRef) join the inbound union-route scan. '#TDS…#' toString
+  goldens compare via tdsStringEquals (engine toString.pure format).
+- ee28e683 (audit-21 fix slice, +3): qualifier family unblocked (F2
+  capture fix); flat-cells comparator rule (rows.values compares raw
+  cells, column names out — engine TDSRow semantics).
 - Audits 1–21 done; audit-21 findings in `docs/audit-21{a,b}-*.md`.
   21a (parse leniencies): the M2M mappingLine heads ([targetSetId],
   prop* explosion, +local) are now RECORDED on Pure.PropertyBinding and

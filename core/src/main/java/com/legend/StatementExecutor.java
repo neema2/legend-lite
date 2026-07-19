@@ -216,6 +216,7 @@ final class StatementExecutor {
     /** Envelope-read recognizers — generic natives identified by EXACT FQN
      * (never suffix matching). */
     private static final String AT_FQN = "meta::pure::functions::collection::at";
+    private static final String FIRST_FQN = "meta::pure::functions::collection::first";
     private static final String TO_ONE_FQN =
             "meta::pure::functions::multiplicity::toOne";
     private static final java.util.Set<String> SIZE_FQNS = java.util.Set.of(
@@ -297,7 +298,7 @@ final class StatementExecutor {
     }
 
     /**
-     * {@code let tds = $r.values(->at(0)/->toOne())} over a RELATION-rooted
+     * {@code let tds = $r.values(->at(0)/->toOne()/->first())} over a RELATION-rooted
      * frame: the wrappers are the Result envelope and the alias IS the same
      * frame ({@code $tds->size()} keeps ONE-TDS semantics). {@code at(k>0)}
      * is loud — the envelope holds one TDS. Class/scalar roots return null:
@@ -315,7 +316,8 @@ final class StatementExecutor {
             }
             if (cur instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
                     && (AT_FQN.equals(nc.callee().qualifiedName())
-                            || TO_ONE_FQN.equals(nc.callee().qualifiedName()))
+                            || TO_ONE_FQN.equals(nc.callee().qualifiedName())
+                            || FIRST_FQN.equals(nc.callee().qualifiedName()))
                     && !nc.args().isEmpty()) {
                 if (AT_FQN.equals(nc.callee().qualifiedName())
                         && !(nc.args().size() == 2 && nc.args().get(1)
@@ -377,7 +379,8 @@ final class StatementExecutor {
             // REAL selection over the spliced chain (class/scalar root)
             if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall w
                     && (AT_FQN.equals(w.callee().qualifiedName())
-                            || TO_ONE_FQN.equals(w.callee().qualifiedName()))
+                            || TO_ONE_FQN.equals(w.callee().qualifiedName())
+                            || FIRST_FQN.equals(w.callee().qualifiedName()))
                     && !w.args().isEmpty()) {
                 TypedSpec spliced = spliceValuesRead(w.args().get(0),
                         execFrames, letPrefix, specs, env);

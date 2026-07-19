@@ -24,7 +24,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 134 | 6 | 98 | 20 |
+| functions/tests | 258 | 140 | 6 | 92 | 20 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 79 | 7 | 56 | 13 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -33,7 +33,7 @@ in-process Alloy-shaped path).
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 49 | 0 | 0 | 0 | 49 |
-| milestoning/tests | 224 | 143 | 1 | 44 | 36 |
+| milestoning/tests | 224 | 143 | 2 | 43 | 36 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
@@ -82,10 +82,10 @@ in-process Alloy-shaped path).
 | tests/mapping/union/relation | 15 | 11 | 0 | 4 | 0 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
 | tests/query | 83 | 60 | 1 | 21 | 1 |
-| transform/fromPure/tests | 50 | 15 | 2 | 18 | 15 |
+| transform/fromPure/tests | 50 | 15 | 3 | 17 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1045** | 50 | 836 | 607 |
+| **total** | 2538 | **1051** | 52 | 828 | 607 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4433,9 +4433,8 @@ in-process Alloy-shaped path).
 - 19x unknown type 'TabularDataSet' in @TabularDataSet
 - 15x serialize expects (classCollection, #{Class{…}}#)
 - 14x from() argument 2 must be a mapping or runtime reference, got TypedUserCall
+- 14x lowering not yet implemented for TypedNativeCall
 - 14x toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
-- 13x expected at most one value, got many ([*])
-- 12x lowering not yet implemented for TypedNativeCall
 - 11x graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - 10x class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
 - 10x unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
@@ -4459,6 +4458,7 @@ in-process Alloy-shaped path).
 - 6x tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=personTable]]
 - 6x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=em…
 - 5x '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
+- 5x unknown function 'generateObjectReferences'
 
 ### per-test outcomes (non-passing)
 
@@ -4681,15 +4681,10 @@ in-process Alloy-shaped path).
 - ERROR testUsingFunctionInMapLambdaTakingAPathParameterPartial [functions/tests]: in function 'meta::relational::tests::groupBy::subFunction6': in call to 'meta::pure::functions::collection::map', argument 2: expected at most one value, got many ([*])
 - ERROR testUsingFunctionInMapLambdaTakingAParameterPartial [functions/tests]: in function 'meta::relational::tests::groupBy::subFunction6': in call to 'meta::pure::functions::collection::map', argument 2: expected at most one value, got many ([*])
 - ERROR testSimpleJoinStrings [functions/tests]: lowering not yet implemented for TypedNativeCall
-- ERROR testJoinStringsWithAssociation [functions/tests]: expected at most one value, got many ([*])
 - ERROR testUsingSameAggFunctionTwice [functions/tests]: scalar lowering not yet implemented for TypedSort
 - ERROR testUsingSameAggFunctionTwiceUsingQualifier [functions/tests]: scalar lowering not yet implemented for TypedSort
-- ERROR testAggToManyWithAverage [functions/tests]: expected at most one value, got many ([*])
-- ERROR testAggToManyWithMaxInteger [functions/tests]: expected at most one value, got many ([*])
-- ERROR testAggToManyWithMinInteger [functions/tests]: expected at most one value, got many ([*])
-- ERROR testAggToManyWithMaxDate [functions/tests]: expected at most one value, got many ([*])
-- ERROR testAggToManyWithMinDate [functions/tests]: expected at most one value, got many ([*])
-- ERROR testAggToManyWithFilter [functions/tests]: expected at most one value, got many ([*])
+- ERROR testAggToManyWithAverage [functions/tests]: lowering not yet implemented for TypedNativeCall
+- ERROR testAggToManyWithFilter [functions/tests]: lowering not yet implemented for TypedNativeCall
 - ERROR testGroupByAndFilterIsolatedJoinMerge [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=t, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1]]],
 - FAIL testGroupByWithJoinH2 [functions/tests]: assertSize: expected 1, got 6
 - ERROR testGroupByWithJoinDB2 [functions/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
@@ -4699,8 +4694,7 @@ in-process Alloy-shaped path).
 - ERROR testUniqueValueOnly2 [functions/tests]: unknown function 'uniqueValueOnly'
 - ERROR testUniqueValueOnly3 [functions/tests]: unknown function 'uniqueValueOnly'
 - ERROR testUniqueValueOnly4 [functions/tests]: unknown function 'uniqueValueOnly'
-- ERROR testAggFunctionUsingMultipleSetImplementation [functions/tests]: expected at most one value, got many ([*])
-- ERROR testGroupByIsDistinct [functions/tests]: expected at most one value, got many ([*])
+- ERROR testGroupByIsDistinct [functions/tests]: no overload of 'meta::pure::functions::collection::isDistinct' accepts 1 argument(s)
 - ERROR testGroupByWithWavgAggregation [functions/tests]: unknown function 'meta::pure::functions::math::wavgUtility::wavgRowMapper'
 - ERROR testObjectReferenceInSimple [functions/tests]: '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - ERROR testObjectReferenceInEmbeddedMapping [functions/tests]: unknown function 'generateObjectReferences'
@@ -5038,7 +5032,7 @@ in-process Alloy-shaped path).
 - ERROR testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: scalar lowering not yet implemented for TypedCLatestDate
 - SHAPE testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testNonMilestoningQueryWithLatestMilestoneFilterSimple [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testMilestoningQueryWithGroupByFilterWithMilestoning [milestoning/tests]: expected at most one value, got many ([1..*])
+- FAIL testMilestoningQueryWithGroupByFilterWithMilestoning [milestoning/tests]: assertEquals: expected ProductName2,GS-Mod-S1*GS-Mod-S2, got ProductName2,GS-Mod-S2*GS-Mod-S1
 - ERROR testBusinessDateInjectionFromVarReference [milestoning/tests]: filter predicate references column 'orderDate', unresolvable even after isolation
 - ERROR testBusinessDateInjectionFromVarReferenceWithProject [milestoning/tests]: filter predicate references column 'orderDate', unresolvable even after isolation
 - ERROR testBusinessDateInjectionFromParentVarReferenceWithProject [milestoning/tests]: filter predicate references column 'orderDate', unresolvable even after isolation
@@ -5051,7 +5045,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -5528,7 +5522,7 @@ in-process Alloy-shaped path).
 - ERROR testPersonToFirmLocationsInlineEmbedded [tests/mapping/association]: in function 'meta::relational::tests::mapping::association::embedded::associationMappingInlinedEmbedded$class$meta::relational::tests::model::simple::Person': unknown table 'PERSON_FIRM_DENORM' in database 'myDB'
 - ERROR testProjectTwoLambdas [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
 - ERROR testGroupBy [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
-- ERROR testBuilderRoutingOfAggFunctionParameters [tests/mapping/association]: expected at most one value, got many ([*])
+- ERROR testBuilderRoutingOfAggFunctionParameters [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping2' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping2)
 - ERROR testQuery [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
 - ERROR testFilterProject [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
 - ERROR testFilterProjectBooleanInFilter [tests/mapping/association]: class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
@@ -5636,7 +5630,7 @@ in-process Alloy-shaped path).
 - ERROR testSubTypeProjectDirect [tests/mapping/inheritance]: object-space use of the instance variable '$r' other than property access is not supported yet
 - ERROR testSubTypeProjectShared [tests/mapping/inheritance]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::inheritance::Person], multiplicity=Bounded[lower=1, upper=1]]], property=vehicles, info=Ex
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/inheritance]: object-space use of the instance variable '$p' other than property access is not supported yet
-- ERROR testSubTypeGroupBy [tests/mapping/inheritance]: expected at most one value, got many ([*])
+- ERROR testSubTypeGroupBy [tests/mapping/inheritance]: class-typed property '$p.vehicles' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeGroupByThroughMap [tests/mapping/inheritance]: object-space use of the instance variable '$p' other than property access is not supported yet
 - ERROR testEmbeddMappingInSubTypes [tests/mapping/inheritance]: class-typed property '$f.vehicles' used as a whole value is graph output (Phase H4)
 - ERROR testMilestonedSubTyping [tests/mapping/inheritance]: class 'meta::relational::tests::model::inheritance::milestoned::Vehicle' is not mapped in mapping 'meta::relational::tests::model::inheritance::milestoned::MilestonedInheritanceMapping'
@@ -5894,7 +5888,7 @@ in-process Alloy-shaped path).
 - ERROR testToSQLStringWithAggregationDB2 [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - ERROR testToSQLStringWithRelativeDateDB2 [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - ERROR testToSQLStringWithAbs [transform/fromPure/tests]: Unknown type: 'Mapping' is not a known primitive, class, or enum
-- ERROR testToSQLStringJoinStrings [transform/fromPure/tests]: expected at most one value, got many ([*])
+- FAIL testToSQLStringJoinStrings [transform/fromPure/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", listagg("personTable_d#4_d_m1".FIRSTNAME, '*') as "employeesFirstName" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "legalName", got select "root".
 - ERROR testToSQLStringJoinStringsSimpleConcat [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - SHAPE testToSQLStringWithCodeBlock [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testNonExecutableSQLString [transform/fromPure/tests]: no execute(|...) call
