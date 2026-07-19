@@ -33,6 +33,18 @@ final class FunctionCompiler {
     /** THE native+user overload merge — every "functions at this FQN" question routes here. */
     List<Function> functionsAt(String fqn) {
         List<Function> all = new ArrayList<>(Pure.nativeFunctionsAt(fqn));
+        // DEFAULT-IMPORT parity for USER functions in the pure core
+        // packages: real pure's implicit imports put meta::pure::functions
+        // ::collection/::string/... in every section's scope, so the
+        // corpus calls uniqueValueOnly(...) BARE. Natives already resolve
+        // bare via the catalog index; user-defined (shared-source) core
+        // functions get the same courtesy — SCOPED to meta::pure:: FQNs
+        // so user-model bare names never resolve accidentally.
+        if (!fqn.contains("::")) {
+            for (String pkg : CORE_FUNCTION_PACKAGES) {
+                all.addAll(model.findFunction(pkg + "::" + fqn));
+            }
+        }
         // platform-owned FQNs: the native IS the definition; the corpus's
         // own M3-reflective bodies (toDDL.pure) never join the overload set.
         // The suppression is NOT silent — stderr once per FQN (audit 17;
@@ -48,6 +60,19 @@ final class FunctionCompiler {
         }
         return all;
     }
+
+    /** Real pure's implicit-import packages (m3 default imports) whose
+     * USER-defined functions resolve bare. */
+    private static final List<String> CORE_FUNCTION_PACKAGES = List.of(
+            "meta::pure::functions::collection",
+            "meta::pure::functions::string",
+            "meta::pure::functions::math",
+            "meta::pure::functions::date",
+            "meta::pure::functions::boolean",
+            "meta::pure::functions::lang",
+            "meta::pure::functions::multiplicity",
+            "meta::pure::tds",
+            "meta::pure::tds::extensions");
 
     private static final java.util.Set<String> SUPPRESSED_ONCE =
             java.util.concurrent.ConcurrentHashMap.newKeySet();

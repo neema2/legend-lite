@@ -75,4 +75,22 @@ static String intervalFn(String unitName) {
     }
 
 
+
+    /** {@code uniqueValueOnly} over a VALUE collection: the single
+     * distinct element, else the default/empty (engine
+     * collectionExtension.pure semantics; parked here beside the other
+     * composed-CASE emissions — Scalars sits at its size guardrail). */
+    static SqlExpr uniqueValueOnly(List<SqlExpr> args) {
+        return new SqlExpr.Case(
+                List.of(new SqlExpr.Case.When(
+                        SqlExpr.Call.of(SqlFn.EQUAL,
+                                SqlExpr.Call.of(SqlFn.LIST_LENGTH,
+                                        SqlExpr.Call.of(SqlFn.LIST_DISTINCT,
+                                                args.get(0))),
+                                new SqlExpr.IntLit(1)),
+                        SqlExpr.Call.of(SqlFn.LIST_GET, args.get(0),
+                                new SqlExpr.IntLit(1)))),
+                args.size() == 2 ? args.get(1) : new SqlExpr.NullLit());
+    }
+
 }

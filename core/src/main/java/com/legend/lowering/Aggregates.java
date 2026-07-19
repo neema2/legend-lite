@@ -69,6 +69,14 @@ final class Aggregates {
         for (String f : Pure.nativeKeysAt("isDistinct", 1)) {
             REDUCERS.put(f, "__IS_DISTINCT__");
         }
+        // the unique group value or NULL (collectionExtension.pure
+        // semantics over a group): composed CASE, no single SQL reducer
+        for (String f : Pure.nativeKeysAt("uniqueValueOnly", 1)) {
+            REDUCERS.put(f, "__UNIQUE_VALUE_ONLY__");
+        }
+        for (String f : Pure.nativeKeysAt("uniqueValueOnly", 2)) {
+            REDUCERS.put(f, "__UNIQUE_VALUE_ONLY__");
+        }
     }
 
     /**

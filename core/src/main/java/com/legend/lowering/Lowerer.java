@@ -914,6 +914,25 @@ public final class Lowerer {
                     new SqlAgg.Reducer("COUNT", List.of(value), true),
                     new SqlAgg.Reducer("COUNT", List.of(value), false));
         }
+        // uniqueValueOnly over a group (collectionExtension.pure): the
+        // single distinct value, else empty — CASE WHEN COUNT(DISTINCT x)
+        // = 1 THEN MAX(x) END (max of one value IS the value).
+        if ("__UNIQUE_VALUE_ONLY__".equals(fn)) {
+            // the 2-arg form's DEFAULT rides as the CASE else
+            SqlExpr uvDefault = extra.isEmpty() ? new SqlExpr.NullLit()
+                    : extra.get(0);
+            if (extra.size() > 1) {
+                throw new IllegalStateException(
+                        "uniqueValueOnly aggregate with " + extra.size()
+                                + " extra arguments");
+            }
+            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                    SqlExpr.Call.of(SqlFn.EQUAL,
+                            new SqlAgg.Reducer("COUNT", List.of(value), true),
+                            new SqlExpr.IntLit(1)),
+                    new SqlAgg.Reducer("MAX", List.of(value), false))),
+                    uvDefault);
+        }
         // hashCode over a group: HASH(LIST(values)) — no single SQL reducer.
         // DuckDB hash() is UBIGINT (surfaces as a non-integer through JDBC);
         // the result is a pure Integer — shift into signed BIGINT range

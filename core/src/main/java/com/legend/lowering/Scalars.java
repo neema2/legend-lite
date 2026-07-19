@@ -446,7 +446,6 @@ final class Scalars {
             });
         }
 
-        // day-of-week anchored shifts — semantics + formula in DateShifts
         for (var sh : Map.of("mostRecentDayOfWeek", false,
                 "previousDayOfWeek", true).entrySet()) {
             for (String f : Pure.nativeKeysAt(sh.getKey())) {
@@ -1703,6 +1702,9 @@ final class Scalars {
         // contains on a TO-ONE STRING: strpos > 0. A String[*] source is a
         // LIST of strings — list containment, not substring search (the
         // to-one gate; audit: ['x','y']->contains('x') hit strpos).
+        for (String f : Pure.nativeKeysAt("uniqueValueOnly")) {
+            RULES.put(f, (n, args) -> DateShifts.uniqueValueOnly(args));
+        }
         for (String f : Pure.nativeKeysAt("contains")) {
             RULES.put(f, (n, args) -> {
                 // contains(coll, val, comparator): filter by the comparator
@@ -3434,7 +3436,6 @@ final class Scalars {
         throw new IllegalStateException("pattern '" + pattern
                 + "' has no capturing group " + k);
     }
-
 
     /** ISO day numbers of the pure {@code DayOfWeek} enum (Monday=1). */
         /** {@code mostRecentDayOfWeek}/{@code previousDayOfWeek}: the anchored

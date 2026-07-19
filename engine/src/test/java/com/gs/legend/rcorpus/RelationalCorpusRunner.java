@@ -63,19 +63,6 @@ public class RelationalCorpusRunner {
                 // tests name; the whole file would double-register
                 // natives we already carry)
                 """
-                function meta::pure::functions::collection::uniqueValueOnly<T>(values : T[*]):T[0..1]
-                {
-                   $values->uniqueValueOnly([]->cast(@T));
-                }
-
-                function meta::pure::functions::collection::uniqueValueOnly<T>(values : T[*], defaultValue : T[0..1]):T[0..1]
-                {
-                   if($values->distinct()->size() == 1,
-                      | $values->meta::pure::functions::collection::max(),
-                      | $defaultValue
-                      );
-                }
-
                 function meta::pure::tds::extensions::firstNotNull<T>(set:T[*]):T[0..1]
                 {
                   $set->filter(v | $v != TDSNull)->first();

@@ -873,6 +873,11 @@ public final class Pure {
     // REAL pure (collectionExtension.pure:32): isDistinct<T>(set:T[*]) —
     // relational agg position lowers to COUNT(DISTINCT x) = COUNT(x)
     // (engine testGroupByIsDistinct golden).
+    // the unique value of a collection or empty (engine collectionExtension
+    // .pure:155-166: distinct size 1 -> max, else the default/[]) — native
+    // because the corpus consumes it as an AGGREGATE reducer
+    public static final NativeFunctionDefinition UNIQUE_VALUE_ONLY__T_MANY = signature("native function meta::pure::functions::collection::uniqueValueOnly<T>(values:T[*]):T[0..1];");
+    public static final NativeFunctionDefinition UNIQUE_VALUE_ONLY__T_MANY__T_01 = signature("native function meta::pure::functions::collection::uniqueValueOnly<T>(values:T[*], defaultValue:T[0..1]):T[0..1];");
     public static final NativeFunctionDefinition IS_DISTINCT__T_MANY = signature("native function meta::pure::functions::collection::isDistinct<T>(set:T[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_DISTINCT__ANY_1__ANY_1 = signature("native function meta::pure::functions::collection::isDistinct(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_EMPTY__T_MANY = signature("native function meta::pure::functions::collection::isEmpty<T>(value:T[*]):meta::pure::metamodel::type::Boolean[1];");
