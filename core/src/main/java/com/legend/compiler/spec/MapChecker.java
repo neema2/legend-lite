@@ -26,6 +26,16 @@ final class MapChecker {
             out = new com.legend.compiler.element.type.ExprType(out.type(),
                     com.legend.compiler.element.type.Multiplicity.Bounded.ZERO_MANY);
         }
+        // HIGHER-ORDER map: a function-VALUED argument ($f->map($func) in a
+        // user fn body typed generically) has no literal lambda yet — emit
+        // the plain call node; UserCallInliner β-reduces or rebuilds the
+        // TypedMap once substitution reveals the literal (same family as
+        // its eval rule). An un-substituted survivor stays loud at the
+        // lowerer's TypedNativeCall wall.
+        if (!(a.args().get(1)
+                instanceof com.legend.compiler.spec.typed.TypedLambda)) {
+            return Typer.emitCall(a.chosen(), a.args(), out);
+        }
         return new TypedMap(a.args().get(0), Args.lambda(a, 1), out);
     }
 }

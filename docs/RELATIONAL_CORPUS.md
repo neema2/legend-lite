@@ -24,7 +24,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 141 | 6 | 91 | 20 |
+| functions/tests | 258 | 144 | 6 | 88 | 20 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 79 | 7 | 56 | 13 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -40,7 +40,7 @@ in-process Alloy-shaped path).
 | postprocessor | 7 | 0 | 0 | 7 | 0 |
 | postprocessor/tests | 30 | 0 | 0 | 8 | 22 |
 | pureToSQLQuery/tests | 14 | 3 | 0 | 0 | 11 |
-| router/tests | 26 | 2 | 0 | 5 | 19 |
+| router/tests | 26 | 3 | 0 | 4 | 19 |
 | sqlDialectTranslation | 21 | 0 | 0 | 0 | 21 |
 | sqlQueryToString | 1 | 0 | 0 | 0 | 1 |
 | sqlQueryToString/DDL | 3 | 0 | 0 | 0 | 3 |
@@ -85,7 +85,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 3 | 17 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1055** | 52 | 824 | 607 |
+| **total** | 2538 | **1059** | 52 | 820 | 607 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4609,7 +4609,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Product], multiplicity=Bounded[lower=1, upper=1]]], predicate=TypedLambda[parameters=[p], body=[TypedNa
 - ERROR testConcatenateClassJoin [functions/tests]: multi-hop navigation product.synonyms#c0.name through an embedded/slot head is not supported yet
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
@@ -4677,9 +4677,6 @@ in-process Alloy-shaped path).
 - ERROR testSubAggregationMultiLevelJoinString [functions/tests]: no overload of 'meta::pure::functions::string::joinStrings' accepts 1 argument(s)
 - ERROR testSubAggregationUsingIf [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=ExprType
 - ERROR testSequenceMapWithConfusingSetImplementation [functions/tests]: unknown function 'meta::relational::tests::mapping::filter::model::store::createTablesAndFillDb'
-- ERROR testUsingFunctionInMapLambdaTakingAParameter [functions/tests]: in function 'meta::relational::tests::groupBy::subFunction3': 'meta::pure::functions::collection::map' expects a lambda argument in position 1
-- ERROR testUsingFunctionInMapLambdaTakingAPathParameterPartial [functions/tests]: in function 'meta::relational::tests::groupBy::subFunction6': 'meta::pure::functions::collection::map' expects a lambda argument in position 1
-- ERROR testUsingFunctionInMapLambdaTakingAParameterPartial [functions/tests]: in function 'meta::relational::tests::groupBy::subFunction6': 'meta::pure::functions::collection::map' expects a lambda argument in position 1
 - ERROR testSimpleJoinStrings [functions/tests]: lowering not yet implemented for TypedNativeCall
 - ERROR testUsingSameAggFunctionTwice [functions/tests]: scalar lowering not yet implemented for TypedSort
 - ERROR testUsingSameAggFunctionTwiceUsingQualifier [functions/tests]: scalar lowering not yet implemented for TypedSort
@@ -5044,7 +5041,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -5150,7 +5147,6 @@ in-process Alloy-shaped path).
 - SHAPE addDriverTablePkForProject [pureToSQLQuery/tests]: no execute(|...) call
 - SHAPE testImportDataFlow [pureToSQLQuery/tests]: no execute(|...) call
 - SHAPE testPrerouting42 [router/tests]: assert form 'assertRoundTrip/3' is not supported yet
-- ERROR testNoRoutingWhenTraversingFunction [router/tests]: in function 'meta::relational::tests::query::routing::mapNestedInUserFunction': 'meta::pure::functions::collection::map' expects a lambda argument in position 1
 - SHAPE testRoutingOfSimpleQualifiedProperty [router/tests]: no execute(|...) call
 - ERROR testRoutingWithSubtypePropagation [router/tests]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
 - ERROR testPlatformExpressionDependencyOnAFromExpression [router/tests]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
@@ -5856,7 +5852,7 @@ in-process Alloy-shaped path).
 - ERROR testIsNotEmptyForRelational_returnsFalse [tests/platformOperations]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 - ERROR testIsEmptyForRelational_returnsFalse [tests/platformOperations]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 - ERROR testIsEmptyForRelational_returnsTrue [tests/platformOperations]: from() argument 2 must be a mapping or runtime reference, got TypedUserCall
-- ERROR testGroupByWithFilterFunction_noDatePath [tests/query]: in function 'meta::relational::tests::groupBy::datePeriods::ytd': 'meta::pure::functions::collection::map' expects a lambda argument in position 1
+- ERROR testGroupByWithFilterFunction_noDatePath [tests/query]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary): TypedCast[source=TypedIf[condition=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::boolean::lessThanEqual, typeParameters=[], multiplicityParameters=[], parameters=[TypedParameter[name=left, ty
 - ERROR testDayOfWeek [tests/query]: unknown function 'mostRecentDayOfWeek'
 - ERROR testAssociationMixedDeep [tests/query]: object-space operation TypedDistinct is not supported yet
 - ERROR testAssociationToManyWithTwoSeparateExists [tests/query]: object-space operation TypedDistinct is not supported yet

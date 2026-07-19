@@ -386,8 +386,33 @@ public final class UserCallInliner {
                     new com.legend.compiler.spec.typed.TypedMilestonedAccess(
                             rewrite(ma.source(), env), ma.property(),
                             list(ma.dates(), env), ma.sweep(), ma.info());
-            case TypedNativeCall c -> new TypedNativeCall(c.callee(),
-                    list(c.args(), env), c.info());
+            case TypedNativeCall c -> {
+                List<TypedSpec> args = list(c.args(), env);
+                // HIGHER-ORDER map: substitution revealed a literal lambda
+                // where the checker saw a function-valued variable
+                // ($f->map($func) — MapChecker emitted the plain call).
+                // A to-one source β-reduces (map(v[1], f) ≡ f(v), pure
+                // semantics; [0..1] rides SQL null propagation like the
+                // toOne erasure); a to-many source rebuilds the TypedMap
+                // construct node the checker would have emitted.
+                if ("meta::pure::functions::collection::map"
+                        .equals(c.callee().qualifiedName())
+                        && args.size() == 2
+                        && !(c.args().get(1) instanceof TypedLambda)
+                        && args.get(1) instanceof TypedLambda lam
+                        && lam.parameters().size() == 1) {
+                    if (c.args().get(0).info().multiplicity()
+                            instanceof com.legend.compiler.element.type
+                                    .Multiplicity.Bounded mb
+                            && mb.upper() != null && mb.upper() <= 1) {
+                        Map<String, TypedSpec> inner = new LinkedHashMap<>();
+                        inner.put(lam.parameters().get(0), args.get(0));
+                        yield reduceStatements(lam.body(), inner);
+                    }
+                    yield new TypedMap(args.get(0), lam, c.info());
+                }
+                yield new TypedNativeCall(c.callee(), args, c.info());
+            }
             case TypedCollection c -> new TypedCollection(list(c.elements(), env), c.info());
             case TypedIf i -> new TypedIf(rewrite(i.condition(), env),
                     rewrite(i.thenBranch(), env),
