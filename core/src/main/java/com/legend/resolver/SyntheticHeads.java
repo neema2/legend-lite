@@ -197,15 +197,38 @@ final class SyntheticHeads {
     private String parkFiltered(String prop, TypedLambda pred) {
         boolean closed = predClosedOverParam(pred);
         java.util.Map<String, TypedLambda> pool = closed ? preds : corrPreds;
+        TypedSpec canon = alphaCanonicalBody(pred);
         for (var e : pool.entrySet()) {
             if (realHead(e.getKey()).equals(prop)
-                    && e.getValue().equals(pred)) {
+                    && alphaCanonicalBody(e.getValue()).equals(canon)) {
                 return e.getKey();
             }
         }
         String synth = mintFilteredName(prop);
         pool.put(synth, pred);
         return synth;
+    }
+
+    /** The predicate body with its binder renamed to a canonical name —
+     * the inliner alpha-freshens per call site (e, e_1, e_2 under an
+     * outer shadowing scope), which defeated plain record equality (the
+     * OffsetExplosion probe: 5 subselects for 2 distinct preds). */
+    private static TypedSpec alphaCanonicalBody(TypedLambda pred) {
+        if (pred.parameters().size() != 1 || pred.body().size() != 1) {
+            return pred;
+        }
+        String param = pred.parameters().get(0);
+        var pInfo = pred.info().type() instanceof Type.FunctionType ft
+                && ft.params().size() == 1
+                ? new ExprType(ft.params().get(0).type(),
+                        ft.params().get(0).multiplicity())
+                : null;
+        if (pInfo == null) {
+            return pred;
+        }
+        return Substitution.inlineParam(pred.body().get(0), param,
+                new com.legend.compiler.spec.typed.TypedVariable(
+                        "_canon", pInfo));
     }
 
     private String mintFilteredName(String prop) {

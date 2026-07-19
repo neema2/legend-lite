@@ -309,7 +309,8 @@ final class NavMaterializer {
                 sub = synthetics.applyToPipe(synthProp, sub,
                         (pp, pred) -> CorrelatedSubselects.predFilteredPipe(
                                 pp, sources.get(mappingFqn, cls),
-                                sm2.slotPrefixes(), pred, mappingFqn));
+                                sm2.slotPrefixes(), sm2.subNavs(),
+                                pred, mappingFqn));
             }
             // per-hop temporal filter: the sub-hop's chain-keyed
             // spec or propagated context (parent = THIS target)
