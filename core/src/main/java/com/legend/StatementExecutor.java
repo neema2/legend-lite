@@ -723,9 +723,28 @@ final class StatementExecutor {
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent()).lower(body);
         com.legend.sql.dialect.SqlDialect dialect = env.dialect();
-        return Executor.execute(
+        ExecutionResult res = Executor.execute(
                 dialect.render(plan), plan, root.info(),
                 com.legend.exec.ResultShape.of(root), connection, dialect);
+        // rows->toOne() READER enforcement (audit 22b F1): the lowering is
+        // row-identical to the relation (engine toOne throws at the READER,
+        // never in SQL) — so THE reader enforces exactly-one here for a
+        // TABULAR-consumed toOne root; the scalar arm's second-row guard
+        // covers scalar reads, this covers whole-TDS consumption and the
+        // ZERO-row lower bound.
+        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall tw
+                && "meta::pure::functions::multiplicity::toOne"
+                        .equals(tw.callee().qualifiedName())
+                && !tw.args().isEmpty()
+                && tw.args().get(0).info().type()
+                        instanceof com.legend.compiler.element.type.Type.RelationType
+                && res instanceof ExecutionResult.Tabular tab
+                && tab.rows().size() != 1) {
+            throw new IllegalStateException("toOne() over a relation returned "
+                    + tab.rows().size() + " row(s) — the exactly-one contract"
+                    + " (engine reader semantics)");
+        }
+        return res;
     }
 
     /**

@@ -24,9 +24,9 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 151 | 7 | 80 | 20 |
+| functions/tests | 258 | 151 | 7 | 81 | 19 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
-| functions/tests/projection | 155 | 79 | 7 | 56 | 13 |
+| functions/tests/projection | 155 | 78 | 7 | 57 | 13 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 143 | 17 | 10 | 114 | 2 |
 | graphFetch/tests/union | 15 | 2 | 0 | 13 | 0 |
@@ -58,7 +58,7 @@ in-process Alloy-shaped path).
 | tests/mapping/classMappingFilterWithInnerJoin | 32 | 14 | 0 | 18 | 0 |
 | tests/mapping/distinct | 18 | 14 | 0 | 4 | 0 |
 | tests/mapping/dynaJoin | 5 | 4 | 1 | 0 | 0 |
-| tests/mapping/embedded | 63 | 44 | 2 | 14 | 3 |
+| tests/mapping/embedded | 63 | 43 | 2 | 15 | 3 |
 | tests/mapping/enumeration | 26 | 10 | 4 | 9 | 3 |
 | tests/mapping/extends | 23 | 10 | 2 | 5 | 6 |
 | tests/mapping/extends/union | 8 | 1 | 0 | 7 | 0 |
@@ -85,7 +85,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 3 | 17 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1087** | 53 | 790 | 608 |
+| **total** | 2538 | **1085** | 53 | 793 | 607 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4655,7 +4655,7 @@ in-process Alloy-shaped path).
 - SHAPE testFromWithMappingAndIntermediateFuncCall [functions/tests]: no execute(|...) call
 - ERROR testGetterTwice [functions/tests]: a class flatten over a FILTERED/transformed source chain is not supported yet (op below the 'employees' hop)
 - ERROR testInWithOneValue [functions/tests]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary): TypedCast[source=TypedCollection[elements=[TypedCString[value=John, info=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]]], target=Class
-- SHAPE testInWithinQualifiedPropertyCollectionAsLiteralList [functions/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- ERROR testInWithinQualifiedPropertyCollectionAsLiteralList [functions/tests]: derived property 'isFirmXGroup' over a [0..1] receiver has a body outside the null-strict whitelist — empty-receiver semantics needs the presence-guarded emission (roadmap)
 - FAIL testInExecutionWithTempTableForDateTimesWithTz [functions/tests]: assertSize: expected 5, got 0
 - ERROR testInExecutionWithTempTableAndQueryChaining [functions/tests]: object-space expression node TypedGetAll is not substitutable yet (H2 vocabulary): TypedGetAll[classFqn=meta::relational::tests::model::simple::ValidPerson, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::ValidPerson], multiplicity=Bounded
 - ERROR testInExecutionWithTempTableAndQueryChainingOnIntegerColumn [functions/tests]: object-space expression node TypedGetAll is not substitutable yet (H2 vocabulary): TypedGetAll[classFqn=meta::relational::tests::model::simple::ValidPerson, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::ValidPerson], multiplicity=Bounded
@@ -4768,6 +4768,7 @@ in-process Alloy-shaped path).
 - ERROR testInWithOneValue [functions/tests/projection]: object-space expression node TypedCast is not substitutable yet (H2 vocabulary): TypedCast[source=TypedCollection[elements=[TypedCString[value=John, info=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]]]], info=ExprType[type=STRING, multiplicity=Bounded[lower=1, upper=1]]], target=Class
 - SHAPE H2Test [functions/tests/projection]: no execute(|...) call
 - ERROR testInWithDynaFunction [functions/tests/projection]: Conversion Error: Could not convert string 'something' to BOOL |  | LINE 3: ... = 'Y' THEN 'true' ELSE 'false' END AS BOOLEAN) IN ('false', 'something') AND CAST(t0.ID AS VARCHAR) = 4 |                                                                         ^
+- ERROR testQualifierWithInThroughJoin [functions/tests/projection]: derived property 'accountCategory' over a [0..1] receiver has a body outside the null-strict whitelist — empty-receiver semantics needs the presence-guarded emission (roadmap)
 - FAIL testSimpleBoolean [functions/tests/projection]: assertEquals: expected false, got []
 - ERROR testSimpleDerivedThroughAssociation [functions/tests/projection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=_path, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=Expr
 - FAIL testTwoQualifiersUsingSameJoinWithNoUserParams [functions/tests/projection]: assertSize: expected 1, got 4
@@ -5034,7 +5035,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -5531,6 +5532,7 @@ in-process Alloy-shaped path).
 - FAIL testFilterOnMultiLevelJoinWithNonAggregateFunction [tests/mapping/dynaJoin]: assertEquals: expected [New,Hoboken, Correct,New York, Settle,New York, New,New York, Cancel,San Fransisco], got [New,TDSNull, Correct,TDSNull, Settle,TDSNull, New,TDSNull, Cancel,TDSNull]
 - ERROR testDenormMappingOneToManyProjectLambdaSyntaxWithMap [tests/mapping/embedded]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
 - ERROR testProjectToEmbedded [tests/mapping/embedded]: multi-hop navigation employees.address.name through an embedded/slot head is not supported yet
+- ERROR testDenormMappingWithQualifierWithIfAndEquals [tests/mapping/embedded]: derived property 'isFirmX' over a [0..1] receiver has a body outside the null-strict whitelist — empty-receiver semantics needs the presence-guarded emission (roadmap)
 - ERROR testExists [tests/mapping/embedded]: class-typed property '$p.firm' used as a whole value is graph output (Phase H4)
 - FAIL testIsEmpty [tests/mapping/embedded]: assertEquals: expected name,firm\n\n, got []
 - ERROR testMapEmbeddedQualifierWithIfTwoEmbeddedProperties [tests/mapping/embedded]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Person], multiplicity=Bounded[lower=1, upper=1]]], property=firm, info=ExprType[ty
@@ -5573,7 +5575,7 @@ in-process Alloy-shaped path).
 - ERROR testPropertyMappingsForA [tests/mapping/extends]: association property '$a.e' used other than as a navigation head (class-typed value / isEmpty / whole-instance) is not supported yet
 - ERROR testPropertyMappingsForB [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
 - ERROR testPropertyMappingsForC [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR testStoreSubstitutionForB [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::BMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::B': [meta::relational::tests::mapp
 - ERROR testStoreSubstitutionForC [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::CMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::C': [meta::relational::tests::mapp

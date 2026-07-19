@@ -872,6 +872,15 @@ public final class StoreResolver {
                         + " later reads (a fresh extent replaces the"
                         + " row-correlated value)");
             }
+            if (reads == 0) {
+                // audit 22a L7: a mapper that IGNORES its parameter has
+                // per-element semantics in pure (one result per source
+                // element); the let-splice collapses that to ONE evaluation
+                // — wrong cardinality, silently.
+                throw new NotImplementedException("class-result mapper"
+                        + " ignores its parameter — the splice would collapse"
+                        + " per-element semantics to one evaluation");
+            }
         }
         java.util.List<TypedSpec> body = new java.util.ArrayList<>();
         body.add(new com.legend.compiler.spec.typed.TypedLet(

@@ -1151,6 +1151,15 @@ public final class TestBody {
                 && actual.values().get(0) instanceof String as) {
             return csvEquals(as, tt2, true);
         }
+        // MIXED flat-cells vs whole-TDS VALUE (audit 22b F2): pure equality
+        // of a raw-cell list against a TabularDataSet instance is FALSE —
+        // flattening both sides would drop the TDS side's column-name pin.
+        // (A flat-cells side vs a plain literal list stays the values path.)
+        if (expected.flatCells() != actual.flatCells()
+                && (expected.flatCells() ? actual : expected).result()
+                        instanceof com.legend.exec.ExecutionResult.Tabular) {
+            return false;
+        }
         List<Object> e = expected.values();
         List<Object> a = actual.values();
         if (e.size() != a.size()) {
@@ -1206,8 +1215,12 @@ public final class TestBody {
         if (ordered
                 && actual.result() instanceof com.legend.exec.ExecutionResult.Tabular tab
                 && tab.columns().size() > 1
-                && !(expected.result()
+                && (!(expected.result()
                         instanceof com.legend.exec.ExecutionResult.Tabular)
+                        // audit 22b F3: BOTH-flat-cells exec-vs-exec compares
+                        // must keep row cohesion too — a loose cell multiset
+                        // let cross-row shuffles pass
+                        || (expected.flatCells() && actual.flatCells()))
                 && e.size() == a.size() && a.size() % tab.columns().size() == 0) {
             int w = tab.columns().size();
             List<List<Object>> ep = chunk(e, w);

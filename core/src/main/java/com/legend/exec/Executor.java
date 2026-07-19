@@ -52,6 +52,9 @@ public final class Executor {
                                           com.legend.sql.dialect.SqlDialect dialect)
             throws SQLException {
         boolean anyRoot = PlatformTypes.isAny(rootType.type());
+        boolean variantRoot = rootType.type()
+                instanceof com.legend.compiler.element.type.Type.ClassType vct
+                && PlatformTypes.isVariant(vct);
         // opt-in diagnostic: every executed statement to stderr
         if (System.getenv("LEGEND_LITE_DUMP_SQL") != null) {
             System.err.println("[sql] " + sql);
@@ -66,7 +69,7 @@ public final class Executor {
                 case TABULAR -> tabular(rs, plan, rootType, dialect);
                 case SCALAR -> {
                     Object v = rs.next()
-                            ? latticeKind(cell(rs, plan, dialect, anyRoot),
+                            ? latticeKind(cell(rs, plan, dialect, anyRoot, variantRoot),
                                     rootType.type(), plan)
                             : null;
                     // a SECOND row under a scalar-shaped root is a resolver/
@@ -83,7 +86,7 @@ public final class Executor {
                 case COLLECTION -> {
                     List<Object> values = new ArrayList<>();
                     while (rs.next()) {
-                        Object v = latticeKind(cell(rs, plan, dialect, anyRoot),
+                        Object v = latticeKind(cell(rs, plan, dialect, anyRoot, variantRoot),
                                 rootType.type(), plan);
                         // a NULL cell is a pure EMPTY, and no pure collection
                         // holds empties — Person.all().middleName over a row
@@ -101,18 +104,22 @@ public final class Executor {
     }
 
     private static Object cell(ResultSet rs, SqlQuery plan,
-                               com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot)
+                               com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot,
+                               boolean variantRoot)
             throws SQLException {
         Object v = unwrap(fetch(rs, 1, sqlTypeOf(plan, 0)), sqlTypeOf(plan, 0), dialect);
         if (anyRoot) {
             return decodeAny(v);
         }
-        // A JSON-carrier CELL under a non-Any root (a variant-list read
-        // narrowed by cast(@Float): $row.values->at(1)->cast(@Float) —
+        // A JSON-carrier CELL under a non-Any VALUE root (a variant-list
+        // read narrowed by cast(@Float): $row.values->at(1)->cast(@Float) —
         // the cast re-roots the declared type, but the cell still arrives
         // as the driver's JSON node). The node is SELF-DESCRIBING wire —
-        // decoding it is recovery, never value guessing.
-        if (v != null && v.getClass().getName().equals("org.duckdb.JsonNode")) {
+        // decoding it is recovery, never value guessing. NEVER for a
+        // VARIANT root (audit 22 self-catch): a Variant result's contract
+        // IS the JSON text — decoding it would change the wire.
+        if (!variantRoot && v != null
+                && v.getClass().getName().equals("org.duckdb.JsonNode")) {
             return decodeAny(v);
         }
         return v;

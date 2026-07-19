@@ -484,6 +484,23 @@ public final class Pure {
     }
 
     /**
+     * Signature keys of the overloads at {@code name} with exactly
+     * {@code arity} parameters — for dispatch tables (the lowering's
+     * pinned surface) that must select overloads without touching the
+     * model type (audit 22a M5: the isDistinct GROUP marker must never
+     * catch the legacy 2-arg overload).
+     */
+    public static List<String> nativeKeysAt(String name, int arity) {
+        List<String> keys = new ArrayList<>();
+        for (var f : nativeFunctionsAt(name)) {
+            if (f.parameters().size() == arity) {
+                keys.add(f.signatureKey());
+            }
+        }
+        return keys;
+    }
+
+    /**
      * Signature keys of the overloads at {@code name} that take a parameter
      * whose type is the EXACT class {@code paramClassFqn} (audit 15:
      * replaces the lowering's {@code contains("_Window")} key probe —

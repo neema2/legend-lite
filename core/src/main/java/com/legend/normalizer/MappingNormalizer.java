@@ -341,12 +341,27 @@ public final class MappingNormalizer {
             for (ClassMapping cm : md.classMappings()) {
                 bound.add(cm.className());
             }
+            // A class mapped in MORE THAN ONE included mapping is
+            // findBinding's documented AMBIGUITY wall — the re-synthesis
+            // must not first-wins past it (audit 22b F9: closure order
+            // must never become semantics). Only sole definitions
+            // re-synthesize; ambiguous ones stay with the loud lookup.
+            Map<String, Integer> defCount = new HashMap<>();
+            for (LegacyMappingDefinition m : closure) {
+                if (m == md) {
+                    continue;
+                }
+                for (ClassMapping cm : m.classMappings()) {
+                    defCount.merge(cm.className(), 1, Integer::sum);
+                }
+            }
             for (LegacyMappingDefinition m : closure) {
                 if (m == md) {
                     continue;
                 }
                 for (ClassMapping cm : m.classMappings()) {
                     if (!(cm instanceof ClassMapping.Relational rcm)
+                            || defCount.getOrDefault(rcm.className(), 0) != 1
                             || !bound.add(rcm.className())
                             || !routedTargetGainsOperation(md, m, rcm, model)) {
                         continue;

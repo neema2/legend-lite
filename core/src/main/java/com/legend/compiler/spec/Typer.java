@@ -1222,17 +1222,42 @@ final class Typer {
                 && d.parameters().isEmpty()) {
             // AUTO-MAP (real pure — map.pure grammarDoc: "map is auto
             // generated when the . operator is used to access a property
-            // value on a element of multiplicity different from [1]"): a
-            // to-many receiver maps the derived read per element
-            // (qualifier(...).name over Person[*] — the body fn's `this`
-            // is [1] and would otherwise fail overload resolution).
-            if (source.info().multiplicity().isMany()) {
+            // value on a element of multiplicity different from [1]" —
+            // that INCLUDES [0..1], audit 22a H2: β-inlining a NON-STRICT
+            // derived body over a possibly-empty receiver manufactures a
+            // value where pure yields empty). Only an exactly-[1]
+            // receiver β-inlines directly.
+            boolean exactlyOne = source.info().multiplicity()
+                    instanceof com.legend.compiler.element.type
+                            .Multiplicity.Bounded b1
+                    && b1.lower() == 1 && b1.upper() != null
+                    && b1.upper() == 1;
+            if (!exactlyOne && source.info().multiplicity().isMany()) {
                 return synth(new AppliedFunction("map", List.of(ap.receiver(),
                         new LambdaFunction(
                                 List.of(new Variable("_am0")),
                                 List.of(new AppliedProperty(
                                         new Variable("_am0"), ap.property()))))),
                         env);
+            }
+            if (!exactlyOne) {
+                // [0..1] receiver: β-inline ONLY when the derived body is
+                // provably STRICT in $this (SQL null propagation then
+                // equals pure's auto-map — audit 22a H2). A body outside
+                // the strict whitelist would manufacture a value over an
+                // empty receiver — loud wall. (A presence-guarded
+                // if/isEmpty spelling was tried and REVERTED: its
+                // emptiness test materialized through a DIFFERENT join
+                // instance than the value read — wrong values,
+                // testQualifierWithInThroughJoin.)
+                if (!derivedBodyStrictInThis(d)) {
+                    throw new TypeInferenceException("derived property '"
+                            + ap.property() + "' over a [0..1] receiver has"
+                            + " a body outside the null-strict whitelist —"
+                            + " empty-receiver semantics needs the"
+                            + " presence-guarded emission (roadmap)");
+                }
+                // strict body: fall through to the β-inline below
             }
             return applyGeneric(new AppliedFunction(d.bodyFunctionFqn(),
                     List.of(ap.receiver())), env);
@@ -1404,6 +1429,71 @@ final class Typer {
      * checkers that read declared types ({@code match} branches, {@code eval}
      * lambda params) resolve through this single point.
      */
+    /** Strictness = EMPTY-PRESERVING composition over at least one $this
+     * read. The BANNED set is exactly the constructs that produce a
+     * NON-EMPTY value from an EMPTY input (conditionals, emptiness
+     * tests, reducers over possibly-empty collections); plain property
+     * chains, scalar natives and empty-preserving collection ops
+     * (filter/map/toOne/first...) propagate emptiness in SQL as null —
+     * pure's auto-map result. A literal-only body has no $this read and
+     * fails the sawThis requirement (the manufactured-constant case,
+     * audit 22a H2). Unknown node kinds are conservatively non-strict. */
+    private static final java.util.Set<String> EMPTY_MANUFACTURING_FNS =
+            java.util.Set.of("if", "match", "isEmpty", "isNotEmpty",
+                    "coalesce", "orElse", "defaultIfEmpty", "size", "count",
+                    "sum", "average", "mean", "min", "max", "joinStrings",
+                    "makeString", "isDistinct", "exists", "forAll",
+                    "contains", "in");
+
+    private boolean derivedBodyStrictInThis(Property.Derived d) {
+        var fns = ctx.findFunction(d.bodyFunctionFqn());
+        if (fns.size() != 1 || fns.get(0).body().isEmpty()
+                || fns.get(0).body().get().size() != 1) {
+            return false;
+        }
+        int flags = strictScan(fns.get(0).body().get().get(0));
+        return (flags & 1) != 0 && (flags & 2) == 0;   // sawThis && !nonStrict
+    }
+
+    /** bit 0 = saw a $this read; bit 1 = saw a non-strict construct. */
+    private static int strictScan(ValueSpecification n) {
+        return switch (n) {
+            case Variable v -> "this".equals(v.name()) ? 1 : 0;
+            case AppliedProperty ap2 -> strictScan(ap2.receiver());
+            case AppliedFunction af2 -> {
+                String simple = af2.function()
+                        .substring(af2.function().lastIndexOf(':') + 1);
+                int acc = EMPTY_MANUFACTURING_FNS.contains(simple) ? 2 : 0;
+                for (ValueSpecification p2 : af2.parameters()) {
+                    acc |= strictScan(p2);
+                }
+                yield acc;
+            }
+            case LambdaFunction lf2 -> {
+                int acc = 0;
+                for (ValueSpecification b2 : lf2.body()) {
+                    acc |= strictScan(b2);
+                }
+                yield acc;
+            }
+            case PureCollection pc2 -> {
+                int acc = 0;
+                for (ValueSpecification e2 : pc2.values()) {
+                    acc |= strictScan(e2);
+                }
+                yield acc;
+            }
+            case com.legend.model.spec.PackageableElementPtr ignored -> 0;
+            case com.legend.model.spec.EnumValue ignored -> 0;
+            case CString ignored -> 0;
+            case com.legend.model.spec.CInteger ignored -> 0;
+            case com.legend.model.spec.CFloat ignored -> 0;
+            case com.legend.model.spec.CDecimal ignored -> 0;
+            case com.legend.model.spec.CBoolean ignored -> 0;
+            default -> 2;   // unknown construct: conservatively non-strict
+        };
+    }
+
     Type namedType(TypeExpression te) {
         // GENERIC annotations (@Pair<String, Integer>): the base resolves
         // like a NameRef; arguments resolve recursively.
@@ -1426,16 +1516,22 @@ final class Typer {
         String name = nr.name();
         // The legacy TDS surface: a NOMINAL — the value level is the
         // relation carrier (CastChecker treats cast(@TabularDataSet) over
-        // a relation as a schema-preserving assertion). Bare-name
-        // acceptance follows the prelude-fallback pattern below.
+        // a relation as a schema-preserving assertion). The EXACT FQN wins
+        // outright; the BARE name is a fallback AFTER user types (audit
+        // 22b LOW: a model class named TabularDataSet must not be
+        // shadowed — prelude-fallback ordering).
         if (com.legend.compiler.element.type.PlatformTypes.TABULAR_DATA_SET
-                        .equals(name)
-                || "TabularDataSet".equals(name)) {
+                .equals(name)) {
             return new Type.GenericType(
                     com.legend.compiler.element.type.PlatformTypes.TABULAR_DATA_SET,
                     List.of());
         }
         return ctx.findType(name)
+                .or(() -> "TabularDataSet".equals(name)
+                        ? Optional.of((Type) new Type.GenericType(
+                                com.legend.compiler.element.type.PlatformTypes
+                                        .TABULAR_DATA_SET, List.of()))
+                        : Optional.empty())
                 .or(() -> name.contains("::")
                         ? Optional.empty()
                         : ctx.findType("meta::pure::metamodel::type::" + name)

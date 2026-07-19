@@ -904,6 +904,12 @@ public final class Lowerer {
         // isDistinct over a group: COUNT(DISTINCT x) = COUNT(x) — no single
         // SQL reducer (engine testGroupByIsDistinct golden).
         if ("__IS_DISTINCT__".equals(fn)) {
+            if (!extra.isEmpty()) {
+                throw new IllegalStateException("isDistinct aggregate with"
+                        + " extra arguments — the group form takes none"
+                        + " (audit 22a M5: dropped extras rendered the group"
+                        + " SQL for a non-group call)");
+            }
             return SqlExpr.Call.of(SqlFn.EQUAL,
                     new SqlAgg.Reducer("COUNT", List.of(value), true),
                     new SqlAgg.Reducer("COUNT", List.of(value), false));
@@ -2253,10 +2259,18 @@ public final class Lowerer {
             case TypedFold f -> fold(f, columns);
 
             // map over a COLLECTION value -> listTransform (relation map is H).
+            // pure map FLATTENS collection-valued mappers (audit 22a H3:
+            // [1,2,3]->map(x|[$x,10*$x]) is the FLAT 6-element collection,
+            // not 3 nested lists) — same TypedCollection-body policy as the
+            // relation->map value-collection arm below.
             case TypedMap m
-                    when !(m.source().info().type() instanceof Type.RelationType) ->
-                    SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
-                            scalar(m.source(), columns), scalar(m.mapper(), columns));
+                    when !(m.source().info().type() instanceof Type.RelationType) -> {
+                SqlExpr transformed = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
+                        scalar(m.source(), columns), scalar(m.mapper(), columns));
+                yield isCollectionMapper(m.mapper())
+                        ? SqlExpr.Call.of(SqlFn.LIST_FLATTEN, transformed)
+                        : transformed;
+            }
 
             // Variant navigation: get(v, key) -> JSON access. The MAP
             // overload of the same bare name lowers through its own rule.
@@ -3138,6 +3152,13 @@ public final class Lowerer {
 
     private static RelationPredicate relationPredicate(TypedNativeCall n) {
         if (isFamily(n, "size")) {
+            // NOTE (audit 22b F1 residual): size over a RELATION value
+            // counts ROWS regardless of the value's [1] multiplicity (one
+            // relation != one row — a value-mult constant fold here broke
+            // three correlated-count pins). rows->toOne()->size() therefore
+            // still answers the row count when toOne sits mid-expression;
+            // the exactly-one contract is reader-enforced at toOne ROOTS
+            // only. Documented residual, not silently folded.
             // COUNT(*) is a zero-key aggregation: a grouped/deduped/truncated
             // source must count from OUTSIDE (COUNT(*) per group is a row per
             // group — a multi-row scalar subquery).

@@ -391,20 +391,30 @@ public final class UserCallInliner {
                 // HIGHER-ORDER map: substitution revealed a literal lambda
                 // where the checker saw a function-valued variable
                 // ($f->map($func) — MapChecker emitted the plain call).
-                // A to-one source β-reduces (map(v[1], f) ≡ f(v), pure
-                // semantics; [0..1] rides SQL null propagation like the
-                // toOne erasure); a to-many source rebuilds the TypedMap
-                // construct node the checker would have emitted.
+                // ONLY an exactly-[1] source β-reduces (map(v[1], f) ≡
+                // f(v), pure semantics). A [0..1] source must NOT (audit
+                // 22 self-catch): map over EMPTY is EMPTY, but a lambda
+                // body NON-STRICT in its param (a constant, if with a
+                // constant branch, isEmpty itself) would manufacture a
+                // value after β-reduction — silent wrong value. [0..1]
+                // and to-many sources rebuild the TypedMap construct node
+                // the checker would have emitted.
                 if ("meta::pure::functions::collection::map"
                         .equals(c.callee().qualifiedName())
                         && args.size() == 2
                         && !(c.args().get(1) instanceof TypedLambda)
                         && args.get(1) instanceof TypedLambda lam
                         && lam.parameters().size() == 1) {
-                    if (c.args().get(0).info().multiplicity()
+                    // audit 22a H1: the guard reads the POST-substitution
+                    // multiplicity — a [1]-DECLARED param fed an
+                    // effectively-[0..1] actual (the engine-convention
+                    // acceptance) must NOT β-reduce either; the declared
+                    // mult lied about emptiness.
+                    if (args.get(0).info().multiplicity()
                             instanceof com.legend.compiler.element.type
                                     .Multiplicity.Bounded mb
-                            && mb.upper() != null && mb.upper() <= 1) {
+                            && mb.lower() == 1 && mb.upper() != null
+                            && mb.upper() == 1) {
                         Map<String, TypedSpec> inner = new LinkedHashMap<>();
                         inner.put(lam.parameters().get(0), args.get(0));
                         yield reduceStatements(lam.body(), inner);

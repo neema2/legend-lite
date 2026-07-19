@@ -62,8 +62,13 @@ final class Aggregates {
         // hashCode of a GROUP is HASH(LIST(values)) — composed in aggValue.
         family("__HASH_LIST__", "hashCode");
         // isDistinct of a GROUP is COUNT(DISTINCT x) = COUNT(x) — composed
-        // in aggValue (engine testGroupByIsDistinct golden).
-        family("__IS_DISTINCT__", "isDistinct");
+        // in aggValue (engine testGroupByIsDistinct golden). EXACT overload
+        // only (audit 22a M5): the legacy 2-arg isDistinct(l,r) must never
+        // reach the marker — its args would be dropped and the group SQL
+        // rendered for a constantly-true pure expression.
+        for (String f : Pure.nativeKeysAt("isDistinct", 1)) {
+            REDUCERS.put(f, "__IS_DISTINCT__");
+        }
     }
 
     /**
