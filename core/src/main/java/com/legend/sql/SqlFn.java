@@ -65,5 +65,9 @@ public enum SqlFn {
     // Variant construction
     TO_VARIANT,
     // Variant navigation: logical JSON access; text-extraction idioms are rendering
-    VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE
+    VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE,
+    /** Parse JSON text into a variant, CANONICALIZED — pure's fromJson
+     * stores a parsed structure that prints compact, never the source
+     * text's decorative whitespace (a text-preserving CAST is wrong). */
+    JSON_PARSE
 }

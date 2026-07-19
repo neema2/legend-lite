@@ -112,7 +112,7 @@ final class Scalars {
                 RULES.put(f, (n, args) -> {
                     List<SqlExpr> padded = new ArrayList<>(args.size());
                     for (int i = 0; i < args.size(); i++) {
-                        padded.add(dateArg(n.args().get(i), args.get(i)));
+                        padded.add(TemporalEmission.dateArg(n.args().get(i), args.get(i)));
                     }
                     // pure [0..1] overload bodies inline HERE (audit 20a H2)
                     return NullSemantics.optionalOperandGuards(n, padded,
@@ -377,7 +377,7 @@ final class Scalars {
             for (String f : Pure.nativeKeysAt(e.getKey())) {
                 RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.EXTRACT, List.of(
                         new SqlExpr.StringLit(e.getValue()),
-                        dateArg(n.args().get(0), args.get(0)))));
+                        TemporalEmission.dateArg(n.args().get(0), args.get(0)))));
             }
         }
         // Calendar-enum extractions: names match the Pure enum values
@@ -391,7 +391,7 @@ final class Scalars {
             // enum position uses (was DuckDB dow numbers, an engine-lite
             // relic the corpus no longer pins).
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.STRFTIME,
-                    dateArg(n.args().get(0), args.get(0)),
+                    TemporalEmission.dateArg(n.args().get(0), args.get(0)),
                     new SqlExpr.StringLit("%A")));
         }
         // month(): real pure returns the Month ENUM — the NAME ('January'),
@@ -400,7 +400,7 @@ final class Scalars {
         // is the numeric surface and keeps EXTRACT below).
         for (String f : Pure.nativeKeysAt("month")) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.STRFTIME,
-                    dateArg(n.args().get(0), args.get(0)),
+                    TemporalEmission.dateArg(n.args().get(0), args.get(0)),
                     new SqlExpr.StringLit("%B")));
         }
         // quarter(): real pure returns the Quarter ENUM (Q1..Q4, with an
@@ -409,7 +409,7 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("quarter")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.EXTRACT, List.of(
                     new SqlExpr.StringLit("quarter"),
-                    dateArg(n.args().get(0), args.get(0)))));
+                    TemporalEmission.dateArg(n.args().get(0), args.get(0)))));
         }
         // Truncations: DATE_TRUNC with the part literal.
         for (var e : Map.of("firstDayOfMonth", "month", "firstDayOfYear", "year",
@@ -420,7 +420,7 @@ final class Scalars {
             for (String f : Pure.nativeKeysAt(e.getKey())) {
                 RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.DATE_TRUNC, List.of(
                         new SqlExpr.StringLit(e.getValue()),
-                        dateArg(n.args().get(0), args.get(0)))));
+                        TemporalEmission.dateArg(n.args().get(0), args.get(0)))));
             }
         }
         // adjust(d, n, unit) / timeBucket(d, n, unit): the DurationUnit enum
@@ -449,8 +449,8 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("adjust")) {
             RULES.put(f, (n, args) -> {
                 SqlExpr added = new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
-                        new SqlExpr.StringLit(intervalFn(n.args().get(2))),
-                        args.get(1), dateArg(n.args().get(0), args.get(0))));
+                        new SqlExpr.StringLit(TemporalEmission.intervalFn(n.args().get(2))),
+                        args.get(1), TemporalEmission.dateArg(n.args().get(0), args.get(0))));
                 // A PARTIAL-date operand keeps its precision: pad in (dateArg),
                 // adjust, then truncate BACK to the written form —
                 // adjust(%2016, 1, YEARS) is %2017, not 2017-01-01.
@@ -526,8 +526,8 @@ final class Scalars {
                     }
                 }
                 SqlExpr bucketed = new SqlExpr.Call(SqlFn.TIME_BUCKET, List.of(
-                        new SqlExpr.StringLit(intervalFn(n.args().get(2))),
-                        args.get(1), dateArg(n.args().get(0), args.get(0))));
+                        new SqlExpr.StringLit(TemporalEmission.intervalFn(n.args().get(2))),
+                        args.get(1), TemporalEmission.dateArg(n.args().get(0), args.get(0))));
                 if (strict) {
                     return new SqlExpr.Cast(bucketed, SqlType.Scalar.DATE);
                 }
@@ -551,25 +551,25 @@ final class Scalars {
         // dateDiff(d1, d2, unit): Pure semantics per unit (PCT-pinned) —
         // see dateDiffExpr.
         for (String f : Pure.nativeKeysAt("dateDiff")) {
-            RULES.put(f, (n, args) -> dateDiffExpr(diffPart(n.args().get(2)),
-                    dateArg(n.args().get(0), args.get(0)),
-                    dateArg(n.args().get(1), args.get(1))));
+            RULES.put(f, (n, args) -> TemporalEmission.dateDiffExpr(TemporalEmission.diffPart(n.args().get(2)),
+                    TemporalEmission.dateArg(n.args().get(0), args.get(0)),
+                    TemporalEmission.dateArg(n.args().get(1), args.get(1))));
         }
         // Epoch conversions: toEpochValue(d, unit) IS dateDiff(epoch, d,
         // unit) for EVERY DurationUnit (real pure dateExtension); the bare
         // form is SECONDS. (The audit: non-MILLISECONDS units were silently
         // epoch seconds.)
         for (String f : Pure.nativeKeysAt("toEpochValue")) {
-            RULES.put(f, (n, args) -> dateDiffExpr(
-                    n.args().size() > 1 ? diffPart(n.args().get(1)) : "second",
+            RULES.put(f, (n, args) -> TemporalEmission.dateDiffExpr(
+                    n.args().size() > 1 ? TemporalEmission.diffPart(n.args().get(1)) : "second",
                     new SqlExpr.TimestampLit("1970-01-01 00:00:00"),
-                    dateArg(n.args().get(0), args.get(0))));
+                    TemporalEmission.dateArg(n.args().get(0), args.get(0))));
         }
         // fromEpochValue(n, unit) = epoch + n unit-intervals.
         for (String f : Pure.nativeKeysAt("fromEpochValue")) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
                     new SqlExpr.StringLit(n.args().size() > 1
-                            ? intervalFn(n.args().get(1)) : "to_seconds"),
+                            ? TemporalEmission.intervalFn(n.args().get(1)) : "to_seconds"),
                     args.get(0),
                     new SqlExpr.TimestampLit("1970-01-01 00:00:00"))));
         }
@@ -577,23 +577,23 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("isOnDay")) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.EQUAL,
                     new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
-                            List.of(dateArg(n.args().get(0), args.get(0)))),
+                            List.of(TemporalEmission.dateArg(n.args().get(0), args.get(0)))),
                     new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
-                            List.of(dateArg(n.args().get(1), args.get(1))))));
+                            List.of(TemporalEmission.dateArg(n.args().get(1), args.get(1))))));
         }
         for (String f : Pure.nativeKeysAt("isAfterDay")) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.GREATER,
                     new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
-                            List.of(dateArg(n.args().get(0), args.get(0)))),
+                            List.of(TemporalEmission.dateArg(n.args().get(0), args.get(0)))),
                     new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
-                            List.of(dateArg(n.args().get(1), args.get(1))))));
+                            List.of(TemporalEmission.dateArg(n.args().get(1), args.get(1))))));
         }
         for (String f : Pure.nativeKeysAt("isOnOrAfterDay")) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.GREATER_EQUAL,
                     new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
-                            List.of(dateArg(n.args().get(0), args.get(0)))),
+                            List.of(TemporalEmission.dateArg(n.args().get(0), args.get(0)))),
                     new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
-                            List.of(dateArg(n.args().get(1), args.get(1))))));
+                            List.of(TemporalEmission.dateArg(n.args().get(1), args.get(1))))));
         }
         // Precision predicates: a LITERAL answers from its own written
         // precision; a column answers from its Pure type (StrictDate =
@@ -851,16 +851,16 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("isBeforeDay")) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.LESS,
                     new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
-                            List.of(dateArg(n.args().get(0), args.get(0)))),
+                            List.of(TemporalEmission.dateArg(n.args().get(0), args.get(0)))),
                     new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
-                            List.of(dateArg(n.args().get(1), args.get(1))))));
+                            List.of(TemporalEmission.dateArg(n.args().get(1), args.get(1))))));
         }
         for (String f : Pure.nativeKeysAt("isOnOrBeforeDay")) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.LESS_EQUAL,
                     new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
-                            List.of(dateArg(n.args().get(0), args.get(0)))),
+                            List.of(TemporalEmission.dateArg(n.args().get(0), args.get(0)))),
                     new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
-                            List.of(dateArg(n.args().get(1), args.get(1))))));
+                            List.of(TemporalEmission.dateArg(n.args().get(1), args.get(1))))));
         }
         for (String f : Pure.nativeKeysAt("toDecimal")) {
             // LITERALS fold to a true-scale decimal (toDecimal(3.8) is 3.8D,
@@ -1476,10 +1476,13 @@ final class Scalars {
                         "unsupported date format " + enumName(n.args().get(1)));
             });
         }
-        // fromJson(String): the string IS the variant — a JSON cast.
+        // fromJson(String): pure PARSES into a variant structure that
+        // prints CANONICAL COMPACT — a text-preserving JSON cast kept the
+        // source's decorative whitespace (PCT fromJson pins '[1,2,3]'
+        // from '[ 1, 2 , 3 ]').
         for (String f : Pure.nativeKeysAt("fromJson")) {
-            RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0),
-                    SqlType.Scalar.JSON));
+            RULES.put(f, (n, args) ->
+                    SqlExpr.Call.of(SqlFn.JSON_PARSE, args.get(0)));
         }
         // Collection concatenate only — the relation overload is the
         // TypedConcatenate set-op and never reaches scalar lowering. A
@@ -2791,129 +2794,6 @@ final class Scalars {
                 "no TDS cell rendering for Pure type " + type.typeName());
     }
     /** The DuckDB interval-constructor for a DurationUnit enum literal. */
-    private static String intervalFn(TypedSpec unit) {
-        return switch (enumName(unit)) {
-            case "YEARS" -> "to_years";
-            case "MONTHS" -> "to_months";
-            case "WEEKS" -> "to_weeks";
-            case "DAYS" -> "to_days";
-            case "HOURS" -> "to_hours";
-            case "MINUTES" -> "to_minutes";
-            case "SECONDS" -> "to_seconds";
-            case "MILLISECONDS" -> "to_milliseconds";
-            case "MICROSECONDS" -> "to_microseconds";
-            default -> throw new IllegalStateException(
-                    "unknown DurationUnit for interval arithmetic: " + enumName(unit));
-        };
-    }
-
-    /** The date_diff part name for a DurationUnit enum literal. */
-    private static String diffPart(TypedSpec unit) {
-        return switch (enumName(unit)) {
-            case "YEARS" -> "year";
-            case "MONTHS" -> "month";
-            case "WEEKS" -> "week";
-            case "DAYS" -> "day";
-            case "HOURS" -> "hour";
-            case "MINUTES" -> "minute";
-            case "SECONDS" -> "second";
-            case "MILLISECONDS" -> "millisecond";
-            case "MICROSECONDS" -> "microsecond";
-            default -> throw new IllegalStateException(
-                    "unknown DurationUnit for dateDiff: " + enumName(unit));
-        };
-    }
-
-    /**
-     * A DATE-ARITHMETIC argument: partial-date LITERALS (year, year-month
-     * — globally string-typed for the pinned string-comparison semantics)
-     * pad to the first of their period as real DATE literals.
-     */
-    private static SqlExpr dateArg(TypedSpec typed,
-                                   SqlExpr lowered) {
-        if (typed instanceof TypedCDate d) {
-            if (d.value() instanceof PureDateLiteral.Year y) {
-                return new SqlExpr.DateLit(y.toEngineString() + "-01-01");
-            }
-            if (d.value() instanceof PureDateLiteral.YearMonth ym) {
-                return new SqlExpr.DateLit(ym.toEngineString() + "-01");
-            }
-        }
-        return lowered;
-    }
-
-    /**
-     * {@code dateDiff} with REAL pure's per-unit semantics (PCT-pinned):
-     * WEEKS counts SUNDAY-boundary crossings — {@code (d1, d2]} forward but
-     * {@code [d2, d1)} backward (NOT the negation; the audit's asymmetry);
-     * HOURS/MINUTES/SECONDS are TRUNCATED ELAPSED time (SQL date_diff
-     * counts boundary crossings — a different number); the calendar parts
-     * (year/month/day/ms) match SQL date_diff.
-     */
-    private static SqlExpr dateDiffExpr(String part, SqlExpr d1, SqlExpr d2) {
-        switch (part) {
-            case "week" -> {
-                SqlExpr forward = SqlExpr.Call.of(SqlFn.MINUS,
-                        sundayIndex(d2), sundayIndex(d1));
-                SqlExpr backward = SqlExpr.Call.of(SqlFn.MINUS,
-                        sundayIndex(backOneDay(d2)), sundayIndex(backOneDay(d1)));
-                return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                        SqlExpr.Call.of(SqlFn.LESS_EQUAL,
-                                new SqlExpr.Call(SqlFn.DATE_DIFF, List.of(
-                                        new SqlExpr.StringLit("day"), d2, d1)),
-                                new SqlExpr.IntLit(0)),
-                        forward)), backward);
-            }
-            case "hour" -> {
-                return elapsed(d1, d2, 3_600_000L);
-            }
-            case "minute" -> {
-                return elapsed(d1, d2, 60_000L);
-            }
-            case "second" -> {
-                return elapsed(d1, d2, 1_000L);
-            }
-            default -> {
-                return new SqlExpr.Call(SqlFn.DATE_DIFF, List.of(
-                        new SqlExpr.StringLit(part), d1, d2));
-            }
-        }
-    }
-
-    /** Truncated elapsed time in {@code unitMs} chunks (Java toHours-style). */
-    private static SqlExpr elapsed(SqlExpr d1, SqlExpr d2, long unitMs) {
-        return SqlExpr.Call.of(SqlFn.INT_DIVIDE,
-                SqlExpr.Call.of(SqlFn.MINUS,
-                        new SqlExpr.Call(SqlFn.EPOCH_MS, List.of(d2)),
-                        new SqlExpr.Call(SqlFn.EPOCH_MS, List.of(d1))),
-                new SqlExpr.IntLit(unitMs));
-    }
-
-    /**
-     * Floored week index counted from an ANCIENT Sunday epoch (0001-01-07,
-     * proleptic Gregorian) — always positive for real dates, so DuckDB's
-     * truncating {@code //} IS floor division (the audit's pre-1970 case).
-     */
-    private static SqlExpr sundayIndex(SqlExpr d) {
-        return SqlExpr.Call.of(SqlFn.INT_DIVIDE,
-                new SqlExpr.Call(SqlFn.DATE_DIFF, List.of(
-                        new SqlExpr.StringLit("day"),
-                        new SqlExpr.DateLit("0001-01-07"), d)),
-                new SqlExpr.IntLit(7));
-    }
-
-    private static SqlExpr backOneDay(SqlExpr d) {
-        return new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
-                new SqlExpr.StringLit("to_days"),
-                new SqlExpr.IntLit(-1), d));
-    }
-
-    /**
-     * Pure's DISCRETE percentile (engine percentile.pure): over the sorted
-     * data, {@code ip = floor(p*(n-1))}; pick {@code data[ip]} when
-     * {@code (ip+1)/n > p}, else {@code data[ip+1]}. quantile_disc computes
-     * a DIFFERENT rank at exact-rank points — the audit's divergence.
-     */
     private static SqlExpr pureDiscretePercentile(SqlExpr list, SqlExpr p,
             boolean ascending) {
         SqlExpr sorted = new SqlExpr.Call(
@@ -3439,7 +3319,7 @@ final class Scalars {
                 + "' has no capturing group " + k);
     }
 
-    private static String enumName(TypedSpec arg) {
+    static String enumName(TypedSpec arg) {
         if (arg instanceof TypedEnumValue ev) {
             return ev.value();
         }

@@ -20,6 +20,47 @@ import java.util.stream.Collectors;
  */
 public final class DuckDb extends AnsiSqlRenderer {
 
+    /**
+     * JSON cells normalize to pure's CANONICAL COMPACT spelling — the
+     * Variant contract is the JSON text itself, and pure prints compact
+     * ({@code [1,2,3]}, {@code {"k":null}}) where DuckDB's own text
+     * spells decorative spaces ({@code [ 1, 2 , 3 ]}). Whitespace inside
+     * string literals is payload and survives.
+     */
+    @Override
+    public Object normalize(Object jdbcValue, com.legend.sql.SqlType type) {
+        if (type == com.legend.sql.SqlType.Scalar.JSON && jdbcValue != null) {
+            return compactJson(jdbcValue.toString());
+        }
+        return jdbcValue;
+    }
+
+    private static String compactJson(String json) {
+        StringBuilder out = new StringBuilder(json.length());
+        boolean inString = false;
+        for (int i = 0; i < json.length(); i++) {
+            char c = json.charAt(i);
+            if (inString) {
+                out.append(c);
+                if (c == '\\' && i + 1 < json.length()) {
+                    out.append(json.charAt(++i));
+                } else if (c == '"') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (c == '"') {
+                inString = true;
+                out.append(c);
+                continue;
+            }
+            if (!Character.isWhitespace(c)) {
+                out.append(c);
+            }
+        }
+        return out.toString();
+    }
+
     private static final Set<String> RESERVED = Set.of(
             "all", "and", "as", "asc", "between", "by", "case", "cast", "create", "cross",
             "default", "delete", "desc", "distinct", "drop", "else", "end", "except", "exists",
