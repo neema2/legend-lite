@@ -1281,10 +1281,15 @@ final class Substitution {
      * not match (the caller falls through to the ordinary walk).
      */
     private TypedSpec filteredNavLeafRead(TypedPropertyAccess pa) {
+        boolean dbg = System.getenv("LL_FNLR_DEBUG") != null;
         TypedSpec src = pa.source();
         boolean firstRow = false;
         boolean unwrapped = true;
-        if (src instanceof TypedNativeCall c && c.args().size() == 1) {
+        // multiplicity wrappers STACK (a qualifier body's own ->first()
+        // under the call site's ->toOne(): toOne(first(filter(...)))) —
+        // unwrap the whole chain; any first()/head() in it means the
+        // subquery must LIMIT 1
+        while (src instanceof TypedNativeCall c && c.args().size() == 1) {
             String callee = c.callee().qualifiedName();
             if (callee.equals("meta::pure::functions::multiplicity::toOne")) {
                 src = c.args().get(0);
@@ -1296,6 +1301,8 @@ final class Substitution {
                 src = c.args().get(0);
                 firstRow = true;
                 unwrapped = false;
+            } else {
+                break;
             }
         }
         if (unwrapped
@@ -1307,6 +1314,10 @@ final class Substitution {
             return null;
         }
         if (!(src instanceof TypedFilter f)) {
+            if (dbg && String.valueOf(src).contains("TypedFilter")) {
+                System.err.println("[fnlr] not-direct-filter: "
+                        + src.getClass().getSimpleName());
+            }
             return null;
         }
         // the head may be a plain access OR a DATED property function
@@ -1324,10 +1335,18 @@ final class Substitution {
                 && mv.name().equals(target.userVar())) {
             headProp = ma.property();
         } else {
+            if (dbg) {
+                System.err.println("[fnlr] head not on userVar: "
+                        + f.source().getClass().getSimpleName());
+            }
             return null;
         }
         ExistsSub ex = target.existsSubs().get(headProp);
         if (ex == null) {
+            if (dbg) {
+                System.err.println("[fnlr] no ExistsSub for '" + headProp
+                        + "' (keys=" + target.existsSubs().keySet() + ")");
+            }
             return null;
         }
         // 1. correlated association condition over the target pipeline.
