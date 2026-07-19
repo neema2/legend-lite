@@ -1352,7 +1352,13 @@ public final class StoreResolver {
     }
 
 
-    /** PHASE 2a'' — CLASS-TYPED LEAF under an emptiness call:
+
+    /** #70 composite chain-backed exists/scalar target: the pipeline with
+     * the sibling slot's table joined IN, and hop-1's condition oriented
+     * onto the composite row. Null when the shape does not apply. */
+            /** True when the expression reads {@code var} other than through the
+     * {@code slot} sub-row ({@code $var.slot.x}). */
+        /** PHASE 2a'' — CLASS-TYPED LEAF under an emptiness call:
      * registers the DOTTED-path correlated-EXISTS material (engine:
      * semi-join + key null check on the exploded chain row); details in
      * the body comments. Mutates {@code existsSubs}. */
@@ -1773,7 +1779,8 @@ public final class StoreResolver {
             ord = 0;
             for (AggDemand d : entry.getValue()) {
                 aggReads.put(d.node(), new Substitution.AggRead(
-                        prefix + "agg_" + ord++, isCountFamily(d.node())));
+                        prefix + "agg_" + ord++,
+                        CorrelatedSubselects.isCountFamily(d.node())));
             }
         }
         m = new Pipelines.Materialized(withJoins, m.slotPrefixes(), m.stripped());
@@ -1911,8 +1918,28 @@ public final class StoreResolver {
                                 .Multiplicity.Bounded bb
                                 && Integer.valueOf(1).equals(bb.upper()))
                         .isPresent());
+                // #70 COMPOSITE chain-backed target (the tree family): the
+                // navigate step's condition reads a SIBLING JOINSLOT
+                // sub-row on the parent ($s.<optSlot>.ancestor == $t.id) —
+                // unresolvable on the outer correlation row (demanding the
+                // slot at parent level explodes 1:N hops — probed).
+                // ENGINE: the subselect contains BOTH tables, correlated
+                // OUTWARD by hop-1's condition only. The composite joins
+                // the slot's table INTO the target pipeline; the oriented
+                // condition becomes hop-1's, its target reads landing on
+                // the composite's prefixed slot columns.
+                TypedSpec chainPipe = tMat.pipeline();
+                if (corrNav == null && navCond.parameters().size() == 2) {
+                    CorrelatedSubselects.CompositeChain cc =
+                            corrSubs.compositeChainTarget(
+                                    cs, navCond, chainPipe);
+                    if (cc != null) {
+                        chainPipe = cc.pipeline();
+                        navCond = cc.orientedCond();
+                    }
+                }
                 NestedScope navNs = nestedScope(t, ops, head, context,
-                        tMat.pipeline());
+                        chainPipe);
                 existsSubs.put(head, new Substitution.ExistsSub(navNs.pipeline(),
                         navCond, t.rowVar(), t.bindings(),
                         navNs.row(),
@@ -2567,13 +2594,13 @@ public final class StoreResolver {
                 corrSubs.buildAggMaterials(temporal, cs, context, aggDemands);
         Set<String> joinKeyReads = new LinkedHashSet<>();
         for (AssociationJoins.AssocJoin aj : assocJoins) {
-            collectParamColumnReads(aj.condition(), joinKeyReads);
+            CorrelatedSubselects.collectParamColumnReads(aj.condition(), joinKeyReads);
         }
         for (AssociationJoins.AssocJoin aj : aggMaterials.values()) {
-            collectParamColumnReads(aj.condition(), joinKeyReads);
+            CorrelatedSubselects.collectParamColumnReads(aj.condition(), joinKeyReads);
         }
         for (Substitution.ExistsSub ex : existsSubs.values()) {
-            collectParamColumnReads(ex.orientedCond(), joinKeyReads);
+            CorrelatedSubselects.collectParamColumnReads(ex.orientedCond(), joinKeyReads);
         }
         TypedSpec keyWidenedPipe = joinKeyReads.isEmpty() ? materializedPipe
                 : Pipelines.widenDistinctForKeys(materializedPipe, joinKeyReads);
@@ -2819,29 +2846,8 @@ public final class StoreResolver {
 
     /** Aggregate natives that reduce a to-many navigation in projection
      * position (exact FQNs from the catalog — never name suffixes). */
-    private static final Set<String> AGG_FQNS = aggFqns();
-
-    private static Set<String> aggFqns() {
-        Set<String> out = new LinkedHashSet<>();
-        for (String name : List.of("average", "mean", "sum", "max",
-                "min", "joinStrings", "percentile", "median",
-                "stdDevPopulation", "stdDevSample",
-                "variancePopulation", "varianceSample", "count", "size")) {
-            for (var f : Pure.nativeFunctionsAt(name)) {
-                out.add(f.qualifiedName());
-            }
-        }
-        return out;
-    }
-
-    /** COUNT over no children is pure 0 — the LEFT join delivers NULL. */
-    private static boolean isCountFamily(TypedNativeCall nc) {
-        String q = nc.callee().qualifiedName();
-        return q.equals("meta::pure::functions::collection::count")
-                || q.equals("meta::pure::functions::collection::size");
-    }
-
-    /** One aggregate call over a to-many association path in projection
+            /** COUNT over no children is pure 0 — the LEFT join delivers NULL. */
+        /** One aggregate call over a to-many association path in projection
      * position: {@code $f.employees.age->max()}. Substitutes as a column
      * read off the head's grouped-subselect join (engine subAggregation
      * shape) — the path is NOT bare-demanded, so no row explosion. */
@@ -2887,7 +2893,7 @@ public final class StoreResolver {
                          Set<List<String>> bareOut) {
         if (n instanceof TypedNativeCall nc
                 && !nc.args().isEmpty()
-                && AGG_FQNS.contains(nc.callee().qualifiedName())) {
+                && CorrelatedSubselects.AGG_FQNS.contains(nc.callee().qualifiedName())) {
             List<String> path =
                     Substitution.pathOf(nc.args().get(0), userVar);
             // AGG(map(<nav>, λe.<scalar body>)) — the qualifier-inlined
@@ -2999,7 +3005,7 @@ public final class StoreResolver {
         // silently eats the aggregate (max() > 30 becoming any-match).
         if (n instanceof TypedNativeCall ac
                 && !ac.args().isEmpty()
-                && AGG_FQNS.contains(ac.callee().qualifiedName())
+                && CorrelatedSubselects.AGG_FQNS.contains(ac.callee().qualifiedName())
                 && containsToManyCrossing(ac.args().get(0), userVar, cs)) {
             throw new NotImplementedException("aggregate '"
                     + ac.callee().qualifiedName() + "' over a to-many"
@@ -3384,14 +3390,7 @@ public final class StoreResolver {
     }
 
     /** Column names a join condition reads off its SOURCE param (param 0). */
-    private static void collectParamColumnReads(TypedLambda cond, Set<String> out) {
-        String src = cond.parameters().get(0);
-        for (TypedSpec b : cond.body()) {
-            collectVarColumnReads(b, src, out);
-        }
-    }
-
-    private static void collectVarColumnReads(TypedSpec n, String var, Set<String> out) {
+    static void collectVarColumnReads(TypedSpec n, String var, Set<String> out) {
         if (n instanceof TypedPropertyAccess pa
                 && pa.source() instanceof TypedVariable v
                 && v.name().equals(var)) {

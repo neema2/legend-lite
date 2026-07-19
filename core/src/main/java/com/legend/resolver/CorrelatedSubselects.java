@@ -531,4 +531,171 @@ private static boolean referencesVar(TypedSpec n, String var) {
     }
 
 
+record CompositeChain(TypedSpec pipeline,
+            TypedLambda orientedCond) {}
+
+
+CompositeChain compositeChainTarget(ClassSource cs,
+            TypedLambda navCond, TypedSpec targetPipe) {
+        Set<String> parentSlots = Pipelines.slotAliases(cs.pipeline());
+        if (parentSlots.isEmpty()) {
+            return null;
+        }
+        String sParam = navCond.parameters().get(0);
+        String tParam = navCond.parameters().get(1);
+        String slotRef = null;
+        for (String sl : parentSlots) {
+            for (TypedSpec b : navCond.body()) {
+                if (Pipelines.referencesAliasOn(b, sParam, Set.of(sl))) {
+                    if (slotRef != null && !slotRef.equals(sl)) {
+                        throw new NotImplementedException(
+                                "navigate-step condition reads MULTIPLE"
+                                        + " sibling joinslots (" + slotRef
+                                        + ", " + sl + ") — the multi-slot"
+                                        + " composite is not built yet");
+                    }
+                    slotRef = sl;
+                }
+            }
+        }
+        if (slotRef == null) {
+            return null;
+        }
+        var js = Pipelines.joinSlots(cs.pipeline()).get(slotRef);
+        if (js == null
+                || !(js.target().info().type() instanceof Type.RelationType optRow)
+                || !(targetPipe.info().type() instanceof Type.RelationType tgtRow)) {
+            return null;
+        }
+        // GUARDS (loud, never silent): the step condition must read the
+        // parent ONLY through the slot; hop-1's own condition must not
+        // read further slots.
+        for (TypedSpec b : navCond.body()) {
+            if (readsVarOutsideSlot(b, sParam, slotRef)) {
+                throw new NotImplementedException(
+                        "navigate-step condition mixes sibling-slot reads"
+                                + " with DIRECT parent reads — the mixed"
+                                + " composite is not built yet");
+            }
+        }
+        TypedLambda c1 = js.condition();
+        for (TypedSpec b : c1.body()) {
+            for (String sl : parentSlots) {
+                if (Pipelines.referencesAliasOn(b, c1.parameters().get(0),
+                        Set.of(sl))) {
+                    throw new NotImplementedException(
+                            "chained joinslot condition reads a further"
+                                    + " sibling slot — deep composite"
+                                    + " chains are not built yet");
+                }
+            }
+        }
+        String pfx = slotRef + "_";
+        boolean clash = true;
+        while (clash) {
+            clash = false;
+            for (Type.Column c : tgtRow.columns()) {
+                if (c.name().startsWith(pfx)) {
+                    pfx = "_" + pfx;
+                    clash = true;
+                }
+            }
+        }
+        List<Type.Column> compCols = new ArrayList<>(tgtRow.columns());
+        for (Type.Column c : optRow.columns()) {
+            compCols.add(new Type.Column(pfx + c.name(), c.type(),
+                    c.multiplicity()));
+        }
+        Type.RelationType compRow = new Type.RelationType(compCols);
+        var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        String lv = "_cl";
+        String rv = "_cr";
+        TypedSpec b0 = navCond.body().get(navCond.body().size() - 1);
+        TypedSpec b1 = Pipelines.rewriteRowReads(b0, tParam, Map.of(),
+                Set.of(), v -> new TypedVariable(lv,
+                        new ExprType(tgtRow, one)));
+        TypedSpec b2 = Pipelines.rewriteRowReads(b1, sParam,
+                Map.of(slotRef, ""), Set.of(),
+                v -> new TypedVariable(rv, new ExprType(optRow, one)));
+        TypedLambda joinCond = new TypedLambda(List.of(lv, rv), List.of(b2),
+                new ExprType(new Type.FunctionType(
+                        List.of(new Type.Param(tgtRow, one),
+                                new Type.Param(optRow, one)),
+                        new Type.Param(Type.Primitive.BOOLEAN, one)), one));
+        TypedSpec composite = new TypedJoin(targetPipe, js.target(),
+                StoreResolver.leftKind(), joinCond, Optional.of(pfx),
+                new ExprType(compRow, one));
+        // hop-1's condition, its TARGET (slot-table) reads landing on the
+        // composite's prefixed columns
+        String c1t = c1.parameters().get(1);
+        TypedSpec oc = Pipelines.prefixColumns(
+                c1.body().get(c1.body().size() - 1), c1t, pfx,
+                v -> new TypedVariable(c1t, new ExprType(compRow, one)));
+        Type c1p0 = c1.info().type() instanceof Type.FunctionType cft
+                ? cft.params().get(0).type() : cs.rowType();
+        TypedLambda oriented = new TypedLambda(c1.parameters(), List.of(oc),
+                new ExprType(new Type.FunctionType(
+                        List.of(new Type.Param(c1p0, one),
+                                new Type.Param(compRow, one)),
+                        new Type.Param(Type.Primitive.BOOLEAN, one)), one));
+        return new CompositeChain(composite, oriented);
+    }
+
+
+private static boolean readsVarOutsideSlot(TypedSpec n, String var,
+            String slot) {
+        if (n instanceof TypedPropertyAccess outer
+                && outer.source() instanceof TypedPropertyAccess inner
+                && inner.source() instanceof TypedVariable v
+                && v.name().equals(var)
+                && inner.property().equals(slot)) {
+            return false;   // the sanctioned two-level slot read
+        }
+        if (n instanceof TypedVariable v && v.name().equals(var)) {
+            return true;
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(var)) {
+            return false;
+        }
+        for (TypedSpec c : n.children()) {
+            if (readsVarOutsideSlot(c, var, slot)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+
+static final Set<String> AGG_FQNS = aggFqns();
+
+
+private static Set<String> aggFqns() {
+        Set<String> out = new LinkedHashSet<>();
+        for (String name : List.of("average", "mean", "sum", "max",
+                "min", "joinStrings", "percentile", "median",
+                "stdDevPopulation", "stdDevSample",
+                "variancePopulation", "varianceSample", "count", "size")) {
+            for (var f : Pure.nativeFunctionsAt(name)) {
+                out.add(f.qualifiedName());
+            }
+        }
+        return out;
+    }
+
+
+static boolean isCountFamily(TypedNativeCall nc) {
+        String q = nc.callee().qualifiedName();
+        return q.equals("meta::pure::functions::collection::count")
+                || q.equals("meta::pure::functions::collection::size");
+    }
+
+
+static void collectParamColumnReads(TypedLambda cond, Set<String> out) {
+        String src = cond.parameters().get(0);
+        for (TypedSpec b : cond.body()) {
+            StoreResolver.collectVarColumnReads(b, src, out);
+        }
+    }
+
+
 }
