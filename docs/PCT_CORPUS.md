@@ -8,49 +8,49 @@
 
 | suite | files | parse-walled | `<<PCT.test>>` (textual) | discovered | **PASS** | FAIL | ERROR | SHAPE | element walls | body walls |
 |---|---|---|---|---|---|---|---|---|---|---|
-| essential | 177 | 8 | 329 | 327 | **287** | 11 | 15 | 14 | 16 | 640 |
+| essential | 177 | 8 | 329 | 327 | **287** | 11 | 15 | 14 | 16 | 635 |
 | grammar | 48 | 0 | 136 | 136 | **120** | 2 | 8 | 6 | 2 | 242 |
-| relation | 49 | 0 | 350 | 350 | **8** | 147 | 105 | 90 | 3 | 386 |
-| standard | 55 | 0 | 205 | 204 | **109** | 57 | 27 | 11 | 0 | 252 |
-| unclassified | 67 | 0 | 96 | 94 | **73** | 0 | 20 | 1 | 13 | 166 |
-| variant | 7 | 0 | 88 | 88 | **0** | 0 | 77 | 11 | 0 | 91 |
-| **total** | **403** | **8** | **1204** | **1199** | **597** | **217** | **252** | **133** | | |
+| relation | 49 | 0 | 350 | 350 | **8** | 190 | 62 | 90 | 3 | 369 |
+| standard | 55 | 0 | 205 | 204 | **117** | 72 | 4 | 11 | 0 | 235 |
+| unclassified | 67 | 0 | 96 | 94 | **92** | 0 | 1 | 1 | 13 | 157 |
+| variant | 7 | 0 | 88 | 88 | **47** | 11 | 19 | 11 | 0 | 91 |
+| **total** | **403** | **8** | **1204** | **1199** | **671** | **286** | **109** | **133** | | |
 
 ## Top ERROR buckets
 
 | count | detail |
 |---|---|
-| 54 | `ambiguous overload of 'meta::pure::functions::variant::convert::fromJson': 2 candidates tie for the argument types` |
 | 47 | `a bare lambda has no type outside a call position (lambdas type against their call's signature)` |
-| 29 | `ambiguous overload of 'meta::pure::functions::relation::ascending': 2 candidates tie for the argument types` |
-| 21 | `ambiguous overload of 'meta::pure::functions::variant::convert::toVariant': 2 candidates tie for the argument types` |
-| 16 | `ambiguous overload of 'meta::pure::functions::flow::coalesce': 2 candidates tie for the argument types` |
-| 7 | `ambiguous overload of 'meta::pure::functions::math::mathUtility::rowMapper': 2 candidates tie for the argument types` |
-| 6 | `ambiguous overload of 'meta::pure::functions::boolean::between': 2 candidates tie for the argument types` |
-| 5 | `ambiguous overload of 'meta::pure::functions::relation::select': 2 candidates tie for the argument types` |
+| 5 | `Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!` |
 | 5 | `unknown function 'chunk'` |
-| 4 | `ambiguous overload of 'meta::pure::functions::relation::descending': 2 candidates tie for the argument types` |
-| 4 | `ambiguous overload of 'meta::pure::functions::relation::distinct': 2 candidates tie for the argument types` |
 | 4 | `unknown class 'CO_Firm' in ^CO_Firm(…)` |
-| 3 | `ambiguous overload of 'meta::pure::functions::hash::hash': 2 candidates tie for the argument types` |
 | 2 | `Conversion Error: Unimplemented type for cast (VARCHAR[] -> "NULL")` |
 | 2 | `TDS column type 'Integer[1]' is not a known primitive` |
-| 2 | `ambiguous overload of 'meta::pure::functions::date::formatDate': 2 candidates tie for the argument types` |
-| 2 | `ambiguous overload of 'meta::pure::functions::math::stdDevPopulation': 2 candidates tie for the argument types` |
-| 2 | `ambiguous overload of 'meta::pure::functions::math::stdDevSample': 2 candidates tie for the argument types` |
-| 2 | `ambiguous overload of 'meta::pure::functions::math::variancePopulation': 2 candidates tie for the argument types` |
-| 2 | `ambiguous overload of 'meta::pure::functions::math::varianceSample': 2 candidates tie for the argument types` |
-| 2 | `ambiguous overload of 'meta::pure::functions::relation::rename': 2 candidates tie for the argument types` |
+| 2 | `in call to 'meta::pure::functions::relation::toString', argument 1: expected a Relation, got Integer` |
 | 2 | `no overload of 'meta::pure::functions::relation::filter' matches the argument types` |
 | 2 | `no overload of 'meta::pure::functions::relation::sort' accepts 1 argument(s)` |
 | 2 | `unknown class 'CO_Person' in ^CO_Person(…)` |
+| 2 | `unknown function 'columns'` |
 | 2 | `unknown type 'ExtendedInteger' in @ExtendedInteger` |
 | 1 | `'cmp_Any_1__Any_1__Boolean_1_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully quali…` |
 | 1 | `'comparator_ClassWithoutEquality_1__ClassWithoutEquality_1__Boolean_1_' is not a known class, mapping, runtime, connection, or database — us…` |
-| 1 | `Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!` |
 | 1 | `Conversion Error: date field value out of range: "236611261-10-03"` |
 | 1 | `Conversion Error: date field value out of range: "33803336-12-17"` |
-| … | (18 more buckets) |
+| 1 | `Conversion Error: date field value out of range: "800002016-02-29"` |
+| 1 | `Conversion Error: timestamp field value out of range: "1410404-07-12T00:00:00"` |
+| 1 | `Parser Error: unterminated quoted string at or near "'"` |
+| 1 | `The type meta::pure::functions::variant::convert::tests::to::Person is not supported yet!` |
+| 1 | `The type meta::pure::functions::variant::convert::tests::to::Pet is not supported yet!` |
+| 1 | `The type meta::pure::functions::variant::tests::convert::to::model::Pet is not supported yet!` |
+| 1 | `decimal literal '182.88729271224377725957310758531093597412109375' needs scale 44, exceeding the maximum of 38` |
+| 1 | `in call to 'meta::pure::functions::relation::distinct', argument 1: expected a Relation, got Integer` |
+| 1 | `in call to 'meta::pure::functions::relation::slice', argument 1: expected a Relation, got Integer` |
+| 1 | `in call to 'meta::pure::functions::relation::toString', argument 1: expected a Relation, got String` |
+| 1 | `in call to 'meta::pure::functions::string::toString', argument 1: expected at most one value, got many ([*])` |
+| 1 | `in call to 'meta::pure::functions::variant::convert::to', argument 4: expected Pair<String, Class<meta::pure::metamodel::type::Any>>, got me…` |
+| 1 | `in call to 'meta::pure::functions::variant::tests::convert::to::model::Person$prop$fullName', argument 1: expected at most one value, got ma…` |
+| 1 | `in function 'meta::pure::functions::relation::tests::composition::testVariantColumn_functionComposition_filterValues': no overload of 'meta:…` |
+| … | (14 more buckets) |
 
 ## Top SHAPE buckets
 
@@ -128,6 +128,7 @@
 - FAIL meta::pure::functions::relation::tests::over::testRange_ExplicitOffsets_WithNullValues_WithSinglePartition_WithOrderByDESC [relation:relation/functions/olap/over.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::over::testRange_UnboundedPreceding_NFollowing_WithNullValues_WithSinglePartition_WithOrderByDESC [relation:relation/functions/olap/over.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::over::testRange_NPreceding_UnboundedFollowing_WithNullValues_WithSinglePartition_WithOrderByASC [relation:relation/functions/olap/over.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::over::testRange_WithNumbers_NFollowing_NFollowing_WithoutPartition_WithSingleOrderBy [relation:relation/functions/olap/over.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_CurrentRow_WithSinglePartition_WithOrderByASC [relation:relation/functions/olap/over.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_CurrentRow_WithSinglePartition_WithOrderByDESC [relation:relation/functions/olap/over.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::over::testRangeInterval_UnboundedPreceding_NPreceding_WithSinglePartition_WithOrderByASC [relation:relation/functions/olap/over.pure]: assertEquals: expected #TDS
@@ -165,7 +166,9 @@
 - FAIL meta::pure::functions::relation::tests::size::testSize_Relation_Window [relation:relation/functions/size/size.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::drop::testSimpleDropShared [relation:relation/functions/slice/drop.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::first::testOLAPWithPartitionAndOrderFirstWindow [relation:relation/functions/slice/first.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::lag::testOLAPWithPartitionAndOrderWindowUsingLag [relation:relation/functions/slice/lag.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::last::testOLAPWithPartitionAndOrderLastWindow [relation:relation/functions/slice/last.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::lead::testOLAPWithPartitionAndOrderWindow [relation:relation/functions/slice/lead.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::limit::testSimpleLimitShared [relation:relation/functions/slice/limit.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::nth::testOLAPWithPartitionAndOrderNthWindow [relation:relation/functions/slice/nth.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::nth::testOLAPWithPartitionAndOrderNthWindow2 [relation:relation/functions/slice/nth.pure]: assertEquals: expected #TDS
@@ -217,17 +220,57 @@
 - FAIL meta::pure::functions::relation::variant::tests::flatten::testFlatten_Variant_Array [relation:relation/functions/variant/flatten.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::variant::tests::flatten::testFlatten_Variant_Map [relation:relation/functions/variant/flatten.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::variant::tests::flatten::testFlatten_Variant_Navigation [relation:relation/functions/variant/flatten.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin [relation:relation/functions/variant/flatten.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Nested [relation:relation/functions/variant/flatten.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testFilterPostProject [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::test_Distinct_GroupBy [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::test_Distinct_Filter [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::test_GroupBy_GroupBy [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::test_GroupBy_Distinct [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::composition::test_Pivot_Filter [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_ComplexGroupBy_Pivot [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_GroupBy_Pivot_Extend_Sort_Limit [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::test_GroupBy_Filter [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::test_GroupBy_Distinct_Filter [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::test_Distinct_GroupBy_Filter [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testWindowFunctionsAfterProject [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testGroupByCastBeforeAgg [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testGroupByCastAfterAgg [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testOLAPCastAggWithPartitionWindow [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testOLAPAggCastWithPartitionWindow [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testOLAPCastExtractAggWithPartitionWindow [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testOLAPCastExtractCastAggWithPartitionWindow [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testProjectDistinct [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testProjectJoinWithProjectProject [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::composition::testVariantArrayColumn_reverse [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::composition::testVariantColumn_extend_indexExtraction_filter [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testExtendWindowFilter [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testGroupByFilterExtendFilter [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testMixColumnNamesRenameFilter [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testExtendFilterOutNull [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testExtendAddOnNull [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testGroupByOnNull [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::composition::testVariant_if [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::composition::testVariantColumn_isEmpty [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::composition::testVariantColumn_isNotEmpty [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::composition::testVariantColumn_indexOf [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testProjectOfComputedColumn_withCast [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::composition::testVariantColumn_contains [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testVariantColumn_projectModelProperty [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testMultiIfTDS [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::composition::test_Static_Pivot_Filter [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::composition::test_Project_Filter_Before_Static_Pivot [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testMultiCoalesceInProject [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testTDSPlusTimesMinus [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::test_Extend_GroupBy_Project [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::test_Extend_GroupBy_Extend_Select [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::test_Extend_Sort_Project [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::test_Extend_Sort_Extend_Select [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testNestedJoinArithmeticComparisonExpression [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testFilterArithmeticComparisonExpression [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::relation::tests::composition::testVariantMapColumn_keys_LateralFlatten [relation:relation/tests/composition.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::collection::tests::greatest::testGreatest_Date [standard:collection/greatest.pure]: assertEquals: expected 2025-02-10 20:10:20.0, got 2025-02-10T20:10:20+0000
 - FAIL meta::pure::functions::collection::tests::in::testIn_relation_extend [standard:collection/in.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::collection::tests::in::testIn_relation_filter [standard:collection/in.pure]: assertEquals: expected #TDS
@@ -253,6 +296,9 @@
 - FAIL meta::pure::functions::math::tests::average::testAverage_Floats_Relation_Window [standard:math/aggregator/average.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::average::testAverage_Numbers_Relation_Window [standard:math/aggregator/average.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::average::testAverage_Round_Integers_Relation_Window [standard:math/aggregator/average.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::math::tests::corr::testSimpleWindowCorr [standard:math/aggregator/corr.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::math::tests::covarPopulation::testSimpleWindowCovarPopulation [standard:math/aggregator/covarPopulation.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::math::tests::covarSample::testSimpleWindowCovarSample [standard:math/aggregator/covarSample.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::max::testMax_Numbers [standard:math/aggregator/max.pure]: assertEquals: expected 2, got 2
 - FAIL meta::pure::functions::math::tests::max::testMax_Integers_Relation_Aggregate [standard:math/aggregator/max.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::max::testMax_Floats_Relation_Aggregate [standard:math/aggregator/max.pure]: assertEquals: expected #TDS
@@ -260,6 +306,7 @@
 - FAIL meta::pure::functions::math::tests::max::testMax_Integers_Relation_Window [standard:math/aggregator/max.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::max::testMax_Floats_Relation_Window [standard:math/aggregator/max.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::max::testMax_Numbers_Relation_Window [standard:math/aggregator/max.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::math::tests::maxBy::testSimpleGroupByMaxBy [standard:math/aggregator/maxBy.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::median::testMedian_Floats_Relation_Aggregate [standard:math/aggregator/median.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::median::testMedian_Integers_Relation_Aggregate [standard:math/aggregator/median.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::median::testMedian_Numbers_Relation_Aggregate [standard:math/aggregator/median.pure]: assertEquals: expected #TDS
@@ -271,6 +318,7 @@
 - FAIL meta::pure::functions::math::tests::min::testMin_Integers_Relation_Window [standard:math/aggregator/min.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::min::testMin_Floats_Relation_Window [standard:math/aggregator/min.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::min::testMin_Numbers_Relation_Window [standard:math/aggregator/min.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::math::tests::minBy::testSimpleGroupByMinBy [standard:math/aggregator/minBy.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::mode::testMode_Floats_Relation_Aggregate [standard:math/aggregator/mode.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::mode::testMode_Integer_Relation_Aggregate [standard:math/aggregator/mode.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::mode::testMode_Number_Relation_Aggregate [standard:math/aggregator/mode.pure]: assertEquals: expected #TDS
@@ -279,12 +327,145 @@
 - FAIL meta::pure::functions::math::tests::mode::testMode_Number_Relation_Window [standard:math/aggregator/mode.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::percentile::testPercentile_Relation_Aggregate [standard:math/aggregator/percentile.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::percentile::testPercentile_Relation_Window [standard:math/aggregator/percentile.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::math::tests::stdDev::testSimpleGroupByStandardDeviationPopulation [standard:math/aggregator/stdDevPopulation.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::math::tests::stdDev::testSimpleWindowStandardDeviationPopulation [standard:math/aggregator/stdDevPopulation.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::math::tests::stdDev::testSimpleGroupByStandardDeviationSample [standard:math/aggregator/stdDevSample.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::math::tests::stdDev::testSimpleWindowStandardDeviationSample [standard:math/aggregator/stdDevSample.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::sum::testSum_Integers_Relation_Aggregate [standard:math/aggregator/sum.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::sum::testSum_Floats_Relation_Aggregate [standard:math/aggregator/sum.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::sum::testSum_Numbers_Relation_Aggregate [standard:math/aggregator/sum.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::sum::testSum_Integers_Relation_Window [standard:math/aggregator/sum.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::sum::testSum_Floats_Relation_Window [standard:math/aggregator/sum.pure]: assertEquals: expected #TDS
 - FAIL meta::pure::functions::math::tests::sum::testSum_Numbers_Relation_Window [standard:math/aggregator/sum.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::math::tests::variance::testSimpleGroupByVariancePopulation [standard:math/aggregator/variancePopulation.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::math::tests::variance::testSimpleWindowVariancePopulation [standard:math/aggregator/variancePopulation.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::math::tests::variance::testSimpleGroupByVarianceSample [standard:math/aggregator/varianceSample.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::math::tests::variance::testSimpleWindowVarianceSample [standard:math/aggregator/varianceSample.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::math::tests::wavg::testSimpleGroupByWavg [standard:math/aggregator/wavg.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::math::tests::wavg::testSimpleGroupByMultipleWavg [standard:math/aggregator/wavg.pure]: assertEquals: expected #TDS
+- FAIL meta::pure::functions::variant::convert::tests::fromJson::testJsonArrayOfNull [variant:functions/convert/fromJson.pure]: assertEquals: expected [null,null,null], got [ null, null , null ]
+- FAIL meta::pure::functions::variant::convert::tests::fromJson::testJsonArrayOfInteger [variant:functions/convert/fromJson.pure]: assertEquals: expected [1,2,3], got [ 1, 2 , 3 ]
+- FAIL meta::pure::functions::variant::convert::tests::fromJson::testJsonArrayOfFloat [variant:functions/convert/fromJson.pure]: assertEquals: expected [1.25,2.5,3.75], got [ 1.25 , 2.5 , 3.75 ]
+- FAIL meta::pure::functions::variant::convert::tests::fromJson::testJsonArrayOfString [variant:functions/convert/fromJson.pure]: assertEquals: expected ["Hello","World"], got [ "Hello" , "World" ]
+- FAIL meta::pure::functions::variant::convert::tests::fromJson::testJsonObject [variant:functions/convert/fromJson.pure]: assertEquals: expected {"Hello":null}, got { "Hello" : null }
+- FAIL meta::pure::functions::variant::convert::tests::fromJson::testJsonArrayOfObject [variant:functions/convert/fromJson.pure]: assertEquals: expected [{"Hello":null},{"Hello":"World"}], got [ { "Hello" : null }, { "Hello" : "World" } ]
+- FAIL meta::pure::functions::variant::convert::tests::to::testToString [variant:functions/convert/to.pure]: assertEquals: expected Hello, got "Hello"
+- FAIL meta::pure::functions::variant::convert::tests::toVariant::testEmpty [variant:functions/convert/toVariant.pure]: assertEquals: expected null, got []
+- FAIL meta::pure::functions::variant::tests::convert::to::model::testToClassAndAccessNestedProperty_oneToMany [variant:functions/tests/composition.pure]: assertEquals: expected [1234 Hello World Street, 9876 Hello World Street], got []
+- FAIL meta::pure::functions::variant::tests::convert::to::model::testToClassAndAccessNestedProperty_manyToMany [variant:functions/tests/composition.pure]: assertEquals: expected [9876 Hello World Street, 1256 Hello World Street, 1234 Hello World Street, 9876 Hello World Street], got []
+- FAIL meta::pure::functions::variant::tests::convert::to::model::testToClassAndAccessNestedProperty_manyToOne [variant:functions/tests/composition.pure]: assertEquals: expected [Jonh, Jane], got []
+
+## ERROR ledger
+
+- ERROR meta::pure::functions::collection::tests::contains::testContainsNonPrimitive [essential:collection/boolean/contains.pure]: unknown class 'CO_Firm' in ^CO_Firm(…)
+- ERROR meta::pure::functions::collection::tests::contains::testContainsWithFunction [essential:collection/boolean/contains.pure]: 'comparator_ClassWithoutEquality_1__ClassWithoutEquality_1__Boolean_1_' is not a known class, mapping, runtime, connection, or database — us…
+- ERROR meta::pure::functions::collection::tests::exists::testExists [essential:collection/boolean/quantification/exists.pure]: unknown class 'CO_Firm' in ^CO_Firm(…)
+- ERROR meta::pure::functions::collection::tests::exists::testExistsInSelect [essential:collection/boolean/quantification/exists.pure]: unknown class 'CO_Firm' in ^CO_Firm(…)
+- ERROR meta::pure::functions::collection::tests::find::testFindInstance [essential:collection/iteration/find.pure]: unknown class 'CO_Person' in ^CO_Person(…)
+- ERROR meta::pure::functions::collection::tests::find::testFindUsingVarForFunction [essential:collection/iteration/find.pure]: unknown class 'CO_Person' in ^CO_Person(…)
+- ERROR meta::pure::functions::collection::tests::fold::testFoldToMany [essential:collection/iteration/fold.pure]: Conversion Error: Unimplemented type for cast (VARCHAR[] -> "NULL")
+- ERROR meta::pure::functions::collection::tests::fold::testFoldFiltering [essential:collection/iteration/fold.pure]: Conversion Error: Unimplemented type for cast (VARCHAR[] -> "NULL")
+- ERROR meta::pure::functions::collection::tests::head::testHeadComplex [essential:collection/slice/head.pure]: unknown class 'CO_Firm' in ^CO_Firm(…)
+- ERROR meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionExplicit [essential:collection/transformation/removeDuplicates.pure]: 'cmp_Any_1__Any_1__Boolean_1_' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully quali…
+- ERROR meta::pure::functions::date::tests::testAdjustByMonthsBigNumber [essential:date/operation/adjust.pure]: Conversion Error: date field value out of range: "800002016-02-29"
+- ERROR meta::pure::functions::date::tests::testAdjustByWeeksBigNumber [essential:date/operation/adjust.pure]: Conversion Error: date field value out of range: "236611261-10-03"
+- ERROR meta::pure::functions::date::tests::testAdjustByDaysBigNumber [essential:date/operation/adjust.pure]: Conversion Error: date field value out of range: "33803336-12-17"
+- ERROR meta::pure::functions::date::tests::testAdjustByHoursBigNumber [essential:date/operation/adjust.pure]: Conversion Error: timestamp field value out of range: "1410404-07-12T00:00:00"
+- ERROR meta::pure::functions::math::tests::pow::testComplexPow [essential:math/power/pow.pure]: decimal literal '182.88729271224377725957310758531093597412109375' needs scale 44, exceeding the maximum of 38
+- ERROR meta::pure::functions::boolean::tests::equality::eq::testEqPrimitiveExtension [grammar:boolean/equality/eq.pure]: unknown type 'ExtendedInteger' in @ExtendedInteger
+- ERROR meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive [grammar:boolean/equality/equal.pure]: unbound variable '$side1'
+- ERROR meta::pure::functions::boolean::tests::equality::equal::testEqualPrimitiveExtension [grammar:boolean/equality/equal.pure]: unknown type 'ExtendedInteger' in @ExtendedInteger
+- ERROR meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne [grammar:collection/iteration/map.pure]: unbound variable '$addressParis'
+- ERROR meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany [grammar:collection/iteration/map.pure]: unbound variable '$locationParis'
+- ERROR meta::pure::functions::collection::tests::first::testFirstComplex [grammar:collection/slice/first.pure]: unbound variable '$smith'
+- ERROR meta::pure::functions::collection::tests::getAll::testBasic [grammar:lang/all/all.pure]: runtime 'pctcorpus::Rt' has 0 mappings binding class 'meta::pure::metamodel::type::Class' (of 0 candidates); class-query dispatch needs exac…
+- ERROR meta::pure::functions::lang::tests::letFn::testAssignLiteralToVariable [grammar:lang/let.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::eval::testSimpleEval [relation:relation/functions/eval.pure]: lowering not yet implemented for TypedNativeCall
+- ERROR meta::pure::functions::relation::tests::filter::testSimpleFilter_MultipleExpressions [relation:relation/functions/iteration/filter.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::sort::testSimpleSort_MultipleExpressions [relation:relation/functions/order/sort.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::size::testSimpleSize_MultipleExpressions [relation:relation/functions/size/size.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::size::testGroupBySize_MultipleExpressions [relation:relation/functions/size/size.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::size::testComparisonOperationAfterSize_MultipleExpressions [relation:relation/functions/size/size.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::drop::testSimpleDrop_MultipleExpressions [relation:relation/functions/slice/drop.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::limit::testSimpleLimit_MultipleExpressions [relation:relation/functions/slice/limit.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::slice::testSimpleSlice_MultipleExpressions [relation:relation/functions/slice/slice.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::asOfJoin::testSimpleAsOfJoin_MultipleExpressions [relation:relation/functions/transformation/asofjoin.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::asOfJoin::testAsOfJoinWithKeyMatch_MultipleExpressions [relation:relation/functions/transformation/asofjoin.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::concatenate::testSimpleConcatenate_MultipleExpressions [relation:relation/functions/transformation/concatenate.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::distinct::testDistinctSingle_MultipleExpressions [relation:relation/functions/transformation/distinct.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::distinct::testDistinctMultiple_MultipleExpressions [relation:relation/functions/transformation/distinct.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::distinct::testDistinctAll_MultipleExpressions [relation:relation/functions/transformation/distinct.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::extend::testSimpleExtendStr_MultipleExpressions [relation:relation/functions/transformation/extend.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::extend::testSimpleExtendInt_MultipleExpressions [relation:relation/functions/transformation/extend.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::extend::testSimpleExtendFloat_MultipleExpressions [relation:relation/functions/transformation/extend.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::extend::testSimpleMultipleColumns_MultipleExpressions [relation:relation/functions/transformation/extend.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::extend::testOLAPAggNoWindow_MultipleExpressions [relation:relation/functions/transformation/extend.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::extend::testOLAPAggNoWindowMultipleColums_MultipleExpressions [relation:relation/functions/transformation/extend.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionWindowMultipleColumns_MultipleExpressions [relation:relation/functions/transformation/extend.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::extend::testOLAPAggWithOrderWindow_MultipleExpressions [relation:relation/functions/transformation/extend.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderWindow_MultipleExpressions [relation:relation/functions/transformation/extend.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::extend::testOLAPAggIntegerWithPartitionAndOrderWindow_MultipleExpressions [relation:relation/functions/transformation/extend.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderWindowMultipleColumns_MultipleExpressions [relation:relation/functions/transformation/extend.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::extend::testOLAPWithPartitionAndOrderWindowMultipleColumns_MultipleExpressions [relation:relation/functions/transformation/extend.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::extend::testOLAPAggNoWindowChainedWithSimple_MultipleExpressions [relation:relation/functions/transformation/extend.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::extend::testOLAPWithMultiplePartitionsAndOrderWindowMultipleColumns_MultipleExpressions [relation:relation/functions/transformation/extend.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow [relation:relation/functions/transformation/extend.pure]: unknown function 'chunk'
+- ERROR meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndOrderUnboundedWindow_MultipleExpressions [relation:relation/functions/transformation/extend.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::extend::testOLAPAggWithPartitionAndOrderUnboundedWindowMultipleColumns_MultipleExpressions [relation:relation/functions/transformation/extend.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle [relation:relation/functions/transformation/groupBy.pure]: unknown function 'chunk'
+- ERROR meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle_MultipleExpressions [relation:relation/functions/transformation/groupBy.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle [relation:relation/functions/transformation/groupBy.pure]: unknown function 'chunk'
+- ERROR meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle_MultipleExpressions [relation:relation/functions/transformation/groupBy.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple [relation:relation/functions/transformation/groupBy.pure]: unknown function 'chunk'
+- ERROR meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple_MultipleExpressions [relation:relation/functions/transformation/groupBy.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple [relation:relation/functions/transformation/groupBy.pure]: unknown function 'chunk'
+- ERROR meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple_MultipleExpressions [relation:relation/functions/transformation/groupBy.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::join::testSimpleJoin_MultipleExpressions [relation:relation/functions/transformation/join.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::join::testJoin_forFailedJoinWhenNoRowsMatchJoinCondition [relation:relation/functions/transformation/join.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::lateral::testLateralJoin [relation:relation/functions/transformation/lateral.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::lateral::testLateralJoin_Chained [relation:relation/functions/transformation/lateral.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::lateral::testLateralJoinAreInnerJoins [relation:relation/functions/transformation/lateral.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::rename::testSimpleRename_MultipleExpressions [relation:relation/functions/transformation/rename.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::select::testMultiColsSelect_MultipleExpressions [relation:relation/functions/transformation/select.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::select::testSingleColSelect_MultipleExpressions [relation:relation/functions/transformation/select.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::select::testSingleSelectWithQuotedColumn_MultipleExpressions [relation:relation/functions/transformation/select.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::select::testSelectAll_MultipleExpressions [relation:relation/functions/transformation/select.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Nested_Extend [relation:relation/functions/variant/flatten.pure]: no overload of 'meta::pure::functions::relation::filter' matches the argument types
+- ERROR meta::pure::functions::relation::tests::composition::testExtendFilter [relation:relation/tests/composition.pure]: in call to 'meta::pure::functions::relation::toString', argument 1: expected a Relation, got Integer
+- ERROR meta::pure::functions::relation::tests::composition::testVariantArrayColumn_sort [relation:relation/tests/composition.pure]: no overload of 'meta::pure::functions::relation::sort' accepts 1 argument(s)
+- ERROR meta::pure::functions::relation::tests::composition::testVariantColumn_functionComposition [relation:relation/tests/composition.pure]: in function 'meta::pure::functions::relation::tests::composition::testVariantColumn_functionComposition_filterValues': no overload of 'meta:…
+- ERROR meta::pure::functions::relation::tests::composition::testMixColumnNamesRenameExtend [relation:relation/tests/composition.pure]: in call to 'meta::pure::functions::relation::toString', argument 1: expected a Relation, got Integer
+- ERROR meta::pure::functions::relation::tests::composition::testExtendJoinStringOnNull [relation:relation/tests/composition.pure]: no overload of 'meta::pure::functions::relation::sort' accepts 1 argument(s)
+- ERROR meta::pure::functions::relation::tests::composition::testVariantColumn_slice [relation:relation/tests/composition.pure]: in call to 'meta::pure::functions::relation::slice', argument 1: expected a Relation, got Integer
+- ERROR meta::pure::functions::relation::tests::composition::testVariantColumn_distinct_removeDuplicates [relation:relation/tests/composition.pure]: in call to 'meta::pure::functions::relation::distinct', argument 1: expected a Relation, got Integer
+- ERROR meta::pure::functions::relation::tests::composition::testGroupBy_Conflicting_Alias_With_Table_Columns [relation:relation/tests/composition.pure]: in call to 'meta::pure::functions::relation::toString', argument 1: expected a Relation, got String
+- ERROR meta::pure::functions::relation::tests::composition::TestJoin_CurrentUserId [relation:relation/tests/composition.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::relation::tests::composition::testCoalesceInPreFilter [relation:relation/tests/composition.pure]: no overload of 'meta::pure::functions::relation::filter' matches the argument types
+- ERROR meta::pure::functions::relation::tests::composition::testConcatenateWithJoinOnOneSide [relation:relation/tests/composition.pure]: a bare lambda has no type outside a call position (lambdas type against their call's signature)
+- ERROR meta::pure::functions::date::tests::max::testExtendMaxDate [standard:date/aggregator/max.pure]: TDS column type 'Integer[1]' is not a known primitive
+- ERROR meta::pure::functions::date::tests::min::testExtendMinDate [standard:date/aggregator/min.pure]: TDS column type 'Integer[1]' is not a known primitive
+- ERROR meta::pure::functions::string::generation::tests::generateGuid::testGenerateGuidWithRelation [standard:tbd/generateGuid.pure]: unknown function 'columns'
+- ERROR meta::pure::functions::math::hashCode::tests::testHashCodeAggregate [standard:tbd/hashCode.pure]: unknown function 'columns'
+- ERROR meta::pure::functions::string::tests::char::testEmptyChar [unclassified:string/ascii/char.pure]: Parser Error: unterminated quoted string at or near "'"
+- ERROR meta::pure::functions::variant::convert::tests::to::testToClass [variant:functions/convert/to.pure]: The type meta::pure::functions::variant::convert::tests::to::Person is not supported yet!
+- ERROR meta::pure::functions::variant::convert::tests::to::testToClassWithInheritance [variant:functions/convert/to.pure]: The type meta::pure::functions::variant::convert::tests::to::Pet is not supported yet!
+- ERROR meta::pure::functions::variant::convert::tests::toJson::testObjectToJson [variant:functions/convert/toJson.pure]: no scalar lowering registered for resolved overload 'meta::pure::functions::variant::convert::toJson' with 1 parameter(s)
+- ERROR meta::pure::functions::variant::convert::tests::toMany::testToClass [variant:functions/convert/toMany.pure]: no SQL type for Pure class meta::pure::functions::variant::convert::tests::toMany::Person at the lowering boundary (class values do not reac…
+- ERROR meta::pure::functions::variant::convert::tests::toMany::testToClassWithInheritance [variant:functions/convert/toMany.pure]: struct cell has 4 attribute(s) but the declared layout has 2
+- ERROR meta::pure::functions::variant::convert::tests::toVariant::testMapWithMultipleKeys [variant:functions/convert/toVariant.pure]: unknown function 'keyValues'
+- ERROR meta::pure::functions::variant::navigation::tests::get::testGetFromObjectWhenKeyExists [variant:functions/navigation/get.pure]: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!
+- ERROR meta::pure::functions::variant::navigation::tests::get::testGetFromObjectWhenKeyDoesNotExists [variant:functions/navigation/get.pure]: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!
+- ERROR meta::pure::functions::variant::navigation::tests::get::testGetFromZeroMultiplicityObject [variant:functions/navigation/get.pure]: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!
+- ERROR meta::pure::functions::variant::navigation::tests::get::testNestedGet_arrayToMap [variant:functions/navigation/get.pure]: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!
+- ERROR meta::pure::functions::variant::navigation::tests::get::testNestedGet_mapToArray [variant:functions/navigation/get.pure]: Binder Error: failed to bind function, either: Invalid LIST argument during lambda function binding!
+- ERROR meta::pure::functions::variant::tests::convert::to::model::testToClassAndAccessNestedQualifiedProperty_manyToOne [variant:functions/tests/composition.pure]: in call to 'meta::pure::functions::variant::tests::convert::to::model::Person$prop$fullName', argument 1: expected at most one value, got ma…
+- ERROR meta::pure::functions::variant::tests::convert::to::model::testToClassAndAccessNestedQualifiedProperty_oneToMany [variant:functions/tests/composition.pure]: in function 'meta::pure::functions::variant::tests::convert::to::model::Person$prop$previousAddressesToString': in call to 'meta::pure::func…
+- ERROR meta::pure::functions::variant::tests::convert::to::model::testToClassAndAccessNestedQualifiedProperty_manyToMany [variant:functions/tests/composition.pure]: in call to 'meta::pure::functions::string::toString', argument 1: expected at most one value, got many ([*])
+- ERROR meta::pure::functions::variant::tests::convert::to::model::testToClassWithInheritanceAndAccessProperty [variant:functions/tests/composition.pure]: The type meta::pure::functions::variant::tests::convert::to::model::Pet is not supported yet!
+- ERROR meta::pure::functions::variant::tests::convert::to::model::testToClassWithInheritanceUsingCustomTypeProperty [variant:functions/tests/composition.pure]: in call to 'meta::pure::functions::variant::convert::to', argument 4: expected Pair<String, Class<meta::pure::metamodel::type::Any>>, got me…
+- ERROR meta::pure::functions::variant::tests::convert::to::model::testToClassWithInheritanceUsingCustomTypePropertyAndClassToType [variant:functions/tests/composition.pure]: meta::pure::functions::variant::convert::to expects (source, @Type)
+- ERROR meta::pure::functions::variant::tests::convert::to::model::testToClassWithInheritanceAndInstanceOf [variant:functions/tests/composition.pure]: no SQL type for Pure class meta::pure::functions::variant::tests::convert::to::model::Pet at the lowering boundary (class values do not reac…
+- ERROR meta::pure::functions::variant::tests::convert::to::model::testToClassWithInheritanceAndInstanceOf_withTypeLookup [variant:functions/tests/composition.pure]: meta::pure::functions::variant::convert::toMany expects (source, @Type)
 
 ## Discovery mismatches (parsed files where textual count != discovered)
 

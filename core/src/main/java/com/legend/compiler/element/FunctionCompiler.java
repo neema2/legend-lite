@@ -39,7 +39,30 @@ final class FunctionCompiler {
         // a structured wall channel does not reach this layer yet).
         if (!com.legend.compiler.element.type.PlatformTypes
                 .isPlatformOwnedFunction(fqn)) {
-            all.addAll(model.findFunction(fqn));
+            if (all.isEmpty()) {
+                all.addAll(model.findFunction(fqn));
+            } else {
+                // NATIVE REPLACES STUB (real pure's own rule: a registered
+                // native supplants its .pure declaration's body; the
+                // declaration is the SIGNATURE). A user definition whose
+                // signatureKey matches a catalog native is that native's
+                // .pure spelling — the PCT suites declare every
+                // <<PCT.function>> native and carry reference bodies
+                // (coalesce etc.); keeping both made every overload
+                // resolution an "ambiguous: 2 candidates tie". Different-
+                // signature user overloads still join the set (e.g.
+                // stringExtension's [0..1] total overloads, which have no
+                // native and MUST dispatch).
+                java.util.Set<String> nativeKeys = new java.util.HashSet<>();
+                for (Function n : all) {
+                    nativeKeys.add(n.signatureKey());
+                }
+                for (Function u : model.findFunction(fqn)) {
+                    if (!nativeKeys.contains(u.signatureKey())) {
+                        all.add(u);
+                    }
+                }
+            }
         } else if (!model.findFunction(fqn).isEmpty()
                 && SUPPRESSED_ONCE.add(fqn)) {
             System.err.println("[legend-lite] platform-owned function '" + fqn

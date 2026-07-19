@@ -376,6 +376,18 @@ class PctCorpusRunner {
         }
         sb.append('\n');
 
+        sb.append("## ERROR ledger\n\n");
+        for (SuiteCensus s : results) {
+            for (TestResult r : s.results()) {
+                if (r.outcome() == Outcome.ERROR) {
+                    sb.append("- ERROR ").append(r.fqn()).append(" [")
+                            .append(s.suite().name()).append(':').append(r.file())
+                            .append("]: ").append(r.detail()).append('\n');
+                }
+            }
+        }
+        sb.append('\n');
+
         sb.append("## Discovery mismatches (parsed files where textual count != discovered)\n\n");
         for (SuiteCensus s : results) {
             for (FileCensus f : s.files()) {
