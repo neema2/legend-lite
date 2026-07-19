@@ -844,6 +844,10 @@ public final class Pure {
     public static final NativeFunctionDefinition IN__ANY_0_1__ANY_MANY = signature("native function meta::pure::functions::collection::in(value:meta::pure::metamodel::type::Any[0..1], collection:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_AFTER_DAY__DATE_1__DATE_1 = signature("native function meta::pure::functions::date::isAfterDay(d1:meta::pure::metamodel::type::Date[1], d2:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_BEFORE_DAY__DATE_1__DATE_1 = signature("native function meta::pure::functions::date::isBeforeDay(d1:meta::pure::metamodel::type::Date[1], d2:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Boolean[1];");
+    // REAL pure (collectionExtension.pure:32): isDistinct<T>(set:T[*]) —
+    // relational agg position lowers to COUNT(DISTINCT x) = COUNT(x)
+    // (engine testGroupByIsDistinct golden).
+    public static final NativeFunctionDefinition IS_DISTINCT__T_MANY = signature("native function meta::pure::functions::collection::isDistinct<T>(set:T[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_DISTINCT__ANY_1__ANY_1 = signature("native function meta::pure::functions::collection::isDistinct(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_EMPTY__T_MANY = signature("native function meta::pure::functions::collection::isEmpty<T>(value:T[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_NOT_EMPTY__T_MANY = signature("native function meta::pure::functions::collection::isNotEmpty<T>(value:T[*]):meta::pure::metamodel::type::Boolean[1];");

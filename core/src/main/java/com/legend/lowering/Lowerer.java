@@ -783,8 +783,17 @@ public final class Lowerer {
         List<SqlExpr> extra = new ArrayList<>();
         List<Boolean> flags = new ArrayList<>();
         TypedCast valueCast = null;
+        boolean distinctValues = false;
         for (TypedSpec argSpec : call.args()) {
-            if (argSpec instanceof TypedCBoolean b) {
+            if (argSpec instanceof TypedNativeCall dn
+                    && dn.callee().qualifiedName().equals(
+                            "meta::pure::functions::collection::distinct")
+                    && dn.args().size() == 1
+                    && dn.args().get(0) instanceof TypedVariable) {
+                // y|$y->distinct()->count(): DISTINCT inside the SQL
+                // aggregate (engine: count(distinct(col)))
+                distinctValues = true;
+            } else if (argSpec instanceof TypedCBoolean b) {
                 flags.add(b.value());
             } else if (argSpec instanceof TypedCString
                     || argSpec instanceof TypedCInteger
@@ -851,6 +860,12 @@ public final class Lowerer {
             throw new IllegalStateException(
                     "wavg expects a rowMapper(value, weight) map body");
         }
+        if ((distinctValues || "__IS_DISTINCT__".equals(fn))
+                && mapBody instanceof TypedVariable) {
+            throw new com.legend.error.NotImplementedException(
+                    "DISTINCT aggregate over a bare group variable — no value"
+                    + " column to deduplicate");
+        }
         if (mapBody instanceof TypedVariable && extra.isEmpty()) {
             return new SqlAgg.Reducer(fn, List.of(), false);
         }
@@ -868,6 +883,13 @@ public final class Lowerer {
         SqlExpr value = scalar(mapBody, (v, name) -> resolveOrThrow(base, name));
         if (valueCast != null) {
             value = castByPolicy(value, valueCast.source().info().type(), valueCast.target());
+        }
+        // isDistinct over a group: COUNT(DISTINCT x) = COUNT(x) — no single
+        // SQL reducer (engine testGroupByIsDistinct golden).
+        if ("__IS_DISTINCT__".equals(fn)) {
+            return SqlExpr.Call.of(SqlFn.EQUAL,
+                    new SqlAgg.Reducer("COUNT", List.of(value), true),
+                    new SqlAgg.Reducer("COUNT", List.of(value), false));
         }
         // hashCode over a group: HASH(LIST(values)) — no single SQL reducer.
         // DuckDB hash() is UBIGINT (surfaces as a non-integer through JDBC);
@@ -913,7 +935,7 @@ public final class Lowerer {
         List<SqlExpr> args = new ArrayList<>();
         args.add(value);
         args.addAll(extra);
-        return new SqlAgg.Reducer(fn, args, false);
+        return new SqlAgg.Reducer(fn, args, distinctValues);
     }
 
     /**

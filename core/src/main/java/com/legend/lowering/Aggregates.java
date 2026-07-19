@@ -61,6 +61,9 @@ final class Aggregates {
         family("__WAVG__", "wavg");
         // hashCode of a GROUP is HASH(LIST(values)) — composed in aggValue.
         family("__HASH_LIST__", "hashCode");
+        // isDistinct of a GROUP is COUNT(DISTINCT x) = COUNT(x) — composed
+        // in aggValue (engine testGroupByIsDistinct golden).
+        family("__IS_DISTINCT__", "isDistinct");
     }
 
     /**
