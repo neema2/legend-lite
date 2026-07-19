@@ -1783,7 +1783,7 @@ public final class StoreResolver {
     private Map<String, Substitution.ExistsSub> registerExistsSubs(
             ClassSource cs, Set<List<String>> paths,
             Set<List<String>> filterPaths, List<TypedSpec> ops,
-            Context context) {
+            Context context, Map<String, Substitution.AssocSub> parentAssocs) {
         Map<String, Substitution.ExistsSub> existsSubs = new LinkedHashMap<>();
         for (List<String> path : paths) {
             String head = path.get(0);
@@ -1823,8 +1823,55 @@ public final class StoreResolver {
                     }
                 }
                 tDemand0 = Pipelines.closeOverConditions(t.pipeline(), tDemand0);
-                Pipelines.Materialized tMat0 = Pipelines.materialize(
-                        t.pipeline(), tDemand0, t.classFqn());
+                // #69: a CORRELATED pred's TARGET-side reads may hop the
+                // target's OWN class-typed navigate steps ($e.address.name
+                // over the navigated rows) — demand those steps, let the
+                // materialization join them, and build depth-1 SubNavs for
+                // the composition's pass-1 dispatch. Deeper hops stay loud
+                // (empty children).
+                TypedLambda corrNav0 = synthetics.correlatedPred(head);
+                Map<String, String> predNavAliases = new LinkedHashMap<>();
+                Set<String> tNavDemand = new LinkedHashSet<>();
+                if (corrNav0 != null) {
+                    var tNavSteps = Pipelines.navSteps(t.pipeline());
+                    Set<List<String>> predPaths0 = new LinkedHashSet<>();
+                    for (TypedSpec b : corrNav0.body()) {
+                        consumedPaths(b, corrNav0.parameters().get(0), predPaths0);
+                    }
+                    for (List<String> pp : predPaths0) {
+                        if (pp.size() < 2) {
+                            continue;
+                        }
+                        TypedSpec hb = t.bindings().get(pp.get(0));
+                        String al = hb == null ? null
+                                : navSlotAlias(hb, t.rowVar(), tNavSteps.keySet());
+                        if (al != null) {
+                            tNavDemand.add(al);
+                            predNavAliases.put(pp.get(0), al);
+                        }
+                    }
+                }
+                Pipelines.Materialized tMat0 = tNavDemand.isEmpty()
+                        ? Pipelines.materialize(
+                                t.pipeline(), tDemand0, t.classFqn())
+                        : Pipelines.materialize(
+                                t.pipeline(), tDemand0, tNavDemand, t.classFqn(),
+                                (al2, tc2) -> Pipelines.materialize(
+                                        sources.get(cs.mappingFqn(), tc2)
+                                                .pipeline(),
+                                        java.util.Set.of(), tc2).pipeline());
+                Map<String, Substitution.SubNav> tSubNavs = new LinkedHashMap<>();
+                for (var pne : predNavAliases.entrySet()) {
+                    String pfx = tMat0.slotPrefixes().get(pne.getValue());
+                    var stepT = Pipelines.navSteps(t.pipeline())
+                            .get(pne.getValue()).target();
+                    if (pfx == null || !(stepT instanceof TypedGetAll stg)) {
+                        continue;
+                    }
+                    ClassSource sub = sources.get(cs.mappingFqn(), stg.classFqn());
+                    tSubNavs.put(pne.getKey(), new Substitution.SubNav(
+                            pfx, sub.rowVar(), sub.bindings()));
+                }
                 // UNION target: member threads carry the key columns the
                 // navigate predicate binds on (mirrors the assoc route)
                 TypedSpec tPipe0 = tMat0.pipeline();
@@ -1843,10 +1890,11 @@ public final class StoreResolver {
                 // (parent, target) condition — both rows in scope, the same
                 // composition as the association route
                 TypedLambda navCond = nav.predicate();
-                TypedLambda corrNav = synthetics.correlatedPred(head);
+                TypedLambda corrNav = corrNav0;
                 if (corrNav != null) {
                     navCond = assocMaterial.andCorrelatedIntoCondition(
-                            navCond, corrNav, cs, t, tMat0.slotPrefixes());
+                            navCond, corrNav, cs, t, tMat0.slotPrefixes(),
+                            parentAssocs, tSubNavs);
                 }
                 tTemporal = synthetics.applyToPipe(head, tTemporal,
                         (p, pred) -> predFilteredPipe(p, ft,
@@ -2385,6 +2433,10 @@ public final class StoreResolver {
                 for (TypedSpec b : f.predicate().body()) {
                     memberScan(b, f.predicate().parameters().get(0), cs, filterPaths);
                 }
+                // #69: outer reads in corrPreds may root at THIS filter's
+                // param too (the RhsFilter family) — same parent demand
+                // as the terminal-lambda scan
+                corrPredOuterDemand(f.predicate(), filterPaths);
             }
             if (op instanceof TypedSortBy sb) {
                 for (TypedSpec b : sb.key().body()) {
@@ -2444,7 +2496,7 @@ public final class StoreResolver {
         final TypedSpec materializedPipe = rootPipe.materializedPipe();
 
         Map<String, Substitution.ExistsSub> existsSubs =
-                registerExistsSubs(cs, paths, filterPaths, ops, context);
+                registerExistsSubs(cs, paths, filterPaths, ops, context, assocs);
 
         AssocPlan assocPlan = registerAssociationJoins(cs, paths, context,
                 navSteps, extraNavHeads, extraNavTails, assocs);
@@ -3074,7 +3126,7 @@ public final class StoreResolver {
         }
         // nested EXISTS materials (emptiness consumption)
         Map<String, Substitution.ExistsSub> nested =
-                registerExistsSubs(t, innerPaths, Set.of(), innerOps, context);
+                registerExistsSubs(t, innerPaths, Set.of(), innerOps, context, Map.of());
         // nested ASSOC materials (leaf reads): widen the exists relation
         // with each demanded association's LEFT join, prefix-renamed —
         // the same descriptor->emission fold the root pipeline uses
