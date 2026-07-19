@@ -39,6 +39,20 @@ final class StoreCompiler {
         if (dot > 0) {
             String schemaName = name.substring(0, dot);
             String tableName = name.substring(dot + 1);
+            if (schemaName.equals("default")) {
+                // ENGINE PARITY (RelationalParseTreeWalker:149): a
+                // database's top-level tables ARE schema 'default' — the
+                // qualified spelling resolves ONLY those (audit 22b F4:
+                // the bare-name fallback found same-named tables in OTHER
+                // schemas where the engine's schema('default')->table()
+                // fails loud). An EXPLICIT Schema default(...) block
+                // counts too.
+                for (var t : db.tables()) {
+                    if (t.name().equals(tableName)) {
+                        return Optional.of(t);
+                    }
+                }
+            }
             for (var s : db.schemas()) {
                 if (!s.name().equals(schemaName)) {
                     continue;

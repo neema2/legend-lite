@@ -46,9 +46,18 @@ final class TableReferenceChecker {
                     + af.parameters());
         }
         String name = tableName.value();
+        boolean strictDefault = false;
         if (n == 3) {
             String schemaName = ((CString) af.parameters().get(1)).value();
-            if (!schemaName.isEmpty() && !"default".equals(schemaName)) {
+            if (schemaName.isEmpty() || "default".equals(schemaName)) {
+                // ENGINE: schema('default') = TOP-LEVEL tables only
+                // (audit 22b F4 — the bare-name lookup fell back to ANY
+                // schema, resolving what the engine rejects). Validate
+                // through the strict 'default.' spelling; the CARRIED
+                // name stays bare (the top-level SQL spelling).
+                name = "default." + name;
+                strictDefault = true;
+            } else {
                 name = schemaName + "." + name;
             }
         }
@@ -64,7 +73,8 @@ final class TableReferenceChecker {
         Type.RelationType schema = t.model().findTable(dbRef.fullPath(), resolvedName)
                 .orElseThrow(() -> new TypeInferenceException(
                         "unknown table '" + resolvedName + "' in database '" + dbRef.fullPath() + "'"));
-        return new TypedTableReference(dbRef.fullPath(), resolvedName,
+        String carried = strictDefault ? tableName.value() : resolvedName;
+        return new TypedTableReference(dbRef.fullPath(), carried,
                 new ExprType(schema, sig.output().multiplicity()));
     }
 
