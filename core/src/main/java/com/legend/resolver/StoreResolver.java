@@ -486,7 +486,8 @@ public final class StoreResolver {
      * materialization, via the association route\u0027s exact composition. */
     private TypedSpec augmentNavPredicates(TypedSpec pipe, ClassSource cs,
             Map<String, String> navHeadByAlias, Set<String> demandedNavs,
-            Set<String> composed) {
+            Set<String> composed,
+            Map<String, Substitution.AssocSub> parentAssocs) {
         // audit 21b F1: this walk must reach every navigate step
         // Pipelines.navSteps reaches — a scalar-through-join PM declared
         // after the class-typed Join PM leaves the TypedNavigate below a
@@ -496,7 +497,7 @@ public final class StoreResolver {
         // check backstops any spine node this walk still misses.
         if (pipe instanceof TypedNavigate nav && nav.alias().isPresent()) {
             TypedSpec src = augmentNavPredicates(nav.source(), cs,
-                    navHeadByAlias, demandedNavs, composed);
+                    navHeadByAlias, demandedNavs, composed, parentAssocs);
             String head = navHeadByAlias.getOrDefault(nav.alias().get(),
                     nav.alias().get());
             TypedLambda corr = synthetics.correlatedPred(head);
@@ -504,7 +505,8 @@ public final class StoreResolver {
                     && nav.target() instanceof TypedGetAll ga) {
                 ClassSource target = sources.get(cs.mappingFqn(), ga.classFqn());
                 TypedLambda aug = assocMaterial.andCorrelatedIntoCondition(
-                        nav.predicate(), corr, cs, target, Map.of());
+                        nav.predicate(), corr, cs, target, Map.of(),
+                        parentAssocs);
                 composed.add(nav.alias().get());
                 return new TypedNavigate(src, nav.alias(), nav.target(),
                         aug, nav.form(), nav.info());
@@ -515,13 +517,13 @@ public final class StoreResolver {
         }
         if (pipe instanceof TypedFilter f) {
             TypedSpec src = augmentNavPredicates(f.source(), cs,
-                    navHeadByAlias, demandedNavs, composed);
+                    navHeadByAlias, demandedNavs, composed, parentAssocs);
             return src == f.source() ? pipe
                     : new TypedFilter(src, f.predicate(), f.info());
         }
         if (pipe instanceof com.legend.compiler.spec.typed.TypedJoinSlot js) {
             TypedSpec src = augmentNavPredicates(js.source(), cs,
-                    navHeadByAlias, demandedNavs, composed);
+                    navHeadByAlias, demandedNavs, composed, parentAssocs);
             return src == js.source() ? pipe
                     : new com.legend.compiler.spec.typed.TypedJoinSlot(src,
                             js.alias(), js.target(), js.condition(), js.info());
@@ -1481,10 +1483,11 @@ public final class StoreResolver {
      * fetch's own point/pair/range filter. */
     private RootPipe materializeRoot(ClassSource cs, TypedGetAll g,
             Set<String> demanded, Set<String> demandedNavs,
-            Map<String, NavMaterializer.NavMat> navMats, Map<String, String> navHeadByAlias) {
+            Map<String, NavMaterializer.NavMat> navMats, Map<String, String> navHeadByAlias,
+            Map<String, Substitution.AssocSub> parentAssocs) {
         Set<String> corrComposed = new LinkedHashSet<>();
         TypedSpec csPipe = augmentNavPredicates(cs.pipeline(), cs,
-                navHeadByAlias, demandedNavs, corrComposed);
+                navHeadByAlias, demandedNavs, corrComposed, parentAssocs);
         // audit 21b F1 backstop: a demanded navigate head carrying a
         // correlated predicate that the augment walk did NOT compose has
         // exactly one fate — loud. The lifted-pred apply site skips
@@ -2401,6 +2404,7 @@ public final class StoreResolver {
                     aggScan(b, fn.parameters().get(0), cs,
                             aggDemands, projectionPaths);
                 }
+                corrPredOuterDemand(fn, projectionPaths);
             }
         }
         Set<List<String>> paths = new LinkedHashSet<>(filterPaths);
@@ -2427,7 +2431,7 @@ public final class StoreResolver {
         // (corpus testDistinctMappingSimpleProjectSelectOneOfTheDistinct-
         // Properties: name-only projection must keep BOTH 'IF 2' rows).
         RootPipe rootPipe = materializeRoot(cs, g, demanded, demandedNavs,
-                navMats, navHeadByAlias);
+                navMats, navHeadByAlias, assocs);
         Pipelines.Materialized m = rootPipe.m();
         final TypedSpec materializedPipe = rootPipe.materializedPipe();
 
@@ -2684,6 +2688,23 @@ public final class StoreResolver {
                 true, true));
         return new TypedFilter(tPipe, predSub.rewriteLambda(pred),
                 tPipe.info());
+    }
+
+    /** #69 (audit-22 follow-on): a CORRELATED pred's OUTER-variable
+     * reads are PARENT demand — the lift moved the only occurrence of
+     * {@code $f.<head>...} out of the projection column, so the ordinary
+     * scans no longer see it and the head's navigate material never
+     * registered (the Substitution 'class-typed slot' wall family). */
+    private void corrPredOuterDemand(TypedLambda fn, Set<List<String>> out) {
+        if (fn.parameters().isEmpty()) {
+            return;
+        }
+        String uv = fn.parameters().get(0);
+        for (TypedLambda corr : synthetics.allCorrelatedPreds()) {
+            for (TypedSpec b : corr.body()) {
+                consumedPaths(b, uv, out);
+            }
+        }
     }
 
     private static void scanLambda(TypedLambda lambda, Set<List<String>> out) {

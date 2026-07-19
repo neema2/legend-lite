@@ -126,6 +126,13 @@ final class SyntheticHeads {
         return corrPreds.get(head);
     }
 
+    /** ALL parked correlated predicates — the demand scan reads their
+     * OUTER-variable paths as PARENT demand (#69: the lift moved the
+     * only occurrence of the read out of the projection column). */
+    java.util.Collection<TypedLambda> allCorrelatedPreds() {
+        return corrPreds.values();
+    }
+
     /** ALL predicates parked on a head: singleton for a {@code #fN} head,
      * the non-null branch predicates for a {@code #cN} head, empty
      * otherwise. Demand/tail scans iterate this — every branch's reads

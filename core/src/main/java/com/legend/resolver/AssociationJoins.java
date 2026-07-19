@@ -360,6 +360,14 @@ final class AssociationJoins {
     TypedLambda andCorrelatedIntoCondition(TypedLambda cond,
             TypedLambda pred, ClassSource parent, ClassSource target,
             Map<String, String> targetSlotPrefixes) {
+        return andCorrelatedIntoCondition(cond, pred, parent, target,
+                targetSlotPrefixes, Map.of());
+    }
+
+    TypedLambda andCorrelatedIntoCondition(TypedLambda cond,
+            TypedLambda pred, ClassSource parent, ClassSource target,
+            Map<String, String> targetSlotPrefixes,
+            Map<String, Substitution.AssocSub> parentAssocs) {
         // F2 (audit 21b): the condition's binders are emission-literal
         // names ({s,t} on the navigate route, {srcRow,tgtRow} on the
         // association route). A user variable sharing a name would be
@@ -407,6 +415,9 @@ final class AssociationJoins {
         // shadow-aware) -> parent bindings over srcParam
         TypedSpec body = pass1.body().get(pass1.body().size() - 1);
         for (String outer : free) {
+            // #69: OUTER reads may navigate the PARENT's class-typed
+            // heads — the parent's registered AssocSubs dispatch them
+            // (Registries.NONE walled every such read).
             Substitution srcSub = new Substitution(new Substitution.Target(
                     new Substitution.RowScope(outer, srcParam,
                             parent.classFqn(), parent.mappingFqn(),
@@ -415,7 +426,8 @@ final class AssociationJoins {
                             new LinkedHashSet<>(
                                     Pipelines.slotAliases(parent.pipeline())),
                             Map.of(), Map.of()),
-                    Substitution.Registries.NONE,
+                    new Substitution.Registries(parentAssocs, java.util.Set.of(),
+                            Map.of(), Map.of(), null, null),
                     Substitution.TemporalView.NONE, true, true));
             body = srcSub.rewriteLambda(new com.legend.compiler.spec.typed
                     .TypedLambda(List.of(outer), List.of(body), pred.info()))
