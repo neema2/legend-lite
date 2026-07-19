@@ -1124,6 +1124,16 @@ public final class TestBody {
                 && !expected.flatCells() && !actual.flatCells()) {
             return gridEquals(te, ta, ordered && actual.sortedChain());
         }
+        // ->toString() over a TDS against a '#TDS\n…#' STRING literal:
+        // engine relation toString (core_functions_relation toString.pure)
+        // renders '#TDS\n   col,col\n   cell,cell\n…\n#'. Header exact,
+        // rows under the order policy.
+        if (actual.result() instanceof com.legend.exec.ExecutionResult.Tabular tds
+                && expected.values().size() == 1
+                && expected.values().get(0) instanceof String tdsGolden
+                && tdsGolden.startsWith("#TDS\n")) {
+            return tdsStringEquals(tdsGolden, tds, ordered && actual.sortedChain());
+        }
         // toCSV() against a STRING literal: render the grid (wire concern);
         // header pinned, data lines under the order policy
         if (actual.csvTail()
@@ -1538,6 +1548,49 @@ public final class TestBody {
             return s;
         }
         return '"' + s.replace("\"", "\"\"") + '"';
+    }
+
+    /** Engine relation toString format: header line exact ('   ' + names
+     * joined by ','), each row '   ' + cells joined by ',', '#' framing.
+     * Rows compare ordered when the chain sorts, else as a line multiset
+     * (the standard order policy). Cells render String.valueOf with NULL
+     * as 'null' — a format the engine golden doesn't use stays a loud
+     * mismatch, never a tolerant guess. */
+    private static boolean tdsStringEquals(String expected,
+            com.legend.exec.ExecutionResult.Tabular t, boolean ordered) {
+        List<String> lines = new ArrayList<>();
+        lines.add("#TDS");
+        lines.add("   " + t.columns().stream().map(com.legend.exec.Column::name)
+                .collect(java.util.stream.Collectors.joining(",")));
+        for (var r : t.rows()) {
+            StringBuilder sb = new StringBuilder("   ");
+            for (int i = 0; i < r.values().size(); i++) {
+                if (i > 0) {
+                    sb.append(',');
+                }
+                Object v = r.values().get(i);
+                sb.append(v == null ? "null" : String.valueOf(v));
+            }
+            lines.add(sb.toString());
+        }
+        lines.add("#");
+        List<String> exp = List.of(expected.split("\n", -1));
+        if (exp.size() != lines.size()
+                || !exp.get(0).equals(lines.get(0))
+                || !exp.get(1).equals(lines.get(1))
+                || !exp.get(exp.size() - 1).equals(lines.get(lines.size() - 1))) {
+            return false;
+        }
+        List<String> er = exp.subList(2, exp.size() - 1);
+        List<String> ar = lines.subList(2, lines.size() - 1);
+        if (ordered) {
+            return er.equals(ar);
+        }
+        List<String> es = new ArrayList<>(er);
+        List<String> as = new ArrayList<>(ar);
+        java.util.Collections.sort(es);
+        java.util.Collections.sort(as);
+        return es.equals(as);
     }
 
     private static boolean wireEquals(Object e, Object a) {

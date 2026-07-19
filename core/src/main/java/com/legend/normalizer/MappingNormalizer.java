@@ -323,6 +323,52 @@ public final class MappingNormalizer {
                     new Realization.Ref(fn.qualifiedName()),
                     declaredPrimaryKeyColumns(cm)));
         }
+        // ENGINE ROUTER PARITY (include direction): union/inheritance route
+        // classification happens in the QUERIED mapping's closure. A class
+        // mapped in an INCLUDED mapping whose set-routed property targets a
+        // class whose Operation (union/inheritance) mapping exists only in
+        // THIS mapping's closure classifies differently here — under its own
+        // mapping the routes look root/sole (= the un-routed navigation) and
+        // the union dispatch never engages (the inheritanceMain /
+        // inheritanceMappingDB split: Person's roadVehicles[map1]/[map2]
+        // routes vs the RoadVehicle Operation declared one include up).
+        // Such classes RE-SYNTHESIZE under this mapping; the local binding
+        // shadows the included one at lookup (ClassSources.findBinding).
+        {
+            List<LegacyMappingDefinition> closure = new ArrayList<>();
+            collectMappingClosure(md, model, closure, new HashSet<>());
+            Set<String> bound = new HashSet<>();
+            for (ClassMapping cm : md.classMappings()) {
+                bound.add(cm.className());
+            }
+            for (LegacyMappingDefinition m : closure) {
+                if (m == md) {
+                    continue;
+                }
+                for (ClassMapping cm : m.classMappings()) {
+                    if (!(cm instanceof ClassMapping.Relational rcm)
+                            || !bound.add(rcm.className())
+                            || !routedTargetGainsOperation(md, m, rcm, model)) {
+                        continue;
+                    }
+                    FunctionDefinition fn;
+                    try {
+                        fn = synthesizeClassMapping(md, rcm, model);
+                    } catch (NotImplementedException | ModelException e) {
+                        model.mappingPoisons.put(
+                                md.qualifiedName() + "::" + rcm.className(),
+                                String.valueOf(e.getMessage()));
+                        continue;
+                    }
+                    lifted.add(fn);
+                    classBindings.add(new MappingDefinition.ClassBinding(
+                            rcm.className(), MappingDefinition.Kind.RELATIONAL,
+                            rcm.setId(), rcm.extendsSetId(), rcm.root(),
+                            new Realization.Ref(fn.qualifiedName()),
+                            declaredPrimaryKeyColumns(rcm)));
+                }
+            }
+        }
         List<MappingDefinition.AssociationBinding> assocBindings =
                 new ArrayList<>(md.associationMappings().size());
         for (AssociationMapping am : md.associationMappings()) {
@@ -769,6 +815,42 @@ public final class MappingNormalizer {
         }
         if (v instanceof AppliedFunction af && af.parameters().size() == 1) {
             return rootedAt(af.parameters().get(0), var);
+        }
+        return false;
+    }
+
+    /** Whether {@code rcm} (defined in {@code defining}) has a set-routed
+     * class-typed Join PM whose target class is Operation-mapped
+     * (union/inheritance) in {@code md}'s closure but NOT in
+     * {@code defining}'s — the include-direction classification change
+     * that requires re-synthesis under {@code md}. */
+    private static boolean routedTargetGainsOperation(LegacyMappingDefinition md,
+            LegacyMappingDefinition defining, ClassMapping.Relational rcm,
+            ModelBuilder model) {
+        ClassDefinition owner = model.findClass(rcm.className()).orElse(null);
+        if (owner == null) {
+            return false;
+        }
+        for (PropertyMapping pm : rcm.propertyMappings()) {
+            if (!(pm instanceof PropertyMapping.Join j)
+                    || j.targetSetId() == null) {
+                continue;
+            }
+            TypeExpression pt = findPropertyTypeDeep(owner, j.propertyName(), model);
+            if (!(pt instanceof TypeExpression.NameRef nr)) {
+                continue;
+            }
+            String tc = nr.name();
+            boolean underMd = UnionSynthesis.unionForClass(md, model, tc) != null
+                    || UnionSynthesis.inheritanceForClass(md, model, tc) != null;
+            if (!underMd) {
+                continue;
+            }
+            boolean underOwn = UnionSynthesis.unionForClass(defining, model, tc) != null
+                    || UnionSynthesis.inheritanceForClass(defining, model, tc) != null;
+            if (!underOwn) {
+                return true;
+            }
         }
         return false;
     }
@@ -1270,7 +1352,7 @@ public final class MappingNormalizer {
                           + "' is not declared on class '" + tgt.qualifiedName()
                           + "'; mapping=" + md.qualifiedName());
                 }
-                requireBenignM2MRoute(pb, pcm, tgt, md, model);
+                M2mRouteGuards.requireBenignRoute(pb, pcm, tgt, md, model);
                 fields.put(pb.propertyName(),
                         new KeyExpression(m2mPropertyValue(pb, tgt, md, model, cycleStack)));
             }
@@ -1282,81 +1364,6 @@ public final class MappingNormalizer {
         }
     }
 
-    /**
-     * Audit 21a HIGH: a Pure binding's {@code [targetSetId]} route selects a
-     * SPECIFIC set of the routed class; emitting an unrouted
-     * {@code NewInstanceCast} would root-route it — the audit-11 wrong-rows
-     * shape (relational side: Join.targetSetId, classified per-PM) mirrored
-     * on the M2M side. The route is benign only when root-routing is
-     * IDENTICAL to honoring it: the routed set is the routed class's sole
-     * set, or its root set. Anything else — including a set id that matches
-     * nothing, or a route on a binding whose type is not a mapped class —
-     * is a loud wall, never a silent drop. The {@code [src, tgt]} source id
-     * must name this very set; a mismatch is a model shape we don't route.
-     */
-    private static void requireBenignM2MRoute(ClassMapping.Pure.PropertyBinding pb,
-            ClassMapping.Pure pcm, ClassDefinition tgt,
-            LegacyMappingDefinition md, ModelBuilder model) {
-        if (pb.sourceSetId() == null && pb.targetSetId() == null) {
-            return;
-        }
-        if (pb.sourceSetId() != null && !setIdMatches(pcm, pb.sourceSetId())) {
-            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                    "M2M binding '" + pb.propertyName() + "[" + pb.sourceSetId()
-                  + ", " + pb.targetSetId() + "]' names source set '"
-                  + pb.sourceSetId() + "' but is declared inside set '"
-                  + pcm.setId() + "'; mapping=" + md.qualifiedName());
-        }
-        String routedClass = null;
-        if (tgt != null
-                && findPropertyTypeDeep(tgt, pb.propertyName(), model)
-                        instanceof TypeExpression.NameRef nr
-                && model.findClass(nr.name()).isPresent()) {
-            routedClass = nr.name();
-        }
-        if (routedClass != null) {
-            List<LegacyMappingDefinition> closure = new ArrayList<>();
-            collectMappingClosure(md, model, closure, new HashSet<>());
-            List<ClassMapping> sets = new ArrayList<>();
-            for (LegacyMappingDefinition m : closure) {
-                for (ClassMapping cm : m.classMappings()) {
-                    if (cm.className().equals(routedClass)) {
-                        sets.add(cm);
-                    }
-                }
-            }
-            ClassMapping routed = sets.stream()
-                    .filter(cm -> setIdMatches(cm, pb.targetSetId()))
-                    .findFirst().orElse(null);
-            if (routed != null && (sets.size() == 1 || routed.root())) {
-                return; // root-routing == honoring the route
-            }
-        }
-        throw new ModelException(LegendCompileException.Phase.NORMALIZE,
-                "M2M set-routed binding '" + pb.propertyName() + "["
-              + pb.targetSetId() + "]' targets a non-root set"
-              + (routedClass == null ? "" : " of '" + routedClass + "'")
-              + "; per-set routing on the M2M side is a roadmap feature"
-              + " (root-routing would produce wrong rows); mapping="
-              + md.qualifiedName());
-    }
-
-    /**
-     * Whether {@code cm} answers to set id {@code id}. An unlabeled mapping's
-     * engine-default id is the class FQN with '_' for '::' (short name
-     * accepted too — includes-era corpora spell it either way).
-     */
-    private static boolean setIdMatches(ClassMapping cm, String id) {
-        if (id == null) {
-            return false;
-        }
-        if (cm.setId() != null) {
-            return cm.setId().equals(id);
-        }
-        String fqn = cm.className();
-        return id.equals(fqn.replace("::", "_"))
-                || id.equals(fqn.substring(fqn.lastIndexOf(':') + 1));
-    }
 
     private static ValueSpecification m2mPropertyValue(
             ClassMapping.Pure.PropertyBinding pb, ClassDefinition tgt,
@@ -1428,6 +1435,34 @@ public final class MappingNormalizer {
                     collectColumnsOfTable(n.operand(), table, out);
             case RelationalOperation.FunctionCall f ->
                     f.args().forEach(x -> collectColumnsOfTable(x, table, out));
+            default -> {
+            }
+        }
+    }
+
+    /** Column names read through the {@code {target}} placeholder — the
+     * DESTINATION side of a self-join hop ({@code OneTable.ID =
+     * {target}.personId}). Inbound union-route keys live on this side for
+     * self-join members; a plain table-named collect can't see them. */
+    static void collectTargetColumns(RelationalOperation cond, Set<String> out) {
+        switch (cond) {
+            case RelationalOperation.TargetColumnRef t -> out.add(t.column());
+            case RelationalOperation.Comparison c -> {
+                collectTargetColumns(c.left(), out);
+                collectTargetColumns(c.right(), out);
+            }
+            case RelationalOperation.BooleanOp b -> {
+                collectTargetColumns(b.left(), out);
+                collectTargetColumns(b.right(), out);
+            }
+            case RelationalOperation.Group g ->
+                    collectTargetColumns(g.inner(), out);
+            case RelationalOperation.IsNull n ->
+                    collectTargetColumns(n.operand(), out);
+            case RelationalOperation.IsNotNull n ->
+                    collectTargetColumns(n.operand(), out);
+            case RelationalOperation.FunctionCall f ->
+                    f.args().forEach(x -> collectTargetColumns(x, out));
             default -> {
             }
         }

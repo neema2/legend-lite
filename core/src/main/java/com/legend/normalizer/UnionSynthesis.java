@@ -1145,6 +1145,8 @@ final class UnionSynthesis {
                     String memberTable = routedMember.mainTable().table();
                     Set<String> cols = new LinkedHashSet<>();
                     MappingNormalizer.collectColumnsOfTable(jd.operation(), memberTable, cols);
+                    // self-join hops spell the member side {target}.col
+                    MappingNormalizer.collectTargetColumns(jd.operation(), cols);
                     for (String c : cols) {
                         sink.computeIfAbsent(ord, k -> new LinkedHashMap<>())
                                 .put(c, c + "_" + ord);
@@ -1184,6 +1186,8 @@ final class UnionSynthesis {
                     String memberTable = routedMember.mainTable().table();
                     Set<String> cols = new LinkedHashSet<>();
                     MappingNormalizer.collectColumnsOfTable(jd.operation(), memberTable, cols);
+                    // self-join hops spell the member side {target}.col
+                    MappingNormalizer.collectTargetColumns(jd.operation(), cols);
                     for (String c : cols) {
                         sink.computeIfAbsent(ord, k -> new LinkedHashMap<>())
                                 .put(c, c + "_" + ord);
