@@ -112,3 +112,7 @@ git commit (document deltas per-commit) && push origin main
   loses all earlier edits); zsh heredocs break on `#`/`—` in some quoting.
 - Shell cwd resets between commands — `cd /Users/neema/legend/legend-lite`
   first, or use absolute paths / `mvn -f`.
+- NEVER chain `git commit` after a gate-grep in one command: grep exits 0
+  on MATCHING (including matching a failure line) — a red gate committed
+  and pushed exactly once this way (4a6de11c, engine 2729/1; healed in
+  the follow-up). Read the counts, THEN commit as a separate step.

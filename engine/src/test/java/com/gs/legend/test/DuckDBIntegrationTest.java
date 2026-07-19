@@ -5526,8 +5526,12 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
                 "|[%2025-02-10T20:10:20+0000, %2025-02-10]->meta::pure::functions::collection::greatest()",
                 "test::TestRuntime", connection);
         Object val = result.rows().get(0).get(0);
-        assertEquals("2025-02-10T20:10:20+0000", val.toString(),
-                "greatest where DateTime wins keeps the DateTime print form");
+        // A4a: the DATE lattice parses back to KINDS — the wire carries a
+        // real DateTime (Timestamp), not its print-form STRING (the old
+        // string convention was the typing bug the harness comparator
+        // refused to bridge; pure returns a Date value here).
+        assertEquals(java.sql.Timestamp.valueOf("2025-02-10 20:10:20"), val,
+                "greatest where DateTime wins keeps the DateTime KIND");
     }
 
     @Test
