@@ -200,6 +200,12 @@ final class NavMaterializer {
         tDemand = Pipelines.closeOverConditions(t.pipeline(), tDemand);
         final TemporalContext slotCtx = hopCtx;
         final Map<String, String> midByAlias = new LinkedHashMap<>();
+        // SECOND head identities on one physical sub-slot (the 2a-x rule
+        // at sub depth): the slot materializes once for the FIRST
+        // identity; every other identity emits its OWN prefixed join
+        // from the same nav step, with its own parked pred.
+        Map<String, String> extraSubHeads = new LinkedHashMap<>();
+        Map<String, List<List<String>>> extraSubTails = new LinkedHashMap<>();
         for (List<String> tail : tails) {
             if (tail.size() >= 2) {
                 TypedSpec b2 = t.bindings().get(
@@ -208,6 +214,13 @@ final class NavMaterializer {
                         : StoreResolver.navSlotAlias(b2, t.rowVar(), tNavSteps.keySet());
                 if (a2 != null) {
                     midByAlias.putIfAbsent(a2, tail.get(0));
+                    if (!midByAlias.get(a2).equals(tail.get(0))
+                            && synthetics.correlatedPred(tail.get(0)) == null) {
+                        extraSubHeads.putIfAbsent(tail.get(0), a2);
+                        extraSubTails.computeIfAbsent(tail.get(0),
+                                        k -> new ArrayList<>())
+                                .add(tail.subList(1, tail.size()));
+                    }
                 }
             }
         }
@@ -276,10 +289,20 @@ final class NavMaterializer {
                 // nothing; audit 13's own-dimension rule, now structural)
                 ? temporal.filterMilestonedJoinTargets(matM.pipeline(), slotCtx)
                 : matM.pipeline();
-        // ASSOC-SUB folds (union V3): each collected end joins its target
-        // INSIDE this materialized pipeline (the same descriptor->emission
-        // the root uses) and rides the SubNav tree — the composed prefix
-        // (y_ + z_) resolves the leaf on the joined row.
+        pipe = foldAssocSubs(temporal, t, pipe, subTree, assocSubLeaves,
+                chainPrefix);
+        pipe = foldExtraSubIdentities(temporal, mappingFqn, t, pipe, subTree,
+                extraSubHeads, extraSubTails, tNavSteps, chainPrefix, hopCtx);
+        return new NavMat(pipe, matM.slotPrefixes(), matM.stripped(), subTree);
+    }
+
+    /** ASSOC-SUB folds (union V3): each collected end joins its target
+     * INSIDE the materialized pipeline (the same descriptor->emission the
+     * root uses) and rides the SubNav tree — the composed prefix (y_ + z_)
+     * resolves the leaf on the joined row. */
+    private TypedSpec foldAssocSubs(TemporalFrame temporal, ClassSource t,
+            TypedSpec pipe, Map<String, Substitution.SubNav> subTree,
+            Map<String, Set<String>> assocSubLeaves, String chainPrefix) {
         for (var e : assocSubLeaves.entrySet()) {
             String prop = e.getKey();
             String subChain = chainPrefix == null ? prop
@@ -306,8 +329,69 @@ final class NavMaterializer {
             subTree.put(prop, new Substitution.SubNav(aj.prefix(),
                     aj.target().rowVar(), aj.target().bindings(), Map.of()));
         }
-        return new NavMat(pipe, matM.slotPrefixes(), matM.stripped(), subTree);
+        return pipe;
     }
+
+    /** EXTRA sub-slot identity joins (per-identity emission): the nav
+     * step's own predicate joins the freshly-materialized sub target
+     * (that identity's pred applied in-target) onto the pipeline. */
+    private TypedSpec foldExtraSubIdentities(TemporalFrame temporal,
+            String mappingFqn, ClassSource t, TypedSpec pipe,
+            Map<String, Substitution.SubNav> subTree,
+            Map<String, String> extraSubHeads,
+            Map<String, List<List<String>>> extraSubTails,
+            Map<String, com.legend.compiler.spec.typed.TypedNavigate> tNavSteps,
+            String chainPrefix, TemporalContext hopCtx) {
+        for (var e : extraSubHeads.entrySet()) {
+            String prop = e.getKey();
+            String alias = e.getValue();
+            var step = tNavSteps.get(alias);
+            if (!(step.target() instanceof TypedGetAll xg)) {
+                continue;
+            }
+            String subChain = chainPrefix == null ? prop
+                    : chainPrefix + "." + prop;
+            NavMat xMat = navTargetMaterialized(temporal, mappingFqn,
+                    xg.classFqn(),
+                    extraSubTails.getOrDefault(prop, List.of()),
+                    subChain, hopCtx);
+            final NavMat xm2 = xMat;
+            ClassSource xCs = sources.get(mappingFqn, xg.classFqn());
+            TypedSpec xPipe = synthetics.applyToPipe(prop, xMat.pipeline(),
+                    (pp, pred) -> StoreResolver.predFilteredPipe(
+                            pp, xCs, xm2.slotPrefixes(), pred, mappingFqn));
+            // the synthetic identity's own suffix keys the join prefix
+            // (synonyms#f1 -> alias_f1_) — deterministic, collision-free
+            // per identity by construction
+            String xPrefix = alias + "_"
+                    + (prop.indexOf('#') >= 0
+                            ? prop.substring(prop.indexOf('#') + 1)
+                            : "x") + "_";
+            var xLeftRow = (com.legend.compiler.element.type.Type.RelationType)
+                    pipe.info().type();
+            var xRow = (com.legend.compiler.element.type.Type.RelationType)
+                    xPipe.info().type();
+            List<com.legend.compiler.element.type.Type.Column> xCols =
+                    new ArrayList<>(xLeftRow.columns());
+            for (var c : xRow.columns()) {
+                xCols.add(new com.legend.compiler.element.type.Type.Column(
+                        xPrefix + c.name(), c.type(), c.multiplicity()));
+            }
+            pipe = new com.legend.compiler.spec.typed.TypedJoin(pipe,
+                    xPipe, StoreResolver.leftKind(),
+                    step.predicate(), java.util.Optional.of(xPrefix),
+                    new com.legend.compiler.element.type.ExprType(
+                            new com.legend.compiler.element.type.Type
+                                    .RelationType(xCols),
+                            com.legend.compiler.element.type
+                                    .Multiplicity.Bounded.ONE));
+            subTree.put(prop, new Substitution.SubNav(xPrefix,
+                    xCs.rowVar(), xCs.bindings(),
+                    composeSubNavPrefixes(xPrefix, xMat.subNavs())));
+        }
+        return pipe;
+    }
+
 
     /** Re-root a child's SUB-navigation tree onto the parent row: every
      * prefix (relative to the child's row) gains the child's own join
