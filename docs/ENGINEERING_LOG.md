@@ -57,9 +57,27 @@ git commit (document deltas per-commit) && push origin main
 
 ## Current state (as of the audit-21 fix slice)
 
-- Corpus **1045 pass / 50 fail of 2538** (parse completion 28245c49:
+- Corpus **1055 pass / 52 fail of 2538** (parse completion 28245c49:
   541/541 corpus files parse — every remaining non-pass is semantic).
-  Core 1497, engine 2729, PCT 1109.
+  Core 1497, engine 2729, PCT 1109. The 2 fails beyond f51 are documented
+  ERROR→FAIL progressions (intra-STRING_AGG element order — H2 scan order
+  vs DuckDB, same multiset; and the EngineStyleH2 listagg/d#-alias respell
+  rungs on testToSQLStringJoinStrings).
+- d1dd7ca6: overload scoring — Function-carrier args check interior
+  RESULT multiplicity (map's [0..1] overload was beating the correct [*]
+  one, then dying at unification). NEXT MECHANISM RUNG: higher-order
+  call-site β-inlining at type time for map($func) — SpecCompiler.compile
+  is once-per-fn/signature-generic, so MapChecker's literal-lambda demand
+  needs the caller's lambda substituted into the callee's RAW body first.
+- 7f90adbe: DISTINCT aggregates — isDistinct(T[*]) per real pure,
+  COUNT(DISTINCT x)=COUNT(x) compose, distinct()->reduce sets the
+  reducer's DISTINCT flag.
+- b42a2019: class-space groupBy agg map widened to K[*] (real
+  collection::agg parity) — the per-PK sub-aggregation machinery then
+  works end-to-end; values->first() joined the envelope collapse.
+- H2 backend track (task #67): user-endorsed advisory second execution
+  target on EngineStyleH2; divergence census retires dialect-compensation
+  harness policies; SQL-parser front-end is a later phase.
 - f338b644 (inheritance-union dispatch, +9): union/inheritance route
   classification happens in the QUERIED mapping's closure (engine
   router) — normalizeMapping re-synthesizes an INCLUDED class under the
