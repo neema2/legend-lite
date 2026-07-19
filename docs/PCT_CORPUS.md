@@ -11,10 +11,10 @@
 | essential | 177 | 8 | 329 | 327 | **288** | 15 | 15 | 9 | 16 | 635 |
 | grammar | 48 | 0 | 136 | 136 | **122** | 3 | 7 | 4 | 2 | 242 |
 | relation | 49 | 0 | 350 | 350 | **301** | 19 | 29 | 1 | 3 | 368 |
-| standard | 55 | 0 | 205 | 204 | **172** | 24 | 7 | 1 | 0 | 235 |
+| standard | 55 | 0 | 205 | 204 | **174** | 22 | 7 | 1 | 0 | 235 |
 | unclassified | 67 | 0 | 96 | 94 | **93** | 0 | 1 | 0 | 13 | 157 |
 | variant | 7 | 0 | 88 | 88 | **53** | 16 | 19 | 0 | 0 | 91 |
-| **total** | **403** | **8** | **1204** | **1199** | **1029** | **77** | **78** | **15** | | |
+| **total** | **403** | **8** | **1204** | **1199** | **1031** | **75** | **78** | **15** | | |
 
 ## Top ERROR buckets
 
@@ -107,8 +107,6 @@
 - FAIL meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks [standard:date/operation/timeBucket.pure]: assertEquals: expected 2024-01-29 00:00:00.0, got 2024-01-29T00:00:00.000000000
 - FAIL meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths [standard:date/operation/timeBucket.pure]: assertEquals: expected 2024-01-01 00:00:00.0, got 2024-01-01T00:00:00.000000000
 - FAIL meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears [standard:date/operation/timeBucket.pure]: assertEquals: expected 2024-01-01 00:00:00.0, got 2024-01-01T00:00:00.000000000
-- FAIL meta::pure::functions::math::tests::average::testAverage_Integers [standard:math/aggregator/average.pure]: assertEquals: expected 1.0, got 1
-- FAIL meta::pure::functions::math::tests::average::testAverage_Numbers [standard:math/aggregator/average.pure]: assertEquals: expected 1.0, got 1
 - FAIL meta::pure::functions::math::tests::max::testMax_Numbers [standard:math/aggregator/max.pure]: assertEquals: expected 2, got 2
 - FAIL meta::pure::functions::math::tests::max::testMax_Floats_Relation_Aggregate [standard:math/aggregator/max.pure]: assertEquals: expected #TDS\n   grp,newCol\n   0,101.101\n   1,81.18\n   2,21.12\n   3,91.19\n   4,31.13\n   5,51.15\n#, got #TDS\n   grp,newCol\n   0,101.101\n   1,81.180\n   2,21.120\n   3,91.190\n   4,31.130\n   5,51.150\n#
 - FAIL meta::pure::functions::math::tests::max::testMax_Numbers_Relation_Aggregate [standard:math/aggregator/max.pure]: assertEquals: expected #TDS\n   grp,newCol\n   0,101.101\n   1,81.18\n   2,21.0\n   3,91.0\n   4,31.13\n   5,51.0\n#, got #TDS\n   grp,newCol\n   0,101.101\n   1,81.180\n   2,21.000\n   3,91.000\n   4,31.130\n   5,51.000\n#

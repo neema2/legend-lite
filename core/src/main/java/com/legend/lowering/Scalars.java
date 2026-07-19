@@ -1068,7 +1068,16 @@ final class Scalars {
         }
         for (String name : List.of("mean", "average")) {
             for (String f : Pure.nativeKeysAt(name)) {
-                RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
+                // average(Number[*]):Float[1] ALWAYS returns Float in pure —
+                // average(7) is 7.0, never the Integer riding through (PCT
+                // testAverage_Integers pin). Only a genuinely SCALAR to-one
+                // takes the cast identity: a singleton COLLECTION literal
+                // ([1] types Integer[1] but lowers as an array) rides
+                // LIST_AVG, which is already DOUBLE-valued.
+                RULES.put(f, (n, args) -> isToOne(n.args().get(0))
+                        && !(n.args().get(0)
+                                instanceof com.legend.compiler.spec.typed.TypedCollection)
+                        ? new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE)
                         : new SqlExpr.Call(SqlFn.LIST_AVG, args));
             }
         }
