@@ -107,7 +107,7 @@ public final class StoreResolver {
                 synthetics);
         this.corrSubs = new CorrelatedSubselects(sources, assocMaterial);
         this.navMaterializer = new NavMaterializer(sources, assocMaterial,
-                synthetics);
+                synthetics, corrSubs);
     }
 
     /** Resolve every statement of a query body (lets + final expression). */
