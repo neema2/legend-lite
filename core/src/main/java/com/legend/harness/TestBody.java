@@ -546,6 +546,15 @@ public final class TestBody {
                 if (af.function().equals("assertNotEquals")) {
                     return equal ? "assertNotEquals: both sides are " + e.render() : null;
                 }
+                if (!equal && System.getenv("LEGEND_LITE_CMP_DEBUG") != null) {
+                    System.err.println("[cmp] assertEquals FAIL arg0=" + args.get(0)
+                            + "\n[cmp] e.sortedChain=" + e.sortedChain()
+                            + " a.sortedChain=" + a.sortedChain()
+                            + "\n[cmp] e types=" + e.values().stream().map(o ->
+                                    o == null ? "null" : o.getClass().getSimpleName()).toList()
+                            + "\n[cmp] a types=" + a.values().stream().map(o ->
+                                    o == null ? "null" : o.getClass().getSimpleName()).toList());
+                }
                 return equal ? null : "assertEquals: expected " + e.render()
                         + ", got " + a.render();
             }
@@ -891,11 +900,16 @@ public final class TestBody {
 
     /** One evaluated side: the execution result + how it compares. */
     private record Eval(com.legend.exec.ExecutionResult result, boolean sortedChain,
-            boolean csvTail, String joinSep) {
+            boolean csvTail, String joinSep, boolean flatCells) {
 
         Eval(com.legend.exec.ExecutionResult result, boolean sortedChain,
                 boolean csvTail) {
-            this(result, sortedChain, csvTail, null);
+            this(result, sortedChain, csvTail, null, false);
+        }
+
+        Eval(com.legend.exec.ExecutionResult result, boolean sortedChain,
+                boolean csvTail, String joinSep) {
+            this(result, sortedChain, csvTail, joinSep, false);
         }
 
         long size() {
@@ -1020,7 +1034,20 @@ public final class TestBody {
             joinSep = sep.value();
         }
         return new Eval(r, endsInSort(orderView(spliced, execChains)),
-                csv, joinSep);
+                csv, joinSep, isFlatCellsRead(spliced));
+    }
+
+    /** {@code ...rows.values} — the flat-CELLS spelling. Engine semantics
+     * is {@code TDSRow.values} ({@code Any[*]}): column names are OUT of
+     * the comparison. Our platform erases the {@code .rows} marker and
+     * returns the TDS for both spellings, so the compare must know the
+     * read shape (audit 21 follow-up: testQualifierFunctionConsistency*
+     * compares two TDSes with DIFFERENT column names via rows.values —
+     * the grid arm's column-name pin is wrong there, engine-verified). */
+    private static boolean isFlatCellsRead(ValueSpecification v) {
+        return v instanceof AppliedProperty ap && "values".equals(ap.property())
+                && ap.receiver() instanceof AppliedProperty rp
+                && "rows".equals(rp.property());
     }
 
     private static Object evalScalar(ValueSpecification expr,
@@ -1088,9 +1115,13 @@ public final class TestBody {
                     ordered && actual.sortedChain());
         }
         // TDS grids compare STRUCTURALLY: column names ordered, rows under
-        // the order policy — both sides evaluated by the same pipeline
+        // the order policy — both sides evaluated by the same pipeline.
+        // NOT for a flat-cells side (rows.values): that spelling compares
+        // raw cell values only — column names are out (engine TDSRow
+        // semantics; see isFlatCellsRead).
         if (expected.result() instanceof com.legend.exec.ExecutionResult.Tabular te
-                && actual.result() instanceof com.legend.exec.ExecutionResult.Tabular ta) {
+                && actual.result() instanceof com.legend.exec.ExecutionResult.Tabular ta
+                && !expected.flatCells() && !actual.flatCells()) {
             return gridEquals(te, ta, ordered && actual.sortedChain());
         }
         // toCSV() against a STRING literal: render the grid (wire concern);
@@ -1197,6 +1228,13 @@ public final class TestBody {
                 }
             }
             if (hit < 0) {
+                if (System.getenv("LEGEND_LITE_CMP_DEBUG") != null) {
+                    System.err.println("[cmp] pool miss: expected " + x + " ("
+                            + (x == null ? "null" : x.getClass().getSimpleName())
+                            + ") pool types=" + pool.stream().map(o ->
+                            o == null ? "null" : o.getClass().getSimpleName())
+                            .toList());
+                }
                 return false;
             }
             pool.remove(hit);

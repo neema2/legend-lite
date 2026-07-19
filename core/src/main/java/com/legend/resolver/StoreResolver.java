@@ -477,10 +477,18 @@ public final class StoreResolver {
      * own condition (parentRow, targetTableRow — both in scope) BEFORE
      * materialization, via the association route\u0027s exact composition. */
     private TypedSpec augmentNavPredicates(TypedSpec pipe, ClassSource cs,
-            Map<String, String> navHeadByAlias, Set<String> demandedNavs) {
+            Map<String, String> navHeadByAlias, Set<String> demandedNavs,
+            Set<String> composed) {
+        // audit 21b F1: this walk must reach every navigate step
+        // Pipelines.navSteps reaches — a scalar-through-join PM declared
+        // after the class-typed Join PM leaves the TypedNavigate below a
+        // TypedJoinSlot, and skipping it silently DROPPED the correlated
+        // conjunct (PM-declaration-order wrong rows). The spine arms here
+        // mirror navSteps' node set; materializeRoot's composed-or-loud
+        // check backstops any spine node this walk still misses.
         if (pipe instanceof TypedNavigate nav && nav.alias().isPresent()) {
             TypedSpec src = augmentNavPredicates(nav.source(), cs,
-                    navHeadByAlias, demandedNavs);
+                    navHeadByAlias, demandedNavs, composed);
             String head = navHeadByAlias.getOrDefault(nav.alias().get(),
                     nav.alias().get());
             TypedLambda corr = synthetics.correlatedPred(head);
@@ -489,6 +497,7 @@ public final class StoreResolver {
                 ClassSource target = sources.get(cs.mappingFqn(), ga.classFqn());
                 TypedLambda aug = assocMaterial.andCorrelatedIntoCondition(
                         nav.predicate(), corr, cs, target, Map.of());
+                composed.add(nav.alias().get());
                 return new TypedNavigate(src, nav.alias(), nav.target(),
                         aug, nav.form(), nav.info());
             }
@@ -498,9 +507,16 @@ public final class StoreResolver {
         }
         if (pipe instanceof TypedFilter f) {
             TypedSpec src = augmentNavPredicates(f.source(), cs,
-                    navHeadByAlias, demandedNavs);
+                    navHeadByAlias, demandedNavs, composed);
             return src == f.source() ? pipe
                     : new TypedFilter(src, f.predicate(), f.info());
+        }
+        if (pipe instanceof com.legend.compiler.spec.typed.TypedJoinSlot js) {
+            TypedSpec src = augmentNavPredicates(js.source(), cs,
+                    navHeadByAlias, demandedNavs, composed);
+            return src == js.source() ? pipe
+                    : new com.legend.compiler.spec.typed.TypedJoinSlot(src,
+                            js.alias(), js.target(), js.condition(), js.info());
         }
         return pipe;
     }
@@ -581,6 +597,15 @@ public final class StoreResolver {
             throw new IllegalStateException("resolver bug: demanded navigate"
                     + " slot '" + alias + "' produced no prefix");
         }
+        // audit 21b F3: the flatten contract is INNER ≡ the engine's LEFT +
+        // reader null-skip — a childless parent contributes NOTHING.
+        // Pipelines.materialize emits the demanded navigate join LEFT
+        // (projection semantics: parent rows survive); riding it unchanged
+        // serialized a phantom all-null object and ->size() counted it.
+        // Re-stamp the flattened hop's join INNER, like the assoc arm.
+        TypedSpec innerized = innerizeFlattenJoin(m.pipeline(), prefix);
+        m = new Pipelines.Materialized(innerized, m.slotPrefixes(),
+                m.stripped());
         Type.RelationType row =
                 (Type.RelationType) m.pipeline().info().type();
         ExprType rowInfo = new ExprType(row,
@@ -592,6 +617,41 @@ public final class StoreResolver {
         }
         return new ClassSource(src.mappingFqn(), targetClass, t.setId(),
                 m.pipeline(), src.rowVar(), bindings, row);
+    }
+
+    /** Re-stamp the join carrying {@code prefix} INNER (audit 21b F3 —
+     * the flatten's row-set contract). Walks the materialized spine
+     * (joins + filters); not finding the join is a loud resolver bug,
+     * never a silent LEFT. */
+    private static TypedSpec innerizeFlattenJoin(TypedSpec pipe, String prefix) {
+        TypedSpec out = innerizeOrNull(pipe, prefix);
+        if (out == null) {
+            throw new IllegalStateException("resolver bug: flatten inner-stamp"
+                    + " did not find the navigate join '" + prefix
+                    + "' in the materialized pipeline");
+        }
+        return out;
+    }
+
+    /** {@code pipe} with the prefix-matching join INNER, or null if the
+     * spine holds no such join. */
+    private static TypedSpec innerizeOrNull(TypedSpec pipe, String prefix) {
+        if (pipe instanceof TypedJoin j) {
+            if (j.prefix().isPresent() && j.prefix().get().equals(prefix)) {
+                return new TypedJoin(j.left(), j.right(), innerKind(),
+                        j.condition(), j.prefix(), j.info());
+            }
+            TypedSpec left = innerizeOrNull(j.left(), prefix);
+            return left == null ? null
+                    : new TypedJoin(left, j.right(), j.kind(), j.condition(),
+                            j.prefix(), j.info());
+        }
+        if (pipe instanceof TypedFilter f) {
+            TypedSpec src = innerizeOrNull(f.source(), prefix);
+            return src == null ? null
+                    : new TypedFilter(src, f.predicate(), f.info());
+        }
+        return null;
     }
 
     /** One re-pointed binding for the flatten's composed source: scalar
@@ -787,12 +847,55 @@ public final class StoreResolver {
      * via the inliner's LET reduction (one substitution engine, no second
      * walker). */
     private TypedSpec substituteParam(TypedLambda lam, TypedSpec read) {
+        // audit 21b F6 (named wall): the let-reduction splices `read` at
+        // EVERY param read. For a row-rooted read that is plain multi-eval;
+        // for a source CHAIN it is DECORRELATION — a second fresh extent
+        // replaces the row-correlated value. Refusing here is by design,
+        // not an accident of downstream vocabulary walls.
+        if (!rowRootedRead(read)) {
+            int reads = 0;
+            for (TypedSpec b : lam.body()) {
+                reads += countParamReads(b, lam.parameters().get(0));
+            }
+            if (reads > 1) {
+                throw new NotImplementedException("class-result mapper reads"
+                        + " its parameter " + reads + " times; splicing the"
+                        + " source chain at each read would decorrelate the"
+                        + " later reads (a fresh extent replaces the"
+                        + " row-correlated value)");
+            }
+        }
         java.util.List<TypedSpec> body = new java.util.ArrayList<>();
         body.add(new com.legend.compiler.spec.typed.TypedLet(
                 lam.parameters().get(0), read, read.info()));
         body.addAll(lam.body());
         return new com.legend.compiler.spec.UserCallInliner(specs)
                 .inlineBody(body).get(0);
+    }
+
+    /** A read rooted at a VARIABLE (row-correlated): duplication is
+     * multi-eval of the same row's value, never decorrelation. */
+    private static boolean rowRootedRead(TypedSpec read) {
+        return switch (read) {
+            case TypedVariable ignored -> true;
+            case TypedPropertyAccess pa -> rowRootedRead(pa.source());
+            default -> false;
+        };
+    }
+
+    /** Shadow-aware count of {@code $var} reads beneath {@code n}. */
+    private static int countParamReads(TypedSpec n, String var) {
+        if (n instanceof TypedVariable v) {
+            return v.name().equals(var) ? 1 : 0;
+        }
+        if (n instanceof TypedLambda l && l.parameters().contains(var)) {
+            return 0;
+        }
+        int c = 0;
+        for (TypedSpec ch : n.children()) {
+            c += countParamReads(ch, var);
+        }
+        return c;
     }
 
     private static boolean isObjectSpace(TypedSpec source) {
@@ -1362,8 +1465,26 @@ public final class StoreResolver {
     private RootPipe materializeRoot(ClassSource cs, TypedGetAll g,
             Set<String> demanded, Set<String> demandedNavs,
             Map<String, NavMaterializer.NavMat> navMats, Map<String, String> navHeadByAlias) {
+        Set<String> corrComposed = new LinkedHashSet<>();
         TypedSpec csPipe = augmentNavPredicates(cs.pipeline(), cs,
-                navHeadByAlias, demandedNavs);
+                navHeadByAlias, demandedNavs, corrComposed);
+        // audit 21b F1 backstop: a demanded navigate head carrying a
+        // correlated predicate that the augment walk did NOT compose has
+        // exactly one fate — loud. The lifted-pred apply site skips
+        // correlated preds on the assumption they were composed here;
+        // proceeding would silently drop the correlation (wrong rows).
+        for (String alias : demandedNavs) {
+            String head = navHeadByAlias.getOrDefault(alias, alias);
+            if (synthetics.correlatedPred(head) != null
+                    && !corrComposed.contains(alias)) {
+                throw new IllegalStateException("resolver bug: correlated"
+                        + " predicate on navigate step '" + alias + "' (head '"
+                        + SyntheticHeads.realHead(head) + "') was not composed"
+                        + " into the join condition — the augment walk missed"
+                        + " the step (spine node unhandled?); proceeding would"
+                        + " silently drop the correlation");
+            }
+        }
         Pipelines.Materialized m = Pipelines.materialize(
                 csPipe, demanded, demandedNavs, cs.classFqn(),
                 (alias, targetClass) -> navMats.containsKey(alias)

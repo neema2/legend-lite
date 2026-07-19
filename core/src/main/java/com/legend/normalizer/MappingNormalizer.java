@@ -1246,12 +1246,31 @@ public final class MappingNormalizer {
             Map<String, KeyExpression> fields = new LinkedHashMap<>();
             ClassDefinition tgt = model.findClass(pcm.className()).orElse(null);
             for (ClassMapping.Pure.PropertyBinding pb : pcm.propertyBindings()) {
+                // Audit 21a: the parsed mappingLine heads are honored or
+                // poisoned by DESIGN — never dropped. A local (+prop) is
+                // checked FIRST so a name collision with a real/inherited/
+                // association property can never silently retarget it (the
+                // engine keeps local mapping properties distinct).
+                if (pb.local()) {
+                    throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                            "M2M local mapping property '+" + pb.propertyName()
+                          + "' is a roadmap feature (the engine keeps it distinct"
+                          + " from class properties); mapping=" + md.qualifiedName());
+                }
+                if (pb.explode()) {
+                    throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                            "M2M explosion '" + pb.propertyName() + "*' is a"
+                          + " roadmap feature (index-aligned zip fan-out — one"
+                          + " target instance per source element); mapping="
+                          + md.qualifiedName());
+                }
                 if (tgt != null && findPropertyTypeDeep(tgt, pb.propertyName(), model) == null) {
-                    throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
+                    throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                             "M2M PropertyBinding '" + pb.propertyName()
                           + "' is not declared on class '" + tgt.qualifiedName()
                           + "'; mapping=" + md.qualifiedName());
                 }
+                requireBenignM2MRoute(pb, pcm, tgt, md, model);
                 fields.put(pb.propertyName(),
                         new KeyExpression(m2mPropertyValue(pb, tgt, md, model, cycleStack)));
             }
@@ -1261,6 +1280,82 @@ public final class MappingNormalizer {
         } finally {
             cycleStack.remove(pcm.className());
         }
+    }
+
+    /**
+     * Audit 21a HIGH: a Pure binding's {@code [targetSetId]} route selects a
+     * SPECIFIC set of the routed class; emitting an unrouted
+     * {@code NewInstanceCast} would root-route it — the audit-11 wrong-rows
+     * shape (relational side: Join.targetSetId, classified per-PM) mirrored
+     * on the M2M side. The route is benign only when root-routing is
+     * IDENTICAL to honoring it: the routed set is the routed class's sole
+     * set, or its root set. Anything else — including a set id that matches
+     * nothing, or a route on a binding whose type is not a mapped class —
+     * is a loud wall, never a silent drop. The {@code [src, tgt]} source id
+     * must name this very set; a mismatch is a model shape we don't route.
+     */
+    private static void requireBenignM2MRoute(ClassMapping.Pure.PropertyBinding pb,
+            ClassMapping.Pure pcm, ClassDefinition tgt,
+            LegacyMappingDefinition md, ModelBuilder model) {
+        if (pb.sourceSetId() == null && pb.targetSetId() == null) {
+            return;
+        }
+        if (pb.sourceSetId() != null && !setIdMatches(pcm, pb.sourceSetId())) {
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    "M2M binding '" + pb.propertyName() + "[" + pb.sourceSetId()
+                  + ", " + pb.targetSetId() + "]' names source set '"
+                  + pb.sourceSetId() + "' but is declared inside set '"
+                  + pcm.setId() + "'; mapping=" + md.qualifiedName());
+        }
+        String routedClass = null;
+        if (tgt != null
+                && findPropertyTypeDeep(tgt, pb.propertyName(), model)
+                        instanceof TypeExpression.NameRef nr
+                && model.findClass(nr.name()).isPresent()) {
+            routedClass = nr.name();
+        }
+        if (routedClass != null) {
+            List<LegacyMappingDefinition> closure = new ArrayList<>();
+            collectMappingClosure(md, model, closure, new HashSet<>());
+            List<ClassMapping> sets = new ArrayList<>();
+            for (LegacyMappingDefinition m : closure) {
+                for (ClassMapping cm : m.classMappings()) {
+                    if (cm.className().equals(routedClass)) {
+                        sets.add(cm);
+                    }
+                }
+            }
+            ClassMapping routed = sets.stream()
+                    .filter(cm -> setIdMatches(cm, pb.targetSetId()))
+                    .findFirst().orElse(null);
+            if (routed != null && (sets.size() == 1 || routed.root())) {
+                return; // root-routing == honoring the route
+            }
+        }
+        throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                "M2M set-routed binding '" + pb.propertyName() + "["
+              + pb.targetSetId() + "]' targets a non-root set"
+              + (routedClass == null ? "" : " of '" + routedClass + "'")
+              + "; per-set routing on the M2M side is a roadmap feature"
+              + " (root-routing would produce wrong rows); mapping="
+              + md.qualifiedName());
+    }
+
+    /**
+     * Whether {@code cm} answers to set id {@code id}. An unlabeled mapping's
+     * engine-default id is the class FQN with '_' for '::' (short name
+     * accepted too — includes-era corpora spell it either way).
+     */
+    private static boolean setIdMatches(ClassMapping cm, String id) {
+        if (id == null) {
+            return false;
+        }
+        if (cm.setId() != null) {
+            return cm.setId().equals(id);
+        }
+        String fqn = cm.className();
+        return id.equals(fqn.replace("::", "_"))
+                || id.equals(fqn.substring(fqn.lastIndexOf(':') + 1));
     }
 
     private static ValueSpecification m2mPropertyValue(

@@ -2528,6 +2528,61 @@ final class ElementParserTest {
     }
 
     @Test
+    void pureMappingLineHeadsAreRecorded() {
+        // AUDIT 21a: the engine records all three mappingLine heads on
+        // PurePropertyMapping (M3CoreParser.g4:81-85 — set route, explosion,
+        // local). We must RECORD them too — the [targetSetId] route in
+        // particular is the audit-11 wrong-rows shape on the Pure side;
+        // dropping it at parse destroys the only copy of the information.
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
+                "Mapping my::M ( "
+                + "  *model::T: Pure { "
+                + "    ~src model::S "
+                + "    a*: $src.x, "
+                + "    b[setA, setB]: $src.x, "
+                + "    c[setB]: $src.x, "
+                + "    d[setB]*: $src.x, "
+                + "    +loc: String[1]: $src.x "
+                + "  } "
+                + ")").elements().get(0);
+        var pcm = (ClassMapping.Pure) md.classMappings().get(0);
+        var byName = new java.util.HashMap<String, ClassMapping.Pure.PropertyBinding>();
+        pcm.propertyBindings().forEach(pb -> byName.put(pb.propertyName(), pb));
+        assertEquals(5, byName.size());
+        assertTrue(byName.get("a").explode(), "name* records the explosion marker");
+        assertEquals("setA", byName.get("b").sourceSetId());
+        assertEquals("setB", byName.get("b").targetSetId());
+        assertNull(byName.get("c").sourceSetId(), "single id is the TARGET id (engine walker parity)");
+        assertEquals("setB", byName.get("c").targetSetId());
+        assertTrue(byName.get("d").explode(), "engine grammar also places STAR after the [set] group");
+        assertTrue(byName.get("loc").local(), "+prop records the local head");
+        assertFalse(byName.get("a").local());
+        assertNull(byName.get("a").targetSetId());
+    }
+
+    @Test
+    void xstoreMissingCommaDropsRemainingEntries() {
+        // ENGINE PARITY (audit 21a §4b): the engine's XStore mapping rule
+        // (`mappingLine (COMMA mappingLine)*`, no EOF anchor) completes at a
+        // missing comma and silently DISCARDS the remaining entries — the
+        // corpus's crossStoreUnionTestMapping golden corroborates (TDSNull
+        // rows for the dropped pair's branch). The compiled model must
+        // match: keep the entries before the gap, drop the rest.
+        LegacyMappingDefinition md = (LegacyMappingDefinition) ElementParser.parse(
+                "Mapping my::M ( my::A: XStore { "
+                + "  employees[firm1, person1]: $this.a == $that.b, "
+                + "  firm[person1, firm1]: $this.a == $that.b "     // <-- no comma
+                + "  employees[firm2, person2]: $this.a == $that.b, "
+                + "  firm[person2, firm2]: $this.a == $that.b "
+                + "} )").elements().get(0);
+        var cross = (AssociationMapping.Cross) md.associationMappings().get(0);
+        assertEquals(2, cross.propertyMappings2().size(),
+                "entries after the missing comma are discarded, engine-identically");
+        assertEquals("firm1", cross.propertyMappings2().get(0).sourceSetId());
+        assertEquals("firm1", cross.propertyMappings2().get(1).targetSetId());
+    }
+
+    @Test
     void associationMappingPropertyJoinRequiresDb() {
         // Plain @J without [db::DB] and no main table → must error.
         ParseException e = assertThrows(ParseException.class, () ->

@@ -26,7 +26,7 @@ in-process Alloy-shaped path).
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
 | functions/tests | 258 | 134 | 6 | 98 | 20 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
-| functions/tests/projection | 155 | 76 | 7 | 59 | 13 |
+| functions/tests/projection | 155 | 79 | 7 | 56 | 13 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
 | graphFetch/tests | 143 | 17 | 10 | 114 | 2 |
 | graphFetch/tests/union | 15 | 2 | 0 | 13 | 0 |
@@ -85,7 +85,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 2 | 18 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1033** | 50 | 848 | 607 |
+| **total** | 2538 | **1036** | 50 | 845 | 607 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4792,9 +4792,6 @@ in-process Alloy-shaped path).
 - ERROR testQualifierBeforeProject [functions/tests/projection]: embedded class hop 'product' in CHAIN position without a scalar consumer is not supported yet
 - ERROR testNestedIfWithIsEmpty [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=_path, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1
 - ERROR testNestedIfWithIsEmptyCanReturnNull [functions/tests/projection]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=_path, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1
-- ERROR testQualifierWithFilterWithDataTypeResult [functions/tests/projection]: Binder Error: Table "t1" does not have a column named "date" |  | Candidate bindings: : "eventDate" |  | LINE 3: ...EventTable AS t1 ON t0.ID = t1.trade_id AND t1.eventDate = t1.date |                                                                       ^
-- ERROR testQualifierFunctionConsistencyWithDataTypeProperty [functions/tests/projection]: Binder Error: Table "t1" does not have a column named "date" |  | Candidate bindings: : "eventDate" |  | LINE 3: ...EventTable AS t1 ON t0.ID = t1.trade_id AND t1.eventDate = t1.date |                                                                       ^
-- ERROR testQualifierFunctionConsistencyWithComplexTypeProperty [functions/tests/projection]: Binder Error: Values list "t3" does not have a column named "date" |  | LINE 7: ) AS t3 ON t0.ID = t3.trade_id AND t3.eventDate = t3.date |                                                           ^
 - FAIL testQualifierWithVariableArg [functions/tests/projection]: assertEquals: expected [Firm X~ , Firm A~ , Firm B~ , Firm C~ ], got [Firm X~TDSNull, Firm A~TDSNull, Firm B~TDSNull, Firm C~TDSNull]
 - FAIL testQualifierWithVariableArgReferencedFirstInFilterEqualCriteria [functions/tests/projection]: assertEquals: expected [Firm X~ , Firm A~ , Firm B~ , Firm C~ ], got [Firm X~TDSNull, Firm A~TDSNull, Firm B~TDSNull, Firm C~TDSNull]
 - ERROR testQualifierWithVariableArgWithComplexTypeProperty [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
@@ -5054,7 +5051,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -5608,7 +5605,7 @@ in-process Alloy-shaped path).
 - ERROR testPropertyMappingsForA [tests/mapping/extends]: association property '$a.e' used other than as a navigation head (class-typed value / isEmpty / whole-instance) is not supported yet
 - ERROR testPropertyMappingsForB [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
 - ERROR testPropertyMappingsForC [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR testStoreSubstitutionForB [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::BMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::B': [meta::relational::tests::mapp
 - ERROR testStoreSubstitutionForC [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::CMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::C': [meta::relational::tests::mapp

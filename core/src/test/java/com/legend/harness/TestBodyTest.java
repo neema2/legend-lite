@@ -379,4 +379,37 @@ class TestBodyTest {
         assertInstanceOf(TestBody.Outcome.Ran.class, o);
         assertTrue(((TestBody.Outcome.Ran) o).failures().isEmpty());
     }
+
+    @Test
+    void flatCellsCompareIgnoresColumnNames() throws Exception {
+        // audit 21 follow-up (testQualifierFunctionConsistency*): the
+        // `$r.values.rows.values` spelling is engine TDSRow.values —
+        // Any[*] raw cells, column names OUT of the comparison. Two
+        // projections of the same data under DIFFERENT column aliases
+        // compare equal through the flat-cells read...
+        TestBody.Outcome o = run("""
+                let r1 = execute(|test::Person.all()->project([p | $p.name], ['colA']), test::M, test::r(), test::e());
+                let r2 = execute(|test::Person.all()->project([p | $p.name], ['colB']), test::M, test::r(), test::e());
+                assertEquals($r1.values.rows.values, $r2.values.rows.values);
+                """);
+        assertInstanceOf(TestBody.Outcome.Ran.class, o);
+        assertTrue(((TestBody.Outcome.Ran) o).failures().isEmpty(),
+                () -> "flat-cells compare must ignore column names: "
+                        + ((TestBody.Outcome.Ran) o).failures());
+    }
+
+    @Test
+    void gridCompareStillPinsColumnNames() throws Exception {
+        // ...but the WHOLE-TDS compare stays structural: same data,
+        // different column names => NOT equal (the grid arm's column-name
+        // pin is engine behavior for TDS equality and must not relax).
+        TestBody.Outcome o = run("""
+                let r1 = execute(|test::Person.all()->project([p | $p.name], ['colA']), test::M, test::r(), test::e());
+                let r2 = execute(|test::Person.all()->project([p | $p.name], ['colB']), test::M, test::r(), test::e());
+                assertEquals($r1.values, $r2.values);
+                """);
+        assertInstanceOf(TestBody.Outcome.Ran.class, o);
+        assertEquals(1, ((TestBody.Outcome.Ran) o).failures().size(),
+                "whole-TDS compare must still pin column names");
+    }
 }

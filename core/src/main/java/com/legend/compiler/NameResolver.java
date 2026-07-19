@@ -790,8 +790,7 @@ public final class NameResolver {
     private static ClassMapping.Pure.PropertyBinding resolvePropertyBinding(
             ClassMapping.Pure.PropertyBinding b, Scope scope) {
         ValueSpecification expr = resolveVs(b.expression(), scope);
-        return expr == b.expression() ? b
-                : new ClassMapping.Pure.PropertyBinding(b.propertyName(), expr);
+        return expr == b.expression() ? b : b.withExpression(expr);
     }
 
     private static List<ClassMapping.Pure.PropertyBinding> resolvePropertyBindings(

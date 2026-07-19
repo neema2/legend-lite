@@ -4768,4 +4768,94 @@ class MappingNormalizerTest {
         assertTrue(exMsg.contains("Ambiguous") && exMsg.contains("T_FIRM"),
                 () -> "Expected an ambiguous-table diagnostic naming T_FIRM; got: " + exMsg);
     }
+
+    // ====================================================================
+    // Audit 21a — recorded M2M mappingLine heads are honored or poisoned
+    // by DESIGN (never dropped, never loud-by-accident)
+    // ====================================================================
+
+    @Test
+    @DisplayName("m2mLocalProperty_poisonsAccurately_evenOnNameCollision")
+    void m2mLocalProperty_poisonsAccurately_evenOnNameCollision() {
+        // '+name' collides with a REAL declared property. Before audit 21a
+        // the local head was dropped at parse and the binding silently
+        // RETARGETED the class property (the engine keeps locals distinct).
+        // Now: designed poison, checked BEFORE declaration lookup.
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::T { name: String[1]; } "
+                        + "Class model::S { x: String[1]; } "
+                        + "Mapping my::M ( "
+                        + "  *model::T: Pure { ~src model::S "
+                        + "    +name: String[1]: $src.x "
+                        + "  } "
+                        + ")");
+        String reason = poisonReasons(parsed);
+        assertTrue(reason.contains("local mapping property"),
+                () -> "Expected the designed local-property wall; got: " + reason);
+    }
+
+    @Test
+    @DisplayName("m2mExplosion_poisonsAccurately_evenWhenMultiplicityWouldPass")
+    void m2mExplosion_poisonsAccurately_evenWhenMultiplicityWouldPass() {
+        // 'name*' over a [1]-shaped expression: before audit 21a the marker
+        // was dropped and this compiled SILENTLY (the corpus site was loud
+        // only via a [*]-into-[1] multiplicity accident). Now: designed
+        // poison naming the real feature gap.
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::T { name: String[1]; } "
+                        + "Class model::S { x: String[1]; } "
+                        + "Mapping my::M ( "
+                        + "  *model::T: Pure { ~src model::S "
+                        + "    name*: $src.x "
+                        + "  } "
+                        + ")");
+        String reason = poisonReasons(parsed);
+        assertTrue(reason.contains("explosion"),
+                () -> "Expected the designed explosion wall; got: " + reason);
+    }
+
+    @Test
+    @DisplayName("m2mSetRoute_nonRootSet_poisons (audit-11 shape, Pure side)")
+    void m2mSetRoute_nonRootSet_poisons() {
+        // 'u[u2]' routes the class-typed property to a NON-root set of U.
+        // Emitting an unrouted NewInstanceCast would root-route it — wrong
+        // rows with zero signal (the audit-11 shape). Designed poison.
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::T { u: model::U[1]; } "
+                        + "Class model::U { c: String[1]; } "
+                        + "Class model::S { x: String[1]; } "
+                        + "Mapping my::M ( "
+                        + "  *model::T: Pure { ~src model::S "
+                        + "    u[u2]: $src.x "
+                        + "  } "
+                        + "  *model::U[u1]: Pure { ~src model::S c: $src.x } "
+                        + "   model::U[u2]: Pure { ~src model::S c: $src.x } "
+                        + ")");
+        String reason = poisonReasons(parsed);
+        assertTrue(reason.contains("set-routed") && reason.contains("u2"),
+                () -> "Expected the designed non-root-route wall; got: " + reason);
+    }
+
+    @Test
+    @DisplayName("m2mSetRoute_soleOrRootSet_isBenign (root-routing == honoring)")
+    void m2mSetRoute_soleOrRootSet_isBenign() {
+        // 'u[u1]' where u1 is U's ONLY set: root-routing is identical to
+        // honoring the route — no poison, the synth proceeds (the corpus's
+        // trader[trader_set] shape).
+        ParsedModel parsed = ElementParser.parse(
+                "Class model::T { u: model::U[1]; } "
+                        + "Class model::U { c: String[1]; } "
+                        + "Class model::S { x: String[1]; } "
+                        + "Mapping my::M ( "
+                        + "  *model::T: Pure { ~src model::S "
+                        + "    u[u1]: $src.x "
+                        + "  } "
+                        + "  *model::U[u1]: Pure { ~src model::S c: $src.x } "
+                        + ")");
+        ModelBuilder mb = ModelBuilder.from(new com.legend.model.ParsedModel(
+                parsed.elements(), parsed.imports()));
+        MappingNormalizer.normalize(parsed, mb);
+        assertTrue(mb.mappingPoisons.isEmpty(),
+                () -> "Sole-set route must be benign; poisons: " + mb.mappingPoisons);
+    }
 }

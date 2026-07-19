@@ -55,11 +55,30 @@ git commit (document deltas per-commit) && push origin main
 - Guardrails: files ≤3500 lines, methods ≤250 — split at the numbered-comment
   seams (GroupBySynthesis/NullSemantics/JoinChainEmission are the pattern).
 
-## Current state (as of commit 5b6c0ca5)
+## Current state (as of the audit-21 fix slice)
 
-- Corpus **1031 pass / 45 fail** (peak). Core 1489, engine 2729, PCT 1109.
-- Audits 1–20 done; audit-20 findings in `docs/audit-20{a,b,c}-*.md`;
-  both HIGHs fixed (rows-marker erasure, comparison-site null guards).
+- Corpus **1036 pass / 50 fail of 2538** (parse completion 28245c49:
+  541/541 corpus files parse — every remaining non-pass is semantic).
+  Core 1497, engine 2729, PCT 1109. The audit-21 fix slice moved 3
+  qualifier-family ERRORs to PASS (F2 capture fix) with a byte-identical
+  FAIL ledger, plus the flat-cells comparator rule (rows.values compares
+  raw cells, column names out — engine TDSRow semantics).
+- Audits 1–21 done; audit-21 findings in `docs/audit-21{a,b}-*.md`.
+  21a (parse leniencies): the M2M mappingLine heads ([targetSetId],
+  prop* explosion, +local) are now RECORDED on Pure.PropertyBinding and
+  honored-or-poisoned by design in synthM2M (non-root set route = the
+  audit-11 wrong-rows shape on the Pure side); the XStore missing-comma
+  path engine-matches by DISCARDING entries after the gap.
+  21b (resolver): F1 nav-below-joinslot correlation drop fixed (augment
+  walks the joinslot spine + composed-or-loud backstop in
+  materializeRoot); F2 the bookmarked nav-route bug was PASS-2 VARIABLE
+  CAPTURE, not a pass-1 scope mismatch — andCorrelatedIntoCondition now
+  alpha-freshens both condition binders and takes the free set from the
+  ORIGINAL pred pre-pass-1 (unblocks the qualifier family); F3
+  flattenNavSlot re-stamps the flattened join INNER (childless parent
+  phantom row killed); F4 predClosedOverParam is shadow-aware; F6 named
+  decorrelation wall in substituteParam. F5 (flatten binding re-point
+  phantom columns / eager otherwise walls) deferred to the MED batch.
 - The harness (`com.legend.harness.TestBody` + engine's `rcorpus/Runner`)
   contains ZERO evaluation compensation (audit-verified). Residual policy:
   comparator rules, order policy (`orderView` — watched duplication),
@@ -90,6 +109,10 @@ git commit (document deltas per-commit) && push origin main
   isSqlLiteral, Executor scalar-arm second-row loud check, un-aliased
   `$r.values->size()` envelope arm, StatementExecutor 3-role split,
   TestBody peel dedup, auto-map Doors split.
+- Audit-21 deferred: F5 (flatten slot-backed binding re-point wants a
+  demand pass or a NAMED flatten-time wall; otherwise-binding walls are
+  eager + misattributed), 21a LOW hardening (duplicate
+  association-mapping-header guard, positional stray-`)` gate).
 
 ## Hard-won lessons (do not relearn these)
 

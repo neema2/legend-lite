@@ -198,13 +198,40 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
          * RHS expression is parsed eagerly into a
          * {@link ValueSpecification} at parse time.
          *
+         * <p>The three optional heads mirror the engine's
+         * {@code PurePropertyMapping} (M3CoreParser.g4 {@code mappingLine}:
+         * {@code sourceMappingId/targetMappingId}, {@code explodeProperty},
+         * {@code localMappingProperty}). They are RECORDED, never dropped —
+         * audit 21a: a {@code [targetSetId]} route selects a specific SET of
+         * the routed class, and dropping it is the audit-11 wrong-rows shape
+         * mirrored on the Pure side (poison-or-record, never silent).
+         *
          * @param propertyName  target property name
          * @param expression    parsed RHS Pure expression
+         * @param sourceSetId   {@code prop[src, tgt]:} source route; null if absent
+         * @param targetSetId   {@code prop[tgt]:} / {@code prop[src, tgt]:}
+         *                      target-set route; null if absent
+         * @param explode       {@code prop*:} explosion marker (index-aligned
+         *                      zip fan-out — a row-count semantic)
+         * @param local         {@code +prop: Type[m]:} mapping-local property
+         *                      (engine keeps it DISTINCT from class properties)
          */
-        public record PropertyBinding(String propertyName, ValueSpecification expression) {
+        public record PropertyBinding(String propertyName, ValueSpecification expression,
+                String sourceSetId, String targetSetId, boolean explode, boolean local) {
             public PropertyBinding {
                 Objects.requireNonNull(propertyName, "Property name cannot be null");
                 Objects.requireNonNull(expression, "Property binding expression cannot be null");
+            }
+
+            /** Plain binding: no set route, no explosion, not local. */
+            public PropertyBinding(String propertyName, ValueSpecification expression) {
+                this(propertyName, expression, null, null, false, false);
+            }
+
+            /** Same heads, different RHS (name-resolution rebuild). */
+            public PropertyBinding withExpression(ValueSpecification e) {
+                return new PropertyBinding(propertyName, e,
+                        sourceSetId, targetSetId, explode, local);
             }
         }
     }

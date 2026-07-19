@@ -369,9 +369,17 @@ final class MappingGrammarParser {
         // XStore ASSOCIATION mapping: each end binds via a pure boolean
         // expression over $this/$that (Relation-function mapping keys).
         if (p.isIdentifierToken(p.peek()) && "XStore".equals(p.text())) {
-            p.advance();
-            p.expect(TokenType.BRACE_OPEN);
-            List<AssociationMapping.Cross.XStoreProperty> xprops = new ArrayList<>();
+            parseXStoreAssociationMapping(accum, elementPath);
+            return;
+        }
+        parseMappingElementRest(accum, elementPath, setId, extendsSetId, root);
+    }
+
+    /** {@code my::A: XStore { prop[src, tgt]: <boolean expr>, ... }}. */
+    private void parseXStoreAssociationMapping(MappingAccum accum, String elementPath) {
+        p.advance();
+        p.expect(TokenType.BRACE_OPEN);
+        List<AssociationMapping.Cross.XStoreProperty> xprops = new ArrayList<>();
             while (p.peek() != TokenType.BRACE_CLOSE && !p.atEnd()) {
                 String prop = p.parseIdentifier();
                 String srcSet = null;
@@ -402,10 +410,11 @@ final class MappingGrammarParser {
                         break;
                     } else if (depth == 0 && p.isIdentifierToken(t)
                             && p.peek(1) == TokenType.BRACKET_OPEN
+                            && p.isIdentifierToken(p.peek(2))
                             && p.pos > exprStart) {
                         // the NEXT xprop's `name[src, tgt]:` head — the
                         // corpus's testMappingCrossStore misses a comma
-                        // between entries (engine's scanner stops here too)
+                        // between entries
                         break;
                     }
                     p.advance();
@@ -418,13 +427,44 @@ final class MappingGrammarParser {
                 }
                 xprops.add(new AssociationMapping.Cross.XStoreProperty(
                         prop, srcSet, tgtSet, exprs.get(0)));
-                p.match(TokenType.COMMA);
+                if (!p.match(TokenType.COMMA)
+                        && p.peek() != TokenType.BRACE_CLOSE && !p.atEnd()) {
+                    // ENGINE PARITY (audit 21a §4b): the engine's XStore rule
+                    // (`mappingLine (COMMA mappingLine)*`, no EOF anchor)
+                    // COMPLETES at a missing comma and silently discards the
+                    // remaining entries; the compiled mapping keeps only the
+                    // entries before the gap (the corpus golden for
+                    // crossStoreUnionTestMapping corroborates). Match the
+                    // compiled model: drop the rest of the block.
+                    int skipDepth = 0;
+                    while (!p.atEnd()) {
+                        TokenType t = p.peek();
+                        if (t == TokenType.PAREN_OPEN || t == TokenType.BRACKET_OPEN
+                                || t == TokenType.BRACE_OPEN) {
+                            skipDepth++;
+                        } else if (t == TokenType.PAREN_CLOSE
+                                || t == TokenType.BRACKET_CLOSE) {
+                            skipDepth--;
+                        } else if (t == TokenType.BRACE_CLOSE) {
+                            if (skipDepth == 0) {
+                                break;
+                            }
+                            skipDepth--;
+                        }
+                        p.advance();
+                    }
+                    break;
+                }
             }
             p.expect(TokenType.BRACE_CLOSE);
             accum.associationMappings.add(new AssociationMapping.Cross(
                     elementPath, xprops));
-            return;
-        }
+    }
+
+    /** The non-XStore tail of a mapping element (guardrail split; the
+     * branch order is unchanged). */
+    private void parseMappingElementRest(MappingAccum accum, String elementPath,
+            String setId, String extendsSetId, boolean root) {
         // ModelJoin ASSOCIATION mapping: one typed lambda over the two ends
         if (p.isIdentifierToken(p.peek()) && "ModelJoin".equals(p.text())) {
             p.advance();
@@ -1331,33 +1371,41 @@ final class MappingGrammarParser {
 
         List<ClassMapping.Pure.PropertyBinding> bindings = new ArrayList<>();
         while (p.peek() != TokenType.BRACE_CLOSE && !p.atEnd()) {
-            // +localProp : Type[m] : expr — the M2M LOCAL property spelling
-            // (engine: a mapping-local property extending the target). The
-            // declared type/multiplicity annotations are consumed; the
-            // binding records name+expression like any other (an unknown
-            // property stays loud downstream — parse-level unlock only).
+            // The three optional heads of an engine mappingLine
+            // (M3CoreParser.g4:81-85) — RECORDED on the binding, never
+            // dropped (audit 21a: the [targetSetId] route is the audit-11
+            // wrong-rows shape mirrored on the Pure side; the normalizer
+            // poisons routes/markers it cannot honor, loudly).
+            // +localProp : Type[m] : expr — mapping-LOCAL property (engine
+            // keeps it distinct from class properties).
             boolean local = p.match(TokenType.PLUS);
             String propName = p.parseIdentifier();
-            // prop* : expr — the M2M EXPLOSION marker (collection-valued
-            // source paths fan out per element); consumed, the expression
-            // carries the collection shape either way
-            p.match(TokenType.STAR);
+            // prop* : expr — the M2M EXPLOSION marker (index-aligned zip
+            // fan-out over collection-valued sources; a row-count semantic).
+            // Engine grammar places STAR after the [set] group / local
+            // annotations; the corpus also spells it right after the name.
+            boolean explode = p.match(TokenType.STAR);
             if (local) {
                 p.expect(TokenType.COLON);
                 p.parseType();
                 p.parseMultiplicity();
             }
             // prop[targetSetId] : expr / prop[src, tgt] : expr — the M2M
-            // target-set route. Consumed; set routing on the M2M side is
-            // resolved downstream (loud when it matters).
+            // target-set route (single id = target, engine walker parity).
+            String sourceSetId = null;
+            String targetSetId = null;
             if (p.peek() == TokenType.BRACKET_OPEN) {
                 p.advance();
-                p.parseIdentifier();
+                String first = p.parseIdentifier();
                 if (p.match(TokenType.COMMA)) {
-                    p.parseIdentifier();
+                    sourceSetId = first;
+                    targetSetId = p.parseIdentifier();
+                } else {
+                    targetSetId = first;
                 }
                 p.expect(TokenType.BRACKET_CLOSE);
             }
+            explode = p.match(TokenType.STAR) || explode;
             p.expect(TokenType.COLON);
             int start = p.pos;
             scanPureExpression(/*stopOnPropertyBindingStart=*/ false);
@@ -1366,7 +1414,8 @@ final class MappingGrammarParser {
                         + "' has an empty body");
             }
             ValueSpecification expression = SpecParser.parse(p.tokens.slice(start, p.pos));
-            bindings.add(new ClassMapping.Pure.PropertyBinding(propName, expression));
+            bindings.add(new ClassMapping.Pure.PropertyBinding(propName, expression,
+                    sourceSetId, targetSetId, explode, local));
             // Properties are comma-separated; trailing comma tolerated.
             p.match(TokenType.COMMA);
         }

@@ -509,34 +509,27 @@ final class SyntheticHeads {
     }
 
     /** The predicate reads no variables beyond its own parameter and the
-     * parameters of lambdas nested WITHIN it (conservative: any other
-     * variable name refuses the lift — over-refusing stays loud). */
+     * parameters of lambdas that lexically ENCLOSE the read — SHADOW-AWARE
+     * (audit 21b F4): a nested lambda's param binds only within that
+     * lambda's subtree. An outer variable that merely shares a param's
+     * name stays FREE, so a correlated pred can never look closed by name
+     * collision and get applied inside the target pipeline where the
+     * outer row does not exist. (Conservative the other way stays fine:
+     * over-refusing the lift is loud.) */
     private static boolean predClosedOverParam(TypedLambda pred) {
         Set<String> bound = new LinkedHashSet<>(pred.parameters());
-        collectLambdaParamNames(pred.body(), bound);
         return pred.body().stream().allMatch(b -> readsOnly(b, bound));
-    }
-
-    private static void collectLambdaParamNames(List<TypedSpec> body,
-            Set<String> out) {
-        for (TypedSpec b : body) {
-            collectLambdaParamNames(b, out);
-        }
-    }
-
-    private static void collectLambdaParamNames(TypedSpec n, Set<String> out) {
-        if (n instanceof TypedLambda l) {
-            out.addAll(l.parameters());
-        }
-        for (TypedSpec c : n.children()) {
-            collectLambdaParamNames(c, out);
-        }
     }
 
     private static boolean readsOnly(TypedSpec n, Set<String> allowed) {
         if (n instanceof TypedVariable v
                 && !allowed.contains(v.name())) {
             return false;
+        }
+        if (n instanceof TypedLambda l) {
+            Set<String> inner = new LinkedHashSet<>(allowed);
+            inner.addAll(l.parameters());
+            return l.body().stream().allMatch(b -> readsOnly(b, inner));
         }
         for (TypedSpec c : n.children()) {
             if (!readsOnly(c, allowed)) {

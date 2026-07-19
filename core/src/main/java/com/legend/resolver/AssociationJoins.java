@@ -360,8 +360,29 @@ final class AssociationJoins {
     TypedLambda andCorrelatedIntoCondition(TypedLambda cond,
             TypedLambda pred, ClassSource parent, ClassSource target,
             Map<String, String> targetSlotPrefixes) {
+        // F2 (audit 21b): the condition's binders are emission-literal
+        // names ({s,t} on the navigate route, {srcRow,tgtRow} on the
+        // association route). A user variable sharing a name would be
+        // CAPTURED — deleted from the free set and lowered as a
+        // condition-row column read ("Table t1 has no column named
+        // date"). Alpha-freshen both binders collision-driven (audit
+        // 18's tRenamed discipline), and take the free set from the
+        // ORIGINAL pred: after pass 1, introduced target-param reads
+        // and same-named user vars are indistinguishable.
+        Set<String> taken = new LinkedHashSet<>(pred.parameters());
+        for (TypedSpec b : pred.body()) {
+            collectVarNames(b, taken);
+        }
+        for (TypedSpec b : cond.body()) {
+            collectVarNames(b, taken);
+        }
+        cond = freshenBinders(cond, taken);
         String srcParam = cond.parameters().get(0);
         String tgtParam = cond.parameters().get(1);
+        Set<String> free = new LinkedHashSet<>();
+        for (TypedSpec b : pred.body()) {
+            collectFreeVars(b, new LinkedHashSet<>(pred.parameters()), free);
+        }
         Set<String> unconvertedTgt = new LinkedHashSet<>(
                 Pipelines.slotAliases(target.pipeline()));
         unconvertedTgt.removeAll(targetSlotPrefixes.keySet());
@@ -382,12 +403,9 @@ final class AssociationJoins {
                 Substitution.Registries.NONE, Substitution.TemporalView.NONE,
                 true, true));
         TypedLambda pass1 = tgtSub.rewriteLambda(pred);
-        // pass 2: each residual free variable -> parent bindings over srcParam
+        // pass 2: each residual free variable (collected pre-pass-1,
+        // shadow-aware) -> parent bindings over srcParam
         TypedSpec body = pass1.body().get(pass1.body().size() - 1);
-        Set<String> free = new LinkedHashSet<>();
-        collectVarNames(body, free);
-        free.remove(tgtParam);
-        free.remove(srcParam);
         for (String outer : free) {
             Substitution srcSub = new Substitution(new Substitution.Target(
                     new Substitution.RowScope(outer, srcParam,
@@ -421,6 +439,63 @@ final class AssociationJoins {
             out.add(v.name());
         }
         n.children().forEach(c -> collectVarNames(c, out));
+    }
+
+    /** Shadow-AWARE free-variable reads: a name is bound only within its
+     * binder's subtree — never by global name collision (the F2/F4
+     * capture family). Enters lambdas through their bodies with the
+     * params added to {@code bound}. */
+    private static void collectFreeVars(TypedSpec n, Set<String> bound,
+            Set<String> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedVariable v) {
+            if (!bound.contains(v.name())) {
+                out.add(v.name());
+            }
+            return;
+        }
+        if (n instanceof TypedLambda l) {
+            Set<String> b2 = new LinkedHashSet<>(bound);
+            b2.addAll(l.parameters());
+            for (TypedSpec b : l.body()) {
+                collectFreeVars(b, b2, out);
+            }
+            return;
+        }
+        for (TypedSpec c : n.children()) {
+            collectFreeVars(c, bound, out);
+        }
+    }
+
+    /** Alpha-rename any binder of {@code cond} colliding with a name in
+     * {@code taken}, rewriting its reads through the ONE shadow-aware
+     * row-read rewriter. The composed condition then cannot capture a
+     * user variable by construction. */
+    private static TypedLambda freshenBinders(TypedLambda cond,
+            Set<String> taken) {
+        List<String> params = new ArrayList<>(cond.parameters());
+        List<TypedSpec> body = new ArrayList<>(cond.body());
+        boolean changed = false;
+        for (int i = 0; i < params.size(); i++) {
+            String p0 = params.get(i);
+            if (!taken.contains(p0)) {
+                continue;
+            }
+            String p1 = p0;
+            int k = 2;
+            while (taken.contains(p1) || params.contains(p1)) {
+                p1 = p0 + "_c" + k++;
+            }
+            final String to = p1;
+            for (int j = 0; j < body.size(); j++) {
+                body.set(j, Pipelines.rewriteRowReads(body.get(j), p0,
+                        Map.of(), Set.of(), v -> new com.legend.compiler.spec
+                                .typed.TypedVariable(to, v.info())));
+            }
+            params.set(i, p1);
+            taken.add(p1);
+            changed = true;
+        }
+        return changed ? new TypedLambda(params, body, cond.info()) : cond;
     }
 
     private static Type.RelationType rowOr(Type t,
