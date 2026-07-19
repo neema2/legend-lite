@@ -840,6 +840,70 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         }
     }
 
+    /**
+     * subType(@C).prop over a TO-MANY navigation where C has PARTIAL
+     * membership (the nav target carries C's witness pseudo-binding): the
+     * engine ROUTES the navigation to conforming member sets only — the
+     * cast canonicalizes to the filtered-nav shape (filter by witness
+     * isNotEmpty, leaf = stc column) so the park machinery mints a
+     * per-cast join identity. Total-membership casts return {@code n}
+     * unchanged (row-neutral — the plain stc-leaf path serves them).
+     * Node-local: runs as the liftFilteredHeads canonicalizer hook.
+     */
+    TypedSpec subTypeNavCastCanon(TypedSpec n,
+            Function<String, String> mappingOf, TypedFunction isNotEmpty) {
+        if (!(n instanceof TypedPropertyAccess pa)
+                || !(pa.source() instanceof TypedNativeCall sc)
+                || !sc.callee().qualifiedName()
+                        .equals("meta::pure::functions::lang::subType")
+                || sc.args().isEmpty()
+                || !(sc.info().type() instanceof Type.ClassType sct)
+                || !sc.info().multiplicity().isMany()
+                || !(sc.args().get(0).info().type()
+                        instanceof Type.ClassType navCt)) {
+            return n;
+        }
+        String wKey = com.legend.model.ClassMapping.subTypeColumn(sct.fqn(),
+                com.legend.model.ClassMapping.memberWitness());
+        ClassSource target;
+        try {
+            String m = mappingOf.apply(navCt.fqn());
+            target = m != null && sources.binds(m, navCt.fqn())
+                    ? sources.get(m, navCt.fqn()) : null;
+        } catch (RuntimeException e) {
+            target = null;
+        }
+        if (target == null || !target.bindings().containsKey(wKey)) {
+            return n;
+        }
+        TypedSpec nav = sc.args().get(0);
+        var bool1 = new ExprType(Type.Primitive.BOOLEAN,
+                com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
+        TypedSpec wRead = new TypedPropertyAccess(
+                new TypedVariable("v_stw", new ExprType(navCt,
+                        com.legend.compiler.element.type
+                                .Multiplicity.Bounded.ONE)),
+                wKey, new ExprType(Type.Primitive.BOOLEAN,
+                        com.legend.compiler.element.type
+                                .Multiplicity.Bounded.ZERO_ONE));
+        TypedLambda pred = new TypedLambda(List.of("v_stw"),
+                List.of(new TypedNativeCall(isNotEmpty, List.of(wRead), bool1)),
+                new ExprType(new Type.FunctionType(
+                        List.of(new Type.Param(navCt,
+                                com.legend.compiler.element.type
+                                        .Multiplicity.Bounded.ONE)),
+                        new Type.Param(Type.Primitive.BOOLEAN,
+                                com.legend.compiler.element.type
+                                        .Multiplicity.Bounded.ONE)),
+                        com.legend.compiler.element.type
+                                .Multiplicity.Bounded.ONE));
+        return new TypedPropertyAccess(
+                new TypedFilter(nav, pred, nav.info()),
+                com.legend.model.ClassMapping.subTypeColumn(sct.fqn(),
+                        pa.property()),
+                pa.info());
+    }
+
     /** Slot aliases a binding expression reads ($row.alias...). */
     static void collectAliasReads(TypedSpec n, String rowVar,
             Set<String> slotAliases, Set<String> out) {

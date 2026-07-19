@@ -259,7 +259,21 @@ final class SyntheticHeads {
         return liftFilteredHeads(n, true);
     }
 
+    /** Node-local canonicalizer applied before the lift arms (identity by
+     * default) — the resolver wires the subType-cast rewrite here so a
+     * witness-bearing cast becomes the filtered-nav shape THIS pass
+     * already lifts (per-cast join identity via parkFiltered). */
+    private java.util.function.UnaryOperator<TypedSpec> canon =
+            java.util.function.UnaryOperator.identity();
+
+    void setCanonicalizer(java.util.function.UnaryOperator<TypedSpec> c) {
+        canon = c;
+    }
+
     private TypedSpec liftFilteredHeads(TypedSpec n, boolean enabled) {
+        if (enabled) {
+            n = canon.apply(n);
+        }
         // ->map(e|$e.leaf) over a (filtered) class navigation IS the
         // property-path spelling — normalize and take the lift arm (the
         // qualifier-inlined aggregate shape:

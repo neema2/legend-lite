@@ -2239,6 +2239,9 @@ public final class StoreResolver {
         // PRE-REWRITE (before the demand scan, ledger design): filtered
         // navigations consumed as bare collections lift into SYNTHETIC
         // 2-hop heads whose join target carries the predicate.
+        final Context canonCtx = context;
+        synthetics.setCanonicalizer(nn -> corrSubs.subTypeNavCastCanon(nn,
+                fqn -> dispatch(canonCtx, fqn), isNotEmptyCallee()));
         top = synthetics.liftFilteredHeads(top);
         // The relation-shaping TERMINAL: project or class-source groupBy
         // (lambdas through the one funnel), or the GRAPH terminals —

@@ -961,9 +961,12 @@ final class Substitution {
         // A subtype-dispatch leaf whose class carries a MEMBERSHIP WITNESS
         // (partial membership) needs row RESTRICTION at this to-many
         // position (engine routes the navigation to conforming member sets
-        // only) — not routed yet, and a plain join would emit WRONG ROWS
-        // (NULL-celled non-members surviving the explosion)
-        if (com.legend.model.ClassMapping.isSubTypeColumn(leaf)) {
+        // only). A FILTERED synthetic head IS the restriction (the
+        // canonicalizer parked the witness pred on it); a PLAIN head means
+        // the restriction was not routed — loud, a plain join would emit
+        // WRONG ROWS (NULL-celled non-members surviving the explosion)
+        if (com.legend.model.ClassMapping.isSubTypeColumn(leaf)
+                && head.equals(SyntheticHeads.realHead(head))) {
             for (String k : a.targetBindings().keySet()) {
                 String w = com.legend.model.ClassMapping.memberWitness();
                 if (k.endsWith("___" + w) && leaf.startsWith(
