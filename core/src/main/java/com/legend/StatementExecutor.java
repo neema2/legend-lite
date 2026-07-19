@@ -149,6 +149,19 @@ final class StatementExecutor {
                 result = buildFrame(xc, letPrefix, true, specs, env).result();
                 continue;
             }
+            // relation toString in RESULT position: a K-dispatched
+            // PRESENTATION native (the toSQLString pattern) — execute the
+            // relation argument, spell the '#TDS' grid the way real pure's
+            // TestTDS toString does (PCT pins the exact text).
+            if (preRoot instanceof com.legend.compiler.spec.typed.TypedNativeCall rts
+                    && com.legend.compiler.element.type.PlatformTypes.RELATION_TO_STRING
+                            .equals(rts.callee().qualifiedName())
+                    && rts.args().size() == 1
+                    && rts.args().get(0).info().type()
+                            instanceof com.legend.compiler.element.type.Type.RelationType) {
+                result = relationToString(rts, body.subList(0, body.size() - 1), specs, env);
+                continue;
+            }
             body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
                     .resolve(body, env.runtimeFqn());                     // Phase H
             result = executeTyped(body, env);
@@ -194,6 +207,61 @@ final class StatementExecutor {
         return new ExecutionResult.Scalar(
                 new com.legend.sql.dialect.EngineStyleH2().render(plan),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
+    }
+
+    /**
+     * The '#TDS' grid presentation (real pure TestTDS toString, pinned by
+     * the PCT relation suite): 3-space indent, comma-joined header and
+     * cells, rows in result order, '#' close. Cell spelling follows
+     * s.pure: empty &rarr; 'null', a String containing '{' or '[' is
+     * quoted with \\ and \' escapes, everything else prints its value.
+     */
+    private static ExecutionResult relationToString(
+            com.legend.compiler.spec.typed.TypedNativeCall call,
+            java.util.List<TypedSpec> letPrefix,
+            com.legend.compiler.spec.SpecCompiler specs, ExecEnv env)
+            throws java.sql.SQLException {
+        java.util.List<TypedSpec> body = new java.util.ArrayList<>(letPrefix);
+        body.add(call.args().get(0));
+        body = new com.legend.resolver.StoreResolver(env.ctx(), specs)
+                .resolve(body, env.runtimeFqn());
+        ExecutionResult r = executeTyped(body, env);
+        if (!(r instanceof ExecutionResult.Tabular t)) {
+            throw new com.legend.error.NotImplementedException(
+                    "relation toString over a non-tabular result ("
+                            + r.getClass().getSimpleName() + ")");
+        }
+        StringBuilder sb = new StringBuilder("#TDS\n   ");
+        for (int c = 0; c < t.columns().size(); c++) {
+            if (c > 0) {
+                sb.append(',');
+            }
+            sb.append(t.columns().get(c).name());
+        }
+        sb.append('\n');
+        for (com.legend.exec.Row row : t.rows()) {
+            sb.append("   ");
+            for (int c = 0; c < t.columns().size(); c++) {
+                if (c > 0) {
+                    sb.append(',');
+                }
+                sb.append(tdsCell(row.get(c)));
+            }
+            sb.append('\n');
+        }
+        sb.append('#');
+        return new ExecutionResult.Scalar(sb.toString(),
+                com.legend.compiler.element.type.Type.Primitive.STRING);
+    }
+
+    private static String tdsCell(Object v) {
+        if (v == null) {
+            return "null";
+        }
+        if (v instanceof String s && (s.contains("{") || s.contains("["))) {
+            return "'" + s.replace("\\", "\\\\").replace("'", "\\'") + "'";
+        }
+        return String.valueOf(v);
     }
 
     // =====================================================================

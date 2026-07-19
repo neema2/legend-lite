@@ -1225,6 +1225,12 @@ public final class Pure {
     public static final NativeFunctionDefinition SINH__NUMBER_1 = signature("native function meta::pure::functions::math::sinh(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition SIN__NUMBER_1 = signature("native function meta::pure::functions::math::sin(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition SIZE__RELATION_1 = signature("native function meta::pure::functions::relation::size<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::type::Integer[1];");
+    // relation toString: the corpus declares it CONCRETE over M3 column
+    // reflection (toString.pure); here it is a K-dispatched PRESENTATION
+    // native (StatementExecutor.relationToString spells the '#TDS' grid) —
+    // platform-owned, the reflective bodies never join the overload set.
+    public static final NativeFunctionDefinition TO_STRING__RELATION_1 = signature("native function meta::pure::functions::relation::toString<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::type::String[1];");
+    public static final NativeFunctionDefinition TO_STRING__RELATION_1__BOOLEAN_1 = signature("native function meta::pure::functions::relation::toString<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], typesAndMuls:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition SIZE__T_MANY = signature("native function meta::pure::functions::collection::size<T>(col:T[*]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition SLICE__RELATION_1__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::relation::slice<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], start:meta::pure::metamodel::type::Integer[1], stop:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     public static final NativeFunctionDefinition SLICE__T_MANY__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::collection::slice<T>(set:T[*], start:meta::pure::metamodel::type::Integer[1], end:meta::pure::metamodel::type::Integer[1]):T[*];");

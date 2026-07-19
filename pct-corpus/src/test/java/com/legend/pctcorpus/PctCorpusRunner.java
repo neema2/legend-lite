@@ -266,10 +266,12 @@ class PctCorpusRunner {
 
     // ---- reporting ----
 
-    /** One bucket key per distinct failure SHAPE: first line, capped. */
+    /** One bucket key per distinct failure SHAPE: newlines escaped (a
+     * multi-line detail like a TDS grid must stay diagnosable), capped. */
     private static String bucket(String message) {
-        String first = message == null ? "null" : message.lines().findFirst().orElse("");
-        return first.length() > 140 ? first.substring(0, 140) + "…" : first;
+        String flat = message == null ? "null"
+                : message.replace("\\", "\\\\").replace("\n", "\\n");
+        return flat.length() > 300 ? flat.substring(0, 300) + "…" : flat;
     }
 
     private static Map<String, Integer> bucketCounts(Iterable<String> messages) {

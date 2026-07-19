@@ -506,6 +506,8 @@ meta::pure::functions::math::sign(number:meta::pure::metamodel::type::Number[1])
 meta::pure::functions::math::sinh(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1]
 meta::pure::functions::math::sin(number:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1]
 meta::pure::functions::relation::size<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::type::Integer[1]
+meta::pure::functions::relation::toString<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::type::String[1]
+meta::pure::functions::relation::toString<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], typesAndMuls:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::String[1]
 meta::pure::functions::collection::size<T>(col:T[*]):meta::pure::metamodel::type::Integer[1]
 meta::pure::functions::relation::slice<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], start:meta::pure::metamodel::type::Integer[1], stop:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::relation::Relation<T>[1]
 meta::pure::functions::collection::slice<T>(set:T[*], start:meta::pure::metamodel::type::Integer[1], end:meta::pure::metamodel::type::Integer[1]):T[*]

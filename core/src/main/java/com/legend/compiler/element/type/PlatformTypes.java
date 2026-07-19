@@ -48,6 +48,11 @@ public final class PlatformTypes {
     public static final String TO_SQL_STRING =
             "meta::relational::functions::sqlstring::toSQLString";
 
+    /** Relation-typed toString — a K-dispatched PRESENTATION native: the
+     * relation executes and the result spells real pure's '#TDS' grid. */
+    public static final String RELATION_TO_STRING =
+            "meta::pure::functions::relation::toString";
+
     /** The engine's CSV-seed SQL generator — K-dispatched (CsvSeed). */
     public static final String SET_UP_DATA_SQLS_V2 =
             "meta::alloy::service::execution::setUpDataSQLsV2";
@@ -70,7 +75,11 @@ public final class PlatformTypes {
         return DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
                 || TO_SQL_STRING.equals(fqn)
-                || EXECUTE.equals(fqn);
+                || EXECUTE.equals(fqn)
+                // the corpus's toString.pure builds the '#TDS' grid by M3
+                // column reflection — the K presentation native is the
+                // definition here (StatementExecutor.relationToString)
+                || RELATION_TO_STRING.equals(fqn);
     }
 
     /** Debug output — K-dispatched as a NO-OP, arguments never evaluated. */

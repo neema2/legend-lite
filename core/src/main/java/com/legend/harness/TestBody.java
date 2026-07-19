@@ -605,6 +605,68 @@ public final class TestBody {
                 Eval a = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
                 return a.size() == 0 ? null : "assertEmpty: got " + a.size() + " values";
             }
+            case "assertNotEmpty" -> {
+                if (args.size() != 1) {
+                    return UNSUPPORTED_MARKER;
+                }
+                Eval a = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
+                return a.size() > 0 ? null : "assertNotEmpty: got 0 values";
+            }
+            case "assertTdsEquivalent" -> {
+                // real semantics (engine tdsEquivalent.pure): same column
+                // NAMES in order, same row count, ordered row-wise cells —
+                // Numbers within |delta|, Dates within |timeDeltaInSeconds|,
+                // everything else exact.
+                if (args.size() != 3 && args.size() != 4) {
+                    return UNSUPPORTED_MARKER;
+                }
+                Double delta = literalNumber(args.get(2));
+                Double timeDelta = args.size() == 4 ? literalNumber(args.get(3)) : 0.0;
+                if (delta == null || timeDelta == null) {
+                    return UNSUPPORTED_MARKER;
+                }
+                Eval one = eval(args.get(0), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
+                if (emptinessUnverifiable && one.size() == 0) {
+                    return UNSUPPORTED_MARKER;   // see the assertEquals guard
+                }
+                Eval two = eval(args.get(1), lets, execStmts, execVars, execChains, ctx, imports, runtimeFqn, conn);
+                if (!(one.result() instanceof com.legend.exec.ExecutionResult.Tabular t1)
+                        || !(two.result() instanceof com.legend.exec.ExecutionResult.Tabular t2)) {
+                    return UNSUPPORTED_MARKER;
+                }
+                return tdsEquivalent(t1, t2, delta, timeDelta);
+            }
+            case "assertError" -> {
+                // real semantics (assertError.pure): run the thunk, expect a
+                // raise, message EQUALS; line/column pins are checked by the
+                // interpreted harness against SourceInformation — core has
+                // no source spans yet (P3, docs/PCT_NATIVE_PLAN.md), so
+                // positional args are ADVISORY here, message stays exact.
+                if (args.size() != 2 && args.size() != 4) {
+                    return UNSUPPORTED_MARKER;
+                }
+                if (!(args.get(0) instanceof LambdaFunction thunk)
+                        || thunk.body().isEmpty()
+                        || !(args.get(1) instanceof CString expected)) {
+                    return UNSUPPORTED_MARKER;
+                }
+                try {
+                    for (ValueSpecification st : thunk.body()) {
+                        evalScalar(st, lets, execStmts, execVars, execChains,
+                                ctx, imports, runtimeFqn, conn);
+                    }
+                    return "assertError: no error was raised (expected '"
+                            + expected.value() + "')";
+                } catch (com.legend.error.NotImplementedException nie) {
+                    throw nie;   // platform GAP, not the asserted error — stays SHAPE
+                } catch (RuntimeException | java.sql.SQLException e) {
+                    String actual = e.getMessage() == null
+                            ? e.getClass().getSimpleName() : e.getMessage();
+                    return actual.equals(expected.value()) ? null
+                            : "assertError: expected '" + expected.value()
+                                    + "', got '" + actual + "'";
+                }
+            }
             case "assertSameSQL" -> {
                 return ADVISORY_MARKER;
             }
@@ -989,9 +1051,14 @@ public final class TestBody {
                         "CSVJOIN:" + to.value());
             }
         }
+        // toCSV tails still strip (grid compares structurally under the
+        // order policy — corpus semantics). toString tails DO NOT strip
+        // anymore: the platform owns the '#TDS' rendering now
+        // (StatementExecutor.relationToString, the K presentation native —
+        // PCT pins the exact text), so the whole expression forwards and
+        // the compare is string-exact.
         if (spliced instanceof AppliedFunction tail
-                && (simpleName(tail.function()).equals("toCSV")
-                        || simpleName(tail.function()).equals("toString"))
+                && simpleName(tail.function()).equals("toCSV")
                 && tail.parameters().size() == 1) {
             com.legend.exec.ExecutionResult stripped = evalSpliced(
                     tail.parameters().get(0), execStmts, execVars,
@@ -1000,7 +1067,7 @@ public final class TestBody {
                 return new Eval(stripped,
                         endsInSort(orderView(tail.parameters().get(0),
                                 execChains)),
-                        simpleName(tail.function()).equals("toCSV"));
+                        true);
             }
         }
         com.legend.exec.ExecutionResult r = evalSpliced(spliced, execStmts,
@@ -1500,6 +1567,85 @@ public final class TestBody {
             return s;
         }
         return '"' + s.replace("\"", "\"\"") + '"';
+    }
+
+    /** A plain numeric LITERAL argument (assertTdsEquivalent's delta /
+     * timeDelta); anything computed returns null and the assert stays a
+     * loud SHAPE rather than guessing. */
+    private static Double literalNumber(ValueSpecification vs) {
+        return switch (vs) {
+            case com.legend.model.spec.CInteger ci -> ci.value().doubleValue();
+            case com.legend.model.spec.CFloat cf -> cf.value();
+            case com.legend.model.spec.CDecimal cd -> cd.value().doubleValue();
+            default -> null;
+        };
+    }
+
+    /** Ordered TDS equivalence per the engine's tdsEquivalent.pure: column
+     * names ordered-exact, row counts equal, cells row-wise — Numbers
+     * within |delta|, temporals within |timeDeltaInSeconds|, both-null
+     * equal, everything else {@link #wireEquals}. */
+    private static String tdsEquivalent(com.legend.exec.ExecutionResult.Tabular one,
+            com.legend.exec.ExecutionResult.Tabular two, double delta, double timeDelta) {
+        List<String> names1 = one.columns().stream().map(com.legend.exec.Column::name).toList();
+        List<String> names2 = two.columns().stream().map(com.legend.exec.Column::name).toList();
+        if (!names1.equals(names2)) {
+            return "assertTdsEquivalent: columns " + names1 + " vs " + names2;
+        }
+        if (one.rows().size() != two.rows().size()) {
+            return "assertTdsEquivalent: " + one.rows().size() + " rows vs "
+                    + two.rows().size();
+        }
+        for (int r = 0; r < one.rows().size(); r++) {
+            for (int c = 0; c < names1.size(); c++) {
+                Object v1 = one.rows().get(r).get(c);
+                Object v2 = two.rows().get(r).get(c);
+                if (v1 == null && v2 == null) {
+                    continue;
+                }
+                if (v1 == null || v2 == null) {
+                    return cellMismatch(names1.get(c), r, v1, v2);
+                }
+                if (v1 instanceof Number n1 && v2 instanceof Number n2) {
+                    if (Math.abs(n1.doubleValue() - n2.doubleValue()) > Math.abs(delta)) {
+                        return cellMismatch(names1.get(c), r, v1, v2);
+                    }
+                    continue;
+                }
+                Double s1 = epochSeconds(v1);
+                Double s2 = epochSeconds(v2);
+                if (s1 != null && s2 != null) {
+                    if (Math.abs(s1 - s2) > Math.abs(timeDelta)) {
+                        return cellMismatch(names1.get(c), r, v1, v2);
+                    }
+                    continue;
+                }
+                if (!wireEquals(v1, v2)) {
+                    return cellMismatch(names1.get(c), r, v1, v2);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static String cellMismatch(String col, int row, Object v1, Object v2) {
+        return "assertTdsEquivalent: cell " + col + "[" + row + "]: "
+                + v1 + " vs " + v2;
+    }
+
+    private static Double epochSeconds(Object v) {
+        return switch (v) {
+            case java.sql.Timestamp ts -> ts.getTime() / 1000.0;
+            case java.sql.Date d -> d.getTime() / 1000.0;
+            case java.time.LocalDate ld ->
+                    (double) ld.atStartOfDay(java.time.ZoneOffset.UTC).toEpochSecond();
+            case java.time.LocalDateTime ldt ->
+                    (double) ldt.toEpochSecond(java.time.ZoneOffset.UTC)
+                            + ldt.getNano() / 1_000_000_000.0;
+            case java.time.OffsetDateTime odt ->
+                    (double) odt.toEpochSecond() + odt.getNano() / 1_000_000_000.0;
+            default -> null;
+        };
     }
 
     private static boolean wireEquals(Object e, Object a) {
