@@ -403,6 +403,14 @@ public final class StoreResolver {
                             col.elements().stream()
                                     .map(e2 -> resolveNode(e2, context))
                                     .toList(), col.info());
+            // a CAST over a chain bottoming at a getAll (typed reads like
+            // getFloat = cast(columnRead(chain))): the source resolves
+            // structurally, the cast rides along
+            case com.legend.compiler.spec.typed.TypedCast tc
+                    when containsGetAll(tc) ->
+                    new com.legend.compiler.spec.typed.TypedCast(
+                            resolveNode(tc.source(), context),
+                            tc.target(), tc.info());
             default -> {
                 if (containsGetAll(n)) {
                     throw new NotImplementedException("class query under "

@@ -583,7 +583,10 @@ public final class TestBody {
                 if (!(e instanceof Number en && a instanceof Number an
                         && tol instanceof Number tn)) {
                     return "assertEqWithinTolerance: non-numeric operand ("
-                            + e + ", " + a + ", " + tol + ")";
+                            + e + "/" + (e == null ? "null" : e.getClass().getSimpleName())
+                            + ", " + a + "/" + (a == null ? "null" : a.getClass().getSimpleName())
+                            + ", " + tol + "/" + (tol == null ? "null" : tol.getClass().getSimpleName())
+                            + ")";
                 }
                 return Math.abs(en.doubleValue() - an.doubleValue())
                         <= tn.doubleValue() ? null

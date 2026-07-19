@@ -104,7 +104,18 @@ public final class Executor {
                                com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot)
             throws SQLException {
         Object v = unwrap(fetch(rs, 1, sqlTypeOf(plan, 0)), sqlTypeOf(plan, 0), dialect);
-        return anyRoot ? decodeAny(v) : v;
+        if (anyRoot) {
+            return decodeAny(v);
+        }
+        // A JSON-carrier CELL under a non-Any root (a variant-list read
+        // narrowed by cast(@Float): $row.values->at(1)->cast(@Float) —
+        // the cast re-roots the declared type, but the cell still arrives
+        // as the driver's JSON node). The node is SELF-DESCRIBING wire —
+        // decoding it is recovery, never value guessing.
+        if (v != null && v.getClass().getName().equals("org.duckdb.JsonNode")) {
+            return decodeAny(v);
+        }
+        return v;
     }
 
     /**
