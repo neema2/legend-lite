@@ -186,6 +186,28 @@ final class SyntheticHeads {
     }
 
     /** A fresh filter-lifted identity for {@code prop}. */
+
+    /** The synthetic identity for a (property, predicate) pair — REUSED
+     * when an EQUAL predicate is already parked on the same real head
+     * (engine merge-by-identity: employeesByCityOrManager('Hoboken','Bla')
+     * twice plus its inline spelling share ONE subselect; per-call-site
+     * minting over-fragments and cross-multiplies projection rows — the
+     * Fork golden's 3 joins for 5 columns). Structural record equality;
+     * alpha-variant spellings stay separate (safe over-fragmentation). */
+    private String parkFiltered(String prop, TypedLambda pred) {
+        boolean closed = predClosedOverParam(pred);
+        java.util.Map<String, TypedLambda> pool = closed ? preds : corrPreds;
+        for (var e : pool.entrySet()) {
+            if (realHead(e.getKey()).equals(prop)
+                    && e.getValue().equals(pred)) {
+                return e.getKey();
+            }
+        }
+        String synth = mintFilteredName(prop);
+        pool.put(synth, pred);
+        return synth;
+    }
+
     private String mintFilteredName(String prop) {
         return new JoinIdentity(prop, JoinIdentity.Kind.FILTERED, count++).encoded();
     }
@@ -253,25 +275,20 @@ final class SyntheticHeads {
             TypedSpec head = liftFilteredHeads(f.source(), true);
             TypedSpec renamed;
             String synth;
+            // CLOSED predicates park on the target pipeline; a predicate
+            // reading the OUTER row parks CORRELATED — applied at the join
+            // CONDITION where both rows are in scope. EQUAL preds on the
+            // same head REUSE one identity (parkFiltered).
             if (head instanceof com.legend.compiler.spec.typed
                     .TypedMilestonedAccess ma) {
-                synth = mintFilteredName(ma.property());
+                synth = parkFiltered(ma.property(), f.predicate());
                 renamed = new TypedMilestonedAccess(
                         ma.source(), synth, ma.dates(), ma.sweep(), ma.info());
             } else {
                 var hp = (TypedPropertyAccess) head;
-                synth = mintFilteredName(hp.property());
+                synth = parkFiltered(hp.property(), f.predicate());
                 renamed = new TypedPropertyAccess(
                         hp.source(), synth, hp.info());
-            }
-            // CLOSED predicates park on the target pipeline; a predicate
-            // reading the OUTER row parks CORRELATED — applied at the join
-            // CONDITION where both rows are in scope (the correlation pass
-            // audit 14 B-F1 deferred).
-            if (predClosedOverParam(f.predicate())) {
-                preds.put(synth, f.predicate());
-            } else {
-                corrPreds.put(synth, f.predicate());
             }
             return new TypedPropertyAccess(
                     renamed, pa.property(), pa.info());
@@ -297,19 +314,14 @@ final class SyntheticHeads {
             String synth;
             if (head instanceof com.legend.compiler.spec.typed
                     .TypedMilestonedAccess ma) {
-                synth = mintFilteredName(ma.property());
+                synth = parkFiltered(ma.property(), f0.predicate());
                 renamed = new TypedMilestonedAccess(
                         ma.source(), synth, ma.dates(), ma.sweep(), ma.info());
             } else {
                 var hp = (TypedPropertyAccess) head;
-                synth = mintFilteredName(hp.property());
+                synth = parkFiltered(hp.property(), f0.predicate());
                 renamed = new TypedPropertyAccess(
                         hp.source(), synth, hp.info());
-            }
-            if (predClosedOverParam(f0.predicate())) {
-                preds.put(synth, f0.predicate());
-            } else {
-                corrPreds.put(synth, f0.predicate());
             }
             return new TypedMap(renamed,
                     (TypedLambda) liftFilteredHeads(tm2.mapper(), enabled),

@@ -1861,10 +1861,16 @@ public final class StoreResolver {
                                     predPaths0);
                         }
                     }
-                    // NOTE (#70): CLOSED preds' target-nav reads stay
-                    // UNDEMANDED — enabling exposes the multi-identity
-                    // to-many projection explosion (Fork: 4 vs 16; the
-                    // engine isolates PER PROJECTED COLUMN); loud backstop.
+                    // CLOSED parked preds read target navs too ($e.address
+                    // .name — the Fork family): demand their steps for the
+                    // pred substitution's SubNav dispatch (identity dedup
+                    // at the lift keeps the join count engine-equal).
+                    for (TypedLambda cp : synthetics.allPreds(head)) {
+                        for (TypedSpec b : cp.body()) {
+                            consumedPaths(b, cp.parameters().get(0),
+                                    predPaths0);
+                        }
+                    }
                     for (List<String> pp : predPaths0) {
                         if (pp.size() < 2) {
                             continue;
@@ -2826,13 +2832,7 @@ public final class StoreResolver {
      * depth-2 reads through class-typed slot heads ($e.address.name — the
      * Fork family) dispatch through AssocSub registries built from them
      * (the corrPredOnJoinedRow pass-1 rule, shared). */
-        private static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
-        for (TypedSpec b : lambda.body()) {
-            consumedPaths(b, lambda.parameters().get(0), out);
-        }
-    }
-
-    /** The demand half of the shared funnel: every $p.<path> read in a lambda. */
+            /** The demand half of the shared funnel: every $p.<path> read in a lambda. */
     static void consumedPaths(TypedSpec n, String userVar,
                                       Set<List<String>> out) {
         List<String> path = Substitution.pathOf(n, userVar);

@@ -738,4 +738,11 @@ static TypedSpec predFilteredPipe(TypedSpec tPipe, ClassSource target,
     }
 
 
+static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
+        for (TypedSpec b : lambda.body()) {
+            StoreResolver.consumedPaths(b, lambda.parameters().get(0), out);
+        }
+    }
+
+
 }
