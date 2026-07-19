@@ -150,19 +150,44 @@ final class Typer {
             // error here, not a runtime surprise. The two arms below are the
             // deliberate not-yet-implemented forms.
             case LambdaFunction lf -> {
-                // A ZERO-ARG single-expression lambda LITERAL has a type
-                // without any call: its own FunctionType (the corpus's
-                // let q = |Trade.all()->...; execute($q, ...) idiom — the
-                // engine's interpreter types lambda values directly; audit
-                // 19d B4). Parameterized / multi-statement lambdas still
-                // need a call signature and stay loud.
-                if (lf.parameters().isEmpty() && lf.body().size() == 1) {
-                    TypedSpec body = synth(lf.body().get(0), env);
-                    var fnType = new Type.FunctionType(List.of(),
-                            new Type.Param(body.info().type(),
-                                    body.info().multiplicity()));
-                    yield new TypedLambda(List.of(), List.of(body),
-                            new ExprType(fnType, Multiplicity.Bounded.ONE));
+                // A ZERO-ARG lambda LITERAL has a type without any call:
+                // its own FunctionType (the corpus's let q = |Trade.all()
+                // ->...; idiom — audit 19d B4; extended to multi-statement
+                // bodies for the PCT *_MultipleExpressions family: leading
+                // lets bind into scope, the final expression is the value —
+                // the SAME statement semantics the call-position path
+                // applies). Parameterized lambdas still need a call
+                // signature and stay loud.
+                if (lf.parameters().isEmpty() && !lf.body().isEmpty()) {
+                    Env scope = env;
+                    List<TypedSpec> stmts =
+                            new ArrayList<>(lf.body().size());
+                    boolean statementsOk = true;
+                    for (int si = 0; si < lf.body().size() - 1; si++) {
+                        ValueSpecification st = lf.body().get(si);
+                        if (st instanceof AppliedFunction lt
+                                && lt.function().equals("letFunction")
+                                && lt.parameters().size() == 2
+                                && lt.parameters().get(0) instanceof CString ln) {
+                            TypedSpec val = synth(lt.parameters().get(1), scope);
+                            scope = scope.with(ln.value(), val.info());
+                            stmts.add(new com.legend.compiler.spec.typed.TypedLet(
+                                    ln.value(), val, val.info()));
+                            continue;
+                        }
+                        statementsOk = false;
+                        break;
+                    }
+                    if (statementsOk) {
+                        TypedSpec body = synth(
+                                lf.body().get(lf.body().size() - 1), scope);
+                        stmts.add(body);
+                        var fnType = new Type.FunctionType(List.of(),
+                                new Type.Param(body.info().type(),
+                                        body.info().multiplicity()));
+                        yield new TypedLambda(List.of(), stmts,
+                                new ExprType(fnType, Multiplicity.Bounded.ONE));
+                    }
                 }
                 throw new TypeInferenceException(
                         "a bare lambda has no type outside a call position"
