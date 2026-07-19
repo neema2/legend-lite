@@ -24,7 +24,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 144 | 6 | 88 | 20 |
+| functions/tests | 258 | 146 | 6 | 86 | 20 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 79 | 7 | 56 | 13 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -47,7 +47,7 @@ in-process Alloy-shaped path).
 | sqlQueryToString/dbSpecific/debugPrint | 9 | 0 | 0 | 0 | 9 |
 | sqlQueryToString/testSuite | 1 | 0 | 0 | 0 | 1 |
 | tds/relation | 2 | 0 | 0 | 0 | 2 |
-| tds/tests | 266 | 130 | 1 | 108 | 27 |
+| tds/tests | 266 | 134 | 1 | 104 | 27 |
 | testDataGeneration/tests | 68 | 0 | 0 | 0 | 68 |
 | tests | 39 | 0 | 0 | 0 | 39 |
 | tests/advanced | 68 | 19 | 0 | 38 | 11 |
@@ -63,7 +63,7 @@ in-process Alloy-shaped path).
 | tests/mapping/extends | 23 | 10 | 2 | 5 | 6 |
 | tests/mapping/extends/union | 8 | 1 | 0 | 7 | 0 |
 | tests/mapping/filter | 9 | 4 | 0 | 5 | 0 |
-| tests/mapping/groupBy | 10 | 7 | 0 | 3 | 0 |
+| tests/mapping/groupBy | 10 | 8 | 0 | 2 | 0 |
 | tests/mapping/inClause | 4 | 0 | 0 | 0 | 4 |
 | tests/mapping/include | 1 | 0 | 0 | 0 | 1 |
 | tests/mapping/inheritance | 47 | 23 | 0 | 24 | 0 |
@@ -85,7 +85,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 3 | 17 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1059** | 52 | 820 | 607 |
+| **total** | 2538 | **1066** | 52 | 813 | 607 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4431,7 +4431,6 @@ in-process Alloy-shaped path).
 
 - 19x unknown class '' in ^(…)
 - 19x unknown type 'TabularDataSet' in @TabularDataSet
-- 15x lowering not yet implemented for TypedNativeCall
 - 15x serialize expects (classCollection, #{Class{…}}#)
 - 14x from() argument 2 must be a mapping or runtime reference, got TypedUserCall
 - 14x toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
@@ -4459,6 +4458,7 @@ in-process Alloy-shaped path).
 - 6x object-space expression node TypedSortBy is not substitutable yet (H2 vocabulary): TypedSortBy[source=TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=em…
 - 5x '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 5x unknown function 'generateObjectReferences'
+- 5x class query under TypedMap is not resolvable yet (H2 vocabulary)
 
 ### per-test outcomes (non-passing)
 
@@ -4677,11 +4677,9 @@ in-process Alloy-shaped path).
 - ERROR testSubAggregationMultiLevelJoinString [functions/tests]: no overload of 'meta::pure::functions::string::joinStrings' accepts 1 argument(s)
 - ERROR testSubAggregationUsingIf [functions/tests]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=ExprType
 - ERROR testSequenceMapWithConfusingSetImplementation [functions/tests]: unknown function 'meta::relational::tests::mapping::filter::model::store::createTablesAndFillDb'
-- ERROR testSimpleJoinStrings [functions/tests]: lowering not yet implemented for TypedNativeCall
 - ERROR testUsingSameAggFunctionTwice [functions/tests]: scalar lowering not yet implemented for TypedSort
 - ERROR testUsingSameAggFunctionTwiceUsingQualifier [functions/tests]: scalar lowering not yet implemented for TypedSort
-- ERROR testAggToManyWithAverage [functions/tests]: lowering not yet implemented for TypedNativeCall
-- ERROR testAggToManyWithFilter [functions/tests]: lowering not yet implemented for TypedNativeCall
+- ERROR testAggToManyWithFilter [functions/tests]: class query under TypedCast is not resolvable yet (H2 vocabulary)
 - ERROR testGroupByAndFilterIsolatedJoinMerge [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedPropertyAccess[source=TypedVariable[name=t, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Trade], multiplicity=Bounded[lower=1, upper=1]]],
 - FAIL testGroupByWithJoinH2 [functions/tests]: assertSize: expected 1, got 6
 - ERROR testGroupByWithJoinDB2 [functions/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
@@ -5211,11 +5209,7 @@ in-process Alloy-shaped path).
 - ERROR simpleFilterWithGroupByWithDistinct [tds/tests]: unknown function 'meta::pure::tds::distinct'
 - ERROR simpleGroupByAnd [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::and'
 - ERROR simpleGroupByOr [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::or'
-- ERROR simpleGroupByWithJoinStrings [tds/tests]: lowering not yet implemented for TypedNativeCall
-- ERROR simpleGroupByWithAssociationWithJoinStrings [tds/tests]: lowering not yet implemented for TypedNativeCall
-- ERROR groupByAfterASortOnColumnInGroupBy [tds/tests]: lowering not yet implemented for TypedNativeCall
-- ERROR groupByAfterASortOnColumnNotInGroupBy [tds/tests]: lowering not yet implemented for TypedNativeCall
-- ERROR groupByAfterConcatenate [tds/tests]: lowering not yet implemented for TypedNativeCall
+- ERROR groupByAfterConcatenate [tds/tests]: Binder Error: No function matches the given name and argument types 'list_sort(BIGINT)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(ANY[], VARCHAR) -> ANY[] | 	list_sort(ANY[], VARCHAR, VARCHAR) -> ANY[] |  |  | LINE 1: SELECT list_so
 - ERROR testTableToTDSWithQuotedColumns [tds/tests]: tableReference expects (database, 'TABLE'); got [PackageableElementPtr[fullPath=meta::relational::tests::db], CString[value=default], CString[value=tableWithQuotedColumns]]
 - ERROR testGroupByWithWavgAggregation [tds/tests]: unknown function 'wavgRowMapper'
 - ERROR testGroupByWithMultipleWavgAggregation [tds/tests]: unknown function 'wavgRowMapper'
@@ -5487,8 +5481,8 @@ in-process Alloy-shaped path).
 - ERROR testQualifierWithIsolationXX [tests/advanced]: extend/project columns [firm] reference names unresolvable even after isolation
 - ERROR testQualifierWithIsolationForced [tests/advanced]: unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
 - ERROR testQualifierWithIsolationForced2 [tests/advanced]: unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
-- ERROR testQualifierWithIsolationAndExists [tests/advanced]: lowering not yet implemented for TypedNativeCall
-- ERROR testIfIncludingQualifiers [tests/advanced]: lowering not yet implemented for TypedNativeCall
+- ERROR testQualifierWithIsolationAndExists [tests/advanced]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
+- ERROR testIfIncludingQualifiers [tests/advanced]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::removeDuplicates' in relation position)
 - ERROR testQualifierWithIsolationAndExistsDeep [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
 - ERROR testQualifierContainingAJoinWithIsolationAndExistsDeep [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
 - ERROR testQualifierWithIsolationAndExistsDeepWithParallelProject [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[na
@@ -5502,10 +5496,10 @@ in-process Alloy-shaped path).
 - ERROR testSimpleTypeMappingProjectNulls [tests/datatype]: unknown function 'toJSON'
 - ERROR testProjectThroughAssociation [tests/injection]: object-space expression node TypedMap is not substitutable yet (H2 vocabulary): TypedMap[source=TypedPropertyAccess[source=TypedVariable[name=b, info=ExprType[type=ClassType[fqn=meta::relational::tests::injection::model::Book], multiplicity=Bounded[lower=1, upper=1]]], property=trades, info=ExprType
 - ERROR testProjectThroughAssociationAutoMap [tests/injection]: in call to 'meta::relational::tests::injection::model::Trade$prop$productAtTimeOfTrade', argument 1: expected at most one value, got many ([*])
-- ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall
+- ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
 - FAIL testGet [tests/mapping]: assertSize: expected 1, got 0
 - FAIL testQuery [tests/mapping]: assertSize: expected 1, got 2
-- ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall
+- ERROR testProject [tests/mapping]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
 - FAIL retrieveDateWithTimeZone [tests/mapping]: assertEquals: expected 2016-02-05 21:00:00.123456, got 2016-02-05 21:00:00.123456789
 - ERROR testPersonToOrganisations [tests/mapping/association]: mapping 'meta::relational::tests::mapping::association::embedded::associationMapping' includes unknown mapping 'meta::relational::tests::mapping::embedded::model::mapping::testMappingEmbedded'
 - ERROR testFirmToOrganisations [tests/mapping/association]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::association::embedded::associationMappingInlinedEmbedded' (Join 'firmEmployees' not found in db 'myDB'; PM='employees', mapping=meta::relational::tests::mapping::association::embedded::as
@@ -5607,7 +5601,6 @@ in-process Alloy-shaped path).
 - ERROR testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: multi-hop navigation parent.parent.name through an embedded/slot head is not supported yet
 - ERROR testFilterMappingWithProjectionAndJoin [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithProjectionAndJoinAndQuery [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
-- ERROR testGroupByMappingWithFilterOnAggregateWithProject [tests/mapping/groupBy]: lowering not yet implemented for TypedNativeCall
 - ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: Binder Error: Values list "t2" does not have a column named "PRODUCT_ID" |  | LINE 7: ) AS t2 ON t2.PRODUCT_ID = t0.ID |                    ^
 - ERROR testGroupByMappingProjectWithMultipleGroupBys [tests/mapping/groupBy]: Binder Error: Values list "t3" does not have a column named "PRODUCT_ID" |  | LINE 13: ) AS t3 ON t1.k1__PRODUCT_ID = t3.PRODUCT_ID |                                         ^
 - SHAPE testJoinWithInClause0 [tests/mapping/inClause]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -5615,7 +5608,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinWithPrefixInClauseContainingStringLiterals [tests/mapping/inClause]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testFilterMappingWithPrefixInClause [tests/mapping/inClause]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testStoreSubstitution [tests/mapping/include]: no execute(|...) call
-- ERROR testFilterProjectBooleanInFilter [tests/mapping/inheritance]: lowering not yet implemented for TypedNativeCall
+- ERROR testFilterProjectBooleanInFilter [tests/mapping/inheritance]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
 - ERROR testGetAll [tests/mapping/inheritance]: no SQL type for generic Class<meta::relational::tests::model::inheritance::RoadVehicle> at the lowering boundary
 - ERROR testSubTypeFilter [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeProjectWithAssociation [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
@@ -5630,7 +5623,7 @@ in-process Alloy-shaped path).
 - ERROR testProjectAssociation [tests/mapping/inheritance]: association 'meta::relational::tests::model::inheritance::Driver' is not mapped in mapping 'meta::relational::tests::mapping::inheritance::relational::multiJoins::inheritance' (property 'vehicles' routes to union member set 'map1' via a CHAINED join — per-member chained joins are not supported yet; 
 - ERROR testForcedSubTypeProjectDirect [tests/mapping/inheritance]: object-space use of the instance variable '$r' other than property access is not supported yet
 - ERROR testSubTypeProjectSharedNonDirectlyRouted [tests/mapping/inheritance]: object-space use of the instance variable '$p' other than property access is not supported yet
-- ERROR testFilterProjectBooleanInFilter [tests/mapping/inheritance]: lowering not yet implemented for TypedNativeCall
+- ERROR testFilterProjectBooleanInFilter [tests/mapping/inheritance]: lowering not yet implemented for TypedNativeCall ('meta::pure::functions::collection::sort' in relation position)
 - ERROR testGetAll [tests/mapping/inheritance]: no SQL type for generic Class<meta::relational::tests::model::inheritance::RoadVehicle> at the lowering boundary
 - ERROR testSubTypeFilter [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
 - ERROR testSubTypeProjectWithAssociation [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)

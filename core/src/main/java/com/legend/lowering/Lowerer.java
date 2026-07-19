@@ -531,11 +531,28 @@ public final class Lowerer {
                           + "') escaped Phase H store resolution — a resolver gap,"
                           + " not a missing lowering rule");
 
+            // Rows-level ->toOne() over a relation ($r.values.rows->toOne(),
+            // the corpus's single-ROW claim): row-identical to the relation
+            // itself. The exactly-one contract is enforced where the value
+            // is CONSUMED (the executor's scalar second-row guard, audit
+            // 21b F10) — engine toOne throws at the reader, never in SQL.
+            case TypedNativeCall nc when
+                    "meta::pure::functions::multiplicity::toOne"
+                            .equals(nc.callee().qualifiedName())
+                    && !nc.args().isEmpty()
+                    && nc.args().get(0).info().type()
+                            instanceof Type.RelationType ->
+                    relation(nc.args().get(0));
+
             // SANCTIONED frontier default (root package-info invariant is
             // scoped to hiding-prone switches): the not-yet-lowered TypedSpec
             // variants churn every milestone; each throws LOUD and NAMED.
             default -> throw new NotImplementedException("lowering not yet implemented for "
-                    + spec.getClass().getSimpleName());
+                    + spec.getClass().getSimpleName()
+                    + (spec instanceof TypedNativeCall nc2
+                            ? " ('" + nc2.callee().qualifiedName()
+                                    + "' in relation position)"
+                            : ""));
         };
     }
 
