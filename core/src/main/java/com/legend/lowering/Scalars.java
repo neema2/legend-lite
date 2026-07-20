@@ -726,8 +726,8 @@ final class Scalars {
                 SqlExpr strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, args.get(0),
                         new SqlExpr.Lambda(List.of("x"),
                                 SqlExpr.Call.of(SqlFn.COALESCE,
-                                        new SqlExpr.Cast(new SqlExpr.Column(null, "x"),
-                                                SqlType.Scalar.VARCHAR),
+                                        PureSql.elementText(n.args().get(0),
+                                                args.get(0), new SqlExpr.Column(null, "x")),
                                         new SqlExpr.StringLit("TDSNull"))));
                 SqlExpr joined = SqlExpr.Call.of(SqlFn.COALESCE,
                         new SqlExpr.Call(SqlFn.LIST_AGG, List.of(

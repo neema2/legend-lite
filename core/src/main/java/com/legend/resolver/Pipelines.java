@@ -13,6 +13,7 @@ import com.legend.compiler.spec.typed.TypedCast;
 import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedConcatenate;
 import com.legend.compiler.spec.typed.TypedDistinct;
+import com.legend.compiler.spec.typed.TypedGroupBy;
 import com.legend.compiler.spec.typed.TypedEnumValue;
 import com.legend.compiler.spec.typed.TypedFilter;
 import com.legend.compiler.spec.typed.TypedFuncCol;
@@ -360,6 +361,9 @@ final class Pipelines {
                 }
                 yield new TypedProject(src, cols, pr.info());
             }
+            // View ~groupBy above slots — see groupByOverSlots
+            case TypedGroupBy g when containsSlot(g.source()) ->
+                    groupByOverSlots(g, targets, classFqn);
             // Mapping ~distinct above slots: the engine FORCES all-property
             // materialization under a distinct (§A.6) — every slot joins and
             // the distinct tuple is the FULL materialized row. Column list
@@ -417,6 +421,63 @@ final class Pipelines {
                 yield n;
             }
         };
+    }
+
+    /**
+     * View ~groupBy above slots (AccountPnl): the groupBy's key/agg
+     * lambdas are the only consumers of those slots — demand their own
+     * reads, materialize the source in a branch scope, rewrite the reads
+     * to the prefixed columns (mirror of the project-over-slots arm).
+     */
+    private static TypedSpec groupByOverSlots(TypedGroupBy g,
+            TargetResolver targets, String classFqn) {
+        Set<String> gSlots = slotAliases(g.source());
+        Set<String> gDemand = new LinkedHashSet<>();
+        for (var k : g.keys()) {
+            k.fn().ifPresent(kf -> {
+                for (TypedSpec b : kf.body()) {
+                    collectSlotReads(b, kf.parameters().get(0),
+                            gSlots, gDemand);
+                }
+            });
+        }
+        for (var a : g.aggs()) {
+            for (TypedSpec b : a.map().body()) {
+                collectSlotReads(b, a.map().parameters().get(0),
+                        gSlots, gDemand);
+            }
+        }
+        Set<String> gClosed = closeOverConditions(g.source(), gDemand);
+        Map<String, String> gPrefixes = new LinkedHashMap<>();
+        Set<String> gStripped = new LinkedHashSet<>();
+        TypedSpec gSrc = walk(g.source(), gClosed, Set.of(), targets,
+                gPrefixes, gStripped, classFqn);
+        List<TypedGroupBy.GroupKey> gKeys = new ArrayList<>(g.keys().size());
+        for (var k : g.keys()) {
+            gKeys.add(new TypedGroupBy.GroupKey(k.column(),
+                    k.fn().map(kf -> new TypedLambda(kf.parameters(),
+                            kf.body().stream().map(b -> rewriteRowReads(
+                                    b, kf.parameters().get(0), gPrefixes,
+                                    gStripped, UnaryOperator.identity()))
+                                    .toList(),
+                            kf.info()))));
+        }
+        List<com.legend.compiler.spec.typed.TypedAggCol> gAggs =
+                new ArrayList<>(g.aggs().size());
+        for (var a : g.aggs()) {
+            gAggs.add(new com.legend.compiler.spec.typed.TypedAggCol(
+                    a.name(),
+                    new TypedLambda(a.map().parameters(),
+                            a.map().body().stream().map(b ->
+                                    rewriteRowReads(b,
+                                            a.map().parameters().get(0),
+                                            gPrefixes, gStripped,
+                                            UnaryOperator.identity()))
+                                    .toList(),
+                            a.map().info()),
+                    a.reduce(), a.orderKey(), a.orderAsc()));
+        }
+        return new TypedGroupBy(gSrc, gKeys, gAggs, g.info());
     }
 
     /**

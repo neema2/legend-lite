@@ -16,6 +16,37 @@ final class PureSql {
     }
 
     /**
+     * One list element as TEXT (makeString): JSON-carried elements
+     * extract through the dialect's unquoting cast —
+     * Cast(VARIANT_GET(x,'$')), which DuckDB renders {@code (x ->> '$')}
+     * — so a String element prints WITHOUT its JSON quotes; plain
+     * scalars cast directly. The JSON decision follows the LOWERED shape
+     * (an ArrayLit of TO_VARIANT elements = the heterogeneous-literal
+     * wrap; a typed Variant value), never the pure type alone: row-cell
+     * collections ($r.values) type Any too but lower as PLAIN lists,
+     * and unquoting those dies on non-JSON values.
+     */
+    static com.legend.sql.SqlExpr elementText(
+            com.legend.compiler.spec.typed.TypedSpec listArg,
+            com.legend.sql.SqlExpr loweredList,
+            com.legend.sql.SqlExpr elem) {
+        boolean json = (loweredList instanceof com.legend.sql.SqlExpr.ArrayLit al
+                        && !al.elements().isEmpty()
+                        && al.elements().stream().allMatch(e ->
+                                e instanceof com.legend.sql.SqlExpr.Call c
+                                && c.fn() == com.legend.sql.SqlFn.TO_VARIANT))
+                || (listArg.info().type() instanceof Type.ClassType ct
+                        && PlatformTypes.isVariant(ct));
+        return json
+                ? new com.legend.sql.SqlExpr.Cast(
+                        com.legend.sql.SqlExpr.Call.of(
+                                com.legend.sql.SqlFn.VARIANT_GET, elem,
+                                new com.legend.sql.SqlExpr.StringLit("$")),
+                        SqlType.Scalar.VARCHAR)
+                : new com.legend.sql.SqlExpr.Cast(elem, SqlType.Scalar.VARCHAR);
+    }
+
+    /**
      * EXHAUSTIVE over sealed {@link Type} and the {@code Primitive} enum — no
      * default arms (root package-info invariant): a new Pure type demands an
      * explicit decision here, at compile time. Unsupported kinds throw with

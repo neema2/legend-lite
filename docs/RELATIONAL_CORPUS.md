@@ -26,19 +26,19 @@ in-process Alloy-shaped path).
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
 | functions/tests | 258 | 157 | 6 | 76 | 19 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
-| functions/tests/projection | 155 | 95 | 6 | 38 | 16 |
+| functions/tests/projection | 155 | 97 | 6 | 36 | 16 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
-| graphFetch/tests | 143 | 17 | 10 | 114 | 2 |
+| graphFetch/tests | 143 | 18 | 10 | 113 | 2 |
 | graphFetch/tests/union | 15 | 2 | 0 | 13 | 0 |
 | helperFunctions/tests | 7 | 0 | 0 | 0 | 7 |
 | lineage/scanColumns | 6 | 0 | 0 | 0 | 6 |
 | lineage/scanRelations | 49 | 0 | 0 | 0 | 49 |
-| milestoning/tests | 224 | 143 | 2 | 43 | 36 |
+| milestoning/tests | 224 | 144 | 2 | 37 | 41 |
 | modelJoins | 7 | 0 | 0 | 1 | 6 |
 | modelToModelToRelational | 5 | 0 | 0 | 0 | 5 |
 | modelToModelToRelational/milestoned | 7 | 0 | 0 | 5 | 2 |
 | postprocessor | 7 | 0 | 0 | 7 | 0 |
-| postprocessor/tests | 30 | 0 | 0 | 8 | 22 |
+| postprocessor/tests | 30 | 1 | 0 | 7 | 22 |
 | pureToSQLQuery/tests | 14 | 3 | 0 | 0 | 11 |
 | router/tests | 26 | 3 | 0 | 4 | 19 |
 | sqlDialectTranslation | 21 | 0 | 0 | 0 | 21 |
@@ -85,7 +85,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1174** | 55 | 696 | 613 |
+| **total** | 2538 | **1179** | 55 | 686 | 618 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4512,7 +4512,6 @@ in-process Alloy-shaped path).
 - 6x unknown class 'meta::external::store::model::ModelStore' in ^meta::external::store::model::ModelStore(…)
 - 6x no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
 - 6x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
-- 6x scalar lowering not yet implemented for TypedCLatestDate
 - 6x Unknown type: 'TabularDataSet' is not a known primitive, class, or enum
 - 6x renameColumns expects literal pair('old','new') mappings
 - 5x no overload of 'executionPlan' matches 2 argument(s) of these shapes
@@ -4520,13 +4519,14 @@ in-process Alloy-shaped path).
 - 5x unknown function 'generateObjectReferences'
 - 5x class query under TypedMap is not resolvable yet (H2 vocabulary)
 - 5x Unknown type: 'Table' is not a known primitive, class, or enum
-- 5x mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
 - 5x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - 5x graph child 'firm' of class 'meta::relational::tests::model::simple::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - 5x Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
 - 5x only single-expression lambdas are supported yet
 - 4x Binder Error: subqueries in lambda expressions are not supported
 - 4x object-space operation TypedDistinct is not supported yet
+- 4x multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
+- 4x unknown class 'Mapping' in ^Mapping(…)
 
 ### per-test outcomes (non-passing)
 
@@ -4677,7 +4677,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Product], multiplicity=Bounded[lower=1, upper=1]]], predicate=TypedLambda[parameters=[p], body=[TypedNa
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -4830,8 +4830,6 @@ in-process Alloy-shaped path).
 - ERROR testViewAllOneSimpleProperty [functions/tests/projection]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
 - ERROR testJoinToView [functions/tests/projection]: resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
 - ERROR testJoinThroughView [functions/tests/projection]: in call to 'meta::relational::tests::model::simple::Person$prop$name', argument 1: expected at most one value, got many ([*])
-- ERROR testViewWithGroupBy [functions/tests/projection]: mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
-- ERROR testAssnToViewWithGroupBy [functions/tests/projection]: mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
 - ERROR testUnionOnViewsMapping [functions/tests/projection]: class 'meta::relational::tests::model::simple::OrderPnl' is not mapped in mapping 'meta::relational::tests::projection::view::unionOnViewsMapping' (Operation union over a VIEW-backed member set is not supported yet; mapping=meta::relational::tests::projection::view::unionOnViewsMapping)
 - ERROR testViewOnView [functions/tests/projection]: class 'meta::relational::tests::model::simple::OrderPnl' is not mapped in mapping 'meta::relational::tests::projection::view::unionOnViewOnViewMapping' (Operation union over a VIEW-backed member set is not supported yet; mapping=meta::relational::tests::projection::view::unionOnViewOnViewMapping)
 - SHAPE testProjectionOfPropertyJoinedToViewWithGroupByAndFilter [functions/tests/projection]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -4924,9 +4922,8 @@ in-process Alloy-shaped path).
 - ERROR testGraphFetchWithTableMapperPostProcessor [graphFetch/tests]: unknown class 'meta::external::store::relational::runtime::RelationalDatabaseConnection' in ^meta::external::store::relational::runtime::RelationalDatabaseConnection(…)
 - ERROR testGraphFetchWithViewRootFlat [graphFetch/tests]: Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                  
 - ERROR testGraphFetchWithViewRootNested [graphFetch/tests]: resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
-- ERROR testGraphFetchWithViewRootNestedDeep [graphFetch/tests]: mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
+- ERROR testGraphFetchWithViewRootNestedDeep [graphFetch/tests]: property 'accountCategory' of class 'meta::relational::tests::model::simple::Account' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testGraphFetchWithViewAtChild [graphFetch/tests]: resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
-- ERROR testGraphFetchWithGroupByViewAtChild [graphFetch/tests]: mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
 - ERROR testSimpleGraphFetchWithQualifier [graphFetch/tests]: property 'name' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testSimpleGraphFetchWithQualifierWithParameter [graphFetch/tests]: property 'fullName' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
 - ERROR testSimpleGraphFetchAliasing [graphFetch/tests]: property 'name' of class 'meta::relational::tests::model::simple::Person' is not mapped in mapping 'meta::relational::tests::simpleRelationalMapping'
@@ -5062,9 +5059,8 @@ in-process Alloy-shaped path).
 - SHAPE testMilestonedThisBusinessDateUsedAsParameterToFunctionInMilestoningQualifiedPropertyMappedToView [milestoning/tests]: no execute(|...) call
 - SHAPE testMilestonedQualifiedPropertyWithDateProvidedByFunction [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testViewChainsWithBusinessDate [milestoning/tests]: no execute(|...) call
-- ERROR testPopulationOfLatestMilestonedDateInQuery [milestoning/tests]: scalar lowering not yet implemented for TypedCLatestDate
 - ERROR testMilestoningFiltersPreservedInTdsJoinWithConcatenate [milestoning/tests]: a non-let intermediate statement (TypedUserCall) in an inlined function body is not supported
-- ERROR testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: scalar lowering not yet implemented for TypedCLatestDate
+- SHAPE testQueryOfMilestonedTypeUsingLatestWithFilterInMapping [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testMilestoningQueryWithMilestoneFilterAndDifferentDatesOnTypeWithLatestDateOnProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testNonMilestoningQueryWithLatestMilestoneFilterSimple [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - FAIL testMilestoningQueryWithGroupByFilterWithMilestoning [milestoning/tests]: assertEquals: expected ProductName2,GS-Mod-S1*GS-Mod-S2, got ProductName2,GS-Mod-S2*GS-Mod-S1
@@ -5080,7 +5076,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -5092,16 +5088,16 @@ in-process Alloy-shaped path).
 - ERROR testNestedExists_NestedExistsWithEmbeddedMappingInProject [milestoning/tests]: resolver bug: undemanded navigation — consumed expression reads STRIPPED join slot 'Child_Leaf' (the demand scan and the rewrite disagreed)
 - ERROR testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: class 'meta::relational::tests::milestoning::inheritance::Book' is not mapped in mapping 'meta::relational::tests::milestoning::bookCatalogMap' (join chain [Book_Authorship] was never emitted on this pipeline — the expression navigates a join that was not hoisted as a slot)
 - ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation product.classification.description through an embedded/slot head is not supported yet
-- ERROR testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: scalar lowering not yet implemented for TypedCLatestDate
-- ERROR testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: scalar lowering not yet implemented for TypedCLatestDate
+- SHAPE testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClasses [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClassesWithProject [milestoning/tests]: sql-only: 2 advisory golden-SQL assert(s), no row verification
 - ERROR testMilestoningColumnProjectionWithNonMilestonedTable [milestoning/tests]: resolver bug: undemanded navigation 'milestoning.from' — the demand scan and the rewrite disagreed
 - SHAPE testLatestMilestoningFiltersPropogatedToDataTypePropertiesFromAllInProject [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testIsolationOfMilestoningFiltersUsedOnIntermediateJoinInOR [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testMilestoningContextWithLatestDateNotPropogatedThroughNonTemporalPropertiesFromAll [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testLatestMilestoneDatePropogationFromTypeQueryDoesNotOverrideThatSpecifiedAsArgToMilestonedQpInFilter [milestoning/tests]: scalar lowering not yet implemented for TypedCLatestDate
-- ERROR testLatestMilestoneDateMappedTableDateDoesNotOverrideLatestDateFromChildPropertyInPropogation [milestoning/tests]: scalar lowering not yet implemented for TypedCLatestDate
+- SHAPE testLatestMilestoneDatePropogationFromTypeQueryDoesNotOverrideThatSpecifiedAsArgToMilestonedQpInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testLatestMilestoneDateMappedTableDateDoesNotOverrideLatestDateFromChildPropertyInPropogation [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMilestoneDatePropogationThruExistsConditionalClause [milestoning/tests]: milestoned property access 'classification' on a NESTED navigation is not supported yet
 - ERROR testMilestoningContextIsPropogatedThroughSubType [milestoning/tests]: multi-hop navigation product.stc_meta__relational__tests__milestoning__Product___classification.description through an embedded/slot head is not supported yet
 - ERROR testInThruInclusiveUnionInThruInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::InThruInclusiveUnionInThruInclusiveMapping'
@@ -5169,7 +5165,6 @@ in-process Alloy-shaped path).
 - SHAPE testPushFiltersDownIntoSubQueryWithGroupByGroupingAndAggregateColumnsFilter [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPushFiltersDownToJoinsPostProcessorToSQL [postprocessor/tests]: no execute(|...) call
 - SHAPE testSqlRealiasJoin [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testSqlRealiasViews [postprocessor/tests]: mapping pipeline for 'meta::relational::tests::model::simple::AccountPnl' has TypedGroupBy above join slot(s); H3-pending
 - ERROR testSqlRealiasFreeMarker [postprocessor/tests]: nested navigation leaf 'type' of 'product.synonyms#f0' is mapped by a non-column expression — not supported yet
 - SHAPE testSQLRealiasCaseSensitiveTableNames [postprocessor/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDb2ColumnRename [postprocessor/tests]: no execute(|...) call

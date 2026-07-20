@@ -2056,6 +2056,13 @@ public final class Lowerer {
                 case PureDateLiteral.DateWithSubsecond su ->
                         new SqlExpr.TimestampLit(su.toEngineString());
             };
+            // %latest in VALUE position (generated milestoning-date reads:
+            // the engine's k_businessDate golden projects the LatestDate
+            // constant '9999-12-31T00:00:00.0000+0000') — the FIXED engine
+            // sentinel, not the table's INFINITY_DATE (which governs only
+            // the milestoning PREDICATE, TemporalFrame's arm)
+            case com.legend.compiler.spec.typed.TypedCLatestDate ignored ->
+                    new SqlExpr.TimestampLit("9999-12-31 00:00:00.0000");
             // The EMPTY collection [] (Nil[0]) in scalar position IS SQL
             // NULL — a [0] value has no cell representation other than null
             // (the mapping enum decode chain's tail: CASE ... ELSE NULL).
