@@ -235,6 +235,23 @@ final class GraphEmission {
                     continue;
                 }
             }
+            // audit 23: any OTHER to-many read through a slot (wrapped in
+            // a computed expression, deeper chain) would fall to the
+            // joined-scalar path and EXPLODE parent rows — loud
+            if (!(inner.info().multiplicity()
+                    instanceof com.legend.compiler.element.type
+                            .Multiplicity.Bounded bW
+                    && Integer.valueOf(1).equals(bW.upper()))) {
+                java.util.Set<String> slotish = new java.util.LinkedHashSet<>(
+                        Pipelines.navSteps(cs.pipeline()).keySet());
+                slotish.addAll(Pipelines.joinSlots(cs.pipeline()).keySet());
+                if (Pipelines.referencesAliasOn(inner, cs.rowVar(), slotish)) {
+                    throw new NotImplementedException("graph leaf '"
+                            + node.property() + "' reads a TO-MANY slot"
+                            + " through a computed expression — the joined-"
+                            + "scalar emission would explode parent rows");
+                }
+            }
             if (inner instanceof TypedNewInstance) {
                 throw new NotImplementedException("graph leaf '" + node.property()
                         + "' is an EMBEDDED class property — embedded graph"

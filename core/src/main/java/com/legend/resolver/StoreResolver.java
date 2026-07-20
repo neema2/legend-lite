@@ -3392,7 +3392,7 @@ public final class StoreResolver {
                 new Substitution.Registries(assocs, assocEnds, existsSubs,
                         aggReads, isNotEmptyCallee(), equalCallee()),
                 new Substitution.TemporalView(temporal.root().legacyDates(),
-                        temporal.headTemporalDates()),
+                        temporal.headTemporalDates(), temporal.root()),
                 filterPosition, false));
     }
 

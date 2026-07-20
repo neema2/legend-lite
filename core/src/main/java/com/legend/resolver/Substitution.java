@@ -91,10 +91,36 @@ final class Substitution {
      * properties): the root context's point dates and the per-chain
      * property-function dates — legacy list shapes at this boundary. */
     record TemporalView(List<TypedSpec> rootTemporalDates,
-                        Map<String, List<TypedSpec>> headTemporalDates) {
+                        Map<String, List<TypedSpec>> headTemporalDates,
+                        TemporalContext rootCtx) {
+
+        TemporalView(List<TypedSpec> rootTemporalDates,
+                Map<String, List<TypedSpec>> headTemporalDates) {
+            this(rootTemporalDates, headTemporalDates, null);
+        }
 
         static final TemporalView NONE =
                 new TemporalView(List.of(), Map.of());
+
+        /** DIMENSION-AWARE root context date (audit 23): businessDate
+         * reads the business slot, processingDate the processing slot —
+         * a cross-dimension ask under a dimensioned context is LOUD (the
+         * legacy positional list silently served the wrong dimension).
+         * Null when no root context (callers fall through). */
+        TypedSpec rootContextDate(String prop) {
+            if (rootCtx == null || rootCtx.isEmpty()) {
+                return null;
+            }
+            TypedSpec d = prop.equals("businessDate")
+                    ? rootCtx.business() : rootCtx.processing();
+            if (d == null) {
+                throw new NotImplementedException("generated '" + prop
+                        + "' read under a context with no "
+                        + (prop.equals("businessDate") ? "business"
+                                : "processing") + "-dimension date");
+            }
+            return d;
+        }
     }
 
     /** The instantiation being substituted into. Composed of the row
@@ -527,6 +553,17 @@ final class Substitution {
                     return rewriteMembershipExists(
                             target.existsSubs().get(cp.get(0)), cp.get(1), needle);
                 }
+                // audit 23: a DEEPER to-many membership path must not fall
+                // to the generic walk (bare join = duplicated parents
+                // under membership semantics) — loud until the chained
+                // EXISTS route exists
+                if (cp != null && cp.size() > 2
+                        && target.existsSubs().containsKey(cp.get(0))
+                        && target.existsSubs().get(cp.get(0)).toMany()) {
+                    throw new NotImplementedException("set membership over"
+                            + " the multi-hop to-many navigation "
+                            + String.join(".", cp) + " is not supported yet");
+                }
             }
         }
         // NEGATION ISOLATION over a to-many crossing (AUDIT 9 — the engine
@@ -751,7 +788,12 @@ final class Substitution {
                 // $p.processingDate reads back the fetch's context date
                 if ((prop.equals("businessDate") || prop.equals("processingDate"))
                         && !target.rootTemporalDates().isEmpty()) {
-                    return contextDate(target.rootTemporalDates(), prop);
+                    // audit 23: DIMENSION-AWARE when the context is
+                    // dimensioned; the positional list stays as the
+                    // fallback for legacy TemporalView constructions
+                    TypedSpec hd = target.temporal().rootContextDate(prop);
+                    return hd != null ? hd
+                            : contextDate(target.rootTemporalDates(), prop);
                 }
                 // VERSION SWEEP (allVersions / allVersionsInRange — the
                 // root context is EMPTY): each version row's OWN
@@ -1016,10 +1058,19 @@ final class Substitution {
             // the head's explicit property-function date wins, else the
             // propagated root context date
             if (leaf.equals("businessDate") || leaf.equals("processingDate")) {
-                List<TypedSpec> dates = target.headTemporalDates()
-                        .getOrDefault(head, target.rootTemporalDates());
-                if (!dates.isEmpty()) {
-                    return contextDate(dates, leaf);
+                List<TypedSpec> own = target.headTemporalDates().get(head);
+                if (own != null && !own.isEmpty()) {
+                    return contextDate(own, leaf);
+                }
+                // ROOT propagation is DIMENSION-AWARE (audit 23): the
+                // positional list silently served the root business date
+                // to a processing-temporal target
+                TypedSpec rd = target.temporal().rootContextDate(leaf);
+                if (rd != null) {
+                    return rd;
+                }
+                if (!target.rootTemporalDates().isEmpty()) {
+                    return contextDate(target.rootTemporalDates(), leaf);
                 }
             }
             if (target.nested()) {

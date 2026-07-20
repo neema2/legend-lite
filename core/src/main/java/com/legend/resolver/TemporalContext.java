@@ -43,9 +43,25 @@ record TemporalContext(TypedSpec processing, TypedSpec business,
             new TemporalContext(null, null, null, null, null);
 
     static TemporalContext single(String strategy, TypedSpec date) {
-        return "processingtemporal".equals(strategy)
-                ? new TemporalContext(date, null, null, null, null)
-                : new TemporalContext(null, date, null, null, null);
+        // audit 23: EXHAUSTIVE — the old else built a BUSINESS context
+        // for ANY other strategy (a bitemporal class with one date, or a
+        // null strategy, silently stamped business columns only)
+        return switch (strategy) {
+            case "processingtemporal" ->
+                    new TemporalContext(date, null, null, null, null);
+            // 'bitemporal' with ONE date: the propagation convention fills
+            // the BUSINESS slot — pinned row-correct by the three
+            // *ToBiTemporalDatePropagation corpus tests (probed loud and
+            // reverted, audit 23 batch 2). A dimension-TAGGED propagation
+            // is the honest future shape; this API loses the source
+            // dimension.
+            case "businesstemporal", "bitemporal" ->
+                    new TemporalContext(null, date, null, null, null);
+            case null, default ->
+                    throw new com.legend.error.NotImplementedException(
+                            "single-date temporal context for strategy '"
+                            + strategy + "' is not defined");
+        };
     }
 
     /** Real pure {@code .all(processingDate, businessDate)} order. */
