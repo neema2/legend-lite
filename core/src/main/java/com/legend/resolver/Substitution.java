@@ -684,6 +684,40 @@ final class Substitution {
             if (cur != null) {
                 return renameRowVar(cur);
             }
+            // HEAD-JOIN + EMBEDDED TAIL ($p.employees.address.name — the
+            // assoc TARGET maps 'address' as an embedded ctor): walk the
+            // target's binding chain to the leaf expression, then emit
+            // exactly like a plain assoc leaf (slot check, chain-prefix
+            // rename). A leaf missing from an otherwise-partial falls
+            // through loud below.
+            if (target.assocs().containsKey(path.get(0))) {
+                AssocSub ha = target.assocs().get(path.get(0));
+                TypedSpec curT = ha.targetBindings().get(path.get(1));
+                int h = 2;
+                while (curT != null && h < path.size()) {
+                    TypedSpec inner4 = curT;
+                    if (inner4 instanceof TypedNativeCall c4
+                            && c4.args().size() == 1
+                            && c4.callee().qualifiedName().equals(
+                                    "meta::pure::functions::multiplicity::toOne")) {
+                        inner4 = c4.args().get(0);
+                    }
+                    var ow4 = otherwiseOf(inner4);
+                    if (ow4 != null) {
+                        inner4 = ow4.args().get(0);
+                    }
+                    if (inner4 instanceof TypedNewInstance ni4
+                            && ni4.properties().containsKey(path.get(h))) {
+                        curT = ni4.properties().get(path.get(h));
+                        h++;
+                    } else {
+                        curT = null;
+                    }
+                }
+                if (curT != null && !(curT instanceof TypedNewInstance)) {
+                    return assocBindingRead(ha, path.get(path.size() - 1), curT);
+                }
+            }
             throw new NotImplementedException("multi-hop navigation "
                     + String.join(".", path) + " through an embedded/slot head"
                     + " is not supported yet");
@@ -999,6 +1033,15 @@ final class Substitution {
                     + "' is not mapped in mapping '" + target.mappingFqn() + "'",
                     a.targetClassFqn());
         }
+        return assocBindingRead(a, leaf, leafBinding);
+    }
+
+    /** The EMISSION half of an association-target read: slot flatten
+     * checks, then the chain-prefix rename onto the read row. The leaf
+     * expression may be a direct binding or a ctor-walked EMBEDDED leaf
+     * (rewriteMultiHop's head-join + embedded-tail arm). */
+    private TypedSpec assocBindingRead(AssocSub a, String leaf,
+            TypedSpec leafBinding) {
         TypedSpec leafInner = leafBinding;
         if (leafInner instanceof TypedNativeCall lc && lc.args().size() == 1
                 && lc.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
