@@ -1137,8 +1137,13 @@ public final class MappingNormalizer {
             AssociationMapping.ModelJoin mj, ModelBuilder model,
             String classA, String classB) {
         AssociationDefinition ad2 = model.findAssociation(mj.associationName()).orElseThrow();
-        ClassMapping.RelationFunction rfA = relationFunctionMappingOf(md, classA, null);
-        ClassMapping.RelationFunction rfB = relationFunctionMappingOf(md, classB, null);
+        // ends resolve like the XStore path: a Relation(~func) set
+        // directly, or a TABLE-backED Relational set converted to its
+        // column view (the testRelational*/mixed sub-family)
+        XEnd endA = xstoreEndOf(md, classA, null, model);
+        XEnd endB = xstoreEndOf(md, classB, null, model);
+        ClassMapping.RelationFunction rfA = endA.colsView();
+        ClassMapping.RelationFunction rfB = endB.colsView();
         if (mj.lambda().parameters().size() != 2) {
             throw new NotImplementedException(
                     "ModelJoin for '" + mj.associationName() + "' needs a"
@@ -1186,8 +1191,8 @@ public final class MappingNormalizer {
         Variable b = new Variable("b");
         ValueSpecification body = new AppliedFunction("legacyAssocPredicate", List.of(
                 a, b,
-                relationFunctionPipeline(rfA, model),
-                relationFunctionPipeline(rfB, model),
+                endA.pipeline(),
+                endB.pipeline(),
                 new LambdaFunction(List.of(srcRow, tgtRow), List.of(cond))));
         FunctionDefinition.ParameterDefinition pA = new FunctionDefinition.ParameterDefinition(
                 "a", new TypeExpression.NameRef(classA), Multiplicity.Concrete.PURE_ONE);
@@ -2179,7 +2184,7 @@ public final class MappingNormalizer {
         }
 
         String mainDb    = rcm.mainTable().database();
-        String mainTable = rcm.mainTable().table();
+        String mainTable = canonicalTable(rcm.mainTable().table());
         Variable rowBind = new Variable("row");
 
         // Query-parser parity (H1): the database is a PackageableElementPtr,
@@ -3006,7 +3011,7 @@ public final class MappingNormalizer {
         LegacyMappingDefinition.TableReference ref = mainTableDefOf(md, classFqn, model);
         return new AppliedFunction("tableReference", List.of(
                 new PackageableElementPtr(ref.database()),
-                new CString(ref.table())));
+                new CString(canonicalTable(ref.table()))));
     }
 
     static String mainTableOf(LegacyMappingDefinition md, String classFqn,
