@@ -71,6 +71,17 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
         return "$member";
     }
 
+    /** Whether {@code key} is a membership-WITNESS column, and if so the
+     * cast class's column PREFIX it belongs to (audit 23 B4 — key matching
+     * through the contract, never substring surgery). Null when not a
+     * witness key. */
+    static String witnessPrefixOf(String key) {
+        String tail = "___" + memberWitness();
+        return isSubTypeColumn(key) && key.endsWith(tail)
+                ? key.substring(0, key.length() - memberWitness().length())
+                : null;
+    }
+
     /** Fully-qualified class name being mapped. */
     String className();
 

@@ -2054,10 +2054,21 @@ public final class StoreResolver {
             ClassSource parent = cs;
             String parentPrefix = "";
             // $p.assoc.milestoning.from: the struct is a COLUMN read on the
-            // assoc target, not a further hop
-            int effectiveSize = path.size() >= 2
-                    && path.get(path.size() - 2).equals("milestoning")
-                    ? path.size() - 1 : path.size();
+            // assoc target, not a further hop. Audit 23 B3: the GENERATED
+            // struct exists only on a TEMPORAL hop class with no DECLARED
+            // property of that name (declared wins — audit 10); a user
+            // property literally named 'milestoning' keeps its hop.
+            int effectiveSize = path.size();
+            if (path.size() >= 2
+                    && path.get(path.size() - 2).equals("milestoning")) {
+                String hopCls = classAtHop(cs, path, path.size() - 2);
+                if (hopCls != null
+                        && com.legend.compiler.element.Temporal
+                                .strategyOf(ctx, hopCls) != null
+                        && ctx.findProperty(hopCls, "milestoning").isEmpty()) {
+                    effectiveSize = path.size() - 1;
+                }
+            }
             for (int hop = 0; hop + 1 < effectiveSize; hop++) {
                 String chainKey = String.join(".", path.subList(0, hop + 1));
                 AssociationJoins.AssocJoin known = joinsByChain.get(chainKey);
@@ -2865,6 +2876,21 @@ public final class StoreResolver {
      * position: {@code $f.employees.age->max()}. Substitutes as a column
      * read off the head's grouped-subselect join (engine subAggregation
      * shape) — the path is NOT bare-demanded, so no row explosion. */
+    /** The class FQN reached after {@code upto} property hops from the
+     * source class; null when any hop is not a class-typed property. */
+    private String classAtHop(ClassSource cs, List<String> path, int upto) {
+        String cur = cs.classFqn();
+        for (int i = 0; i < upto; i++) {
+            var pr = ctx.findProperty(cur,
+                    SyntheticHeads.realHead(path.get(i))).orElse(null);
+            if (pr == null || !(pr.type() instanceof Type.ClassType ct)) {
+                return null;
+            }
+            cur = ct.fqn();
+        }
+        return cur;
+    }
+
     record AggDemand(TypedNativeCall node,
             String leaf, TypedLambda mapper,
             TypedLambda orderKey, boolean orderAsc) {

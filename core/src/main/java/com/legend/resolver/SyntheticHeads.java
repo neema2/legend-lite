@@ -214,8 +214,15 @@ final class SyntheticHeads {
      * outer shadowing scope), which defeated plain record equality (the
      * OffsetExplosion probe: 5 subselects for 2 distinct preds). */
     private static TypedSpec alphaCanonicalBody(TypedLambda pred) {
+        // audit 23 B5: a shape this canonicalization cannot handle must be
+        // LOUD, not silently un-canonicalized — an un-merged identity
+        // cross-multiplies projection rows (the Merge golden: 7 vs 13)
         if (pred.parameters().size() != 1 || pred.body().size() != 1) {
-            return pred;
+            throw new com.legend.error.NotImplementedException(
+                    "filtered-navigation predicate"
+                    + " with " + pred.parameters().size() + " parameter(s)/"
+                    + pred.body().size() + " statement(s) cannot join the"
+                    + " merge-by-identity registry yet");
         }
         String param = pred.parameters().get(0);
         var pInfo = pred.info().type() instanceof Type.FunctionType ft
@@ -224,7 +231,9 @@ final class SyntheticHeads {
                         ft.params().get(0).multiplicity())
                 : null;
         if (pInfo == null) {
-            return pred;
+            throw new IllegalStateException("resolver bug: filtered-nav"
+                    + " predicate info is not a 1-param FunctionType — the"
+                    + " canonical binder cannot be typed");
         }
         return Substitution.inlineParam(pred.body().get(0), param,
                 new com.legend.compiler.spec.typed.TypedVariable(

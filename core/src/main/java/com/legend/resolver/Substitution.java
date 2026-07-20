@@ -1002,9 +1002,8 @@ final class Substitution {
         if (com.legend.model.ClassMapping.isSubTypeColumn(leaf)
                 && head.equals(SyntheticHeads.realHead(head))) {
             for (String k : a.targetBindings().keySet()) {
-                String w = com.legend.model.ClassMapping.memberWitness();
-                if (k.endsWith("___" + w) && leaf.startsWith(
-                        k.substring(0, k.length() - w.length()))) {
+                String wPfx = com.legend.model.ClassMapping.witnessPrefixOf(k);
+                if (wPfx != null && leaf.startsWith(wPfx)) {
                     throw new NotImplementedException("subType(@...) over a"
                             + " navigation whose target has PARTIAL membership"
                             + " (row restriction) is not supported yet");
@@ -1239,24 +1238,41 @@ final class Substitution {
                 new ExprType(Type.Primitive.BOOLEAN, Multiplicity.Bounded.ONE));
     }
 
-    /** The first {@code $p.head.leaf} read inside a boolean leaf whose
-     * head is a TO-MANY association crossing; null when none. (A leaf
-     * with several crossing reads null-guards only the first — engine
-     * isolation guards the read it isolates.) */
+    /** The {@code $p.head.leaf} read inside a boolean leaf whose head is
+     * a TO-MANY association crossing; null when none. A leaf crossing
+     * TWO DISTINCT to-many heads is LOUD (audit 23 B1): the isolation
+     * null-guard covers one read — guarding only the first silently
+     * inverts booleans for parents empty on the other head. */
     private TypedSpec toManyCrossingRead(TypedSpec n) {
+        List<TypedSpec> all = new ArrayList<>();
+        collectToManyCrossings(n, all);
+        if (all.isEmpty()) {
+            return null;
+        }
+        java.util.Set<String> heads = new java.util.LinkedHashSet<>();
+        for (TypedSpec r : all) {
+            heads.add(pathOf(r, target.userVar()).get(0));
+        }
+        if (heads.size() > 1) {
+            throw new NotImplementedException("boolean leaf crosses "
+                    + heads.size() + " distinct to-many associations "
+                    + heads + " — multi-crossing isolation is not"
+                    + " supported yet");
+        }
+        return all.get(0);
+    }
+
+    private void collectToManyCrossings(TypedSpec n, List<TypedSpec> out) {
         List<String> path = pathOf(n, target.userVar());
         if (path != null && path.size() == 2
                 && target.existsSubs().containsKey(path.get(0))
                 && target.existsSubs().get(path.get(0)).toMany()) {
-            return n;
+            out.add(n);
+            return;
         }
         for (TypedSpec c : n.children()) {
-            TypedSpec r = toManyCrossingRead(c);
-            if (r != null) {
-                return r;
-            }
+            collectToManyCrossings(c, out);
         }
-        return null;
     }
 
     /** The embedded ctor of a binding: a bare {@code ^Inner(...)} (with

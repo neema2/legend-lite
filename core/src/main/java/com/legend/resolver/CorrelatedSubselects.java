@@ -122,6 +122,12 @@ final class CorrelatedSubselects {
         Type.RelationType pcRow = (Type.RelationType)
                 pc.mat().pipeline().info().type();
         String corrTp = AssociationJoins.prefixFor(head + "_t", cs);
+        // audit 23 B7: the joined row is the PARENT COPY (extra
+        // slot-prefixed columns beyond cs.rowType()) — collision-check
+        // against IT, exactly like the exploding sibling below
+        while (hasColPrefixed(pcRow, corrTp)) {
+            corrTp = "_" + corrTp;
+        }
         List<Type.Column> jCols = new ArrayList<>(pcRow.columns());
         for (Type.Column c : aj.targetRow().columns()) {
             jCols.add(new Type.Column(
