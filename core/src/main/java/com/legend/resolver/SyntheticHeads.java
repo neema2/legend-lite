@@ -235,9 +235,13 @@ final class SyntheticHeads {
                     + " predicate info is not a 1-param FunctionType — the"
                     + " canonical binder cannot be typed");
         }
+        // the canonical binder is COMPARISON-ONLY (never emitted): the
+        // NUL-prefixed name cannot collide with any parseable pure
+        // identifier (audit 23 — a user var literally named _canon was
+        // capturable)
         return Substitution.inlineParam(pred.body().get(0), param,
                 new com.legend.compiler.spec.typed.TypedVariable(
-                        "_canon", pInfo));
+                        "\u0000canon", pInfo));
     }
 
     private String mintFilteredName(String prop) {

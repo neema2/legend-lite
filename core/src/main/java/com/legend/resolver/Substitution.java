@@ -1333,8 +1333,17 @@ final class Substitution {
      * reads) runs through THIS substitution. */
     private TypedSpec rewriteEmbeddedExists(TypedLambda pl,
             TypedNewInstance partial) {
+        // audit 23: a multi-statement predicate body would silently DROP
+        // its leading statements (a let's variable then leaks through the
+        // bare-var sink as an unbound read) — loud until let-carrying
+        // embedded predicates are threaded
+        if (pl.body().size() != 1) {
+            throw new NotImplementedException("embedded-exists predicate"
+                    + " with " + pl.body().size() + " statements (let-"
+                    + "carrying bodies) is not supported yet");
+        }
         TypedSpec body = substEmbeddedReads(
-                pl.body().get(pl.body().size() - 1), pl.parameters().get(0), partial);
+                pl.body().get(0), pl.parameters().get(0), partial);
         return rewrite(body);
     }
 
@@ -1364,6 +1373,14 @@ final class Substitution {
             return new TypedCollection(
                     c.elements().stream().map(e -> substEmbeddedReads(e, var, partial))
                             .toList(), c.info());
+        }
+        // audit 23: an unhandled node KIND that still reads the embedded
+        // var would escape substitution — wrong correlation or a binder
+        // leak. Nodes NOT reading the var pass through untouched.
+        if (readsVariable(n, var)) {
+            throw new NotImplementedException("embedded-exists predicate"
+                    + " node " + n.getClass().getSimpleName() + " reading"
+                    + " the embedded instance is not substitutable yet");
         }
         return n;
     }

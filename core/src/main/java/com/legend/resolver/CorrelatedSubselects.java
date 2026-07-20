@@ -140,6 +140,16 @@ final class CorrelatedSubselects {
                 aj.targetPipeline(), StoreResolver.leftKind(), aj.condition(),
                 Optional.of(corrTp), jInfo);
         String corrRowVar = "_cj";
+        // audit 23: a user lambda variable named _cj would shadow-stop the
+        // rewriters — bump until fresh against the pred's own names
+        Set<String> cjTaken = new LinkedHashSet<>();
+        if (corrAgg != null) {
+            collectVarNamesInto(corrAgg, cjTaken);
+        }
+        int cjOrd = 2;
+        while (cjTaken.contains(corrRowVar)) {
+            corrRowVar = "_cj" + cjOrd++;
+        }
         TypedLambda where = assocMaterial.corrPredOnJoinedRow(
                 corrAgg, cs, aj.target(), corrTp,
                 aj.targetSlotPrefixes(), aj.targetSubNavs(),
@@ -187,11 +197,19 @@ final class CorrelatedSubselects {
         TypedSpec joinedSub = new TypedJoin(pc.mat().pipeline(),
                 aj.targetPipeline(), StoreResolver.leftKind(), aj.condition(),
                 Optional.of(corrTp), jInfo);
+        // audit 23: same _cj freshness bump as corrAggSubSource
+        String cjVar = "_cj";
+        Set<String> cjTaken2 = new LinkedHashSet<>();
+        collectVarNamesInto(aj.corrSubPred(), cjTaken2);
+        int cjOrd2 = 2;
+        while (cjTaken2.contains(cjVar)) {
+            cjVar = "_cj" + cjOrd2++;
+        }
         TypedLambda where = assocMaterial.corrPredOnJoinedRow(
                 aj.corrSubPred(), cs, aj.target(), corrTp,
                 aj.targetSlotPrefixes(), aj.targetSubNavs(),
                 pc.mat().slotPrefixes(), pc.subNavs(),
-                "_cj", jRow);
+                cjVar, jRow);
         TypedSpec filtered = new TypedFilter(joinedSub, where, jInfo);
         var cjInfo = new ExprType(jRow,
                 com.legend.compiler.element.type.Multiplicity
@@ -210,13 +228,13 @@ final class CorrelatedSubselects {
                                     + " copy row"));
             String pk = "_pk" + ki;
             subKeys.add(pk);
-            pCols.add(projectedCol(pk, "_cj", cjInfo, k,
+            pCols.add(projectedCol(pk, cjVar, cjInfo, k,
                     new ExprType(col.type(), col.multiplicity())));
             subColsX.add(new Type.Column(pk, col.type(),
                     col.multiplicity()));
         }
         for (Type.Column c : aj.targetRow().columns()) {
-            pCols.add(projectedCol(c.name(), "_cj", cjInfo,
+            pCols.add(projectedCol(c.name(), cjVar, cjInfo,
                     corrTp + c.name(),
                     new ExprType(c.type(), c.multiplicity())));
             subColsX.add(c);

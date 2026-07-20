@@ -2431,7 +2431,11 @@ public final class StoreResolver {
                 target -> dispatch(fctx, target),
                 (fctx.explicitMapping() == null ? "" : fctx.explicitMapping())
                         + '\u0000'
-                        + (fctx.runtimeFqn() == null ? "" : context.runtimeFqn()));
+                        // audit 23: the KEY must be fctx's runtime — the
+                        // old mixed read (null-check fctx, value from
+                        // context) could poison the cache across an
+                        // in-chain from() rescope
+                        + (fctx.runtimeFqn() == null ? "" : fctx.runtimeFqn()));
 
         if (flattenHop != null) {
             cs = flattenSource(cs, flattenHop, fctx);
