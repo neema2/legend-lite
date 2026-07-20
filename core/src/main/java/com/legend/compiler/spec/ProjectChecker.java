@@ -158,6 +158,17 @@ final class ProjectChecker {
                             .allMatch(a -> a instanceof com.legend.model.spec.CDate
                                     || a instanceof com.legend.model.spec.CLatestDate
                                     || a instanceof Variable)) {
+                // the promised catalog-native guard (audit 23 A4 — the
+                // comment claimed it, the code lacked it): a CATALOG
+                // native in this shape is a computed column, never a
+                // dated property function
+                if (!com.legend.builtin.Pure
+                        .nativeKeysAt(laf.function()).isEmpty()) {
+                    throw new TypeInferenceException("a name-less project"
+                            + " column whose leaf calls the native '"
+                            + laf.function() + "' is a computed column —"
+                            + " give it an explicit name");
+                }
                 return laf.function();
             }
         }

@@ -896,14 +896,17 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         }
         String wKey = com.legend.model.ClassMapping.subTypeColumn(sct.fqn(),
                 com.legend.model.ClassMapping.memberWitness());
-        ClassSource target;
+        // audit 23 A5: only an UNDECIDABLE dispatch context (no runtime,
+        // unknown mapping) skips canonicalization; a resolution failure
+        // AFTER binds() confirmed the class is a real bug and propagates
+        String m;
         try {
-            String m = mappingOf.apply(navCt.fqn());
-            target = m != null && sources.binds(m, navCt.fqn())
-                    ? sources.get(m, navCt.fqn()) : null;
-        } catch (RuntimeException e) {
-            target = null;
+            m = mappingOf.apply(navCt.fqn());
+        } catch (MappingResolutionException e) {
+            m = null;
         }
+        ClassSource target = m != null && sources.binds(m, navCt.fqn())
+                ? sources.get(m, navCt.fqn()) : null;
         if (target == null || !target.bindings().containsKey(wKey)) {
             return n;
         }

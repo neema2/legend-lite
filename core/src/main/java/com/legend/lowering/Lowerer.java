@@ -518,7 +518,8 @@ public final class Lowerer {
             // FLOOR for G-direct paths (audit 20c H1 — the marker leaked
             // to this switch's default on the plain compile path).
             case TypedPropertyAccess pa
-                    when pa.property().equals("rows")
+                    when pa.property().equals(com.legend.compiler
+                            .element.type.PlatformTypes.ROWS_MARKER)
                     && pa.source().info().type() instanceof Type.RelationType ->
                     relation(pa.source());
 

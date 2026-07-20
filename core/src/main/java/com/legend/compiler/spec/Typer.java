@@ -247,7 +247,7 @@ final class Typer {
         // renameColumn(tds,'a','b') / renameColumns(tds, pair('a','b')...)
         // — engine tds.pure host-graph bodies; desugar to the modern
         // rename native (STATIC pair literals only; else loud below)
-        if (af.function().endsWith("renameColumn") && af.parameters().size() == 3
+        if (tdsVocab(af.function(), "renameColumn") && af.parameters().size() == 3
                 && af.parameters().get(1) instanceof CString ro
                 && af.parameters().get(2) instanceof CString rn) {
             return synth(new AppliedFunction("rename", List.of(
@@ -255,14 +255,15 @@ final class Typer {
                     new ColSpec(ro.value(), null, null),
                     new ColSpec(rn.value(), null, null))), env);
         }
-        if (af.function().endsWith("renameColumns") && af.parameters().size() == 2) {
+        if (tdsVocab(af.function(), "renameColumns") && af.parameters().size() == 2) {
             List<ValueSpecification> pairs =
                     af.parameters().get(1) instanceof PureCollection pc
                             ? pc.values() : List.of(af.parameters().get(1));
             ValueSpecification acc = af.parameters().get(0);
             for (ValueSpecification pv : pairs) {
                 if (!(pv instanceof AppliedFunction pf
-                        && pf.function().endsWith("pair")
+                        && (pf.function().equals("pair") || pf.function()
+                                .equals("meta::pure::functions::collection::pair"))
                         && pf.parameters().size() == 2
                         && pf.parameters().get(0) instanceof CString po
                         && pf.parameters().get(1) instanceof CString pn)) {
@@ -277,7 +278,7 @@ final class Typer {
         }
         // columnValues(tds,'c') — engine tds.pure host-graph body; the
         // platform spelling is the rows-mapped cell read
-        if (af.function().endsWith("columnValues") && af.parameters().size() == 2
+        if (tdsVocab(af.function(), "columnValues") && af.parameters().size() == 2
                 && af.parameters().get(1) instanceof CString cvCol) {
             return synth(new AppliedFunction("map", List.of(
                     new AppliedProperty(af.parameters().get(0), "rows"),
@@ -295,7 +296,9 @@ final class Typer {
         // non-[1] column read conforms BY EMISSION (toOne; lowering is
         // erasure).
         if (TDS_ROW_GETTERS.contains(af.function()) && af.parameters().size() == 2
-                && af.parameters().get(1) instanceof CString colName) {
+                && af.parameters().get(1) instanceof CString colName
+                && synth(af.parameters().get(0), env).info().type()
+                        instanceof Type.RelationType) {
             TypedSpec cell = synth(new AppliedProperty(
                     af.parameters().get(0), colName.value()), env);
             if (cell.info().multiplicity() instanceof Multiplicity.Bounded b
@@ -311,7 +314,9 @@ final class Typer {
         // spellings in RelOpTranslator)
         if ((af.function().equals("isNotNull") || af.function().equals("isNull"))
                 && af.parameters().size() == 2
-                && af.parameters().get(1) instanceof CString nullCol) {
+                && af.parameters().get(1) instanceof CString nullCol
+                && synth(af.parameters().get(0), env).info().type()
+                        instanceof Type.RelationType) {
             return synth(new AppliedFunction(
                     af.function().equals("isNotNull") ? "isNotEmpty" : "isEmpty",
                     List.of(new AppliedProperty(
@@ -457,6 +462,14 @@ final class Typer {
     private static final java.util.Set<String> TDS_ROW_GETTERS = java.util.Set.of(
             "getString", "getInteger", "getFloat", "getDecimal", "getNumber",
             "getBoolean", "getDate", "getDateTime", "getStrictDate", "getEnum");
+
+    /** Segment-aware legacy tds.pure vocabulary match: the BARE simple
+     * name or the exact {@code meta::pure::tds::} FQN — never a SUFFIX of
+     * a longer user name (exact-FQN rule, audit 23 A1;
+     * {@code my::customRenameColumn} calls the user function). */
+    private static boolean tdsVocab(String fn, String simple) {
+        return fn.equals(simple) || fn.equals("meta::pure::tds::" + simple);
+    }
 
     /**
      * The core-construct dispatch &mdash; exhaustive over {@link CoreFn} (a new

@@ -14,6 +14,14 @@ package com.legend.compiler.element.type;
  */
 public final class PlatformTypes {
 
+    /**
+     * The Typer's {@code .rows} MARKER property (identity over a relation
+     * value — the K result frame's row-index/envelope disambiguator).
+     * ONE constant for producer (Typer desugars) and consumers
+     * (StoreResolver erasure floor, Lowerer defensive floor) — audit 23 A6.
+     */
+    public static final String ROWS_MARKER = "rows";
+
     private PlatformTypes() {
     }
 

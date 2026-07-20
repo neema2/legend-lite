@@ -315,7 +315,8 @@ public final class StoreResolver {
             // this resolver, so erasure here reaches all of them (audit 20c
             // H1 — the K-hook-only erasure leaked on the plain compile path)
             case TypedPropertyAccess pa
-                    when pa.property().equals("rows")
+                    when pa.property().equals(com.legend.compiler
+                            .element.type.PlatformTypes.ROWS_MARKER)
                     && pa.source().info().type() instanceof Type.RelationType ->
                     resolveNode(pa.source(), context);
             // a COLUMN READ over a relation-shaped chain ($tds.rows.id —
@@ -3367,13 +3368,16 @@ public final class StoreResolver {
 
     /** Any registered equal overload — membership-crossing emission. */
     private TypedFunction equalCallee() {
-        var fns = ctx.findFunction("equal");
+        // exact FQN (audit 23 A3): a user-defined 'equal' must never
+        // become the membership callee
+        var fns = ctx.findFunction("meta::pure::functions::boolean::equal");
         return fns.isEmpty() ? null : fns.get(0);
     }
 
     /** Any registered isNotEmpty overload — the lowerer dispatches by family. */
     private TypedFunction isNotEmptyCallee() {
-        var fns = ctx.findFunction("isNotEmpty");
+        var fns = ctx.findFunction(
+                "meta::pure::functions::collection::isNotEmpty");
         if (fns.isEmpty()) {
             throw new IllegalStateException("resolver bug: no isNotEmpty registration");
         }
