@@ -181,7 +181,16 @@ final class NavMaterializer {
                 if (a2 != null) {
                     midByAlias.putIfAbsent(a2, tail.get(0));
                     if (!midByAlias.get(a2).equals(tail.get(0))
-                            && synthetics.correlatedPred(tail.get(0)) == null) {
+                            && synthetics.correlatedPred(tail.get(0)) != null) {
+                        // audit 23 B6: a CORRELATED second identity has no
+                        // extra-sub emission — dropping it silently reads
+                        // the FIRST identity's rows under the wrong pred
+                        throw new com.legend.error.NotImplementedException(
+                                "correlated filtered navigation '"
+                                + tail.get(0) + "' as a SECOND identity on"
+                                + " slot '" + a2 + "' is not supported yet");
+                    }
+                    if (!midByAlias.get(a2).equals(tail.get(0))) {
                         extraSubHeads.putIfAbsent(tail.get(0), a2);
                         List<List<String>> xt = extraSubTails.computeIfAbsent(
                                 tail.get(0), k -> new ArrayList<>());
@@ -233,11 +242,27 @@ final class NavMaterializer {
             CorrelatedSubselects.CompositeChain cc =
                     corrSubs.compositeChainTarget(t, st.predicate(), sub0);
             if (cc == null) {
+                // composite not applicable: the flat sibling-reading
+                // predicate stands. NOT walled (audit 23 B6 probe): the
+                // chained-union family (testUnionWithChainedJoinsAcross*
+                // V2) passes row-correct through the flat form — the
+                // 1:N explosion risk is multiplicity-dependent, and a
+                // blanket wall over-fired on those passing shapes.
                 continue;
             }
             compositeByAlias.put(na, cc.pipeline());
-            pipelineForMat = rewriteNavPredicate(pipelineForMat, na,
+            TypedSpec rewrittenPfm = rewriteNavPredicate(pipelineForMat, na,
                     cc.orientedCond());
+            if (rewrittenPfm == pipelineForMat) {
+                // audit 23 B6: the oriented condition MUST install — a
+                // step off the Navigate/JoinSlot/Filter spine would join
+                // on the un-rewritten sibling-reading condition
+                throw new IllegalStateException("resolver bug: navigate"
+                        + " step '" + na + "' is not on the materialization"
+                        + " spine — the composite's oriented condition was"
+                        + " not installed");
+            }
+            pipelineForMat = rewrittenPfm;
         }
         final TypedSpec pfm = pipelineForMat;
         Pipelines.Materialized matM = Pipelines.materialize(
@@ -524,10 +549,13 @@ final class NavMaterializer {
             // the synthetic identity's own suffix keys the join prefix
             // (synonyms#f1 -> alias_f1_) — deterministic, collision-free
             // per identity by construction
+            // audit 23 B6: a PLAIN second identity keys by its own
+            // property name — the old literal "x" collided when two
+            // plain identities shared one physical slot
             String xPrefix = alias + "_"
                     + (prop.indexOf('#') >= 0
                             ? prop.substring(prop.indexOf('#') + 1)
-                            : "x") + "_";
+                            : prop) + "_";
             var xLeftRow = (com.legend.compiler.element.type.Type.RelationType)
                     pipe.info().type();
             var xRow = (com.legend.compiler.element.type.Type.RelationType)
