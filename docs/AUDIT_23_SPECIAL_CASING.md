@@ -156,3 +156,31 @@ either rule violations, golden-derived semantics without engine-source
 grounding, or silent fallbacks in wrong-rows positions. Slices A-C are
 mechanical-to-moderate; Slice D changes what the harness accepts and must be
 sweep-classified like any behavior change.
+
+## Deliberate divergences ledger (slice C-e)
+
+Documented intentional departures from real pure, kept because the corpus
+pins them or the alternative is unimplementable on the SQL carrier. Each is
+a candidate for future re-grounding, none is a bug:
+
+1. **Enum-vs-string equality** (Lowerer enumTypeMismatch exemption):
+   `E.X == 'X'` is TRUE here (the corpus's name-comparison convention),
+   FALSE in real pure. Cross-enum and enum-vs-non-string are static FALSE.
+2. **Narrowing casts convert** (Lowerer castByPolicy): SQL-style value
+   conversion where pure's cast raises on lossy narrowing.
+3. **type() falls back to DuckDB typeof** (Scalars) for non-static types:
+   returns SQL type names ('BIGINT') where pure returns 'Integer'.
+4. **hasDay/hasMonth… column form returns IntLit 1/0** (Scalars) — the
+   engine's integer surface for column arguments; literal arguments return
+   proper booleans.
+5. **hashCode values are platform-local** (Lowerer __HASH_LIST__): only
+   determinism and type are contractual, not the values.
+6. **TDS null-cell sentinel** (PlatformTypes.TDS_NULL_CELL): pure DROPS
+   empty elements from ordinary collections; we print the sentinel where
+   TDS-row semantics apply (makeString over row cells, toString(get())).
+   Harness TestBody compares the sentinel one-directionally (expected-side
+   only). Remaining literal sites: TestBody wire compares + TdsChecker
+   header parse (harness boundary, deliberate).
+7. **toOne over relations is row-identity** (Lowerer): the exactly-one
+   contract enforces at reader roots (executor scalar guard), not
+   mid-pipeline.

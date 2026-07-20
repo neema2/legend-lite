@@ -728,7 +728,7 @@ final class Scalars {
                                 SqlExpr.Call.of(SqlFn.COALESCE,
                                         PureSql.elementText(n.args().get(0),
                                                 args.get(0), new SqlExpr.Column(null, "x")),
-                                        new SqlExpr.StringLit("TDSNull"))));
+                                        new SqlExpr.StringLit(PlatformTypes.TDS_NULL_CELL))));
                 SqlExpr joined = SqlExpr.Call.of(SqlFn.COALESCE,
                         new SqlExpr.Call(SqlFn.LIST_AGG, List.of(
                                 new SqlExpr.StringLit("string_agg"), strs, sep)),
@@ -2752,7 +2752,7 @@ final class Scalars {
     /** Literal cell of a TDS row → typed SQL literal, by the column's Pure type. */
     static SqlExpr tdsCell(String cell, Type type) {
         if (cell == null || cell.isEmpty()
-                || cell.equals("TDSNull")
+                || cell.equals(PlatformTypes.TDS_NULL_CELL)
                 || (cell.equals("null") && !PlatformTypes.isVariant(type))) {
             // A bare 'null' cell is SQL NULL for EVERY non-variant type —
             // String included (a 'null' name must vanish from joinStrings

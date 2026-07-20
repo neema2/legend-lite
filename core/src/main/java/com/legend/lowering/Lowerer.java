@@ -898,6 +898,14 @@ public final class Lowerer {
                     + " column to deduplicate");
         }
         if (mapBody instanceof TypedVariable && extra.isEmpty()) {
+            // MARKER reducers never take the bare COUNT(*)-style return —
+            // the marker would escape its contract as literal SQL
+            // (audit 23 C-a: uniqueValueOnly/hashCode over a bare row)
+            if (fn.startsWith("__")) {
+                throw new com.legend.error.NotImplementedException(
+                        "composed aggregate '" + call.callee().qualifiedName()
+                        + "' over a bare group variable — no value column");
+            }
             return new SqlAgg.Reducer(fn, List.of(), false);
         }
         // CALENDAR native in map position: the value is the CASE over the
@@ -1167,8 +1175,8 @@ public final class Lowerer {
      * vars own-select-first silently SELF-CORRELATES whenever the outer
      * row's column name also exists on the inner row (same-named columns
      * across joined tables, self-joins — the audit's two wrong-answer
-     * regressions). The own select remains the last resort for other vars
-     * (legacy fallthrough).
+     * regressions). Non-own vars that miss every
+     * enclosing scope are UNFOLDABLE — never own-select-resolved.
      */
     private ColumnResolver scopedResolver(SqlSelect select, String ownVar) {
         // SNAPSHOT the enclosing scopes at creation: iterating the LIVE
@@ -1188,10 +1196,11 @@ public final class Lowerer {
                     return found.expr();
                 }
             }
-            if (!own && attempt(() -> resolveOrThrow(select, name))
-                    instanceof Resolution.Resolved fallback) {
-                return fallback.expr();
-            }
+            // audit 23 C-c: NO own-select last resort for non-own vars —
+            // the silent self-correlation resolved an outer row's read
+            // against a same-named INNER column (the two regressions in
+            // this method's doc-comment). A genuine miss takes the
+            // designed UnfoldableRef route (isolate-or-loud).
             throw new UnfoldableRef(name);
         };
     }
@@ -2435,7 +2444,8 @@ public final class Lowerer {
                     elems.add(SqlExpr.Call.of(SqlFn.COALESCE,
                             new SqlExpr.Cast(scalar(e, columns),
                                     SqlType.Scalar.VARCHAR),
-                            new SqlExpr.StringLit("TDSNull")));
+                            new SqlExpr.StringLit(com.legend.compiler.element.type
+                                        .PlatformTypes.TDS_NULL_CELL)));
                 }
                 List<SqlExpr> args = new ArrayList<>();
                 args.add(new SqlExpr.ArrayLit(elems));
@@ -3053,6 +3063,20 @@ public final class Lowerer {
                 .allMatch(tc -> src.containsKey(tc.name()));
         SqlSelect base = relation(c.source());
         if (!allKnown) {
+            // audit 23 C-b: the type-only pass-through is the PIVOT
+            // dynamic-column idiom — a cast naming unknown columns over a
+            // STATIC source is a typo and silently no-oping it mislabels
+            // cells far from the cause
+            if (srcRow.dynamicColumns() == null
+                    || srcRow.dynamicColumns().isEmpty()) {
+                throw new com.legend.error.NotImplementedException(
+                        "cast(@Relation<...>) names column(s) absent from the"
+                        + " STATIC source row " + tgtRow.columns().stream()
+                                .map(Type.Column::name)
+                                .filter(nm -> !src.containsKey(nm)).toList()
+                        + " — only a dynamic-column (pivot) source admits"
+                        + " unknown cast columns");
+            }
             return base;   // dynamic (pivot) columns: re-type only
         }
         // Identity is POSITIONAL: a cast that merely REORDERS columns must

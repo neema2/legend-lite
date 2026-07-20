@@ -22,6 +22,17 @@ public final class PlatformTypes {
      */
     public static final String ROWS_MARKER = "rows";
 
+    /**
+     * The TDS null-cell SENTINEL spelling — real pure's {@code ^TDSNull()}
+     * instance prints as this string (tds.pure). ONE constant for every
+     * producer (Typer toString-get desugar, makeString/joinStrings NULL
+     * coalesce) and parser (TDS-literal cells, harness wire compares) —
+     * audit 23 C-d. Divergence note: pure DROPS empty elements from
+     * ordinary collections; we print the sentinel only where TDS-row
+     * semantics apply (ledgered in AUDIT_23_SPECIAL_CASING.md).
+     */
+    public static final String TDS_NULL_CELL = "TDSNull";
+
     private PlatformTypes() {
     }
 

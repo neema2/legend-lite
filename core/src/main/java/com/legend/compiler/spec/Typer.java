@@ -335,7 +335,8 @@ final class Typer {
                 return synth(new AppliedFunction("if", List.of(
                         new AppliedFunction("isEmpty", List.of(read)),
                         new com.legend.model.spec.LambdaFunction(List.of(),
-                                List.of(new CString("TDSNull"))),
+                                List.of(new CString(com.legend.compiler.element.type
+                                        .PlatformTypes.TDS_NULL_CELL))),
                         new com.legend.model.spec.LambdaFunction(List.of(),
                                 List.of(new AppliedFunction("toString", List.of(
                                         new AppliedFunction("toOne",
