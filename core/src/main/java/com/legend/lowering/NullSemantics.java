@@ -62,6 +62,16 @@ final class NullSemantics {
     static SqlExpr notEqualNullArms(java.util.List<SqlExpr> ops) {
         SqlExpr left = ops.get(0);
         SqlExpr right = ops.get(1);
+        // a NULL-literal operand (sqlNull()/TDSNull — the null-cell value):
+        // pure {@code x != TDSNull} IS the presence test — the generic
+        // arms would emit {@code x <> NULL OR x IS NULL}, which keeps
+        // ONLY nulls (inverted; tds.pure firstNotNull golden)
+        if (left instanceof SqlExpr.NullLit || right instanceof SqlExpr.NullLit) {
+            SqlExpr other = left instanceof SqlExpr.NullLit ? right : left;
+            return other instanceof SqlExpr.NullLit
+                    ? new SqlExpr.BoolLit(false)
+                    : SqlExpr.Call.of(SqlFn.IS_NOT_NULL, other);
+        }
         SqlExpr ne = new SqlExpr.Call(SqlFn.NOT_EQUAL, ops);
         boolean litL = isSqlLiteral(left);
         boolean litR = isSqlLiteral(right);

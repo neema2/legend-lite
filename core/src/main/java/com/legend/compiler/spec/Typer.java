@@ -132,6 +132,13 @@ final class Typer {
             case AppliedFunction af -> applyFunction(af, env);
             case AppliedProperty ap -> accessProperty(ap, env);
             case PureCollection coll -> collection(coll, env);
+            // a BARE TDSNull reference ($v != TDSNull, tds.pure
+            // firstNotNull) is the same null-cell value as ^TDSNull() —
+            // one funnel: both resolve to sqlNull()
+            case PackageableElementPtr ref
+                    when ref.fullPath().equals("TDSNull")
+                    || ref.fullPath().equals("meta::pure::tds::TDSNull") ->
+                    synth(new AppliedFunction("sqlNull", List.of()), env);
             case PackageableElementPtr ref -> classReference(ref);
             case NewInstance ni -> {
                 // ^TDSNull() — the TDS null-cell literal (engine
