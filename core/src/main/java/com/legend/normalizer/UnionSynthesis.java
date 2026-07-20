@@ -1064,6 +1064,10 @@ final class UnionSynthesis {
                     // UN-routed navigation (engine rootClassMappingByClass;
                     // multipleChainedJoins V2: z[y1, z0] into single-set Z)
                     ClassMapping set = MappingNormalizer.findSetById(md, model, j0.targetSetId());
+                    // <= 1 RETAINED (audit 23 probed-and-reverted): the
+                    // V5 chained-union family routes into a class whose
+                    // sets live in an INCLUDE (zero own-mapping sets) and
+                    // pins the root-navigation degradation as row-correct.
                     boolean rootOrSole = set instanceof ClassMapping.Relational tr
                             && (tr.root() || md.classMappings().stream()
                                     .filter(x -> x.className().equals(tr.className()))

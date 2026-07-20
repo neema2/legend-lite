@@ -618,11 +618,28 @@ final class JoinChainEmission {
     private static boolean nullTolerant(RelationalOperation op) {
         return switch (op) {
             case RelationalOperation.IsNull ignored -> true;
-            case RelationalOperation.FunctionCall fc ->
-                    fc.name().equalsIgnoreCase("isNull")
-                            || fc.name().equalsIgnoreCase("sqlNull")
-                            || fc.args().stream()
-                                    .anyMatch(JoinChainEmission::nullTolerant);
+            case RelationalOperation.FunctionCall fc -> {
+                if (fc.name().equalsIgnoreCase("isNull")
+                        || fc.name().equalsIgnoreCase("sqlNull")) {
+                    yield true;
+                }
+                // audit 23: NULL-swallowing functions defeat the
+                // classification — LOUD, never a silent null-rejecting
+                // verdict (the (INNER) LEFT+WHERE realization would keep
+                // NULL-extended parents the engine's INNER join drops)
+                if (fc.name().equalsIgnoreCase("coalesce")
+                        || fc.name().equalsIgnoreCase("ifnull")
+                        || fc.name().equalsIgnoreCase("nvl")
+                        || fc.name().equalsIgnoreCase("case")
+                        || fc.name().equalsIgnoreCase("if")) {
+                    throw new NotImplementedException("(INNER) mapping-"
+                            + "filter condition uses '" + fc.name()
+                            + "' — null-tolerance cannot be classified;"
+                            + " not supported yet");
+                }
+                yield fc.args().stream()
+                        .anyMatch(JoinChainEmission::nullTolerant);
+            }
             case RelationalOperation.BooleanOp b ->
                     nullTolerant(b.left()) || nullTolerant(b.right());
             case RelationalOperation.Comparison c ->

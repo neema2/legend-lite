@@ -96,7 +96,9 @@ final class M2mRouteGuards {
             return cm.setId().equals(id);
         }
         String fqn = cm.className();
-        return id.equals(fqn.replace("::", "_"))
-                || id.equals(fqn.substring(fqn.lastIndexOf(':') + 1));
+        // audit 23: EXACT engine-default id only (FQN with '_' for '::');
+        // the short-class-name acceptance let two same-named classes in
+        // different packages match each other's routes
+        return id.equals(fqn.replace("::", "_"));
     }
 }

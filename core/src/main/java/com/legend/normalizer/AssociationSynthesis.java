@@ -235,6 +235,14 @@ final class AssociationSynthesis {
         if (firstJoin.joins().size() >= 2) {
             return null;
         }
+        // First-PM-wins is RETAINED (audit 23 probed-and-reverted): a
+        // direction-agreement wall broke testSimpleQueryToAssociationMapping
+        // + testProjectThroughAssoWithAssociationMapping — classic
+        // association mappings legitimately spell the two directions with
+        // DIFFERENT (inverse-equivalent) joins, and the first join's
+        // predicate is row-correct for both (engine joins are
+        // direction-neutral). Residual: two directions with genuinely
+        // NON-equivalent joins would still take the first silently.
         // An end class with NO ~mainTable mapping (its properties live only
         // as Join PMs on the other end) cannot anchor a standalone
         // (A,B)->Boolean predicate — no binding is emitted, and NAVIGATING
