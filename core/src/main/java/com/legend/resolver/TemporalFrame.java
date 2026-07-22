@@ -343,6 +343,13 @@ final class TemporalFrame {
                     col.apply(thruCol),
                     new TypedCDate(
                             PureDateLiteral.parse(
+                                    // INFINITY_DATE reaches here in both
+                                    // corpus spellings (%-prefixed pure
+                                    // literal and bare ISO); tolerated at
+                                    // THE one consumption site (audit 23
+                                    // #75 — parser normalization would
+                                    // churn the model record for no
+                                    // second consumer)
                                     infinity.startsWith("%")
                                             ? infinity.substring(1) : infinity),
                             dt),

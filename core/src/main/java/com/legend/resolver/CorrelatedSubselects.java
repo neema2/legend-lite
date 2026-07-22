@@ -227,6 +227,11 @@ final class CorrelatedSubselects {
                                     + "' missing from the parent"
                                     + " copy row"));
             String pk = "_pk" + ki;
+            // audit 23 #75: a physical column literally named _pk<i> on
+            // the parent-copy row would collide with the projected key
+            while (hasCol(pcRow, pk)) {
+                pk = "_" + pk;
+            }
             subKeys.add(pk);
             pCols.add(projectedCol(pk, cjVar, cjInfo, k,
                     new ExprType(col.type(), col.multiplicity())));
@@ -668,16 +673,33 @@ CompositeChain compositeChainTarget(ClassSource cs,
         }
         Type.RelationType compRow = new Type.RelationType(compCols);
         var one = com.legend.compiler.element.type.Multiplicity.Bounded.ONE;
+        // audit 23 #75: a multi-statement join condition would silently
+        // drop its leading statements (let-bound sub-expressions) — loud
+        if (navCond.body().size() != 1) {
+            throw new NotImplementedException("composite join condition"
+                    + " with " + navCond.body().size() + " statements"
+                    + " (let-carrying bodies) is not supported yet");
+        }
+        Set<String> takenLr = new LinkedHashSet<>();
+        collectVarNamesInto(navCond.body().get(0), takenLr);
         String lv = "_cl";
         String rv = "_cr";
-        TypedSpec b0 = navCond.body().get(navCond.body().size() - 1);
+        int lrOrd = 2;
+        while (takenLr.contains(lv) || takenLr.contains(rv)) {
+            lv = "_cl" + lrOrd;
+            rv = "_cr" + lrOrd;
+            lrOrd++;
+        }
+        TypedSpec b0 = navCond.body().get(0);
+        final String lvF = lv;
+        final String rvF = rv;
         TypedSpec b1 = Pipelines.rewriteRowReads(b0, tParam, Map.of(),
-                Set.of(), v -> new TypedVariable(lv,
+                Set.of(), v -> new TypedVariable(lvF,
                         new ExprType(tgtRow, one)));
         TypedSpec b2 = Pipelines.rewriteRowReads(b1, sParam,
                 Map.of(slotRef, ""), Set.of(),
-                v -> new TypedVariable(rv, new ExprType(optRow, one)));
-        TypedLambda joinCond = new TypedLambda(List.of(lv, rv), List.of(b2),
+                v -> new TypedVariable(rvF, new ExprType(optRow, one)));
+        TypedLambda joinCond = new TypedLambda(List.of(lvF, rvF), List.of(b2),
                 new ExprType(new Type.FunctionType(
                         List.of(new Type.Param(tgtRow, one),
                                 new Type.Param(optRow, one)),
@@ -943,6 +965,10 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         var bool1 = new ExprType(Type.Primitive.BOOLEAN,
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         TypedSpec wRead = new TypedPropertyAccess(
+                // 'v_stw' is safe UNGUARDED: this lambda body is fully
+                // SYNTHESIZED here (witness read + isNotEmpty only — no
+                // user expression is embedded under the binder), and the
+                // downstream park machinery alpha-canonicalizes binders
                 new TypedVariable("v_stw", new ExprType(navCt,
                         com.legend.compiler.element.type
                                 .Multiplicity.Bounded.ONE)),
@@ -1083,6 +1109,15 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         }
         for (TypedSpec c : n.children()) {
             if (containsToManyCrossing(c, userVar, cs, toManyHead)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static boolean hasCol(Type.RelationType row, String name) {
+        for (Type.Column c : row.columns()) {
+            if (c.name().equals(name)) {
                 return true;
             }
         }

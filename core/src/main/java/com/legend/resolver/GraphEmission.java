@@ -321,7 +321,16 @@ final class GraphEmission {
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         TypedSpec childRel = new TypedFilter(targetPipeline, corr,
                 targetPipeline.info());
-        String childVar = "_r" + freshVar.getAsInt();
+        // same freshness guard as correlatedGraphChild (audit 23 #75 —
+        // this mint lacked it): bump past any name the child value or
+        // the correlation could capture
+        Set<String> pcParams = new LinkedHashSet<>();
+        StoreResolver.collectLambdaParams(colRead, pcParams);
+        pcParams.addAll(corr.parameters());
+        String childVar;
+        do {
+            childVar = "_r" + freshVar.getAsInt();
+        } while (pcParams.contains(childVar));
         TypedSpec value = new TypedPropertyAccess(
                 new TypedVariable(childVar,
                         new ExprType(targetRow,

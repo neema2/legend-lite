@@ -1189,13 +1189,32 @@ final class Substitution {
     private static TypedSpec milestoneColumnRead(String column, String rowVar,
             Type.RelationType row, String prefix, TypedSpec original) {
         String name = prefix + column;
+        // EXACT match first; case-insensitive only when UNIQUE (audit 23
+        // #75: two case-differing columns read whichever came first)
+        Type.Column ci = null;
+        boolean ciAmbiguous = false;
         for (Type.Column c : row.columns()) {
-            if (c.name().equalsIgnoreCase(name)) {
+            if (c.name().equals(name)) {
                 return new TypedPropertyAccess(
                         new TypedVariable(rowVar,
                                 new ExprType(row, Multiplicity.Bounded.ONE)),
                         c.name(), new ExprType(c.type(), c.multiplicity()));
             }
+            if (c.name().equalsIgnoreCase(name)) {
+                ciAmbiguous = ci != null;
+                ci = c;
+            }
+        }
+        if (ci != null && !ciAmbiguous) {
+            return new TypedPropertyAccess(
+                    new TypedVariable(rowVar,
+                            new ExprType(row, Multiplicity.Bounded.ONE)),
+                    ci.name(), new ExprType(ci.type(), ci.multiplicity()));
+        }
+        if (ciAmbiguous) {
+            throw new NotImplementedException("milestone column '" + name
+                    + "' matches multiple case-differing columns on the"
+                    + " substitution row");
         }
         // LOUD (audit 10): a read of a column absent from the row would
         // surface only as a SQL binder error

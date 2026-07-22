@@ -110,6 +110,12 @@ final class Pipelines {
 
     /** All slot aliases present in {@code pipeline}, in source order. */
     /** The JOIN SLOTS of a pipeline by alias (target + condition ride the slot). */
+    /** SPINE-only by design (audit 23 #75, reviewed): the normalizer
+     * emits join slots as a LINEAR first-child chain (source -> slot* ->
+     * filter -> map); an off-spine slot would be a normalizer contract
+     * change, and {@link #slotAliases} (full-tree) catching aliases this
+     * walk misses surfaces exactly that as a demand/materialize mismatch
+     * — loud downstream, never silently resolved. */
     static Map<String, com.legend.compiler.spec.typed.TypedJoinSlot> joinSlots(
             TypedSpec pipeline) {
         Map<String, com.legend.compiler.spec.typed.TypedJoinSlot> out =

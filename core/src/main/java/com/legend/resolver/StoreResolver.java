@@ -1492,6 +1492,14 @@ public final class StoreResolver {
             } else {
                 continue;
             }
+            // audit 23 #75: a MISSING property must not silently default
+            // to to-many semantics — the demand scan and G disagree
+            if (ctx.findProperty(parent.classFqn(), leaf).isEmpty()) {
+                throw new IllegalStateException("resolver bug: exists-leaf"
+                        + " property '" + leaf + "' is not declared on '"
+                        + parent.classFqn() + "' — G admitted a read the"
+                        + " model does not carry");
+            }
             boolean leafToMany = !(ctx.findProperty(parent.classFqn(), leaf)
                     .map(pr -> pr.multiplicity())
                     .filter(mm -> mm instanceof com.legend.compiler.element.type
