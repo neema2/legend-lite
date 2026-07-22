@@ -591,6 +591,15 @@ public final class Runner {
             collectCalledFqns(stmt, called, elements);
         }
         List<String> moduleRefs = new ArrayList<>(mappingRefs);
+        // BARE element refs (^RelationalDebugContext(...) under an import
+        // wildcard) qualify through the test's imports before the pull
+        // check — collected pre-resolution they fail contains("::") and
+        // their defining file never pulls, so the class resolves by NAME
+        // but is unknown in the MODULE (the probe-pass/sweep-fail cluster).
+        // Bare-resolved refs pull the SINGLE DEFINING FILE only (the
+        // narrower vehicle from the reverted transitive-closure probe —
+        // whole foreign families poison resolution).
+        List<String> fileOnlyRefs = new ArrayList<>();
         for (String ref : called) {
             if (ref.contains("::") && elementSource.containsKey(ref)) {
                 moduleRefs.add(ref);
@@ -599,11 +608,16 @@ public final class Runner {
         for (String ref : elements) {
             if (ref.contains("::") && elementSource.containsKey(ref)) {
                 moduleRefs.add(ref);
+            } else if (!ref.contains("::")) {
+                String q = qualify(ref, t);
+                if (q.contains("::") && elementSource.containsKey(q)) {
+                    fileOnlyRefs.add(q);
+                }
             }
         }
         try {
             com.legend.compiler.element.ModelContext ctx =
-                    moduleContextFor(moduleRefs);
+                    moduleContextFor(moduleRefs, fileOnlyRefs);
             try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
                 try (var st = conn.createStatement()) {
                     st.execute("SET TimeZone='UTC'");
@@ -666,11 +680,17 @@ public final class Runner {
      */
     private com.legend.compiler.element.ModelContext moduleContextFor(
             List<String> mappingRefs) {
+        return moduleContextFor(mappingRefs, List.of());
+    }
+
+    private com.legend.compiler.element.ModelContext moduleContextFor(
+            List<String> mappingRefs, List<String> fileOnlyRefs) {
         // the runtime's mappings list matters: NESTED getAll resolution
         // routes through runtime->mappings when no explicit from() context
         // reaches it — the test's own execute() mapping refs go in
         String cacheKey = currentFamilyKey + "|" + currentFileKey + "|"
-                + String.join(",", mappingRefs);
+                + String.join(",", mappingRefs) + "|"
+                + String.join(",", fileOnlyRefs);
         com.legend.Compiler.BuiltModule cached = moduleCache.get(cacheKey);
         if (cached != null) {
             return cached.context();
@@ -726,6 +746,17 @@ public final class Runner {
                             "xfam-" + Integer.toHexString(src.hashCode())
                                     + "-" + (i++) + ".pure", src));
                 }
+            }
+        }
+        // the SINGLE-DEFINING-FILE vehicle: bare-resolved element refs pull
+        // just the file that defines them — whole foreign families poison
+        // resolution (the reverted transitive-closure probe, 1219->1200).
+        for (String ref : fileOnlyRefs) {
+            String defining = elementSource.get(ref);
+            if (defining != null && present.add(defining)) {
+                sources.add(new com.legend.Compiler.ModelSource(
+                        "xfile-" + Integer.toHexString(defining.hashCode())
+                                + ".pure", defining));
             }
         }
         // per-source tolerant PARSE: an unparseable file is a FILE wall,
