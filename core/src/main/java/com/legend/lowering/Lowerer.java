@@ -185,7 +185,9 @@ public final class Lowerer {
                         "a query-level let has no row scope for $" + var);
             }));
         }
-        return lower(body.get(body.size() - 1));
+        // J-tail: demand-driven subselect column pruning (engine parity —
+        // isolated composites enumerate only consumed columns)
+        return SubselectPrune.prune(lower(body.get(body.size() - 1)));
     }
 
     /** Lower a typed query to SQL: relation pipelines and scalar roots. */
