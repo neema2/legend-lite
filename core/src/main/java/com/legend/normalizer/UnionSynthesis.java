@@ -762,6 +762,19 @@ final class UnionSynthesis {
                     "Operation union members of '" + className
                   + "' map no scalar properties; mapping=" + md.qualifiedName());
         }
+        // EMBEDDED PMs distribute per SUB-FIELD (engine union model): each
+        // member thread projects its own embedded sub-columns under the
+        // synthetic emb__<prop>__<sub> names (typed NULL in members that
+        // don't map the sub — the partial-union mechanism); the union root
+        // ctor recomposes ^Inner(...) over those columns, so the resolver's
+        // existing EMBEDDED arm dispatches. Only THREAD-PROJECTABLE sub
+        // values distribute (plain member-row reads / constants) — a sub
+        // reading a hoisted join slot stays undistributed (loud downstream,
+        // never a silently-wrong projection).
+        EmbDist emb = collectEmbeddedDistribution(parts);
+        Map<String, LinkedHashSet<String>> embSubs = emb.subs();
+        Map<String, String> embInner = emb.inner();
+        LinkedHashSet<String> embTops = emb.tops();
         // ==== NAV LIFT (engine union model): the members' class-typed
         // single-hop Join PMs lift to ONE legacyNavigate ON THE UNION —
         // member i's thread carries its join keys member-suffixed
@@ -829,6 +842,7 @@ final class UnionSynthesis {
                 cols.add(new ColSpec(prop, new LambdaFunction(
                         List.of(pp.rowBind()), List.of(value)), null));
             }
+            addEmbeddedThreadCols(embSubs, embInner, pp, model, cols);
             addSubTypeDispatchCols(subTypeProps, members.get(ordinal), pp,
                     model, cols);
             // lifted-navigation source keys: this thread reads its OWN key
@@ -865,37 +879,7 @@ final class UnionSynthesis {
                             st.cond()));
                 }
             }
-            for (var en : chainsByOrdinal.entrySet()) {
-                for (LiftChain ch : en.getValue()) {
-                    for (var key : ch.keys().entrySet()) {
-                        ValueSpecification read;
-                        if (en.getKey() == ordinal) {
-                            read = new AppliedProperty(new AppliedProperty(
-                                    pp.rowBind(), ch.keyAlias()), key.getKey());
-                        } else {
-                            DatabaseDefinition.ColumnDefinition cd =
-                                    MappingNormalizer.findPhysicalColumn(ch.keyDb(), ch.keyTable(),
-                                            key.getKey(), model);
-                            String kind = cd == null ? null
-                                    : MappingNormalizer.pureKindOf(cd.dataType());
-                            if (kind == null) {
-                                throw new NotImplementedException(
-                                        "chained union key column '" + key.getKey()
-                                        + "' has no derivable pure kind on table '"
-                                        + ch.keyTable() + "'; mapping="
-                                        + md.qualifiedName());
-                            }
-                            read = new AppliedFunction("cast", List.of(
-                                    new PureCollection(List.of()),
-                                    new TypeAnnotation.Named(
-                                            new TypeExpression.NameRef(kind))));
-                        }
-                        read = new AppliedFunction("toOne", List.of(read));
-                        cols.add(new ColSpec(key.getValue(), new LambdaFunction(
-                                List.of(pp.rowBind()), List.of(read)), null));
-                    }
-                }
-            }
+            addChainedLiftCols(chainsByOrdinal, ordinal, pp, md, model, cols);
             ValueSpecification projected = new AppliedFunction("project",
                     List.of(threadPipe, new ColSpecArray(cols)));
             union = union == null ? projected
@@ -921,9 +905,221 @@ final class UnionSynthesis {
             ctor.put(lf.property(), new KeyExpression(
                     new AppliedProperty(row, lf.property()), false, false));
         }
+        for (String top : embTops) {
+            ctor.put(top, new KeyExpression(
+                    rebuildEmbCtor(top, embSubs, embInner, row, model),
+                    false, false));
+        }
         return new AppliedFunction("map", List.of(union,
                 new LambdaFunction(List.of(row),
                         List.of(MappingNormalizer.buildNewInstanceToOne(className, ctor, model)))));
+    }
+
+    /** The embedded ctor under a field value: unwrap {@code toOne(...)}
+     * then the parser/normalizer {@code new(ptr, NewInstance)} wrapper
+     * (MappingNormalizer.buildNewInstance emission). Null = not a ctor. */
+    private static NewInstance ctorOf(ValueSpecification v) {
+        if (v instanceof AppliedFunction f && f.function().equals("toOne")
+                && f.parameters().size() == 1) {
+            v = f.parameters().get(0);
+        }
+        if (v instanceof AppliedFunction nf && nf.function().equals("new")
+                && nf.parameters().size() == 2) {
+            v = nf.parameters().get(1);
+        }
+        return v instanceof NewInstance ni ? ni : null;
+    }
+
+    /** THREAD-PROJECTABLE: plain member-row reads (depth-1 property over
+     * the row binder), literals, and functions thereof. A deeper property
+     * chain (a hoisted join-slot sub-row read) is NOT — projecting it in
+     * the thread would need the slot materialized inside the thread. */
+    private static boolean isThreadProjectable(ValueSpecification v,
+            String rowVar) {
+        return switch (v) {
+            case AppliedProperty ap -> ap.receiver()
+                    instanceof com.legend.model.spec.Variable rv
+                    && rv.name().equals(rowVar);
+            case AppliedFunction f -> f.parameters().stream()
+                    .allMatch(x -> isThreadProjectable(x, rowVar));
+            case com.legend.model.spec.Variable var2 -> false;
+            case NewInstance ni -> false;
+            default -> true;   // literals / annotations
+        };
+    }
+
+    /** CHAINED lift entries' key columns for one thread: the owning
+     * ordinal reads its last-mid-slot keys; other ordinals project typed
+     * NULLs of the mid table's column kind (engine 3-sets golden). */
+    private static void addChainedLiftCols(
+            Map<Integer, List<LiftChain>> chainsByOrdinal, int ordinal,
+            MappingNormalizer.RelationalParts pp, LegacyMappingDefinition md,
+            ModelBuilder model, List<ColSpec> cols) {
+        for (var en : chainsByOrdinal.entrySet()) {
+            for (LiftChain ch : en.getValue()) {
+                for (var key : ch.keys().entrySet()) {
+                    ValueSpecification read;
+                    if (en.getKey() == ordinal) {
+                        read = new AppliedProperty(new AppliedProperty(
+                                pp.rowBind(), ch.keyAlias()), key.getKey());
+                    } else {
+                        DatabaseDefinition.ColumnDefinition cd =
+                                MappingNormalizer.findPhysicalColumn(ch.keyDb(),
+                                        ch.keyTable(), key.getKey(), model);
+                        String kind = cd == null ? null
+                                : MappingNormalizer.pureKindOf(cd.dataType());
+                        if (kind == null) {
+                            throw new NotImplementedException(
+                                    "chained union key column '" + key.getKey()
+                                    + "' has no derivable pure kind on table '"
+                                    + ch.keyTable() + "'; mapping="
+                                    + md.qualifiedName());
+                        }
+                        read = new AppliedFunction("cast", List.of(
+                                new PureCollection(List.of()),
+                                new TypeAnnotation.Named(
+                                        new TypeExpression.NameRef(kind))));
+                    }
+                    read = new AppliedFunction("toOne", List.of(read));
+                    cols.add(new ColSpec(key.getValue(), new LambdaFunction(
+                            List.of(pp.rowBind()), List.of(read)), null));
+                }
+            }
+        }
+    }
+
+    /** The embedded distribution: dotted-path leaf sets ("firm" ->
+     * {legalName}, "applicant.firm" -> {legalName}), per-path ctor classes
+     * for the root recomposition, and top props in appearance order. A
+     * top prop with ANY unprojectable leaf (join-slot sub-read) poisons
+     * WHOLE — conservative, never a silently-wrong projection. */
+    private record EmbDist(Map<String, LinkedHashSet<String>> subs,
+            Map<String, String> inner, LinkedHashSet<String> tops) {
+    }
+
+    private static EmbDist collectEmbeddedDistribution(
+            List<MappingNormalizer.RelationalParts> parts) {
+        Map<String, LinkedHashSet<String>> embSubs = new LinkedHashMap<>();
+        Map<String, String> embInner = new LinkedHashMap<>();
+        Set<String> poisoned = new LinkedHashSet<>();
+        for (MappingNormalizer.RelationalParts pp : parts) {
+            for (var fe : pp.fields().entrySet()) {
+                NewInstance ni = ctorOf(fe.getValue().value());
+                if (ni != null) {
+                    collectEmbLeaves(fe.getKey(), fe.getKey(), ni,
+                            pp.rowBind().name(), embSubs, embInner, poisoned);
+                }
+            }
+        }
+        for (String bad : poisoned) {
+            embSubs.keySet().removeIf(k -> k.equals(bad)
+                    || k.startsWith(bad + "."));
+            embInner.keySet().removeIf(k -> k.equals(bad)
+                    || k.startsWith(bad + "."));
+        }
+        LinkedHashSet<String> tops = new LinkedHashSet<>();
+        for (String k : embSubs.keySet()) {
+            tops.add(k.contains(".") ? k.substring(0, k.indexOf('.')) : k);
+        }
+        return new EmbDist(embSubs, embInner, tops);
+    }
+
+    /** One member thread's embedded sub-columns (schema-contract handling
+     * mirrors the scalar threads: numeric coercion + String cast + toOne
+     * alignment; absent members project typed NULLs). */
+    private static void addEmbeddedThreadCols(
+            Map<String, LinkedHashSet<String>> embSubs,
+            Map<String, String> embInner,
+            MappingNormalizer.RelationalParts pp, ModelBuilder model,
+            List<ColSpec> cols) {
+        for (var epe : embSubs.entrySet()) {
+            String epath = epe.getKey();
+            ClassDefinition inner = model.findClass(embInner.get(epath))
+                    .orElse(null);
+            NewInstance ector = ctorAtPath(pp.fields(), epath);
+            for (String sub : epe.getValue()) {
+                ValueSpecification sv = ector != null
+                        && ector.properties().containsKey(sub)
+                        ? ector.properties().get(sub).value()
+                        : MappingNormalizer.nullOfDeclaredType(
+                                inner, sub, model);
+                sv = MappingNormalizer.coerceToDeclaredNumeric(
+                        sv, sub, embInner.get(epath), model);
+                TypeExpression sdt = inner == null ? null
+                        : MappingNormalizer.findPropertyTypeDeep(
+                                inner, sub, model);
+                if (sdt instanceof TypeExpression.NameRef sdn
+                        && "String".equals(MappingNormalizer
+                                .simpleTypeName(sdn.name()))) {
+                    sv = new AppliedFunction("cast", List.of(sv,
+                            new TypeAnnotation.Named(
+                                    new TypeExpression.NameRef("String"))));
+                }
+                sv = new AppliedFunction("toOne", List.of(sv));
+                cols.add(new ColSpec(embCol(epath, sub),
+                        new LambdaFunction(List.of(pp.rowBind()),
+                                List.of(sv)), null));
+            }
+        }
+    }
+
+    /** Recursive leaf collection under dotted ctor paths; nested ctors
+     * recurse, unprojectable leaves poison the whole TOP prop. */
+    private static void collectEmbLeaves(String top, String pathKey,
+            NewInstance ni, String rowVar,
+            Map<String, LinkedHashSet<String>> embSubs,
+            Map<String, String> embInner, Set<String> poisoned) {
+        embInner.putIfAbsent(pathKey, ni.className());
+        for (var pe : ni.properties().entrySet()) {
+            NewInstance sub = ctorOf(pe.getValue().value());
+            if (sub != null) {
+                collectEmbLeaves(top, pathKey + "." + pe.getKey(), sub,
+                        rowVar, embSubs, embInner, poisoned);
+            } else if (isThreadProjectable(pe.getValue().value(), rowVar)) {
+                embSubs.computeIfAbsent(pathKey, k -> new LinkedHashSet<>())
+                        .add(pe.getKey());
+            } else {
+                poisoned.add(top);
+            }
+        }
+    }
+
+    /** The member's ctor at a dotted path, or null (member maps none). */
+    private static NewInstance ctorAtPath(Map<String, KeyExpression> fields,
+            String path) {
+        String[] segs = path.split("\\.");
+        KeyExpression ke = fields.get(segs[0]);
+        NewInstance ni = ke == null ? null : ctorOf(ke.value());
+        for (int i = 1; ni != null && i < segs.length; i++) {
+            KeyExpression sub = ni.properties().get(segs[i]);
+            ni = sub == null ? null : ctorOf(sub.value());
+        }
+        return ni;
+    }
+
+    /** The synthetic union column for one embedded leaf. */
+    private static String embCol(String path, String sub) {
+        return "emb__" + path.replace(".", "__") + "__" + sub;
+    }
+
+    /** Recompose the union root's embedded ctor from projected columns. */
+    private static ValueSpecification rebuildEmbCtor(String path,
+            Map<String, LinkedHashSet<String>> embSubs,
+            Map<String, String> embInner, Variable row, ModelBuilder model) {
+        Map<String, KeyExpression> fields = new LinkedHashMap<>();
+        for (String sub : embSubs.getOrDefault(path, new LinkedHashSet<>())) {
+            fields.put(sub, new KeyExpression(
+                    new AppliedProperty(row, embCol(path, sub)), false, false));
+        }
+        for (String k : embInner.keySet()) {
+            if (k.startsWith(path + ".") && k.indexOf('.', path.length() + 1) < 0) {
+                fields.put(k.substring(path.length() + 1), new KeyExpression(
+                        rebuildEmbCtor(k, embSubs, embInner, row, model),
+                        false, false));
+            }
+        }
+        return MappingNormalizer.buildNewInstanceToOne(
+                embInner.get(path), fields, model);
     }
 
     /**
