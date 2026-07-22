@@ -256,52 +256,7 @@ final class Typer {
                     new ColSpec(stripQuotes(rn.value()), null, null))), env);
         }
         if (tdsVocab(af.function(), "renameColumns") && af.parameters().size() == 2) {
-            List<ValueSpecification> pairs =
-                    af.parameters().get(1) instanceof PureCollection pc
-                            ? pc.values() : List.of(af.parameters().get(1));
-            ValueSpecification acc = af.parameters().get(0);
-            for (ValueSpecification pv : pairs) {
-                String po = null;
-                String pn = null;
-                if (pv instanceof AppliedFunction pf
-                        && (pf.function().equals("pair") || pf.function()
-                                .equals("meta::pure::functions::collection::pair"))
-                        && pf.parameters().size() == 2
-                        && pf.parameters().get(0) instanceof CString pos
-                        && pf.parameters().get(1) instanceof CString pns) {
-                    po = pos.value();
-                    pn = pns.value();
-                }
-                // the corpus's other literal spelling:
-                // ^Pair<String,String>(first='old', second='new') — the
-                // parser wraps the ctor as AppliedFunction("new",
-                // [receiver, NewInstance])
-                ValueSpecification pu = pv instanceof AppliedFunction nf
-                        && nf.function().equals("new")
-                        && nf.parameters().size() == 2
-                        ? nf.parameters().get(1) : pv;
-                if (pu instanceof NewInstance ni
-                        && (ni.className().equals("Pair") || ni.className()
-                                .equals("meta::pure::functions::collection::Pair"))
-                        && ni.properties().get("first") != null
-                        && ni.properties().get("first").value()
-                                instanceof CString pof
-                        && ni.properties().get("second") != null
-                        && ni.properties().get("second").value()
-                                instanceof CString pnf) {
-                    po = pof.value();
-                    pn = pnf.value();
-                }
-                if (po == null) {
-                    throw new TypeInferenceException("renameColumns expects"
-                            + " literal pair('old','new') /"
-                            + " ^Pair(first=,second=) mappings");
-                }
-                acc = new AppliedFunction("rename", List.of(acc,
-                        new ColSpec(stripQuotes(po), null, null),
-                        new ColSpec(stripQuotes(pn), null, null)));
-            }
-            return synth(acc, env);
+            return renameColumnsDesugar(af, env);
         }
         // columnValues(tds,'c') — engine tds.pure host-graph body; the
         // platform spelling is the rows-mapped cell read
@@ -405,6 +360,16 @@ final class Typer {
                         ? new AppliedFunction("distinct", List.of(select)) : select, env);
             }
         }
+        if ((af.function().equals("extractEnumValue") || af.function().equals(
+                "meta::pure::functions::lang::extractEnumValue"))
+                && af.parameters().size() == 2) {
+            TypedSpec folded = extractEnumValueFold(af, env);
+            if (folded != null) {
+                return folded;
+            }
+            // not Enumeration-shaped: the generic path types it against
+            // the registered signature (loud on mismatch)
+        }
         Optional<CoreFn> core = CoreFn.of(af.function());
         if (core.isPresent()) {
             return applyCore(core.get(),
@@ -498,6 +463,84 @@ final class Typer {
      * {@code my::customRenameColumn} calls the user function). */
     private static boolean tdsVocab(String fn, String simple) {
         return fn.equals(simple) || fn.equals("meta::pure::tds::" + simple);
+    }
+
+    /** renameColumns(tds, pairs) desugar — literal pair(,)/^Pair(first=,second=) chains into rename natives. */
+    private TypedSpec renameColumnsDesugar(AppliedFunction af, Env env) {
+            List<ValueSpecification> pairs =
+                    af.parameters().get(1) instanceof PureCollection pc
+                            ? pc.values() : List.of(af.parameters().get(1));
+            ValueSpecification acc = af.parameters().get(0);
+            for (ValueSpecification pv : pairs) {
+                String po = null;
+                String pn = null;
+                if (pv instanceof AppliedFunction pf
+                        && (pf.function().equals("pair") || pf.function()
+                                .equals("meta::pure::functions::collection::pair"))
+                        && pf.parameters().size() == 2
+                        && pf.parameters().get(0) instanceof CString pos
+                        && pf.parameters().get(1) instanceof CString pns) {
+                    po = pos.value();
+                    pn = pns.value();
+                }
+                // the corpus's other literal spelling:
+                // ^Pair<String,String>(first='old', second='new') — the
+                // parser wraps the ctor as AppliedFunction("new",
+                // [receiver, NewInstance])
+                ValueSpecification pu = pv instanceof AppliedFunction nf
+                        && nf.function().equals("new")
+                        && nf.parameters().size() == 2
+                        ? nf.parameters().get(1) : pv;
+                if (pu instanceof NewInstance ni
+                        && (ni.className().equals("Pair") || ni.className()
+                                .equals("meta::pure::functions::collection::Pair"))
+                        && ni.properties().get("first") != null
+                        && ni.properties().get("first").value()
+                                instanceof CString pof
+                        && ni.properties().get("second") != null
+                        && ni.properties().get("second").value()
+                                instanceof CString pnf) {
+                    po = pof.value();
+                    pn = pnf.value();
+                }
+                if (po == null) {
+                    throw new TypeInferenceException("renameColumns expects"
+                            + " literal pair('old','new') /"
+                            + " ^Pair(first=,second=) mappings");
+                }
+                acc = new AppliedFunction("rename", List.of(acc,
+                        new ColSpec(stripQuotes(po), null, null),
+                        new ColSpec(stripQuotes(pn), null, null)));
+            }
+            return synth(acc, env);
+    }
+
+    /** extractEnumValue(Enumeration, 'NAME') — SPECIAL FORM against the
+     * registered signature (real pure extractEnumValue.pure:25): a LITERAL
+     * name constant-folds to the enum VALUE so downstream enum-literal
+     * consumers (adjust's DurationUnit arm) see it; a non-literal name is
+     * loud, never a silent string. Null = arg0 not Enumeration-shaped. */
+    private TypedSpec extractEnumValueFold(AppliedFunction af, Env env) {
+        TypedSpec e0 = synth(af.parameters().get(0), env);
+        if (!(e0.info().type() instanceof Type.GenericType gt)
+                || !gt.rawFqn().equals(Pure.ENUMERATION.qualifiedName())
+                || gt.arguments().size() != 1
+                || !(gt.arguments().get(0) instanceof Type.EnumType et)) {
+            return null;
+        }
+        if (!(af.parameters().get(1) instanceof CString nm)) {
+            throw new com.legend.error.NotImplementedException(
+                    "extractEnumValue with a non-literal name is not"
+                    + " supported yet");
+        }
+        var en = ctx.findEnum(et.fqn()).orElseThrow(() ->
+                new TypeInferenceException("unknown enumeration '"
+                        + et.fqn() + "'"));
+        if (!en.values().contains(nm.value())) {
+            throw new TypeInferenceException("enumeration '" + et.fqn()
+                    + "' has no value '" + nm.value() + "'");
+        }
+        return new TypedEnumValue(et.fqn(), nm.value(), ExprType.one(et));
     }
 
     /** CURATED-alias spellings (tds::distinct, relation::eval) have no

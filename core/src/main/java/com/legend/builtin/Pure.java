@@ -774,6 +774,8 @@ public final class Pure {
     public static final NativeFunctionDefinition FIRST_DAY_OF_QUARTER__DATE_1 = signature("native function meta::pure::functions::date::firstDayOfQuarter(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::StrictDate[1];");
     public static final NativeFunctionDefinition FIRST_DAY_OF_YEAR__DATE_1 = signature("native function meta::pure::functions::date::firstDayOfYear(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Date[1];");
     /** Pure-code composition in real pure (dateExtension.pure:482 — today()->firstDayOfYear()); platform-native here, composed BY EMISSION. */
+    /** Real pure platform/pure/grammar/functions/lang/enum/extractEnumValue.pure:25; the TYPER constant-folds literal calls to the enum value (special form). */
+    public static final NativeFunctionDefinition EXTRACT_ENUM_VALUE = signature("native function meta::pure::functions::lang::extractEnumValue<T>(enum:meta::pure::metamodel::type::Enumeration<T>[1], value:meta::pure::metamodel::type::String[1]):T[1];");
     public static final NativeFunctionDefinition FIRST_DAY_OF_THIS_YEAR = signature("native function meta::pure::functions::date::firstDayOfThisYear():meta::pure::metamodel::type::Date[1];");
     /** Real pure dateExtension.pure:472. */
     public static final NativeFunctionDefinition FIRST_DAY_OF_THIS_MONTH = signature("native function meta::pure::functions::date::firstDayOfThisMonth():meta::pure::metamodel::type::Date[1];");

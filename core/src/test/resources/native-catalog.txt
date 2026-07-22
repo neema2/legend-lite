@@ -151,6 +151,7 @@ meta::pure::functions::collection::find<T>(value:T[*], func:meta::pure::metamode
 meta::pure::functions::date::firstDayOfMonth(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Date[1]
 meta::pure::functions::date::firstDayOfQuarter(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::StrictDate[1]
 meta::pure::functions::date::firstDayOfYear(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Date[1]
+meta::pure::functions::lang::extractEnumValue<T>(enum:meta::pure::metamodel::type::Enumeration<T>[1], value:meta::pure::metamodel::type::String[1]):T[1]
 meta::pure::functions::date::firstDayOfThisYear():meta::pure::metamodel::type::Date[1]
 meta::pure::functions::date::firstDayOfThisMonth():meta::pure::metamodel::type::Date[1]
 meta::pure::functions::date::firstDayOfThisQuarter():meta::pure::metamodel::type::StrictDate[1]
