@@ -396,7 +396,7 @@ class NativeFunctionTest {
         // 49: +Row (ResultSet introspection in setup functions).
         // 52: +DebugContext (B2b: the debug-arity execute calls type
         //     against the REAL legend-pure platform tools surface).
-        assertEquals(52, Pure.allNativeClasses().size(),
+        assertEquals(53, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -405,8 +405,10 @@ class NativeFunctionTest {
                     "meta::core::runtime::ConnectionStore", List.of("connection", "element"),
                     "meta::core::runtime::Runtime", List.of("connectionStores"),
                     "meta::external::store::relational::runtime::DatabaseConnection",
+                    // real relationalRuntime.pure:26-48 (queryGenerationConfigs
+                    // :48 — the removeUnionOrJoins feature-toggle surface)
                     List.of("type", "debug", "timeZone", "quoteIdentifiers",
-                            "queryTimeOutInSeconds"),
+                            "queryTimeOutInSeconds", "queryGenerationConfigs"),
                     "meta::external::store::relational::runtime::TestDatabaseConnection",
                     List.of("testDataSetupCsv"),
                     "meta::relational::metamodel::execute::ResultSet",

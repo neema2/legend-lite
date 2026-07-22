@@ -216,7 +216,9 @@ public final class Pure {
     // scalar properties as REAL relationalRuntime.pure declares them (the
     // Function-typed post-processor properties are omitted until demanded);
     // the corpus's testDatabaseConnection(...) constructs these
-    public static final ClassDefinition DATABASE_CONNECTION = nativeClass("native Class meta::external::store::relational::runtime::DatabaseConnection extends meta::core::runtime::Connection { type: meta::relational::runtime::DatabaseType[1]; debug: meta::pure::metamodel::type::Boolean[0..1]; timeZone: meta::pure::metamodel::type::String[0..1]; quoteIdentifiers: meta::pure::metamodel::type::Boolean[0..1]; queryTimeOutInSeconds: meta::pure::metamodel::type::Integer[0..1]; }");
+    /** Real pure relationalRuntime.pure:133 (abstract marker class; the corpus subclasses it — GenerationFeaturesConfig, relationalRuntimeExtension.pure:15). */
+    public static final ClassDefinition RELATIONAL_QUERY_GENERATION_CONFIG = nativeClass("native Class meta::external::store::relational::runtime::RelationalQueryGenerationConfig {}");
+    public static final ClassDefinition DATABASE_CONNECTION = nativeClass("native Class meta::external::store::relational::runtime::DatabaseConnection extends meta::core::runtime::Connection { type: meta::relational::runtime::DatabaseType[1]; debug: meta::pure::metamodel::type::Boolean[0..1]; timeZone: meta::pure::metamodel::type::String[0..1]; quoteIdentifiers: meta::pure::metamodel::type::Boolean[0..1]; queryTimeOutInSeconds: meta::pure::metamodel::type::Integer[0..1]; queryGenerationConfigs: meta::external::store::relational::runtime::RelationalQueryGenerationConfig[*]; }");
     public static final ClassDefinition TEST_DATABASE_CONNECTION = nativeClass("native Class meta::external::store::relational::runtime::TestDatabaseConnection extends meta::external::store::relational::runtime::DatabaseConnection { testDataSetupCsv: meta::pure::metamodel::type::String[0..1]; }");
     // the store METACLASS (real: extends meta::pure::store::Store) — a
     // database REFERENCE is a value of this type (classReference), so the

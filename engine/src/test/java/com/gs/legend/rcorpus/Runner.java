@@ -696,6 +696,15 @@ public final class Runner {
         for (com.legend.Compiler.ModelSource src : sources) {
             present.add(src.text());
         }
+        // TRANSITIVE closure was PROBED AND REVERTED (1219->1200): pulling
+        // the pulled files' own reference families drags whole foreign
+        // model estates into ~25 modules — first-wins dedup keeps the
+        // test's definitions but the FOREIGN families' unique same-name
+        // elements still poison resolution. One LEVEL of pull (what the
+        // test itself names) is the stable point; the remaining trio
+        // (GenerationFeaturesConfig via removeUnionOrJoins) needs a
+        // NARROWER vehicle — pull the single DEFINING FILE (not family)
+        // for refs found in pulled sources, or model it platform-side.
         for (String ref : mappingRefs) {
             String defining = elementSource.get(ref);
             if (defining == null) {
