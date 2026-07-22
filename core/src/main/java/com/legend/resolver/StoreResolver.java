@@ -1477,7 +1477,7 @@ public final class StoreResolver {
                 // without them, a slot-backed read inside the exists
                 // predicate ($e.address.name) finds an unmaterialized slot
                 Set<String> innerDemand = new LinkedHashSet<>();
-                for (TypedLambda il : existsInnerLambdas(ops, path)) {
+                for (TypedLambda il : InnerDemand.lambdas(ops, path)) {
                     if (!il.parameters().isEmpty()) {
                         collectParamPathHeads(il, il.parameters().get(0),
                                 innerDemand);
@@ -1809,6 +1809,16 @@ public final class StoreResolver {
     /** PHASE — to-many/navigate heads under exists/isEmpty: the
      * correlated-EXISTS material per head (target pipeline + oriented
      * condition, NO join emitted; the positional rule table §133). */
+    /** ops + the terminal: value-position filtered navigation lives in
+     * the map/project TERMINAL ($f.emps->filter(..).name — the qualifier
+     * family), and its inner predicates demand target slots too. */
+    private static List<TypedSpec> withTerminal(List<TypedSpec> ops,
+            TypedSpec top) {
+        List<TypedSpec> out = new ArrayList<>(ops);
+        out.add(top);
+        return out;
+    }
+
     private Map<String, Substitution.ExistsSub> registerExistsSubs(
             ClassSource cs, Set<List<String>> paths,
             Set<List<String>> filterPaths, List<TypedSpec> ops,
@@ -1838,7 +1848,7 @@ public final class StoreResolver {
                 Set<String> tSlots0 = Pipelines.slotAliases(t.pipeline());
                 Set<String> tDemand0 = new LinkedHashSet<>();
                 Set<String> innerLeaves = new LinkedHashSet<>(
-                        existsInnerLeaves(ops, head));
+                        InnerDemand.leaves(ops, head));
                 for (TypedLambda liftedPred0 : synthetics.allPreds(head)) {
                     for (TypedSpec b : liftedPred0.body()) {
                         collectParamPathHeads(b,
@@ -1991,7 +2001,7 @@ public final class StoreResolver {
             // bare head not under an emptiness call still gets the honest
             // H4 story at substitution.
             AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(temporal, cs, head, context, true,
-                    existsInnerLeaves(ops, head));
+                    InnerDemand.leaves(ops, head));
             var assocEnd = assocOpt.get().property1().propertyName()
                     .equals(SyntheticHeads.realHead(head))
                     ? assocOpt.get().property1() : assocOpt.get().property2();
@@ -2629,7 +2639,8 @@ public final class StoreResolver {
         final TypedSpec materializedPipe = rootPipe.materializedPipe();
 
         Map<String, Substitution.ExistsSub> existsSubs =
-                registerExistsSubs(cs, paths, filterPaths, ops, context, assocs);
+                registerExistsSubs(cs, paths, filterPaths,
+                        withTerminal(ops, top), context, assocs);
 
         AssocPlan assocPlan = registerAssociationJoins(cs, paths, context,
                 navSteps, extraNavHeads, extraNavTails, assocs,
@@ -3123,7 +3134,7 @@ public final class StoreResolver {
             List<TypedSpec> ops, List<String> pathKey, Context context,
             TypedSpec targetPipe) {
         Substitution.Registries none = Substitution.Registries.NONE;
-        List<TypedLambda> inner = existsInnerLambdas(ops, pathKey);
+        List<TypedLambda> inner = InnerDemand.lambdas(ops, pathKey);
         Type.RelationType row =
                 (Type.RelationType) targetPipe.info().type();
         if (inner.isEmpty()) {
@@ -3209,101 +3220,6 @@ public final class StoreResolver {
                 new Substitution.Registries(nestedAssocs, Set.of(), nested,
                         Map.of(), isNotEmptyCallee(), equalCallee()),
                 pipe, (Type.RelationType) pipe.info().type());
-    }
-
-    /** The predicate lambdas nested under {@code $user.head} chains —
-     * the LAMBDA-collecting sibling of {@link #collectExistsInnerLeaves}. */
-    private static List<TypedLambda> existsInnerLambdas(List<TypedSpec> ops,
-            String head) {
-        return existsInnerLambdas(ops, List.of(head));
-    }
-
-    private static List<TypedLambda> existsInnerLambdas(List<TypedSpec> ops,
-            List<String> path) {
-        List<TypedLambda> out = new ArrayList<>();
-        for (TypedSpec op : ops) {
-            if (op instanceof TypedFilter f) {
-                for (TypedSpec b : f.predicate().body()) {
-                    collectExistsInnerLambdas(b,
-                            f.predicate().parameters().get(0), path, out);
-                }
-            }
-        }
-        return out;
-    }
-
-    private static void collectExistsInnerLambdas(TypedSpec n, String userVar,
-            List<String> path, List<TypedLambda> out) {
-        if (n instanceof TypedNativeCall c && !c.args().isEmpty()) {
-            TypedSpec recv = c.args().get(0);
-            List<TypedLambda> chainLams = new ArrayList<>();
-            while (recv instanceof TypedFilter tf) {
-                chainLams.add(tf.predicate());
-                recv = tf.source();
-            }
-            List<String> p = Substitution.pathOf(recv, userVar);
-            if (p != null && p.equals(path)) {
-                if (c.args().size() == 2
-                        && c.args().get(1) instanceof TypedLambda lam
-                        && !lam.parameters().isEmpty()) {
-                    out.add(lam);
-                }
-                out.addAll(chainLams);
-            }
-        }
-        for (TypedSpec ch : n.children()) {
-            collectExistsInnerLambdas(ch, userVar, path, out);
-        }
-    }
-
-    private static Set<String> existsInnerLeaves(List<TypedSpec> ops,
-            String head) {
-        Set<String> out = new LinkedHashSet<>();
-        for (TypedSpec op : ops) {
-            if (op instanceof TypedFilter f) {
-                for (TypedSpec b : f.predicate().body()) {
-                    collectExistsInnerLeaves(b,
-                            f.predicate().parameters().get(0), head, out);
-                }
-            }
-        }
-        return out;
-    }
-
-    private static void collectExistsInnerLeaves(TypedSpec n, String userVar,
-            String head, Set<String> out) {
-        if (n instanceof TypedNativeCall c
-                && !c.args().isEmpty()) {
-            // unwrap ->filter(f) chains on the receiver: their lambdas
-            // demand target leaves too (filter-wrapped emptiness)
-            TypedSpec recv = c.args().get(0);
-            List<TypedLambda> chainLams = new ArrayList<>();
-            while (recv instanceof TypedFilter tf) {
-                chainLams.add(tf.predicate());
-                recv = tf.source();
-            }
-            List<String> p = Substitution.pathOf(recv, userVar);
-            if (p != null && p.size() == 1 && p.get(0).equals(head)) {
-                if (c.args().size() == 2
-                        && c.args().get(1) instanceof TypedLambda lam
-                        && !lam.parameters().isEmpty()) {
-                    collectParamPathHeads(lam, lam.parameters().get(0), out);
-                }
-                for (TypedLambda cl : chainLams) {
-                    if (!cl.parameters().isEmpty()) {
-                        collectParamPathHeads(cl, cl.parameters().get(0), out);
-                    }
-                }
-            }
-        }
-        // NO shadow-stop here (unlike the path funnel): the exists rewrite
-        // resolves nested predicates through FRESH substitution scopes, so
-        // the scan must reach them too — a blanket stop under-demanded a
-        // constraint-derived shape (audit-13 B7 reverted; over-demand is
-        // duplicate-safe under EXISTS).
-        for (TypedSpec ch : n.children()) {
-            collectExistsInnerLeaves(ch, userVar, head, out);
-        }
     }
 
     /** Multi-hop paths consumed DIRECTLY under an emptiness-family call
