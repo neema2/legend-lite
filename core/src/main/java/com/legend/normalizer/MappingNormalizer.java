@@ -676,10 +676,21 @@ public final class MappingNormalizer {
             if (included == null) {
                 continue;   // unresolvable include is its own loud problem elsewhere
             }
-            collectIncludedSetIds(included, model, bySetId, seen);
+            // STORE SUBSTITUTION composes through the include chain
+            // (include AMapping[db1->db2]; the outer include's map applies
+            // to EVERYTHING pulled through it, grandparents included —
+            // corpus testExtendsWithStoreSubstitution.pure): collect into
+            // a LOCAL map, substitute, then merge in include order.
+            Map<String, ClassMapping> local = new LinkedHashMap<>();
+            collectIncludedSetIds(included, model, local, seen);
             for (ClassMapping cm : included.classMappings()) {
-                bySetId.put(setIdOf(cm), cm);
+                local.put(setIdOf(cm), cm);
             }
+            if (!inc.substitutions().isEmpty()) {
+                local.replaceAll((k, v) ->
+                        StoreSubstitutionRewrite.apply(v, inc.substitutions()));
+            }
+            bySetId.putAll(local);
         }
     }
 

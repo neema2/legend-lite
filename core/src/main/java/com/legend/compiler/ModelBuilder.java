@@ -766,11 +766,34 @@ public final class ModelBuilder {
      * inside database {@code dbFqn}, if any.
      */
     public Optional<JoinDefinition> findJoin(String dbFqn, String joinName) {
+        return findJoin(dbFqn, joinName, new java.util.HashSet<>());
+    }
+
+    /** Include-closure aware (real Legend: Database MyDb ( include db )
+     * resolves db's joins — the store-substitution corpus family,
+     * testSubtypeMapping.pure:170-172). Own definitions win. */
+    private Optional<JoinDefinition> findJoin(String dbFqn, String joinName,
+            java.util.Set<String> seen) {
+        if (!seen.add(dbFqn)) {
+            return Optional.empty();
+        }
         int id = symbols.resolveId(dbFqn);
         if (id == SymbolTable.UNRESOLVED) return Optional.empty();
         Map<String, JoinDefinition> byName = joinsByDb.get(id);
-        if (byName == null) return Optional.empty();
-        return Optional.ofNullable(byName.get(joinName));
+        JoinDefinition own = byName == null ? null : byName.get(joinName);
+        if (own != null) {
+            return Optional.of(own);
+        }
+        DatabaseDefinition db = findDatabase(dbFqn).orElse(null);
+        if (db != null) {
+            for (String inc : db.includes()) {
+                Optional<JoinDefinition> hit = findJoin(inc, joinName, seen);
+                if (hit.isPresent()) {
+                    return hit;
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     /**
