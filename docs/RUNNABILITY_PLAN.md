@@ -121,3 +121,65 @@ ledger: ToFix-excluded parity, DB2-only asks if we choose not to build the
 renderer, and engine-unsupported shapes proven from engine source). PASS rate
 rises opportunistically along the way — R2 alone should push passes well
 above 1400.
+
+---
+
+## RE-PLAN 2026-07-22 (ledger-driven; supersedes the R1-R6 estimates above)
+
+The R1/R2 estimates missed ~4x. Post-mortem, measured (docs/WALL_DEPTH.txt,
+scripts/walldepth.py): tests burn a MEDIAN of 2 walls (mean 4.2 with churner
+tail) before running, and the old bucketing keyed on the first-visible error
+message instead of the test's FEATURE (path + file + name + body intent —
+now docs/OUTSTANDING.md, scripts/outstanding.py, regenerated per sweep).
+All estimates below are ranges with the 2-3x wall-depth multiplier applied,
+and every count is a LEDGER count, not a message-histogram count.
+
+### The 1293 non-passing, by what they actually need
+
+**Tooling verbs (601 SHAPE "the body's verb isn't execute()" + kin):**
+- P-plan  (~110): executionPlan/tds/graph plan-assert bodies — need engine-
+  shaped PLAN GENERATION (structural compare first, string parity later).
+- P-eval  (~110): metamodel-introspection bodies (pkOfFunc, router tests,
+  helperFunctions, pureToSQLQuery asserts) — need IN-PROCESS PURE EVAL over
+  the model (preeval), no SQL involved.
+- P-lin   (53):  lineage scanRelations/scanColumns tree strings (task #44).
+- P-tdg   (56):  test-data generation inputs (task #46).
+- P-val   (31):  constraint validation (task #45).
+- P-print (50):  Pure printer / grammar round-trip (task #47, + autogeneration).
+- P-dial  (30):  sqlDialectTranslation + debugPrint (sqlglot-vision adjacent).
+- P-sql   (106): sql-only advisory-golden bodies — RUN already; upgrade =
+  advisory H2-divergence census policy, or accept as terminal SHAPE.
+- P-db2   (33):  DB2 driver loops + DatabaseType.DB2 renderer (R6 unchanged).
+
+**Pipeline walls (the compiler burn, ledger stage column):**
+- W-norm  (122): normalize/mapping — graphFetch 24, modelJoin 21,
+  aggregationAware 13, embedded/inheritance/union remainder.
+- W-res   (120): resolver — graphFetch cluster 44 (subType trees 15,
+  embedded graph children 11, derived-property leaves ~20) + H2 object-space
+  vocabulary (TypedMap/TypedFilter/TypedDistinct/TypedCast substitution,
+  ~31) + flatten variants + milestoning.
+- W-surf  (103): platform-surface (unknown fns/classes: postprocessor
+  configs, ModelStore, compileLegendValueSpecification/Grammar, execute
+  overloads) — small Pure.java/module additions, HIGHLY BATCHABLE.
+- W-type  (54), W-low (32), W-exec (43): typer/lowering/DuckDB singles.
+- W-rows  (63): run-but-rows-differ FAIL long tail (includes known
+  H2-scan-order artifacts — never overfit those).
+
+### Priority order (tests-unlocked per unit of work, batched 3-5 fixes/gate)
+
+1. W-surf sweeps — mechanical, dense batching, and clearing them REVEALS the
+   real wall behind ~100 tests (expect 2-3 rounds; net new ERRORs possible
+   and fine — that is the sequential-wall reality made visible).
+2. W-res H2 object-space vocabulary (one coherent resolver leg, ~31).
+3. graphFetch cluster (W-norm 24 + W-res 44 with the three named sub-walls).
+4. P-eval preeval — the single widest feature (~110 SHAPE→run); design leg
+   first (interpreter over model objects; assertRoundTrip rides along).
+5. P-plan structural plan generation (~110) — after preeval (shares eval).
+6. Tooling tracks in descending count: P-tdg, P-lin, P-print, P-val, P-dial
+   — OR descope: these are tooling features, not query execution; explicit
+   user call whether they count toward "runnable".
+7. P-db2 / R6, then W-type/W-low/W-exec/W-rows long tail.
+
+Estimate honesty rule: quote ranges with the wall-depth multiplier; re-run
+scripts/outstanding.py + walldepth.py after each sweep and RE-FORECAST when
+the yield-per-slice data moves, instead of riding a stale plan.
