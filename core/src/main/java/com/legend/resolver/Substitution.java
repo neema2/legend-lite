@@ -780,9 +780,16 @@ final class Substitution {
                     return assocBindingRead(ha, path.get(path.size() - 1), curT);
                 }
             }
+            AssocSub diag = target.assocs().get(path.get(0));
             throw new NotImplementedException("multi-hop navigation "
                     + String.join(".", path) + " through an embedded/slot head"
-                    + " is not supported yet");
+                    + " is not supported yet [assocs="
+                    + target.assocs().keySet() + "; head subNavs="
+                    + (diag == null ? "-" : diag.subNavs().keySet())
+                    + "; head binding="
+                    + (target.bindings().get(path.get(0)) == null ? "ABSENT"
+                            : target.bindings().get(path.get(0))
+                                    .getClass().getSimpleName()) + "]");
     }
 
     /** A 1-HOP head read: bindings, generated temporal dates, honest
