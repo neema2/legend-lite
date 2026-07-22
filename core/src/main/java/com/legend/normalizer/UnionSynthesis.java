@@ -1029,11 +1029,10 @@ final class UnionSynthesis {
                         read = new AppliedProperty(new AppliedProperty(
                                 pp.rowBind(), ch.keyAlias()), key.getKey());
                     } else {
-                        DatabaseDefinition.ColumnDefinition cd =
-                                MappingNormalizer.findPhysicalColumn(ch.keyDb(),
-                                        ch.keyTable(), key.getKey(), model);
-                        String kind = cd == null ? null
-                                : MappingNormalizer.pureKindOf(cd.dataType());
+                        // view-aware: chained lifts land on VIEW mid tables
+                        // too (unionOfViewsToViewToUnion)
+                        String kind = ViewRelation.columnPureKind(
+                                ch.keyDb(), ch.keyTable(), key.getKey(), model);
                         if (kind == null) {
                             throw new NotImplementedException(
                                     "chained union key column '" + key.getKey()

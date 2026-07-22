@@ -1568,10 +1568,9 @@ public final class MappingNormalizer {
     static ValueSpecification nullOfPhysicalKind(
             ClassMapping.Relational routedMember, String col,
             LegacyMappingDefinition md, ModelBuilder model) {
-        DatabaseDefinition.ColumnDefinition cd = findPhysicalColumn(
-                routedMember.mainTable().database(),
+        // view-aware: routed members can be VIEW-backed (unionOfViews)
+        String kind = ViewRelation.columnPureKind(routedMember.mainTable().database(),
                 routedMember.mainTable().table(), col, model);
-        String kind = cd == null ? null : pureKindOf(cd.dataType());
         if (kind == null) {
             throw new NotImplementedException(
                     "union navigation key column '" + col + "' of table '"

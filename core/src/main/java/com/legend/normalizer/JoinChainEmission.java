@@ -700,34 +700,10 @@ final class JoinChainEmission {
                 .anyMatch(vc -> vc.name().equals(col));
     }
 
-    /** The pure kind of {@code col} on {@code table}: a physical column's
-     * kind directly, or a VIEW's declared column resolved through its
-     * plain ColumnRef expression (computed view columns yield null — the
-     * caller's loud wall names them). */
+    /** View-aware column kind — see {@link ViewRelation#columnPureKind}. */
     private static String columnPureKind(String db, String table, String col,
             ModelBuilder model) {
-        DatabaseDefinition.ColumnDefinition cd =
-                MappingNormalizer.findPhysicalColumn(db, table, col, model);
-        if (cd != null) {
-            return MappingNormalizer.pureKindOf(cd.dataType());
-        }
-        DatabaseDefinition.ViewDefinition view =
-                model.findView(db, table).orElse(null);
-        if (view == null) {
-            return null;
-        }
-        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc
-                : view.columnMappings()) {
-            if (vc.name().equals(col) && vc.expression()
-                    instanceof RelationalOperation.ColumnRef cr) {
-                String cdb = cr.databaseName() != null ? cr.databaseName() : db;
-                DatabaseDefinition.ColumnDefinition pc = MappingNormalizer
-                        .findPhysicalColumn(cdb, cr.table(), cr.column(), model);
-                return pc == null ? null
-                        : MappingNormalizer.pureKindOf(pc.dataType());
-            }
-        }
-        return null;
+        return ViewRelation.columnPureKind(db, table, col, model);
     }
 
 }
