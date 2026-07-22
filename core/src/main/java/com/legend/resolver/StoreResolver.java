@@ -2842,8 +2842,29 @@ public final class StoreResolver {
                 case TypedSortBy sb -> new TypedSortBy(pipeline,
                         substitution(cs, m, assocs, assocEnds, existsSubs, aggReads, false, fresh, sb.key()).rewriteLambda(sb.key()),
                         sb.ascending(), pipeline.info());
-                case TypedDistinct d -> new TypedDistinct(pipeline,
-                        List.of(), pipeline.info());
+                case TypedDistinct d -> {
+                    // dedup by the MAPPED row (engine instance identity):
+                    // narrow to the class's own columns so joined helper
+                    // columns cannot defeat the dedup (the two-exists
+                    // family's 'expected 1, got 5'); downstream demands on
+                    // dropped columns fail loud at projection resolution.
+                    Type.RelationType pipeRow =
+                            (Type.RelationType) pipeline.info().type();
+                    Set<String> own = new LinkedHashSet<>();
+                    for (Type.Column c : cs.rowType().columns()) {
+                        own.add(c.name());
+                    }
+                    List<Type.Column> kept = pipeRow.columns().stream()
+                            .filter(c -> own.contains(c.name())).toList();
+                    if (kept.isEmpty()) {
+                        yield new TypedDistinct(pipeline, List.of(),
+                                pipeline.info());
+                    }
+                    yield new TypedDistinct(pipeline,
+                            kept.stream().map(Type.Column::name).toList(),
+                            new ExprType(new Type.RelationType(kept),
+                                    pipeline.info().multiplicity()));
+                }
                 default -> throw new IllegalStateException("resolver bug: uncollected op");
             };
         }

@@ -903,6 +903,23 @@ final class Substitution {
             }
         }
         return switch (n) {
+            // $p->filter(pred).leaf — the if-as-filter idiom over the
+            // INSTANCE itself (engine golden testConcatenateWithFilter:
+            // CASE WHEN pred THEN leaf ELSE NULL). The inner param inlines
+            // with the instance var; both rewrite through the normal arms.
+            case TypedPropertyAccess pa
+                    when pa.source() instanceof TypedFilter f
+                    && f.source() instanceof TypedVariable fv
+                    && fv.name().equals(target.userVar())
+                    && f.predicate().parameters().size() == 1
+                    && f.predicate().body().size() == 1 -> {
+                TypedSpec pred = inlineParam(f.predicate().body().get(0),
+                        f.predicate().parameters().get(0), f.source());
+                yield new TypedIf(rewrite(pred),
+                        rewrite(new TypedPropertyAccess(f.source(),
+                                pa.property(), pa.info())),
+                        java.util.Optional.empty(), pa.info());
+            }
             case TypedPropertyAccess pa when filteredNavLeafRead(pa) != null ->
                     filteredNavLeafRead(pa);
             case TypedPropertyAccess pa when subTypeLeafRead(pa) != null ->
