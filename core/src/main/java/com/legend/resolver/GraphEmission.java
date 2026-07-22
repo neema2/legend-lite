@@ -71,6 +71,13 @@ final class GraphEmission {
     List<TypedGraphTree> synthesizeScalarTree(ClassSource cs) {
         List<TypedGraphTree> tree = new ArrayList<>();
         for (Map.Entry<String, TypedSpec> e : cs.bindings().entrySet()) {
+            // subtype-dispatch pseudo-bindings are CAST machinery, not
+            // properties of the class — the implicit envelope never
+            // serializes them (they broke testAllForB when the #71
+            // same-source synthesis joined the binding table)
+            if (com.legend.model.ClassMapping.isSubTypeColumn(e.getKey())) {
+                continue;
+            }
             TypedSpec inner = e.getValue();
             if (inner instanceof TypedNativeCall c
                     && c.args().size() == 1

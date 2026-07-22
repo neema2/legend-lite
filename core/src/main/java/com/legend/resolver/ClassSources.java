@@ -194,6 +194,52 @@ public final class ClassSources {
             }
         }
 
+        // SAME-SOURCE SUBTYPE DISPATCH for nav targets (#71, extends
+        // family): a subclass mapped over the SAME root table (F[f]
+        // extends [e]) contributes stc_<F>___<prop> pseudo-bindings from
+        // its OWN ctor fields renamed onto this row — subType(@F).prop
+        // casts through associations read them as ordinary leaves (engine
+        // golden testExtendsForPropertyMapping.pure result4: the cast is
+        // a plain same-row column read). Different-source, slot-reading,
+        // or ctor-valued sub bindings stay un-synthesized (loud
+        // downstream). Local bindings only — extends is same-mapping.
+        for (MappingDefinition.ClassBinding cb : mapping.classBindings()) {
+            if (cb.classFqn().equals(classFqn)
+                    || !ctx.isSubtype(cb.classFqn(), classFqn)) {
+                continue;
+            }
+            ClassSource sub;
+            try {
+                sub = get(mappingFqn, cb.classFqn());
+            } catch (RuntimeException notBuildable) {
+                // a broken subclass mapping must not poison the PARENT
+                // source — casts to it stay loud at their own read
+                continue;
+            }
+            if (!sameRootTable(sub.pipeline(), pipeline)) {
+                continue;
+            }
+            java.util.Set<String> subSlots =
+                    Pipelines.slotAliases(sub.pipeline());
+            String pfx = com.legend.model.ClassMapping
+                    .subTypeColumnPrefix(cb.classFqn());
+            ExprType rowInfo = ExprType.one(rowType);
+            for (Map.Entry<String, TypedSpec> be : sub.bindings().entrySet()) {
+                if (com.legend.model.ClassMapping.isSubTypeColumn(be.getKey())
+                        || Pipelines.unwrapToOne(be.getValue())
+                                instanceof TypedNewInstance
+                        || Pipelines.referencesAliasOn(be.getValue(),
+                                sub.rowVar(), subSlots)) {
+                    continue;
+                }
+                bindings.putIfAbsent(pfx + be.getKey(),
+                        Pipelines.rewriteRowReads(be.getValue(), sub.rowVar(),
+                                Map.of(), java.util.Set.of(),
+                                v -> new TypedVariable(
+                                        mapper.parameters().get(0), rowInfo)));
+            }
+        }
+
         // A ~func Relation pipeline may ITSELF be a class query
         // (PersonWithFirmId.all()->filter->project — the relation-family
         // MixedMapping): resolve it recursively with a FRESH resolver
@@ -472,6 +518,29 @@ public final class ClassSources {
      * binding shadows included ones (checked first, include semantics).
      * Multi-set-ID within one mapping is a legal-but-unbuilt feature (H5).
      */
+    /** Both pipelines scan the SAME leftmost physical table. */
+    private static boolean sameRootTable(TypedSpec a, TypedSpec b) {
+        com.legend.compiler.spec.typed.TypedTableReference ra = rootTableOf(a);
+        com.legend.compiler.spec.typed.TypedTableReference rb = rootTableOf(b);
+        return ra != null && rb != null
+                && ra.store().equals(rb.store())
+                && ra.table().equals(rb.table());
+    }
+
+    private static com.legend.compiler.spec.typed.TypedTableReference
+            rootTableOf(TypedSpec n) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedTableReference tr) {
+            return tr;
+        }
+        for (TypedSpec c : n.children()) {
+            var r = rootTableOf(c);
+            if (r != null) {
+                return r;
+            }
+        }
+        return null;
+    }
+
     private MappingDefinition.ClassBinding findBinding(MappingDefinition mapping,
                                                        String classFqn,
                                                        LinkedHashSet<String> visited) {
