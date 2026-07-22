@@ -1528,8 +1528,7 @@ final class UnionSynthesis {
                 }
                 for (PropertyMapping pm : rcm.propertyMappings()) {
                     if (!(pm instanceof PropertyMapping.Join j)
-                            || j.targetSetId() == null
-                            || j.joins().size() != 1) {
+                            || j.targetSetId() == null) {
                         continue;
                     }
                     int ord = memberOrdinalOf(memberIds, md, model,
@@ -1537,7 +1536,12 @@ final class UnionSynthesis {
                     if (ord < 0) {
                         continue;
                     }
-                    JoinChainElement hop = j.joins().get(0);
+                    // CHAINED routes dispatch on their FINAL hop (the
+                    // prefix hops join outside the union) — the key the
+                    // navigate's OR condition reads is the last hop's
+                    // member-table column, exactly like the association
+                    // arm below.
+                    JoinChainElement hop = j.joins().get(j.joins().size() - 1);
                     String db = hop.databaseName() != null
                             ? hop.databaseName() : j.database();
                     DatabaseDefinition.JoinDefinition jd =

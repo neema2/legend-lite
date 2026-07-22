@@ -762,6 +762,22 @@ public final class Lowerer {
         return aggValue(base, a, null);
     }
 
+    /** The aggregate's per-row selector body. A singleton COLLECTION-LITERAL
+     * selector (agg(x|[$x.emps.age], y|$y->sum())) unwraps: Pure collection
+     * literals flatten — the per-row aggregated value IS the element ([xs]
+     * carries no nesting). The wrapper exists for overload dispatch
+     * (collection reductions vs to-one identity, the singletonListReductions
+     * pin), and the reducer overload is already resolved here — SUM(age),
+     * not SUM([age]). */
+    private static TypedSpec aggSelectorBody(TypedAggCol a) {
+        TypedSpec mapBody = last(a.map());
+        while (mapBody instanceof TypedCollection stc
+                && stc.elements().size() == 1) {
+            mapBody = stc.elements().get(0);
+        }
+        return mapBody;
+    }
+
     private SqlExpr aggValue(SqlSelect base, TypedAggCol a,
             CalendarAgg.Ctx calendar) {
         TypedSpec reduceBody = last(a.reduce());
@@ -800,7 +816,7 @@ public final class Lowerer {
             return Scalars.lower(call, wrapped);
         }
         String fn = Aggregates.reducerFor(call.callee());
-        TypedSpec mapBody = last(a.map());
+        TypedSpec mapBody = aggSelectorBody(a);
         // ORDER-SENSITIVE aggregation (sortBy before joinStrings): the key
         // lowers in the SAME row scope as the map body and rides inside
         // the SQL aggregate (string_agg(x, sep ORDER BY k))
