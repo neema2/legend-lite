@@ -1112,6 +1112,11 @@ public final class Pure {
     public static final NativeFunctionDefinition LPAD__STRING_1__INTEGER_1 = signature("native function meta::pure::functions::string::lpad(str:meta::pure::metamodel::type::String[1], len:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition LPAD__STRING_1__INTEGER_1__STRING_1 = signature("native function meta::pure::functions::string::lpad(str:meta::pure::metamodel::type::String[1], len:meta::pure::metamodel::type::Integer[1], pad:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition LTRIM__STRING_1 = signature("native function meta::pure::functions::string::ltrim(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
+    // Real collection/iteration/map.pure:19-26 — the MULTIPLICITY-
+    // PRESERVING overload (to-one body over T[m] yields V[m]; the corpus's
+    // $cs.connection->cast(...)->map(x|^$x(...)) needs [1]·[1]→[1] so the
+    // copy's connection:[1] property conformance holds).
+    public static final NativeFunctionDefinition MAP__T_M__FUNCTION_1 = signature("native function meta::pure::functions::collection::map<T,V|m>(value:T[m], func:meta::pure::metamodel::function::Function<{T[1]->V[1]}>[1]):V[m];");
     public static final NativeFunctionDefinition MAP__T_0_1__FUNCTION_1 = signature("native function meta::pure::functions::collection::map<T,V>(value:T[0..1], func:meta::pure::metamodel::function::Function<{T[1]->V[0..1]}>[1]):V[0..1];");
     public static final NativeFunctionDefinition MAP__T_MANY__FUNCTION_1 = signature("native function meta::pure::functions::collection::map<T,V>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->V[*]}>[1]):V[*];");
     public static final NativeFunctionDefinition MATCHES__STRING_1__STRING_1 = signature("native function meta::pure::functions::string::matches(str:meta::pure::metamodel::type::String[1], regex:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");

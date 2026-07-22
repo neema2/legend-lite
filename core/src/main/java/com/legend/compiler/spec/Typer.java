@@ -1205,7 +1205,15 @@ final class Typer {
             return new TypedPackageableRef(ref.fullPath(), ExprType.one(
                     new Type.ClassType("meta::relational::metamodel::Database")));
         }
-        // An execution-context element (mapping/runtime/connection) is a value
+        // A MAPPING reference is a value of the mapping metaclass (real m3:
+        // meta::pure::mapping::Mapping) — corpus helpers dispatch on it
+        // (getModelChainRuntime(m:Mapping[1]); the Database precedent
+        // above). Mapping <: Any keeps from/execute's Any[1] params fine.
+        if (ctx.findMapping(ref.fullPath()).isPresent()) {
+            return new TypedPackageableRef(ref.fullPath(), ExprType.one(
+                    new Type.ClassType("meta::pure::mapping::Mapping")));
+        }
+        // An execution-context element (runtime/connection) is a value
         // of type Any[1] — exactly what from/write's signature parameters declare.
         if (ctx.isExecutionContextElement(ref.fullPath())) {
             return new TypedPackageableRef(ref.fullPath(), ExprType.one(InferenceKernel.anyType()));

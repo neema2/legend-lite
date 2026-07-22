@@ -337,6 +337,7 @@ meta::pure::functions::math::log(value:meta::pure::metamodel::type::Number[1]):m
 meta::pure::functions::string::lpad(str:meta::pure::metamodel::type::String[1], len:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1]
 meta::pure::functions::string::lpad(str:meta::pure::metamodel::type::String[1], len:meta::pure::metamodel::type::Integer[1], pad:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1]
 meta::pure::functions::string::ltrim(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1]
+meta::pure::functions::collection::map<T,V|m>(value:T[m], func:meta::pure::metamodel::function::Function<{T[1]->V[1]}>[1]):V[m]
 meta::pure::functions::collection::map<T,V>(value:T[0..1], func:meta::pure::metamodel::function::Function<{T[1]->V[0..1]}>[1]):V[0..1]
 meta::pure::functions::collection::map<T,V>(value:T[*], func:meta::pure::metamodel::function::Function<{T[1]->V[*]}>[1]):V[*]
 meta::pure::functions::string::matches(str:meta::pure::metamodel::type::String[1], regex:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1]
