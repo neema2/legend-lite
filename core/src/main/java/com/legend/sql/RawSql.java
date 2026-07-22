@@ -11,7 +11,7 @@ import java.util.List;
  * a caller-supplied SQL BLOB (engine tests pass several statements in one
  * string) is split into single statements before execution. Dialect
  * adaptation of the statement text itself lives on
- * {@link com.legend.sql.dialect.SqlDialect#adaptRawSql}.
+ * {@link com.legend.exec.RawSqlBoundary}.
  */
 public final class RawSql {
 

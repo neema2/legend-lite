@@ -765,13 +765,13 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedNativeCall call, ExecEnv env)
             throws java.sql.SQLException {
         String raw = evalStringArg(body, call.args().get(0), env);
-        com.legend.sql.dialect.SqlDialect dialect = env.dialect();
         // split FIRST: adaptation is per-statement (its recognizers anchor
-        // at statement start)
+        // at statement start). Corpus-authored raw H2 goes through THE
+        // boundary translator — never a dialect renderer (R0 rule).
         for (String stmt : com.legend.sql.RawSql.splitStatements(raw)) {
             try {
                 Executor.executeRaw(env.connection(),
-                        dialect.adaptRawSql(stmt));
+                        com.legend.exec.RawSqlBoundary.h2ToDuckDb(stmt));
             } catch (java.sql.SQLException e) {
                 if (env.rawSqlFailureSink() == null) {
                     throw e;
@@ -817,11 +817,10 @@ final class StatementExecutor {
                         .orElseThrow(() -> new IllegalStateException(
                                 "dropAndCreateTableInDb: no table '" + lookup
                                         + "' in store " + db.fullPath()));
-        com.legend.sql.dialect.SqlDialect dialect = env.dialect();
         Executor.executeRaw(connection,
-                dialect.adaptRawSql(Ddl.dropTable(schema, table)));
+                com.legend.exec.RawSqlBoundary.h2ToDuckDb(Ddl.dropTable(schema, table)));
         Executor.executeRaw(connection,
-                dialect.adaptRawSql(Ddl.createTable(def, schema)));
+                com.legend.exec.RawSqlBoundary.h2ToDuckDb(Ddl.createTable(def, schema)));
         return new ExecutionResult.Scalar(true, call.info().type());
     }
 

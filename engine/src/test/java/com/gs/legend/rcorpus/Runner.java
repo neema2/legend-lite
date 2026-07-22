@@ -796,7 +796,7 @@ public final class Runner {
         List<String> failedSeeds = new ArrayList<>();
         for (String sql : allSeeds) {
             for (String raw : com.legend.sql.RawSql.splitStatements(sql)) {
-                String stmt = Corpus.DIALECT.adaptRawSql(raw);
+                String stmt = com.legend.exec.RawSqlBoundary.h2ToDuckDb(raw);
                 // prepare(): DuckDB JDBC masks Statement.execute errors
                 try (var st = conn.prepareStatement(stmt)) {
                     st.execute();

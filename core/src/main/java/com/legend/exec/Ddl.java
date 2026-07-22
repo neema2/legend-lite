@@ -14,7 +14,7 @@ import com.legend.model.RelationalDataType;
  * the SQL layer ({@code com.legend.sql}) stays standalone and never sees
  * the store model. Statements come out H2-flavored and
  * unquoted, exactly like the corpus's own raw seeds — the executing
- * dialect's {@code adaptRawSql} owns quoting and type adaptation, ONE
+ * {@link RawSqlBoundary} owns quoting and type adaptation, ONE
  * adaptation path for hand-written and model-derived DDL alike.
  *
  * <p>No PRIMARY KEY / NOT NULL constraints are emitted — a DELIBERATE
@@ -67,7 +67,7 @@ public final class Ddl {
             case RelationalDataType.TinyInt ignored -> "TINYINT";
             case RelationalDataType.Integer_ ignored -> "INTEGER";
             // H2-FLAVORED on purpose: this DDL text flows through the
-            // executing dialect's adaptRawSql like every hand-written
+            // RawSqlBoundary like every hand-written
             // statement — ONE adaptation path (FLOAT->DOUBLE, BIT->BOOLEAN
             // live in DuckDb.quoteCreateColumns; audit 19 restored the
             // contract this file's header states).

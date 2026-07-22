@@ -62,6 +62,21 @@ Current split (baseline `9f22c22e` + batch-4 in flight):
 
 ## The plan (phased burn-down)
 
+**R0 — debt zero (user-ordered, BEFORE new construction).** Finish the
+audit-23 backlog (~80 ranked suspects in task #75: SyntheticHeads identity
+gates, temporal-family tail, freshening loops, liftTargetMerged crossed
+routes, the LOW tail) so new R1-R5 code has no bad patterns to copy;
+re-ground the golden-derived rules in engine SOURCE (negation constant,
+sweep-date choice, self-assoc orientation) or ledger them explicitly;
+harness slice D (endsInSort tails, tolerance instrumentation,
+isExecuteCall/containsSqlText vocab gating); and the raw-SQL boundary
+redesign — adaptRawSql's regex family moves OUT of the DuckDb dialect into
+an explicit harness-boundary translator with a contract, with the real fix
+(corpus raw H2 DDL/DML parsed into the SQL IR and rendered per dialect —
+the standalone-SQL vision) planned as its own leg. RULE going forward: no
+new regex-over-SQL anywhere; platform SQL is IR-rendered, corpus raw SQL
+goes through the boundary translator only.
+
 **R1 — seeds + runner vocabulary (cheap, ~40 tests).** Fix the 7 seed
 statements (dropSchemaStatement native, effectful-let threading in setup,
 schema DDL spelling, connectionByElement); assertEmpty/wrapper/no-assert SHAPE
