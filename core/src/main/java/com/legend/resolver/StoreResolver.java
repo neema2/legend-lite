@@ -599,7 +599,8 @@ public final class StoreResolver {
      * funnel uses), then re-root at the step's target class with bindings
      * re-pointed through the slot prefix. */
     private ClassSource flattenNavSlot(ClassSource src, String alias,
-            TypedNavigate step) {
+            TypedNavigate step, Set<String> downstreamHeads,
+            Map<String, Substitution.AssocSub> provOut) {
         if (!(step.target() instanceof TypedGetAll tg)) {
             throw new NotImplementedException("class flatten through a"
                     + " CHAINED navigate step ('" + alias
@@ -607,16 +608,78 @@ public final class StoreResolver {
         }
         String targetClass = tg.classFqn();
         ClassSource t = sources.get(src.mappingFqn(), targetClass);
+        // DOWNSTREAM demand (task #63): heads the chain reads off the
+        // re-rooted target dispatch through the target's OWN nav/slot
+        // steps — materialize them INTO the hop so the composed prefixes
+        // (employees_firm_*) exist; provenance AssocSubs below give the
+        // substitution the dispatch route. Un-demanded steps still strip.
+        var tNavSteps = Pipelines.navSteps(t.pipeline());
+        Set<String> tSlots = Pipelines.slotAliases(t.pipeline());
+        Set<String> tSlotDemand = new LinkedHashSet<>();
+        Set<String> tNavDemand = new LinkedHashSet<>();
+        Map<String, String> headNavAlias = new LinkedHashMap<>();
+        for (String h : downstreamHeads) {
+            TypedSpec hb = t.bindings().get(SyntheticHeads.realHead(h));
+            if (hb == null) {
+                continue;
+            }
+            String na = navSlotAlias(hb, t.rowVar(), tNavSteps.keySet());
+            if (na != null) {
+                tNavDemand.add(na);
+                headNavAlias.put(h, na);
+                continue;
+            }
+            CorrelatedSubselects.collectAliasReads(hb, t.rowVar(), tSlots,
+                    tSlotDemand);
+        }
+        final Set<String> fSlotDemand =
+                Pipelines.closeOverConditions(t.pipeline(), tSlotDemand);
+        final Set<String> fNavDemand = tNavDemand;
+        Pipelines.Materialized[] innerM = new Pipelines.Materialized[1];
         Pipelines.Materialized m = Pipelines.materialize(
                 src.pipeline(), java.util.Set.of(), java.util.Set.of(alias),
                 src.classFqn(),
-                (a, tc) -> Pipelines.materialize(
-                        sources.get(src.mappingFqn(), tc).pipeline(),
-                        java.util.Set.of(), tc).pipeline());
+                (a, tc) -> {
+                    Pipelines.Materialized im = Pipelines.materialize(
+                            sources.get(src.mappingFqn(), tc).pipeline(),
+                            tc.equals(targetClass) ? fSlotDemand : java.util.Set.of(),
+                            tc.equals(targetClass) ? fNavDemand : java.util.Set.of(),
+                            tc,
+                            (a2, tc2) -> Pipelines.materialize(
+                                    sources.get(src.mappingFqn(), tc2).pipeline(),
+                                    java.util.Set.of(), tc2).pipeline());
+                    if (tc.equals(targetClass)) {
+                        innerM[0] = im;
+                    }
+                    return im.pipeline();
+                });
         String prefix = m.slotPrefixes().get(alias);
         if (prefix == null) {
             throw new IllegalStateException("resolver bug: demanded navigate"
                     + " slot '" + alias + "' produced no prefix");
+        }
+        Map<String, String> innerPrefixes = innerM[0] == null
+                ? Map.of() : innerM[0].slotPrefixes();
+        // binding pre-rewrite uses JOINSLOT prefixes only: a nav-HEAD
+        // binding is a BARE class-typed slot read (dispatched via the
+        // provenance AssocSub below) — the row-read rewriter would throw
+        // its unrecognized-shape guard on it
+        Map<String, String> innerSlotOnly = new LinkedHashMap<>(innerPrefixes);
+        innerSlotOnly.keySet().removeAll(fNavDemand);
+        for (var he : headNavAlias.entrySet()) {
+            String ip = innerPrefixes.get(he.getValue());
+            if (ip == null) {
+                continue;   // step not materialized: the read stays loud
+            }
+            var navT = tNavSteps.get(he.getValue()).target();
+            if (!(navT instanceof TypedGetAll ng)) {
+                continue;
+            }
+            ClassSource sub = sources.get(src.mappingFqn(), ng.classFqn());
+            provOut.put(he.getKey(), new Substitution.AssocSub(
+                    prefix + ip, sub.rowVar(), sub.bindings(),
+                    sub.classFqn(),
+                    Pipelines.slotAliases(sub.pipeline())));
         }
         // audit 21b F3: the flatten contract is INNER ≡ the engine's LEFT +
         // reader null-skip — a childless parent contributes NOTHING.
@@ -633,7 +696,15 @@ public final class StoreResolver {
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE);
         Map<String, TypedSpec> bindings = new LinkedHashMap<>();
         for (var e : t.bindings().entrySet()) {
-            bindings.put(e.getKey(), prefixBinding(e.getValue(),
+            // scalar-through-slot bindings flatten onto the materialized
+            // target row FIRST (inner slot prefixes), then the hop prefix
+            TypedSpec b = e.getValue();
+            if (!innerSlotOnly.isEmpty()
+                    && !(Pipelines.unwrapToOne(b) instanceof TypedNewInstance)) {
+                b = Pipelines.rewriteRowReads(b, t.rowVar(), innerSlotOnly,
+                        Set.of(), java.util.function.UnaryOperator.identity());
+            }
+            bindings.put(e.getKey(), prefixBinding(b,
                     t.rowVar(), prefix, src.rowVar(), rowInfo));
         }
         return new ClassSource(src.mappingFqn(), targetClass, t.setId(),
@@ -711,7 +782,8 @@ public final class StoreResolver {
      * are identical (documented emission divergence, golden advisory).
      */
     private ClassSource flattenSource(ClassSource src, String hop,
-            Context context) {
+            Context context, List<TypedSpec> ops, TypedSpec top,
+            Map<String, Substitution.AssocSub> provOut) {
         // ROUTE by the hop's MAPPING: a class-typed Join PM
         // (employees: @Firm_Person) is a NAVIGATE SLOT — the pipeline
         // already carries its TypedNavigate step; an AssociationMapping
@@ -721,10 +793,12 @@ public final class StoreResolver {
         String alias = hopBinding == null ? null
                 : navSlotAlias(hopBinding, src.rowVar(), navSteps.keySet());
         if (alias != null) {
-            return flattenNavSlot(src, alias, navSteps.get(alias));
+            return flattenNavSlot(src, alias, navSteps.get(alias),
+                    downstreamHeads(ops, top), provOut);
         }
         AssociationJoins.AssocJoin aj = assocMaterial.associationJoin(
-                temporal, src, hop, context, false);
+                temporal, src, hop, context, false,
+                downstreamHeads(ops, top));
         Pipelines.Materialized m = Pipelines.materialize(
                 src.pipeline(), java.util.Set.of(), src.classFqn());
         Type.RelationType leftRow =
@@ -742,11 +816,45 @@ public final class StoreResolver {
                 Optional.of(aj.prefix()), rowInfo);
         Map<String, TypedSpec> bindings = new LinkedHashMap<>();
         for (var e : aj.target().bindings().entrySet()) {
-            bindings.put(e.getKey(), prefixBinding(e.getValue(),
+            // scalar-through-slot bindings first flatten onto the
+            // MATERIALIZED target row (W4 demandedLeaves), then prefix.
+            // Ctor (embedded) bindings skip: the rewriter refuses them and
+            // prefixBinding walks their props itself.
+            TypedSpec b = e.getValue();
+            if (!aj.targetSlotPrefixes().isEmpty()
+                    && !(Pipelines.unwrapToOne(b) instanceof TypedNewInstance)) {
+                b = Pipelines.rewriteRowReads(b, aj.target().rowVar(),
+                        aj.targetSlotPrefixes(), Set.of(),
+                        java.util.function.UnaryOperator.identity());
+            }
+            bindings.put(e.getKey(), prefixBinding(b,
                     aj.target().rowVar(), aj.prefix(), src.rowVar(), rowInfo));
         }
         return new ClassSource(src.mappingFqn(), aj.target().classFqn(),
                 aj.target().setId(), joined, src.rowVar(), bindings, row);
+    }
+
+    /** Heads read off the RE-ROOTED target class in the chain's lambdas —
+     * the flatten's downstream demand (task #63: the hop target must
+     * materialize WITH the nav/slot steps those heads dispatch through). */
+    private static Set<String> downstreamHeads(List<TypedSpec> ops,
+            TypedSpec top) {
+        Set<String> heads = new LinkedHashSet<>();
+        collectLambdaHeads(ops == null ? List.of() : ops, heads);
+        if (top != null) {
+            collectLambdaHeads(List.of(top), heads);
+        }
+        return heads;
+    }
+
+    private static void collectLambdaHeads(List<TypedSpec> nodes,
+            Set<String> out) {
+        for (TypedSpec n : nodes) {
+            if (n instanceof TypedLambda lam && !lam.parameters().isEmpty()) {
+                collectParamPathHeads(lam, lam.parameters().get(0), out);
+            }
+            collectLambdaHeads(n.children(), out);
+        }
     }
 
     private static Type sourceClassType(TypedSpec chain) {
@@ -2260,7 +2368,8 @@ public final class StoreResolver {
      * {@link #collectOpChain} — one construction site. */
     private record OpChain(TypedSpec top, List<TypedGraphTree> tree,
             boolean implicitSerialize, List<TypedSpec> ops, TypedGetAll getAll,
-            Context context, ClassSource cs) {}
+            Context context, ClassSource cs,
+            Map<String, Substitution.AssocSub> flattenAssocs) {}
 
     /** PHASE 1 — collect the op chain (terminal detection, native-shape
      * normalization, from() re-scoping), validate the fetch, construct
@@ -2455,10 +2564,12 @@ public final class StoreResolver {
                         // in-chain from() rescope
                         + (fctx.runtimeFqn() == null ? "" : fctx.runtimeFqn()));
 
+        Map<String, Substitution.AssocSub> flattenAssocs = new LinkedHashMap<>();
         if (flattenHop != null) {
-            cs = flattenSource(cs, flattenHop, fctx);
+            cs = flattenSource(cs, flattenHop, fctx, ops, top, flattenAssocs);
         }
-        return new OpChain(top, tree, implicitSerialize, ops, g, context, cs);
+        return new OpChain(top, tree, implicitSerialize, ops, g, context, cs,
+                flattenAssocs);
     }
 
     /** PHASE 1b — TWO-DATES-PER-HEAD (engine keys separate joins by
@@ -2619,6 +2730,7 @@ public final class StoreResolver {
         Set<String> demanded = navPlan.demanded();
         Set<String> demandedNavs = navPlan.demandedNavs();
         Map<String, Substitution.AssocSub> assocs = navPlan.assocs();
+        assocs.putAll(phase1.flattenAssocs());   // #63 flatten provenance
         Map<String, NavMaterializer.NavMat> navMats = navPlan.navMats();
         Map<String, String> navHeadByAlias = navPlan.navHeadByAlias();
         Map<String, String> extraNavHeads = navPlan.extraNavHeads();
