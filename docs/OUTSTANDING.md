@@ -370,7 +370,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | executionPlan/tests | m2m2rExecutionPlanTests.pure | planProjectWithDerivedProperty1 | harness-shape | row-assert+plan-assert+graph | meta::pure::profiles::Test | no execute(\|...) call |
 | SHAPE | executionPlan/tests | m2m2rExecutionPlanTests.pure | planProjectWithNestedDerivedProperty | harness-shape | row-assert+plan-assert+graph | meta::pure::profiles::Test | no execute(\|...) call |
 | SHAPE | executionPlan/tests | m2m2rExecutionPlanTests.pure | planProjectWithNestedProperty | harness-shape | row-assert+plan-assert | meta::pure::profiles::Test | no execute(\|...) call |
-| ERROR | functions/tests | testConcatenate.pure | testConcatenateClass | execute(DuckDB) | golden-sql+row-assert | Test | Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] wh |
+| ERROR | functions/tests | testConcatenate.pure | testConcatenateClass | execute(DuckDB) | golden-sql+row-assert | Test | Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] w |
 | ERROR | functions/tests | testConcatenate.pure | testConcatenateDataType | execute(DuckDB) | golden-sql+row-assert | Test | Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. |
 | ERROR | functions/tests | testConcatenate.pure | testConcatenateDataTypeDiffProperty | execute(DuckDB) | golden-sql+row-assert | Test | Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. |
 | ERROR | functions/tests | testConcatenate.pure | testConcatenateDataTypeMerge | execute(DuckDB) | golden-sql+row-assert | Test | Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. |
@@ -763,7 +763,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | milestoning/tests | testBusinessDateMilestoning.pure | testMilestonedThisBusinessDateUsedAsParameterToFunctionInMilestoningQualifiedPropertyMappedToView | harness-shape | golden-sql+row-assert+constraints | Test | no execute(\|...) call |
 | ERROR | milestoning/tests | testBusinessDateMilestoning.pure | testMilestonedThisBusinessDateUsedAsParameterToFunctionParametersOfMilestonedQualifiedProperty | other | golden-sql+row-assert+constraints | Test | filter predicate references column 'businessDate', unresolvable even after isolation |
 | ERROR | milestoning/tests | testBusinessDateMilestoning.pure | testMilestonedThisBusinessDateWithNestedDerivedProperty | typer | golden-sql+row-assert+constraints | Test | no overload of 'meta::pure::router::preeval::preval' matches 2 argument(s) of these shapes |
-| FAIL | milestoning/tests | testBusinessDateMilestoning.pure | testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot | rows-differ | golden-sql+row-assert | Test | assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Marti |
+| FAIL | milestoning/tests | testBusinessDateMilestoning.pure | testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot | rows-differ | golden-sql+row-assert | Test | assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Mart |
 | ERROR | milestoning/tests | testBusinessDateMilestoning.pure | testMilestoningContextPropagatedWithViewAsMainRelationOfView | resolve | golden-sql+row-assert | Test | in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta |
 | ERROR | milestoning/tests | testBusinessDateMilestoning.pure | testMilestoningCriteriaAppliedToSimplePropertyJoinFromTemporalClass | other | golden-sql+row-assert | Test | filter predicate references column 'orderDetails', unresolvable even after isolation |
 | ERROR | milestoning/tests | testBusinessDateMilestoning.pure | testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass | typer | golden-sql+row-assert | Test | in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argu |
@@ -930,7 +930,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | tds/relation | testTdsToRelation.pure | testJoinUsing | harness-shape | ? | Test | no execute(\|...) call |
 | SHAPE | tds/tests | testCanRouteWrappedFunctions.pure | testExecutionPlanGeneration | harness-shape | row-assert+plan-assert | Test | no execute(\|...) call |
 | ERROR | tds/tests | testGroupBy.pure | groupByAfterConcatenate | execute(DuckDB) | row-assert | Test | Binder Error: No function matches the given name and argument types 'list_sort(BIGINT)'. You might n |
-| FAIL | tds/tests | testGroupBy.pure | simpleFilterWithGroupByWithDistinct | rows-differ | row-assert | Test | assertEquals: expected [25.0, 1.0], got [25.0, 1] |
+| FAIL | tds/tests | testGroupBy.pure | simpleFilterWithGroupByWithDistinct | rows-differ | row-assert | Test | assertEquals: expected [25.0, 1.0], got [320.0, 1] |
 | ERROR | tds/tests | testGroupBy.pure | simpleGroupByAnd | lower | row-assert | Test | no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::and' |
 | ERROR | tds/tests | testGroupBy.pure | simpleGroupByOr | lower | row-assert | Test | no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::or' |
 | ERROR | tds/tests | testGroupBy.pure | simpleGroupCount | lower | row-assert | Test | no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary |
@@ -1238,7 +1238,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | tests/mapping/extends | testExtendsForMainTable.pure | testMainTableForC2 | harness-shape | row-assert | Test | no execute(\|...) call |
 | SHAPE | tests/mapping/extends | testExtendsForMainTable.pure | testSuperSetIdsAreCollected | harness-shape | row-assert | Test | no execute(\|...) call |
 | SHAPE | tests/mapping/extends | testExtendsForPrimaryKey.pure | testPrimaryKeyForB | harness-shape | row-assert | Test | no execute(\|...) call |
-| FAIL | tests/mapping/extends | testExtendsWithAll.pure | testAllForB | rows-differ | row-assert | Test | assertEquals: expected 4, got [1, 3] |
+| FAIL | tests/mapping/extends | testExtendsWithAll.pure | testAllForB | rows-differ | row-assert | Test | assertEquals: expected 4, got [3, 1] |
 | FAIL | tests/mapping/extends | testExtendsWithGroupBy.pure | testGroupByForB | rows-differ | row-assert | Test | assertSameElements: expected [4, 6], got [1, 2, 3, 4] |
 | ERROR | tests/mapping/filter | testFilterMapping.pure | filterMappingWithJoinInFilterAndPropertyGetAll | normalize(mapping) | row-assert | Test | mapping ~filter for 'meta::relational::tests::model::simple::Person' reads through a join slot; join |
 | ERROR | tests/mapping/filter | testFilterMappingTree.pure | testFilterMappingWithJoin | normalize(mapping) | row-assert | Test | mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a j |
@@ -1470,7 +1470,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | ERROR | transform/fromPure/tests | testToSQLString.pure | testToSQLStringJoinStringsSimpleConcat | render(DB2) | golden-sql+row-assert | Test | toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built |
 | ERROR | transform/fromPure/tests | testToSQLString.pure | testToSQLStringReverse | render(DB2) | row-assert | Test | toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built |
 | FAIL | transform/fromPure/tests | testToSQLString.pure | testToSQLStringSplitPart | rows-differ | row-assert | Test | assertEquals: expected select legend_h2_extension_split_part(legend_h2_extension_split_part("root".F |
-| ERROR | transform/fromPure/tests | testToSQLString.pure | testToSQLStringWithAbs | other | golden-sql+row-assert | Test | in function 'meta::relational::tests::functions::sqlstring::testCasesForDocGeneration': property 'qu |
+| ERROR | transform/fromPure/tests | testToSQLString.pure | testToSQLStringWithAbs | other | golden-sql+row-assert | Test | in function 'meta::relational::tests::functions::sqlstring::testCasesForDocGeneration': property 'ma |
 | SHAPE | transform/fromPure/tests | testToSQLString.pure | testToSQLStringWithAggregation | harness-shape | row-assert | Test | no execute(\|...) call |
 | ERROR | transform/fromPure/tests | testToSQLString.pure | testToSQLStringWithAggregationDB2 | render(DB2) | row-assert | Test | toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built |
 | SHAPE | transform/fromPure/tests | testToSQLString.pure | testToSQLStringWithCodeBlock | harness-shape | golden-sql+row-assert | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |

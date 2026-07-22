@@ -7,6 +7,7 @@ import com.legend.Compiler;
 
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.element.ModelContext;
+import com.legend.model.spec.KeyExpression;
 import com.legend.model.ImportScope;
 import com.legend.parser.SpecParser;
 import com.legend.model.spec.AppliedFunction;
@@ -1198,7 +1199,11 @@ public final class TestBody {
             ModelContext ctx, ImportScope imports, String runtimeFqn,
             Connection conn) throws java.sql.SQLException {
         for (ValueSpecification s : stmts) {
-            requireNoInlineCsvRuntime(s);
+            List<ValueSpecification> csvs = new ArrayList<>();
+            collectInlineCsv(s, csvs);
+            for (ValueSpecification csvExpr : csvs) {
+                seedInlineCsv(csvExpr, ctx, conn);
+            }
         }
         LambdaFunction wrapped = new LambdaFunction(List.of(),
                 new ArrayList<>(stmts));
@@ -1209,32 +1214,68 @@ public final class TestBody {
 
     /** A runtime COPY carrying an inline {@code testDataSetupCsv} override
      * (^$connection(testDataSetupCsv=...)) declares the test's OWN seed
-     * data. Executing it against the ambient family connection would
-     * silently substitute different rows — a vacuous-pass shape. Loud
-     * until the inline seed routes through CsvSeed (the engine seeds the
-     * test connection from this property before running). */
-    private static void requireNoInlineCsvRuntime(ValueSpecification v) {
+     * data — engine semantics: the test connection seeds from this
+     * property before the query runs. The harness runs the SAME CsvSeed
+     * synthesis the corpus's setUpDataSQLsV2 path uses; each test has a
+     * FRESH DuckDB connection (Runner opens jdbc:duckdb: per test), so
+     * DELETE+INSERT over the family-DDL tables is exactly the override. */
+    private static void collectInlineCsv(ValueSpecification v,
+            List<ValueSpecification> sink) {
         switch (v) {
             case NewInstance ni -> {
-                if (ni.properties().containsKey("testDataSetupCsv")) {
-                    throw new com.legend.error.NotImplementedException(
-                            "inline testDataSetupCsv runtime override is not"
-                            + " seeded yet — executing it would silently run"
-                            + " against the ambient family data");
+                KeyExpression k = ni.properties().get("testDataSetupCsv");
+                if (k != null) {
+                    sink.add(k.value());
                 }
-                ni.properties().values().forEach(k ->
-                        requireNoInlineCsvRuntime(k.value()));
+                ni.properties().values().forEach(x ->
+                        collectInlineCsv(x.value(), sink));
             }
             case AppliedFunction af ->
-                    af.parameters().forEach(TestBody::requireNoInlineCsvRuntime);
-            case AppliedProperty ap ->
-                    requireNoInlineCsvRuntime(ap.receiver());
+                    af.parameters().forEach(x -> collectInlineCsv(x, sink));
+            case AppliedProperty ap -> collectInlineCsv(ap.receiver(), sink);
             case PureCollection pc ->
-                    pc.values().forEach(TestBody::requireNoInlineCsvRuntime);
+                    pc.values().forEach(x -> collectInlineCsv(x, sink));
             case LambdaFunction lf ->
-                    lf.body().forEach(TestBody::requireNoInlineCsvRuntime);
+                    lf.body().forEach(x -> collectInlineCsv(x, sink));
             default -> { }
         }
+    }
+
+    private static void seedInlineCsv(ValueSpecification csvExpr,
+            ModelContext ctx, Connection conn) throws java.sql.SQLException {
+        String csv = foldStringLiteral(csvExpr);
+        for (String sql : com.legend.exec.CsvSeed.sqls(csv, null, ctx)) {
+            try (var st = conn.createStatement()) {
+                st.execute(sql);
+            }
+        }
+    }
+
+    /** Fold a '+'-concatenated string literal tree to its value — the
+     * corpus spells inline CSVs as 'a\n'+'b\n'+... Loud on anything
+     * non-literal (a computed CSV cannot be seeded honestly). */
+    private static String foldStringLiteral(ValueSpecification v) {
+        return switch (v) {
+            case CString cs -> cs.value();
+            case AppliedFunction af when af.function().equals("plus") -> {
+                StringBuilder sb = new StringBuilder();
+                for (ValueSpecification p : af.parameters()) {
+                    sb.append(foldStringLiteral(p));
+                }
+                yield sb.toString();
+            }
+            case PureCollection pc -> {
+                StringBuilder sb = new StringBuilder();
+                for (ValueSpecification p : pc.values()) {
+                    sb.append(foldStringLiteral(p));
+                }
+                yield sb.toString();
+            }
+            default -> throw new com.legend.error.NotImplementedException(
+                    "inline testDataSetupCsv is not a foldable string literal ("
+                    + v.getClass().getSimpleName() + ") — computed CSVs are"
+                    + " not seeded yet");
+        };
     }
 
     private static List<ValueSpecification> append(
