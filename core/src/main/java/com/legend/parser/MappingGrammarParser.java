@@ -484,8 +484,52 @@ final class MappingGrammarParser {
             return;
         }
         if (p.isIdentifierToken(p.peek()) && "AggregationAware".equals(p.text())) {
+            // AggregationAware (real: core/store/aggregationAware/
+            // aggregationAware.pure): aggregate Views + ~mainMapping. The
+            // engine's NO-REWRITE behavior serves the MAIN mapping
+            // (canRewrite fallback = mainSetImplementation); the views
+            // feed the rewrite optimizer — a separate feature, skipped
+            // here so rewrite-activity asserts fail HONESTLY instead of
+            // the class being silently unmapped.
             p.advance();
-            skipBalancedBlock();
+            p.expect(TokenType.BRACE_OPEN);
+            ClassMapping aggMain = null;
+            while (p.peek() != TokenType.BRACE_CLOSE && !p.atEnd()) {
+                if (p.peek() == TokenType.TILDE) {
+                    p.advance();
+                    String kw = p.parseIdentifier();
+                    if ("mainMapping".equals(kw)) {
+                        p.expect(TokenType.COLON);
+                        String kind = p.parseIdentifier();
+                        if (!"Relational".equals(kind)) {
+                            throw p.error("AggregationAware ~mainMapping"
+                                    + " kind '" + kind
+                                    + "' is not supported (Relational only)");
+                        }
+                        p.expect(TokenType.BRACE_OPEN);
+                        aggMain = parseRelationalClassMappingBody(
+                                elementPath, setId, extendsSetId, root);
+                        p.expect(TokenType.BRACE_CLOSE);
+                        continue;
+                    }
+                    continue;
+                }
+                if (p.isIdentifierToken(p.peek()) && "Views".equals(p.text())) {
+                    p.advance();
+                    p.expect(TokenType.COLON);
+                    p.skipBalancedContent(TokenType.BRACKET_OPEN,
+                            TokenType.BRACKET_CLOSE);
+                    p.match(TokenType.COMMA);
+                    continue;
+                }
+                p.advance();
+            }
+            p.expect(TokenType.BRACE_CLOSE);
+            if (aggMain == null) {
+                throw p.error("AggregationAware mapping for '" + elementPath
+                        + "' has no ~mainMapping");
+            }
+            accum.classMappings.add(aggMain);
             return;
         }
         throw p.error("unsupported class mapping type: '" + p.safeText() + "'");

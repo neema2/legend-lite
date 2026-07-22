@@ -13,8 +13,8 @@ in-process Alloy-shaped path).
 
 | family | tests | pass | fail | error | shape |
 |---|---|---|---|---|---|
-| aggregationAware/test/rewrite | 13 | 0 | 0 | 13 | 0 |
-| aggregationAware/test/rewrite/NOP | 15 | 0 | 0 | 15 | 0 |
+| aggregationAware/test/rewrite | 13 | 0 | 0 | 6 | 7 |
+| aggregationAware/test/rewrite/NOP | 15 | 0 | 0 | 13 | 2 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
@@ -79,7 +79,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1256** | 63 | 603 | 616 |
+| **total** | 2538 | **1256** | 63 | 594 | 625 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6199,17 +6199,16 @@ in-process Alloy-shaped path).
 - 15x unbound variable '$dbRuntime'
 - 15x serialize expects (classCollection, #{Class{…}}#)
 - 11x graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
-- 10x class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
 - 10x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - 10x navigation through class-typed slot property 'address' is not supported yet
-- 8x class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
 - 7x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 7x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
 - 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - 7x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
+- 6x relation has no column 'activities' in scalar read
+- 6x class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - 6x no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
-- 5x relation has no column 'activities' in scalar read
 - 5x no overload of 'executionPlan' matches 2 argument(s) of these shapes
 - 5x '_Firm' is not a known class, mapping, runtime, connection, or database — user elements in a query need a fully qualified name
 - 5x unbound variable '$modelChainConnection'
@@ -6225,22 +6224,23 @@ in-process Alloy-shaped path).
 - 4x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=…
 - 4x Binder Error: Table "t2" does not have a column named "from_z" |  | Candidate bindings: : "NAME" |  | LINE 3: ..., t2.NAME AS OrderPnlTable_Order__Order_SalesPerson_NAME, t2.from_z AS OrderPnlTable_Order__Order_SalesPerson_from_z... |                                                                      ^
 - 4x resolver bug: join slot 'OrderPnlView_Order' carries a nested slot in its target; the normalizer emits linear chains only
+- 4x in function 'meta::relational::postProcessor::removeUnionOrJoins::testRuntimeWithRemoveUnionOrJoinsFeatureEnabled': property 'connection' of 'meta::core::runtime::ConnectionStore' declares multiplicity Bounded[lower=1, upper=1] but the value has Bounded[lower=0, upper=1]
 
 ### per-test outcomes (non-passing)
 
-- ERROR testRewriteCanAggregateGroupByOnLiteralWithSumAgg [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMonthCannotBeAggregated'
-- ERROR testRewriteCanAggregateGroupByOnLiteralWithMultipleAgg [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMonthCannotBeAggregated'
-- ERROR testRewriteSwitchToSalesTable [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
-- ERROR testRewriteSwitchToSalesTableWithQualifiedProperty [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
-- ERROR testRewriteWithTDSJoin [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
-- ERROR testRewriteSwitchToProductMonthTable [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
-- ERROR testRewriteSwitchToProdLineYearTable [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
-- ERROR testRewriteSwitchToProdLineSalesPersonYearTable [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
-- ERROR testRewriteEmployeeToSales [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
-- ERROR testRewriteEmployeeToSalesBackToEmployee [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
-- ERROR testRewriteEmployeeToSalesToProduct [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
-- ERROR testRewriteEmployeeToSalesToProductToProdLine [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
-- ERROR testRewriteWithMilestonedDescriptionPropertyAccess [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
+- SHAPE testRewriteCanAggregateGroupByOnLiteralWithSumAgg [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testRewriteCanAggregateGroupByOnLiteralWithMultipleAgg [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testRewriteSwitchToSalesTable [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testRewriteSwitchToSalesTableWithQualifiedProperty [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testRewriteWithTDSJoin [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- SHAPE testRewriteSwitchToProductMonthTable [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- ERROR testRewriteSwitchToProdLineYearTable [aggregationAware/test/rewrite]: multi-hop navigation product.productLine.products.productName through an embedded/slot head is not supported yet
+- ERROR testRewriteSwitchToProdLineSalesPersonYearTable [aggregationAware/test/rewrite]: multi-hop navigation product.productLine.products.productName through an embedded/slot head is not supported yet
+- ERROR testRewriteEmployeeToSales [aggregationAware/test/rewrite]: multi-hop navigation sales.product.productId through an embedded/slot head is not supported yet
+- ERROR testRewriteEmployeeToSalesBackToEmployee [aggregationAware/test/rewrite]: relation has no column 'activities' in scalar read
+- ERROR testRewriteEmployeeToSalesToProduct [aggregationAware/test/rewrite]: multi-hop navigation sales.product.productId through an embedded/slot head is not supported yet
+- ERROR testRewriteEmployeeToSalesToProductToProdLine [aggregationAware/test/rewrite]: multi-hop navigation sales.product.productId through an embedded/slot head is not supported yet
+- SHAPE testRewriteWithMilestonedDescriptionPropertyAccess [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: embedded class hop 'activities' in CHAIN position without a scalar consumer is not supported yet
 - ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - ERROR testRewriteProjectFunction [aggregationAware/test/rewrite/NOP]: relation has no column 'activities' in scalar read
@@ -6249,13 +6249,13 @@ in-process Alloy-shaped path).
 - ERROR testRewriteProjectColMulti [aggregationAware/test/rewrite/NOP]: relation has no column 'activities' in scalar read
 - ERROR testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: ~Product ID Added 2: mapped/aggregate column specifications need an enclosing call to type against
 - ERROR testRewriteTDSGroupBy [aggregationAware/test/rewrite/NOP]: relation has no column 'activities' in scalar read
-- ERROR testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
-- ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
-- ERROR testRewriteProjectFunction [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
-- ERROR testRewriteProjectCol [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
-- ERROR testRewriteProjectFunctionMulti [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
-- ERROR testRewriteProjectColMulti [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
-- ERROR testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
+- ERROR testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- ERROR testRewriteProjectFunction [aggregationAware/test/rewrite/NOP]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- SHAPE testRewriteProjectCol [aggregationAware/test/rewrite/NOP]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- ERROR testRewriteProjectFunctionMulti [aggregationAware/test/rewrite/NOP]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
+- SHAPE testRewriteProjectColMulti [aggregationAware/test/rewrite/NOP]: sql-only: 1 advisory golden-SQL assert(s), no row verification
+- ERROR testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
 - SHAPE testClassesAssociationsAndMappingFromDatabase [autogeneration/tests]: no execute(|...) call
 - SHAPE testDifferentCalendar [calendarAggregation/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDifferentEndDates [calendarAggregation/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -6375,7 +6375,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
 - ERROR testConcatenateWithFilter [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT t0.NAME AS a, list_concat(CASE WHEN starts_with(t0.NAME, 'Firm X') THEN..
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
@@ -6765,7 +6765,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -6926,7 +6926,7 @@ in-process Alloy-shaped path).
 - SHAPE testJoinFunc [tds/relation]: no execute(|...) call
 - SHAPE testExecutionPlanGeneration [tds/tests]: no execute(|...) call
 - ERROR simpleGroupCount [tds/tests]: no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
-- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [320.0, 1]
+- FAIL simpleFilterWithGroupByWithDistinct [tds/tests]: assertEquals: expected [25.0, 1.0], got [25.0, 1]
 - ERROR simpleGroupByAnd [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::and'
 - ERROR simpleGroupByOr [tds/tests]: no aggregate lowering registered for resolved overload 'meta::pure::functions::collection::or'
 - ERROR groupByAfterConcatenate [tds/tests]: Binder Error: No function matches the given name and argument types 'list_sort(BIGINT)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_sort(ANY[]) -> ANY[] | 	list_sort(ANY[], VARCHAR) -> ANY[] | 	list_sort(ANY[], VARCHAR, VARCHAR) -> ANY[] |  |  | LINE 1: SELECT list_so
@@ -7230,7 +7230,7 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR filterMappingWithJoinInFilterAndPropertyGetAll [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::model::simple::Person' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithJoin [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
