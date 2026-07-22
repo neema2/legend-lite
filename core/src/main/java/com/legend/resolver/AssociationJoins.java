@@ -345,7 +345,7 @@ final class AssociationJoins {
         var cf = specs.compile(fns.get(0));
         TypedSpec last = cf.body().get(cf.body().size() - 1);
         if (!(last instanceof TypedNativeCall call)
-                || !call.callee().qualifiedName().equals("meta::legend::lite::legacyAssocPredicate")
+                || !call.callee().qualifiedName().equals(com.legend.builtin.Pure.LEGACY_ASSOC_PREDICATE_FQN)
                 || call.args().size() != 5
                 || !(call.args().get(4) instanceof TypedLambda cond)) {
             throw new IllegalStateException("resolver bug: association predicate body"

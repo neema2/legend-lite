@@ -56,6 +56,18 @@ import java.util.regex.Pattern;
  */
 final class Pipelines {
 
+    /** One {@code toOne()} look-through — the multiplicity coercion is
+     * transparent to structure (audit 23: this idiom had ~12 hand copies;
+     * new code calls THIS). Returns the argument when {@code n} is
+     * {@code toOne(x)}, else {@code n} unchanged. */
+    static TypedSpec unwrapToOne(TypedSpec n) {
+        return n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                && c.args().size() == 1
+                && c.callee().qualifiedName().equals(
+                        "meta::pure::functions::multiplicity::toOne")
+                ? c.args().get(0) : n;
+    }
+
     private Pipelines() {
     }
 

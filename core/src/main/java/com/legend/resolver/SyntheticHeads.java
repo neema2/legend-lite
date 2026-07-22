@@ -921,7 +921,13 @@ final class SyntheticHeads {
 
     /** Column lambdas born from VALUES-position map terminals: pure
      * flattening drops empties there, so the TDS lift (whose LEFT-join
-     * NULL row is the point) must NOT fire inside them. */
+     * NULL row is the point) must NOT fire inside them.
+     * IDENTITY-keyed (audit 23 residual, documented): the gate holds only
+     * while no pass REBUILDS the column lambda between registration and
+     * the lift — a rebuilt (structurally-equal, identity-different)
+     * lambda would silently take the TDS lift and emit a NULL row where
+     * pure flattening drops it. Registration and consumption sit in THIS
+     * class within one liftFilteredHeads walk; keep it that way. */
     private final Set<TypedLambda> valuesLambdas =
             Collections.newSetFromMap(new IdentityHashMap<>());
     /** A lifted head's (and a drilled synthetic MID component's) predicate

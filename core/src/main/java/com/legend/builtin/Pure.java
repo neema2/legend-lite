@@ -1015,6 +1015,12 @@ public final class Pure {
     public static final NativeFunctionDefinition PRINTLN__ANY_M__INTEGER_1 = signature("native function meta::pure::functions::io::println(param:meta::pure::metamodel::type::Any[*], max:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Nil[0];");
     public static final NativeFunctionDefinition PRINTLN__ANY_M = signature("native function meta::pure::functions::io::println(param:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Nil[0];");
     public static final NativeFunctionDefinition DROP_AND_CREATE_SCHEMA_IN_DB__STRING_1__CONN_1__BOOLEAN_1 = signature("native function meta::relational::functions::toDDL::dropAndCreateSchemaInDb(schema:meta::pure::metamodel::type::String[1], c:meta::external::store::relational::runtime::DatabaseConnection[1], debug:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");
+    /** THE legacyAssocPredicate FQN — producers spell the bare name (the
+     * checker resolves), the resolver matches THIS constant (audit 23
+     * contract consolidation). */
+    public static final String LEGACY_ASSOC_PREDICATE_FQN =
+            "meta::legend::lite::legacyAssocPredicate";
+
     public static final NativeFunctionDefinition LEGACY_ASSOC_PREDICATE__A_1__B_1__RELATION_1__RELATION_1__FUNCTION_1 = signature("native function meta::legend::lite::legacyAssocPredicate<A,B,S,T>(a:A[1], b:B[1], src:meta::pure::metamodel::relation::Relation<S>[1], tgt:meta::pure::metamodel::relation::Relation<T>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition LENGTH__STRING_1 = signature("native function meta::pure::functions::string::length(str:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition LESS_THAN_EQUAL__DATE_0_1__DATE_0_1 = signature("native function meta::pure::functions::boolean::lessThanEqual(left:meta::pure::metamodel::type::Date[0..1], right:meta::pure::metamodel::type::Date[0..1]):meta::pure::metamodel::type::Boolean[1];");

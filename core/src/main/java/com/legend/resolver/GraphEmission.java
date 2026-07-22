@@ -126,7 +126,8 @@ final class GraphEmission {
             return null;
         }
         String col = mc.get(prop.equals("processingDate")
-                ? "genProcessingDate" : "genBusinessDate");
+                ? TemporalFrame.GEN_PROCESSING_DATE
+                : TemporalFrame.GEN_BUSINESS_DATE);
         if (col == null) {
             return null;
         }

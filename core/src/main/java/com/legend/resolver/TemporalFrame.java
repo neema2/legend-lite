@@ -45,6 +45,13 @@ import java.util.function.UnaryOperator;
  */
 final class TemporalFrame {
 
+    /** Generated milestone-date KEYS in the milestone-columns map — ONE
+     * spelling for the producer (milestoneColumnsOf) and the consumers
+     * (Substitution generated-date reads, GraphEmission generatedDateLeaf).
+     * Audit 23 contract consolidation. */
+    static final String GEN_BUSINESS_DATE = "genBusinessDate";
+    static final String GEN_PROCESSING_DATE = "genProcessingDate";
+
     private final ModelContext ctx;
     private final ClassSources sources;
     private final TemporalContext root;
@@ -978,7 +985,7 @@ final class TemporalFrame {
             String gen = b.snapshotDate() != null ? b.snapshotDate()
                     : b.thruIsInclusive() ? b.thru() : b.from();
             if (gen != null) {
-                out.put("genBusinessDate", gen);
+                out.put(GEN_BUSINESS_DATE, gen);
             }
         }
         if (!"businesstemporal".equals(strat) && ms.processing() != null) {
@@ -997,7 +1004,7 @@ final class TemporalFrame {
             String gen = pr.snapshotDate() != null ? pr.snapshotDate()
                     : pr.outIsInclusive() ? pr.out() : pr.in();
             if (gen != null) {
-                out.put("genProcessingDate", gen);
+                out.put(GEN_PROCESSING_DATE, gen);
             }
         }
         return out;

@@ -802,7 +802,8 @@ final class Substitution {
                 if (prop.equals("businessDate") || prop.equals("processingDate")) {
                     String col = target.milestoneColumns().get(
                             prop.equals("processingDate")
-                                    ? "genProcessingDate" : "genBusinessDate");
+                                    ? TemporalFrame.GEN_PROCESSING_DATE
+                                    : TemporalFrame.GEN_BUSINESS_DATE);
                     if (col != null) {
                         return milestoneColumnRead(col, target.freshRowVar(),
                                 target.rowType(), "", n);
@@ -1092,11 +1093,7 @@ final class Substitution {
      * (rewriteMultiHop's head-join + embedded-tail arm). */
     private TypedSpec assocBindingRead(AssocSub a, String leaf,
             TypedSpec leafBinding) {
-        TypedSpec leafInner = leafBinding;
-        if (leafInner instanceof TypedNativeCall lc && lc.args().size() == 1
-                && lc.callee().qualifiedName().equals("meta::pure::functions::multiplicity::toOne")) {
-            leafInner = lc.args().get(0);
-        }
+        TypedSpec leafInner = Pipelines.unwrapToOne(leafBinding);
         if (leafInner instanceof TypedNewInstance) {
             throw new NotImplementedException("class-typed property '" + leaf
                     + "' of association target '" + a.targetClassFqn()
@@ -1333,12 +1330,7 @@ final class Substitution {
         if (binding == null) {
             return null;
         }
-        TypedSpec inner = binding;
-        if (inner instanceof TypedNativeCall c && c.args().size() == 1
-                && c.callee().qualifiedName().equals(
-                        "meta::pure::functions::multiplicity::toOne")) {
-            inner = c.args().get(0);
-        }
+        TypedSpec inner = Pipelines.unwrapToOne(binding);
         var ow = otherwiseOf(inner);
         if (ow != null) {
             inner = ow.args().get(0);
