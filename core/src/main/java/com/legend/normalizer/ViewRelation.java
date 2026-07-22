@@ -45,14 +45,38 @@ final class ViewRelation {
     static ValueSpecification viewRelationExpr(
             DatabaseDefinition.ViewDefinition view, String viewName, String db,
             ModelBuilder model, LegacyMappingDefinition md) {
+        return viewRelationExpr(view, viewName, db, model, md,
+                new java.util.HashSet<>());
+    }
+
+    private static ValueSpecification viewRelationExpr(
+            DatabaseDefinition.ViewDefinition view, String viewName, String db,
+            ModelBuilder model, LegacyMappingDefinition md,
+            java.util.Set<String> expanding) {
+        if (!expanding.add(viewName)) {
+            throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                    "view '" + viewName + "' expands through itself (cyclic"
+                  + " view-on-view chain); mapping=" + md.qualifiedName());
+        }
         String phys = MappingNormalizer.inferViewMainTable(view, viewName, md);
         Variable r = new Variable("vr");
+        // VIEW-ON-VIEW: the inferred root is itself a view — expand it
+        // recursively as the SOURCE relation (engine lineage model:
+        // orderPnlViewOnView → root → (v) orderPnlView → (t) orderPnlTable;
+        // scanRelationsTests.pure golden). The outer view's ColumnRefs
+        // spell <innerView>.<declaredCol>, which is exactly the inner
+        // relation's output row, so the scope key stays `phys`.
+        DatabaseDefinition.ViewDefinition innerView =
+                model.findView(db, phys).orElse(null);
+        ValueSpecification source = innerView != null
+                ? viewRelationExpr(innerView, phys, db, model, md, expanding)
+                : new AppliedFunction("tableReference",
+                        List.of(new PackageableElementPtr(db), new CString(phys)));
         // JOIN-NAVIGATING view columns (orderPnl: @Join | T.COL) hoist as
         // slots on a real Pipeline — the same pass-2 machinery PM bodies
         // use; the JoinNavigation arm of RelOpTranslator then resolves
         // them through the pipeline view (V1c).
-        Pipeline vp = new Pipeline(new AppliedFunction("tableReference",
-                List.of(new PackageableElementPtr(db), new CString(phys))), null);
+        Pipeline vp = new Pipeline(source, null);
         for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc0
                 : view.columnMappings()) {
             List<JoinChainEmission.JoinNavSpec> navs0 = new ArrayList<>();
