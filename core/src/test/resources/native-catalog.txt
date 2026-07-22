@@ -273,6 +273,8 @@ meta::legend::lite::navigate<T>(target:T[*], pred:meta::pure::metamodel::functio
 meta::legend::lite::legacyNavigate<S,C,T,Z>(rel:meta::pure::metamodel::relation::Relation<S>[1], target:meta::pure::metamodel::relation::FuncColSpec<{->C[*]},Z>[1], tgtRows:meta::pure::metamodel::relation::Relation<T>[1], cond:meta::pure::metamodel::function::Function<{S[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):meta::pure::metamodel::relation::Relation<SUNIONZ>[1]
 meta::legend::lite::typeAsDeclared<T>(value:meta::pure::metamodel::type::Any[0..1], type:T[1]):T[0..1]
 meta::pure::functions::meta::id(instance:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[1]
+meta::relational::metamodel::schema(_this:meta::relational::metamodel::Database[1], name:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::Schema[0..1]
+meta::relational::metamodel::table(_this:meta::relational::metamodel::Schema[1], name:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::relation::Table[0..1]
 meta::pure::functions::meta::evaluateAndDeactivate<T|m>(var:T[m]):T[m]
 meta::relational::metamodel::execute::executeInDb(sql:meta::pure::metamodel::type::String[1], databaseConnection:meta::external::store::relational::runtime::DatabaseConnection[1], timeOutInSeconds:meta::pure::metamodel::type::Integer[1], fetchSize:meta::pure::metamodel::type::Integer[1]):meta::relational::metamodel::execute::ResultSet[1]
 meta::core::runtime::connectionByElement(runtime:meta::core::runtime::Runtime[1], store:meta::pure::metamodel::type::Any[1]):meta::core::runtime::Connection[1]

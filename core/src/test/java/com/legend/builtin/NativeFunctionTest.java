@@ -404,7 +404,9 @@ class NativeFunctionTest {
         //     +Table metaclass (platform_store_relational/grammar/relational.pure:92),
         //     +TabularDataSet/TDSColumn/TDSRow (core/pure/tds/tds.pure:18/25/76),
         //     +AggregationAwareActivity (aggregationAware.pure:36).
-        assertEquals(62, Pure.allNativeClasses().size(),
+        // 63: +Schema metaclass (platform_store_relational relational.pure;
+        //     the schema()/table() metamodel navigation pair).
+        assertEquals(63, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 

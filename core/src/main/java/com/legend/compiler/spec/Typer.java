@@ -576,8 +576,14 @@ final class Typer {
                     // case so BOTH spellings share its arms — the direct
                     // NewChecker call bypassed the ^TDSNull() short-circuit
                     // (41 corpus tests: user-written ^TDSNull() desugars to
-                    // new(...) and died at 'unknown class')
-                    yield af.parameters().get(0) instanceof com.legend.model.spec.Variable
+                    // new(...) and died at 'unknown class').
+                    // COPY dispatch keys on the EMPTY className (the parser
+                    // contract for ^$var(...)), NOT on the receiver being a
+                    // Variable: the harness let-substitution legitimately
+                    // replaces the receiver with the let's RHS expression
+                    // (^$runtime(...) after substitute() carries the
+                    // testRuntime() call), and checkCopy types any receiver.
+                    yield ni.className().isEmpty()
                             ? NewChecker.checkCopy(this, af.parameters().get(0), ni, env)
                             : synth(ni, env);
                 }

@@ -1197,11 +1197,44 @@ public final class TestBody {
     private static void evalStatements(List<ValueSpecification> stmts,
             ModelContext ctx, ImportScope imports, String runtimeFqn,
             Connection conn) throws java.sql.SQLException {
+        for (ValueSpecification s : stmts) {
+            requireNoInlineCsvRuntime(s);
+        }
         LambdaFunction wrapped = new LambdaFunction(List.of(),
                 new ArrayList<>(stmts));
         ValueSpecification resolved = NameResolver.resolveQuery(wrapped, imports,
                 ctx.elementFqns());
         Compiler.executeResolved(resolved, ctx, runtimeFqn, conn);
+    }
+
+    /** A runtime COPY carrying an inline {@code testDataSetupCsv} override
+     * (^$connection(testDataSetupCsv=...)) declares the test's OWN seed
+     * data. Executing it against the ambient family connection would
+     * silently substitute different rows — a vacuous-pass shape. Loud
+     * until the inline seed routes through CsvSeed (the engine seeds the
+     * test connection from this property before running). */
+    private static void requireNoInlineCsvRuntime(ValueSpecification v) {
+        switch (v) {
+            case NewInstance ni -> {
+                if (ni.properties().containsKey("testDataSetupCsv")) {
+                    throw new com.legend.error.NotImplementedException(
+                            "inline testDataSetupCsv runtime override is not"
+                            + " seeded yet — executing it would silently run"
+                            + " against the ambient family data");
+                }
+                ni.properties().values().forEach(k ->
+                        requireNoInlineCsvRuntime(k.value()));
+            }
+            case AppliedFunction af ->
+                    af.parameters().forEach(TestBody::requireNoInlineCsvRuntime);
+            case AppliedProperty ap ->
+                    requireNoInlineCsvRuntime(ap.receiver());
+            case PureCollection pc ->
+                    pc.values().forEach(TestBody::requireNoInlineCsvRuntime);
+            case LambdaFunction lf ->
+                    lf.body().forEach(TestBody::requireNoInlineCsvRuntime);
+            default -> { }
+        }
     }
 
     private static List<ValueSpecification> append(

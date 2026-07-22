@@ -243,6 +243,8 @@ public final class Pure {
     public static final ClassDefinition TDS_COLUMN = nativeClass("native Class meta::pure::tds::TDSColumn extends meta::pure::metamodel::type::Any { offset: meta::pure::metamodel::type::Integer[0..1]; name: meta::pure::metamodel::type::String[1]; }");
     /** Real core/pure/tds/tds.pure:76-80 (getString/isNull qualified properties omitted until demanded — the ResultSet Row precedent). */
     public static final ClassDefinition TDS_ROW = nativeClass("native Class meta::pure::tds::TDSRow extends meta::pure::metamodel::type::Any { parent: meta::pure::tds::TabularDataSet[0..1]; values: meta::pure::metamodel::type::Any[*]; }");
+    /** Real platform_store_relational/grammar/relational.pure (Schema on Database; table lookups land on it). */
+    public static final ClassDefinition SCHEMA_METACLASS = nativeClass("native Class meta::relational::metamodel::Schema extends meta::pure::metamodel::ModelElement {}");
     /** Real core/store/aggregationAware/aggregationAware.pure:36-39. */
     public static final ClassDefinition AGGREGATION_AWARE_ACTIVITY = nativeClass("native Class meta::pure::mapping::aggregationAware::AggregationAwareActivity extends meta::pure::mapping::Activity { rewrittenQuery: meta::pure::metamodel::type::String[1]; }");
     // real platform_store_relational/functions.pure:50-65 (dataSource and
@@ -976,6 +978,11 @@ public final class Pure {
     // for e.g. an Integer property over a DOUBLE column, calendar family)
     public static final NativeFunctionDefinition TYPE_AS_DECLARED__ANY_01__T_1 = signature("native function meta::legend::lite::typeAsDeclared<T>(value:meta::pure::metamodel::type::Any[0..1], type:T[1]):T[0..1];");
     public static final NativeFunctionDefinition ID__ANY_1 = signature("native function meta::pure::functions::meta::id(instance:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[1];");
+    // Real platform_store_relational/functions.pure:227/:249 — metamodel
+    // navigation (ordinary pure over the store metamodel there; typed
+    // natives here, evaluated K-side when a consumer demands the values).
+    public static final NativeFunctionDefinition SCHEMA__DB_1__STRING_1 = signature("native function meta::relational::metamodel::schema(_this:meta::relational::metamodel::Database[1], name:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::Schema[0..1];");
+    public static final NativeFunctionDefinition TABLE__SCHEMA_1__STRING_1 = signature("native function meta::relational::metamodel::table(_this:meta::relational::metamodel::Schema[1], name:meta::pure::metamodel::type::String[1]):meta::relational::metamodel::relation::Table[0..1];");
     // Real essential/meta/reflect/evaluateAndDeactivate.pure:17 — a
     // reflection-level IDENTITY on values (deactivates expression wrappers
     // in real pure; values here are already values, so it is the identity;

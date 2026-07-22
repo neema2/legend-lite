@@ -13,11 +13,11 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -   43  tests/mapping/relation  ::  harness-shape
 -   40  milestoning/tests  ::  harness-shape
 -   39  tests  ::  harness-shape
--   35  functions/tests  ::  other
+-   36  functions/tests  ::  other
 -   29  tds/tests  ::  harness-shape
--   26  graphFetch/tests  ::  platform-surface
 -   24  graphFetch/tests  ::  normalize(mapping)
 -   23  validation/tests  ::  harness-shape
+-   22  graphFetch/tests  ::  other
 -   22  postprocessor/tests  ::  harness-shape
 -   21  sqlDialectTranslation  ::  harness-shape
 -   21  tests/mapping/modelJoin  ::  normalize(mapping)
@@ -27,18 +27,19 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -   16  tds/tests  ::  typer
 -   16  transform/fromPure/tests  ::  render(DB2)
 -   15  functions/tests  ::  resolve
+-   15  functions/tests/projection  ::  other
 -   14  functions/tests  ::  harness-shape
--   14  functions/tests/projection  ::  other
 -   13  aggregationAware/test/rewrite  ::  normalize(mapping)
 -   12  graphFetch/tests  ::  rows-differ
+-   12  tds/tests  ::  other
 -   12  tests/advanced  ::  harness-shape
--   11  functions/tests  ::  platform-surface
+-   11  graphFetch/tests  ::  platform-surface
 -   11  pureToSQLQuery/tests  ::  harness-shape
--   11  tds/tests  ::  other
 -   11  tests/mapping/union  ::  harness-shape
 -   11  tests/mapping/union  ::  execute(DuckDB)
 -   11  tests/mapping/union  ::  resolve
 -   11  tests/query  ::  other
+-   10  functions/tests  ::  platform-surface
 -   10  graphFetch/tests  ::  typer
 -   10  milestoning/tests  ::  resolve
 -   10  tests/advanced  ::  platform-surface
@@ -56,7 +57,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    7  aggregationAware/test/rewrite/NOP  ::  normalize(mapping)
 -    7  functions/tests  ::  rows-differ
 -    7  functions/tests/projection  ::  typer
--    7  graphFetch/tests  ::  other
 -    7  graphFetch/tests/union  ::  normalize(mapping)
 -    7  helperFunctions/tests  ::  harness-shape
 -    7  milestoning/tests  ::  typer
@@ -70,14 +70,14 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    6  lineage/scanColumns  ::  harness-shape
 -    6  milestoning/tests  ::  normalize(mapping)
 -    6  modelJoins  ::  harness-shape
--    6  tds/tests  ::  platform-surface
 -    6  tests/mapping/association  ::  other
 -    6  tests/mapping/extends  ::  harness-shape
 -    5  functions/tests  ::  lower
 -    5  functions/tests/projection  ::  resolve
 -    5  modelToModelToRelational  ::  harness-shape
 -    5  modelToModelToRelational/milestoned  ::  resolve
--    5  postprocessor/tests  ::  platform-surface
+-    5  postprocessor/tests  ::  other
+-    5  tds/tests  ::  platform-surface
 -    5  tests/mapping/classMappingFilterWithInnerJoin  ::  resolve
 -    5  tests/mapping/embedded  ::  other
 -    5  tests/mapping/relation  ::  resolve
@@ -130,15 +130,14 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    1  autogeneration/tests  ::  harness-shape
 -    1  executionPlan/tests  ::  lower
 -    1  functions/tests  ::  render(DB2)
--    1  functions/tests/loadCsvToDbTable  ::  platform-surface
+-    1  functions/tests/loadCsvToDbTable  ::  typer
 -    1  functions/tests/projection  ::  normalize(mapping)
--    1  functions/tests/projection  ::  platform-surface
 -    1  graphFetch/domain  ::  harness-shape
 -    1  graphFetch/tests  ::  harness-shape
 -    1  graphFetch/tests  ::  execute(DuckDB)
 -    1  graphFetch/tests/union  ::  platform-surface
 -    1  modelJoins  ::  typer
--    1  postprocessor/tests  ::  other
+-    1  postprocessor/tests  ::  platform-surface
 -    1  postprocessor/tests  ::  resolve
 -    1  router/tests  ::  rows-differ
 -    1  router/tests  ::  other
@@ -168,7 +167,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -    1  tests/mapping/merge  ::  harness-shape
 -    1  tests/mapping/modelJoin  ::  rows-differ
 -    1  tests/mapping/sqlFunction  ::  platform-surface
--    1  tests/mapping/union  ::  rows-differ
 -    1  tests/mapping/union  ::  platform-surface
 -    1  tests/query  ::  normalize(mapping)
 -    1  tests/query  ::  resolve
@@ -192,7 +190,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 -   24  golden-sql  ::  ERROR
 -   21  golden-sql+row-assert+plan-assert  ::  SHAPE
 -   19  row-assert+plan-assert+graph  ::  SHAPE
--   17  golden-sql+row-assert  ::  FAIL
+-   16  golden-sql+row-assert  ::  FAIL
 -   15  row-assert+plan-assert+graph  ::  ERROR
 -   14  row-assert+constraints  ::  SHAPE
 -   13  row-assert+plan-assert  ::  ERROR
@@ -216,7 +214,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 
 ## Pivot: stereotype
 
--  882  Test
+-  881  Test
 -  197  Test, AlloyOnly
 -  181  meta::pure::profiles::Test
 -   17  meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly
@@ -372,7 +370,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | executionPlan/tests | m2m2rExecutionPlanTests.pure | planProjectWithDerivedProperty1 | harness-shape | row-assert+plan-assert+graph | meta::pure::profiles::Test | no execute(\|...) call |
 | SHAPE | executionPlan/tests | m2m2rExecutionPlanTests.pure | planProjectWithNestedDerivedProperty | harness-shape | row-assert+plan-assert+graph | meta::pure::profiles::Test | no execute(\|...) call |
 | SHAPE | executionPlan/tests | m2m2rExecutionPlanTests.pure | planProjectWithNestedProperty | harness-shape | row-assert+plan-assert | meta::pure::profiles::Test | no execute(\|...) call |
-| ERROR | functions/tests | testConcatenate.pure | testConcatenateClass | execute(DuckDB) | golden-sql+row-assert | Test | Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] w |
+| ERROR | functions/tests | testConcatenate.pure | testConcatenateClass | execute(DuckDB) | golden-sql+row-assert | Test | Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] wh |
 | ERROR | functions/tests | testConcatenate.pure | testConcatenateDataType | execute(DuckDB) | golden-sql+row-assert | Test | Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. |
 | ERROR | functions/tests | testConcatenate.pure | testConcatenateDataTypeDiffProperty | execute(DuckDB) | golden-sql+row-assert | Test | Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. |
 | ERROR | functions/tests | testConcatenate.pure | testConcatenateDataTypeMerge | execute(DuckDB) | golden-sql+row-assert | Test | Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. |
@@ -392,7 +390,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | ERROR | functions/tests | testExists.pure | testComplexOrExistsToManyProperty | platform-surface | golden-sql+row-assert | Test | unknown function 'assert' |
 | FAIL | functions/tests | testExists.pure | testDupsFilterProject | rows-differ | golden-sql+row-assert | Test | assertEquals: expected Firm X, got [Firm X, Yes] |
 | ERROR | functions/tests | testExists.pure | testExistsWithEmbedded | resolve | golden-sql+row-assert | Test | store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query  |
-| ERROR | functions/tests | testExists.pure | testExistsWithEmbeddedWithPostProcessor | platform-surface | golden-sql+row-assert | Test | unknown class '' in ^(…) |
+| ERROR | functions/tests | testExists.pure | testExistsWithEmbeddedWithPostProcessor | other | golden-sql+row-assert | Test | unbound variable '$connectionStore' |
 | ERROR | functions/tests | testExists.pure | testExistsWithOrCondition | resolve | golden-sql+row-assert | Test | multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported y |
 | ERROR | functions/tests | testExists.pure | testIsNotEmpty | execute(DuckDB) | golden-sql+row-assert | Test | Binder Error: subqueries in lambda expressions are not supported |
 | ERROR | functions/tests | testExists.pure | testNestedExistsWithExistsInAbstractProperty | other | golden-sql+row-assert | Test | exists/forAll predicate references column 'firm_employees', unresolvable even after isolation |
@@ -469,7 +467,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | ERROR | functions/tests | testSort.pure | testSortByLambdaWithComplexExpr | other | row-assert+plan-assert+graph | Test | class query under TypedMap is not resolvable yet (H2 vocabulary) |
 | ERROR | functions/tests | testSort.pure | testSortByLambdaWithIfElseValue | other | row-assert | Test | class query under TypedMap is not resolvable yet (H2 vocabulary) |
 | SHAPE | functions/tests | testSort.pure | testSortByLambda_QueryWithParameters_Plan | harness-shape | row-assert+plan-assert | Test | no execute(\|...) call |
-| ERROR | functions/tests/loadCsvToDbTable | testLoadCsv.pure | testLoadCsv | platform-surface | row-assert | Test | unknown function 'schema' |
+| ERROR | functions/tests/loadCsvToDbTable | testLoadCsv.pure | testLoadCsv | typer | row-assert | Test | in function 'meta::relational::metamodel::execute::loadCsvToDbTable': no overload of 'meta::relation |
 | FAIL | functions/tests/projection | testAggregation.pure | testDateAggregationWithMax | rows-differ | row-assert | Test | assertSize: expected 3, got 7 |
 | ERROR | functions/tests/projection | testAggregation.pure | testDeepSubAggregation | resolve | golden-sql+row-assert | Test | aggregate 'meta::pure::functions::collection::count' over the multi-hop to-many navigation employees |
 | ERROR | functions/tests/projection | testAggregation.pure | testIsDistinctSubAggregation | other | row-assert | Test | Index 1 out of bounds for length 1 |
@@ -500,7 +498,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | functions/tests/projection | testFilter.pure | testCompressSQLforINFilter2 | harness-shape | golden-sql+row-assert+plan-assert+graph | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
 | SHAPE | functions/tests/projection | testFilter.pure | testFilterAfterJoinInRelation | harness-shape | golden-sql+plan-assert | Test | no execute(\|...) call |
 | SHAPE | functions/tests/projection | testFilter.pure | testFilterAfterJoinInRelationWithExtendedPrimitives | harness-shape | golden-sql+plan-assert | Test | no execute(\|...) call |
-| ERROR | functions/tests/projection | testFilter.pure | testParametrizedEnumFilter | platform-surface | golden-sql+row-assert+plan-assert+graph | Test, AlloyOnly | unknown class '' in ^(…) |
+| ERROR | functions/tests/projection | testFilter.pure | testParametrizedEnumFilter | other | golden-sql+row-assert+plan-assert+graph | Test, AlloyOnly | unbound variable '$connectionStore' |
 | ERROR | functions/tests/projection | testFilter.pure | testSavedRootPropogatedCorrectlyThroughFilter | other | golden-sql+row-assert | Test | object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[sourc |
 | FAIL | functions/tests/projection | testFilters.pure | testIsolatioWhereNoConstaintsAndInnerJoin | rows-differ | row-assert | Test | assertEquals: expected [Firm X, UK, Firm X, Europe, Firm X, Europe, Firm X, Europe, Firm A, Europe,  |
 | ERROR | functions/tests/projection | testFilters.pure | testIsolationOfFiltersWithoutAlias | other | row-assert | Test | relation has no column 'name' in scalar read |
@@ -528,11 +526,11 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | ERROR | functions/tests/projection | testView.pure | testUnionOnViewsMapping | other | row-assert | Test | in function 'meta::relational::postProcessor::removeUnionOrJoins::testRuntimeWithRemoveUnionOrJoinsF |
 | ERROR | functions/tests/projection | testView.pure | testViewAllOneSimpleProperty | execute(DuckDB) | row-assert | Test | Binder Error: Table "t2" does not have a column named "from_z" \|  \| Candidate bindings: : "NAME" \ |
 | SHAPE | graphFetch/domain | domainManagementTests.pure | testGraphFetch | harness-shape | row-assert+plan-assert+graph | Test | no execute(\|...) call |
-| ERROR | graphFetch/tests | ? | testCrossStoreWithCSVDataSource | platform-surface | ? | ? | unknown class '' in ^(…) |
+| ERROR | graphFetch/tests | ? | testCrossStoreWithCSVDataSource | platform-surface | ? | ? | unknown class 'EngineRuntime' in ^EngineRuntime(…) |
 | ERROR | graphFetch/tests | testCrossDatabaseGraphFetch.pure | testCrossMappingWithRelOpWithJoinKeys | normalize(mapping) | row-assert+graph | Test, AlloyOnly | association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mappe |
-| ERROR | graphFetch/tests | testCrossStoreGraphFetch.pure | testCrossMappingJsonToDB | platform-surface | row-assert+graph | Test, AlloyOnly | unknown class '' in ^(…) |
-| ERROR | graphFetch/tests | testCrossStoreGraphFetch.pure | testCrossMappingJsonToDBWithExplosion | platform-surface | row-assert+graph | Test, AlloyOnly | unknown class '' in ^(…) |
-| ERROR | graphFetch/tests | testCrossStoreGraphFetch.pure | testCrossMappingJsonToDBWithNoLocalProperties | platform-surface | row-assert+graph | Test, AlloyOnly | unknown class '' in ^(…) |
+| ERROR | graphFetch/tests | testCrossStoreGraphFetch.pure | testCrossMappingJsonToDB | other | row-assert+graph | Test, AlloyOnly | unbound variable '$dbRuntime' |
+| ERROR | graphFetch/tests | testCrossStoreGraphFetch.pure | testCrossMappingJsonToDBWithExplosion | other | row-assert+graph | Test, AlloyOnly | unbound variable '$dbRuntime' |
+| ERROR | graphFetch/tests | testCrossStoreGraphFetch.pure | testCrossMappingJsonToDBWithNoLocalProperties | other | row-assert+graph | Test, AlloyOnly | unbound variable '$dbRuntime' |
 | ERROR | graphFetch/tests | testCrossStoreGraphFetch.pure | testCrossMappingWithMoreBooleanAlgebra | normalize(mapping) | row-assert+graph | Test, AlloyOnly | association 'meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::Trade_TradeEvent' is not  |
 | FAIL | graphFetch/tests | testCrossStoreGraphFetch.pure | testDeepCrossPropertyAccesses | rows-differ | row-assert+graph | Test, AlloyOnly | assertJsonStringsEqual: expected [{product={productId=30, synonyms=[{name=Syn_1, type=CUSIP}, {name= |
 | FAIL | graphFetch/tests | testCrossStoreGraphFetch.pure | testDeepCrossPropertyAccesses3Levels | rows-differ | row-assert+graph | Test, AlloyOnly | assertJsonStringsEqual: expected [{product={productId=30, synonyms=[{name=Syn_1, type=CUSIP}, {name= |
@@ -544,10 +542,10 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | ERROR | graphFetch/tests | testCrossStoreGraphFetchMilestoning.pure | CrossStoreGraphFetchWithRelationalMilestonedFlowDown | platform-surface | row-assert+graph | Test, AlloyOnly | 'TradeLinkageMapping' is not a known class, mapping, runtime, connection, or database — user element |
 | ERROR | graphFetch/tests | testCrossStoreGraphFetchMilestoning.pure | CrossStoreGraphFetchWithRelationalMilestonedFlowDownM2M | typer | row-assert+graph | Test, AlloyOnly | no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes |
 | SHAPE | graphFetch/tests | testCrossStoreGraphFetchMilestoning.pure | testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint | harness-shape | graph | Test, AlloyOnly | no execute(\|...) call |
-| ERROR | graphFetch/tests | testCrossStoreUnion.pure | testNestedUnionCrossStore | platform-surface | row-assert+graph | Test, AlloyOnly | unknown class '' in ^(…) |
-| ERROR | graphFetch/tests | testCrossStoreUnion.pure | testNestedUnionOnMultipleSetsCrossStore | platform-surface | graph | Test, AlloyOnly | unknown class '' in ^(…) |
-| ERROR | graphFetch/tests | testCrossStoreUnion.pure | testSimpleUnionCrossStore | platform-surface | row-assert+graph | Test, AlloyOnly | unknown class '' in ^(…) |
-| ERROR | graphFetch/tests | testCrossStoreUnion.pure | testSimpleUnionOnMultipleSetsCrossStore | platform-surface | graph | Test, AlloyOnly | unknown class '' in ^(…) |
+| ERROR | graphFetch/tests | testCrossStoreUnion.pure | testNestedUnionCrossStore | other | row-assert+graph | Test, AlloyOnly | unbound variable '$dbRuntime' |
+| ERROR | graphFetch/tests | testCrossStoreUnion.pure | testNestedUnionOnMultipleSetsCrossStore | other | graph | Test, AlloyOnly | unbound variable '$dbRuntime' |
+| ERROR | graphFetch/tests | testCrossStoreUnion.pure | testSimpleUnionCrossStore | other | row-assert+graph | Test, AlloyOnly | unbound variable '$dbRuntime' |
+| ERROR | graphFetch/tests | testCrossStoreUnion.pure | testSimpleUnionOnMultipleSetsCrossStore | other | graph | Test, AlloyOnly | unbound variable '$dbRuntime' |
 | ERROR | graphFetch/tests | testGraphFetchChain.pure | testRelationalChainExecutionFlat | other | row-assert+graph | Test, AlloyOnly | unbound variable '$modelChainConnection' |
 | ERROR | graphFetch/tests | testGraphFetchChain.pure | testRelationalChainExecutionNested | other | row-assert+graph | Test, AlloyOnly | unbound variable '$modelChainConnection' |
 | ERROR | graphFetch/tests | testGraphFetchChain.pure | testRelationalChainExecutionWithFilter | other | row-assert+graph | Test, AlloyOnly | unbound variable '$modelChainConnection' |
@@ -600,14 +598,14 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | ERROR | graphFetch/tests | testGraphFetchResultSourcing.pure | testSourcingJsonResultToQueryWithParametersInUrl | typer | row-assert+graph | meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly | no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes |
 | ERROR | graphFetch/tests | testGraphFetchResultSourcing.pure | testSourcingJsonResultToQueryWithPureDateAsParam | typer | row-assert+graph | meta::pure::profiles::Test, meta::pure::profiles::AlloyOnly | no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes |
 | ERROR | graphFetch/tests | testGraphFetchSqlIsolation.pure | testIsolationOfPropertyTargetFilter | other | row-assert+graph | Test, AlloyOnly | filter predicate references column 'firmTable_personFirmBridgeTable_personId', unresolvable even aft |
-| ERROR | graphFetch/tests | testOrderedCrossStoreGraphFetch.pure | testOrderedCrossStoreGraphFetchWithComplexQualifierExpression | platform-surface | row-assert+graph | Test, AlloyOnly | unknown class '' in ^(…) |
-| ERROR | graphFetch/tests | testOrderedCrossStoreGraphFetch.pure | testOrderedCrossStoreGraphFetchWithComplexQualifierExpressionReuse | platform-surface | row-assert+graph | Test, AlloyOnly | unknown class '' in ^(…) |
-| ERROR | graphFetch/tests | testOrderedCrossStoreGraphFetch.pure | testSimpleOrderedCrossStoreGraphFetchMissingProperty | platform-surface | row-assert+graph | Test, AlloyOnly | unknown class '' in ^(…) |
-| ERROR | graphFetch/tests | testOrderedCrossStoreGraphFetch.pure | testSimpleOrderedCrossStoreGraphFetchMultiLevelXStoreRequirements | platform-surface | row-assert+graph | Test, AlloyOnly | unknown class '' in ^(…) |
-| ERROR | graphFetch/tests | testOrderedCrossStoreGraphFetch.pure | testSimpleOrderedCrossStoreGraphFetchPropertyLevel | platform-surface | row-assert+graph | Test, AlloyOnly | unknown class '' in ^(…) |
-| ERROR | graphFetch/tests | testOrderedCrossStoreGraphFetch.pure | testSimpleOrderedCrossStoreGraphFetchReverseOrder | platform-surface | row-assert+graph | Test, AlloyOnly | unknown class '' in ^(…) |
-| ERROR | graphFetch/tests | testOrderedCrossStoreGraphFetch.pure | testSimpleOrderedCrossStoreGraphFetchRightOrder | platform-surface | row-assert+graph | Test, AlloyOnly | unknown class '' in ^(…) |
-| ERROR | graphFetch/tests | testOrderedCrossStoreGraphFetch.pure | testSimpleOrderedCrossStoreGraphFetchStringKey | platform-surface | row-assert+graph | Test, AlloyOnly | unknown class '' in ^(…) |
+| ERROR | graphFetch/tests | testOrderedCrossStoreGraphFetch.pure | testOrderedCrossStoreGraphFetchWithComplexQualifierExpression | other | row-assert+graph | Test, AlloyOnly | unbound variable '$dbRuntime' |
+| ERROR | graphFetch/tests | testOrderedCrossStoreGraphFetch.pure | testOrderedCrossStoreGraphFetchWithComplexQualifierExpressionReuse | other | row-assert+graph | Test, AlloyOnly | unbound variable '$dbRuntime' |
+| ERROR | graphFetch/tests | testOrderedCrossStoreGraphFetch.pure | testSimpleOrderedCrossStoreGraphFetchMissingProperty | other | row-assert+graph | Test, AlloyOnly | unbound variable '$dbRuntime' |
+| ERROR | graphFetch/tests | testOrderedCrossStoreGraphFetch.pure | testSimpleOrderedCrossStoreGraphFetchMultiLevelXStoreRequirements | other | row-assert+graph | Test, AlloyOnly | unbound variable '$dbRuntime' |
+| ERROR | graphFetch/tests | testOrderedCrossStoreGraphFetch.pure | testSimpleOrderedCrossStoreGraphFetchPropertyLevel | other | row-assert+graph | Test, AlloyOnly | unbound variable '$dbRuntime' |
+| ERROR | graphFetch/tests | testOrderedCrossStoreGraphFetch.pure | testSimpleOrderedCrossStoreGraphFetchReverseOrder | other | row-assert+graph | Test, AlloyOnly | unbound variable '$dbRuntime' |
+| ERROR | graphFetch/tests | testOrderedCrossStoreGraphFetch.pure | testSimpleOrderedCrossStoreGraphFetchRightOrder | other | row-assert+graph | Test, AlloyOnly | unbound variable '$dbRuntime' |
+| ERROR | graphFetch/tests | testOrderedCrossStoreGraphFetch.pure | testSimpleOrderedCrossStoreGraphFetchStringKey | other | row-assert+graph | Test, AlloyOnly | unbound variable '$dbRuntime' |
 | ERROR | graphFetch/tests | testSimpleRelationalGraphFetch.pure | testCheckedOneComplexProperty | typer | row-assert+plan-assert+graph | Test, AlloyOnly | no overload of 'graphFetchChecked' matches 2 argument(s) of these shapes |
 | ERROR | graphFetch/tests | testSimpleRelationalGraphFetch.pure | testCheckedWithCircularConstraints | typer | row-assert+plan-assert+graph | Test, AlloyOnly | no overload of 'graphFetchChecked' matches 2 argument(s) of these shapes |
 | ERROR | graphFetch/tests | testSimpleRelationalGraphFetch.pure | testEnumParameter | normalize(mapping) | row-assert+graph | Test, AlloyOnly | property 'synonymByType' of class 'meta::relational::tests::model::simple::Product' is not mapped in |
@@ -850,11 +848,11 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | postprocessor/tests | testPostProcessor.pure | testPushFiltersDownToJoinsPostProcessorTDSFilterUnaryOp | harness-shape | golden-sql | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
 | SHAPE | postprocessor/tests | testPostProcessor.pure | testPushFiltersDownToJoinsPostProcessorToSQL | harness-shape | golden-sql+row-assert | Test | no execute(\|...) call |
 | ERROR | postprocessor/tests | testPostProcessor.pure | testReplaceTableMultiplePostProcessor | platform-surface | golden-sql | Test | class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQuery |
-| ERROR | postprocessor/tests | testPostProcessor.pure | testReplaceTablePostProcessor | platform-surface | golden-sql | Test | unknown function 'schema' |
-| ERROR | postprocessor/tests | testPostProcessor.pure | testReplaceTablePostProcessorWithExists | platform-surface | golden-sql | Test | unknown function 'schema' |
+| ERROR | postprocessor/tests | testPostProcessor.pure | testReplaceTablePostProcessor | other | golden-sql | Test | in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external |
+| ERROR | postprocessor/tests | testPostProcessor.pure | testReplaceTablePostProcessorWithExists | other | golden-sql | Test | in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external |
 | ERROR | postprocessor/tests | testPostProcessor.pure | testReplaceTablePostProcessorWithSubQueries | other | golden-sql | Test | in function 'meta::relational::tests::postProcessor::nonExecutable::runtimeWithNonExecutable': class |
-| ERROR | postprocessor/tests | testPostProcessor.pure | testReplaceTablePostProcessorWithView | platform-surface | golden-sql | Test | unknown function 'schema' |
-| ERROR | postprocessor/tests | testPostProcessor.pure | testReplaceTablesPostProcessor | platform-surface | golden-sql | Test | unknown function 'schema' |
+| ERROR | postprocessor/tests | testPostProcessor.pure | testReplaceTablePostProcessorWithView | other | golden-sql | Test | in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external |
+| ERROR | postprocessor/tests | testPostProcessor.pure | testReplaceTablesPostProcessor | other | golden-sql | Test | in function 'meta::relational::tests::postProcessor::runtimeWithTableReplace': class 'meta::external |
 | SHAPE | postprocessor/tests | testPostProcessor.pure | testSQLRealiasCaseSensitiveTableNames | harness-shape | row-assert | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
 | ERROR | postprocessor/tests | testPostProcessor.pure | testSqlRealiasFreeMarker | resolve | golden-sql+row-assert | Test | nested navigation leaf 'type' of 'product.synonyms#f0' is mapped by a non-column expression — not su |
 | SHAPE | postprocessor/tests | testPostProcessor.pure | testSqlRealiasJoin | harness-shape | golden-sql+row-assert | Test | sql-only: 1 advisory golden-SQL assert(s), no row verification |
@@ -989,7 +987,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | ERROR | tds/tests | testTDSProject.pure | testProjectWithColumnSubSetSQLTest | lower | row-assert | Test | ~first_name: mapped/aggregate column specifications need an enclosing call to type against |
 | ERROR | tds/tests | testTDSProject.pure | testProjectWithQuotedColumnFromTableToTDS | other | row-assert | Test | relation has no column '"FIRST NAME"' |
 | ERROR | tds/tests | testTDSRestrict.pure | testRestrictOnGroupByColumn_SubSetOfGroupByColumns | lower | row-assert | Test | no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary |
-| ERROR | tds/tests | testTDSRestrict.pure | testRestrictWithPostProcessor | platform-surface | row-assert | Test | unknown class '' in ^(…) |
+| ERROR | tds/tests | testTDSRestrict.pure | testRestrictWithPostProcessor | other | row-assert | Test | unbound variable '$connectionStore' |
 | ERROR | tds/tests | testTDSRestrictDistinct.pure | testRestrictDistinct_JoinCutDown_ColumnSpecs | execute(DuckDB) | row-assert | Test | Binder Error: No function matches the given name and argument types 'list_sort(VARCHAR)'. You might  |
 | ERROR | tds/tests | testTDSRestrictDistinct.pure | testRestrictDistinct_JoinCutDown_PostTdsOperations | execute(DuckDB) | row-assert | Test | Binder Error: No function matches the given name and argument types 'list_sort(BIGINT)'. You might n |
 | ERROR | tds/tests | testTDSRestrictDistinct.pure | testRestrictDistinct_JoinCutDown_ProjectFunctions | execute(DuckDB) | row-assert | Test | Binder Error: No function matches the given name and argument types 'list_sort(VARCHAR)'. You might  |
@@ -1240,7 +1238,7 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | tests/mapping/extends | testExtendsForMainTable.pure | testMainTableForC2 | harness-shape | row-assert | Test | no execute(\|...) call |
 | SHAPE | tests/mapping/extends | testExtendsForMainTable.pure | testSuperSetIdsAreCollected | harness-shape | row-assert | Test | no execute(\|...) call |
 | SHAPE | tests/mapping/extends | testExtendsForPrimaryKey.pure | testPrimaryKeyForB | harness-shape | row-assert | Test | no execute(\|...) call |
-| FAIL | tests/mapping/extends | testExtendsWithAll.pure | testAllForB | rows-differ | row-assert | Test | assertEquals: expected 4, got [3, 1] |
+| FAIL | tests/mapping/extends | testExtendsWithAll.pure | testAllForB | rows-differ | row-assert | Test | assertEquals: expected 4, got [1, 3] |
 | FAIL | tests/mapping/extends | testExtendsWithGroupBy.pure | testGroupByForB | rows-differ | row-assert | Test | assertSameElements: expected [4, 6], got [1, 2, 3, 4] |
 | ERROR | tests/mapping/filter | testFilterMapping.pure | filterMappingWithJoinInFilterAndPropertyGetAll | normalize(mapping) | row-assert | Test | mapping ~filter for 'meta::relational::tests::model::simple::Person' reads through a join slot; join |
 | ERROR | tests/mapping/filter | testFilterMappingTree.pure | testFilterMappingWithJoin | normalize(mapping) | row-assert | Test | mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a j |
@@ -1374,7 +1372,6 @@ Primary key = family dir + defining file + test-name tokens (the FEATURE).
 | SHAPE | tests/mapping/union | testUnion.pure | testEnumFilterWithUnionMappingPlanGeneration | harness-shape | row-assert+plan-assert | Test | no execute(\|...) call |
 | ERROR | tests/mapping/union | testUnion.pure | testPksWithImportDataFlow | platform-surface | golden-sql+row-assert+plan-assert | Test | unknown class 'RelationalExecutionContext' in ^RelationalExecutionContext(…) |
 | ERROR | tests/mapping/union | testUnion.pure | testProjectAndFilterSamePropertySameJoinInUnion | execute(DuckDB) | golden-sql+row-assert | Test | Binder Error: Table "t0" does not have a column named "firstName" \|  \| Candidate bindings: : "last |
-| FAIL | tests/mapping/union | testUnion.pure | testUnionOfViewsWithFilterInQualifiedProperty | rows-differ | golden-sql+row-assert | Test | assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C |
 | ERROR | tests/mapping/union | testUnion.pure | testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece | normalize(mapping) | golden-sql+row-assert | Test | property 'employeesExt' of class 'meta::relational::tests::model::simple::FirmExtension' is not mapp |
 | ERROR | tests/mapping/union | testUnion.pure | testUnionToUnionJoinSequenceWithMultipleChildrenInUnionSourceTree | other | golden-sql | Test | a class flatten over a FILTERED/transformed source chain is not supported yet (op below the 'firm' h |
 | ERROR | tests/mapping/union | testUnion.pure | testUnionWithSinglePropertyMapping | other | golden-sql+row-assert+plan-assert | Test | in function 'meta::relational::postProcessor::removeUnionOrJoins::testRuntimeWithRemoveUnionOrJoinsF |
