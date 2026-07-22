@@ -736,6 +736,46 @@ private static boolean referencesVar(TypedSpec n, String var) {
     }
 
 
+    /** A fresh row var colliding with NO lambda parameter in reach (user
+     * lambdas may legally be named _rN — audit capture finding). */
+    static String freshRowVar(ClassSource cs, List<TypedSpec> ops,
+            TypedSpec top, List<AssociationJoins.AssocJoin> assocJoins,
+            List<AssociationJoins.AssocJoin> aggAssocJoins,
+            Map<String, Substitution.ExistsSub> existsSubs,
+            java.util.function.IntSupplier counter) {
+        Set<String> paramsInReach = new LinkedHashSet<>();
+        for (TypedSpec op : ops) {
+            StoreResolver.collectLambdaParams(op, paramsInReach);
+        }
+        StoreResolver.collectLambdaParams(top, paramsInReach);
+        for (TypedSpec b : cs.bindings().values()) {
+            StoreResolver.collectLambdaParams(b, paramsInReach);
+        }
+        for (AssociationJoins.AssocJoin aj : assocJoins) {
+            for (TypedSpec b : aj.target().bindings().values()) {
+                StoreResolver.collectLambdaParams(b, paramsInReach);
+            }
+        }
+        for (AssociationJoins.AssocJoin aj : aggAssocJoins) {
+            paramsInReach.add(aj.target().rowVar());
+            paramsInReach.add("_y");
+            for (TypedSpec b : aj.target().bindings().values()) {
+                StoreResolver.collectLambdaParams(b, paramsInReach);
+            }
+        }
+        for (Substitution.ExistsSub ex : existsSubs.values()) {
+            paramsInReach.addAll(ex.orientedCond().parameters());
+            for (TypedSpec b : ex.targetBindings().values()) {
+                StoreResolver.collectLambdaParams(b, paramsInReach);
+            }
+        }
+        String fresh;
+        do {
+            fresh = "_r" + counter.getAsInt();
+        } while (paramsInReach.contains(fresh));
+        return fresh;
+    }
+
 record CompositeChain(TypedSpec pipeline,
             TypedLambda orientedCond) {}
 

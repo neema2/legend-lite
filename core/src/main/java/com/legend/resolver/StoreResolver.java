@@ -1764,6 +1764,7 @@ public final class StoreResolver {
         return new RootPipe(m, materializedPipe);
     }
 
+
     /** PHASE 2b-ii output: the pipeline with association joins folded
      * (descriptor -> emission, first-demand order) plus the aggregated-
      * navigation materials the fold and substitution both consume. */
@@ -2508,6 +2509,9 @@ public final class StoreResolver {
                 case TypedDrop d -> d.source();
                 case TypedSlice sl -> sl.source();
                 case TypedSortBy sb -> sb.source();
+                // instance removeDuplicates: whole-row DISTINCT (at worst
+                // UNDER-dedups on joined helper columns — honest FAIL)
+                case TypedDistinct d -> d.source();
                 default -> throw new NotImplementedException("object-space operation "
                         + cur.getClass().getSimpleName() + " is not supported yet");
             };
@@ -2821,36 +2825,9 @@ public final class StoreResolver {
         // The fresh row var must not collide with ANY lambda parameter in
         // reach (user lambdas may legally be named _rN — audit capture
         // finding); scan and skip.
-        Set<String> paramsInReach = new LinkedHashSet<>();
-        for (TypedSpec op : ops) {
-            collectLambdaParams(op, paramsInReach);
-        }
-        collectLambdaParams(top, paramsInReach);
-        for (TypedSpec b : cs.bindings().values()) {
-            collectLambdaParams(b, paramsInReach);
-        }
-        for (AssociationJoins.AssocJoin aj : assocJoins) {
-            for (TypedSpec b : aj.target().bindings().values()) {
-                collectLambdaParams(b, paramsInReach);
-            }
-        }
-        for (AssociationJoins.AssocJoin aj : aggAssocJoins) {
-            paramsInReach.add(aj.target().rowVar());
-            paramsInReach.add("_y");
-            for (TypedSpec b : aj.target().bindings().values()) {
-                collectLambdaParams(b, paramsInReach);
-            }
-        }
-        for (Substitution.ExistsSub ex : existsSubs.values()) {
-            paramsInReach.addAll(ex.orientedCond().parameters());
-            for (TypedSpec b : ex.targetBindings().values()) {
-                collectLambdaParams(b, paramsInReach);
-            }
-        }
-        String fresh;
-        do {
-            fresh = "_r" + freshVarCounter++;
-        } while (paramsInReach.contains(fresh));
+        String fresh = CorrelatedSubselects.freshRowVar(cs, ops, top,
+                assocJoins, aggAssocJoins, existsSubs,
+                () -> freshVarCounter++);
         TypedSpec pipeline = m.pipeline();
         for (int i = ops.size() - 1; i >= 0; i--) {
             pipeline = switch (ops.get(i)) {
@@ -2865,6 +2842,8 @@ public final class StoreResolver {
                 case TypedSortBy sb -> new TypedSortBy(pipeline,
                         substitution(cs, m, assocs, assocEnds, existsSubs, aggReads, false, fresh, sb.key()).rewriteLambda(sb.key()),
                         sb.ascending(), pipeline.info());
+                case TypedDistinct d -> new TypedDistinct(pipeline,
+                        List.of(), pipeline.info());
                 default -> throw new IllegalStateException("resolver bug: uncollected op");
             };
         }
