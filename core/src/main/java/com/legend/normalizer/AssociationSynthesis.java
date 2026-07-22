@@ -146,7 +146,10 @@ final class AssociationSynthesis {
                     continue;
                 }
                 String owner = associationOwnerClass(ad, apm.propertyName());
-                if (owner == null || !owner.equals(classFqn)) {
+                // the union class may INHERIT the end (B extends A picking
+                // up AE's 'e' — extends/union family): owner-or-superclass
+                if (owner == null || !(owner.equals(classFqn)
+                        || UnionSynthesis.isSubclassOf(classFqn, owner, model))) {
                     continue;
                 }
                 PropertyMapping.Join stamped = join.targetSetId() == null

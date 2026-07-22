@@ -335,8 +335,26 @@ final class UnionSynthesis {
                 if (!(memberSets.get(i) instanceof ClassMapping.Relational mr)) {
                     continue;
                 }
-                List<PropertyMapping.Join> add = pairEntries.get(MappingNormalizer.setIdOf(mr));
-                if (add == null) {
+                // OWN entries + EXTENDS-routed entries merged (e[aSet1,
+                // eSet1] serves bSet1 extends aSet1 ALONGSIDE bSet1's own
+                // h entry) — engine golden testExtendsForPropertyMapping
+                // WithUnion result2 joins ONLY the routed thread (the
+                // other thread carries a NULL key). Own entries first;
+                // the pmIdentity dedup below keeps them authoritative.
+                List<PropertyMapping.Join> add = new ArrayList<>();
+                String cur = MappingNormalizer.setIdOf(mr);
+                Set<String> seenSets = new HashSet<>();
+                while (cur != null && seenSets.add(cur)) {
+                    List<PropertyMapping.Join> lvl = pairEntries.get(cur);
+                    if (lvl != null) {
+                        add.addAll(lvl);
+                    }
+                    ClassMapping up =
+                            MappingNormalizer.findSetById(md, model, cur);
+                    cur = up instanceof ClassMapping.Relational ur
+                            ? ur.extendsSetId() : null;
+                }
+                if (add.isEmpty()) {
                     continue;
                 }
                 List<PropertyMapping> pms = new ArrayList<>(mr.propertyMappings());
