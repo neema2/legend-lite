@@ -79,8 +79,17 @@ final class Substitution {
                       Set<String> assocEnds,
                       Map<String, ExistsSub> existsSubs,
                       Map<TypedSpec, AggRead> aggReads,
+                      Map<TypedSpec, InQueryRead> inQueryReads,
                       TypedFunction isNotEmptyCallee,
                       TypedFunction equalCallee) {
+
+        Registries(Map<String, AssocSub> assocs, Set<String> assocEnds,
+                   Map<String, ExistsSub> existsSubs,
+                   Map<TypedSpec, AggRead> aggReads,
+                   TypedFunction isNotEmptyCallee, TypedFunction equalCallee) {
+            this(assocs, assocEnds, existsSubs, aggReads, Map.of(),
+                    isNotEmptyCallee, equalCallee);
+        }
 
         /** Inner substitutions (exists/pred rewrites) carry NO registries:
          * nested navigation stays loud by construction. */
@@ -127,6 +136,14 @@ final class Substitution {
     /** The instantiation being substituted into. Composed of the row
      * scope, the registries and the temporal view; the flat accessors
      * below keep the rewrite body reading naturally. */
+    /** A membership collection that is ITSELF a resolved class query
+     * (let validNames = Other.all().name->distinct(); ...->in($validNames)
+     * — engine temp-table semantics ≡ IN-subquery ≡ EXISTS-equality):
+     * the resolved single-column relation + its column, identity-keyed by
+     * the in/contains call node (task #78 scalar-subquery IN). */
+    record InQueryRead(TypedSpec relation, String column) {
+    }
+
     record Target(RowScope row, Registries regs, TemporalView temporal,
                   boolean filterPosition, boolean nested) {
 
@@ -172,6 +189,10 @@ final class Substitution {
 
         Map<String, AssocSub> assocs() {
             return regs.assocs();
+        }
+
+        Map<TypedSpec, InQueryRead> inQueryReads() {
+            return regs.inQueryReads();
         }
 
         Set<String> assocEnds() {
@@ -546,6 +567,44 @@ final class Substitution {
             if (isContains || isIn) {
                 TypedSpec coll = isContains ? mc.args().get(0) : mc.args().get(1);
                 TypedSpec needle = isContains ? mc.args().get(1) : mc.args().get(0);
+                InQueryRead q = target.inQueryReads().get(n);
+                if (q != null) {
+                    // scalar-subquery membership: EXISTS(SELECT 1 FROM
+                    // <resolved relation> WHERE col = needle) — the
+                    // isNotEmpty-over-relation lowering (§133) emits the
+                    // EXISTS; row equality ≡ the engine's temp-table IN.
+                    Type.RelationType qRow =
+                            (Type.RelationType) q.relation().info().type();
+                    String qv = "_iq";
+                    Type.Column qc = qRow.columns().stream()
+                            .filter(c -> c.name().equals(q.column()))
+                            .findFirst().orElseThrow(() ->
+                                    new IllegalStateException("resolver bug:"
+                                            + " in-subquery column '"
+                                            + q.column() + "' missing"));
+                    TypedSpec eq = new TypedNativeCall(target.equalCallee(),
+                            List.of(new TypedPropertyAccess(
+                                            new TypedVariable(qv, new ExprType(
+                                                    qRow, Multiplicity.Bounded.ONE)),
+                                            q.column(),
+                                            new ExprType(qc.type(),
+                                                    qc.multiplicity())),
+                                    rewrite(needle)),
+                            new ExprType(Type.Primitive.BOOLEAN,
+                                    Multiplicity.Bounded.ONE));
+                    TypedLambda qPred = new TypedLambda(List.of(qv),
+                            List.of(eq),
+                            new ExprType(new Type.FunctionType(
+                                    List.of(new Type.Param(qRow,
+                                            Multiplicity.Bounded.ONE)),
+                                    new Type.Param(Type.Primitive.BOOLEAN,
+                                            Multiplicity.Bounded.ONE)),
+                                    Multiplicity.Bounded.ONE));
+                    TypedSpec filtered = new TypedFilter(q.relation(), qPred,
+                            q.relation().info());
+                    return new TypedNativeCall(target.isNotEmptyCallee(),
+                            List.of(filtered), n.info());
+                }
                 List<String> cp = coll
                         instanceof TypedPropertyAccess ? pathOf(coll, target.userVar()) : null;
                 if (cp != null && cp.size() == 2

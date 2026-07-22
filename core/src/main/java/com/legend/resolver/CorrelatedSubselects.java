@@ -776,6 +776,18 @@ private static boolean referencesVar(TypedSpec n, String var) {
         return fresh;
     }
 
+    /** Column names a join condition reads off its SOURCE param (param 0). */
+    static void collectVarColumnReads(TypedSpec n, String var, Set<String> out) {
+        if (n instanceof TypedPropertyAccess pa
+                && pa.source() instanceof TypedVariable v
+                && v.name().equals(var)) {
+            out.add(pa.property());
+        }
+        for (TypedSpec c : n.children()) {
+            collectVarColumnReads(c, var, out);
+        }
+    }
+
 record CompositeChain(TypedSpec pipeline,
             TypedLambda orientedCond) {}
 
@@ -960,7 +972,7 @@ static boolean isCountFamily(TypedNativeCall nc) {
 static void collectParamColumnReads(TypedLambda cond, Set<String> out) {
         String src = cond.parameters().get(0);
         for (TypedSpec b : cond.body()) {
-            StoreResolver.collectVarColumnReads(b, src, out);
+            collectVarColumnReads(b, src, out);
         }
     }
 
@@ -1064,7 +1076,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
             ClassSource sub = sources.get(cs.mappingFqn(), fqn);
             Set<String> cols = new LinkedHashSet<>();
             for (TypedSpec b : sub.bindings().values()) {
-                StoreResolver.collectVarColumnReads(b, sub.rowVar(), cols);
+                collectVarColumnReads(b, sub.rowVar(), cols);
             }
             Set<String> parentCols = new LinkedHashSet<>();
             for (Type.Column c : cs.rowType().columns()) {

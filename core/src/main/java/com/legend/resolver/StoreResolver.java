@@ -1765,6 +1765,16 @@ public final class StoreResolver {
     }
 
 
+    /** scalar-subquery IN (#78): class-query membership collections
+     * resolve up front, identity-keyed for the substitution arm. */
+    private Map<TypedSpec, Substitution.InQueryRead> inQueryReadsFor(
+            List<TypedSpec> ops, TypedSpec top, List<TypedGraphTree> tree,
+            Context context) {
+        return InnerDemand.inQueryReads(ops,
+                tree == null ? terminalLambdas(top) : List.of(),
+                chain -> resolveNode(chain, context));
+    }
+
     /** PHASE 2b-ii output: the pipeline with association joins folded
      * (descriptor -> emission, first-demand order) plus the aggregated-
      * navigation materials the fold and substitution both consume. */
@@ -2728,6 +2738,8 @@ public final class StoreResolver {
                 synthetics.corrPredOuterDemand(fn, projectionPaths);
             }
         }
+        Map<TypedSpec, Substitution.InQueryRead> inQueryReads =
+                inQueryReadsFor(ops, top, tree, context);
         Set<List<String>> paths = new LinkedHashSet<>(filterPaths);
         paths.addAll(projectionPaths);
 
@@ -2832,7 +2844,7 @@ public final class StoreResolver {
         for (int i = ops.size() - 1; i >= 0; i--) {
             pipeline = switch (ops.get(i)) {
                 case TypedFilter f -> new TypedFilter(pipeline,
-                        substitution(cs, m, assocs, assocEnds, existsSubs, aggReads, true, fresh, f.predicate())
+                        substitution(cs, m, assocs, assocEnds, existsSubs, aggReads, inQueryReads, true, fresh, f.predicate())
                                 .rewriteLambda(f.predicate()),
                         pipeline.info());
                 case TypedLimit l -> new TypedLimit(pipeline, l.count(), pipeline.info());
@@ -2840,7 +2852,7 @@ public final class StoreResolver {
                 case TypedSlice sl -> new TypedSlice(pipeline, sl.start(), sl.stop(),
                         pipeline.info());
                 case TypedSortBy sb -> new TypedSortBy(pipeline,
-                        substitution(cs, m, assocs, assocEnds, existsSubs, aggReads, false, fresh, sb.key()).rewriteLambda(sb.key()),
+                        substitution(cs, m, assocs, assocEnds, existsSubs, aggReads, inQueryReads, false, fresh, sb.key()).rewriteLambda(sb.key()),
                         sb.ascending(), pipeline.info());
                 case TypedDistinct d -> {
                     // dedup by the MAPPED row (engine instance identity):
@@ -2881,7 +2893,7 @@ public final class StoreResolver {
         final Pipelines.Materialized fm = m;
         final String fv = fresh;
         Function<TypedLambda, TypedLambda> sub = fn ->
-                substitution(cs, fm, assocs, assocEnds, existsSubs, aggReads, false, fv, fn)
+                substitution(cs, fm, assocs, assocEnds, existsSubs, aggReads, inQueryReads, false, fv, fn)
                         .rewriteLambda(fn);
         // An agg map may be the BARE instance var (x|$x : y|$y->count()) —
         // COUNT(*)-style; it becomes the identity over the row.
@@ -2889,7 +2901,8 @@ public final class StoreResolver {
                 new TypedAggCol(a.name(),
                         isBareUserVar(a.map())
                                 ? substitution(cs, fm, assocs, assocEnds, existsSubs,
-                                        aggReads, false, fv, a.map()).identityLambda(a.map())
+                                        aggReads, inQueryReads, false, fv,
+                                        a.map()).identityLambda(a.map())
                                 : sub.apply(a.map()),
                         a.reduce());
         return switch (top) {
@@ -3400,23 +3413,13 @@ public final class StoreResolver {
         return false;
     }
 
-    /** Column names a join condition reads off its SOURCE param (param 0). */
-    static void collectVarColumnReads(TypedSpec n, String var, Set<String> out) {
-        if (n instanceof TypedPropertyAccess pa
-                && pa.source() instanceof TypedVariable v
-                && v.name().equals(var)) {
-            out.add(pa.property());
-        }
-        for (TypedSpec c : n.children()) {
-            collectVarColumnReads(c, var, out);
-        }
-    }
 
     private Substitution substitution(ClassSource cs, Pipelines.Materialized m,
                                       Map<String, Substitution.AssocSub> assocs,
                                       Set<String> assocEnds,
                                       Map<String, Substitution.ExistsSub> existsSubs,
                                       Map<TypedSpec, Substitution.AggRead> aggReads,
+                                      Map<TypedSpec, Substitution.InQueryRead> inQueryReads,
                                       boolean filterPosition,
                                       String freshRowVar, TypedLambda userLambda) {
         return new Substitution(new Substitution.Target(
@@ -3429,7 +3432,7 @@ public final class StoreResolver {
                         temporal.milestoneColumnsOf(cs.pipeline(),
                                 cs.classFqn())),
                 new Substitution.Registries(assocs, assocEnds, existsSubs,
-                        aggReads, isNotEmptyCallee(), equalCallee()),
+                        aggReads, inQueryReads, isNotEmptyCallee(), equalCallee()),
                 new Substitution.TemporalView(temporal.root().legacyDates(),
                         temporal.headTemporalDates(), temporal.root()),
                 filterPosition, false));

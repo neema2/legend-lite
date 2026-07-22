@@ -137,4 +137,114 @@ final class InnerDemand {
             collect(ch, userVar, path, out);
         }
     }
+
+    /** task #78 scalar-subquery IN: find in/contains calls whose
+     * COLLECTION argument is an object-space chain rooted at TypedGetAll
+     * (a let-inlined class query — engine temp-table semantics); resolve
+     * each via the caller's dispatcher into a single-column relation and
+     * key it by the CALL NODE identity for the substitution arm. */
+    static java.util.Map<com.legend.compiler.spec.typed.TypedSpec,
+            Substitution.InQueryRead> inQueryReads(
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> ops,
+            java.util.List<com.legend.compiler.spec.typed.TypedLambda> terminals,
+            java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec,
+                    com.legend.compiler.spec.typed.TypedSpec> rawResolver) {
+        java.util.List<com.legend.compiler.spec.typed.TypedSpec> roots =
+                new java.util.ArrayList<>();
+        for (com.legend.compiler.spec.typed.TypedSpec op : ops) {
+            if (op instanceof com.legend.compiler.spec.typed.TypedFilter f) {
+                roots.addAll(f.predicate().body());
+            }
+        }
+        for (com.legend.compiler.spec.typed.TypedLambda fn : terminals) {
+            roots.addAll(fn.body());
+        }
+        // a trailing ->distinct() (the NATIVE-CALL spelling at this stage)
+        // rides OUTSIDE the resolved relation as a relation-level DISTINCT;
+        // an unresolvable chain returns null and keeps its ordinary wall.
+        java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec,
+                com.legend.compiler.spec.typed.TypedSpec> resolver = chain -> {
+            try {
+                if (chain instanceof com.legend.compiler.spec.typed
+                        .TypedNativeCall dc
+                        && dc.args().size() == 1
+                        && com.legend.builtin.Pure.nativeNamed("distinct",
+                                dc.callee().signatureKey())) {
+                    com.legend.compiler.spec.typed.TypedSpec rel0 =
+                            rawResolver.apply(dc.args().get(0));
+                    return rel0 == null ? null
+                            : new com.legend.compiler.spec.typed
+                                    .TypedDistinct(rel0, java.util.List.of(),
+                                    rel0.info());
+                }
+                return rawResolver.apply(chain);
+            } catch (RuntimeException e) {
+                return null;
+            }
+        };
+        return inQueryReadsOver(roots, resolver);
+    }
+
+    private static java.util.Map<com.legend.compiler.spec.typed.TypedSpec,
+            Substitution.InQueryRead> inQueryReadsOver(
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> roots,
+            java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec,
+                    com.legend.compiler.spec.typed.TypedSpec> resolver) {
+        java.util.Map<com.legend.compiler.spec.typed.TypedSpec,
+                Substitution.InQueryRead> out = new java.util.IdentityHashMap<>();
+        for (com.legend.compiler.spec.typed.TypedSpec r : roots) {
+            collectInQuery(r, resolver, out);
+        }
+        return out;
+    }
+
+    private static void collectInQuery(
+            com.legend.compiler.spec.typed.TypedSpec n,
+            java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec,
+                    com.legend.compiler.spec.typed.TypedSpec> resolver,
+            java.util.Map<com.legend.compiler.spec.typed.TypedSpec,
+                    Substitution.InQueryRead> out) {
+        if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
+                && c.args().size() == 2) {
+            String key = c.callee().signatureKey();
+            boolean isIn = com.legend.builtin.Pure.nativeNamed("in", key);
+            boolean isContains =
+                    com.legend.builtin.Pure.nativeNamed("contains", key);
+            if (isIn || isContains) {
+                com.legend.compiler.spec.typed.TypedSpec coll =
+                        isContains ? c.args().get(0) : c.args().get(1);
+                if (rootsAtGetAll(coll)
+                        && !(coll.info().type()
+                                instanceof com.legend.compiler.element.type
+                                        .Type.RelationType)) {
+                    com.legend.compiler.spec.typed.TypedSpec rel =
+                            resolver.apply(coll);
+                    if (rel != null && rel.info().type()
+                            instanceof com.legend.compiler.element.type
+                                    .Type.RelationType rt
+                            && rt.columns().size() == 1) {
+                        out.put(c, new Substitution.InQueryRead(rel,
+                                rt.columns().get(0).name()));
+                    }
+                }
+            }
+        }
+        for (com.legend.compiler.spec.typed.TypedSpec ch : n.children()) {
+            collectInQuery(ch, resolver, out);
+        }
+    }
+
+    private static boolean rootsAtGetAll(
+            com.legend.compiler.spec.typed.TypedSpec n) {
+        com.legend.compiler.spec.typed.TypedSpec cur = n;
+        while (cur != null) {
+            if (cur instanceof com.legend.compiler.spec.typed.TypedGetAll) {
+                return true;
+            }
+            java.util.List<com.legend.compiler.spec.typed.TypedSpec> ch =
+                    cur.children();
+            cur = ch.isEmpty() ? null : ch.get(0);
+        }
+        return false;
+    }
 }
