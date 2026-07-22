@@ -101,10 +101,32 @@ final class StatementExecutor {
                     continue;
                 }
                 if (containsEffect(let.value(), specs, effectMemo)) {
-                    // β-substitution would DROP the effect if the binding is
-                    // unused (or double it if used twice) — refuse loudly
-                    throw new IllegalStateException("effectful let binding ('"
-                            + let.name() + "' reaches executeInDb) is not supported");
+                    // let x = executeInDb(...): the effect runs exactly ONCE,
+                    // here at the let (engine parity — the corpus binds an
+                    // opaque ResultSet handle as a smoke check and never
+                    // reads it; β-substitution would drop or double it). The
+                    // rhs may be the K-native OR the corpus's own executeInDb
+                    // wrapper (a user call). A later READ of the binding has
+                    // no frame — wall it up front, never an unbound-variable
+                    // surprise.
+                    for (int j = i + 1; j < stmts.size(); j++) {
+                        if (referencesVar(stmts.get(j), let.name())) {
+                            throw new IllegalStateException("reading an"
+                                    + " executeInDb result binding ('"
+                                    + let.name() + "') is not supported");
+                        }
+                    }
+                    if (rhs instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
+                        executeCallStatement(uc, letPrefix, specs, env, frames);
+                    } else {
+                        java.util.List<TypedSpec> single =
+                                new java.util.ArrayList<>(letPrefix);
+                        single.add(let.value());
+                        executeTyped(new com.legend.compiler.spec.UserCallInliner(
+                                specs, spliceHook(execFrames, letPrefix, specs, env))
+                                .inlineBody(single), env);
+                    }
+                    continue;
                 }
                 letPrefix.add(let);
                 continue;

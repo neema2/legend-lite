@@ -127,13 +127,28 @@ class ExecuteInDbTest {
     }
 
     @Test
-    @DisplayName("an effectful LET binding refuses loudly (β-substitution would drop the effect)")
-    void effectfulLetIsLoud() {
+    @DisplayName("let x = executeInDb(...): the effect runs exactly ONCE at the let (engine parity)")
+    void effectfulLetExecutesOnce() throws Exception {
+        // corpus shape (embedded createTimeStamKeysTableAndFill): the let
+        // binds an opaque ResultSet handle as a smoke check, never read
+        ExecutionResult r = Compiler.execute(SETUP_MODEL, CONN_LET
+                + "let rs = meta::relational::metamodel::execute::executeInDb("
+                + "'Create Table kDrop(id INT);', $c, 0, 1000);\ntrue;}", conn);
+        assertEquals(true, ((ExecutionResult.Scalar) r).value());
+        try (Statement st = conn.createStatement()) {
+            st.execute("insert into kDrop values (1)");   // table exists = ran
+        }
+    }
+
+    @Test
+    @DisplayName("READING an executeInDb result binding refuses loudly (no host-side ResultSet)")
+    void effectfulLetReadIsLoud() {
         IllegalStateException ex = assertThrows(IllegalStateException.class,
                 () -> Compiler.execute(SETUP_MODEL, CONN_LET
                         + "let rs = meta::relational::metamodel::execute::executeInDb("
-                        + "'Create Table kDrop(id INT);', $c, 0, 1000);\ntrue;}", conn));
-        assertTrue(ex.getMessage().contains("executeInDb"), ex.getMessage());
+                        + "'select 1;', $c, 0, 1000);\nlet n = $rs;\ntrue;}", conn));
+        assertTrue(ex.getMessage().contains("executeInDb result binding"),
+                ex.getMessage());
     }
 
     @Test

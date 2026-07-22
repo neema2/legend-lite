@@ -621,6 +621,13 @@ public final class Runner {
                                     + " advisory golden-SQL assert(s),"
                                     + " no row verification");
                 }
+                if (r.verified() == 0 && r.executed() > 0) {
+                    // the engine's own test is assert-free: running its
+                    // body through the pipeline to completion IS the whole
+                    // contract (engine parity), not a hollow pass
+                    yield new Outcome(fqn, Status.PASS, "0 asserts — "
+                            + r.executed() + " statement(s) executed");
+                }
                 if (r.verified() == 0) {
                     yield new Outcome(fqn, Status.SHAPE, "no verifying assertions");
                 }
@@ -850,8 +857,9 @@ public final class Runner {
                 continue;
             }
             java.util.Set<String> called = new java.util.HashSet<>();
+            java.util.Set<String> elements = new java.util.HashSet<>();
             for (com.legend.model.spec.ValueSpecification stmt : body) {
-                collectCalledFqns(stmt, called);
+                collectCalledFqns(stmt, called, elements);
             }
             for (String c : called) {
                 if (!c.contains("::")) {
@@ -861,6 +869,22 @@ public final class Runner {
                     return false;
                 }
                 work.add(c);
+            }
+            // qualified ELEMENT references (^ConnectionStore(element=
+            // some::family::myDB)): the engine compiles the whole project,
+            // so a setup naming a foreign family's store resolves there —
+            // when the per-test module can't see it, the run belongs in
+            // the setup universe (same rule as unresolvable calls)
+            for (String p : elements) {
+                if (!p.contains("::")) {
+                    continue;
+                }
+                if (!ctx.isExecutionContextElement(p)
+                        && ctx.findClass(p).isEmpty()
+                        && ctx.findEnum(p).isEmpty()
+                        && safeFindFunction(ctx, p).isEmpty()) {
+                    return false;
+                }
             }
         }
         return true;
@@ -875,20 +899,31 @@ public final class Runner {
         }
     }
 
-    /** QUALIFIED call names in a statement tree (bare names skipped). */
+    /** QUALIFIED call names + element-pointer paths in a statement tree
+     * (bare names skipped by the consumers). Walks constructor arguments
+     * too — the propertyLevel setups name foreign stores inside
+     * {@code ^ConnectionStore(element=...)}. */
     private static void collectCalledFqns(
-            com.legend.model.spec.ValueSpecification v, java.util.Set<String> out) {
+            com.legend.model.spec.ValueSpecification v, java.util.Set<String> out,
+            java.util.Set<String> elements) {
         if (v instanceof com.legend.model.spec.AppliedFunction af) {
             if (af.function().contains("::")) {
                 out.add(af.function());
             }
-            af.parameters().forEach(x -> collectCalledFqns(x, out));
+            af.parameters().forEach(x -> collectCalledFqns(x, out, elements));
         } else if (v instanceof com.legend.model.spec.AppliedProperty ap) {
-            collectCalledFqns(ap.receiver(), out);
+            collectCalledFqns(ap.receiver(), out, elements);
         } else if (v instanceof com.legend.model.spec.LambdaFunction lf) {
-            lf.body().forEach(x -> collectCalledFqns(x, out));
+            lf.body().forEach(x -> collectCalledFqns(x, out, elements));
         } else if (v instanceof com.legend.model.spec.PureCollection pc) {
-            pc.values().forEach(x -> collectCalledFqns(x, out));
+            pc.values().forEach(x -> collectCalledFqns(x, out, elements));
+        } else if (v instanceof com.legend.model.spec.NewInstance ni) {
+            ni.properties().values().forEach(ke ->
+                    collectCalledFqns(ke.value(), out, elements));
+        } else if (v instanceof com.legend.model.spec.NewInstanceCast nic) {
+            collectCalledFqns(nic.src(), out, elements);
+        } else if (v instanceof com.legend.model.spec.PackageableElementPtr ptr) {
+            elements.add(ptr.fullPath());
         }
     }
 

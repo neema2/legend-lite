@@ -74,9 +74,14 @@ public final class TestBody {
          * @param verified  row/value-comparing asserts that ran
          * @param advisory  golden-SQL asserts recognized but not compared
          *                  (legend-lite's SQL is its dialect's, by design)
+         * @param executed  statements that ran THROUGH the platform
+         *                  (execute-binding lets + expression statements) —
+         *                  an assert-free body that executed is an
+         *                  engine-parity pass, not a hollow one
          * @param failures  first assert failure (empty = all held)
          */
-        record Ran(int verified, int advisory, List<String> failures) implements Outcome {
+        record Ran(int verified, int advisory, int executed,
+                List<String> failures) implements Outcome {
         }
 
         /** A statement/assert shape the driver does not support yet — NAMED. */
@@ -247,6 +252,7 @@ public final class TestBody {
         Map<String, ValueSpecification> execChains = new LinkedHashMap<>();
         int verified = 0;
         int advisory = 0;
+        int executed = 0;
         while (!work.isEmpty()) {
             ValueSpecification stmt = work.poll();
             // side-effect-free harness noise
@@ -265,14 +271,39 @@ public final class TestBody {
                             "mayExecuteLegendTest")
                             .contains(simpleName(wrap.function()))) {
                 LambdaFunction inner = null;
-                for (ValueSpecification arg : wrap.parameters()) {
-                    ValueSpecification a2 = arg instanceof Variable av
-                            && lets.get(av.name()) != null
-                            ? lets.get(av.name()) : arg;
-                    if (a2 instanceof LambdaFunction lf0
-                            && lf0.parameters().isEmpty()) {
-                        inner = lf0;
-                        break;
+                // mayExecute* carries TWO legs (alloy-lambda, pure-lambda):
+                // legend-lite executes the in-process Alloy-shaped path, so
+                // the PARAMETERIZED alloy leg is the test — inline it when
+                // its clientVersion/serverVersion/host/port parameters are
+                // decorative (unreferenced). A leg that really reads them
+                // (dials a server) falls through to the zero-arg leg.
+                if (simpleName(wrap.function()).startsWith("mayExecute")) {
+                    for (ValueSpecification arg : wrap.parameters()) {
+                        ValueSpecification a2 = arg instanceof Variable av
+                                && lets.get(av.name()) != null
+                                ? lets.get(av.name()) : arg;
+                        if (a2 instanceof LambdaFunction lfA
+                                && !lfA.parameters().isEmpty()) {
+                            java.util.Set<String> ps = new java.util.HashSet<>();
+                            lfA.parameters().forEach(p -> ps.add(p.name()));
+                            if (lfA.body().stream()
+                                    .noneMatch(st -> referencesAny(st, ps))) {
+                                inner = lfA;
+                            }
+                            break;
+                        }
+                    }
+                }
+                if (inner == null) {
+                    for (ValueSpecification arg : wrap.parameters()) {
+                        ValueSpecification a2 = arg instanceof Variable av
+                                && lets.get(av.name()) != null
+                                ? lets.get(av.name()) : arg;
+                        if (a2 instanceof LambdaFunction lf0
+                                && lf0.parameters().isEmpty()) {
+                            inner = lf0;
+                            break;
+                        }
                     }
                 }
                 if (inner != null) {
@@ -280,6 +311,19 @@ public final class TestBody {
                             new ArrayList<>(inner.body());
                     for (int i = bodyStmts.size() - 1; i >= 0; i--) {
                         work.addFirst(bodyStmts.get(i));
+                    }
+                    continue;
+                }
+                // PARAMETERIZED lambda + pair-bound variables (the
+                // WithVariables idiom): β-bind the pairs into the query and
+                // synthesize the wrapper's OWN assertions in the corpus
+                // spellings the harness already evaluates — engine parity
+                // (executeLegendQuery binds vars, the wrapper asserts the
+                // flattened values / SQL + count).
+                List<ValueSpecification> synth = etaExpandWrapper(wrap, lets);
+                if (synth != null) {
+                    for (int i = synth.size() - 1; i >= 0; i--) {
+                        work.addFirst(synth.get(i));
                     }
                     continue;
                 }
@@ -304,6 +348,7 @@ public final class TestBody {
                     execVars.add(name.value());
                     recordExecChain(name.value(), rhs, execChains);
                     evalStatements(execStmts, ctx, imports, runtimeFqn, conn);
+                    executed++;
                     continue;
                 }
                 lets.put(name.value(), rhs);
@@ -354,7 +399,7 @@ public final class TestBody {
                 }
                 verified++;
                 if (failure != null) {
-                    return new Outcome.Ran(verified, advisory, List.of(failure));
+                    return new Outcome.Ran(verified, advisory, executed, List.of(failure));
                 }
                 continue;
             }
@@ -383,6 +428,7 @@ public final class TestBody {
                                     imports, ctx.elementFqns()),
                             ctx, runtimeFqn, conn,
                             seedFailures == null ? null : seedFailures::add);
+                    executed++;
                     continue;
                 } catch (java.sql.SQLException sql) {
                     throw sql;
@@ -399,7 +445,7 @@ public final class TestBody {
             return new Outcome.Unsupported("unsupported statement: "
                     + stmt.getClass().getSimpleName());
         }
-        return new Outcome.Ran(verified, advisory, List.of());
+        return new Outcome.Ran(verified, advisory, executed, List.of());
     }
 
     /** One side of a JSON assert as a PARSED structure: a GRAPH result's
@@ -666,6 +712,61 @@ public final class TestBody {
         return !fn.contains("::") || fn.startsWith("meta::");
     }
 
+    /**
+     * The WithVariables wrapper idiom: {@code runLegendTest($f, [pair('i',
+     * 2)], expected)} / {@code runTest($f, vars, expectedSql, count)} where
+     * {@code $f} is a PARAMETERIZED query lambda. β-bind the pair values
+     * over the lambda parameters and return the wrapper's assertion
+     * statements in the corpus spellings the harness already evaluates:
+     * runLegendTest asserts the flattened cell values ({@code .rows
+     * .values}), runTest asserts the golden SQL (advisory) and the row
+     * count. Null = not this idiom (the caller keeps its wall).
+     */
+    private static List<ValueSpecification> etaExpandWrapper(
+            AppliedFunction wrap, Map<String, ValueSpecification> lets) {
+        String fn = simpleName(wrap.function());
+        List<ValueSpecification> args = wrap.parameters();
+        boolean legend = fn.equals("runLegendTest") && args.size() == 3;
+        boolean paginate = fn.equals("runTest") && args.size() == 4;
+        if (!legend && !paginate) {
+            return null;
+        }
+        if (!(substitute(args.get(0), lets) instanceof LambdaFunction lf)
+                || lf.parameters().isEmpty() || lf.body().size() != 1) {
+            return null;
+        }
+        ValueSpecification varsArg = substitute(args.get(1), lets);
+        List<ValueSpecification> pairSpecs = varsArg instanceof PureCollection pc
+                ? pc.values() : List.of(varsArg);
+        Map<String, ValueSpecification> binding = new LinkedHashMap<>();
+        for (ValueSpecification p : pairSpecs) {
+            if (!(p instanceof AppliedFunction pf)
+                    || !simpleName(pf.function()).equals("pair")
+                    || pf.parameters().size() != 2
+                    || !(pf.parameters().get(0) instanceof CString key)) {
+                return null;
+            }
+            binding.put(key.value(), pf.parameters().get(1));
+        }
+        for (var prm : lf.parameters()) {
+            if (!binding.containsKey(prm.name())) {
+                return null;
+            }
+        }
+        ValueSpecification bound = substitute(lf.body().get(0), binding);
+        if (legend) {
+            return List.of(new AppliedFunction("assertEquals", List.of(
+                    args.get(2),
+                    new AppliedProperty(
+                            new AppliedProperty(bound, "rows"), "values"))));
+        }
+        return List.of(
+                new AppliedFunction("assertSameSQL",
+                        List.of(args.get(2), bound)),
+                new AppliedFunction("assertSize",
+                        List.of(bound, args.get(3))));
+    }
+
 
     /** The per-driver golden loop body — null when every pair verified
      * clean; counters = {verified, advisory} accumulate in place. */
@@ -720,7 +821,9 @@ public final class TestBody {
                         }
                         counters[0]++;
                         if (failure != null) {
-                            return new Outcome.Ran(counters[0], counters[1],
+                            // per-driver loop: asserts are the substance —
+                            // executed stays 0, verified carries the count
+                            return new Outcome.Ran(counters[0], counters[1], 0,
                                     List.of(failure));
                         }
                         continue;
