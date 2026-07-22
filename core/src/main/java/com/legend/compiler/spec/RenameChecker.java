@@ -45,9 +45,42 @@ final class RenameChecker {
         if (a.args().size() != 3) {
             throw new TypeInferenceException("rename expects (relation, ~old, ~new)");
         }
+        String oldName = Args.colSpecName(a.args().get(1));
+        String newName = Args.colSpecName(a.args().get(2));
         return new TypedRename(a.args().get(0),
-                List.of(new TypedRename.ColRename(
-                        Args.colSpecName(a.args().get(1)), Args.colSpecName(a.args().get(2)))),
-                a.out());
+                List.of(new TypedRename.ColRename(oldName, newName)),
+                positionPreserving(a, oldName, newName));
+    }
+
+    /**
+     * {@code resolveOutput(T-Z+V)} APPENDS the new column — set arithmetic
+     * has no position. Renaming must not MOVE the column (engine semantics;
+     * corpus pin: restrict(['lastName','averageAge'])->renameColumns(
+     * lastName->name) keeps name FIRST): rebuild the schema in the source's
+     * column order, the renamed slot carrying V's name with its
+     * kernel-resolved type/multiplicity.
+     */
+    private static com.legend.compiler.element.type.ExprType positionPreserving(
+            Application a, String oldName, String newName) {
+        if (!(a.out().type() instanceof com.legend.compiler.element.type.Type
+                        .RelationType outRt)
+                || !(a.args().get(0).info().type()
+                        instanceof com.legend.compiler.element.type.Type
+                                .RelationType srcRt)) {
+            return a.out();
+        }
+        com.legend.compiler.element.type.Type.Column vCol = outRt.columns().stream()
+                .filter(c -> c.name().equals(newName)).findFirst().orElse(null);
+        if (vCol == null) {
+            return a.out();
+        }
+        List<com.legend.compiler.element.type.Type.Column> cols =
+                srcRt.columns().stream()
+                        .map(c -> c.name().equals(oldName) ? vCol : c)
+                        .toList();
+        return new com.legend.compiler.element.type.ExprType(
+                new com.legend.compiler.element.type.Type.RelationType(
+                        cols, outRt.dynamicColumns()),
+                a.out().multiplicity());
     }
 }

@@ -252,8 +252,8 @@ final class Typer {
                 && af.parameters().get(2) instanceof CString rn) {
             return synth(new AppliedFunction("rename", List.of(
                     af.parameters().get(0),
-                    new ColSpec(ro.value(), null, null),
-                    new ColSpec(rn.value(), null, null))), env);
+                    new ColSpec(stripQuotes(ro.value()), null, null),
+                    new ColSpec(stripQuotes(rn.value()), null, null))), env);
         }
         if (tdsVocab(af.function(), "renameColumns") && af.parameters().size() == 2) {
             List<ValueSpecification> pairs =
@@ -261,18 +261,45 @@ final class Typer {
                             ? pc.values() : List.of(af.parameters().get(1));
             ValueSpecification acc = af.parameters().get(0);
             for (ValueSpecification pv : pairs) {
-                if (!(pv instanceof AppliedFunction pf
+                String po = null;
+                String pn = null;
+                if (pv instanceof AppliedFunction pf
                         && (pf.function().equals("pair") || pf.function()
                                 .equals("meta::pure::functions::collection::pair"))
                         && pf.parameters().size() == 2
-                        && pf.parameters().get(0) instanceof CString po
-                        && pf.parameters().get(1) instanceof CString pn)) {
+                        && pf.parameters().get(0) instanceof CString pos
+                        && pf.parameters().get(1) instanceof CString pns) {
+                    po = pos.value();
+                    pn = pns.value();
+                }
+                // the corpus's other literal spelling:
+                // ^Pair<String,String>(first='old', second='new') — the
+                // parser wraps the ctor as AppliedFunction("new",
+                // [receiver, NewInstance])
+                ValueSpecification pu = pv instanceof AppliedFunction nf
+                        && nf.function().equals("new")
+                        && nf.parameters().size() == 2
+                        ? nf.parameters().get(1) : pv;
+                if (pu instanceof NewInstance ni
+                        && (ni.className().equals("Pair") || ni.className()
+                                .equals("meta::pure::functions::collection::Pair"))
+                        && ni.properties().get("first") != null
+                        && ni.properties().get("first").value()
+                                instanceof CString pof
+                        && ni.properties().get("second") != null
+                        && ni.properties().get("second").value()
+                                instanceof CString pnf) {
+                    po = pof.value();
+                    pn = pnf.value();
+                }
+                if (po == null) {
                     throw new TypeInferenceException("renameColumns expects"
-                            + " literal pair('old','new') mappings");
+                            + " literal pair('old','new') /"
+                            + " ^Pair(first=,second=) mappings");
                 }
                 acc = new AppliedFunction("rename", List.of(acc,
-                        new ColSpec(po.value(), null, null),
-                        new ColSpec(pn.value(), null, null)));
+                        new ColSpec(stripQuotes(po), null, null),
+                        new ColSpec(stripQuotes(pn), null, null)));
             }
             return synth(acc, env);
         }

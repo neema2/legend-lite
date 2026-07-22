@@ -35,6 +35,12 @@ final class GroupByChecker {
     private GroupByChecker() {
     }
 
+    /** The TDS-era agg spelling — bare or its exact FQN (the corpus writes
+     * {@code meta::pure::tds::agg('count', x|$x, y|$y->count())}). */
+    private static boolean isAggSpelling(String fn) {
+        return fn.equals("agg") || fn.equals("meta::pure::tds::agg");
+    }
+
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
         if (af.parameters().size() == 4) {
             return check(t, legacyToModern(t, af, env), env);   // desugar, then the modern path
@@ -79,7 +85,7 @@ final class GroupByChecker {
         for (int i = 0; i < aggs.values().size(); i++) {
             String alias = aliasAt(aliases, keyFns.values().size() + i);
             if (!(aggs.values().get(i) instanceof AppliedFunction aggCall)
-                    || !aggCall.function().equals("agg")
+                    || !isAggSpelling(aggCall.function())
                     || aggCall.parameters().size() != 2
                     || !(aggCall.parameters().get(0) instanceof LambdaFunction mapFn)
                     || !(aggCall.parameters().get(1) instanceof LambdaFunction aggFn)) {
@@ -112,7 +118,7 @@ final class GroupByChecker {
         List<ValueSpecification> items = v instanceof PureCollection c ? c.values() : List.of(v);
         List<AppliedFunction> out = new ArrayList<>(items.size());
         for (ValueSpecification item : items) {
-            if (item instanceof AppliedFunction call && call.function().equals("agg")
+            if (item instanceof AppliedFunction call && isAggSpelling(call.function())
                     && call.parameters().size() == 3
                     && call.parameters().get(0) instanceof CString
                     && call.parameters().get(1) instanceof LambdaFunction
