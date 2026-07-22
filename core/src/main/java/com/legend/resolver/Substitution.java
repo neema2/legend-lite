@@ -918,8 +918,27 @@ final class Substitution {
                     new TypedMilestonedAccess(
                             rewrite(ma.source()), ma.property(),
                             rewriteAll(ma.dates()), ma.sweep(), ma.info());
-            case TypedNativeCall c -> new TypedNativeCall(c.callee(),
-                    rewriteAll(c.args()), c.info());
+            case TypedNativeCall c -> {
+                // A REDUCER call whose collection arg is an object-space
+                // ->map(computed) must NOT inline the mapper (audit 12 F4:
+                // ->map(b|1)->sum() collapsed to the constant) — reducer
+                // aggregation registers via the demand scan; reaching here
+                // means the scan missed it, which stays a loud wall.
+                if (CorrelatedSubselects.AGG_FQNS.contains(c.callee().qualifiedName())
+                        && !c.args().isEmpty()
+                        && c.args().get(0) instanceof TypedMap rm
+                        && !(rm.source().info().type() instanceof Type.RelationType)
+                        && pathOf(rm.mapper().body().get(0),
+                                rm.mapper().parameters().get(0)) == null) {
+                    throw new NotImplementedException(
+                            "reducer '" + c.callee().qualifiedName()
+                            + "' over an unregistered computed ->map is not"
+                            + " supported (the aggregate demand scan did not"
+                            + " recognize this shape)");
+                }
+                yield new TypedNativeCall(c.callee(),
+                        rewriteAll(c.args()), c.info());
+            }
             case TypedCollection c -> new TypedCollection(rewriteAll(c.elements()), c.info());
             case TypedIf i -> new TypedIf(rewrite(i.condition()),
                     rewrite(i.thenBranch()), i.elseBranch().map(this::rewrite), i.info());
@@ -940,11 +959,18 @@ final class Substitution {
             case TypedMap m
                     when m.mapper().parameters().size() == 1
                     && m.mapper().body().size() == 1
-                    && pathOf(m.mapper().body().get(0),
-                            m.mapper().parameters().get(0)) != null ->
-                    // ONLY a property path over the param is the auto-map
-                    // spelling (audit 12 F4: ->map(b|1)->sum() collapsed to
-                    // the constant — non-path bodies stay at the loud wall)
+                    && !(m.source().info().type() instanceof Type.RelationType) ->
+                    // VALUE-POSITION fan-out (task #78 step 2, engine golden
+                    // testAdvancedDerivedPropertyThroughAssociation: flat
+                    // LEFT JOIN row explosion, mapper evaluated per exploded
+                    // row): ->map(e|body) over an object-space collection
+                    // inlines the param with the source — nav reads inside
+                    // the body become path reads served by the ONE flat
+                    // join (dedup by head keeps multi-column reads on the
+                    // SAME exploded row). Property-path bodies are the
+                    // auto-map spelling of the same rule. Reducer-wrapped
+                    // maps never reach this arm (guarded at the reducer
+                    // call above — audit 12 F4).
                     rewrite(inlineParam(m.mapper().body().get(0),
                             m.mapper().parameters().get(0), m.source()));
             // Literals: nothing to substitute.

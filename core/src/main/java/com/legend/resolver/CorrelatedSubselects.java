@@ -1229,6 +1229,29 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
                         + " containing a to-many navigation is not supported yet");
             }
         }
+        // VALUE-POSITION fan-out (task #78 step 2): a BARE ->map over a
+        // to-many head (no reducer — the exploded values ARE the result;
+        // engine golden testAdvancedDerivedPropertyThroughAssociation)
+        // demands [head, leaf] for every leaf the mapper reads off its
+        // param, so the flat LEFT JOIN materializes with those columns and
+        // the substitution's inline arm resolves them.
+        if (n instanceof TypedMap tm && tm.mapper().parameters().size() == 1) {
+            List<String> sp = Substitution.pathOf(tm.source(), userVar);
+            if (sp != null && sp.size() == 1 && toManyHead.test(cs, sp.get(0))) {
+                String mv = tm.mapper().parameters().get(0);
+                Set<List<String>> mp = new LinkedHashSet<>();
+                for (TypedSpec b : tm.mapper().body()) {
+                    StoreResolver.consumedPaths(b, mv, mp);
+                }
+                for (List<String> lp : mp) {
+                    List<String> full = new ArrayList<>();
+                    full.add(sp.get(0));
+                    full.addAll(lp);
+                    bareOut.add(full);
+                }
+                bareOut.add(sp);
+            }
+        }
         List<String> path = Substitution.pathOf(n, userVar);
         if (path != null) {
             bareOut.add(path);
