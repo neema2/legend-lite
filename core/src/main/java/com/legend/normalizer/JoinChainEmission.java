@@ -301,7 +301,12 @@ final class JoinChainEmission {
                     // route's landing table] (the typing arg needs the kind)
                     Map<String, String[]> keyCols = new LinkedHashMap<>();
                     for (UnionSynthesis.UnionRoute route : routes) {
-                        JoinChainElement rHop = route.join().joins().get(0);
+                        // CHAINED routes walk a SHARED prefix (validated at
+                        // classification) — the prefix hops already emitted
+                        // as physical joins above, so each route contributes
+                        // only its FINAL hop, sourced at the last mid table.
+                        List<JoinChainElement> rChain = route.join().joins();
+                        JoinChainElement rHop = rChain.get(rChain.size() - 1);
                         String rDb = rHop.databaseName() != null
                                 ? rHop.databaseName() : route.join().database();
                         DatabaseDefinition.JoinDefinition rJd =
@@ -313,9 +318,15 @@ final class JoinChainEmission {
                                                 + "' not found in db '" + rDb
                                                 + "'; PM='" + propName + "', mapping="
                                                 + md.qualifiedName()));
-                        String rTgt = MappingNormalizer.determineTargetTable(rJd.operation(),
-                                prevTable, rHop.joinName(), propName, 1,
-                                md.qualifiedName());
+                        Set<String> rCondTables = new LinkedHashSet<>();
+                        RelOpTranslator.collectTablesIn(rJd.operation(), rCondTables);
+                        rCondTables.remove(prevTable);
+                        String rTgt = rCondTables.size() == 1
+                                && model.findView(rDb, rCondTables.iterator().next()).isPresent()
+                                ? rCondTables.iterator().next()
+                                : MappingNormalizer.determineTargetTable(rJd.operation(),
+                                        prevTable, rHop.joinName(), propName,
+                                        rChain.size(), md.qualifiedName());
                         Map<String, ValueSpecification> rScope = new LinkedHashMap<>();
                         rScope.put(prevTable, prevAlias == null
                                 ? s : new AppliedProperty(s, prevAlias));
@@ -345,13 +356,11 @@ final class JoinChainEmission {
                         Variable kr = new Variable("kr");
                         String base = en.getValue()[0];
                         ValueSpecification read;
-                        if (MappingNormalizer.findPhysicalColumn(hopDb, targetTable, base, model) != null) {
+                        if (relationHasColumn(hopDb, targetTable, base, model)) {
                             read = new AppliedProperty(kr, base);
                         } else {
-                            DatabaseDefinition.ColumnDefinition cd =
-                                    MappingNormalizer.findPhysicalColumn(en.getValue()[1],
-                                            en.getValue()[2], base, model);
-                            String kind = cd == null ? null : MappingNormalizer.pureKindOf(cd.dataType());
+                            String kind = columnPureKind(en.getValue()[1],
+                                    en.getValue()[2], base, model);
                             if (kind == null) {
                                 throw new NotImplementedException(
                                         "routed union key column '" + base
@@ -672,6 +681,50 @@ final class JoinChainEmission {
                     findPhysicalTable(inc, table, model, seen);
             if (hit != null) {
                 return hit;
+            }
+        }
+        return null;
+    }
+
+    /** Whether the relation named {@code table} (physical table OR view)
+     * carries a column named {@code col} — routed union keys land on
+     * VIEW-backed members too (unionOfViews). */
+    private static boolean relationHasColumn(String db, String table,
+            String col, ModelBuilder model) {
+        if (MappingNormalizer.findPhysicalColumn(db, table, col, model) != null) {
+            return true;
+        }
+        DatabaseDefinition.ViewDefinition view =
+                model.findView(db, table).orElse(null);
+        return view != null && view.columnMappings().stream()
+                .anyMatch(vc -> vc.name().equals(col));
+    }
+
+    /** The pure kind of {@code col} on {@code table}: a physical column's
+     * kind directly, or a VIEW's declared column resolved through its
+     * plain ColumnRef expression (computed view columns yield null — the
+     * caller's loud wall names them). */
+    private static String columnPureKind(String db, String table, String col,
+            ModelBuilder model) {
+        DatabaseDefinition.ColumnDefinition cd =
+                MappingNormalizer.findPhysicalColumn(db, table, col, model);
+        if (cd != null) {
+            return MappingNormalizer.pureKindOf(cd.dataType());
+        }
+        DatabaseDefinition.ViewDefinition view =
+                model.findView(db, table).orElse(null);
+        if (view == null) {
+            return null;
+        }
+        for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc
+                : view.columnMappings()) {
+            if (vc.name().equals(col) && vc.expression()
+                    instanceof RelationalOperation.ColumnRef cr) {
+                String cdb = cr.databaseName() != null ? cr.databaseName() : db;
+                DatabaseDefinition.ColumnDefinition pc = MappingNormalizer
+                        .findPhysicalColumn(cdb, cr.table(), cr.column(), model);
+                return pc == null ? null
+                        : MappingNormalizer.pureKindOf(pc.dataType());
             }
         }
         return null;

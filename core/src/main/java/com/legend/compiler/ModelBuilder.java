@@ -754,11 +754,33 @@ public final class ModelBuilder {
      * structurally identical).
      */
     public Optional<FilterDefinition> findFilter(String dbFqn, String filterName) {
+        return findFilter(dbFqn, filterName, new java.util.HashSet<>());
+    }
+
+    /** Include-closure aware, mirroring {@link #findJoin}: an including
+     * database resolves the included database's filters. Own wins. */
+    private Optional<FilterDefinition> findFilter(String dbFqn,
+            String filterName, java.util.Set<String> seen) {
+        if (!seen.add(dbFqn)) {
+            return Optional.empty();
+        }
         int id = symbols.resolveId(dbFqn);
         if (id == SymbolTable.UNRESOLVED) return Optional.empty();
         Map<String, FilterDefinition> byName = filtersByDb.get(id);
-        if (byName == null) return Optional.empty();
-        return Optional.ofNullable(byName.get(filterName));
+        FilterDefinition own = byName == null ? null : byName.get(filterName);
+        if (own != null) {
+            return Optional.of(own);
+        }
+        DatabaseDefinition db = findDatabase(dbFqn).orElse(null);
+        if (db != null) {
+            for (String inc : db.includes()) {
+                Optional<FilterDefinition> hit = findFilter(inc, filterName, seen);
+                if (hit.isPresent()) {
+                    return hit;
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     /**
@@ -805,11 +827,33 @@ public final class ModelBuilder {
      * than a table.
      */
     public Optional<ViewDefinition> findView(String dbFqn, String viewName) {
+        return findView(dbFqn, viewName, new java.util.HashSet<>());
+    }
+
+    /** Include-closure aware, mirroring {@link #findJoin}: an including
+     * database resolves the included database's views. Own wins. */
+    private Optional<ViewDefinition> findView(String dbFqn, String viewName,
+            java.util.Set<String> seen) {
+        if (!seen.add(dbFqn)) {
+            return Optional.empty();
+        }
         int id = symbols.resolveId(dbFqn);
         if (id == SymbolTable.UNRESOLVED) return Optional.empty();
         Map<String, ViewDefinition> byName = viewsByDb.get(id);
-        if (byName == null) return Optional.empty();
-        return Optional.ofNullable(byName.get(viewName));
+        ViewDefinition own = byName == null ? null : byName.get(viewName);
+        if (own != null) {
+            return Optional.of(own);
+        }
+        DatabaseDefinition db = findDatabase(dbFqn).orElse(null);
+        if (db != null) {
+            for (String inc : db.includes()) {
+                Optional<ViewDefinition> hit = findView(inc, viewName, seen);
+                if (hit.isPresent()) {
+                    return hit;
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     // ====================================================================

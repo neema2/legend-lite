@@ -239,12 +239,6 @@ final class UnionSynthesis {
                                 .filter(x -> x.className().equals(tr.className()))
                                 .count() == 1);
                 if (ord >= 0) {
-                    if (j.joins().size() != 1) {
-                        poison = "union member set '" + j.targetSetId()
-                                + "' via a CHAINED join — per-member chained"
-                                + " joins are not supported yet";
-                        break;
-                    }
                     routes.add(new UnionRoute(ord, j));
                 } else if (rootOrSole) {
                     routes.add(new UnionRoute(-1, j));
@@ -259,6 +253,49 @@ final class UnionSynthesis {
                     .anyMatch(r -> r.targetOrdinal() >= 0)
                     && routes.stream().anyMatch(r -> r.targetOrdinal() < 0)) {
                 poison = "MIXED root-set and union-member routes";
+            }
+            // CHAINED member routes (employeesExt[e1]: @A > @B_e1): the
+            // shared PREFIX hops (all but last) emit as ordinary physical
+            // joins once, the FINAL hop dispatches per member (engine
+            // unionOfViews golden: midTableView joined outside the union
+            // subselect, `person = id_0 or person = id_1`). Requires every
+            // member route to walk the IDENTICAL prefix — routes diverging
+            // before the final hop (unionOfViews2's non-overlapping join
+            // sequences push mid hops INSIDE each member thread) stay a
+            // roadmap wall.
+            if (poison == null && routes.stream()
+                    .filter(r -> r.targetOrdinal() >= 0)
+                    .anyMatch(r -> r.join().joins().size() > 1)) {
+                List<PropertyMapping.Join> memberJs = routes.stream()
+                        .filter(r -> r.targetOrdinal() >= 0)
+                        .map(UnionRoute::join).toList();
+                PropertyMapping.Join first = memberJs.get(0);
+                for (PropertyMapping.Join j : memberJs) {
+                    if (j.joins().size() != first.joins().size()) {
+                        poison = "chained union-member routes of DIFFERENT"
+                                + " lengths — not supported yet";
+                        break;
+                    }
+                    for (int h = 0; h + 1 < j.joins().size(); h++) {
+                        JoinChainElement a = first.joins().get(h);
+                        JoinChainElement b = j.joins().get(h);
+                        String dbA = a.databaseName() != null
+                                ? a.databaseName() : first.database();
+                        String dbB = b.databaseName() != null
+                                ? b.databaseName() : j.database();
+                        if (!a.joinName().equals(b.joinName())
+                                || !java.util.Objects.equals(dbA, dbB)) {
+                            poison = "chained union-member routes with"
+                                    + " NON-OVERLAPPING join sequences —"
+                                    + " per-member mid hops are not"
+                                    + " supported yet";
+                            break;
+                        }
+                    }
+                    if (poison != null) {
+                        break;
+                    }
+                }
             }
             if (poison != null) {
                 p.droppedRoutedProps.add(prop);
@@ -749,11 +786,22 @@ final class UnionSynthesis {
                         mr.propertyMappings(), mr.sourceUrl(),
                         mr.propertyTargetSets());
             }
-            if (model.findView(mr.mainTable().database(),
-                    mr.mainTable().table()).isPresent()) {
-                throw new NotImplementedException(
-                        "Operation union over a VIEW-backed member set is not"
-                      + " supported yet; mapping=" + md.qualifiedName());
+            DatabaseDefinition.ViewDefinition memberView = model.findView(
+                    mr.mainTable().database(), mr.mainTable().table()).orElse(null);
+            if (memberView != null) {
+                // VIEW-backed member set: the view expands as the member
+                // thread's SOURCE SUBSELECT (engine unionOfViews golden —
+                // each thread is `from (select ... from PersonExtensionT<i>)
+                // as "root"`), the view name is the row scope, and PMs read
+                // the view's DECLARED columns verbatim (the same subselect
+                // treatment grouped view-backed class mappings get).
+                ValueSpecification viewSource = ViewRelation.viewRelationExpr(
+                        memberView, mr.mainTable().table(),
+                        mr.mainTable().database(), model, md);
+                members.add(mr);
+                parts.add(MappingNormalizer.synthTableBackedParts(md, mr, model,
+                        null, viewSource));
+                continue;
             }
             members.add(mr);
             parts.add(MappingNormalizer.synthTableBackedParts(md, mr, model, null));

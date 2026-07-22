@@ -461,6 +461,21 @@ final class RelOpTranslator {
                             new LambdaFunction(List.of(), List.of(
                                     translate(call.args().get(2), tableScope, targetVarOrNull,
                                             rowBindOrNull, pipeline)))));
+            case RelationalOperation.FunctionCall call
+                    when (call.name().equals("or") || call.name().equals("and"))
+                    && call.args().size() > 2 -> {
+                // The or/and DYNAs are VARIADIC (corpus testMerge.pure:121
+                // or(4 disjuncts)); real pure boolean::or/and are binary —
+                // conform by emission: fold left into nested binary calls.
+                ValueSpecification acc = translate(call.args().get(0),
+                        tableScope, targetVarOrNull, rowBindOrNull, pipeline);
+                for (int i = 1; i < call.args().size(); i++) {
+                    acc = new AppliedFunction(call.name(), List.of(acc,
+                            translate(call.args().get(i), tableScope,
+                                    targetVarOrNull, rowBindOrNull, pipeline)));
+                }
+                yield acc;
+            }
             case RelationalOperation.FunctionCall call -> new AppliedFunction(
                     call.name(),
                     translateArgs(call, tableScope, targetVarOrNull,
