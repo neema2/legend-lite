@@ -7,18 +7,16 @@ Scope: <<test.ToFix>>/<<test.Ignore>> are excluded (engine harness
 parity) and so is <<test.ExcludeAlloy>> (legend-lite executes the
 in-process Alloy-shaped path).
 
-## Failed seed statements (5)
+## Failed seed statements (3)
 
-- `setup meta::relational::tests::aggregationAware::setUp() => in function 'meta::relational::tests::aggregationAware::setUp': unknown function 'dropSchemaStatement'`
 - `setup meta::relational::tests::mapping::embedded::setUp() => effectful let binding ('dataInTable' reaches executeInDb) is not supported`
 - `setup meta::relational::tests::functions::objectReferenceIn::setUp() => effectful let binding ('dataInTable' reaches executeInDb) is not supported`
 - `setup meta::relational::graphFetch::tests::union::propertyLevel::setup() => 'meta::relational::tests::mapping::union::myDB' is not a known class, mapping, runtime, connection, or database`
-- `setup meta::relational::tests::mapping::union::sqlQueryMerging::setup() => no scalar lowering registered for resolved overload 'meta::core::runtime::connectionByElement' with 2 parameter(s)`
 
 | family | tests | pass | fail | error | shape |
 |---|---|---|---|---|---|
 | aggregationAware/test/rewrite | 13 | 0 | 0 | 13 | 0 |
-| aggregationAware/test/rewrite/NOP | 15 | 0 | 0 | 8 | 7 |
+| aggregationAware/test/rewrite/NOP | 15 | 0 | 0 | 15 | 0 |
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
@@ -83,7 +81,7 @@ in-process Alloy-shaped path).
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1193** | 55 | 673 | 617 |
+| **total** | 2538 | **1193** | 55 | 680 | 610 |
 
 ### mapping walls (dropped at assembly)
 
@@ -4503,9 +4501,10 @@ in-process Alloy-shaped path).
 - 10x class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
 - 10x unknown class 'RelationalDebugContext' in ^RelationalDebugContext(…)
 - 8x class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
+- 7x 'meta::pure::mapping::aggregationAware::AggregationAwareActivity' is not a known class, mapping, runtime, connection, or database
 - 7x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
 - 7x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
-- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
 - 7x class 'meta::relational::tests::model::inheritance::Person' is not mapped in mapping 'meta::relational::tests::mapping::association::inheritence::assocMapping' (Join 'PersonCar' not found in db 'myDB'; PM='vehicles', mapping=meta::relational::tests::mapping::association::inheritence::assocMapping)
 - 6x unknown class 'meta::external::store::model::ModelStore' in ^meta::external::store::model::ModelStore(…)
@@ -4524,7 +4523,6 @@ in-process Alloy-shaped path).
 - 4x Binder Error: subqueries in lambda expressions are not supported
 - 4x object-space operation TypedDistinct is not supported yet
 - 4x multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
-- 4x unknown class 'Mapping' in ^Mapping(…)
 
 ### per-test outcomes (non-passing)
 
@@ -4541,14 +4539,14 @@ in-process Alloy-shaped path).
 - ERROR testRewriteEmployeeToSalesToProduct [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
 - ERROR testRewriteEmployeeToSalesToProductToProdLine [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
 - ERROR testRewriteWithMilestonedDescriptionPropertyAccess [aggregationAware/test/rewrite]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::mappingWithMultiDimensionAggregates'
-- SHAPE testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
-- SHAPE testRewriteFilter [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
-- SHAPE testRewriteProjectFunction [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
-- SHAPE testRewriteProjectCol [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
-- SHAPE testRewriteProjectFunctionMulti [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
-- SHAPE testRewriteProjectColMulti [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
+- ERROR testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: 'meta::pure::mapping::aggregationAware::AggregationAwareActivity' is not a known class, mapping, runtime, connection, or database
+- ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: 'meta::pure::mapping::aggregationAware::AggregationAwareActivity' is not a known class, mapping, runtime, connection, or database
+- ERROR testRewriteProjectFunction [aggregationAware/test/rewrite/NOP]: 'meta::pure::mapping::aggregationAware::AggregationAwareActivity' is not a known class, mapping, runtime, connection, or database
+- ERROR testRewriteProjectCol [aggregationAware/test/rewrite/NOP]: 'meta::pure::mapping::aggregationAware::AggregationAwareActivity' is not a known class, mapping, runtime, connection, or database
+- ERROR testRewriteProjectFunctionMulti [aggregationAware/test/rewrite/NOP]: 'meta::pure::mapping::aggregationAware::AggregationAwareActivity' is not a known class, mapping, runtime, connection, or database
+- ERROR testRewriteProjectColMulti [aggregationAware/test/rewrite/NOP]: 'meta::pure::mapping::aggregationAware::AggregationAwareActivity' is not a known class, mapping, runtime, connection, or database
 - ERROR testRewriteTDSOperation [aggregationAware/test/rewrite/NOP]: ~Product ID Added 2: mapped/aggregate column specifications need an enclosing call to type against
-- SHAPE testRewriteTDSGroupBy [aggregationAware/test/rewrite/NOP]: assert form 'assertEmpty/1' is not supported yet
+- ERROR testRewriteTDSGroupBy [aggregationAware/test/rewrite/NOP]: 'meta::pure::mapping::aggregationAware::AggregationAwareActivity' is not a known class, mapping, runtime, connection, or database
 - ERROR testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
 - ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
 - ERROR testRewriteProjectFunction [aggregationAware/test/rewrite/NOP]: class 'meta::relational::tests::aggregationAware::domain::Wholesales' is not mapped in mapping 'meta::relational::tests::aggregationAware::mapping::simpleMapping'
@@ -5074,7 +5072,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -5130,13 +5128,13 @@ in-process Alloy-shaped path).
 - ERROR testFlatten_ViaAllVersionsMapping [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
 - ERROR testFlatten_ViaHardcodedDateMapping [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
 - ERROR testWithHardcodedDate [modelToModelToRelational/milestoned]: Unknown type: 'meta::pure::mapping::Mapping' is not a known primitive, class, or enum
-- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
-- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
+- ERROR testNoSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testSingleSubQueryFromView [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testSingleSubQueryFromOperations [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testDeepSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testMultipleSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testComplexSubQueries [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
+- ERROR testCorrelatedSubQueryIsolationStrategy [postprocessor]: in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - ERROR testReplaceTablePostProcessor [postprocessor/tests]: Unknown type: 'Table' is not a known primitive, class, or enum
 - ERROR testReplaceTableMultiplePostProcessor [postprocessor/tests]: class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'sqlQueryPostProcessors'
 - ERROR testReplaceTablesPostProcessor [postprocessor/tests]: Unknown type: 'Table' is not a known primitive, class, or enum

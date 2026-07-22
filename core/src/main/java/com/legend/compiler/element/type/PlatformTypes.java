@@ -63,6 +63,24 @@ public final class PlatformTypes {
     public static final String DROP_AND_CREATE_SCHEMA_IN_DB =
             "meta::relational::functions::toDDL::dropAndCreateSchemaInDb";
 
+    /** DDL STRING generators (toDDL.pure deprecated 1-/3-arg forms):
+     * evaluate in the EXECUTOR (the engine walks its Database metamodel;
+     * we render from the compiled store model — model access the lowerer
+     * does not have). Engine golden spellings: testDDL.pure:42-45. */
+    public static final String DROP_SCHEMA_STATEMENT =
+            "meta::relational::functions::toDDL::dropSchemaStatement";
+    public static final String CREATE_SCHEMA_STATEMENT =
+            "meta::relational::functions::toDDL::createSchemaStatement";
+    public static final String CREATE_TABLE_STATEMENT =
+            "meta::relational::functions::toDDL::createTableStatement";
+
+    /** One of the DDL string-generator natives. */
+    public static boolean isDdlStatementFn(String fqn) {
+        return DROP_SCHEMA_STATEMENT.equals(fqn)
+                || CREATE_SCHEMA_STATEMENT.equals(fqn)
+                || CREATE_TABLE_STATEMENT.equals(fqn);
+    }
+
     /** The engine's SQL-text surface — K-dispatched: the query lambda
      * lowers through the platform's own G½->H->I against the given mapping
      * and renders with the engine-style dialect (audit 19d B3: this was a
@@ -92,6 +110,7 @@ public final class PlatformTypes {
     public static boolean isPlatformOwnedFunction(String fqn) {
         return DROP_AND_CREATE_TABLE_IN_DB.equals(fqn)
                 || DROP_AND_CREATE_SCHEMA_IN_DB.equals(fqn)
+                || isDdlStatementFn(fqn)
                 || TO_SQL_STRING.equals(fqn)
                 || EXECUTE.equals(fqn);
     }

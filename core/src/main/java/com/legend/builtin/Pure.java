@@ -999,6 +999,10 @@ public final class Pure {
     // rendered from the compiled store model (com.legend.exec.Ddl). The
     // database argument types as the store METACLASS, exactly like real
     // pure (audit 17: Any[1] let string literals type-check).
+    public static final NativeFunctionDefinition DDL_DROP_SCHEMA_STATEMENT__STRING_1 = signature("native function meta::relational::functions::toDDL::dropSchemaStatement(schema:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
+    public static final NativeFunctionDefinition DDL_CREATE_SCHEMA_STATEMENT__STRING_1 = signature("native function meta::relational::functions::toDDL::createSchemaStatement(schema:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
+    public static final NativeFunctionDefinition DDL_CREATE_TABLE_STATEMENT__DB_1__STRING_1__STRING_1 = signature("native function meta::relational::functions::toDDL::createTableStatement(database:meta::relational::metamodel::Database[1], schema:meta::pure::metamodel::type::String[1], tableName:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
+
     public static final NativeFunctionDefinition DROP_AND_CREATE_TABLE_IN_DB__ANY_1__STRING_1__CONN_1 = signature("native function meta::relational::functions::toDDL::dropAndCreateTableInDb(database:meta::relational::metamodel::Database[1], tableName:meta::pure::metamodel::type::String[1], c:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition DROP_AND_CREATE_TABLE_IN_DB__ANY_1__STRING_1__STRING_1__CONN_1 = signature("native function meta::relational::functions::toDDL::dropAndCreateTableInDb(database:meta::relational::metamodel::Database[1], schema:meta::pure::metamodel::type::String[1], tableName:meta::pure::metamodel::type::String[1], c:meta::external::store::relational::runtime::DatabaseConnection[1]):meta::pure::metamodel::type::Boolean[1];");
     // relationalExtension.pure's wrappers (2-arg AND the 3-arg debug

@@ -633,6 +633,71 @@ final class StatementExecutor {
                         .equals(dc.callee().qualifiedName())) {
             return dropAndCreateTableInDb(body, dc, env);
         }
+        // DDL STRING generators (toDDL deprecated forms): evaluated HERE —
+        // the engine walks its Database metamodel, we render from the
+        // compiled store model (the lowerer has no model access)
+        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall ds
+                && com.legend.compiler.element.type.PlatformTypes
+                        .isDdlStatementFn(ds.callee().qualifiedName())) {
+            return new ExecutionResult.Scalar(ddlStatementString(ds, env),
+                    ds.info().type());
+        }
+        // CONNECTION/RUNTIME values are ORCHESTRATION HANDLES (the
+        // executeInDb convention below: connections are harness-ambient,
+        // never host object graphs). A setup returning ^Runtime(...) or
+        // binding connectionByElement(...) must not force them through
+        // the SQL pipeline. Effects nested in ctor args would be dropped
+        // — loud, never silent.
+        if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall cbe
+                && "meta::core::runtime::connectionByElement"
+                        .equals(cbe.callee().qualifiedName())) {
+            return new ExecutionResult.Scalar(null, cbe.info().type());
+        }
+        if (root instanceof com.legend.compiler.spec.typed.TypedCast castC
+                && castC.source()
+                        instanceof com.legend.compiler.spec.typed.TypedNativeCall cbe2
+                && "meta::core::runtime::connectionByElement"
+                        .equals(cbe2.callee().qualifiedName())) {
+            return new ExecutionResult.Scalar(null, castC.info().type());
+        }
+        if (root instanceof com.legend.compiler.spec.typed.TypedNewInstance rni
+                && ("meta::core::runtime::Runtime".equals(rni.classFqn())
+                        || "meta::core::runtime::ConnectionStore"
+                                .equals(rni.classFqn()))) {
+            if (containsEffectfulNode(new java.util.ArrayList<>(
+                    rni.properties().values()))) {
+                throw new IllegalStateException("^" + rni.classFqn()
+                        + "(...) constructor argument carries an"
+                        + " executeInDb-family effect; the orchestration-"
+                        + "handle arm never evaluates arguments");
+            }
+            return new ExecutionResult.Scalar(null, rni.info().type());
+        }
+        // a COLLECTION whose elements include DDL string generators (the
+        // aggregationAware setup shape: [dropSchemaStatement(..), ...]
+        // ->map(s|executeInDb(..))): every element evaluates here
+        if (root instanceof com.legend.compiler.spec.typed.TypedCollection ddlColl
+                && ddlColl.elements().stream().anyMatch(e ->
+                        e instanceof com.legend.compiler.spec.typed.TypedNativeCall enc
+                        && com.legend.compiler.element.type.PlatformTypes
+                                .isDdlStatementFn(enc.callee().qualifiedName()))) {
+            java.util.List<Object> strs = new java.util.ArrayList<>();
+            for (TypedSpec e : ddlColl.elements()) {
+                if (e instanceof com.legend.compiler.spec.typed.TypedNativeCall enc
+                        && com.legend.compiler.element.type.PlatformTypes
+                                .isDdlStatementFn(enc.callee().qualifiedName())) {
+                    strs.add(ddlStatementString(enc, env));
+                } else if (e instanceof com.legend.compiler.spec.typed.TypedCString cs2) {
+                    strs.add(cs2.value());
+                } else {
+                    throw new IllegalStateException("DDL statement collection"
+                            + " carries a non-DDL, non-literal element: "
+                            + e.getClass().getSimpleName());
+                }
+            }
+            return new ExecutionResult.Collection(strs,
+                    com.legend.compiler.element.type.Type.Primitive.STRING);
+        }
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall pn
                 && (com.legend.compiler.element.type.PlatformTypes.PRINT
                         .equals(pn.callee().qualifiedName())
@@ -822,6 +887,46 @@ final class StatementExecutor {
         Executor.executeRaw(connection,
                 com.legend.exec.RawSqlBoundary.h2ToDuckDb(Ddl.createTable(def, schema)));
         return new ExecutionResult.Scalar(true, call.info().type());
+    }
+
+    /** One toDDL string-generator call — engine golden spellings
+     * (testDDL.pure:42-45); createTableStatement renders from the
+     * compiled store model like dropAndCreateTableInDb. */
+    private static String ddlStatementString(
+            com.legend.compiler.spec.typed.TypedNativeCall ds, ExecEnv env) {
+        String fqn = ds.callee().qualifiedName();
+        if (com.legend.compiler.element.type.PlatformTypes
+                .DROP_SCHEMA_STATEMENT.equals(fqn)
+                || com.legend.compiler.element.type.PlatformTypes
+                        .CREATE_SCHEMA_STATEMENT.equals(fqn)) {
+            if (!(ds.args().get(0)
+                    instanceof com.legend.compiler.spec.typed.TypedCString sc)) {
+                throw new IllegalStateException(fqn + ": only literal schema"
+                        + " names are supported, got "
+                        + ds.args().get(0).getClass().getSimpleName());
+            }
+            return com.legend.compiler.element.type.PlatformTypes
+                    .DROP_SCHEMA_STATEMENT.equals(fqn)
+                    ? "Drop schema if exists " + sc.value() + " cascade;"
+                    : "Create Schema if not exists " + sc.value() + ";";
+        }
+        if (!(ds.args().get(0)
+                instanceof com.legend.compiler.spec.typed.TypedPackageableRef db)
+                || !(ds.args().get(1)
+                        instanceof com.legend.compiler.spec.typed.TypedCString sch)
+                || !(ds.args().get(2)
+                        instanceof com.legend.compiler.spec.typed.TypedCString tbl)) {
+            throw new IllegalStateException("createTableStatement: literal"
+                    + " (database, 'schema', 'table') arguments required");
+        }
+        String lookup = "default".equals(sch.value()) ? tbl.value()
+                : sch.value() + "." + tbl.value();
+        com.legend.model.DatabaseDefinition.TableDefinition def =
+                env.ctx().findTableDefinition(db.fullPath(), lookup)
+                        .orElseThrow(() -> new IllegalStateException(
+                                "createTableStatement: no table '" + lookup
+                                        + "' in store " + db.fullPath()));
+        return Ddl.createTable(def, sch.value());
     }
 
     /**
