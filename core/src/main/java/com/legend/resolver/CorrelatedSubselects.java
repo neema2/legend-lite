@@ -351,7 +351,7 @@ private static List<String> parentEquiKeys(TypedLambda cond, String head) {
     }
 
 
-private static void collectVarNamesInto(TypedSpec n, Set<String> out) {
+static void collectVarNamesInto(TypedSpec n, Set<String> out) {
         if (n instanceof com.legend.compiler.spec.typed.TypedVariable v) {
             out.add(v.name());
         }
@@ -620,6 +620,11 @@ CompositeChain compositeChainTarget(ClassSource cs,
         if (js == null
                 || !(js.target().info().type() instanceof Type.RelationType optRow)
                 || !(targetPipe.info().type() instanceof Type.RelationType tgtRow)) {
+            // NOT walled (audit 23 B6 probe): a sibling that is a NAVIGATE
+            // step (not a joinSlot) degrades to the flat form, which the
+            // chained-union V2 family pins as row-correct — the explosion
+            // risk is multiplicity-dependent, and the blanket wall
+            // over-fired on those passing shapes.
             return null;
         }
         // GUARDS (loud, never silent): the step condition must read the

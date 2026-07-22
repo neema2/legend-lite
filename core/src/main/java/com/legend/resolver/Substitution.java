@@ -1136,6 +1136,31 @@ final class Substitution {
      * else staying correlated to the outer row.
      */
 
+    /** A target-side binder freshened against EVERY name in reach —
+     * the two-name check captured a third in-scope name (triply-nested
+     * exists, a user var literally named t_n; audit 23 #75). */
+    private String freshTargetBinder(String tVar, TypedLambda cond,
+            TypedSpec extra) {
+        java.util.Set<String> taken = new java.util.LinkedHashSet<>();
+        taken.add(target.freshRowVar());
+        taken.add(target.userVar());
+        for (TypedSpec b : cond.body()) {
+            CorrelatedSubselects.collectVarNamesInto(b, taken);
+        }
+        if (extra != null) {
+            CorrelatedSubselects.collectVarNamesInto(extra, taken);
+        }
+        // tVar is NOT exempted: when the binder name coincides with the
+        // enclosing renamed var (the audit-18 't' shadowing class), the
+        // rename MUST fire — an extra cosmetic rename is harmless, a
+        // missed one self-correlates (the ResolveNestedNavTest pin)
+        String fresh = tVar;
+        while (taken.contains(fresh)) {
+            fresh = fresh + "_n";
+        }
+        return fresh;
+    }
+
     /** A milestone-column read off the (possibly prefixed) row. */
     private static TypedSpec milestoneColumnRead(String column, String rowVar,
             Type.RelationType row, String prefix, TypedSpec original) {
@@ -1245,11 +1270,7 @@ final class Substitution {
         // renamed var — an unfreshened corr binder named 't' captures the
         // parent-correlation reads created below. Freshen collision-driven,
         // rename the TARGET-side reads FIRST.
-        String freshT = tVar;
-        while (freshT.equals(target.freshRowVar())
-                || freshT.equals(target.userVar())) {
-            freshT = freshT + "_n";
-        }
+        String freshT = freshTargetBinder(tVar, cond, null);
         final String tRenamed = freshT;
         List<TypedSpec> corrBody = cond.body().stream()
                 .map(b -> tRenamed.equals(tVar) ? b
@@ -1531,11 +1552,7 @@ final class Substitution {
         TypedLambda cond = ex.orientedCond();
         String pVar = cond.parameters().get(0);
         String tVar = cond.parameters().get(1);
-        String freshT = tVar;
-        while (freshT.equals(target.freshRowVar())
-                || freshT.equals(target.userVar())) {
-            freshT = freshT + "_n";
-        }
+        String freshT = freshTargetBinder(tVar, cond, null);
         final String tRenamed = freshT;
         List<TypedSpec> corrBody = cond.body().stream()
                 .map(b -> tRenamed.equals(tVar) ? b
@@ -1649,11 +1666,7 @@ final class Substitution {
         // (λ(s,t) everywhere) — an inner 't' would SHADOW the enclosing
         // scope's correlation var (R2: nested exists silently misbound).
         // Freshen collision-driven; target-side reads rename with it.
-        String freshT = tVar;
-        while (freshT.equals(target.freshRowVar())
-                || freshT.equals(target.userVar())) {
-            freshT = freshT + "_n";
-        }
+        String freshT = freshTargetBinder(tVar, cond, null);
         final String tRenamed = freshT;
         // ORDER MATTERS: rename the TARGET-side reads FIRST — renaming
         // after the parent rewrite would capture the just-created parent

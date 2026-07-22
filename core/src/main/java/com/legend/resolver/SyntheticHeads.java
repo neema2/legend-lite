@@ -527,12 +527,19 @@ final class SyntheticHeads {
         String synth;
         if (f.source() instanceof com.legend.compiler.spec.typed
                 .TypedMilestonedAccess ma) {
+            // dated heads keep PER-CALL identity — the join carries the
+            // date stamp, so cross-date sharing would be wrong rows
             synth = mintFilteredName(ma.property());
             renamed = new TypedMilestonedAccess(
                     ma.source(), synth, ma.dates(), ma.sweep(), ma.info());
         } else {
             var hp = (TypedPropertyAccess) f.source();
-            synth = mintFilteredName(hp.property());
+            // audit 23 (#75): values-position joins carry NO in-target
+            // predicate (it parks in the outer WHERE) — same-head values
+            // lifts are join-IDENTICAL and share one identity
+            // (merge-by-identity, engine leanness)
+            synth = valuesHeadMemo.computeIfAbsent(hp.property(),
+                    this::mintFilteredName);
             renamed = new TypedPropertyAccess(
                     hp.source(), synth, hp.info());
         }
@@ -928,6 +935,11 @@ final class SyntheticHeads {
      * lambda would silently take the TDS lift and emit a NULL row where
      * pure flattening drops it. Registration and consumption sit in THIS
      * class within one liftFilteredHeads walk; keep it that way. */
+    /** Values-position head identities by REAL property (see
+     * liftValueMapFilter: no in-target pred, joins identical). */
+    private final java.util.Map<String, String> valuesHeadMemo =
+            new java.util.LinkedHashMap<>();
+
     private final Set<TypedLambda> valuesLambdas =
             Collections.newSetFromMap(new IdentityHashMap<>());
     /** A lifted head's (and a drilled synthetic MID component's) predicate

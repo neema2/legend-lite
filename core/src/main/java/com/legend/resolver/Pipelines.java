@@ -503,10 +503,13 @@ final class Pipelines {
         TypedSpec top = pipeline;
         UnaryOperator<TypedSpec> rewrap =
                 UnaryOperator.identity();
-        if (top instanceof TypedFilter f) {
+        // WHILE, not if (audit 23 #75): stacked filters above the distinct
+        // silently skipped key widening entirely
+        while (top instanceof TypedFilter f) {
             TypedSpec inner = f.source();
-            rewrap = d -> new TypedFilter(d, f.predicate(),
-                    new ExprType(d.info().type(), Multiplicity.Bounded.ONE));
+            UnaryOperator<TypedSpec> prev = rewrap;
+            rewrap = d -> prev.apply(new TypedFilter(d, f.predicate(),
+                    new ExprType(d.info().type(), Multiplicity.Bounded.ONE)));
             top = inner;
         }
         if (!(top instanceof TypedDistinct d)) {
@@ -682,9 +685,14 @@ final class Pipelines {
                 // this widening means that projection was missed — never
                 // re-derive meaning from the name pattern (audit 11: a real
                 // column spelled like a suffix hijacked the NULL thread).
-                throw new IllegalStateException("resolver bug: routed union"
-                        + " key column '" + c + "' was not projected by the"
-                        + " union body (normalizer inbound-route scan)");
+                // honest both ways (audit 23 #75): the demand may also be
+                // a REAL physical column that happens to end in _<digits>
+                throw new IllegalStateException("column '" + c + "' is"
+                        + " demanded but absent from the union body: either"
+                        + " a routed union key the normalizer's inbound-"
+                        + "route scan failed to project (resolver bug), or"
+                        + " a physical column named like a member suffix"
+                        + " that the mapping never exposes");
             }
             String v = "u_k";
             TypedSpec body;

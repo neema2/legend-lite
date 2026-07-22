@@ -210,8 +210,18 @@ final class TemporalFrame {
             throw new MappingResolutionException("bi-temporal class fetch of '"
                     + classFqn + "' is not supported yet", classFqn);
         }
+        if (snapCol == null && fromCol == null && thruCol == null) {
+            return pipe;   // capability tolerance (ABSENT block) — see above
+        }
         if (snapCol == null && (fromCol == null || thruCol == null)) {
-            return pipe;   // capability tolerance — see above
+            // audit 23 #75: a HALF-declared milestoning block (FROM
+            // without THRU or vice versa) is malformed, not absent — the
+            // engine's capability tolerance covers absent blocks only;
+            // returning unfiltered here served EVERY version silently
+            throw new MappingResolutionException("milestoning block of '"
+                    + classFqn + "' declares only one of FROM/THRU — a"
+                    + " half-declared block cannot filter versions",
+                    classFqn);
         }
         // non-literal dates (let-bound vars the inliner kept, adjust()
         // expressions) embed as scalar SQL expressions; an unresolvable
@@ -282,6 +292,13 @@ final class TemporalFrame {
                                             .Primitive.STRICT_DATE,
                                     com.legend.compiler.element.type
                                             .Multiplicity.Bounded.ONE));
+                } else {
+                    // audit 23 #75: a PARTIAL date (%2015, %2015-04) has
+                    // no snapshot-day truncation — comparing it raw
+                    // against the DATE column silently matches nothing
+                    throw new MappingResolutionException("snapshot fetch"
+                            + " date '" + iso + "' has no day component —"
+                            + " a full date is required", classFqn);
                 }
             } else if (snapColIsDate
                     && !(date instanceof TypedCDate)) {
