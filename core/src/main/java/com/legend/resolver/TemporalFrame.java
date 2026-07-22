@@ -429,6 +429,21 @@ final class TemporalFrame {
                     // governance left spec-less mids unstamped).
                     TemporalSpec midSpec = specs.get(midChain);
                     String specDim = midPrefixToDim.get(j.prefix().get());
+                    // audit 23 #75: a chain spec that EXISTS but is not
+                    // the single-date shape (range/pair or sweep) must
+                    // not silently fall back to the ROOT context — the
+                    // explicit spec's window would be ignored
+                    if (midSpec != null && specDim != null
+                            && (midSpec.dates().size() != 1
+                                    || midSpec.sweep())) {
+                        throw new com.legend.error.NotImplementedException(
+                                "chained-PM mid table '" + midChain
+                                + "' carries a "
+                                + (midSpec.sweep() ? "version-sweep"
+                                        : midSpec.dates().size() + "-date")
+                                + " chain spec — only single-date mid"
+                                + " stamping is built");
+                    }
                     TemporalContext midCtx = midSpec != null
                             && midSpec.dates().size() == 1 && !midSpec.sweep()
                             && specDim != null

@@ -1137,6 +1137,14 @@ final class UnionSynthesis {
                     MappingNormalizer.collectColumnsOfTable(jd0.operation(), tgtT, cols0);
                     tgtColSets.add(String.join(",", cols0));
                 }
+                // audit 23 #75 (crossed-routes review): target ordinals
+                // do not appear in the merged emission at all — crossed
+                // and uncrossed routes produce IDENTICAL SQL, so the
+                // residual exposure (key values colliding across target
+                // members matching the "wrong" member) is the ENGINE's
+                // own (its partiallyMilestoning golden emits exactly this
+                // shared-target form). Nothing to gate beyond coverage +
+                // one-route-per-source + identical target columns.
                 liftTargetMerged = mergeable
                         && tgtOrds.size() == targetUnion.memberSetIds().size()
                         && tgtColSets.size() == 1;

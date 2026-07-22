@@ -581,6 +581,30 @@ final class Substitution {
                 && target.filterPosition()) {
             TypedSpec read = toManyCrossingRead(lc);
             if (read != null) {
+                // audit 23 B2 (engine-source re-grounding): the engine has
+                // NO blanket negation rule — processNot emits a plain
+                // not() and null-compensation is PER-OPERATOR
+                // (dbExtension processNotEqual/processNotIn add OR IS
+                // NULL; every other operator keeps three-valued semantics
+                // where NULL rows DROP). This arm's pass-constant encodes
+                // exactly that compensation, so it may serve ONLY the
+                // compensated family; other operators are loud until
+                // their engine emission is transcribed.
+                if (!(lc.args().get(0) instanceof TypedNativeCall innerCmp
+                        && (Pure.nativeNamed("equal",
+                                        innerCmp.callee().signatureKey())
+                                || Pure.nativeNamed("in",
+                                        innerCmp.callee().signatureKey())
+                                || Pure.nativeNamed("contains",
+                                        innerCmp.callee().signatureKey())))) {
+                    throw new NotImplementedException("negated '"
+                            + (lc.args().get(0) instanceof TypedNativeCall ic
+                                    ? ic.callee().qualifiedName()
+                                    : lc.args().get(0).getClass().getSimpleName())
+                            + "' over a to-many crossing — the engine"
+                            + " null-compensates only equal/in; this"
+                            + " operator's emission is not transcribed yet");
+                }
                 TypedSpec readInner = rewrite(read);
                 TypedSpec notInner = new TypedNativeCall(lc.callee(),
                         rewriteAll(lc.args()), lc.info());
