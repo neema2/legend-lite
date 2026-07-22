@@ -988,6 +988,14 @@ final class Pipelines {
         };
     }
 
+    /** The pipeline's join-slot steps by alias (the chained-agg key chase
+     * reads a mid slot's own join condition). */
+    static Map<String, TypedJoinSlot> slotSteps(TypedSpec pipeline) {
+        Map<String, TypedJoinSlot> out = new LinkedHashMap<>();
+        indexSlots(pipeline, out);
+        return out;
+    }
+
     private static void indexSlots(TypedSpec n, Map<String, TypedJoinSlot> out) {
         if (n instanceof TypedJoinSlot js) {
             out.put(js.alias(), js);

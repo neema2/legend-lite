@@ -1891,7 +1891,10 @@ public final class StoreResolver {
                 cols.add(new Type.RelationType
                         .Column(prefix + c.name(), c.type(), c.multiplicity()));
             }
-            TypedLambda backCond = corrAgg == null ? aj.condition()
+            // A JOINED-ROW sub (correlated OR chained parent-copy shape,
+            // targetPrefix set) already carries the association condition
+            // INSIDE — the outer joins back on parent-key equality only.
+            TypedLambda backCond = cas.targetPrefix() == null ? aj.condition()
                     : assocMaterial.pkEqualityCond(keyCols,
                             (Type.RelationType)
                                     withJoins.info().type(), subRow);

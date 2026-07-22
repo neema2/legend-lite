@@ -113,9 +113,12 @@ final class CorrelatedSubselects {
     CorrAggSub corrAggSubSource(ClassSource cs, String head,
             AssociationJoins.AssocJoin aj, TypedLambda corrAgg) {
         if (corrAgg == null) {
-            return new CorrAggSub(aj.targetPipeline(),
-                    targetEquiKeys(aj.condition(), head), aj.targetRow(),
-                    null, null, null, null);
+            List<String> tKeys = targetEquiKeysOrNull(aj.condition());
+            if (tKeys != null) {
+                return new CorrAggSub(aj.targetPipeline(), tKeys,
+                        aj.targetRow(), null, null, null, null);
+            }
+            return chainedAggSubSource(cs, head, aj);
         }
         List<String> keyCols = parentEquiKeys(aj.condition(), head);
         ParentCopy pc = parentCopyFor(cs, corrAgg);
@@ -366,17 +369,157 @@ static void collectVarNamesInto(TypedSpec n, Set<String> out) {
     }
 
 
-private static List<String> targetEquiKeys(TypedLambda cond,
-                                                         String head) {
+private static List<String> targetEquiKeysOrNull(TypedLambda cond) {
         List<String> keys = new ArrayList<>();
         if (!collectEquiKeys(cond.body().get(cond.body().size() - 1),
                 cond.parameters().get(0), cond.parameters().get(1), keys)
                 || keys.isEmpty()) {
-            throw new NotImplementedException("aggregate over navigation '"
-                    + head + "' requires a conjunctive equi-join association"
-                    + " condition (grouped-subselect emission)");
+            return null;
         }
         return keys;
+    }
+
+    /** #77 CHAINED/ROUTED aggregated navigation (engine parent-copy shape,
+     * unionOfViews golden): the association condition reads the parent
+     * through a MID join slot (firm → midTable → target) and/or ORs
+     * union-route keys, so the flat target-grouped subselect cannot key it
+     * — grouping by OR'd TARGET keys would be one group per target row
+     * (row explosion, wrong rows; never widen collectEquiKeys). Instead:
+     * sub = the parent pipeline with the mid slots AND the head's navigate
+     * join materialized (exploded INSIDE the sub), GROUP BY the FIRST
+     * hop's parent-side equi keys (chased through the mid slot's own join
+     * condition), aggregates over the prefixed target columns; the outer
+     * row joins back on those keys only — no mid join outside (engine:
+     * `... group by "firmextension_2".firmId) ... on (root.firmId =
+     * sub.firmId)`, testUnion.pure golden). */
+    private CorrAggSub chainedAggSubSource(ClassSource cs, String head,
+            AssociationJoins.AssocJoin aj) {
+        TypedLambda cond = aj.condition();
+        String srcVar = cond.parameters().get(0);
+        Set<String> slots = Pipelines.slotAliases(cs.pipeline());
+        Set<String> condSlots = new LinkedHashSet<>();
+        for (TypedSpec b : cond.body()) {
+            collectAliasReads(b, srcVar, slots, condSlots);
+        }
+        List<String> keyCols = new ArrayList<>();
+        if (condSlots.isEmpty()) {
+            List<String> ks = parentKeysLenient(cond.body()
+                    .get(cond.body().size() - 1), srcVar);
+            if (ks == null || ks.isEmpty()) {
+                throw new NotImplementedException("aggregate over navigation '"
+                        + head + "' requires equi-join parent keys"
+                        + " (grouped-subselect emission)");
+            }
+            keyCols.addAll(ks);
+        } else {
+            var slotSteps = Pipelines.slotSteps(cs.pipeline());
+            for (String alias : condSlots) {
+                var slot = slotSteps.get(alias);
+                List<String> ks = slot == null ? null
+                        : parentKeysLenient(slot.condition().body()
+                                .get(slot.condition().body().size() - 1),
+                                slot.condition().parameters().get(0));
+                if (ks == null || ks.isEmpty()) {
+                    throw new NotImplementedException(
+                            "aggregate over chained navigation '" + head
+                            + "': the first hop's join condition carries no"
+                            + " clean parent-side equi keys (deeper mid"
+                            + " chains are not supported yet)");
+                }
+                keyCols.addAll(ks);
+            }
+        }
+        keyCols = new ArrayList<>(new LinkedHashSet<>(keyCols));
+        // The head's navigate step: materialize the parent pipeline with
+        // the condition's mid slots demanded AND the head's navigate join
+        // flattened onto it (materialize rewrites the predicate's slot
+        // reads to the prefixed columns; the target widens for the keys
+        // the predicate binds on — the union-route ID_i columns).
+        TypedSpec binding = cs.bindings().get(SyntheticHeads.realHead(head));
+        var navSteps = Pipelines.navSteps(cs.pipeline());
+        String headAlias = binding == null ? null
+                : StoreResolver.navSlotAlias(binding, cs.rowVar(),
+                        navSteps.keySet());
+        if (headAlias != null) {
+            Pipelines.Materialized mat2 = Pipelines.materialize(cs.pipeline(),
+                    Pipelines.closeOverConditions(cs.pipeline(), condSlots),
+                    java.util.Set.of(headAlias), cs.classFqn(),
+                    (al, tc) -> aj.targetPipeline());
+            String corrTp = mat2.slotPrefixes().get(headAlias);
+            Type.RelationType joinedRow =
+                    (Type.RelationType) mat2.pipeline().info().type();
+            return new CorrAggSub(mat2.pipeline(), keyCols, joinedRow,
+                    corrTp, "_cj", joinedRow, null);
+        }
+        // ASSOCIATION-route head (no navigate step; the OR'd condition
+        // reads the parent main row directly — to-side union dispatch):
+        // hand-build parentCopy JOIN target ON cond, same shape as the
+        // correlated arm minus the predicate filter.
+        if (!condSlots.isEmpty()) {
+            throw new NotImplementedException("aggregate over association"
+                    + " navigation '" + head + "' whose condition reads a"
+                    + " join slot is not supported yet");
+        }
+        Pipelines.Materialized pMat = Pipelines.materialize(
+                cs.pipeline(), java.util.Set.of(), cs.classFqn());
+        Type.RelationType pRow =
+                (Type.RelationType) pMat.pipeline().info().type();
+        String corrTp = AssociationJoins.prefixFor(head + "_t", cs);
+        while (hasColPrefixed(pRow, corrTp)) {
+            corrTp = "_" + corrTp;
+        }
+        List<Type.Column> jCols = new ArrayList<>(pRow.columns());
+        for (Type.Column c : aj.targetRow().columns()) {
+            jCols.add(new Type.Column(
+                    corrTp + c.name(), c.type(), c.multiplicity()));
+        }
+        Type.RelationType jRow = new Type.RelationType(jCols);
+        TypedSpec joined = new TypedJoin(pMat.pipeline(), aj.targetPipeline(),
+                StoreResolver.leftKind(), cond, Optional.of(corrTp),
+                new ExprType(jRow,
+                        com.legend.compiler.element.type.Multiplicity
+                                .Bounded.ONE));
+        return new CorrAggSub(joined, keyCols, jRow, corrTp, "_cj", jRow, null);
+    }
+
+    /** Parent-side equi keys, OR-tolerant: descends and/or; every `equal`
+     * contributes its bare parent-side column when the other operand does
+     * not reference the parent row. Returns null on any unrecognized
+     * conjunct (slot-shaped reads are NOT bare — the caller's chase or
+     * wall handles them). */
+    private static List<String> parentKeysLenient(TypedSpec n,
+            String parentVar) {
+        if (!(n instanceof TypedNativeCall c)) {
+            return null;
+        }
+        String q = c.callee().qualifiedName();
+        if (q.equals("meta::pure::functions::boolean::and")
+                || q.equals("meta::pure::functions::boolean::or")) {
+            List<String> out = new ArrayList<>();
+            for (TypedSpec a : c.args()) {
+                List<String> ks = parentKeysLenient(a, parentVar);
+                if (ks == null) {
+                    return null;
+                }
+                out.addAll(ks);
+            }
+            return out;
+        }
+        if (q.equals("meta::pure::functions::boolean::equal")
+                && c.args().size() == 2) {
+            TypedSpec a = c.args().get(0);
+            TypedSpec b = c.args().get(1);
+            String aCol = bareColumnOn(a, parentVar);
+            String bCol = bareColumnOn(b, parentVar);
+            if (aCol != null && !referencesVar(b, parentVar)) {
+                return List.of(aCol);
+            }
+            if (bCol != null && !referencesVar(a, parentVar)) {
+                return List.of(bCol);
+            }
+            return null;
+        }
+        return null;
     }
 
 
@@ -456,7 +599,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
                                 + mFree + " — outer-correlated mapper"
                                 + " bodies are not supported yet");
             }
-            TypedLambda mm = corrAgg == null
+            TypedLambda mm = corrTp == null
                     ? assocMaterial.corrPredOnJoinedRow(d.mapper(),
                             cs, aj.target(), "",
                             aj.targetSlotPrefixes(),
@@ -467,7 +610,8 @@ private static boolean referencesVar(TypedSpec n, String var) {
                             cs, aj.target(), corrTp,
                             aj.targetSlotPrefixes(),
                             aj.targetSubNavs(),
-                            pc.mat().slotPrefixes(), pc.subNavs(),
+                            pc == null ? Map.of() : pc.mat().slotPrefixes(),
+                            pc == null ? Map.of() : pc.subNavs(),
                             corrRowVar, corrJoinedRow);
             mapBody = mm.body().get(0);
             leafType = mapBody.info().type();
@@ -487,9 +631,9 @@ private static boolean referencesVar(TypedSpec n, String var) {
             mapBody = leafBinding;
             leafType = leafBinding.info().type();
             leafMult = leafBinding.info().multiplicity();
-            if (corrAgg != null) {
-                // correlated sub: the leaf reads land PREFIXED on the
-                // joined row
+            if (corrTp != null) {
+                // correlated/chained sub: the leaf reads land PREFIXED on
+                // the joined row
                 final String rv = corrRowVar;
                 final var jr = corrJoinedRow;
                 mapBody = Pipelines.prefixColumns(leafBinding,
@@ -500,7 +644,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
                                                 .Multiplicity.Bounded.ONE)));
             }
         }
-        if (corrAgg != null) {
+        if (corrTp != null) {
             mapVar = corrRowVar;
             mapRowType = corrJoinedRow;
         }
@@ -566,7 +710,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
                         + " over navigation '" + head + "' reads outer"
                         + " variable(s) " + oFree + " — not supported yet");
             }
-            orderLambda = corrAgg == null
+            orderLambda = corrTp == null
                     ? assocMaterial.corrPredOnJoinedRow(d.orderKey(),
                             cs, aj.target(), "",
                             aj.targetSlotPrefixes(),
@@ -577,7 +721,8 @@ private static boolean referencesVar(TypedSpec n, String var) {
                             cs, aj.target(), corrTp,
                             aj.targetSlotPrefixes(),
                             aj.targetSubNavs(),
-                            pc.mat().slotPrefixes(), pc.subNavs(),
+                            pc == null ? Map.of() : pc.mat().slotPrefixes(),
+                            pc == null ? Map.of() : pc.subNavs(),
                             corrRowVar, corrJoinedRow);
         }
         return new TypedAggCol(alias, map, reduce, orderLambda,
