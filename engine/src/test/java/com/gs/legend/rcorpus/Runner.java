@@ -581,9 +581,29 @@ public final class Runner {
         if (mappingRefs.isEmpty()) {
             return new Outcome(t.fqn(), Status.SHAPE, "no execute(|...) call");
         }
+        // QUALIFIED function/element references in the body pull their
+        // defining families too (execute(..., other::family::runtime(),
+        // ...) — the engine compiles ONE module; per-family modules must
+        // close over what the test names). Same rule as the mapping pull.
+        java.util.Set<String> called = new java.util.LinkedHashSet<>();
+        java.util.Set<String> elements = new java.util.LinkedHashSet<>();
+        for (com.legend.model.spec.ValueSpecification stmt : body) {
+            collectCalledFqns(stmt, called, elements);
+        }
+        List<String> moduleRefs = new ArrayList<>(mappingRefs);
+        for (String ref : called) {
+            if (ref.contains("::") && elementSource.containsKey(ref)) {
+                moduleRefs.add(ref);
+            }
+        }
+        for (String ref : elements) {
+            if (ref.contains("::") && elementSource.containsKey(ref)) {
+                moduleRefs.add(ref);
+            }
+        }
         try {
             com.legend.compiler.element.ModelContext ctx =
-                    moduleContextFor(mappingRefs);
+                    moduleContextFor(moduleRefs);
             try (Connection conn = DriverManager.getConnection("jdbc:duckdb:")) {
                 try (var st = conn.createStatement()) {
                     st.execute("SET TimeZone='UTC'");
