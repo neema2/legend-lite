@@ -18,7 +18,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 163 | 8 | 73 | 14 |
+| functions/tests | 258 | 164 | 7 | 73 | 14 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 99 | 6 | 31 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -44,7 +44,7 @@ in-process Alloy-shaped path).
 | tds/tests | 266 | 175 | 2 | 60 | 29 |
 | testDataGeneration/tests | 68 | 0 | 0 | 0 | 68 |
 | tests | 39 | 0 | 0 | 0 | 39 |
-| tests/advanced | 68 | 37 | 2 | 13 | 16 |
+| tests/advanced | 68 | 38 | 1 | 13 | 16 |
 | tests/datatype | 5 | 3 | 1 | 1 | 0 |
 | tests/injection | 3 | 1 | 0 | 2 | 0 |
 | tests/mapping | 10 | 6 | 3 | 1 | 0 |
@@ -72,14 +72,14 @@ in-process Alloy-shaped path).
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 59 | 3 | 12 | 0 |
 | tests/mapping/tree | 12 | 8 | 2 | 2 | 0 |
-| tests/mapping/union | 124 | 67 | 1 | 45 | 11 |
+| tests/mapping/union | 124 | 68 | 0 | 45 | 11 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 4 | 0 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
 | tests/query | 83 | 62 | 2 | 18 | 1 |
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1255** | 64 | 594 | 625 |
+| **total** | 2538 | **1258** | 61 | 594 | 625 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6201,7 +6201,7 @@ in-process Alloy-shaped path).
 - 11x graph child 'bondDetails' of class 'meta::relational::tests::mapping::embedded::advanced::model::Product' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - 10x no overload of 'meta::legend::executeLegendQuery' matches 4 argument(s) of these shapes
 - 10x navigation through class-typed slot property 'address' is not supported yet
-- 7x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- 7x multi-hop navigation firm.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
 - 7x no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
 - 7x in function 'meta::relational::tests::postProcessor::cteExtraction::testRuntimeWithCTEPP': class 'meta::external::store::relational::runtime::TestDatabaseConnection' has no property 'queryPostProcessorsWithParameter'
 - 7x no SQL type for generic Class<meta::pure::metamodel::type::Any> at the lowering boundary
@@ -6218,7 +6218,7 @@ in-process Alloy-shaped path).
 - 5x only single-expression lambdas are supported yet
 - 4x store resolution left getAll(meta::relational::tests::model::simple::Person) unresolved — the query shape around it is not supported by the resolver yet
 - 4x Binder Error: subqueries in lambda expressions are not supported
-- 4x multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
+- 4x multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet [assocs=[locations]; head subNavs=[]; head binding=TypedPropertyAccess]
 - 4x class 'meta::pure::mapping::Mapping' has no property 'name'
 - 4x relation has no column 'name' in scalar read
 - 4x object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedNativeCall[callee=TypedFunction[qualifiedName=meta::pure::functions::multiplicity::toOne, typeParameters=[T], multiplicityParameters=[], parameters=[TypedParameter[name=…
@@ -6234,12 +6234,12 @@ in-process Alloy-shaped path).
 - SHAPE testRewriteSwitchToSalesTableWithQualifiedProperty [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testRewriteWithTDSJoin [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testRewriteSwitchToProductMonthTable [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- ERROR testRewriteSwitchToProdLineYearTable [aggregationAware/test/rewrite]: multi-hop navigation product.productLine.products.productName through an embedded/slot head is not supported yet
-- ERROR testRewriteSwitchToProdLineSalesPersonYearTable [aggregationAware/test/rewrite]: multi-hop navigation product.productLine.products.productName through an embedded/slot head is not supported yet
-- ERROR testRewriteEmployeeToSales [aggregationAware/test/rewrite]: multi-hop navigation sales.product.productId through an embedded/slot head is not supported yet
+- ERROR testRewriteSwitchToProdLineYearTable [aggregationAware/test/rewrite]: multi-hop navigation product.productLine.products.productName through an embedded/slot head is not supported yet [assocs=[product]; head subNavs=[productLine]; head binding=TypedPropertyAccess]
+- ERROR testRewriteSwitchToProdLineSalesPersonYearTable [aggregationAware/test/rewrite]: multi-hop navigation product.productLine.products.productName through an embedded/slot head is not supported yet [assocs=[person, product]; head subNavs=[productLine]; head binding=TypedPropertyAccess]
+- ERROR testRewriteEmployeeToSales [aggregationAware/test/rewrite]: multi-hop navigation sales.product.productId through an embedded/slot head is not supported yet [assocs=[sales]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testRewriteEmployeeToSalesBackToEmployee [aggregationAware/test/rewrite]: relation has no column 'activities' in scalar read
-- ERROR testRewriteEmployeeToSalesToProduct [aggregationAware/test/rewrite]: multi-hop navigation sales.product.productId through an embedded/slot head is not supported yet
-- ERROR testRewriteEmployeeToSalesToProductToProdLine [aggregationAware/test/rewrite]: multi-hop navigation sales.product.productId through an embedded/slot head is not supported yet
+- ERROR testRewriteEmployeeToSalesToProduct [aggregationAware/test/rewrite]: multi-hop navigation sales.product.productId through an embedded/slot head is not supported yet [assocs=[sales]; head subNavs=[person]; head binding=TypedPropertyAccess]
+- ERROR testRewriteEmployeeToSalesToProductToProdLine [aggregationAware/test/rewrite]: multi-hop navigation sales.product.productId through an embedded/slot head is not supported yet [assocs=[sales]; head subNavs=[person]; head binding=TypedPropertyAccess]
 - SHAPE testRewriteWithMilestonedDescriptionPropertyAccess [aggregationAware/test/rewrite]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testRewriteGetAllQuery [aggregationAware/test/rewrite/NOP]: embedded class hop 'activities' in CHAIN position without a scalar consumer is not supported yet
 - ERROR testRewriteFilter [aggregationAware/test/rewrite/NOP]: class query under TypedPropertyAccess is not resolvable yet (H2 vocabulary)
@@ -6375,9 +6375,8 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataType [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeMerge [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
-- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'ISIN1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                   
+- ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
 - ERROR testConcatenateWithFilter [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 1: SELECT t0.NAME AS a, list_concat(CASE WHEN starts_with(t0.NAME, 'Firm X') THEN..
-- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -6393,11 +6392,11 @@ in-process Alloy-shaped path).
 - ERROR testWithFilterGroupByNestedAssociation [functions/tests]: no scalar lowering registered for resolved overload 'meta::pure::functions::io::println' with 1 parameter(s)
 - ERROR testIsNotEmpty [functions/tests]: Binder Error: subqueries in lambda expressions are not supported
 - ERROR testAssociationOneLevelDeep [functions/tests]: Binder Error: subqueries in lambda expressions are not supported
-- ERROR testAssociationThreeLevelDeep [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
-- ERROR testAssociationHandlingDups [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
-- ERROR testAssociationWithProjectionHandlingDups [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
+- ERROR testAssociationThreeLevelDeep [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet [assocs=[locations]; head subNavs=[]; head binding=TypedPropertyAccess]
+- ERROR testAssociationHandlingDups [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet [assocs=[locations]; head subNavs=[]; head binding=TypedPropertyAccess]
+- ERROR testAssociationWithProjectionHandlingDups [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet [assocs=[locations]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testNestedExistsWithExistsInAbstractProperty [functions/tests]: exists/forAll predicate references column 'firm_employees', unresolvable even after isolation
-- ERROR testExistsWithOrCondition [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet
+- ERROR testExistsWithOrCondition [functions/tests]: multi-hop navigation locations.placeOfInterest.name through an embedded/slot head is not supported yet [assocs=[locations]; head subNavs=[]; head binding=TypedPropertyAccess]
 - SHAPE testFetchDbTablesMetaData [functions/tests]: no execute(|...) call
 - SHAPE testFetchDbColumnsMetaData [functions/tests]: no execute(|...) call
 - SHAPE testFetchDbSchemasMetaData [functions/tests]: no execute(|...) call
@@ -6406,12 +6405,12 @@ in-process Alloy-shaped path).
 - ERROR testBuildFilterWithValueThatCanBeNull [functions/tests]: in call to 'meta::pure::mapping::execute', argument 1: expected { -> T[*]}, got FunctionDefinition<{ -> meta::relational::tests::model::simple::Person[*]}>
 - ERROR testBuildFilterWithValueThatCanBeNullWithIn [functions/tests]: in call to 'meta::pure::mapping::execute', argument 1: expected { -> T[*]}, got FunctionDefinition<{ -> meta::relational::tests::model::simple::Person[*]}>
 - FAIL testConsistencyWithNullsInColumnToColumnComparison [functions/tests]: assertEquals: expected 2, got 11
-- ERROR testOrFilterWithTypeFilter [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testFilterBeforeAndAfterGroupBy [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testFilterBeforeAndAfterProject [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- ERROR testOrFilterWithTypeFilter [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
+- ERROR testFilterBeforeAndAfterGroupBy [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
+- ERROR testFilterBeforeAndAfterProject [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testLateIsolationOfTypeFilterDoesntPreventMerging [functions/tests]: property 'name' of class 'meta::relational::tests::model::simple::Firm' is mapped through the target's own join slots; nested navigation joins are not supported in this position yet
-- ERROR testFilterAfterFilter [functions/tests]: multi-hop navigation firm.address#f0.name through an embedded/slot head is not supported yet
-- ERROR testFilterInWithJoin [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- ERROR testFilterAfterFilter [functions/tests]: multi-hop navigation firm.address#f0.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
+- ERROR testFilterInWithJoin [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testMappingFromQueriesViaMappingWithAssociationsOnly [functions/tests]: class 'meta::pure::mapping::Mapping' has no property 'name'
 - ERROR testClassMappingsAreCorrectlyIsolated [functions/tests]: class 'meta::pure::mapping::Mapping' has no property 'name'
 - ERROR testClassMappingsWithUnions [functions/tests]: class 'meta::pure::mapping::Mapping' has no property 'name'
@@ -6426,9 +6425,9 @@ in-process Alloy-shaped path).
 - ERROR testInExecutionWithTempTableAndQueryChainingOnIntegerColumn [functions/tests]: object-space expression node TypedGetAll is not substitutable yet (H2 vocabulary): TypedGetAll[classFqn=meta::relational::tests::model::simple::ValidPerson, milestoning=[], versionSweep=false, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::ValidPerson], multiplicity=Bounded
 - ERROR testInExecutionWithTempTableAndQueryChainingAndChainConnection [functions/tests]: unbound variable '$modelChainConnection'
 - ERROR testIsolationOfInputToIsEmpty [functions/tests]: a class flatten over a FILTERED/transformed source chain is not supported yet (op below the 'firm' hop)
-- ERROR testIsolationOfInputToIsEmptyWithForcedFiltersOnInput [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testInputNotIsolatedWhenPropertyPathIsToOne [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
-- ERROR testIsolationOfTheSameInputInABooleanExprWhereOneSideIsEmpty [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet
+- ERROR testIsolationOfInputToIsEmptyWithForcedFiltersOnInput [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
+- ERROR testInputNotIsolatedWhenPropertyPathIsToOne [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
+- ERROR testIsolationOfTheSameInputInABooleanExprWhereOneSideIsEmpty [functions/tests]: multi-hop navigation firm.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testIsEmptyOnQualifiedPropertyFollowedByClassPropertyInput [functions/tests]: relation has no column 'name' in scalar read
 - SHAPE testIsEmptyOnCollection [functions/tests]: no execute(|...) call
 - ERROR testFilterThenMapAndReturnObject [functions/tests]: a class flatten over a FILTERED/transformed source chain is not supported yet (op below the 'employees' hop)
@@ -6766,7 +6765,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 2,John Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: no overload of 'evaluateAndDeactivate' matches 1 argument(s) of these shapes
@@ -6775,7 +6774,7 @@ in-process Alloy-shaped path).
 - SHAPE testMilestoningFilterPropagationWithNowInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testFilterOnView [milestoning/tests]: no overload of 'meta::pure::router::execute' matches 4 argument(s) of these shapes
 - ERROR testGraphFetchMultiPrimitiveOnInlineChild [milestoning/tests]: class 'meta::relational::tests::milestoning::inheritance::Book' is not mapped in mapping 'meta::relational::tests::milestoning::bookCatalogMap' (join chain [Book_Authorship] was never emitted on this pipeline — the expression navigates a join that was not hoisted as a slot)
-- ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation product.classification.description through an embedded/slot head is not supported yet
+- ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation product.classification.description through an embedded/slot head is not supported yet [assocs=[product]; head subNavs=[]; head binding=TypedPropertyAccess]
 - SHAPE testLatestIgnoredForNonMilestonedMappedClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClassesAllQuery [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestIgnoredForNonMilestonedMappedBiTemporalClasses [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
@@ -6787,14 +6786,14 @@ in-process Alloy-shaped path).
 - SHAPE testLatestMilestoneDatePropogationFromTypeQueryDoesNotOverrideThatSpecifiedAsArgToMilestonedQpInFilter [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testLatestMilestoneDateMappedTableDateDoesNotOverrideLatestDateFromChildPropertyInPropogation [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testMilestoneDatePropogationThruExistsConditionalClause [milestoning/tests]: milestoned property access 'classification' on a NESTED navigation is not supported yet
-- ERROR testMilestoningContextIsPropogatedThroughSubType [milestoning/tests]: multi-hop navigation product.stc_meta__relational__tests__milestoning__Product___classification.description through an embedded/slot head is not supported yet
+- ERROR testMilestoningContextIsPropogatedThroughSubType [milestoning/tests]: multi-hop navigation product.stc_meta__relational__tests__milestoning__Product___classification.description through an embedded/slot head is not supported yet [assocs=[product]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testInThruInclusiveUnionInThruInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::InThruInclusiveUnionInThruInclusiveMapping'
 - ERROR testOutFromInclusiveUnionOutFromInclusive [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::OutFromInclusiveUnionOutFromInclusiveMapping'
 - SHAPE testAssoWithOtherwise [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testAssoWithOtherwiseDeep [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testProcessingTemporalPropertyQuery [milestoning/tests]: Conversion Error: Type VARCHAR with value 'SRCE' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ....out_z > DATE '2015-10-16' AND t0.kerberos = t1.kerberos AND t1.name = ['SRCE']) |                                                                    
 - ERROR testProcessingTemporalPropertyPropagationInQuery [milestoning/tests]: Conversion Error: Type VARCHAR with value 'SRCE' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ....out_z > DATE '2015-10-16' AND t0.kerberos = t1.kerberos AND t1.name = ['SRCE']) |                                                                    
-- ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation processingTemporalProduct.classification.description through an embedded/slot head is not supported yet
+- ERROR testUnionQueryWithPropagationOnNonTemporalRootWithTemporalProperty [milestoning/tests]: multi-hop navigation processingTemporalProduct.classification.description through an embedded/slot head is not supported yet [assocs=[processingTemporalProduct]; head subNavs=[]; head binding=TypedNativeCall]
 - SHAPE testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithFunction [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testBusinessTemporalRangeQueryOnRootWithSubsequentCallToMilestonedQualifiedPropertyWithThisBusinessDate [milestoning/tests]: filter predicate references column 'businessDate', unresolvable even after isolation
 - ERROR testHybridMilestoningUnionOperationWithNonTemporalRoot [milestoning/tests]: property 'biTemporalProduct' of class 'meta::relational::tests::milestoning::Order' is not mapped in mapping 'meta::relational::tests::milestoning::hybridMilestoningUnionMap'
@@ -6868,7 +6867,7 @@ in-process Alloy-shaped path).
 - SHAPE testImportDataFlow [pureToSQLQuery/tests]: no execute(|...) call
 - SHAPE testPrerouting42 [router/tests]: assert form 'assertRoundTrip/3' is not supported yet
 - SHAPE testRoutingOfSimpleQualifiedProperty [router/tests]: no execute(|...) call
-- ERROR testRoutingWithSubtypePropagation [router/tests]: multi-hop navigation employees.stc_meta__relational__tests__model__simple__PersonExtension___manager.stc_meta__relational__tests__model__simple__PersonExtension___firstName through an embedded/slot head is not supported yet
+- ERROR testRoutingWithSubtypePropagation [router/tests]: multi-hop navigation employees.stc_meta__relational__tests__model__simple__PersonExtension___manager.stc_meta__relational__tests__model__simple__PersonExtension___firstName through an embedded/slot head is not supported yet [assocs=[employees]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testPlatformExpressionDependencyOnAFromExpression [router/tests]: no overload of 'routeFunction' matches 4 argument(s) of these shapes
 - ERROR testPlatformExpressionDependencyOnAFromExpression2 [router/tests]: no overload of 'routeFunction' matches 4 argument(s) of these shapes
 - SHAPE testCompositionInProject [router/tests]: no execute(|...) call
@@ -7131,14 +7130,13 @@ in-process Alloy-shaped path).
 - ERROR filterAbstractPropertyWithConditionOnRightTableExistsExpression [tests/advanced]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedPropertyAccess[source=TypedVariable[name=f, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Firm], multiplicity=Bounded[lower=1, upper=1]]], property=employees, info=Ex
 - SHAPE testFilterMappingWithProjectionOverlappForcedCorrelated [tests/advanced]: no execute(|...) call
 - SHAPE testFilterMappingWithProjectionOverlappForcedOnClause [tests/advanced]: no execute(|...) call
-- FAIL testProject [tests/advanced]: assertEquals: expected 4, got 0
 - SHAPE testMilestoningQueryWithSimpleProjectWithMilestoneFilterForcedCorrelated [tests/advanced]: no execute(|...) call
 - SHAPE testMilestoningQueryWithSimpleProjectWithMilestoneFilterForcedOnClause [tests/advanced]: no execute(|...) call
 - SHAPE testNonMilestoningQueryWithMilestoneFilterProjectForcedCorrelated [tests/advanced]: no execute(|...) call
 - SHAPE testNonMilestoningQueryWithMilestoneFilterProjectForcedOnClause [tests/advanced]: no execute(|...) call
 - SHAPE testDerivedWithFilteringTwoPropertiesForcedCorrelated [tests/advanced]: no execute(|...) call
 - SHAPE testDerivedWithFilteringTwoPropertiesForcedOnClause [tests/advanced]: no execute(|...) call
-- ERROR isolationTest [tests/advanced]: multi-hop navigation employees.group.children#f0.name through an embedded/slot head is not supported yet
+- ERROR isolationTest [tests/advanced]: multi-hop navigation employees.group.children#f0.name through an embedded/slot head is not supported yet [assocs=[employees]; head subNavs=[product, group]; head binding=TypedPropertyAccess]
 - FAIL testQualifierWithForkAndOrWithInline [tests/advanced]: assertEquals: expected Peter Smith Smith Smith Smith,Peter Smith Smith Smith Hill,Peter Smith Hill Smith Smith,Peter Smith Hill Smith Hill, got Peter Smith Hill Smith Hill,Peter Smith Smith Smith Hill,Peter Smith Hill Smith Smith,Peter Smith Smith Smith Smith
 - ERROR testQualifierWithIsolation [tests/advanced]: extend/project columns [firm] reference names unresolvable even after isolation
 - ERROR testQualifierWithIsolationXX [tests/advanced]: extend/project columns [firm] reference names unresolvable even after isolation
@@ -7206,7 +7204,7 @@ in-process Alloy-shaped path).
 - SHAPE testProjectionOtherwiseDeepTraversal [tests/mapping/embedded]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testProjectionOtherwiseNonPrimitive [tests/mapping/embedded]: in function 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise3$class$meta::relational::tests::mapping::embedded::advanced::model::Product': relation has no column 'bondClassification'
 - ERROR otherwiseTestComplexExpressionWithEnumMapping [tests/mapping/embedded]: property 'type' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is not mapped in mapping 'meta::relational::tests::mapping::embedded::advanced::mapping::testMappingEmbeddedOtherwise2'
-- ERROR testInlineEmbeddedMappingWithAssociationFromRootMapping [tests/mapping/embedded]: multi-hop navigation bondDetails.bondClassification.type through an embedded/slot head is not supported yet
+- ERROR testInlineEmbeddedMappingWithAssociationFromRootMapping [tests/mapping/embedded]: multi-hop navigation bondDetails.bondClassification.type through an embedded/slot head is not supported yet [assocs=[]; head subNavs=-; head binding=TypedNewInstance]
 - SHAPE testInlineInEmbedded [tests/mapping/embedded]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testInlineInEmbeddedGraphFetch [tests/mapping/embedded]: graph child 'issuer' of class 'meta::relational::tests::mapping::embedded::advanced::model::BondDetail' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
 - ERROR testMilestonedEmbeddedGraphFetch [tests/mapping/embedded]: graph child 'address' of class 'meta::relational::tests::mapping::embedded::advanced::model::Person' is mapped as an embedded/join-slot/otherwise/M2M binding — only association children are supported yet (H4b/H5c)
@@ -7231,11 +7229,11 @@ in-process Alloy-shaped path).
 - SHAPE testMainTableForC2 [tests/mapping/extends]: no execute(|...) call
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR filterMappingWithJoinInFilterAndPropertyGetAll [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::model::simple::Person' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithJoin [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
-- ERROR testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: multi-hop navigation parent.parent.name through an embedded/slot head is not supported yet
+- ERROR testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: multi-hop navigation parent.parent.name through an embedded/slot head is not supported yet [assocs=[parent]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testFilterMappingWithProjectionAndJoin [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithProjectionAndJoinAndQuery [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testGroupByMappingProjectWithGroupByInJoin [tests/mapping/groupBy]: Binder Error: Values list "t2" does not have a column named "PRODUCT_ID" |  | LINE 7: ) AS t2 ON t2.PRODUCT_ID = t0.ID |                    ^
@@ -7253,7 +7251,7 @@ in-process Alloy-shaped path).
 - FAIL testForcedSubTypeProjectDirect [tests/mapping/inheritance]: assertSameElements: expected [1, MBK, 2, David Scott, 1, Peugeot, 4, TDSNull, 2, BMX, 3, Atul Anand, 2, Renault, 4, TDSNull, 3, Nissan, 4, TDSNull], got [1, MBK, 2, David Scott, 2, BMX, 3, Atul Anand, 1, Peugeot, 4, David Scott, 2, Renault, 4, David Scott, 3, Nissan, 4, Atul Anand]
 - ERROR testGetAll [tests/mapping/inheritance]: no SQL type for generic Class<meta::relational::tests::model::inheritance::RoadVehicle> at the lowering boundary
 - ERROR testSubTypeFilter [tests/mapping/inheritance]: class-typed property '$p.roadVehicles' used as a whole value is graph output (Phase H4)
-- ERROR testProjectSubtype [tests/mapping/inheritance]: multi-hop navigation product.stc_meta__relational__tests__mapping__subType__MyProduct___rating.description through an embedded/slot head is not supported yet
+- ERROR testProjectSubtype [tests/mapping/inheritance]: multi-hop navigation product.stc_meta__relational__tests__mapping__subType__MyProduct___rating.description through an embedded/slot head is not supported yet [assocs=[product]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testSubTypeMappingValidWhenMappedExplicitly [tests/mapping/inheritance]: unknown function '_classMappingByClass'
 - FAIL testMultipleJoinsInPropertyMappingWithDatesInClass [tests/mapping/join]: assertSameElements: expected [Row1, Row2, Row3, Row1, Row2, Row3], got [Row1, Row2, Row3]
 - ERROR testMultipleJoinsInPropertyMappingWithDateInJoin [tests/mapping/join]: in function 'meta::relational::tests::mapping::join::model::mapping::advancedRelationalMapping2$class$meta::relational::tests::mapping::join::model::domain::TypeBuiltOutOfMultipleJoins': no overload of 'meta::pure::functions::boolean::lessThanEqual' structurally matches the argument types
@@ -7379,9 +7377,8 @@ in-process Alloy-shaped path).
 - ERROR testChainedUnionsWithMultipleAggregationWithAdditionalColumn [tests/mapping/union]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testChainedUnionsWithMapAggregation [tests/mapping/union]: navigation through class-typed slot property 'address' is not supported yet
 - ERROR testProjectAndFilterSamePropertySameJoinInUnion [tests/mapping/union]: Binder Error: Table "t0" does not have a column named "firstName" |  | Candidate bindings: : "lastName" |  | LINE 3:   SELECT t0.firstName AS firstName, t0.lastName AS lastName, t1.extr... |                  ^
-- FAIL testUnionOfViewsWithFilterInQualifiedProperty [tests/mapping/union]: assertEquals: expected [LastName Ext1A,LastName Ext1D, LastName Ext1B,LastName Ext2D, LastName Ext1C, LastName Ext2A, LastName Ext2B], got [LastName Ext1A,LastName Ext1D, LastName Ext2D,LastName Ext1B, LastName Ext1C, LastName Ext2A, LastName Ext2B]
 - ERROR testUnionOfViewsWithFilterInQualifiedPropertyAndNonOverlappingJoinSequnece [tests/mapping/union]: property 'employeesExt' of class 'meta::relational::tests::model::simple::FirmExtension' is not mapped in mapping 'meta::relational::tests::mapping::union::unionOfViews2'
-- ERROR testChainedUnions [tests/mapping/union]: multi-hop navigation firm.temporalEntityWithAddress.address.name through an embedded/slot head is not supported yet
+- ERROR testChainedUnions [tests/mapping/union]: multi-hop navigation firm.temporalEntityWithAddress.address.name through an embedded/slot head is not supported yet [assocs=[firm]; head subNavs=[]; head binding=TypedPropertyAccess]
 - ERROR testPksWithImportDataFlow [tests/mapping/union]: Unknown type: 'Column' is not a known primitive, class, or enum
 - ERROR testUnionWithSinglePropertyMapping [tests/mapping/union]: in function 'meta::relational::postProcessor::removeUnionOrJoins::testRuntimeWithRemoveUnionOrJoinsFeatureEnabled': property 'connection' of 'meta::core::runtime::ConnectionStore' declares multiplicity Bounded[lower=1, upper=1] but the value has Bounded[lower=0, upper=1]
 - SHAPE testEnumFilterWithUnionMappingPlanGeneration [tests/mapping/union]: no execute(|...) call
@@ -7449,7 +7446,7 @@ in-process Alloy-shaped path).
 - SHAPE testToSQLStringWithAggregation [transform/fromPure/tests]: no execute(|...) call
 - ERROR testToSQLStringWithAggregationDB2 [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - ERROR testToSQLStringWithRelativeDateDB2 [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
-- ERROR testToSQLStringWithAbs [transform/fromPure/tests]: in function 'meta::relational::tests::functions::sqlstring::testCasesForDocGeneration': property 'query' of 'meta::relational::tests::functions::sqlstring::TestCase': expected FunctionDefinition<{ -> meta::pure::metamodel::type::Any[*]}>, got { -> (firstName:String[1], new:Integer[1])[1]} (value: La
+- ERROR testToSQLStringWithAbs [transform/fromPure/tests]: 'meta::pure::tds::groupBy_TabularDataSet_1__String_MANY__AggregateValue_MANY__TabularDataSet_1_' is not a known class, mapping, runtime, connection, or database
 - FAIL testToSQLStringJoinStrings [transform/fromPure/tests]: assertEquals: expected select "root".LEGALNAME as "legalName", listagg("personTable_d#4_d_m1".FIRSTNAME, '*') as "employeesFirstName" from firmTable as "root" left outer join personTable as "personTable_d#4_d_m1" on ("root".ID = "personTable_d#4_d_m1".FIRMID) group by "legalName", got select "root".
 - ERROR testToSQLStringJoinStringsSimpleConcat [transform/fromPure/tests]: toSQLString for DatabaseType.DB2 — only the H2 engine-style renderer is built
 - SHAPE testToSQLStringWithCodeBlock [transform/fromPure/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification

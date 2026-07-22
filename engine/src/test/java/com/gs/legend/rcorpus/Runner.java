@@ -622,7 +622,8 @@ public final class Runner {
                 try (var st = conn.createStatement()) {
                     st.execute("SET TimeZone='UTC'");
                 }
-                List<String> failedSeeds = replaySeeds(t.fqn(), ctx, conn);
+                List<String> failedSeeds = replaySeeds(t.fqn(), moduleRefs,
+                        ctx, conn);
                 seedFailures.addAll(failedSeeds);
                 com.legend.harness.TestBody.Outcome o = com.legend.harness.TestBody.run(
                         ctx, body, importScopeOf(t), "rcorpus::Rt",
@@ -853,6 +854,11 @@ public final class Runner {
 
     private List<String> replaySeeds(String fqn,
             com.legend.compiler.element.ModelContext ctx, Connection conn) {
+        return replaySeeds(fqn, List.of(), ctx, conn);
+    }
+
+    private List<String> replaySeeds(String fqn, List<String> crossRefs,
+            com.legend.compiler.element.ModelContext ctx, Connection conn) {
         // MODULE-DERIVED DDL (audit 19d B6 / task #55): every table of
         // every database the test's module compiled, spelled by Ddl.java
         // from the PARSED store — the regex extraction (tableDefsAll/
@@ -877,6 +883,36 @@ public final class Runner {
         // shared-file zero-arg units first (the legacy dataSeeds position),
         // then this test's BeforePackage fns — each a real call through the
         // platform; parameterized shared fns run when a body CALLS them
+        // CROSS-FAMILY runtime data (testProject: injection::testRuntime
+        // named from tests/advanced — the tables exist via module DDL but
+        // sit EMPTY). NARROW by design (probe-and-revert #13: v1 clobbered
+        // shared tables, v2's broad prefix match broke setup order
+        // estate-wide): only refs whose DEFINING FAMILY differs from the
+        // current family; only the LONGEST BeforePackage prefix of each
+        // ref; a SEPARATE dedup set so the own-family loops below keep
+        // their exact order; failures go to a scratch list — a foreign
+        // setup must never poison the test's own seed scoring. Cross runs
+        // FIRST so shared-named tables re-seed own-last (own wins).
+        java.util.Set<String> crossExecuted = new java.util.HashSet<>();
+        List<String> crossScratch = new ArrayList<>();
+        for (String ref : crossRefs) {
+            String defining = elementSource.get(ref);
+            String fam = defining == null ? null : sourceFamily.get(defining);
+            if (fam == null || fam.equals(currentFamilyKey)) {
+                continue;
+            }
+            String[] best = null;
+            for (String[] bp : beforePackagesParsed) {
+                if (ref.startsWith(bp[0] + "::")
+                        && (best == null || bp[0].length() > best[0].length())) {
+                    best = bp;
+                }
+            }
+            if (best != null && setupFnAsts.containsKey(best[1])
+                    && isEffectfulSetup(best[1]) && crossExecuted.add(best[1])) {
+                callSetup(best[1], ctx, conn, crossScratch);
+            }
+        }
         java.util.Set<String> executed = new java.util.HashSet<>();
         for (SetupUnit unit : sharedSetupUnits) {
             if (unit.zeroArg() && isEffectfulSetup(unit.fqn())
