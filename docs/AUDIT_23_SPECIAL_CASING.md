@@ -184,3 +184,15 @@ a candidate for future re-grounding, none is a bug:
 7. **toOne over relations is row-identity** (Lowerer): the exactly-one
    contract enforces at reader roots (executor scalar guard), not
    mid-pipeline.
+
+## Slice D2 measurement (2026-07-21)
+
+Instrumented sweep (LL_TOL_COUNT=1) across all 2538 tests: **~25 cell
+comparisons** in total depend on the numeric tolerances, every one a
+last-ULP artifact — libm constants (pi/3, pi/6 from asin/acos: the
+documented H2-vs-DuckDB libm class) and float accumulation-order printing
+(6.84 vs 6.840000000000002). No genuine value divergence hides behind the
+grants. VERDICT: the 1e-11/half-ulp and 2-ULP tolerances stay as
+documented dialect-arithmetic policy; the env-gated counters remain for
+future re-measurement. Slice D complete; audit-23 backlog (task #75)
+closed.

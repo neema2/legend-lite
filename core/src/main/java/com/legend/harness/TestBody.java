@@ -1446,6 +1446,12 @@ public final class TestBody {
                 if (Math.abs(av - ev) > tol) {
                     return false;
                 }
+                // audit 23 D2 instrumentation (measurement-only): count
+                // comparisons that pass ONLY because of the tolerance
+                if (av != ev && Math.abs(av - ev) <= tol
+                        && System.getenv("LL_TOL_COUNT") != null) {
+                    System.err.println("[tol] csv " + e + " vs " + a);
+                }
             } catch (NumberFormatException nfe) {
                 return false;
             }
@@ -1663,7 +1669,13 @@ public final class TestBody {
             if (e instanceof Double de && a instanceof Double da
                     && !de.isNaN() && !da.isNaN()) {
                 double ulp = Math.ulp(Math.max(Math.abs(de), Math.abs(da)));
-                return Math.abs(de - da) <= 2 * ulp;
+                boolean ok = Math.abs(de - da) <= 2 * ulp;
+                // audit 23 D2 instrumentation (measurement-only)
+                if (ok && de.doubleValue() != da.doubleValue()
+                        && System.getenv("LL_TOL_COUNT") != null) {
+                    System.err.println("[tol] ulp " + de + " vs " + da);
+                }
+                return ok;
             }
             return false;
         }
