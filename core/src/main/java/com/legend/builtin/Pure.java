@@ -773,6 +773,12 @@ public final class Pure {
     public static final NativeFunctionDefinition FIRST_DAY_OF_MONTH__DATE_1 = signature("native function meta::pure::functions::date::firstDayOfMonth(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Date[1];");
     public static final NativeFunctionDefinition FIRST_DAY_OF_QUARTER__DATE_1 = signature("native function meta::pure::functions::date::firstDayOfQuarter(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::StrictDate[1];");
     public static final NativeFunctionDefinition FIRST_DAY_OF_YEAR__DATE_1 = signature("native function meta::pure::functions::date::firstDayOfYear(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Date[1];");
+    /** Pure-code composition in real pure (dateExtension.pure:482 — today()->firstDayOfYear()); platform-native here, composed BY EMISSION. */
+    public static final NativeFunctionDefinition FIRST_DAY_OF_THIS_YEAR = signature("native function meta::pure::functions::date::firstDayOfThisYear():meta::pure::metamodel::type::Date[1];");
+    /** Real pure dateExtension.pure:472. */
+    public static final NativeFunctionDefinition FIRST_DAY_OF_THIS_MONTH = signature("native function meta::pure::functions::date::firstDayOfThisMonth():meta::pure::metamodel::type::Date[1];");
+    /** Real pure dateExtension.pure:187 — StrictDate[1]. */
+    public static final NativeFunctionDefinition FIRST_DAY_OF_THIS_QUARTER = signature("native function meta::pure::functions::date::firstDayOfThisQuarter():meta::pure::metamodel::type::StrictDate[1];");
     public static final NativeFunctionDefinition FIRST_HOUR_OF_DAY__DATE_1 = signature("native function meta::pure::functions::date::firstHourOfDay(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition FIRST_MILLISECOND_OF_SECOND__DATE_1 = signature("native function meta::pure::functions::date::firstMillisecondOfSecond(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition FIRST_MINUTE_OF_HOUR__DATE_1 = signature("native function meta::pure::functions::date::firstMinuteOfHour(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::DateTime[1];");

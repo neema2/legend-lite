@@ -411,16 +411,22 @@ final class Scalars {
                     new SqlExpr.StringLit("quarter"),
                     dateArg(n.args().get(0), args.get(0)))));
         }
-        // Truncations: DATE_TRUNC with the part literal.
-        for (var e : Map.of("firstDayOfMonth", "month", "firstDayOfYear", "year",
-                "firstDayOfWeek", "week", "firstDayOfQuarter", "quarter",
-                "firstHourOfDay", "day", "firstMinuteOfHour", "hour",
-                "firstSecondOfMinute", "minute",
-                "firstMillisecondOfSecond", "second").entrySet()) {
+        // Truncations: DATE_TRUNC with the part literal. The zero-arg
+        // This* heads truncate TODAY() (real pure composes
+        // today()->firstDayOf*, dateExtension.pure — same by emission).
+        for (var e : Map.ofEntries(
+                Map.entry("firstDayOfMonth", "month"), Map.entry("firstDayOfYear", "year"),
+                Map.entry("firstDayOfWeek", "week"), Map.entry("firstDayOfQuarter", "quarter"),
+                Map.entry("firstHourOfDay", "day"), Map.entry("firstMinuteOfHour", "hour"),
+                Map.entry("firstSecondOfMinute", "minute"), Map.entry("firstMillisecondOfSecond", "second"),
+                Map.entry("firstDayOfThisYear", "year"), Map.entry("firstDayOfThisQuarter", "quarter"),
+                Map.entry("firstDayOfThisMonth", "month")).entrySet()) {
             for (String f : Pure.nativeKeysAt(e.getKey())) {
                 RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.DATE_TRUNC, List.of(
                         new SqlExpr.StringLit(e.getValue()),
-                        dateArg(n.args().get(0), args.get(0)))));
+                        n.args().isEmpty()
+                                ? new SqlExpr.Call(SqlFn.TODAY, List.of())
+                                : dateArg(n.args().get(0), args.get(0)))));
             }
         }
         // adjust(d, n, unit) / timeBucket(d, n, unit): the DurationUnit enum
@@ -3170,7 +3176,7 @@ final class Scalars {
     private static SqlExpr dateWithPattern(String pattern, SqlExpr arg) {
         if (!pattern.startsWith("[") || pattern.indexOf(']') < 0) {
             return SqlExpr.Call.of(SqlFn.STRFTIME, arg,
-                    new SqlExpr.StringLit(javaDateToStrftime(pattern)));
+                    new SqlExpr.StringLit(DateFormats.javaDateToStrftime(pattern)));
         }
         int zb = pattern.indexOf(']');
         String zone = pattern.substring(1, zb);
@@ -3186,7 +3192,7 @@ final class Scalars {
         SqlExpr wall = SqlExpr.Call.of(SqlFn.TIMEZONE, new SqlExpr.StringLit(zone),
                 SqlExpr.Call.of(SqlFn.TIMEZONE, new SqlExpr.StringLit("UTC"), arg));
         SqlExpr shifted = SqlExpr.Call.of(SqlFn.STRFTIME, wall,
-                new SqlExpr.StringLit(javaDateToStrftime(pat)));
+                new SqlExpr.StringLit(DateFormats.javaDateToStrftime(pat)));
         if (!offsetSuffix) {
             return shifted;
         }
@@ -3245,54 +3251,6 @@ final class Scalars {
         return cat(new SqlExpr.StringLit("'"), escaped, new SqlExpr.StringLit("'"));
     }
 
-    /**
-     * Java SimpleDateFormat pattern -> strftime, longest token first. Values
-     * are UTC throughout, so the ZONE directives are literals: Z prints the
-     * +0000 offset, X the ISO 'Z'.
-     */
-    private static String javaDateToStrftime(String pattern) {
-        StringBuilder out = new StringBuilder();
-        int i = 0;
-        while (i < pattern.length()) {
-            if (pattern.charAt(i) == '"') {
-                int close = pattern.indexOf('"', i + 1);
-                if (close < 0) {
-                    throw new IllegalStateException("unterminated quote in date pattern: " + pattern);
-                }
-                out.append(pattern, i + 1, close);
-                i = close + 1;
-                continue;
-            }
-            String rest = pattern.substring(i);
-            String[][] tokens = {
-                    {"yyyy", "%Y"}, {"SSS", "%g"}, {"MM", "%m"}, {"dd", "%d"},
-                    {"HH", "%H"}, {"hh", "%I"}, {"mm", "%M"}, {"ss", "%S"},
-                    {"h", "%-I"}, {"a", "%p"}, {"Z", "+0000"}, {"X", "Z"},
-            };
-            boolean matched = false;
-            for (String[] t : tokens) {
-                if (rest.startsWith(t[0])) {
-                    out.append(t[1]);
-                    i += t[0].length();
-                    matched = true;
-                    break;
-                }
-            }
-            if (!matched) {
-                char ch = pattern.charAt(i);
-                // A pattern LETTER outside the token table would silently
-                // pass through as literal text ('MMM' -> '03M'; audit) —
-                // loud instead; punctuation/separators pass.
-                if (Character.isLetter(ch)) {
-                    throw new IllegalStateException("unsupported date-format"
-                            + " token '" + ch + "' in pattern '" + pattern + "'");
-                }
-                out.append(ch);
-                i++;
-            }
-        }
-        return out.toString();
-    }
 
     private static boolean isClassish(Type t) {
         return (t instanceof Type.ClassType && !PlatformTypes.isVariant(t)

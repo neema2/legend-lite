@@ -407,7 +407,8 @@ final class Typer {
         }
         Optional<CoreFn> core = CoreFn.of(af.function());
         if (core.isPresent()) {
-            return applyCore(core.get(), af, env);
+            return applyCore(core.get(),
+                    aliasNormalized(core.get(), af), env);
         }
         // instanceOf(cell, TDSNull): the null-cell type test IS the SQL
         // null test (the engine materializes ^TDSNull() for null cells;
@@ -497,6 +498,16 @@ final class Typer {
      * {@code my::customRenameColumn} calls the user function). */
     private static boolean tdsVocab(String fn, String simple) {
         return fn.equals(simple) || fn.equals("meta::pure::tds::" + simple);
+    }
+
+    /** CURATED-alias spellings (tds::distinct, relation::eval) have no
+     * FQN-registered native — dispatch under the bare parse name so the
+     * checker's checkGeneric resolves candidates. */
+    private static AppliedFunction aliasNormalized(CoreFn core, AppliedFunction af) {
+        return !af.function().equals(core.parseName())
+                && af.function().contains("::")
+                && com.legend.builtin.Pure.nativeFunctionsAt(af.function()).isEmpty()
+                ? new AppliedFunction(core.parseName(), af.parameters()) : af;
     }
 
     /**

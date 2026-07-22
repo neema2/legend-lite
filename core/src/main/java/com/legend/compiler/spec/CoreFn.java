@@ -169,6 +169,14 @@ public enum CoreFn {
         // ⊆-colspec signature would pollute the shared bare-name 'eval'
         // overload set that variableEval resolves against (audit: five
         // higher-order corpus tests broke).
+        // meta::pure::tds::distinct (engine tds.pure:471, TabularDataSet
+        // surface) — CURATED alias for the same reason as relation::eval:
+        // registering the FQN as a native TIES with relation::distinct in
+        // the shared bare-name overload set (ambiguous-overload on every
+        // plain ->distinct()).
+        if (parseName.equals("meta::pure::tds::distinct")) {
+            return Optional.of(DISTINCT);
+        }
         if (parseName.equals("meta::pure::functions::relation::eval")) {
             return Optional.of(EVAL);
         }
