@@ -364,7 +364,12 @@ final class AssociationJoins {
         // executing self-association fixture).
         String classAFqn = ((Type.ClassType)
                 fns.get(0).parameters().get(0).type()).fqn();
-        if (!classAFqn.equals(cs.classFqn()) && !classAFqn.equals(targetClass)) {
+        // SUBTYPE-aware orientation (extends family): the navigating
+        // parent may be a SUBCLASS of the association's declared end
+        // class (B extends A navigating AE's 'e' end)
+        boolean parentIsA = ctx.isSubtype(cs.classFqn(), classAFqn);
+        boolean targetIsA = ctx.isSubtype(targetClass, classAFqn);
+        if (!parentIsA && !targetIsA) {
             throw new IllegalStateException("resolver bug: association predicate '"
                     + binding.predicateFunctionFqn() + "' first param class '"
                     + classAFqn + "' is neither parent '" + cs.classFqn()
@@ -372,7 +377,7 @@ final class AssociationJoins {
         }
         boolean reverse = cs.classFqn().equals(targetClass)
                 ? !assoc.property1().propertyName().equals(real)
-                : !cs.classFqn().equals(classAFqn);
+                : !parentIsA;
         TypedLambda oriented = cond;
         if (reverse) {
             var ft = (Type.FunctionType)

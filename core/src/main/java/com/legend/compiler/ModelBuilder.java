@@ -581,6 +581,36 @@ public final class ModelBuilder {
      */
     public Optional<AssociationDefinition> findAssociationOf(String ownerClassFqn,
                                                              String propName) {
+        // INHERITANCE (real pure): an association end injects onto the
+        // named class AND its subclasses (extends-family: AE's 'e' end on
+        // A serves B extends A). Nearest class wins; ambiguity stays loud
+        // PER LEVEL (the split-brain rule below).
+        java.util.Set<String> visited = new java.util.LinkedHashSet<>();
+        java.util.ArrayDeque<String> level = new java.util.ArrayDeque<>();
+        level.add(ownerClassFqn);
+        while (!level.isEmpty()) {
+            String cls = level.poll();
+            if (!visited.add(cls)) {
+                continue;
+            }
+            Optional<AssociationDefinition> hit =
+                    findAssociationAtClass(cls, propName);
+            if (hit.isPresent()) {
+                return hit;
+            }
+            findClass(cls).ifPresent(cd -> {
+                for (var sup : cd.superClasses()) {
+                    if (sup instanceof com.legend.model.TypeExpression.NameRef nr) {
+                        level.add(nr.name());
+                    }
+                }
+            });
+        }
+        return Optional.empty();
+    }
+
+    private Optional<AssociationDefinition> findAssociationAtClass(
+            String ownerClassFqn, String propName) {
         java.util.List<AssociationDefinition> hits = new java.util.ArrayList<>();
         for (AssociationDefinition ad : associations) {
             if (ad == null) continue;

@@ -18,7 +18,7 @@ in-process Alloy-shaped path).
 | autogeneration/tests | 1 | 0 | 0 | 0 | 1 |
 | calendarAggregation/tests | 92 | 88 | 0 | 0 | 4 |
 | executionPlan/tests | 110 | 0 | 0 | 10 | 100 |
-| functions/tests | 258 | 161 | 7 | 76 | 14 |
+| functions/tests | 258 | 160 | 8 | 76 | 14 |
 | functions/tests/loadCsvToDbTable | 1 | 0 | 0 | 1 | 0 |
 | functions/tests/projection | 155 | 97 | 6 | 33 | 19 |
 | graphFetch/domain | 1 | 0 | 0 | 0 | 1 |
@@ -55,7 +55,7 @@ in-process Alloy-shaped path).
 | tests/mapping/embedded | 63 | 46 | 1 | 14 | 2 |
 | tests/mapping/enumeration | 26 | 15 | 4 | 4 | 3 |
 | tests/mapping/extends | 23 | 10 | 2 | 5 | 6 |
-| tests/mapping/extends/union | 8 | 5 | 0 | 3 | 0 |
+| tests/mapping/extends/union | 8 | 5 | 2 | 1 | 0 |
 | tests/mapping/filter | 9 | 4 | 0 | 5 | 0 |
 | tests/mapping/groupBy | 10 | 8 | 0 | 2 | 0 |
 | tests/mapping/inClause | 4 | 0 | 0 | 0 | 4 |
@@ -72,14 +72,14 @@ in-process Alloy-shaped path).
 | tests/mapping/selfJoin | 3 | 1 | 2 | 0 | 0 |
 | tests/mapping/sqlFunction | 74 | 59 | 3 | 12 | 0 |
 | tests/mapping/tree | 12 | 8 | 2 | 2 | 0 |
-| tests/mapping/union | 124 | 63 | 0 | 50 | 11 |
+| tests/mapping/union | 124 | 66 | 0 | 47 | 11 |
 | tests/mapping/union/relation | 15 | 11 | 0 | 4 | 0 |
 | tests/platformOperations | 4 | 0 | 0 | 4 | 0 |
 | tests/query | 83 | 60 | 1 | 21 | 1 |
 | transform/fromPure/tests | 50 | 15 | 4 | 16 | 15 |
 | validation/showcase | 8 | 0 | 0 | 0 | 8 |
 | validation/tests | 23 | 0 | 0 | 0 | 23 |
-| **total** | 2538 | **1227** | 58 | 643 | 610 |
+| **total** | 2538 | **1229** | 61 | 638 | 610 |
 
 ### mapping walls (dropped at assembly)
 
@@ -6385,6 +6385,7 @@ in-process Alloy-shaped path).
 - ERROR testConcatenateDataTypeDiffProperty [functions/tests]: Binder Error: No function matches the given name and argument types 'list_concat(VARCHAR, VARCHAR)'. You might need to add explicit type casts. | 	Candidate functions: | 	list_concat([ANY[]...]) -> ANY[] |  |  | LINE 3: WHERE coalesce(list_contains(list_concat((SELECT t1.NAME AS name FROM "productSc
 - ERROR testConcatenateClass [functions/tests]: Conversion Error: Type VARCHAR with value 'CUSIP1' can't be cast to the destination type VARCHAR[] when casting from source column name |  | LINE 3: ... NULL END END = 'CUSIP' ) AS t3 WHERE t3.PRODID = t0.ID AND t3.NAME = ['ISIN2']) |                                                                  
 - ERROR testConcatenateWithFilter [functions/tests]: object-space expression node TypedFilter is not substitutable yet (H2 vocabulary): TypedFilter[source=TypedVariable[name=p, info=ExprType[type=ClassType[fqn=meta::relational::tests::model::simple::Product], multiplicity=Bounded[lower=1, upper=1]]], predicate=TypedLambda[parameters=[p], body=[TypedNa
+- FAIL testConcatenateClassAgg [functions/tests]: assertEquals: expected Firm A ISIN2|CUSIP2,Firm C ISIN3|CUSIP3,Firm D null,Firm X ISIN1|CUSIP1, got Firm A CUSIP2|ISIN2,Firm C CUSIP3|ISIN3,Firm D null,Firm X CUSIP1|ISIN1
 - ERROR testConcatenateInQualifierWithComplexReturnType [functions/tests]: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - ERROR testQualifierConcatenateTwoSimilarJoins [functions/tests]: extend/project columns [Trade ID, OE] reference names unresolvable even after isolation
 - ERROR testQualifierConcatenateTwoSimilarJoinsEmbedded [functions/tests]: class-typed property 'oe' of association target 'meta::relational::tests::projection::function::concatenate::model::SubAccount' (embedded) is not supported yet
@@ -6778,7 +6779,7 @@ in-process Alloy-shaped path).
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - SHAPE testDateFunctionInMilestonedProperty [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testDateFunctionInMilestonedPropertyWithMilestonedEntity [milestoning/tests]: sql-only: 1 advisory golden-SQL assert(s), no row verification
-- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [2,John Martinez, 1,Joe Martinez, 1,Joe Martinez]
+- FAIL testMilestoningContextPropagatedThruPropertyToViewWithNonMilestonedRoot [milestoning/tests]: assertEquals: expected [1,Joe Martinez, 1,Joe Martinez, 2,TDSNull], got [1,Joe Martinez, 1,Joe Martinez, 2,John Martinez]
 - ERROR testMilestoningContextPropagatedWithViewAsMainRelationOfView [milestoning/tests]: in function 'meta::relational::tests::milestoning::milestoningmapWithViewUsingViewColumns$class$meta::relational::tests::milestoning::TradePnl': unknown table 'tradePnlIntermediateView' in database 'meta::relational::tests::milestoning::db'
 - ERROR testMilestoningCriteriaOriginatingFromQualifiedPropertyAppliedToSimplePropertyMultiOperationalJoinFromTemporalClass [milestoning/tests]: in call to 'meta::relational::tests::milestoning::Product$prop$classificationWithDateConstant', argument 1: expected at most one value, got many ([*])
 - ERROR testConcatenationOfTemporalTdsQueries [milestoning/tests]: Unknown type: 'TabularDataSet' is not a known primitive, class, or enum
@@ -7253,15 +7254,15 @@ in-process Alloy-shaped path).
 - SHAPE testSuperSetIdsAreCollected [tests/mapping/extends]: no execute(|...) call
 - SHAPE testPrimaryKeyForB [tests/mapping/extends]: no execute(|...) call
 - ERROR testPropertyMappingsForA [tests/mapping/extends]: property 'stc_meta__relational__tests__mapping__extend__model__F___fName' of class 'meta::relational::tests::mapping::extend::model::E' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
-- ERROR testPropertyMappingsForB [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
-- ERROR testPropertyMappingsForC [tests/mapping/extends]: property 'e' of class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
-- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [3, 1]
+- ERROR testPropertyMappingsForB [tests/mapping/extends]: property 'stc_meta__relational__tests__mapping__extend__model__F___fName' of class 'meta::relational::tests::mapping::extend::model::E' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
+- ERROR testPropertyMappingsForC [tests/mapping/extends]: property 'stc_meta__relational__tests__mapping__extend__model__F___fName' of class 'meta::relational::tests::mapping::extend::model::E' is not mapped in mapping 'meta::relational::tests::mapping::extend::propertyMapping::testMapping'
+- FAIL testAllForB [tests/mapping/extends]: assertEquals: expected 4, got [1, 3]
 - FAIL testGroupByForB [tests/mapping/extends]: assertSameElements: expected [4, 6], got [1, 2, 3, 4]
 - ERROR testStoreSubstitutionForB [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::BMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::B': [meta::relational::tests::mapp
 - ERROR testStoreSubstitutionForC [tests/mapping/extends]: class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::storeSubstitution::CMapping' (Inconsistent database definitions for the mapping of class 'meta::relational::tests::mapping::extend::model::C': [meta::relational::tests::mapp
 - ERROR testPropertyMappingsForA [tests/mapping/extends/union]: property 'stc_meta__relational__tests__mapping__extend__model__F___fName' of class 'meta::relational::tests::mapping::extend::model::E' is not mapped in mapping 'meta::relational::tests::mapping::extend::union::propertyMapping::testMapping'
-- ERROR testPropertyMappingsForB [tests/mapping/extends/union]: property 'e' of class 'meta::relational::tests::mapping::extend::model::B' is not mapped in mapping 'meta::relational::tests::mapping::extend::union::propertyMapping::testMapping'
-- ERROR testPropertyMappingsForC [tests/mapping/extends/union]: property 'e' of class 'meta::relational::tests::mapping::extend::model::C' is not mapped in mapping 'meta::relational::tests::mapping::extend::union::propertyMapping::testMapping'
+- FAIL testPropertyMappingsForB [tests/mapping/extends/union]: assertSameElements: expected [1, 3], got [1, 3, 1, 3]
+- FAIL testPropertyMappingsForC [tests/mapping/extends/union]: assertSameElements: expected [1, 3], got [1, 3, 1, 3]
 - ERROR filterMappingWithJoinInFilterAndPropertyGetAll [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::model::simple::Person' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithJoin [tests/mapping/filter]: mapping ~filter for 'meta::relational::tests::mapping::filter::model::domain::Org' reads through a join slot; join-mediated mapping filters are H3-pending
 - ERROR testFilterMappingWithProjectionOverlapp [tests/mapping/filter]: multi-hop navigation parent.parent.name through an embedded/slot head is not supported yet
@@ -7428,11 +7429,8 @@ in-process Alloy-shaped path).
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_FirmIdKey_Unmapped [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testPartialUnionAtNestedPropertyWithManyPropertyMappings_FirmIdKey_Mapped [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - ERROR testPartialUnionMappingOfSubTypePrimitiveProperties_EmbeddedMapping [tests/mapping/union]: property 'stc_meta__relational__tests__mapping__union__partial__PersonExt1___ext1Address' of class 'meta::relational::tests::mapping::union::partial::PersonBase' is not mapped in mapping 'meta::relational::tests::mapping::union::partial::partialUnionMappingOfSubTypePrimitiveProperties'
-- ERROR testSimpleQueryFromAssociationMapping [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping'
-- ERROR testSimpleQueryToAssociationMapping [tests/mapping/union]: property 'employees' of class 'meta::relational::tests::mapping::union::extend::Firm' has no binding in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping' (unmapped, or routed to a non-root mapping set — multi-set union dispatch is a roadmap feature)
-- ERROR testProjectThroughAssoWithAssociationMapping [tests/mapping/union]: property 'employees' of class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithAssociationMapping'
-- ERROR testProjectThroughAssoWithMultiJoinInMapping [tests/mapping/union]: property 'employees' of class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithJoinSequenceInProperty'
-- ERROR testSimpleProjectionFromWithEmbeddedInMapping [tests/mapping/union]: property 'firm' of class 'meta::relational::tests::mapping::union::extend::Person' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedPropertyOneThroughJoin'
+- ERROR testProjectThroughAssoWithMultiJoinInMapping [tests/mapping/union]: association 'meta::relational::tests::model::simple::Employment' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithJoinSequenceInProperty' (property 'employees' routes to union member set 'set1' via a CHAINED join — per-member chained joins are not supported 
+- ERROR testSimpleProjectionFromWithEmbeddedInMapping [tests/mapping/union]: class 'meta::relational::tests::model::simple::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedPropertyOneThroughJoin'
 - ERROR testAdvancedEmbeddedInMappingQuery [tests/mapping/union]: class 'meta::relational::tests::mapping::union::extend::Firm' is not mapped in mapping 'meta::relational::tests::mapping::union::extend::unionMappingWithEmbeddedProperty2' (Embedded sub-PM 'employees' collides with an existing pipeline slot of the same name; distinct same-named class-typed joins acr
 - SHAPE testProjectEmbeddedMappingUnionWithSameColumnsNames [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
 - SHAPE testProjectEmbeddedMappingUnionWithSameColumnsNamesDeep [tests/mapping/union]: sql-only: 1 advisory golden-SQL assert(s), no row verification
