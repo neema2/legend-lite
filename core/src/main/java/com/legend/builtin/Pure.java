@@ -224,6 +224,27 @@ public final class Pure {
     // database REFERENCE is a value of this type (classReference), so the
     // corpus's testRuntime(db:Database[1]) overload family type-checks
     public static final ClassDefinition DATABASE_METACLASS = nativeClass("native Class meta::relational::metamodel::Database {}");
+    // task #78 step-1 declarations (each cited to the REAL source; class
+    // CONSTRAINTS are never ported — constraint evaluation is a separate
+    // feature track, declarations only TYPE):
+    /** Real platform_dsl_store/grammar/store.pure:18 (extends PackageableElement — ModelElement is this prelude's analog, see :170). */
+    public static final ClassDefinition STORE = nativeClass("native Class meta::pure::store::Store extends meta::pure::metamodel::ModelElement {}");
+    /** Real core/pure/mapping/modelToModel.pure:37 (toString() qualified property omitted until demanded). */
+    public static final ClassDefinition MODEL_STORE = nativeClass("native Class meta::external::store::model::ModelStore extends meta::pure::store::Store {}");
+    /** Real relationalRuntimeExtension.pure:15-27 (constraints noDuplicates/knownFeatures not ported). */
+    public static final ClassDefinition GENERATION_FEATURES_CONFIG = nativeClass("native Class meta::external::store::relational::runtime::GenerationFeaturesConfig extends meta::external::store::relational::runtime::RelationalQueryGenerationConfig { enabled: meta::pure::metamodel::type::String[*]; disabled: meta::pure::metamodel::type::String[*]; }");
+    /** Real platform_dsl_mapping/grammar/mapping.pure:26 (extends PackageableElement, Testable — ModelElement analog). The mapping METACLASS: a mapping reference is a value of this type. */
+    public static final ClassDefinition MAPPING_METACLASS = nativeClass("native Class meta::pure::mapping::Mapping extends meta::pure::metamodel::ModelElement {}");
+    /** Real platform_store_relational/grammar/relational.pure:92 (extends NamedRelation — ModelElement analog; column surface omitted until demanded). */
+    public static final ClassDefinition TABLE_METACLASS = nativeClass("native Class meta::relational::metamodel::relation::Table extends meta::pure::metamodel::ModelElement {}");
+    /** Real core/pure/tds/tds.pure:18-23. */
+    public static final ClassDefinition TABULAR_DATA_SET = nativeClass("native Class meta::pure::tds::TabularDataSet extends meta::pure::metamodel::type::Any { columns: meta::pure::tds::TDSColumn[*]; rows: meta::pure::tds::TDSRow[*]; }");
+    /** Real core/pure/tds/tds.pure:25-45 (offset/name; the type surface omitted until demanded). */
+    public static final ClassDefinition TDS_COLUMN = nativeClass("native Class meta::pure::tds::TDSColumn extends meta::pure::metamodel::type::Any { offset: meta::pure::metamodel::type::Integer[0..1]; name: meta::pure::metamodel::type::String[1]; }");
+    /** Real core/pure/tds/tds.pure:76-80 (getString/isNull qualified properties omitted until demanded — the ResultSet Row precedent). */
+    public static final ClassDefinition TDS_ROW = nativeClass("native Class meta::pure::tds::TDSRow extends meta::pure::metamodel::type::Any { parent: meta::pure::tds::TabularDataSet[0..1]; values: meta::pure::metamodel::type::Any[*]; }");
+    /** Real core/store/aggregationAware/aggregationAware.pure:36-39. */
+    public static final ClassDefinition AGGREGATION_AWARE_ACTIVITY = nativeClass("native Class meta::pure::mapping::aggregationAware::AggregationAwareActivity extends meta::pure::mapping::Activity { rewrittenQuery: meta::pure::metamodel::type::String[1]; }");
     // real platform_store_relational/functions.pure:50-65 (dataSource and
     // Row's value(name) qualified property omitted until demanded) — setup
     // functions INTROSPECT results (println(executeInDb(...).rows.values))
@@ -955,6 +976,11 @@ public final class Pure {
     // for e.g. an Integer property over a DOUBLE column, calendar family)
     public static final NativeFunctionDefinition TYPE_AS_DECLARED__ANY_01__T_1 = signature("native function meta::legend::lite::typeAsDeclared<T>(value:meta::pure::metamodel::type::Any[0..1], type:T[1]):T[0..1];");
     public static final NativeFunctionDefinition ID__ANY_1 = signature("native function meta::pure::functions::meta::id(instance:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::String[1];");
+    // Real essential/meta/reflect/evaluateAndDeactivate.pure:17 — a
+    // reflection-level IDENTITY on values (deactivates expression wrappers
+    // in real pure; values here are already values, so it is the identity;
+    // task #78 step-1, the TDS-concatenate family spells it).
+    public static final NativeFunctionDefinition EVALUATE_AND_DEACTIVATE__T_M = signature("native function meta::pure::functions::meta::evaluateAndDeactivate<T|m>(var:T[m]):T[m];");
     // K-phase natives: the engine's JDBC boundary (executed host-side at
     // the EXECUTE phase, never lowered to SQL). executeInDb is the 4-arg
     // leaf every corpus wrapper bottoms out at; testRuntime and

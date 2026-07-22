@@ -396,7 +396,15 @@ class NativeFunctionTest {
         // 49: +Row (ResultSet introspection in setup functions).
         // 52: +DebugContext (B2b: the debug-arity execute calls type
         //     against the REAL legend-pure platform tools surface).
-        assertEquals(53, Pure.allNativeClasses().size(),
+        // 62: task #78 step-1 declarations, all cited in Pure.java —
+        //     +Store (platform_dsl_store/grammar/store.pure:18),
+        //     +ModelStore (modelToModel.pure:37),
+        //     +GenerationFeaturesConfig (relationalRuntimeExtension.pure:15),
+        //     +Mapping metaclass (platform_dsl_mapping/grammar/mapping.pure:26),
+        //     +Table metaclass (platform_store_relational/grammar/relational.pure:92),
+        //     +TabularDataSet/TDSColumn/TDSRow (core/pure/tds/tds.pure:18/25/76),
+        //     +AggregationAwareActivity (aggregationAware.pure:36).
+        assertEquals(62, Pure.allNativeClasses().size(),
                 "Pure.allNativeClasses() size pin: review the catalog if this changes");
     }
 
@@ -422,7 +430,25 @@ class NativeFunctionTest {
                     List.of("values", "activities"),
                     // B2b (real pure: platform/pure/tools.pure)
                     "meta::pure::tools::DebugContext",
-                    List.of("debug", "space"));
+                    List.of("debug", "space"),
+                    // task #78 step-1 (cites in Pure.java):
+                    // relationalRuntimeExtension.pure:23-26
+                    "meta::external::store::relational::runtime::GenerationFeaturesConfig",
+                    List.of("enabled", "disabled"));
+
+    /** task #78 step-1 TDS + aggregationAware surfaces (Map.of caps at 10
+     * pairs — second map, same contract). */
+    private static final java.util.Map<String, List<String>> TDS_SURFACE_PROPERTIES =
+            java.util.Map.of(
+                    // core/pure/tds/tds.pure:18-23
+                    "meta::pure::tds::TabularDataSet", List.of("columns", "rows"),
+                    // tds.pure:25-45
+                    "meta::pure::tds::TDSColumn", List.of("offset", "name"),
+                    // tds.pure:76-80
+                    "meta::pure::tds::TDSRow", List.of("parent", "values"),
+                    // aggregationAware.pure:36-39
+                    "meta::pure::mapping::aggregationAware::AggregationAwareActivity",
+                    List.of("rewrittenQuery"));
 
     @Test
     void everyNativeClassIsMarkedNativeAndHasEmptyBodyOutsideTheDocumentedSurface() {
@@ -440,6 +466,10 @@ class NativeFunctionTest {
                 assertEquals(List.of("values"),
                         c.properties().stream().map(p -> p.name()).toList(),
                         "List declares exactly values (real pure anonymousCollections.pure:33-35)");
+            } else if (TDS_SURFACE_PROPERTIES.containsKey(c.qualifiedName())) {
+                assertEquals(TDS_SURFACE_PROPERTIES.get(c.qualifiedName()),
+                        c.properties().stream().map(p -> p.name()).toList(),
+                        () -> c.qualifiedName() + " must match real legend-pure");
             } else if (RUNTIME_SURFACE_PROPERTIES.containsKey(c.qualifiedName())) {
                 // the relational-runtime surface (K-natives arc): properties
                 // as REAL legend-pure declares them — runtime.pure:17-32,
@@ -569,7 +599,12 @@ class NativeFunctionTest {
                 "meta::pure::tools",
                 "meta::core::runtime",
                 // the store metaclass lives directly under meta::relational::metamodel
-                "meta::relational::metamodel");
+                "meta::relational::metamodel",
+                // task #78 step-1 surfaces
+                "meta::pure::store",
+                "meta::external::store::model",
+                "meta::pure::tds",
+                "meta::relational::metamodel::relation");
         for (ClassDefinition c : Pure.allNativeClasses()) {
             String fqn = c.qualifiedName();
             boolean ok = expected.stream().anyMatch(p -> fqn.startsWith(p + "::"));

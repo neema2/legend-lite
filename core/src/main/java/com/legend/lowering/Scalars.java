@@ -303,6 +303,12 @@ final class Scalars {
         for (String f : Pure.nativeKeysAt("toOne")) {
             RULES.put(f, (n, args) -> args.get(0));
         }
+        // evaluateAndDeactivate erases too (real pure: reflection-level
+        // deactivation of expression wrappers — values here are already
+        // values, so identity; evaluateAndDeactivate.pure:17).
+        for (String f : Pure.nativeKeysAt("evaluateAndDeactivate")) {
+            RULES.put(f, (n, args) -> args.get(0));
+        }
 
         // exists/forAll over collections: SEMANTIC vocabulary entries whose
         // CONTRACT includes Pure's empty-collection semantics (exists([]) =
