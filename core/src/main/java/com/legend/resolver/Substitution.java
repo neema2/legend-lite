@@ -11,6 +11,7 @@ import com.legend.compiler.spec.typed.TypedCDecimal;
 import com.legend.compiler.spec.typed.TypedCFloat;
 import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedCString;
+import com.legend.compiler.spec.typed.TypedCast;
 import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedEnumValue;
 import com.legend.compiler.spec.typed.TypedFilter;
@@ -957,6 +958,11 @@ final class Substitution {
                         rewriteAll(c.args()), c.info());
             }
             case TypedCollection c -> new TypedCollection(rewriteAll(c.elements()), c.info());
+            // ->cast(@T) over an object-space value: the cast rides, the
+            // source substitutes (the in([...]) family spells casts over
+            // property reads).
+            case TypedCast tc -> new TypedCast(rewrite(tc.source()),
+                    tc.target(), tc.info());
             case TypedIf i -> new TypedIf(rewrite(i.condition()),
                     rewrite(i.thenBranch()), i.elseBranch().map(this::rewrite), i.info());
             case TypedLambda l -> {
