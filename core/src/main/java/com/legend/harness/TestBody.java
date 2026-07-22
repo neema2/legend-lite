@@ -856,8 +856,14 @@ public final class TestBody {
 
     /** A golden-SQL spelling: any chain ending in sqlRemoveFormatting()/sql(). */
     private static boolean isSqlText(ValueSpecification v) {
+        // audit 23 D3: harness-vocab gate — a user function named 'sql'
+        // must not demote a whole assert to advisory
         return v instanceof AppliedFunction af
-                && (af.function().equals("sqlRemoveFormatting") || af.function().equals("sql"));
+                && harnessVocabName(af.function())
+                && (af.function().equals("sqlRemoveFormatting")
+                        || af.function().endsWith("::sqlRemoveFormatting")
+                        || af.function().equals("sql")
+                        || af.function().endsWith("::sql"));
     }
 
     /** A Result VALUES read anywhere in the expression — the assert also
@@ -1687,7 +1693,13 @@ public final class TestBody {
     // ===== substitution: lets inline, handles splice =====
 
     private static boolean isExecuteCall(AppliedFunction af) {
-        return af.function().equals("execute") && af.parameters().size() >= 2;
+        // audit 23 D3: harness-vocab gate — a USER function named
+        // 'execute' (my::execute) must not be commandeered into the
+        // platform result-frame path
+        return harnessVocabName(af.function())
+                && (af.function().equals("execute")
+                        || af.function().endsWith("::execute"))
+                && af.parameters().size() >= 2;
     }
 
     /**
@@ -1759,10 +1771,15 @@ public final class TestBody {
         if (fn.equals("sort") || fn.equals("sortBy")) {
             return true;
         }
-        // order survives through order-preserving tails only
+        // order survives through order-preserving tails only. filter/
+        // select/rename/restrict/concatenate-free projections preserve
+        // pure's order too (audit 23 D1: their absence granted multiset
+        // leniency where order was contractual — sweep-classified strict)
         return switch (fn) {
             case "map", "limit", "take", "drop", "slice", "rows", "toOne", "at",
-                    "makeString", "toCSV", "toString", "from" ->
+                    "makeString", "toCSV", "toString", "from",
+                    "filter", "select", "rename", "renameColumns", "restrict",
+                    "project", "distinct" ->
                     !af.parameters().isEmpty() && endsInSort(af.parameters().get(0));
             default -> false;
         };

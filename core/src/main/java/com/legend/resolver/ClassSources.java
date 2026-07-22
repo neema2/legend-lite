@@ -488,7 +488,13 @@ public final class ClassSources {
                     + "'; multi-set-ID dispatch is not supported yet (H5)");
         }
         if (local.size() == 1) {
-            return local.get(0);   // local shadows included
+            // local shadows included — DELIBERATELY more permissive than
+            // real Legend, which errors on duplicate set IDs across
+            // includes (audit 23 #75, reviewed): the corpus include
+            // families rely on the local-wins read, and the divergence
+            // direction is over-acceptance of models the engine rejects,
+            // never wrong rows on models both accept.
+            return local.get(0);
         }
         visited.add(mapping.qualifiedName());
         List<MappingDefinition.ClassBinding> included = new ArrayList<>();
