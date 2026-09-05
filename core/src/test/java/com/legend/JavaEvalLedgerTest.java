@@ -425,7 +425,11 @@ class JavaEvalLedgerTest {
             // 1595 -> 1599 (batch 59, the lineage-tree row verdict): the
             // seam dispatches the assert to LineageTreeVerdicts (its rows
             // compute in the database) — dispatch only.
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1599),
+            // 1599 -> 1605 (batch 72a, 2026-09-05): the JSON verdict names
+            // the GOLDEN side when the strict parse refuses it ("golden JSON
+            // does not parse") — a message wrapper for the engine-golden-
+            // defect register (the `]"` graphFetch goldens); no evaluation.
+            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1605),
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it

@@ -270,7 +270,8 @@ public final class SpecCompiler {
                     scope = stmt instanceof com.legend.protocol.spec.AppliedFunction paf
                             && paf.parameters().size() == 2
                             ? scope.withLet(let.name(), let.value().info(),
-                                    paf.parameters().get(1))
+                                    selfAliasResolved(scope, let.name(),
+                                            paf.parameters().get(1)))
                             : scope.with(let.name(), let.value().info());
                 }
             }
@@ -280,6 +281,25 @@ public final class SpecCompiler {
             return body;
         }
         return List.of(typer.typeBody(query, Env.empty(), Expected.infer()));
+    }
+
+    /**
+     * A STATEMENT-level self-alias — {@code let query = $query} spelled
+     * over a name already let-bound in the same statement scope (an
+     * inlined helper's parameter re-bound under its caller's let name;
+     * real pure would refuse the duplicate let outright) — re-binds the
+     * OUTER alias, never the bare variable: a self-referential alias made
+     * every later structural consumer (generateTestData's checker) see a
+     * Variable and wall (batch 72a, 2026-09-05). Lambda-LOCAL lets are
+     * untouched — the plan printer's injected {@code let v = $v}
+     * Allocation lets shadow on purpose (Typer's lambda fold).
+     */
+    private static com.legend.protocol.spec.ValueSpecification selfAliasResolved(
+            Env scope, String name, com.legend.protocol.spec.ValueSpecification rhs) {
+        return rhs instanceof com.legend.protocol.spec.Variable v
+                && v.name().equals(name)
+                && scope.exprAlias(name).isPresent()
+                ? scope.resolveAlias(rhs) : rhs;
     }
 
     private static String simpleName(String typeName) {

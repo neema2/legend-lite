@@ -681,6 +681,10 @@ public final class Compiler {
             desugared.add(r);
             fired |= r != st;
         }
+        // a statement-root map over spelled bound names unrolls to its
+        // element statements (batch 72a — the element asserts become
+        // statement-root verdicts)
+        desugared = com.legend.compiler.LiteralMapUnroll.rewrite(desugared);
         com.legend.validation.DriverPkOption.set(fired);
         return com.legend.compiler.NameResolver.resolveQuery(
                 new com.legend.protocol.spec.LambdaFunction(java.util.List.of(), desugared),

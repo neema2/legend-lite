@@ -445,7 +445,19 @@ final class AssertVerdicts {
                 if (ejson == null || ajson == null) {
                     return null;   // non-[1]-string shape: generic path
                 }
-                Object expected = com.legend.sql.Json.parse(ejson);
+                // the GOLDEN side parses first and names itself when it
+                // does not: a golden the engine only accepts because its
+                // json-simple parser stops after the first complete value
+                // (a stray `]"` tail) is an engine-golden defect, never a
+                // divergence of ours (AssertLedger's register keys on this
+                // wording by exact test FQN)
+                Object expected;
+                try {
+                    expected = com.legend.sql.Json.parse(ejson);
+                } catch (IllegalStateException e) {
+                    throw new IllegalStateException(
+                            "golden JSON does not parse: " + e.getMessage(), e);
+                }
                 Object actual = com.legend.sql.Json.parse(ajson);
                 // pure's [x] ≡ x at the ROOT: the engine serializes a
                 // one-element result as the bare object; an enveloping

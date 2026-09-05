@@ -1687,11 +1687,9 @@ final class Typer {
     /** Fresh binder names for inlined bodies (one counter per typer). */
     private final AlphaRename alpha = new AlphaRename();
 
-    /**
-     * Run the generic application rule without emitting a node &mdash; the CHECK
-     * half of the check/emit split ({@link Application}). Calls with
-     * <em>deferred</em> arguments take {@link #checkWithDeferred}.
-     */
+    /** The generic application rule without emitting a node — the CHECK
+     * half of the check/emit split ({@link Application}); calls with
+     * deferred arguments take {@link #checkWithDeferred}. */
     Application checkGeneric(AppliedFunction af, Env env) {
         af = expandFunctionValuedHelperArgs(af);
         if (af.parameters().stream().anyMatch(Typer::deferredArg)) {
@@ -1701,13 +1699,18 @@ final class Typer {
         for (ValueSpecification p : af.parameters()) {
             args.add(synth(p, env));
         }
-        List<ExprType> argTypes = args.stream().map(TypedSpec::info).toList();
+        return checkGenericTyped(af, args);
+    }
 
+    /** The generic check over ALREADY-TYPED arguments (ConcatenateChecker
+     * reads a type before choosing its rule; each argument synths ONCE —
+     * a second synth re-registers typer state: TDS literals, plan params). */
+    Application checkGenericTyped(AppliedFunction af, List<TypedSpec> args) {
+        List<ExprType> argTypes = args.stream().map(TypedSpec::info).toList();
         List<TypedFunction> candidates = functionCandidates(af);
         if (candidates.isEmpty()) {
-            // C0.5a: zero candidates means the name is NOT IN THE CATALOG
-            // (usually an unported platform function) — say so instead of
-            // implying the model called something malformed
+            // C0.5a: zero candidates = the name is NOT IN THE CATALOG (an
+            // unported platform function, usually) — say so plainly
             throw new TypeInferenceException("unknown function '"
                     + af.function() + "' — no function of this name in the"
                     + " native or user catalog (unported platform function,"
@@ -1718,13 +1721,10 @@ final class Typer {
                 refineParseDate(r.chosen(), args, refineDecimalCarrier(r.chosen(), r.output())));
     }
 
-    /**
-     * parseDate over a LITERAL refines its abstract Date output to the
-     * concrete kind the string's shape determines ('...T...' is a DateTime,
-     * a bare date is a StrictDate) — real pure's parseDate returns the
-     * written kind, and the abstract-Date root otherwise cannot tell a
-     * midnight DateTime from a StrictDate at the wire.
-     */
+    /** parseDate over a LITERAL refines its abstract Date output to the
+     * kind the string's shape determines ('...T...' = DateTime, bare =
+     * StrictDate) — real pure returns the written kind; the abstract root
+     * cannot tell a midnight DateTime from a StrictDate at the wire. */
     private static ExprType refineParseDate(TypedFunction chosen, List<TypedSpec> args, ExprType out) {
         if (out.type() == com.legend.compiler.element.type.Type.Primitive.DATE
                 && "meta::pure::functions::string::parseDate".equals(chosen.qualifiedName())
@@ -1938,7 +1938,7 @@ final class Typer {
      * colspec carrying one. An EMPTY colspec array also defers — its flavor
      * (plain/Func/Agg) is nominal-only and the chosen parameter decides it
      * (legacy groupBy([], aggs, ids): a global aggregate's keys). */
-    private static boolean deferredArg(ValueSpecification p) {
+    static boolean deferredArg(ValueSpecification p) {
         return p instanceof LambdaFunction
                 || isLambdaCollection(p)
                 || (p instanceof ColSpec cs && cs.function1() != null)

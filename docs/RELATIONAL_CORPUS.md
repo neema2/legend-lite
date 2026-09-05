@@ -47,7 +47,7 @@ shared source registered by several families cannot double-count. Run with
 | helperFunctions/tests | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
 | lineage/scanColumns | 6 | 5 | 0 | 0 | 1 | 0 | 0 | 0 | 0 |
 | lineage/scanRelations | 49 | 47 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
-| milestoning/tests | 228 | 224 | 1 | 2 | 1 | 0 | 0 | 0 | 1 |
+| milestoning/tests | 228 | 224 | 1 | 2 | 1 | 0 | 0 | 0 | 0 |
 | modelJoins | 7 | 5 | 0 | 0 | 2 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational | 5 | 5 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | modelToModelToRelational/milestoned | 7 | 5 | 0 | 2 | 0 | 0 | 0 | 0 | 0 |
@@ -99,9 +99,9 @@ shared source registered by several families cannot double-count. Run with
 | transform/fromPure/tests | 57 | 49 | 4 | 2 | 2 | 0 | 0 | 0 | 0 |
 | validation/showcase | 8 | 8 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | validation/tests | 23 | 23 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| **total** | 2575 | **2424** | 41 | 78 | 32 | 6 | 6 | 29 | 4 |
+| **total** | 2575 | **2424** | 41 | 78 | 32 | 6 | 6 | 29 | 3 |
 
-SOFT-PASS RECONCILIATION (F2.1): 2424 PASS = 2388 clean + 36 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 4; flags overlap — the union is 36).
+SOFT-PASS RECONCILIATION (F2.1): 2424 PASS = 2389 clean + 35 carrying softness (sqldiff 6, advisory 6, 0-asserts 29, text-rescued 3; flags overlap — the union is 35).
 
 ### mapping walls (dropped at assembly)
 
@@ -542,14 +542,14 @@ SOFT-PASS RECONCILIATION (F2.1): 2424 PASS = 2388 clean + 36 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 179
+tests in the ledger: 176
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
-| wall:typer | 49 |
+| wall:typer | 46 |
 | wall:resolver | 31 |
-| wall:exec | 14 |
+| wall:exec | 12 |
 | divergence | 28 |
 | not-reached | 38 |
 | referee-cannot-replay | 9 |
@@ -558,6 +558,7 @@ tests in the ledger: 179
 | pass | 36 |
 | sql-text-assert | 6 |
 | decision:dynamic-compilation | 2 |
+| engine-golden-defect:malformed-json-golden | 2 |
 | zero-assert | 1 |
 | decision:routeFunction | 5 |
 | decision:recursion | 2 |
@@ -644,10 +645,10 @@ tests in the ledger: 179
 - testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint #0 - -> decision:dynamic-compilation: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported :: meta::pure::graphFetch::tests::XStore::milestoning::testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyConstraint :: unknown function 'meta::legend::compileLegendGrammar' — no
 - testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyZeroToOne #0 - -> decision:dynamic-compilation: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported :: meta::pure::graphFetch::tests::XStore::milestoning::testCrossStoreGraphFetchWithRelationalDatePropagationForMilestonedPropertyZeroToOne :: unknown function 'meta::legend::compileLegendGrammar' — no 
 - testCrossMappingWithRelOpWithJoinKeys #1 assertJsonStringsEqual -> wall:resolver: wall-exec: MappingResolutionException: association '_' is not mapped in mapping 'meta:: :: association 'meta::relational::graphFetch::tests::crossDatabase::EmploymentAssociation' is not mapped in mapping 'meta::relational::graphFetch::tests::crossDatabase::CrossMappingWithRelOpWithJoinKeys' (associa
-- testMilestonedRootAndMilestonedProperty #1 assertJsonStringsEqual -> wall:exec: wall-exec: IllegalStateException: trailing JSON at N :: trailing JSON at 191
+- testMilestonedRootAndMilestonedProperty #1 assertJsonStringsEqual -> engine-golden-defect:malformed-json-golden: wall-exec: IllegalStateException: golden JSON does not parse: trailing JSON at N :: golden JSON does not parse: trailing JSON at 191
 - testMilestonedProperty #1 meta::pure::functions::asserts::assertJsonStringsEqual -> pass
 - testMilestonedProperty #2 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: 'PureExp\n(\n  type = String\n  expression =  -> serialize(#{meta::relational::tests::milestoning::Order {id,  ::  expected: 'PureExp\n(\n  type = String\n  expression =  -> serialize(#{meta::relational::tests::milestoning::Order {id, product(2015-10-16) {name, type, classif
-- testMilestonedRootAndMilestonedProperty #1 assertJsonStringsEqual -> wall:exec: wall-exec: IllegalStateException: trailing JSON at N :: trailing JSON at 191
+- testMilestonedRootAndMilestonedProperty #1 assertJsonStringsEqual -> engine-golden-defect:malformed-json-golden: wall-exec: IllegalStateException: golden JSON does not parse: trailing JSON at N :: golden JSON does not parse: trailing JSON at 191
 - testCheckedWithCircularConstraints #1 meta::pure::functions::asserts::assertJsonStringsEqual -> divergence: platform-fail: assertJsonStringsEqual: FIRST DIFF at $[N].defects expected N element(s), got N :: assertJsonStringsEqual: FIRST DIFF at $[2].defects expected 1 element(s), got 0
 - testGraphFetchWithTableMapperPostProcessor #1 meta::pure::functions::asserts::assertJsonStringsEqual -> divergence: platform-fail: assertJsonStringsEqual: FIRST DIFF at $[N].employees expected N element(s), got N :: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4
 - testObjectReferenceInUsingResultReferences #1 meta::pure::functions::asserts::assertSameElements -> pass
@@ -656,11 +657,9 @@ tests in the ledger: 179
 - dropAndCreateTempTable #0 - -> wall:typer: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, :: meta::relational::tests::ddl::dropAndCreateTempTable :: unknown function 'createTempTable' — no function of this name in the native or user catalog (unported platform function, or
 - testCreateTempTableStatement #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach S :: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lower
 - testNonDataTypeProperty #1 assertEquals -> wall:resolver: wall-exec: class query under TypedMap is not resolvable yet (HN vocabulary) :: class query under TypedMap is not resolvable yet (H2 vocabulary)
-- testTableToTdsWithConcatenate #0 - -> wall:typer: wall-type: in call to '_', argument N: column mismatch: type variable T bound to relat :: meta::pure::lineage::scanRelations::test::testTableToTdsWithConcatenate :: in call to 'meta::pure::functions::collection::concatenate', argument 2: column mismatch: type variable T bound to relation [firstName]
 - testTableToTdsWithCrossJoin #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach S :: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lower
-- testTdsJoinConcatenateAndJoin #0 - -> wall:typer: wall-type: in call to '_', argument N: column mismatch: type variable T bound to relat :: meta::pure::lineage::scanRelations::test::testTdsJoinConcatenateAndJoin :: in call to 'meta::pure::functions::collection::concatenate', argument 2: column mismatch: type variable T bound to relation [First_1, A
+- testTdsJoinConcatenateAndJoin #0 - -> wall:typer: wall-type: concatenate: N column(s) [First_N, Age_N, First_N, Age_N, First_N, Age_N, Restated] cannot unite with N column(s) [First :: meta::pure::lineage::scanRelations::test::testTdsJoinConcatenateAndJoin :: concatenate: 7 column(s) [First_1, Age_1, First_2, Age_2, First_3, Age_3, Restated] cannot
 - testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements #1 - -> wall:typer: wall-exec: TypeInferenceException: in function '_': ambiguous overload of 'meta::relational::milestoni :: in function 'meta::relational::milestoning::applyMilestoningFilters': ambiguous overload of 'meta::relational::milestoning::applyMilestoningFilters': 2 candidates tie for the argument types [met
-- testBusinessDateInjectionFromVarReference #0 - -> wall:typer: wall-type: multi-statement lambda body with non-let, non-fail, non-assert statements :: meta::relational::tests::milestoning::businessdate::testBusinessDateInjectionFromVarReference :: multi-statement lambda body with non-let, non-fail, non-assert statements
 - testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction #1 assertSameSQL -> wall:resolver: wall-exec: milestoned property access '_' on a NESTED navigation is not supported yet :: milestoned property access 'product' on a NESTED navigation is not supported yet
 - testDateFunctionInMilestonedPropertyWithMilestonedEntity #1 meta::pure::functions::asserts::assertEquals -> pass
 - testDateFunctionInMilestonedPropertyWithMilestonedEntity #2 TypedIf -> divergence: platform-fail: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): hN-advisory divergence: gold :: assertEquals (sql-text ROW verdict — golden rows vs ours diverged, whatever the text said): h2-advisory divergence: golden SQL on H2 gave 0 row(s), our pipeline 
@@ -717,7 +716,6 @@ tests in the ledger: 179
 - testRestrictOnGroupByEleminatesUnnecessaryAggsWithDistinct #5 - -> not-reached: 1 assert(s) after the failure
 - testExecutionPlanGeneration #0 - -> wall:typer: wall-type: no overload of '_' structurally matches the argument types (ExprType[type=GenericTyp :: meta::relational::tests::tds::window::routing::testExecutionPlanGeneration :: no overload of 'meta::pure::functions::relation::over' structurally matches the argument types (ExprType[type=GenericType[r
 - testAlloyTestDatGenWithQuotedColumnsForViews #1 assertEquals -> wall:exec: wall-exec: testDataGen: view-backed relation '_' — view slice pending :: testDataGen: view-backed relation 'AltID_View' — view slice pending
-- testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates #0 - -> wall:typer: wall-type: generateTestData needs its query lambda and mapping reference INLINE at the call site (>=N args) :: meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates :: generateTestData needs its query lambda and mapping reference INLINE at th
 - testInheritanceMultipleLevel #1 meta::pure::functions::asserts::assertSize -> pass
 - testInheritanceMultipleLevel #2 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass
 - testInheritanceMultipleLevel #3 meta::relational::testDataGeneration::tests::assertSqlEquals -> pass

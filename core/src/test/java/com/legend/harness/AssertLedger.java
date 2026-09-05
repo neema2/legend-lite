@@ -118,7 +118,18 @@ public final class AssertLedger {
             "meta::relational::tests::advanced::forced::structure::testQualifierWithOperation",
             "decision:empty-toOne-forced-isolation",
             "meta::relational::tests::advanced::forced::structure::testTwoQualifiersWithOperation",
-            "decision:empty-toOne-forced-isolation");
+            "decision:empty-toOne-forced-isolation",
+            // batch 72a (2026-09-05): both goldens end in `]"` — a stray
+            // quote after the JSON array. The engine's assertJsonStringsEqual
+            // → equalJsonStrings → json-simple JSONParser returns after the
+            // first complete value (probed on the 1.1.1 jar: `[{"id":2}]"`
+            // parses, `[…] junk` throws). Our rows are byte-identical to
+            // the golden up to that tail (probe 2026-09-05); the strict
+            // parse names the GOLDEN ("golden JSON does not parse").
+            "meta::relational::graphFetch::tests::embedded::otherwise::testMilestonedRootAndMilestonedProperty",
+            "malformed-json-golden",
+            "meta::relational::graphFetch::tests::milestoning::testMilestonedRootAndMilestonedProperty",
+            "malformed-json-golden");
 
     /** The bucket of a failing ASSERT of {@code test} (exact FQN): the
      * reason's bucket, refined to the registered engine-golden defect
@@ -126,7 +137,10 @@ public final class AssertLedger {
     public static String bucketOf(String test, String reason, boolean subjectIsSqlText) {
         String bucket = bucketOf(reason, subjectIsSqlText);
         String defect = ENGINE_GOLDEN_DEFECTS.get(test);
-        boolean rowsDiffer = bucket.equals("divergence") || bucket.equals("sql-text-assert");
+        // rows produced and judged (divergence / sql-text), or the golden
+        // itself refused by the strict parser after our rows came back
+        boolean rowsDiffer = bucket.equals("divergence") || bucket.equals("sql-text-assert")
+                || String.valueOf(reason).contains("golden JSON does not parse");
         if (defect == null || !rowsDiffer) {
             return bucket;
         }

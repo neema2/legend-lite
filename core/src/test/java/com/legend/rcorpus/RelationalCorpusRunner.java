@@ -1089,7 +1089,11 @@ public class RelationalCorpusRunner {
             // 10 -> 9 (batch 69c): the datePeriods group-by's exec-passing
             // assert (its CSV value assert ran beside the text declines)
             // left the walk's lane — the whole test flipped
-            org.junit.jupiter.api.Assertions.assertEquals(9, execPassing,
+            // 9 -> 7 (batch 72a, 2026-09-05): testBusinessDateInjection-
+            // FromVarReference's two assertSameSQL asserts left the walk's
+            // lane — its statement-root map over the two execute bindings
+            // unrolls (LiteralMapUnroll) and the whole test flipped
+            org.junit.jupiter.api.Assertions.assertEquals(7, execPassing,
                     // 1208 -> 597 (charter §8.3c): the 541 flipped
                     // exec-sql-read tests' asserts left this lane for
                     // the platform arm (SqlTextVerdicts.tryArmExecRead)
@@ -1948,10 +1952,20 @@ public class RelationalCorpusRunner {
             // scalar subquery on the execute route too; the chained-plan
             // warning is stripped; the toSQLString arm takes multi-statement
             // lambdas)
-            org.junit.jupiter.api.Assertions.assertEquals(179L,
+            // batch 72a (2026-09-05): 179 -> 176 — a statement-level
+            // self-alias let (`let query = $query`, an inlined helper's
+            // parameter under the caller's let name) re-binds the outer
+            // alias (the two-round test-data generation); a statement-root
+            // map over spelled execute bindings unrolls to its element
+            // statements (the businessDate var-reference asserts); relation
+            // concatenate types POSITIONALLY like the engine's relational
+            // lowering (the lineage name-mismatched concatenate). The two
+            // malformed `]"` graphFetch goldens stay fallbacks under
+            // engine-golden-defect:malformed-json-golden.
+            org.junit.jupiter.api.Assertions.assertEquals(176L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2394L,
+            org.junit.jupiter.api.Assertions.assertEquals(2397L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");
@@ -2256,8 +2270,12 @@ public class RelationalCorpusRunner {
                     // both tests flipped (the ^TDSNull() instance on the
                     // variant carrier); their asserts are platform-arm row
                     // verdicts now (disagree 0).
-                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 9,
-                    "M1 h2-exec rescued fell below the 9 floor: "
+                    // 9 -> 7 (batch 72a, 2026-09-05): the same lane move as
+                    // exec-passing 9 -> 7 — testBusinessDateInjectionFrom-
+                    // VarReference's two assertSameSQL rescues cleared when
+                    // its statement-root map unrolled and the test flipped.
+                    com.legend.harness.H2Verify.M1_RESCUED.sum() >= 7,
+                    "M1 h2-exec rescued fell below the 7 floor: "
                     + com.legend.harness.H2Verify.M1_RESCUED.sum());
             org.junit.jupiter.api.Assertions.assertTrue(
                     com.legend.harness.H2Verify.M1_UNVERIFIABLE.sum() <= 11,

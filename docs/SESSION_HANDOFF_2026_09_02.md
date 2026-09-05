@@ -3669,3 +3669,23 @@ program first (present the plan: protocol transform is a decision
 bucket), connection equality (5), routeFunction (5), recursion (2),
 protocol (2), dynamic (2), ~10 resolver/typer/lowering walls; each
 retires a Java form in EngineTestExecutor when its platform leg lands.
+
+**Batch 72a — the four small walk-only legs (2026-09-05, chain GREEN; GATES
+batch 72a).** Ratchet 179/2394 → 176/2397; exec-passing 9 → 7. Plan and audit
+in docs/WALK_ONLY_PLAN_2026_09_05.md (16 walk-only, not 33). Landed: malformed
+`]"` goldens registered (engine json-simple tolerance, probed); statement-level
+self-alias let re-binds the outer alias (SpecCompiler.typeQueryBody — NOT
+Env.withLet, which broke the plan printer's injected lets); statement-root map
+over spelled execute bindings unrolls (LiteralMapUnroll, query front door);
+relation concatenate positional (USER RULING; ConcatenateChecker; each argument
+synthesized ONCE via Typer.checkGenericTyped — double synth re-registers typer
+state). ALWAYS pass -Dlegend.engine.root=/Users/neemsandv/legend/legend-engine
+(the $HOME checkout is stale: 2536 tests, phantom regressions). NEXT: leg A
+objectReferenceIn (8 tests): natives generateObjectReferences[ForGivenSetId]
+typed; Substitution.objectReferenceInRewrite reads the literal pkMaps from the
+typed generator call (pair/newMap) — the harness ObjectRefs.java JSON-array
+carrier goes; decode (WithObjReferenceOutput) = SQL decode + pk-name rows; the
+non-literal refs test (UsingResultReferences) = pk membership over a decoded
+reference list (DuckDB base64 only — H2 has no base64). Then leg B (connection
+equality): fold relationalExtensions()/routerExtensions() to spelled arms,
+MatchFold class dispatch, hierarchicalProperties from class property rows.
