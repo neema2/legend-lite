@@ -542,20 +542,19 @@ SOFT-PASS RECONCILIATION (F2.1): 2424 PASS = 2389 clean + 35 carrying softness (
 
 ### assert ledger (partial and failing tests; clean tests count at the test level)
 
-tests in the ledger: 176
+tests in the ledger: 168
 
 | bucket | asserts |
 |---|---|
 | decision:protocol-transform | 2 |
 | wall:typer | 46 |
 | wall:resolver | 31 |
-| wall:exec | 12 |
+| wall:exec | 11 |
 | divergence | 28 |
 | not-reached | 38 |
 | referee-cannot-replay | 9 |
 | wall:lowering | 15 |
-| decision:objectReferenceIn | 7 |
-| pass | 36 |
+| pass | 35 |
 | sql-text-assert | 6 |
 | decision:dynamic-compilation | 2 |
 | engine-golden-defect:malformed-json-golden | 2 |
@@ -598,13 +597,6 @@ tests in the ledger: 176
 - testTwoMappingsOneRuntimeWithoutExternalMapping #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: expected: 'Relational\n(\n  type = TDS[(legalName, String, VARCHAR(N), ""), (legalNameSimple, String, VARCHAR(N), "" ::  expected: 'Relational\n(\n  type = TDS[(legalName, String, VARCHAR(200), ""), (legalNameSimple, String, VARCHAR(200), ""), (legalNameALT, String, VARCHAR(200), "")]
 - testViewToTDS #1 assertEquals -> wall:typer: wall-exec: TypeInferenceException: in function '_': unknown function 'meta::relational::metamodel::datatype::dataTypeToCompatibleP :: in function 'meta::pure::tds::viewToTDS': unknown function 'meta::relational::metamodel::datatype::dataTypeToCompatiblePureType' — no function of this name in the nat
 - withPlatform #1 assertEquals -> wall:lowering: wall-exec: DialectCapability: collection reduction '_' reached a dialect without a list encoding :: collection reduction 'STRING_AGG' reached a dialect without a list encoding
-- testObjectReferenceInEmbeddedMapping #0 - -> decision:objectReferenceIn: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform  :: meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInEmbeddedMapping :: unknown function 'generateObjectReferences' — no function of this name in the native or user 
-- testObjectReferenceInSimple #0 - -> decision:objectReferenceIn: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform  :: meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInSimple :: unknown function 'generateObjectReferences' — no function of this name in the native or user catalog (
-- testObjectReferenceInWithBiTemporalMilestoning #0 - -> decision:objectReferenceIn: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform  :: meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInWithBiTemporalMilestoning :: unknown function 'generateObjectReferences' — no function of this name in the nativ
-- testObjectReferenceInWithEmptyLists #0 - -> decision:objectReferenceIn: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform  :: meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInWithEmptyLists :: unknown function 'generateObjectReferences' — no function of this name in the native or user c
-- testObjectReferenceInWithMilestonedProperty #0 - -> decision:objectReferenceIn: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform  :: meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInWithMilestonedProperty :: unknown function 'generateObjectReferences' — no function of this name in the native o
-- testObjectReferenceInWithObjReferenceOutput #0 - -> decision:objectReferenceIn: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform  :: meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInWithObjReferenceOutput :: unknown function 'generateObjectReferences' — no function of this name in the native o
-- testObjectReferneceInWithMilestonedRootClass #0 - -> decision:objectReferenceIn: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform  :: meta::relational::tests::functions::objectReferenceIn::testObjectReferneceInWithMilestonedRootClass :: unknown function 'generateObjectReferences' — no function of this name in the native 
 - testGroupByWithJoinDB2 #1 meta::pure::functions::asserts::assertEquals -> divergence: platform-fail: assertEquals (sql-text, DBN — text is the contract): expected select "root".LEGALNAME as "legalName", "personTable_d#N_d :: assertEquals (sql-text, DB2 — text is the contract): expected select "root".LEGALNAME as "legalName", "personTable_d#4_d_m1".FIRSTNAME as "employeesFirstName", s
 - testConcatenateInQualifierWithComplexReturnType #1 assertEquals -> wall:exec: wall-exec: class-typed property '_' used as a whole value is graph output (Phase HN) :: class-typed property '$p.address' used as a whole value is graph output (Phase H4)
 - testConcatenateInQualifierWithComplexReturnType #2 - -> not-reached: 1 assert(s) after the failure
@@ -651,8 +643,6 @@ tests in the ledger: 176
 - testMilestonedRootAndMilestonedProperty #1 assertJsonStringsEqual -> engine-golden-defect:malformed-json-golden: wall-exec: IllegalStateException: golden JSON does not parse: trailing JSON at N :: golden JSON does not parse: trailing JSON at 191
 - testCheckedWithCircularConstraints #1 meta::pure::functions::asserts::assertJsonStringsEqual -> divergence: platform-fail: assertJsonStringsEqual: FIRST DIFF at $[N].defects expected N element(s), got N :: assertJsonStringsEqual: FIRST DIFF at $[2].defects expected 1 element(s), got 0
 - testGraphFetchWithTableMapperPostProcessor #1 meta::pure::functions::asserts::assertJsonStringsEqual -> divergence: platform-fail: assertJsonStringsEqual: FIRST DIFF at $[N].employees expected N element(s), got N :: assertJsonStringsEqual: FIRST DIFF at $[0].employees expected 0 element(s), got 4
-- testObjectReferenceInUsingResultReferences #1 meta::pure::functions::asserts::assertSameElements -> pass
-- testObjectReferenceInUsingResultReferences #2 assertJsonStringsEqual -> wall:exec: wall-exec: objectReferenceIn needs a literal reference collection, got TypedLimit :: objectReferenceIn needs a literal reference collection, got TypedLimit
 - test6 #1 meta::pure::functions::asserts::assertJsonStringsEqual -> divergence: platform-fail: assertJsonStringsEqual: FIRST DIFF at $[N].legalName expected Firm B, got Firm X :: assertJsonStringsEqual: FIRST DIFF at $[0].legalName expected Firm B, got Firm X
 - dropAndCreateTempTable #0 - -> wall:typer: wall-type: unknown function '_' — no function of this name in the native or user catalog (unported platform function, :: meta::relational::tests::ddl::dropAndCreateTempTable :: unknown function 'createTempTable' — no function of this name in the native or user catalog (unported platform function, or
 - testCreateTempTableStatement #1 assertEquals -> wall:lowering: wall-exec: IllegalStateException: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach S :: no SQL type for Pure class meta::relational::metamodel::TableAlias at the lowering boundary (class values do not reach SQL until Phase H lower

@@ -66,6 +66,24 @@ public final class AsorRef {
                         java.nio.charset.StandardCharsets.UTF_8));
     }
 
+    /** The DEFINING mapping named by a static prefix (segment 2 of the
+     *  framing) — the resolver's decode arm keys its pk-column facts on
+     *  it. Null when the text is not a well-formed prefix. */
+    public static @com.legend.Nullable String prefixMapping(String prefix) {
+        try {
+            int i = "001:010:".length();
+            String seg = null;
+            for (int k = 0; k < 2; k++) {
+                int len = Integer.parseInt(prefix.substring(i, i + 10));
+                seg = prefix.substring(i + 11, i + 11 + len);
+                i += 11 + len + 1;
+            }
+            return seg;
+        } catch (NumberFormatException | IndexOutOfBoundsException e) {
+            return null;
+        }
+    }
+
     /** A decoded reference: the segments a consumer reads. */
     public record Ref(String mapping, String rootSetId, String setId,
             String pkJson) {

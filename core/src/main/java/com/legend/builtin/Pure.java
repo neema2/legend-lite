@@ -523,6 +523,12 @@ public final class Pure {
          * widening, nested-slot demands) instead of the concatenate shape
          * that no longer exists. Lowering is erasure. */
         public static final String UNION_SCAN = PKG + "unionScan";
+        /** ASOR store-object-reference readers (batch 72b): the pk value
+         *  at position i of a reference (typed by the resolver as the pk
+         *  column's type), and the engine's decode-to-pkMap JSON over a
+         *  spelled setId->pk-column-names table. Both decode IN SQL. */
+        public static final String ASOR_PK_VALUE = PKG + "asorPkValue";
+        public static final String ASOR_DECODE_PK_MAP = PKG + "asorDecodePkMap";
 
         // -- ENGINE-VOCABULARY typing shims (per-name verified): the
         // NAME is legend-engine's own wire/dynaFn vocabulary
@@ -580,7 +586,8 @@ public final class Pure {
                     Lite.OTHERWISE, Lite.PARSE_DATE_FORMAT,
                     Lite.CONVERT_DATE_FORMAT, Lite.CONVERT_DATE_TIME_FORMAT,
                     Lite.CONVERT_TIME_ZONE_FORMAT, Lite.TDS,
-                    Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE, Lite.UNION_SCAN)
+                    Lite.ADJUST_TEMPORAL, Lite.TRUST_ONE, Lite.UNION_SCAN,
+                    Lite.ASOR_PK_VALUE, Lite.ASOR_DECODE_PK_MAP)
                     .map(Pure::liteLocalName)
                     .collect(java.util.stream.Collectors.toUnmodifiableSet());
 
@@ -1815,6 +1822,19 @@ public final class Pure {
     public static final NativeFunctionDefinition NTH__RELATION_1__WINDOW_1__T_1__INTEGER_1 = signature("native function meta::pure::functions::relation::nth<T>(w:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::functions::relation::_Window<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");
     public static final NativeFunctionDefinition NTILE__RELATION_1__T_1__INTEGER_1 = signature("native function meta::pure::functions::relation::ntile<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], row:T[1], tileCount:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition OBJECT_REFERENCE_IN__ANY_1__ANY_MANY = signature("native function meta::pure::functions::collection::objectReferenceIn(col:meta::pure::metamodel::type::Any[1], values:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
+    // The engine's store-object-reference GENERATORS (core/legend/objectReference/
+    // objectReference.pure:20-28): a JSON-array string of ASOR references, one per
+    // pk map. On this platform the value is never materialized — objectReferenceIn's
+    // resolver arm reads the spelled pk maps straight off the typed call (batch 72b).
+    public static final NativeFunctionDefinition GENERATE_OBJECT_REFERENCES__6 = signature("native function meta::alloy::objectReference::generateObjectReferences(clientVersion:meta::pure::metamodel::type::String[1], pathToMappingElement:meta::pure::metamodel::type::String[1], rootSetId:meta::pure::metamodel::type::String[1], pathToRuntimeFunction:meta::pure::metamodel::type::String[1], pkMaps:meta::pure::functions::collection::Map<meta::pure::metamodel::type::String, meta::pure::metamodel::type::Any>[*], extensions:meta::pure::extension::Extension[*]):meta::pure::metamodel::type::String[1];");
+    public static final NativeFunctionDefinition GENERATE_OBJECT_REFERENCES_FOR_GIVEN_SET_ID__7 = signature("native function meta::alloy::objectReference::generateObjectReferencesForGivenSetId(clientVersion:meta::pure::metamodel::type::String[1], pathToMappingElement:meta::pure::metamodel::type::String[1], rootSetId:meta::pure::metamodel::type::String[1], setId:meta::pure::metamodel::type::String[1], pathToRuntimeFunction:meta::pure::metamodel::type::String[1], pkMaps:meta::pure::functions::collection::Map<meta::pure::metamodel::type::String, meta::pure::metamodel::type::Any>[*], extensions:meta::pure::extension::Extension[*]):meta::pure::metamodel::type::String[1];");
+    // The engine's reference DECODE (core_relational/legend/objectReference/objectReference.pure:
+    // decodeObjectReferencesAndGetPkMap): {"pathToMapping","pkMap":{col:v},"setId"} per reference,
+    // pk$_i keys resolved to the set's pk column names. Rewritten by the resolver
+    // (ObjectReferenceDecode) to the lite reader over the frame's mapping facts.
+    public static final NativeFunctionDefinition DECODE_OBJECT_REFERENCES__3 = signature("native function meta::alloy::objectReference::decodeObjectReferencesAndGetPkMap(clientVersion:meta::pure::metamodel::type::String[1], encodedObjectReferences:meta::pure::metamodel::type::String[1], extensions:meta::pure::extension::Extension[*]):meta::pure::metamodel::type::String[1];");
+    public static final NativeFunctionDefinition ASOR_PK_VALUE__STRING_1__INTEGER_1 = signature("native function meta::legend::lite::asorPkValue(ref:meta::pure::metamodel::type::String[1], index:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Any[1];");
+    public static final NativeFunctionDefinition ASOR_DECODE_PK_MAP__STRING_1__STRING_1 = signature("native function meta::legend::lite::asorDecodePkMap(ref:meta::pure::metamodel::type::String[1], pkNames:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition OFFSET__RELATION_1__T_1__INTEGER_1 = signature("native function meta::pure::functions::relation::offset<T>(w:meta::pure::metamodel::relation::Relation<T>[1], r:T[1], offset:meta::pure::metamodel::type::Integer[1]):T[0..1];");
     public static final NativeFunctionDefinition OR__BOOLEAN_1__BOOLEAN_1 = signature("native function meta::pure::functions::boolean::or(left:meta::pure::metamodel::type::Boolean[1], right:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition OR__BOOLEAN_MANY = signature("native function meta::pure::functions::collection::or(values:meta::pure::metamodel::type::Boolean[*]):meta::pure::metamodel::type::Boolean[1];");

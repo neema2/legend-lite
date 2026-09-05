@@ -1162,28 +1162,28 @@ private static boolean referencesVar(TypedSpec n, String var) {
             java.util.function.IntSupplier counter) {
         Set<String> paramsInReach = new LinkedHashSet<>();
         for (TypedSpec op : ops) {
-            StoreResolver.collectLambdaParams(op, paramsInReach);
+            PipelineWalks.collectLambdaParams(op, paramsInReach);
         }
-        StoreResolver.collectLambdaParams(top, paramsInReach);
+        PipelineWalks.collectLambdaParams(top, paramsInReach);
         for (TypedSpec b : cs.bindings().values()) {
-            StoreResolver.collectLambdaParams(b, paramsInReach);
+            PipelineWalks.collectLambdaParams(b, paramsInReach);
         }
         for (AssociationJoins.AssocJoin aj : assocJoins) {
             for (TypedSpec b : aj.target().bindings().values()) {
-                StoreResolver.collectLambdaParams(b, paramsInReach);
+                PipelineWalks.collectLambdaParams(b, paramsInReach);
             }
         }
         for (AssociationJoins.AssocJoin aj : aggAssocJoins) {
             paramsInReach.add(aj.target().rowVar());
             paramsInReach.add("_y");
             for (TypedSpec b : aj.target().bindings().values()) {
-                StoreResolver.collectLambdaParams(b, paramsInReach);
+                PipelineWalks.collectLambdaParams(b, paramsInReach);
             }
         }
         for (Substitution.ExistsSub ex : existsSubs.values()) {
             paramsInReach.addAll(ex.orientedCond().parameters());
             for (TypedSpec b : ex.targetBindings().values()) {
-                StoreResolver.collectLambdaParams(b, paramsInReach);
+                PipelineWalks.collectLambdaParams(b, paramsInReach);
             }
         }
         String fresh;

@@ -84,8 +84,20 @@ final class GraphFetchChecker {
         // folds resolves through the alias channel — each use site gets
         // its own independent resolution (engine parallel: per-use
         // copyGenericType / use-site inScopeVars).
-        ValueSpecification second = af.parameters().size() < 2 ? null
-                : unwrapCompiledTree(env.resolveAlias(af.parameters().get(1)));
+        ValueSpecification rawTree = af.parameters().size() < 2 ? null
+                : af.parameters().get(1);
+        ValueSpecification bound = rawTree == null ? null : env.resolveAlias(rawTree);
+        ValueSpecification second = bound == null ? null : unwrapCompiledTree(bound);
+        // a LET-BOUND tree literal CLOSES over the lets in scope (real pure
+        // evaluates the literal at its let — the engine prints
+        // `biTemporalClassification(2017-06-10, 2017-06-11)` for a tree
+        // bound outside the query lambda); a tree spelled INSIDE the lambda
+        // keeps its variable spellings (`classification($bd)` — the plan's
+        // open variables). Batch 72b.
+        if (rawTree instanceof com.legend.protocol.spec.Variable && bound != rawTree
+                && second != null) {
+            second = SourceSubst.substitute(second, env.aliases());
+        }
         if (!(second instanceof ColSpecArray tree)) {
             throw new TypeInferenceException(fn + " expects (classCollection, #{Class{…}}#)");
         }

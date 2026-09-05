@@ -23,7 +23,7 @@ import java.util.Map;
  *   <li>{@code referee-cannot-replay} — golden SQL the referee cannot
  *       execute (temp tables, executeInDb setups);</li>
  *   <li>{@code decision:<name>} — the standing decisions (chained fetch,
- *       objectReferenceIn, routeFunction, protocol transforms,
+ *       routeFunction, protocol transforms,
  *       recursion, dynamic compilation);</li>
  *   <li>{@code wall:<owner>} — a platform gap with its owner;</li>
  *   <li>{@code divergence} — rows produced and wrong;</li>
@@ -154,9 +154,6 @@ public final class AssertLedger {
         String r = String.valueOf(reason);
         if (r.startsWith("assert-free")) {
             return "zero-assert";
-        }
-        if (r.contains("generateObjectReferences")) {
-            return "decision:objectReferenceIn";
         }
         if (r.contains("routeFunction")) {
             return "decision:routeFunction";

@@ -1061,6 +1061,13 @@ rows), and its `sqlRemoveFormatting($res, 0)` assert ("column arity differs"
 primary keys flipped without a lane move (a lowering wall, never a sql-text
 row).
 
+**§8.0 scope-table receipt, batch 72b (2026-09-05):** exec-passing 7,
+text-only 15, unable-to-exec 9 unchanged; ratchet 176/2397 → 168/2405 (the
+eight objectReferenceIn tests are platform JSON row verdicts; the walk's
+ObjectRefs.java deleted); disagree 0 both channels. The SQL_TEXT_OUTCOME
+channel is reset per assert (a stale plan-literal had moved one
+DB2 sql-text assert into text-only with the run order).
+
 **§8.0 scope-table receipt, batch 72a (2026-09-05):** exec-passing 9 → 7
 (M1 rescued floor 9 → 7 in lockstep) — testBusinessDateInjectionFromVarReference's
 two assertSameSQL asserts left the walk's lane: its statement-root map over the

@@ -1962,10 +1962,17 @@ public class RelationalCorpusRunner {
             // lowering (the lineage name-mismatched concatenate). The two
             // malformed `]"` graphFetch goldens stay fallbacks under
             // engine-golden-defect:malformed-json-golden.
-            org.junit.jupiter.api.Assertions.assertEquals(176L,
+            // batch 72b (2026-09-05): 176 -> 168 — objectReferenceIn as a
+            // platform program: the generators' spelled pk maps feed the
+            // pk-membership rewrite; a let-bound graph tree closes over its
+            // lets (the bi-temporal key spelling); the engine's decode is a
+            // database expression over the frame's mapping facts; runtime
+            // references decode in SQL and a closed from() inside a
+            // predicate resolves first. The walk's ObjectRefs.java is gone.
+            org.junit.jupiter.api.Assertions.assertEquals(168L,
                     com.legend.harness.WholeTestFlip.fallbackCount(),
                     "whole-test migration ratchet moved: fallbacks");
-            org.junit.jupiter.api.Assertions.assertEquals(2397L,
+            org.junit.jupiter.api.Assertions.assertEquals(2405L,
                     com.legend.harness.WholeTestFlip.flippedCount(),
                     "whole-test migration ratchet moved: flipped"
                             + " (diff target/wholetest-flipped.txt)");

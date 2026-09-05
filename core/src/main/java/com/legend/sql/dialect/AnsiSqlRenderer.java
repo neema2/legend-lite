@@ -731,7 +731,9 @@ public class AnsiSqlRenderer implements SqlDialect {
                     + ")";
             case FROM_EPOCH_MS -> "epoch_ms(CAST(" + expr(a.get(0), 0) + " AS BIGINT))";
             case INT_DIVIDE -> "(" + expr(a.get(0), 6) + " // " + expr(a.get(1), 6) + ")";
-            case DECODE_BASE64 -> "CAST(from_base64(" + expr(a.get(0), 0) + ") AS VARCHAR)";
+            // decode(blob) — a CAST of the blob to VARCHAR ESCAPES quotes and
+            // non-printables (\x22), never the text itself (batch 72b)
+            case DECODE_BASE64 -> "decode(from_base64(" + expr(a.get(0), 0) + "))";
             case CURRENT_USER_FN -> "current_user";
             // Lists (dialect-owned; base throws like the lambda family)
             case LIST_ZIP, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX,

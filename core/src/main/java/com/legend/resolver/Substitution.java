@@ -1662,36 +1662,34 @@ final class Substitution {
                             tn.value().intValue(), tc0.elements().size())),
                     tc0.info());
         }
-        // a SINGLE string ref, or a JSON-ARRAY literal of refs (the
-        // generateObjectReferences carrier)
+        // the engine's generateObjectReferences[ForGivenSetId] call (or a
+        // spelled collection of them): the pk maps are SPELLED on the
+        // typed call — read them, never a reference string (batch 72b)
+        List<Map<String, Object>> generated = ObjectReferenceArms.generatorPkMaps(refsArg);
+        if (generated != null) {
+            return pkMembership(oc, generated);
+        }
+        // a SINGLE spelled reference string
         if (refsArg instanceof com.legend.compiler.spec.typed
                 .TypedCString one) {
-            List<TypedSpec> els = new java.util.ArrayList<>();
-            var strInfo = new ExprType(Type.Primitive.STRING,
-                    Multiplicity.Bounded.ONE);
-            if (one.value().startsWith("[")) {
-                Object arr = com.legend.sql.Json.parseOne(one.value());
-                if (arr instanceof List<?> al) {
-                    for (Object o : al) {
-                        if (o instanceof String os) {
-                            els.add(new com.legend.compiler.spec.typed
-                                    .TypedCString(os, strInfo));
-                        }
-                    }
-                }
-            } else {
-                els.add(one);
-            }
             refsArg = new com.legend.compiler.spec.typed.TypedCollection(
-                    els, new ExprType(Type.Primitive.STRING,
+                    List.of(one), new ExprType(Type.Primitive.STRING,
                             Multiplicity.Bounded.ZERO_MANY));
         }
+        if (target.regs().inCallee() == null) {
+            throw new NotImplementedException("objectReferenceIn needs an"
+                    + " in callee (registries built without one)");
+        }
         if (!(refsArg instanceof
-                com.legend.compiler.spec.typed.TypedCollection refs)
-                || target.regs().inCallee() == null) {
-            throw new NotImplementedException("objectReferenceIn needs"
-                    + " a literal reference collection, got "
-                    + refsArg.getClass().getSimpleName());
+                com.legend.compiler.spec.typed.TypedCollection refs)) {
+            if (target.regs().pkColumns().size() != 1) {
+                throw new NotImplementedException("objectReferenceIn over runtime"
+                        + " references needs a single-pk set — pk columns: "
+                        + target.regs().pkColumns());
+            }
+            return ObjectReferenceArms.runtimeRefMembership(oc, refsArg,
+                    pkColRead("pk$_0"), target.freshRowVar() + "_ref",
+                    java.util.Objects.requireNonNull(target.regs().inCallee()));
         }
         List<Map<String, Object>> pkMaps = new java.util.ArrayList<>();
         for (TypedSpec r : refs.elements()) {
@@ -1713,6 +1711,13 @@ final class Substitution {
             pkMap.forEach((k, v) -> m.put(String.valueOf(k), v));
             pkMaps.add(m);
         }
+        return pkMembership(oc, pkMaps);
+    }
+
+    /** The pk MEMBERSHIP predicate over decoded/spelled pk maps: one IN
+     * for a single shared key, else an OR of per-map ANDs; the empty set
+     * is FALSE (real pure). */
+    private TypedSpec pkMembership(TypedNativeCall oc, List<Map<String, Object>> pkMaps) {
         if (pkMaps.isEmpty()) {
             // membership over the empty set is FALSE (real pure)
             return new com.legend.compiler.spec.typed.TypedCBoolean(false,

@@ -64,7 +64,12 @@ class NativeCatalogGovernanceTest {
         // identity marker around a merged single-scan union body; the
         // resolver's "is a union" facts read the node kind where the
         // concatenate shape no longer exists (lowering is erasure).
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 14,
+        // 14→16 (batch 72b, 2026-09-05): asorPkValue / asorDecodePkMap —
+        // the store-object-reference READERS: the reference decodes IN
+        // SQL (base64 + framing regex); the resolver mints them where
+        // the engine's objectReferenceIn collection is a runtime value
+        // and where decodeObjectReferencesAndGetPkMap reads a frame.
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 16,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

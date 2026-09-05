@@ -192,7 +192,7 @@ public final class StoreResolver {
             // its TypedFrom, the driver-runtime route never did: the
             // datePeriods agg's `$reportEndDate.day` reached substitution)
             stmt = SubQueryLift.lift(stmt, context, ctx, specs, letBindings);
-            out.add(resolveNode(stmt, context));
+            out.add(ObjectReferenceDecode.rewrite(resolveNode(stmt, context), ctx, sources));
         }
         for (int i = 0; i < out.size(); i++) {
             out.set(i, onFormPass(out.get(i), callees.and()));
@@ -585,12 +585,9 @@ public final class StoreResolver {
                     l.mapChildren(b -> SubQueryLift.resolveClosed(b,
                             new java.util.LinkedHashSet<>(l.parameters()),
                             r -> resolveNode(r, context)));
-            // The NAMED wall: an ANCHORED variant with no arm — loud,
-            // never a silent pass-through (the old default's silent
-            // 'yield n' path is now the INERT level). §8 leg 4: a USER
-            // CALL wrapper names its CALLEE — the census buckets by
-            // function, splitting §2 sql-text-family rows from real
-            // resolver work.
+            // The NAMED wall: an ANCHORED variant with no arm — loud, never
+            // a silent pass-through; a USER CALL wrapper names its CALLEE
+            // (§8 leg 4: the census buckets by function).
             default -> throw new NotImplementedException("class query under "
                     + n.getClass().getSimpleName()
                     + (System.getenv("LL_TMP_DEBUG") != null ? " <<" + Anchors.compact(n, 7) + ">>" : "")
@@ -1755,7 +1752,7 @@ public final class StoreResolver {
                     Pipelines.slotAliases(target.pipeline()),
                     navMats.get(alias).slotPrefixes(), null, null,
                     temporal.milestoneColumnsOf(target.pipeline(), target.classFqn()),
-                    subNavs, containsFilter(target.pipeline())));
+                    subNavs, PipelineWalks.containsFilter(target.pipeline())));
         }
 
         return new NavPlan(demanded, demandedNavs, assocs, navMats, navTails,
@@ -2118,9 +2115,6 @@ public final class StoreResolver {
         return new JoinedPipe(m, aggAssocJoins, aggReads);
     }
 
-    /** PHASE — to-many/navigate heads under exists/isEmpty: the
-     * correlated-EXISTS material per head (target pipeline + oriented
-     * condition, NO join emitted; the positional rule table §133). */
     /** ops + the terminal: value-position filtered navigation lives in
      * the map/project TERMINAL ($f.emps->filter(..).name — the qualifier
      * family), and its inner predicates demand target slots too. */
@@ -2812,6 +2806,19 @@ public final class StoreResolver {
         return specs;
     }
 
+    /** A nested statement resolved mid-pipeline (a closed from() inside a
+     * predicate) keeps the OUTER serialize's envelope state (72b). */
+    private TypedSpec resolveNested(TypedSpec r, Context context) {
+        var cfg0 = serializeTypeCfg;
+        boolean checked0 = checkedEnvelope;
+        try {
+            return resolveNode(r, context);
+        } finally {
+            serializeTypeCfg = cfg0;
+            checkedEnvelope = checked0;
+        }
+    }
+
     private TypedSpec resolveObject(TypedSpec top, Context context) {
         OpChain phase1 = collectOpChain(top, context);
         List<TypedSpec> ops = phase1.ops();
@@ -2969,11 +2976,14 @@ public final class StoreResolver {
                 assocJoins, aggAssocJoins, existsSubs,
                 () -> freshVarCounter++);
         TypedSpec pipeline = m.pipeline();
+        final Context closedCtx = context;   // a self-contained from() in a predicate resolves first (72b)
         for (int i = ops.size() - 1; i >= 0; i--) {
             pipeline = switch (ops.get(i)) {
                 case TypedFilter f -> new TypedFilter(pipeline,
                         substitution(cs, m, assocs, assocEnds, existsSubs, aggReads, inQueryReads, true, fresh, f.predicate(), context)
-                                .rewriteLambda(f.predicate()),
+                                .rewriteLambda((TypedLambda) SubQueryLift.resolveClosed(
+                                        f.predicate(), new java.util.LinkedHashSet<>(),
+                                        r -> resolveNested(r, closedCtx))),
                         pipeline.info());
                 case TypedLimit l -> new TypedLimit(pipeline, l.count(), pipeline.info());
                 case TypedDrop d -> new TypedDrop(pipeline, d.count(), pipeline.info());
@@ -3053,15 +3063,6 @@ public final class StoreResolver {
                 && l.body().get(0) instanceof TypedVariable v
                 && l.parameters().size() == 1
                 && v.name().equals(l.parameters().get(0));
-    }
-
-    static void collectLambdaParams(TypedSpec n, Set<String> out) {
-        if (n instanceof TypedLambda l) {
-            out.addAll(l.parameters());
-        }
-        for (TypedSpec c : n.children()) {
-            collectLambdaParams(c, out);
-        }
     }
 
     /** The navigate-slot alias a class-typed head binding reads, or null. */
@@ -3345,20 +3346,6 @@ public final class StoreResolver {
         } finally {
             temporal = outerT;
         }
-    }
-
-    /** Whether the pipeline contains a UNION (concatenate) anywhere. */
-    /** Whether the pipeline carries a mapping ~filter anywhere. */
-    static boolean containsFilter(TypedSpec pipeline) {
-        if (pipeline instanceof TypedFilter) {
-            return true;
-        }
-        for (TypedSpec c : pipeline.children()) {
-            if (containsFilter(c)) {
-                return true;
-            }
-        }
-        return false;
     }
 
     /** Context-less scopes (hop/nested registries): whole-source cast

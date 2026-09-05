@@ -822,7 +822,7 @@ final class GraphEmission {
         // this mint lacked it): bump past any name the child value or
         // the correlation could capture
         Set<String> pcParams = new LinkedHashSet<>();
-        StoreResolver.collectLambdaParams(colRead, pcParams);
+        PipelineWalks.collectLambdaParams(colRead, pcParams);
         pcParams.addAll(corr.parameters());
         String childVar;
         do {
@@ -1358,7 +1358,7 @@ final class GraphEmission {
             Map<String, String> slotPrefixes) {
         Set<String> childParams = new LinkedHashSet<>();
         for (TypedSpec b : target.bindings().values()) {
-            StoreResolver.collectLambdaParams(b, childParams);
+            PipelineWalks.collectLambdaParams(b, childParams);
         }
         childParams.addAll(extraParams);
         String childVar;

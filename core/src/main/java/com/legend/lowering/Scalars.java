@@ -872,6 +872,7 @@ final class Scalars {
                 return SqlExpr.Call.of(SqlFn.DECODE_BASE64, in);
             });
         }
+        AsorReaders.register(RULES);
         // size(NULL list) is pure's EMPTY collection: 0, never NULL.
         // count stays OUT of these rules DELIBERATELY: the projection
         // sub-aggregation machinery owns it (the engine's group-by
@@ -3485,5 +3486,4 @@ final class Scalars {
      * proven: unscoped unwrap regressed tests/mapping 9->7). CONSUMED
      * positions keep the cast always (audit 19 F7: DuckDB does not
      * wire-convert where H2 does). */
-
 }

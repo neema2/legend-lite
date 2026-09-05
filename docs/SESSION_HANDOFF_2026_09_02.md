@@ -3689,3 +3689,17 @@ non-literal refs test (UsingResultReferences) = pk membership over a decoded
 reference list (DuckDB base64 only — H2 has no base64). Then leg B (connection
 equality): fold relationalExtensions()/routerExtensions() to spelled arms,
 MatchFold class dispatch, hierarchicalProperties from class property rows.
+
+**Batch 72b — objectReferenceIn as a platform program (2026-09-05, chain
+GREEN; GATES batch 72b).** Ratchet 176/2397 → 168/2405; ObjectRefs.java gone.
+Generators read as spelled pk maps (ObjectReferenceArms); let-bound trees close
+over their lets (GraphFetchChecker — NOT at emission, that broke 7 tests);
+decode = asorDecodePkMap over the frame's mapping facts (ObjectReferenceDecode,
+typed table-key reader only — the resolver may not read protocol.spec);
+runtime refs = in(pk, refs->map(asorPkValue)) with a closed from() resolved
+inside the predicate (resolveNested keeps the outer envelope). decode(from_base64)
+not CAST AS VARCHAR (escapes). SQL_TEXT_OUTCOME reset per assert. NEXT leg B
+(connection equality, 5): admit storeContract.pure as a LIBRARY file, fold
+relationalExtensions()->routerExtensions() to the spelled contract, prepend a
+folded dynamic arm prefix as spelled arms (UserCallInliner match arm),
+hierarchicalProperties over metamodel.classes/properties rows.

@@ -60,9 +60,10 @@ final class ConnEquality {
     }
 
     /** The LET-arm host folds: JSON-metamodel plumbing defers verbatim
-     * (to the assert), predicate VERDICTS bind as booleans, and
-     * generateObjectReferences builds — one funnel so the EngineTestExecutor let
-     * arm stays a single call (file at its size cap). */
+     * (to the assert) and predicate VERDICTS bind as booleans — one funnel
+     * so the EngineTestExecutor let arm stays a single call (file at its
+     * size cap). (The generateObjectReferences builder left with batch
+     * 72b: the platform reads the generator's spelled pk maps.) */
     static @com.legend.Nullable ValueSpecification letFold(
             ValueSpecification rhs, ValueSpecification substituted,
             com.legend.compiler.element.ModelContext ctx,
@@ -71,10 +72,7 @@ final class ConnEquality {
             return rhs;
         }
         Boolean hf = tryEval(substituted, ctx, imports);
-        if (hf != null) {
-            return new com.legend.protocol.spec.CBoolean(hf);
-        }
-        return ObjectRefs.build(rhs, ctx);
+        return hf == null ? null : new com.legend.protocol.spec.CBoolean(hf);
     }
 
     /** Deep instance equality over the SUBSTITUTED literals: instances

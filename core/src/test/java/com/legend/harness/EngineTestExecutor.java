@@ -704,9 +704,6 @@ public final class EngineTestExecutor {
                         };
                 ValueSpecification exd = JsonAssertCanon.extractStrings(rhs,
                         parsedEval);
-                if (exd == null) {
-                    exd = ObjectRefs.decodePkMaps(rhs, ctx, parsedEval);
-                }
                 if (exd != null) {
                     lets.put(name.value(), exd);
                     continue;
@@ -2436,6 +2433,11 @@ public final class EngineTestExecutor {
             java.util.Set<String> planText)
             throws java.sql.SQLException {
         List<ValueSpecification> args = af.parameters();
+        // the sql-text OUTCOME is PER ASSERT: an earlier assert whose
+        // classification returned early (plan-let) must not lend its
+        // "plan-literal" to the next one (batch 72b: a stale outcome
+        // moved testGroupByWithJoinDB2 between lanes with the run order)
+        SQL_TEXT_OUTCOME.remove();
         // testDataGen reads (#46) route to the bound generator result —
         // extracted arm (checkAssert length guardrail)
         String tdgOut = checkTdgAssert(af, args, lets, tdg, planText,
