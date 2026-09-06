@@ -8,6 +8,12 @@ two executed.
 > corpus figure in this file predates the current ledger — **2,398 pass of 2,798** (2,298 of the
 > 2,575 runnable). Take numbers from `docs/GATES.md` and `docs/RELATIONAL_CORPUS.md`, not from here.
 
+### The 2026-09 round
+
+| Doc | Covers |
+|---|---|
+| [`COMPILER_ARCHITECTURE_AUDIT_2026_09_06.md`](COMPILER_ARCHITECTURE_AUDIT_2026_09_06.md) | The compiler as **architecture** — layering, concept ownership, duplication, fail-loud discipline, overfitting, and burn-down sustainability. Eleven adversarial reviewers; documentation banned as evidence. Headline: **the scored path and the product path are different code** (`Compiler.executeWire` never touches `StatementExecutor`). Also: consolidation cadence collapsed 29% → 6% while marginal cost per corpus test rose ~15×; three implementations of the milestone window predicate give two answers; 28.3% of native signatures exactly match real Pure. §9 lists eight claims investigated and **dropped**, so they are not re-derived. |
+
 ### The 2026-08 round
 
 | Doc | Covers |
