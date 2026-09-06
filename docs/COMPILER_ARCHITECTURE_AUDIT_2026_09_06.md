@@ -42,15 +42,23 @@ was switched off exactly when it was most needed** (§3).
 carry a "THE ONE OWNER / lives HERE and nowhere else" claim in their own javadoc that
 the code contradicts. That is the disease, and it is treatable.
 
-**But the finding that outranks everything above is structural and was not on anyone's
-list going in: the scored path and the product path are different code.** The HTTP
-surface calls `Compiler.executeWire`, which contains **zero references to
-`StatementExecutor`** — while the corpus scores the `StatementExecutor` path (2,977 LOC).
-The 2,463 passes therefore say almost nothing about what ships, and what ships is
-exercised by almost nothing. Compounding it, the corpus runner sets
-`legend.exec.engineScanOrder`, which adds a SQL rewriter the shipping default does not
-enable. **Fixing this is a precondition for trusting any other number in this document,
-including the ones I am reporting.** See §8a C1-C3.
+**The finding that outranks everything above is structural: the scored path and the
+product path are different code.** The corpus's platform lane runs
+`Compiler.resolveQuery → executeResolved → StatementExecutor`; the HTTP surface runs
+`Compiler.executeWire`, which contains **zero references to `StatementExecutor`** and
+also skips `resolveQuery`'s three desugar passes. So production executes a *shorter*
+pipeline than the 2,450 platform-scored tests do, and the difference is not covered by
+either. Compounding it, the corpus runner sets `legend.exec.engineScanOrder`, adding a
+SQL rewriter the shipping default does not enable. See §8a C1-C3.
+
+**Context that reframes the burn-down, and which an earlier draft of this audit got
+wrong:** `WholeTestFlip` is not test scaffolding — it is the harness-deletion migration
+itself, on by default, and **2,450 of 2,573 tests (95%) already score from the platform's
+own assert verdicts**, with 123 counted fallbacks remaining. The migration ratchet moves
+in lockstep with the corpus ratchet, so the harness-deletion program and the corpus
+burn-down are one program. That is a genuine and substantial architectural achievement,
+and it materially softens the §3 cost-curve reading: the recent batches are not only
+buying corpus passes, they are retiring the harness.
 
 ---
 
@@ -299,23 +307,49 @@ This section answers a specific question — *where do the harness or the compil
 compensate for missing platform features, by re-parsing, re-walking, re-deriving or
 transforming?* The root causes, ranked by how many symptoms each removes.
 
-**C1 — The product path and the scored path are different code.** The HTTP server calls
-only `queryService.executeWireJson` and `executeSql` (`LegendHttpServer.java:160,234`),
-both routing to `Compiler.executeWire` (`Compiler.java:483`), which calls `lowerQuery` +
-`Executor` and contains **zero references to `StatementExecutor`**. The corpus, meanwhile,
-scores the `StatementExecutor` path (2,977 LOC: statement loop, splice, verdicts,
-post-processors, deferred-TDS, `DriverPkAppend`). `QueryService.execute` — the only
-main-source caller of `Compiler.execute` — is called only from tests. **So the 2,463
-passes exercise a path the shipping surface does not run, and the shipping surface is
-exercised by almost nothing.** This is the single most consequential structural fact in
-the audit.
+**First, the migration context this section originally missed.**
+`core/src/test/java/com/legend/harness/WholeTestFlip.java` is **not** a test-side legacy
+artifact — it is *"HARNESS-DELETION item 1, slice 3 — the SCORING FLIP … the migration
+itself, not an instrument"* (`WholeTestFlip.java:18-25`), the program moving scoring from
+the harness's statement walk onto the platform. It is **on by default**
+(`:149` disables only via `-Dll.wholetest.flip.score.off`), and the migration ratchet in
+`RelationalCorpusRunner.java:2272-2277` currently pins:
 
-**C2 — Two front doors; the documented one is test-only.** `Compiler.resolveQuery`,
-whose javadoc reads *"THE query front door … Every executor — the harness's flip included
-— resolves through here"*, has **exactly one caller in the repository**:
-`core/src/test/java/com/legend/harness/WholeTestFlip.java:269`. `Compiler.execute` calls
-`NameResolver.resolveQuery` directly. Consequence: `ValidateDesugar` ("feature #45") and
-`LiteralMapUnroll` never run in production.
+```java
+assertEquals(123L,  WholeTestFlip.fallbackCount(),  "…ratchet moved: fallbacks");
+assertEquals(2450L, WholeTestFlip.flippedCount(),   "…ratchet moved: flipped");
+```
+
+**2,450 of 2,573 tests (95%) now score from the platform's own assert verdicts; 123 still
+fall back to the legacy walk, each with a counted reason.** Those two counters moved in
+exact lockstep with the corpus ratchet at Batch 111 (`124/2449 → 123/2450`), so the
+harness-deletion migration and the corpus burn-down are now **the same program**: a test
+joins the platform lane when it passes. `docs/WHOLETEST_COMPILATION_CHARTER.md`'s
+"417 flipped / 2,156 fallbacks" is a stale 2026-08-31 snapshot; do not read it as current.
+*(Verified: the lockstep move and both pinned values. Not verified: that every one of the
+123 fallbacks fails — only that the counts coincide at two consecutive batches.)*
+
+**C1 — The product path and the scored path are still different code, and production runs
+*less* of the pipeline.** The platform lane executes
+`Compiler.resolveQuery` (`WholeTestFlip.java:269`) → `Compiler.executeResolved` (`:340`)
+→ `StatementExecutor`. The HTTP server calls only `queryService.executeWireJson` and
+`executeSql` (`LegendHttpServer.java:160,234`), both routing to `Compiler.executeWire`
+(`Compiler.java:483`), which calls `lowerQuery` + `Executor` and contains **zero
+references to `StatementExecutor`**. So the 2,450 platform-scored tests and the shipping
+HTTP surface exercise different back halves. This remains the most consequential
+structural fact in the audit — but the correct framing is that **the corpus exercises more
+of the pipeline than production does**, not that it exercises dead code.
+
+**C2 — Two front doors; production takes the shorter one.** `Compiler.resolveQuery`
+(`Compiler.java:672-692`) is `ValidateDesugar` + `LiteralMapUnroll` +
+`DriverPkOption.set(fired)` + `NameResolver.resolveQuery`. Its **only caller repo-wide is
+`WholeTestFlip.java:269`** — i.e. the platform lane, 2,450 tests. Every production entry
+— `execute` (`:737`), `plan` (`:422`), `executeWire` (`:929`) — calls
+`NameResolver.resolveQuery` **directly**, skipping all three passes. Consequences:
+`ValidateDesugar` ("feature #45") and `LiteralMapUnroll` never run in production, and
+`DriverPkOption` is **never set** on any production path while
+`StatementExecutor.java:55` reads it on every execution. The fix is one line — have
+`Compiler.execute`/`plan`/`executeWire` call `Compiler.resolveQuery`.
 
 **C3 — The scored SQL pipeline is not the shipped one.**
 `core/src/test/java/com/legend/rcorpus/RelationalCorpusRunner.java:70` sets
@@ -377,10 +411,14 @@ is called two files away.
 `EngineTestExecutor.java:1060-1071` splices `mayExecuteAlloyTest`'s `{|true}` fallback,
 discarding the leg that holds the assertions, and `Runner.java:1173-1178` then scores the
 resulting empty body PASS. The repo's own `docs/CORPUS_STUDY_2026_08.md:236-239` says so.
-A further **11-12** tests carry no soft flag at all: `WholeTestFlip.java:365-385` catches
-the platform lane's `AssertFailed`, records `"platform-fail: …"`, and re-runs through the
-legacy walk, whose looser verdict stands. **Union of un-verified passes ≈ 33 of 2,463
-(~1.3%).** The genuinely honest columns are `rescued` (a *stronger* verdict — the
+A further ~11-12 tests were reported as carrying no soft flag at all —
+`WholeTestFlip.java:365-385` catches the platform lane's `AssertFailed`, records
+`"platform-fail: …"`, and re-runs through the legacy walk, whose looser verdict stands.
+**Treat that one as UNVERIFIED and re-check it**: the `platform-fail` bucket is a
+*designed, counted* fallback route of the migration (charter: *"the REAL-divergence burn
+list"*), and since the flip-fallback count equals the corpus failure count at two
+consecutive batches, it is not obvious that any such test is scored as a pass. The
+`0-asserts` finding above is independent of this and stands. The genuinely honest columns are `rescued` (a *stronger* verdict — the
 engine's own golden SQL executed on real H2 and row-compared) and `SHAPE` (labelled, not
 folded into pass).
 
@@ -412,7 +450,7 @@ Recorded so the next reader does not re-derive them.
 | Claim | Outcome |
 |---|---|
 | "A test-only flag changes production SQL rendering" (`TextGoldens.ACTIVE`) | **False.** Entered from the production `toSQLString`/`planToString` seam. An ambient-ThreadLocal design problem, not test code in production. |
-| "`DriverPkOption` is written only by tests" | **False.** `Compiler.java:688` sets it. The real criticism is weaker: a per-query flag travels as ambient state instead of in the compilation result. |
+| "`DriverPkOption` is written only by tests" | **Re-confirmed as originally stated — my mid-audit "correction" was itself wrong.** `Compiler.java:688` does set it, but line 688 sits *inside* `Compiler.resolveQuery` (672-692), whose only caller is `WholeTestFlip.java:269`. No production entry calls it, so production never sets the flag while `StatementExecutor.java:55` reads it every execution. |
 | "Fully-qualified refs bypass ArchUnit" | **False.** ArchUnit reads bytecode. The resolver→lowering edge passes because **no rule forbids it**. |
 | "The compiler branches on test identity" | **False.** 312 references to 237 test names, **all in comments**; zero fixture literals in guards. |
 | "14.6k LOC of hand-rolled JSON is a maintenance bomb" | **False.** One escaping owner (`grep 'replace(' protocol/` → 0), 611 `str()` calls with zero raw interpolation, 364/364 `sourceInformation` via one helper, 99.6% of record components reach the wire, 2.3% duplication. |
@@ -461,12 +499,15 @@ the assets any remediation should build on.
 
 ## 11. Recommendations, ranked by leverage
 
-0. **Put the product on the path the corpus scores** (or move `StatementExecutor` and
-   admit it is a test driver). Route `LegendHttpServer` through `Compiler.execute`; make
-   `Compiler.execute` call `Compiler.resolveQuery`; delete the harness's duplicate
-   desugar loop; delete `legend.exec.engineScanOrder` or make it the production default.
-   This is item zero because every other number in this document is currently a
-   statement about a path the product does not run.
+0. **Put the product on the path the corpus scores.** Concretely, and in this order:
+   (a) make `Compiler.execute`, `plan` and `executeWire` call `Compiler.resolveQuery`
+   instead of `NameResolver.resolveQuery` — a one-line change each that ends the
+   `ValidateDesugar` / `LiteralMapUnroll` / `DriverPkOption` divergence; (b) route
+   `LegendHttpServer` through the same back half the platform lane uses, or accept
+   `executeWire` as a distinct wire path and give it its own coverage; (c) delete
+   `legend.exec.engineScanOrder` or make it the production default. This is item zero
+   because the 95%-complete harness-deletion migration has moved the corpus onto a
+   pipeline the shipping surface still does not run.
 1. **Restore the ratchet at 1 consolidation per 10 patch batches.** Batch 100 is the
    existence proof. The 6% September figure is the number to move; it alone explains the
    15× cost curve.
