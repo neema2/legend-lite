@@ -2406,13 +2406,7 @@ public final class Pure {
     public static final NativeFunctionDefinition _RANGE__INT_1__DU_1__UNBOUNDED_1 = signature("native function meta::pure::functions::relation::_range(offsetFrom:meta::pure::metamodel::type::Integer[1], offsetFromDurationUnit:meta::pure::functions::date::DurationUnit[1], offsetTo:meta::pure::functions::relation::UnboundedFrameValue[1]):meta::pure::functions::relation::_RangeInterval[1];");
     public static final NativeFunctionDefinition _RANGE__UNBOUNDED_1__UNBOUNDED_1 = signature("native function meta::pure::functions::relation::_range(offsetFrom:meta::pure::functions::relation::UnboundedFrameValue[1], offsetTo:meta::pure::functions::relation::UnboundedFrameValue[1]):meta::pure::functions::relation::_Range[1];");
 
-    // The GENERATED prelude (Prelude.java, PreludeGeneratorTest — the
-    // library shapes the corpus names, copied from the spec) registers
-    // as the LAST step of this class's initialization: after every
-    // hand-declared constant (the same nativeClass door), before any
-    // index is built. Loading it from the lazy index recursed through
-    // the parser's name-resolution prelude (StackOverflow, 2026-09-04).
-    static {
-        Prelude.load();
-    }
+    // The GENERATED prelude is a MODULE now (Prelude.java reads
+    // prelude.pure; Compiler.bootLayer compiles it beside the system
+    // metamodel — SYSTEM_PRELUDE_DESIGN §10). It is not in this catalog.
 }

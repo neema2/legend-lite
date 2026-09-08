@@ -211,3 +211,38 @@ WITH one — is surfaced automatically.
    them.
 6. The five connection tests move to the engine-machinery bucket; Phase 5's
    code-as-data pool is the remaining 11 (`docs/PHASE5_SIZING_2026_09_08.md`).
+
+## 10. The prelude is a MODULE (decided 2026-09-08, batch 151)
+
+USER: "why do we have two different ways to do derived properties? why doesn't everything go through the user pipeline?"
+The generated prelude lived in `Pure.java`'s static catalog (`Pure.nativeClass(...)` per declaration, no imports, no
+resolver, no normalizer), so its derived properties needed a second lift path (`FunctionCompiler`'s on-demand lift) and
+its bodies would have needed a protocol-to-Pure printer. The user pipeline already does both for user classes, and
+`SystemMetamodel` already IS system Pure compiled through it (the boot layer, §V2 2026-09-02).
+
+**Decision.** The generated prelude is a Pure SOURCE (`core/src/main/resources/com/legend/builtin/prelude.pure`):
+one `###Pure` section per spec file, the file's `import` lines, then the shapes exactly as printed today plus every
+derived property COPIED VERBATIM from the spec declaration. `Prelude.java` is a small hand-written reader. The compiler
+adds it to the BOOT LAYER beside the system metamodel: resolved (the section imports qualify the derived bodies),
+normalized (derived properties lift to `<owner>$prop$<name>` like a user class's), cached once per process, joined into
+every graph. The resolver's bare-name fallback knows the prelude's names as it knew the catalog's; a graph element
+redefining a prelude class or enum is dropped in favour of the prelude (what the catalog-first lookup did silently).
+
+**Phases (one batch each, lanes exact between them).**
+1. Mechanism only (this batch): the shapes move from the catalog to the boot layer; no shape changes; the census's
+   last 3 rows close because the derived properties exist.
+2. Migrate the 84 hand-declared classes of `Pure.java` into the generated module a family at a time
+   (docs/HAND_SHAPE_DIVERGENCE_2026_09_08.md §4); kinds A–D of the sweep dissolve by construction. `Pure.java` keeps
+   native signatures, `Lite`, and the bootstrap handful with receipts.
+3. The bootstrap handful: `Any`'s layout rule (reflection-typed properties have no slot) then its spec properties;
+   the Typer's hand-served `classifierGenericType`/`elementOverride` go.
+4. The store-shaped divergences (`PropertyOwnerImplementation` rows; `Enum`-typed enum-value rows).
+5. `tools/shape_sweep.py` becomes the governance pin; `FunctionCompiler`'s on-demand lift is deleted with the last
+   catalog derived property.
+
+**Tenets and homework (added the same day):** `docs/PRELUDE_MODULE_HOMEWORK_2026_09_08.md` — T1 the prelude is what exists before
+any program (legend-pure platform + Java vocabulary + closure); T2 the graph is what programs declare or import by file (engine
+modules included; "the corpus names it" is not a prelude reason); T3 a prelude declaration names only prelude/catalog types; T4 a
+name on both sides is a modeling error (prelude wins transitionally, receipt list to zero); T5 the module is a closed library the
+boot layer checks. Emission = the spec declaration VERBATIM under its file's imports (no re-printing). Phase 1 = mechanism with
+today's demand; phase 3 re-scopes demand to T1/T2.

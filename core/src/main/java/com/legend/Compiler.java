@@ -229,7 +229,7 @@ public final class Compiler {
         // the system metamodel store rides EVERY build (charter §4: one
         // owner, parsed elements, no parallel lane)
         return PureModelContext.from(normalizeWithSystem(NameResolver.resolveAlongside(parsed,
-                com.legend.builtin.SystemMetamodel.elementFqns(), null), null));
+                bootFqns(), null), null));
     }
 
     /**
@@ -246,11 +246,48 @@ public final class Compiler {
             new com.legend.cache.ContentStore(4);
 
     private static NormalizedModel bootLayer() {
-        String source = com.legend.builtin.SystemMetamodel.source();
-        return BOOT.getOrCompute(com.legend.cache.Hash.ofUtf8(source),
-                () -> ModelNormalizer.normalize(NameResolver.resolve(new ParsedModel(
-                        com.legend.builtin.SystemMetamodel.elements(),
-                        com.legend.model.ImportScope.empty()))));
+        // the system metamodel AND the generated prelude module (SYSTEM_PRELUDE_DESIGN
+        // §10): one boot source, its hash the cache key; the prelude's elements keep
+        // their section imports (the derived bodies resolve through them)
+        String source = com.legend.builtin.SystemMetamodel.source() + "\n"
+                + com.legend.builtin.Prelude.source();
+        return BOOT.getOrCompute(com.legend.cache.Hash.ofUtf8(source), () -> {
+            ParsedModel pre = com.legend.builtin.Prelude.parsedModel();
+            List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>(
+                    com.legend.builtin.SystemMetamodel.elements());
+            elements.addAll(pre.elements());
+            ParsedModel boot = new ParsedModel(elements, com.legend.model.ImportScope.empty(), null,
+                    pre.elementOffsets(), pre.elementImports(), pre.elementSources());
+            return ModelNormalizer.normalize(NameResolver.resolve(boot));
+        });
+    }
+
+    /** The boot layer's FQNs — what a graph's own elements may name by import. */
+    private static java.util.Set<String> bootFqns() {
+        java.util.Set<String> out = new java.util.HashSet<>(com.legend.builtin.SystemMetamodel.elementFqns());
+        out.addAll(com.legend.builtin.Prelude.elementFqns());
+        return out;
+    }
+
+    /** A graph class or enum redefining a PRELUDE shape yields to the prelude —
+     * what the catalog-first lookup did silently before §10 (the corpus's
+     * copies of platform classes, the census's spec files). */
+    private static ParsedModel withoutPreludeShadows(ParsedModel parsed) {
+        java.util.Set<String> prelude = new java.util.HashSet<>(com.legend.builtin.Prelude.classFqns());
+        prelude.addAll(com.legend.builtin.Prelude.enumFqns());
+        List<com.legend.model.PackageableElement> kept = new java.util.ArrayList<>();
+        for (com.legend.model.PackageableElement el : parsed.elements()) {
+            boolean shadow = (el instanceof com.legend.model.ClassDefinition
+                    || el instanceof com.legend.model.EnumDefinition)
+                    && prelude.contains(el.qualifiedName());
+            if (!shadow) {
+                kept.add(el);
+            }
+        }
+        return kept.size() == parsed.elements().size() ? parsed
+                : new ParsedModel(kept, parsed.imports(), parsed.source(),
+                        parsed.elementOffsets(), parsed.elementImports(),
+                        parsed.elementSources(), parsed.unclaimedSections());
     }
 
     /**
@@ -264,7 +301,8 @@ public final class Compiler {
     private static NormalizedModel normalizeWithSystem(ParsedModel resolved,
             java.util.@com.legend.Nullable Map<String, String> walls) {
         NormalizedModel user = ModelNormalizer.normalize(
-                com.legend.builtin.SystemMetamodel.withoutSystemShadows(resolved), walls);
+                com.legend.builtin.SystemMetamodel.withoutSystemShadows(
+                        withoutPreludeShadows(resolved)), walls);
         NormalizedModel sys = bootLayer();
         List<com.legend.model.PackageableElement> elements =
                 new java.util.ArrayList<>(user.elements().size() + sys.elements().size());
@@ -334,7 +372,7 @@ public final class Compiler {
     public static BuiltModule buildModule(ParsedModel parsed) {
         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
         NormalizedModel normalized = normalizeWithSystem(NameResolver.resolveAlongside(parsed,
-                com.legend.builtin.SystemMetamodel.elementFqns(), walls), walls);
+                bootFqns(), walls), walls);
         PureModelContext ctx = PureModelContext.from(normalized, walls);
         return new BuiltModule(ctx, walls);
     }

@@ -1401,9 +1401,12 @@ class NativeFunctionTest {
 
     @Test
     void headlineNativeClassesAreAllPresent() {
+        // the platform's class universe: the catalog's hand shapes AND the
+        // generated prelude module (SYSTEM_PRELUDE_DESIGN §10)
         Set<String> simpleNames = Pure.allNativeClasses().stream()
                 .map(c -> simpleName(c.qualifiedName()))
                 .collect(Collectors.toSet());
+        Prelude.classFqns().forEach(f -> simpleNames.add(simpleName(f)));
         for (String required : List.of(
                 "Any", "Nil", "Type",
                 "Number", "Integer", "Float", "Decimal",
@@ -1574,6 +1577,9 @@ class NativeFunctionTest {
         Set<String> catalogFqns = new HashSet<>();
         Pure.allNativeClasses().forEach(c -> catalogFqns.add(c.qualifiedName()));
         Pure.allNativeEnums().forEach(e -> catalogFqns.add(e.qualifiedName()));
+        // the generated prelude module is part of the platform's type universe (§10)
+        catalogFqns.addAll(Prelude.classFqns());
+        catalogFqns.addAll(Prelude.enumFqns());
 
         java.util.SortedSet<String> missing = new java.util.TreeSet<>();
         for (NativeFunctionDefinition def : Pure.all()) {

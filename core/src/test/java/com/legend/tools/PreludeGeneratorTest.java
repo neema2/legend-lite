@@ -57,7 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PreludeGeneratorTest {
 
     private static final Path OUT = Path.of(
-            "src/main/java/com/legend/builtin/Prelude.java");
+            "src/main/resources/com/legend/builtin/prelude.pure");
 
     /** Packages whose shapes are not (yet) generated — each line a decision. */
     private static final List<String> EXCLUDED_PACKAGE_PREFIXES = List.of(
@@ -81,7 +81,7 @@ class PreludeGeneratorTest {
 
 
     @Test
-    @DisplayName("Prelude.java is the generator's current output (regenerate with -Dprelude.generate=1)")
+    @DisplayName("prelude.pure is the generator's current output (regenerate with -Dprelude.generate=1)")
     void preludeIsCurrent() throws Exception {
         String generated = generate();
         if ("1".equals(System.getProperty("prelude.generate"))) {
@@ -89,9 +89,9 @@ class PreludeGeneratorTest {
             System.out.println("[prelude] wrote " + OUT + " (" + generated.lines().count() + " lines)");
             return;
         }
-        assertTrue(Files.exists(OUT), "Prelude.java missing — run with -Dprelude.generate=1");
+        assertTrue(Files.exists(OUT), "prelude.pure missing — run with -Dprelude.generate=1");
         assertEquals(generated, Files.readString(OUT, StandardCharsets.UTF_8),
-                "Prelude.java is stale: the spec moved or the file was edited by hand —"
+                "prelude.pure is stale: the spec moved or the file was edited by hand —"
                         + " regenerate with -Dprelude.generate=1");
     }
 
@@ -269,6 +269,9 @@ class PreludeGeneratorTest {
         // 3. parse + resolve the defining files, closing over referenced types
         Map<String, PackageableElement> resolved = new LinkedHashMap<>();
         Map<String, String> declText = new LinkedHashMap<>();   // fqn -> the declaration's source text
+        Map<String, String> fileOf = new LinkedHashMap<>();     // fqn -> the spec file (its section's imports)
+        Set<String> pulledFromCorpus = new LinkedHashSet<>();   // corpus-tree classes the closure needed
+        Map<String, List<String>> fileImports = new LinkedHashMap<>();   // spec file -> its import statements
         Set<Path> parsedFiles = new LinkedHashSet<>();
         Set<String> want = new LinkedHashSet<>();
         for (String fqn : demand) {
@@ -331,6 +334,8 @@ class PreludeGeneratorTest {
                             for (Compiler.ModelSource ms : sources) {
                                 if (ms.name().equals(srcName)) {
                                     declText.putIfAbsent(el.qualifiedName(), declarationText(ms.text(), off));
+                                    fileOf.putIfAbsent(el.qualifiedName(), srcName);
+                                    fileImports.computeIfAbsent(srcName, k -> importsOf(ms.text()));
                                 }
                             }
                         }
@@ -345,8 +350,18 @@ class PreludeGeneratorTest {
                 PackageableElement el = resolved.get(fqn);
                 if (el instanceof ClassDefinition cd) {
                     for (String ref : referencedFqns(cd)) {
-                        if (!platformOwned.contains(ref) && !excluded(ref) && index.containsKey(ref)
-                                && want.add(ref)) {
+                        // a type a WANTED declaration names is part of that shape's
+                        // graph: admitted even from a spec tests:: package (the
+                        // engine's SqlFunction.tests : SqlFunctionTest[*]) — only a
+                        // DECIDED exclusion or a graph-owned class stays out (§10:
+                        // the module is a closed library the boot layer checks)
+                        if (!platformOwned.contains(ref) && !excludedByDecision(ref)
+                                && index.containsKey(ref) && want.add(ref)) {
+                            // a corpus-tree class pulled in this way: the graph's own
+                            // copy yields to the prelude's (Compiler.withoutPreludeShadows)
+                            if (corpusDefined.contains(ref)) {
+                                pulledFromCorpus.add(ref);
+                            }
                             grew = true;
                         }
                     }
@@ -393,69 +408,299 @@ class PreludeGeneratorTest {
         }
 
         // 4. print
-        StringBuilder sb = new StringBuilder();
-        sb.append("// Copyright 2026 Legend Contributors\n");
-        sb.append("// SPDX-License-Identifier: Apache-2.0\n\n");
-        sb.append("package com.legend.builtin;\n\n");
-        sb.append("import com.legend.model.ClassDefinition;\n");
-        sb.append("import com.legend.model.EnumDefinition;\n");
-        sb.append("import java.util.List;\n\n");
-        sb.append("/**\n");
-        sb.append(" * GENERATED — do not edit (com.legend.tools.PreludeGeneratorTest,\n");
-        sb.append(" * {@code -Dprelude.generate=1}). The library SHAPES the corpus names,\n");
-        sb.append(" * copied from the engine/legend-pure spec with their equality keys:\n");
-        sb.append(" * declarations only, no bodies (docs/WORLD_MAP.md §3,\n");
-        sb.append(" * docs/DECLARATIONS_HOMEWORK_2026_09_04.md). Shapes {@code Pure.java}\n");
-        sb.append(" * still declares by hand are skipped here until their hand copy is\n");
-        sb.append(" * deleted; the generator's parity test keeps this file current.\n");
-        sb.append(" */\n");
-        sb.append("public final class Prelude {\n\n");
-        sb.append("    private Prelude() {\n    }\n\n");
-        sb.append("    /** Touch to register every generated shape before Pure's index is built. */\n");
-        sb.append("    static void load() {\n    }\n\n");
-        sb.append("    /** The generated class FQNs (the generator's own exclusion set). */\n");
-        sb.append("    public static java.util.Set<String> classFqns() {\n");
-        sb.append("        return CLASSES.stream().map(ClassDefinition::qualifiedName)\n");
-        sb.append("                .collect(java.util.stream.Collectors.toUnmodifiableSet());\n    }\n\n");
-        sb.append("    /** A generated class by FQN — for tests and the few Java sites that\n");
-        sb.append("     * need the DEFINITION rather than the name. */\n");
-        sb.append("    public static ClassDefinition cls(String fqn) {\n");
-        sb.append("        return CLASSES.stream().filter(c -> c.qualifiedName().equals(fqn)).findFirst()\n");
-        sb.append("                .orElseThrow(() -> new IllegalArgumentException(\"not a generated class: \" + fqn));\n    }\n\n");
-        sb.append("    /** A generated enum by FQN. */\n");
-        sb.append("    public static EnumDefinition enumOf(String fqn) {\n");
-        sb.append("        return ENUMS.stream().filter(e -> e.qualifiedName().equals(fqn)).findFirst()\n");
-        sb.append("                .orElseThrow(() -> new IllegalArgumentException(\"not a generated enum: \" + fqn));\n    }\n\n");
-        sb.append("    /** The generated enum FQNs. */\n");
-        sb.append("    public static java.util.Set<String> enumFqns() {\n");
-        sb.append("        return ENUMS.stream().map(EnumDefinition::qualifiedName)\n");
-        sb.append("                .collect(java.util.stream.Collectors.toUnmodifiableSet());\n    }\n\n");
-        int classes = 0;
-        int enums = 0;
-        List<String> classLines = new ArrayList<>();
-        List<String> enumLines = new ArrayList<>();
-        for (String fqn : new java.util.TreeSet<>(want)) {
-            PackageableElement el = resolved.get(fqn);
-            if (el instanceof ClassDefinition cd) {
-                String text = printClass(cd, declText.getOrDefault(fqn, ""));
-                roundTrip(fqn, text);
-                classLines.add("            Pure.nativeClass(" + javaString(text) + "),");
-                classes++;
-            } else if (el instanceof EnumDefinition ed) {
-                String text = printEnum(ed);
-                roundTrip(fqn, text);
-                enumLines.add("            Pure.nativeEnum(" + javaString(text) + "),");
-                enums++;
+        // THE MODULE IS A CLOSED LIBRARY (§10): the boot layer checks every
+        // referenced type. A class whose declaration names something outside
+        // the platform universe (an excluded spec TEST model, a corpus class
+        // the graph owns) is test scaffolding — omitted and recorded, unless
+        // Java itself demands it (then it is a generator error to fix).
+        Set<String> universe = new LinkedHashSet<>(platformOwned);
+        universe.addAll(want);
+        List<String> omitted = new ArrayList<>();
+        boolean dropped = true;
+        while (dropped) {
+            dropped = false;
+            for (String fqn : new ArrayList<>(want)) {
+                if (!(resolved.get(fqn) instanceof ClassDefinition cd)) {
+                    continue;
+                }
+                String escape = escapingReference(cd, universe);
+                if (escape != null) {
+                    if (javaDemand.contains(fqn)) {
+                        throw new IllegalStateException("prelude generator: Java demands " + fqn
+                                + " but its declaration names " + escape + ", which is outside the module");
+                    }
+                    want.remove(fqn);
+                    universe.remove(fqn);
+                    omitted.add(fqn + " names " + escape);
+                    dropped = true;
+                }
             }
         }
-        sb.append("    /** ").append(classes).append(" classes. */\n");
-        sb.append("    static final List<ClassDefinition> CLASSES = List.of(\n");
-        sb.append(String.join("\n", classLines).replaceAll(",$", "")).append("\n    );\n\n");
-        sb.append("    /** ").append(enums).append(" enums. */\n");
-        sb.append("    static final List<EnumDefinition> ENUMS = List.of(\n");
-        sb.append(String.join("\n", enumLines).replaceAll(",$", "")).append("\n    );\n");
-        sb.append("}\n");
-        return sb.toString();
+        // THE CENSUS (-Dprelude.census=1, docs/PRELUDE_MODULE_HOMEWORK_2026_09_08.md): one row per
+        // wanted declaration — where it comes from, who demands it, and what the module must carry
+        if ("1".equals(System.getProperty("prelude.census"))) {
+            List<String> rows = new ArrayList<>();
+            rows.add("fqn\tsource\tdemand\tcorpusDefined\tconstraints\tderived\tstereotypes\ttaggedValues\tdefaults\tescapes\tfile");
+            for (String fqn : new java.util.TreeSet<>(want)) {
+                PackageableElement el = resolved.get(fqn);
+                String file = fileOf.getOrDefault(fqn, "?");
+                String source = file.contains("legend-pure") ? "legend-pure" : file.contains("legend-engine") ? "legend-engine" : "?";
+                String dem = javaDemand.contains(fqn) ? "java" : demand.contains(fqn) ? "corpus" : "closure";
+                if (el instanceof ClassDefinition cd) {
+                    long defaults = cd.properties().stream().filter(ClassDefinition.PropertyDefinition::hasDefault).count();
+                    String esc = escapingReference(cd, universe);
+                    rows.add(String.join("\t", fqn, source, dem, String.valueOf(corpusDefined.contains(fqn)),
+                            String.valueOf(cd.constraints().size()), String.valueOf(cd.derivedProperties().size()),
+                            String.valueOf(cd.stereotypes().size()), String.valueOf(cd.taggedValues().size()),
+                            String.valueOf(defaults), esc == null ? "" : esc, file));
+                } else {
+                    rows.add(String.join("\t", fqn, source, dem, String.valueOf(corpusDefined.contains(fqn)),
+                            "enum", "", "", "", "", "", file));
+                }
+            }
+            for (String o : omitted) {
+                rows.add("OMITTED\t" + o);
+            }
+            Files.createDirectories(Path.of("target"));
+            Files.write(Path.of("target/prelude-census.tsv"), rows);
+            System.out.println("[prelude-census] " + (rows.size() - 1) + " rows -> target/prelude-census.tsv");
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("// Copyright 2026 Legend Contributors\n");
+        sb.append("// SPDX-License-Identifier: Apache-2.0\n");
+        sb.append("//\n");
+        sb.append("// GENERATED — do not edit (com.legend.tools.PreludeGeneratorTest, -Dprelude.generate=1).\n");
+        sb.append("// THE PRELUDE AS A MODULE (docs/SYSTEM_PRELUDE_DESIGN_2026_09_08.md §10): the library shapes the\n");
+        sb.append("// corpus and the platform's Java name, copied from the legend-pure / legend-engine spec — one\n");
+        sb.append("// ###Pure section per spec file with that file's imports, each class with its stored properties\n");
+        sb.append("// (FQN-qualified) and its DERIVED properties verbatim. Compiled through the user pipeline as the\n");
+        sb.append("// boot layer beside the system metamodel (Compiler.bootLayer): resolved, normalized, cached once.\n");
+        sb.append("// Shapes Pure.java still declares by hand are skipped here until their hand copy is deleted.\n");
+        int classes = 0;
+        int enums = 0;
+        java.util.TreeMap<String, List<String>> byFile = new java.util.TreeMap<>();
+        for (String fqn : new java.util.TreeSet<>(want)) {
+            if (resolved.get(fqn) instanceof ClassDefinition || resolved.get(fqn) instanceof EnumDefinition) {
+                byFile.computeIfAbsent(fileOf.getOrDefault(fqn, "?"), k -> new ArrayList<>()).add(fqn);
+            }
+        }
+        for (Map.Entry<String, List<String>> section : byFile.entrySet()) {
+            sb.append("\n###Pure\n// ").append(section.getKey()).append('\n');
+            for (String imp : fileImports.getOrDefault(section.getKey(), List.of())) {
+                sb.append(imp).append('\n');
+            }
+            for (String fqn : section.getValue()) {
+                PackageableElement el = resolved.get(fqn);
+                String text;
+                if (el instanceof ClassDefinition cd) {
+                    text = printClass(cd, declText.getOrDefault(fqn, ""));
+                    classes++;
+                } else {
+                    text = printEnum((EnumDefinition) el);
+                    enums++;
+                }
+                roundTrip(fqn, text);
+                sb.append(text).append('\n');
+            }
+        }
+        sb.append("\n// ").append(classes).append(" classes, ").append(enums).append(" enums.\n");
+        if (!pulledFromCorpus.isEmpty()) {
+            sb.append("// PULLED FROM THE CORPUS TREE (a platform shape's declaration names them; the graph's copy yields):\n");
+            for (String c : new java.util.TreeSet<>(pulledFromCorpus)) {
+                sb.append("//   ").append(c).append('\n');
+            }
+        }
+        if (!omitted.isEmpty()) {
+            sb.append("// OMITTED (declaration names a type outside the module — spec test scaffolding):\n");
+            for (String o : omitted) {
+                sb.append("//   ").append(o).append('\n');
+            }
+        }
+        String module = sb.toString();
+        // the whole module parses as ONE model, sections and imports included
+        var whole = com.legend.parser.ElementParser.parse(module, com.legend.parser.Dialect.LEGEND_PLATFORM);
+        if (whole.elements().size() != classes + enums) {
+            throw new IllegalStateException("prelude generator: the module parses to "
+                    + whole.elements().size() + " elements, expected " + (classes + enums));
+        }
+        return module;
+    }
+
+    /** The first type a class declaration names that is not a primitive, a
+     * type parameter, or a member of {@code universe}; null when closed. */
+    static @com.legend.Nullable String escapingReference(ClassDefinition cd, Set<String> universe) {
+        Set<String> params = new java.util.HashSet<>(cd.typeParams());
+        List<TypeExpression> refs = new ArrayList<>(cd.superClasses());
+        for (ClassDefinition.PropertyDefinition p : cd.properties()) {
+            refs.add(p.type());
+        }
+        for (com.legend.protocol.DerivedPropertyDefinition dp : cd.derivedProperties()) {
+            refs.add(dp.type());
+            for (com.legend.protocol.ParameterDefinition pd : dp.parameters()) {
+                refs.add(pd.type());
+            }
+        }
+        for (TypeExpression t : refs) {
+            String e = escapingName(t, params, universe);
+            if (e != null) {
+                return e;
+            }
+        }
+        return null;
+    }
+
+    private static @com.legend.Nullable String escapingName(TypeExpression t, Set<String> params, Set<String> universe) {
+        switch (t) {
+            case TypeExpression.NameRef nr -> {
+                String n = nr.name();
+                return params.contains(n) || universe.contains(n)
+                        || com.legend.compiler.element.type.Type.Primitive.findByFqn(n).isPresent()
+                        || n.equals("meta::pure::metamodel::type::Any") || n.equals("meta::pure::metamodel::type::Nil")
+                        ? null : n;
+            }
+            case TypeExpression.Generic g -> {
+                String e = escapingName(new TypeExpression.NameRef(g.name()), params, universe);
+                if (e != null) {
+                    return e;
+                }
+                for (TypeExpression a : g.arguments()) {
+                    e = escapingName(a, params, universe);
+                    if (e != null) {
+                        return e;
+                    }
+                }
+                return null;
+            }
+            case TypeExpression.FunctionType ft -> {
+                for (TypeExpression.TypedParameter p : ft.parameters()) {
+                    String e = escapingName(p.type(), params, universe);
+                    if (e != null) {
+                        return e;
+                    }
+                }
+                return escapingName(ft.result().type(), params, universe);
+            }
+            default -> {
+                return null;   // relation types / schema algebra: columns are scalars or params
+            }
+        }
+    }
+
+    /** The class's constraint block {@code [ … ]} as written in the spec,
+     * whitespace-normalized; empty when the header has none. Scans the header
+     * at depth 0 (generic arguments and function types carry brackets of
+     * their own) up to the body's opening brace. */
+    static String constraintsText(String declText, String fqn) {
+        int depth = 0;
+        boolean inString = false;
+        // the header's stereotypes / tagged values precede the name: scan after it
+        int from = declText.indexOf(fqn);
+        from = from < 0 ? 0 : from + fqn.length();
+        for (int i = from; i < declText.length(); i++) {
+            char c = declText.charAt(i);
+            if (inString) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == '\'') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (c == '\'') {
+                inString = true;
+            } else if (c == '<' || c == '(') {
+                depth++;
+            } else if (c == '>' || c == ')') {
+                depth--;
+            } else if (c == '{' && depth == 0) {
+                return "";
+            } else if (c == '[' && depth == 0) {
+                int d = 0;
+                for (int j = i; j < declText.length(); j++) {
+                    char cj = declText.charAt(j);
+                    if (inString) {
+                        if (cj == '\\') {
+                            j++;
+                        } else if (cj == '\'') {
+                            inString = false;
+                        }
+                        continue;
+                    }
+                    if (cj == '\'') {
+                        inString = true;
+                    } else if (cj == '[' || cj == '{' || cj == '(') {
+                        d++;
+                    } else if (cj == ']' || cj == '}' || cj == ')') {
+                        d--;
+                        if (d == 0) {
+                            return declText.substring(i, j + 1).replaceAll("\\s+", " ");
+                        }
+                    }
+                }
+            }
+        }
+        return "";
+    }
+
+    /** The {@code import x::y::*;} statements of a spec file, in order. */
+    static List<String> importsOf(String text) {
+        List<String> out = new ArrayList<>();
+        for (String line : text.split("\n")) {
+            Matcher im = IMPORT.matcher(line.strip());
+            if (im.matches()) {
+                out.add(line.strip());
+            }
+        }
+        return out;
+    }
+
+    /**
+     * A DERIVED property's declaration text, verbatim from the spec class body:
+     * {@code name(params){body}:Type[m];} — located by its name at member
+     * position, closed by brace matching (string literals skipped) and the
+     * terminating {@code ;}. The spec text IS the program; the generator
+     * copies it, never re-types it (WORLD_MAP rule 2).
+     */
+    static String derivedText(String declText, String name) {
+        Matcher m = Pattern.compile("(?m)^[ \\t]*(?:<<[^>]*>>[ \\t]*)*(?:\\{[^}\\n]*\\}\\s*)?" + Pattern.quote(name)
+                + "\\s*\\(").matcher(declText);
+        if (!m.find()) {
+            throw new IllegalStateException("prelude generator: derived property '" + name
+                    + "' not found in the declaration text");
+        }
+        int start = m.start();
+        while (Character.isWhitespace(declText.charAt(start))) {
+            start++;
+        }
+        int i = m.end() - 1;   // at '('
+        int depth = 0;
+        boolean inString = false;
+        boolean sawBody = false;
+        for (; i < declText.length(); i++) {
+            char c = declText.charAt(i);
+            if (inString) {
+                if (c == '\\') {
+                    i++;
+                } else if (c == '\'') {
+                    inString = false;
+                }
+                continue;
+            }
+            if (c == '\'') {
+                inString = true;
+            } else if (c == '(' || c == '{' || c == '[') {
+                depth++;
+                if (c == '{') {
+                    sawBody = true;
+                }
+            } else if (c == ')' || c == '}' || c == ']') {
+                depth--;
+            } else if (c == ';' && depth == 0 && sawBody) {
+                return declText.substring(start, i + 1).replaceAll("\\s+", " ");
+            }
+        }
+        throw new IllegalStateException("prelude generator: derived property '" + name
+                + "' has no terminating ';' in the declaration text");
     }
 
     /** Every printed declaration must parse back through the prelude's own
@@ -489,6 +734,14 @@ class PreludeGeneratorTest {
             out.add(e.group(1));
         }
         return out;
+    }
+
+    /** {@link #excluded} without the spec-test-package rule: the exclusions that
+     * are DECISIONS (named classes, versioned protocol packages). */
+    private static boolean excludedByDecision(String fqn) {
+        return EXCLUDED_CLASSES.containsKey(fqn)
+                || (EXCLUDED_PACKAGE_PREFIXES.stream().anyMatch(fqn::startsWith)
+                        && !fqn.startsWith(PROTOCOL_TEMPLATE_M3));
     }
 
     private static boolean excluded(String fqn) {
@@ -657,6 +910,16 @@ class PreludeGeneratorTest {
             }
             sb.append(String.join(", ", sups));
         }
+        // CONSTRAINTS: the spec's own text, verbatim (§10 — the normalizer lifts
+        // them like a user class's; a module copy replacing the graph's must
+        // carry what the graph's carried)
+        String constraints = constraintsText(declText, cd.qualifiedName());
+        if (!constraints.isEmpty()) {
+            sb.append(' ').append(constraints);
+        } else if (!cd.constraints().isEmpty() && !"1".equals(System.getProperty("prelude.census"))) {
+            throw new IllegalStateException("prelude generator: " + cd.qualifiedName()
+                    + " declares constraints the declaration text does not show");
+        }
         sb.append(" {");
         for (ClassDefinition.PropertyDefinition p : cd.properties()) {
             sb.append(' ');
@@ -676,6 +939,28 @@ class PreludeGeneratorTest {
                 sb.append(" = ").append(defaultText(declText, p.name()));
             }
             sb.append(';');
+        }
+        // DERIVED properties: the spec's own text (§10 — the module's section
+        // imports qualify their names; the normalizer lifts them)
+        for (com.legend.protocol.DerivedPropertyDefinition dp : cd.derivedProperties()) {
+            if (!declText.isEmpty()) {
+                sb.append(' ').append(derivedText(declText, dp.name()));
+            }
+        }
+        // self-check: a derived-shaped member in the spec text the parser did not
+        // list is a PARSER gap — loud here, never a silently narrower shape
+        if (!declText.isEmpty()) {
+            int inText = 0;
+            Matcher dm = Pattern.compile("(?m)^[ \\t]*(?:<<[^>]*>>[ \\t]*)*(?:\\{[^}\\n]*\\}\\s*)?[A-Za-z_][A-Za-z0-9_]*\\s*\\([^)]*\\)\\s*\\{")
+                    .matcher(declText.substring(declText.indexOf('{') + 1));
+            while (dm.find()) {
+                inText++;
+            }
+            if (inText != cd.derivedProperties().size()) {
+                throw new IllegalStateException("prelude generator: " + cd.qualifiedName() + " declares "
+                        + inText + " derived propert(ies) in the spec text but the parser lists "
+                        + cd.derivedProperties().size());
+            }
         }
         sb.append(" }");
         return sb.toString();
