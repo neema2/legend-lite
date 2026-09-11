@@ -259,7 +259,7 @@ gate8() {
     echo "G8 NOT RUN — upstream checkout absent. NOT a pass." >> "$L"
     rec 8 1
   else
-  g "GATE8 parser-equivalence: byte parity + rejection parity + SPI seam + pull sentinel"
+  g "GATE8 parser-equivalence: byte parity (corpus + own corpus + seeds) + rejection parity + SPI seam + pull sentinel + protocol roster"
   # `-am` is GONE (2026-09-10). It existed so GATES=8 alone could not A/B a
   # previously installed jar — but THE BUILD now runs before every selection,
   # so the installed jar is always this tree's. Dropping it stops gate 8
@@ -283,7 +283,7 @@ gate8() {
   # roster below = every ASSERTING parity class; nothing sits outside
   # some roster.
   mvn ${SFLAG[@]+"${SFLAG[@]}"} -pl parser-equivalence clean test \
-      -Dtest='CorpusSweepTest,RejectionParityTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest,EngineElementRosterTest,ViewFilterParityTest,ComparatorSelfTest,QuotedImportParityTest,CorpusManifestTest,OffsetCompositionParityTest,AdversarialParityTest,MessageParityTest,OwnCorpusConformanceTest,OwnDialectCensusTest,SurfaceCensusTest,FixtureCorpusParityTest,MutationFuzzTest,GenerativeDualParseTest,PctParseCensusTest' \
+      -Dtest='CorpusSweepTest,RejectionParityTest,SectionParseSentinelTest,FixtureAdjudicationTest,EngineSectionRosterTest,EngineElementRosterTest,ViewFilterParityTest,ComparatorSelfTest,QuotedImportParityTest,CorpusManifestTest,OffsetCompositionParityTest,AdversarialParityTest,MessageParityTest,OwnCorpusConformanceTest,OwnDialectCensusTest,SurfaceCensusTest,FixtureCorpusParityTest,MutationFuzzTest,GenerativeDualParseTest,PctParseCensusTest,OwnCorpusParityTest,ProtocolSeedParityTest,ProtocolRosterCensusTest' \
       -Dsurefire.failIfNoSpecifiedTests=false "$R1" "$R2" > "$OUT/g8.out" 2>&1
   G8=$?
   # RENAME-GOES-RED (deep-audit M1/§5): failIfNoSpecifiedTests=false is
@@ -299,7 +299,8 @@ gate8() {
       MutationFuzzTest \
       MessageParityTest OwnCorpusConformanceTest OwnDialectCensusTest \
       GenerativeDualParseTest \
-      PctParseCensusTest; do
+      PctParseCensusTest \
+      OwnCorpusParityTest ProtocolSeedParityTest ProtocolRosterCensusTest; do
     if ! grep -q "in com.legend.equivalence.$tc" "$OUT/g8.out"; then
       echo "G8 MISSING TEST CLASS: $tc did not run — rename/delete goes RED." >> "$L"; G8=1
     fi

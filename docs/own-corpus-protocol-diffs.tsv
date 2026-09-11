@@ -1,0 +1,4 @@
+# OWN-CORPUS PROTOCOL DIFFS — every element of our own test snippets whose wire JSON differs from the
+# oracle's (OwnCorpusParityTest; upstream boundary batch 6). THE RATCHET IS THIS FILE: a diff not listed
+# here is red; a listed row that no longer diffs is red (stale). Columns: source#element, first divergence
+# (JSON path), REASON — the reason is the review; 'TODO' is not a reason. Regenerate: -Downcorpus.generate=1.

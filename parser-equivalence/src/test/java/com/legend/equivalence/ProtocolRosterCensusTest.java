@@ -24,8 +24,8 @@ import java.util.regex.Pattern;
  *  from every protocol jar on the oracle classpath (all @JsonSubTypes,
  *  not a hand-picked walk) + the extension registry; coverage unioned
  *  over BOTH corpuses (engine checkouts AND our own test snippets);
- *  every uncovered tag printed with its full class for triage.
- *  Diagnostic. */
+ *  every uncovered tag printed with its full class for triage; the roster
+ *  is COMMITTED as docs/protocol-roster.tsv and held equal (batch 6). */
 class ProtocolRosterCensusTest {
 
 
@@ -153,6 +153,29 @@ class ProtocolRosterCensusTest {
                         : "UNCOVERED").append('\n'));
         java.nio.file.Files.writeString(
                 Path.of("target", "protocol-roster.txt"), dump.toString());
+        // THE LEDGER (upstream boundary batch 6): the roster is COMMITTED
+        // (docs/protocol-roster.tsv) and held equal — a new upstream tag
+        // adds/removes protocol types as a REVIEWED diff, each row marked
+        // COVERED (some source in either corpus reaches it) or UNCOVERED.
+        // Regenerate with -Droster.generate=1.
+        Path ledger = Path.of("..", "docs", "protocol-roster.tsv");
+        String header = "# PROTOCOL-TYPE ROSTER — every @JsonSubTypes tag the pinned engine's protocol jars declare"
+                + " (+ the extension registry),\n# COVERED when a source in the engine corpus, the fixtures or our own"
+                + " test snippets reaches it (ProtocolRosterCensusTest).\n# THE LEDGER IS THIS FILE: a bump that adds"
+                + " or removes a tag, or moves a tag between COVERED and UNCOVERED, is a reviewed diff."
+                + " Regenerate: -Droster.generate=1.\n";
+        if ("1".equals(System.getProperty("roster.generate"))) {
+            java.nio.file.Files.writeString(ledger, header + dump);
+            System.out.println("@@ roster ledger regenerated: " + tagToClass.size() + " tags");
+        } else {
+            String committed = java.nio.file.Files.exists(ledger)
+                    ? java.nio.file.Files.readString(ledger).lines().filter(l -> !l.startsWith("#"))
+                            .collect(java.util.stream.Collectors.joining("\n", "", "\n"))
+                    : "";
+            org.junit.jupiter.api.Assertions.assertEquals(committed, dump.toString(),
+                    "the protocol-type roster moved (new/removed tags, or coverage changed) — review"
+                    + " target/protocol-roster.txt against docs/protocol-roster.tsv; regenerate with -Droster.generate=1");
+        }
         Set<String> unrostered = new TreeSet<>(seen);
         unrostered.removeAll(tagToClass.keySet());
         System.out.println("@@ seen-but-unrostered: " + unrostered.size()

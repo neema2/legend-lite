@@ -2709,8 +2709,10 @@ final class ElementParserTest {
         // AUDIT 21a: the engine records all three mappingLine heads on
         // PurePropertyMapping (M3CoreParser.g4:81-85 — set route, explosion,
         // local). We must RECORD them too — the [targetSetId] route in
-        // particular is the audit-11 wrong-rows shape on the Pure side;
-        // dropping it at parse destroys the only copy of the information.
+        // particular is the audit-11 wrong-rows shape on the Pure side.
+        // Batch 6 (2026-09-11): the engine's walker reads only the FIRST
+        // bracketed id (as the target); a second id is admitted by the
+        // grammar and dropped — the wire is the fact, and we follow it.
         LegacyMappingDefinition md = (LegacyMappingDefinition) com.legend.testing.Platform.model(
                 "\n###Mapping\nMapping my::M ( "
                 + "  *model::T: Pure { "
@@ -2727,8 +2729,10 @@ final class ElementParserTest {
         pcm.propertyBindings().forEach(pb -> byName.put(pb.propertyName(), pb));
         assertEquals(5, byName.size());
         assertTrue(byName.get("a").explode(), "name* records the explosion marker");
-        assertEquals("setA", byName.get("b").sourceSetId());
-        assertEquals("setB", byName.get("b").targetSetId());
+        // `b[setA, setB]`: the engine's walker reads the FIRST id as the target
+        // and never the second (its wire: source "", target "setA") — parity
+        assertNull(byName.get("b").sourceSetId());
+        assertEquals("setA", byName.get("b").targetSetId());
         assertNull(byName.get("c").sourceSetId(), "single id is the TARGET id (engine walker parity)");
         assertEquals("setB", byName.get("c").targetSetId());
         assertTrue(byName.get("d").explode(), "engine grammar also places STAR after the [set] group");

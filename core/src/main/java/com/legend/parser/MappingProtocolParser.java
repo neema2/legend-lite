@@ -485,7 +485,10 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         String kind = safeText();
         if (peek() == TokenType.ENUMERATION_MAPPING) {
             advance();
-            enums.add(parseEnumerationMapping(target, targetStart, targetSpan));
+            // the enumeration mapping's span starts at the root marker when one
+            // is written (`*model::S: EnumerationMapping …` — the engine's span
+            // begins at the `*`; batch 6 own-corpus differential)
+            enums.add(parseEnumerationMapping(target, memberStart, targetSpan));
             return;
         }
         if (peek() == TokenType.ASSOCIATION_MAPPING && cleanSheetAheadAt(1)) {
@@ -1296,13 +1299,17 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             String tgtId = null;
             if (peek() == TokenType.BRACKET_OPEN) {
                 advance();
-                String first = parseSetId();
+                // the engine's walker (PureInstanceClassMappingParseTreeWalker:
+                // purePropertyMapping.target = sourceAndTargetMappingId().sourceId(),
+                // .source = the enclosing class mapping's id) reads the FIRST
+                // bracketed id as the TARGET and never reads a second one; the
+                // grammar admits `[a, b]`, the wire carries only `target: a`.
+                // Byte parity (batch 6 own-corpus differential) — the second id
+                // is parsed and dropped, as the engine drops it.
+                tgtId = parseSetId();
                 if (peek() == TokenType.COMMA) {
                     advance();
-                    srcId = first;
-                    tgtId = parseSetId();
-                } else {
-                    tgtId = first;              // ONE id is the TARGET
+                    parseSetId();
                 }
                 expect(TokenType.BRACKET_CLOSE);
             }

@@ -23,7 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class OwnCorpusConformanceTest {
 
-    private static List<Corpus.Source> ownSnippets() {
+    static List<Corpus.Source> ownSnippets() {
         Path repo = Path.of(System.getProperty("user.dir")).getParent();
         List<Corpus.Source> ours = new ArrayList<>();
         for (String module : new String[]{"core", "pct", "nlq"}) {

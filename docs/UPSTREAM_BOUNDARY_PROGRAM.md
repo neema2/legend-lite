@@ -576,6 +576,15 @@ inference:** that the live protocol differential goes red on landing.
    the platform reserves or excludes); their signature types seed the closure. Batches
    1–5 now hold in full. NEXT: batch 6 — own-corpus byte parity in gate 8, the 17 goldens
    out of core, the protocol roster as a ledger.
+22. **Batch 6 LANDED — protocol, live** (2026-09-11): gate 8 was already the live
+   differential over 8,891 upstream sources; it now also byte-compares our own test
+   snippets (`OwnCorpusParityTest`: 2,292 elements matched, 0 diffs, an empty shrink-only
+   ledger `docs/own-corpus-protocol-diffs.tsv`), the 17 goldens' sources are live seeds
+   (`ProtocolSeedParityTest`, exact) and the golden tests are deleted from core, and the
+   protocol-type roster is a committed ledger (`docs/protocol-roster.tsv`, 1,033 tags,
+   279 covered; `ProtocolRosterCensusTest` holds it equal). Two emitter divergences the
+   own corpus exposed are fixed (first bracketed id is the target; a root-marked
+   enumeration mapping's span starts at `*`). NEXT: batch 7 (the `spec` module).
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.
