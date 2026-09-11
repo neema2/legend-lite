@@ -28,6 +28,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -372,6 +373,56 @@ class PreludeGeneratorTest {
                 todaySeed.add(e.getKey());
             }
         }
+        // ENGINE-DECLARED NATIVES demand the types their signatures name
+        // (compileJava(...):JavaSource[1] — an engine class no platform seed
+        // carries): resolved through the declaring file's imports against the
+        // spec index and seeded BEFORE the closure, so the prelude is closed
+        // over them like every other wanted shape (batch 4 §6.2, 2026-09-11)
+        List<String> engineNativeWalls = new ArrayList<>();
+        List<PlatformFunction> engineNativeDecls = engineNatives(engine, engineNativeWalls);
+        Map<String, List<String>> byBare = new HashMap<>();
+        for (String fqn : index.keySet()) {
+            byBare.computeIfAbsent(fqn.substring(fqn.lastIndexOf(':') + 1), k -> new ArrayList<>()).add(fqn);
+        }
+        // an engine native whose signature names a type the platform DECIDED
+        // not to carry cannot be declared — listed in the module's header,
+        // never dropped silently
+        Map<String, String> engineNativesNotCarried = new TreeMap<>();
+        for (PlatformFunction pf : engineNativeDecls) {
+            String ownPkg = pf.fqn().substring(0, pf.fqn().lastIndexOf("::"));
+            for (String name : referencedTypeNames(pf.text())) {
+                String resolved0 = name.contains("::") ? name : null;
+                if (resolved0 == null) {
+                    // real pure's precedence: the declaring package, then the
+                    // file's imports, then the core imports — one candidate per tier
+                    for (int tier = 0; tier < 3 && resolved0 == null; tier++) {
+                        List<String> cands = new ArrayList<>();
+                        for (String c : byBare.getOrDefault(name, List.of())) {
+                            String pkg = c.substring(0, c.lastIndexOf("::"));
+                            boolean inTier = tier == 0 ? pkg.equals(ownPkg)
+                                    : tier == 1 ? pf.wildcards().contains(pkg)
+                                    : NameResolver.CORE_IMPORTS.contains(pkg);
+                            if (inTier) {
+                                cands.add(c);
+                            }
+                        }
+                        if (cands.size() == 1) {
+                            resolved0 = cands.get(0);
+                        }
+                    }
+                }
+                if (resolved0 != null && index.containsKey(resolved0)) {
+                    if (owned.contains(resolved0) || excluded(resolved0)) {
+                        // a platform-OWNED name is reserved, not necessarily declared
+                        // (meta::json::JSONDeserializationConfig is owned and absent)
+                        engineNativesNotCarried.putIfAbsent(pf.fqn(), resolved0
+                                + (owned.contains(resolved0) ? " (platform-owned type)" : " (excluded type)"));
+                    } else {
+                        todaySeed.add(resolved0);
+                    }
+                }
+            }
+        }
         Closure today = spec.close(todaySeed);
         Set<String> want = today.want();
         Set<String> pulledFromCorpus = today.pulledFromCorpus();
@@ -443,6 +494,27 @@ class PreludeGeneratorTest {
             }
             platformFunctions.add(pf);
         }
+        // ENGINE-DECLARED NATIVES, the same ownership rule (batch 4 §6.2)
+        for (PlatformFunction pf : engineNativeDecls) {
+            if (engineNativesNotCarried.containsKey(pf.fqn())) {
+                continue;
+            }
+            if (com.legend.builtin.SystemMetamodel.elementFqns().contains(pf.fqn())) {
+                systemOwnedFunctions.add(pf.fqn());
+                continue;
+            }
+            String simple = pf.fqn().substring(pf.fqn().lastIndexOf(':') + 1);
+            if (!com.legend.builtin.Pure.nativeFunctionsAt(pf.fqn()).isEmpty()
+                    || claimedNames.contains(simple)
+                    || com.legend.compiler.spec.CoreFn.of(simple).isPresent()) {
+                platformOwnedNames.add(pf.fqn());
+                continue;
+            }
+            if (respelledNatives.add(pf.fqn())) {
+                platformFunctions.add(pf);
+            }
+        }
+        functionWalls.addAll(engineNativeWalls);
         for (PlatformFunction pf : platformFunctions) {
             declText.put(pf.key(), pf.text());
             fileOf.put(pf.key(), pf.file());
@@ -557,6 +629,13 @@ class PreludeGeneratorTest {
         sb.append("// RESPELLED NATIVES — ").append(respelledNatives.size())
                 .append(" upstream `native function` declarations the platform does not implement (carried so they\n")
                 .append("// resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').\n");
+        if (!engineNativesNotCarried.isEmpty()) {
+            sb.append("// ENGINE NATIVES NOT CARRIED — the signature names a type the platform does not carry\n");
+            sb.append("// (a decided exclusion or a platform-owned name); a call is 'unknown function':\n");
+            for (Map.Entry<String, String> e : engineNativesNotCarried.entrySet()) {
+                sb.append("//   ").append(e.getKey()).append(" — ").append(e.getValue()).append('\n');
+            }
+        }
         if (!platformOwnedNames.isEmpty()) {
             sb.append("// PLATFORM-OWNED NAMES — library functions whose name the platform CLAIMS (native-claims.tsv:\n");
             sb.append("// a registered lowering, a family enum, a wall) or an operator special form; not carried:\n");
@@ -1216,17 +1295,78 @@ class PreludeGeneratorTest {
      * function under conformance and stays in. */
     static List<PlatformFunction> platformFunctions(List<Path> platformRoots, List<String> walls)
             throws IOException {
-        List<PlatformFunction> out = new ArrayList<>();
+        List<Path> files = new ArrayList<>();
         for (Path root : platformRoots) {
             if (!Files.isDirectory(root)) {
                 // LOUD (batch 2): a missing platform root shrinks the function
                 // census and every rule keyed on it — never silently
                 throw new IllegalStateException("platform root missing (upstream moved it?): " + root);
             }
-            List<Path> files;
             try (Stream<Path> walk = Files.walk(root)) {
-                files = walk.filter(p -> p.toString().endsWith(".pure")).sorted().toList();
+                files.addAll(walk.filter(p -> p.toString().endsWith(".pure")).sorted().toList());
             }
+        }
+        return functionsIn(files, walls);
+    }
+
+    /** The engine's {@code native function} declarations: only the files
+     *  under {@link #ENGINE_SPEC_ROOTS} that declare one are parsed (105 at
+     *  4.138.2 — one per file in core_functions_unclassified, json.pure, the
+     *  compilers), and only their natives are carried (the engine's BODIED
+     *  functions are not the platform library: legend-pure's is, USER
+     *  2026-09-09). Batch 4 §6.2 completed by the batches 1–5 audit
+     *  (2026-09-11): 39 upstream natives had been in neither Pure.java nor
+     *  the prelude — "unknown function" where "not implemented" is the truth. */
+    private static final Pattern ENGINE_NATIVE = Pattern.compile("(?m)^\\s*native\\s+function\\s");
+
+    static List<PlatformFunction> engineNatives(Path engine, List<String> walls) throws IOException {
+        List<Path> files = new ArrayList<>();
+        for (String r : ENGINE_SPEC_ROOTS) {
+            Path root = engine.resolve(r);
+            if (!Files.isDirectory(root)) {
+                throw new IllegalStateException("engine spec root missing (upstream moved it?): " + root);
+            }
+            try (Stream<Path> walk = Files.walk(root)) {
+                for (Path f : walk.filter(p -> p.toString().endsWith(".pure")).sorted().toList()) {
+                    if (ENGINE_NATIVE.matcher(Files.readString(f, StandardCharsets.UTF_8)).find()) {
+                        files.add(f);
+                    }
+                }
+            }
+        }
+        List<PlatformFunction> out = new ArrayList<>();
+        for (PlatformFunction pf : functionsIn(files, walls)) {
+            if (pf.nativeDecl()) {
+                out.add(pf);
+            }
+        }
+        return out;
+    }
+
+    /** The type names a declaration's SIGNATURE spells — after a parameter's
+     *  or the return's colon, or as a generic argument — minus the primitives
+     *  and the metamodel roots the prelude always carries. */
+    static Set<String> referencedTypeNames(String declText) {
+        Set<String> out = new LinkedHashSet<>();
+        // an identifier or an FQN (double colons only — a single colon is the
+        // parameter separator, `config:Type`)
+        Matcher m = Pattern.compile("(?<!:)[:<,](?!:)\\s*([A-Za-z_][A-Za-z0-9_]*(?:::[A-Za-z_][A-Za-z0-9_]*)*)\\s*(?=[<\\[,>])").matcher(declText);
+        while (m.find()) {
+            String n = m.group(1);
+            if (!PRIMITIVE_OR_ROOT.contains(n)) {
+                out.add(n);
+            }
+        }
+        return out;
+    }
+
+    private static final Set<String> PRIMITIVE_OR_ROOT = Set.of("String", "Integer", "Float", "Decimal",
+            "Boolean", "Date", "StrictDate", "DateTime", "Number", "Any", "Nil", "Variant", "Byte",
+            "LatestDate", "StrictTime", "Function", "T", "U", "V", "K", "Z", "X", "Y", "R", "P");
+
+    static List<PlatformFunction> functionsIn(List<Path> files, List<String> walls) throws IOException {
+        List<PlatformFunction> out = new ArrayList<>();
+        {
             for (Path f : files) {
                 String text = Files.readString(f, StandardCharsets.UTF_8);
                 List<String> parseWalls = new ArrayList<>();

@@ -4320,8 +4320,63 @@ Class meta::pure::mapping::aggregationAware::AggregationAwareActivity extends me
 
 
 ###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-javaCompiler/legend-engine-pure-functions-javaCompiler-pure/src/main/resources/core_external_language_java_compiler/compiler.pure
+import meta::external::language::java::compiler::*;
+import meta::external::language::java::factory::*;
+import meta::external::language::java::serialization::*;
+Class meta::external::language::java::compiler::CompilationConfiguration
+{
+    classpath:String[*];
+}
+
+Class meta::external::language::java::compiler::CompilationResult
+{
+    successful : Boolean[1];
+    errors : String[*];
+}
+
+Class meta::external::language::java::compiler::ExecutionConfiguration
+{
+    class:String[1];
+    method:String[1];
+}
+
+Class meta::external::language::java::compiler::ExecutionResult
+{
+    successful : Boolean[1];
+    error : String[0..1];
+    returnValue : JavaValue[0..1];
+}
+
+Class meta::external::language::java::compiler::JavaValue
+{
+}
+
+Class meta::external::language::java::compiler::CompileAndExecuteResult
+{
+    compilationResult : meta::external::language::java::compiler::CompilationResult[1];
+    executionResult : ExecutionResult[0..1];
+}
+
+Class meta::external::language::java::compiler::JavaSource
+{
+    package : String[1];
+    name : String[1];
+    content : String[1];
+}
+
+native function meta::external::language::java::compiler::compileJava(classes:JavaSource[*], config:CompilationConfiguration[0..1]):meta::external::language::java::compiler::CompilationResult[1];
+
+native function meta::external::language::java::compiler::compileAndExecuteJava(classes:JavaSource[*], compConfig:CompilationConfiguration[0..1], execConfig:ExecutionConfiguration[1]):CompileAndExecuteResult[1];
+
+
+###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-json/legend-engine-pure-functions-json-pure/src/main/resources/core_functions_json/json.pure
 import meta::json::*;
+native function meta::json::escape(string:String[1]):String[1];
+
+native function meta::pure::functions::boolean::equalJsonStrings(left:String[1], right:String[1]):Boolean[1];
+
 Class meta::json::JSONElement
 {
 }
@@ -4364,6 +4419,18 @@ Class meta::json::JSONKeyValue
 
 
 ###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-legendCompiler/legend-engine-pure-functions-legendCompiler-pure/src/main/resources/core_external_compiler/compiler.pure
+import meta::json::*;
+import meta::alloy::metadataServer::*;
+import meta::pure::mapping::*;
+native function meta::legend::compile(s:String[1]):PackageableElement[*];
+
+native function meta::legend::compileVS(s:String[1]):Any[1];
+
+native function meta::legend::compilePMCD(pmcdJSON:String[1]):PackageableElement[*];
+
+
+###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-relation/legend-engine-pure-functions-relation-pure/src/main/resources/core_functions_relation/relation/functions/olap/frame/range.pure
 import meta::pure::test::pct::*;
 Class meta::pure::functions::relation::_Range extends Frame
@@ -4384,6 +4451,13 @@ Class meta::pure::functions::relation::Rows extends Frame
 
 
 ###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-relation/legend-engine-pure-functions-relation-pure/src/main/resources/core_functions_relation/relation/functions/slice/offset.pure
+import meta::pure::test::pct::*;
+import meta::pure::metamodel::relation::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::relation::offset<T>(w:Relation<T>[1], r:T[1], offset:Integer[1]):T[0..1];
+
+
+###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-relation/legend-engine-pure-functions-relation-pure/src/main/resources/core_functions_relation/relation/functions/transformation/join.pure
 import meta::pure::test::pct::*;
 import meta::pure::metamodel::relation::*;
@@ -4397,6 +4471,13 @@ Enum meta::pure::functions::relation::JoinKind
 
 
 ###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-relation/legend-engine-pure-functions-relation-pure/src/main/resources/core_functions_relation/relation/functions/wrapPrimitiveInTDS.pure
+import meta::pure::metamodel::variant::*;
+import meta::pure::test::pct::*;
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::relation::wrapPrimitiveInTDS<T>(value:T[*], type:T[1]):meta::pure::metamodel::relation::TDS<(value:T[0..1])>[1];
+
+
+###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-standard/legend-engine-pure-functions-standard-pure/src/main/resources/core_functions_standard/math/aggregator/mathUtility.pure
 Class meta::pure::functions::math::mathUtility::RowMapper<T,U>
 {
@@ -4407,6 +4488,16 @@ Class meta::pure::functions::math::mathUtility::RowMapper<T,U>
 Class meta::pure::functions::math::wavgUtility::WavgRowMapper extends meta::pure::functions::math::mathUtility::RowMapper<Number, Number>
 {
 }
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/cipher/decrypt.pure
+native function meta::pure::functions::cipher::decrypt(value:String[1], key:String[1]):String[1];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/cipher/encrypt.pure
+native function meta::pure::functions::cipher::encrypt(value:String[1],key:String[1]):String[1];
 
 
 ###Pure
@@ -4442,6 +4533,114 @@ Class meta::pure::functions::io::http::HTTPResponse
 
 
 ###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/io/readFile.pure
+native function meta::pure::functions::io::readFile(filePath:String[1], lineSeparator:String[0..1]):String[0..1];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/meta/compileValueSpecification.pure
+Class meta::pure::functions::meta::CompilationResult
+{
+    result:ValueSpecification[0..1];
+    failure:CompilationFailure[0..1];
+
+    succeeded()
+    {
+        $this.failure->isEmpty()
+    }:Boolean[1];
+
+    failed()
+    {
+        !$this.succeeded();
+    }:Boolean[1];
+}
+
+Class meta::pure::functions::meta::CompilationFailure
+{
+    message:String[1];
+    sourceInformation:SourceInformation[0..1];
+}
+
+native function meta::pure::functions::meta::compileValueSpecification<|m>(value:String[m]):CompilationResult[m];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/meta/create/newAssociation.pure
+native function meta::pure::functions::meta::newAssociation(name:String[1], p1:Property<Nil,Any|*>[1], p2:Property<Nil,Any|*>[1]):Association[1];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/meta/create/newClass.pure
+native function meta::pure::functions::meta::newClass(name:String[1]):Class<Any>[1];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/meta/create/newEnumeration.pure
+native function meta::pure::functions::meta::newEnumeration(name:String[1], values:String[*]):Enumeration<Any>[1];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/meta/create/newLambdaFunction.pure
+native function meta::pure::functions::meta::newLambdaFunction(functionType:FunctionType[1]):LambdaFunction<Any>[1];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/meta/create/newProperty.pure
+native function meta::pure::functions::meta::newProperty(name:String[1], owner:GenericType[1], target:GenericType[1], multiplicity:Multiplicity[1]):Property<Nil,Any|*>[1];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/meta/create/newQualifiedProperty.pure
+native function meta::pure::functions::meta::newQualifiedProperty(name:String[1], owner:GenericType[1], target:GenericType[1], multiplicity:Multiplicity[1], parameters:VariableExpression[*]):QualifiedProperty<Any>[1];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/meta/source/isSourceReadOnly.pure
+native function meta::pure::functions::meta::isSourceReadOnly(node:String[1]):Boolean[1];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/meta/type/function/functionDescriptorToId.pure
+native function meta::pure::functions::meta::functionDescriptorToId(functionDescriptor:String[1]):String[1];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/meta/type/function/isValidFunctionDescriptor.pure
+native function meta::pure::functions::meta::isValidFunctionDescriptor(functionDescriptor:String[1]):Boolean[1];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/profile.pure
+Class meta::pure::functions::tools::ProfileResult<T|m>
+{
+    report : String[1];
+    result : T[m];
+}
+
+native function meta::pure::functions::tools::profile<T|m>(e:T[m], printTime:Boolean[1]):ProfileResult<T|m>[1];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/runtime/isOptionSet.pure
+native function meta::core::runtime::isOptionSet(option:String[1]):Boolean[1];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/string/codec/decodeUrl.pure
+native function meta::pure::functions::string::decodeUrl(string:String[1], charset:String[1]):String[1];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/string/codec/encodeUrl.pure
+native function meta::pure::functions::string::encodeUrl(string:String[1], charset:String[1]):String[1];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/string/csv/parseCSV.pure
+native function meta::pure::functions::string::parseCSV(csv:String[1]):List<String>[*];
+
+
+###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/string/regex/regexpParameter.pure
 Enum meta::pure::functions::string::RegexpParameter
 {
@@ -4450,6 +4649,86 @@ Enum meta::pure::functions::string::RegexpParameter
    MULTILINE, // Enables multi-line mode (that is, meta-characters ^ and $ mark the beginning and end of any line of the subject). By default, multi-line mode is disabled (that is, ^ and $ mark the beginning and end of the entire subject)
    NON_NEWLINE_SENSITIVE // Enables the POSIX wildcard character . to match \n. By default, wildcard character matching is disabled
 }
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/tracing/traceSpan.pure
+native function meta::pure::functions::tracing::traceSpan<V|m>(func:Function<{->V[m]}>[1], name:String[1]):V[m];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/vcs/versionHistory.pure
+import meta::vcs::metamodel::*;
+Class meta::vcs::metamodel::Revision
+{
+  number: Integer[1];
+  author: String[0..1];
+  message: String[0..1];
+  date: Date[0..1];
+
+  changedPaths: ChangedPath[*];
+}
+
+Class meta::vcs::metamodel::ChangedPath
+{
+  path: String[1];
+  copyPath: String[0..1];
+  changeType: ChangeType[1];
+}
+
+Enum meta::vcs::metamodel::ChangeType
+{
+  ADD,
+  MODIFY,
+  REPLACE,
+  DELETE
+}
+
+native function meta::vcs::metamodel::versionHistory(source:String[*]):Revision[*];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-variant/legend-engine-pure-functions-variant-pure/src/main/resources/core_functions_variant/functions/convert/toJson.pure
+import meta::pure::test::pct::*;
+import meta::pure::metamodel::variant::*;
+import meta::pure::functions::variant::convert::*;
+native function
+    <<PCT.function>>
+    {
+        doc.doc='Returns the json representation of the given variant.'
+    }
+meta::pure::functions::variant::convert::toJson(variant: Variant[1]): String[1];
+
+
+###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-ide/legend-engine-pure-ide-light-pure-debug/src/main/resources/pure_ide_debug/debug.pure
+native function meta::pure::ide::debug():Nil[0];
+
+
+###Pure
+// legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-postgresSql/legend-engine-xt-relationalStore-postgresSqlParser-pure/src/main/resources/core_external_store_relational_postgres_sql_parser/postgresSqlParser.pure
+import meta::external::query::sql::metamodel::*;
+import meta::external::store::relational::postgresSql::parser::*;
+import meta::pure::functions::meta::*;
+import meta::json::*;
+native function <<access.private>> meta::external::store::relational::postgresSql::parser::parseSqlStatementToJson(sql: String[1]): String[1];
+
+
+###Pure
+// legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-SDT-pure/src/main/resources/core_external_store_relational_sdt/sdtFramework.pure
+import meta::external::store::relational::sdt::suite::functions::*;
+import meta::external::store::relational::sqlDialectTranslation::tests::utils::*;
+import meta::relational::metamodel::*;
+import meta::external::store::relational::sqlDialectTranslation::functionRegistry::*;
+import meta::external::store::relational::sqlDialectTranslation::utils::*;
+import meta::external::query::sql::metamodel::extension::tests::*;
+import meta::external::query::sql::metamodel::*;
+import meta::external::store::relational::sqlDialectTranslation::*;
+import meta::external::store::relational::sdt::framework::*;
+import meta::pure::extension::*;
+import meta::pure::functions::meta::*;
+import meta::json::*;
+native function meta::external::store::relational::sdt::framework::runSqlDialectTestQuery(dbType: String[1], testQuery: String[1], setupSqls: String[*], teardownSqls: String[*]): meta::relational::metamodel::execute::ResultSet[1];
 
 
 ###Pure
@@ -5322,11 +5601,25 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 469 classes, 19 enums, 120 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
-// RESPELLED NATIVES — 34 upstream `native function` declarations the platform does not implement (carried so they
+// 481 classes, 20 enums, 153 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+// RESPELLED NATIVES — 67 upstream `native function` declarations the platform does not implement (carried so they
 // resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').
+// ENGINE NATIVES NOT CARRIED — the signature names a type the platform does not carry
+// (a decided exclusion or a platform-owned name); a call is 'unknown function':
+//   meta::json::fromJsonDeprecated — meta::json::JSONDeserializationConfig (platform-owned type)
+//   meta::json::fromJsonNative — meta::json::JSONDeserializationConfig (platform-owned type)
+//   meta::json::parseJSON — meta::json::JSONElement (platform-owned type)
+//   meta::json::toJsonBeta — meta::json::JSONSerializationConfig (platform-owned type)
+//   meta::pure::extension::runtime::getExtensions — meta::pure::extension::Extension (platform-owned type)
+//   meta::pure::functions::hash::hash — meta::pure::functions::hash::HashType (platform-owned type)
+//   meta::pure::functions::io::http::executeHTTPRaw — meta::pure::functions::io::http::URL (platform-owned type)
+//   meta::pure::testConnection::getTestConnection — meta::external::store::relational::runtime::RelationalDatabaseConnection (platform-owned type)
 // PLATFORM-OWNED NAMES — library functions whose name the platform CLAIMS (native-claims.tsv:
 // a registered lowering, a family enum, a wall) or an operator special form; not carried:
+//   meta::alloy::test::mayExecuteAlloyTest
+//   meta::core::runtime::currentUserId
+//   meta::legend::execute
+//   meta::legend::test::mayExecuteLegendTest
 //   meta::pure::functions::asserts::assert
 //   meta::pure::functions::asserts::assertContains
 //   meta::pure::functions::asserts::assertEmpty
@@ -5384,6 +5677,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::functions::collection::range
 //   meta::pure::functions::collection::removeDuplicates
 //   meta::pure::functions::collection::removeDuplicatesBy
+//   meta::pure::functions::collection::repeat
 //   meta::pure::functions::collection::replaceTreeNode
 //   meta::pure::functions::collection::reverse
 //   meta::pure::functions::collection::size
@@ -5398,6 +5692,8 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::functions::date::dateDiff
 //   meta::pure::functions::date::datePart
 //   meta::pure::functions::date::dayOfMonth
+//   meta::pure::functions::date::dayOfWeekNumber
+//   meta::pure::functions::date::dayOfYear
 //   meta::pure::functions::date::hasDay
 //   meta::pure::functions::date::hasHour
 //   meta::pure::functions::date::hasMinute
@@ -5408,8 +5704,13 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::functions::date::hour
 //   meta::pure::functions::date::minute
 //   meta::pure::functions::date::monthNumber
+//   meta::pure::functions::date::now
 //   meta::pure::functions::date::second
+//   meta::pure::functions::date::timeBucket
+//   meta::pure::functions::date::today
+//   meta::pure::functions::date::weekOfYear
 //   meta::pure::functions::date::year
+//   meta::pure::functions::hash::hashCode
 //   meta::pure::functions::io::print
 //   meta::pure::functions::io::println
 //   meta::pure::functions::lang::cast
@@ -5420,6 +5721,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::functions::lang::if
 //   meta::pure::functions::lang::letFunction
 //   meta::pure::functions::lang::match
+//   meta::pure::functions::lang::mutateAdd
 //   meta::pure::functions::lang::new
 //   meta::pure::functions::lang::toMultiplicity
 //   meta::pure::functions::math::abs
@@ -5427,9 +5729,16 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::functions::math::asin
 //   meta::pure::functions::math::atan
 //   meta::pure::functions::math::atan2
+//   meta::pure::functions::math::bitAnd
+//   meta::pure::functions::math::bitNot
+//   meta::pure::functions::math::bitOr
+//   meta::pure::functions::math::bitShiftLeft
+//   meta::pure::functions::math::bitShiftRight
+//   meta::pure::functions::math::bitXor
 //   meta::pure::functions::math::cbrt
 //   meta::pure::functions::math::ceiling
 //   meta::pure::functions::math::cos
+//   meta::pure::functions::math::cosh
 //   meta::pure::functions::math::cot
 //   meta::pure::functions::math::divide
 //   meta::pure::functions::math::exp
@@ -5444,8 +5753,10 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::functions::math::round
 //   meta::pure::functions::math::sign
 //   meta::pure::functions::math::sin
+//   meta::pure::functions::math::sinh
 //   meta::pure::functions::math::sqrt
 //   meta::pure::functions::math::tan
+//   meta::pure::functions::math::tanh
 //   meta::pure::functions::math::times
 //   meta::pure::functions::math::toDecimal
 //   meta::pure::functions::math::toFloat
@@ -5461,20 +5772,66 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::functions::meta::type
 //   meta::pure::functions::multiplicity::toOne
 //   meta::pure::functions::multiplicity::toOneMany
+//   meta::pure::functions::relation::aggregate
+//   meta::pure::functions::relation::asOfJoin
+//   meta::pure::functions::relation::columns
+//   meta::pure::functions::relation::concatenate
+//   meta::pure::functions::relation::cumulativeDistribution
+//   meta::pure::functions::relation::denseRank
+//   meta::pure::functions::relation::distinct
+//   meta::pure::functions::relation::drop
+//   meta::pure::functions::relation::extend
+//   meta::pure::functions::relation::filter
+//   meta::pure::functions::relation::first
+//   meta::pure::functions::relation::groupBy
+//   meta::pure::functions::relation::join
+//   meta::pure::functions::relation::last
+//   meta::pure::functions::relation::lateral
+//   meta::pure::functions::relation::limit
+//   meta::pure::functions::relation::map
+//   meta::pure::functions::relation::nth
+//   meta::pure::functions::relation::ntile
+//   meta::pure::functions::relation::percentRank
+//   meta::pure::functions::relation::pivot
+//   meta::pure::functions::relation::project
+//   meta::pure::functions::relation::rank
+//   meta::pure::functions::relation::reduce
+//   meta::pure::functions::relation::rename
+//   meta::pure::functions::relation::rowNumber
+//   meta::pure::functions::relation::select
+//   meta::pure::functions::relation::size
+//   meta::pure::functions::relation::slice
+//   meta::pure::functions::relation::sort
 //   meta::pure::functions::relation::unbounded
+//   meta::pure::functions::relation::variant::flatten
+//   meta::pure::functions::relation::write
+//   meta::pure::functions::string::ascii
+//   meta::pure::functions::string::char
+//   meta::pure::functions::string::chunk
 //   meta::pure::functions::string::contains
+//   meta::pure::functions::string::decodeBase64
+//   meta::pure::functions::string::encodeBase64
 //   meta::pure::functions::string::endsWith
 //   meta::pure::functions::string::format
+//   meta::pure::functions::string::generation::generateGuid
 //   meta::pure::functions::string::indexOf
+//   meta::pure::functions::string::jaroWinklerSimilarity
 //   meta::pure::functions::string::joinStrings
 //   meta::pure::functions::string::length
+//   meta::pure::functions::string::levenshteinDistance
 //   meta::pure::functions::string::ltrim
+//   meta::pure::functions::string::matches
 //   meta::pure::functions::string::parseBoolean
 //   meta::pure::functions::string::parseDate
 //   meta::pure::functions::string::parseDecimal
 //   meta::pure::functions::string::parseFloat
 //   meta::pure::functions::string::parseInteger
 //   meta::pure::functions::string::plus
+//   meta::pure::functions::string::regexpCount
+//   meta::pure::functions::string::regexpExtract
+//   meta::pure::functions::string::regexpIndexOf
+//   meta::pure::functions::string::regexpLike
+//   meta::pure::functions::string::regexpReplace
 //   meta::pure::functions::string::replace
 //   meta::pure::functions::string::reverseString
 //   meta::pure::functions::string::rtrim
@@ -5486,6 +5843,10 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::functions::string::toString
 //   meta::pure::functions::string::toUpper
 //   meta::pure::functions::string::trim
+//   meta::pure::functions::variant::convert::fromJson
+//   meta::pure::functions::variant::convert::to
+//   meta::pure::functions::variant::convert::toMany
+//   meta::pure::functions::variant::convert::toVariant
 //   meta::pure::metamodel::relation::newTDSRelationAccessor
 //   meta::relational::metamodel::execute::executeInDb
 //   meta::relational::metamodel::execute::fetchDbColumnsMetaData

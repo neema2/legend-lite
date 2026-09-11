@@ -571,6 +571,11 @@ inference:** that the live protocol differential goes red on landing.
    Package/primitive re-homing is the platform's canonical spelling (recorded).
    DEFERRED: 39 engine-root natives into the prelude (batch 4 §6.2) — the next leg,
    then batch 6.
+21. **Batch 4 §6.2 COMPLETED** (2026-09-11): the engine's natives enter the prelude
+   respelled (+30; 5 not carried, listed in the header — their signatures name types
+   the platform reserves or excludes); their signature types seed the closure. Batches
+   1–5 now hold in full. NEXT: batch 6 — own-corpus byte parity in gate 8, the 17 goldens
+   out of core, the protocol roster as a ledger.
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.
