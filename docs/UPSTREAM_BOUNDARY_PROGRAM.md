@@ -585,6 +585,12 @@ inference:** that the live protocol differential goes red on landing.
    279 covered; `ProtocolRosterCensusTest` holds it equal). Two emitter divergences the
    own corpus exposed are fixed (first bracketed id is the target; a root-marked
    enumeration mapping's span starts at `*`). NEXT: batch 7 (the `spec` module).
+23. **Batch 7 PLANNED** (2026-09-11, docs/BATCH_7_PLAN_2026_09_11.md, after
+   docs/BATCH_7_HOMEWORK_2026_09_11.md): USER — the shell that finds and runs Pure test
+   functions is PRODUCT surface. Batch 7 is now three steps: 7a the test runner into
+   core (`com.legend.test`: discovery, running, an observer; the harness becomes a
+   caller), 7b the `spec` module (15 files, unchanged packages; nothing they pin may
+   move), 7c the boundary enforced (groupId → `com.legend`; enforcer + ArchUnit rules).
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.
