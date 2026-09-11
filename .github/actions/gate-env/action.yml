@@ -56,3 +56,7 @@ runs:
       shell: bash
       working-directory: legend-lite
       run: tools/version-report.sh --check
+    - name: one release propagated transitively (every shared artifact at one version; zero legend jars in core)
+      shell: bash
+      working-directory: legend-lite
+      run: tools/classpath-convergence.sh

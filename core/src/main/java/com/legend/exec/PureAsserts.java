@@ -201,7 +201,7 @@ public final class PureAsserts {
         String type = rawType.substring(rawType.lastIndexOf(':') + 1);
         String actual = carrierTypeName(v);
         boolean ok = switch (type) {
-            case "Any", "meta::pure::metamodel::type::Any" -> true;
+            case "Any", com.legend.compiler.element.type.PlatformTypes.ANY -> true;
             case "Number" -> actual.equals("Integer")
                     || actual.equals("Float") || actual.equals("Decimal");
             case "Date" -> actual.equals("StrictDate")

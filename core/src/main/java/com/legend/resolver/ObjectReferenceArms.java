@@ -42,7 +42,7 @@ final class ObjectReferenceArms {
                                 Type.Primitive.STRING, Multiplicity.Bounded.ONE),
                         new com.legend.compiler.element.TypedParameter("index",
                                 Type.Primitive.INTEGER, Multiplicity.Bounded.ONE)),
-                new Type.ClassType("meta::pure::metamodel::type::Any"));
+                new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.ANY));
         TypedSpec body = new TypedNativeCall(reader, List.of(
                 new TypedVariable(rv, str1),
                 new com.legend.compiler.spec.typed.TypedCInteger(0,

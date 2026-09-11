@@ -64,6 +64,11 @@ class SkipCensusTest {
             // absent — the enum is compared EXHAUSTIVELY with the engine's
             // dynaFnToSql registries, which live in that checkout
             "DynaFnRegistryTest.java",
+            // batch 5 audit remainder (2026-09-11): the implicit-import sequence
+            // and the PlatformTypes spelling parity — both read the checkouts,
+            // both skip only when a checkout is absent
+            "CoreImportsParityTest.java",
+            "PlatformNamesSpellingTest.java",
             // the upstream path manifest (upstream boundary batch 2,
             // 2026-09-10): skips ONLY when a checkout root itself is absent
             // (tools/oracle-roots.sh fails the gates upstream of that); a

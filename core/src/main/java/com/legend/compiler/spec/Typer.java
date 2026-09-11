@@ -435,7 +435,7 @@ final class Typer {
                                                                 .TypeAnnotation.Named(
                                                                 new com.legend.protocol
                                                                         .TypeExpression.NameRef(
-                                                                        "meta::pure::metamodel::type::Any"))))))));
+                                                                        com.legend.compiler.element.type.PlatformTypes.ANY))))))));
                         return synth(new AppliedFunction("map", List.of(
                                 af.parameters().get(0),
                                 new LambdaFunction(List.of(rv), List.of(body)))), env);
@@ -2018,7 +2018,7 @@ final class Typer {
                     // (cast(lambda, @FunctionDefinition<Any>)): no signature
                     // to type against — the literal types itself
                     if (chosen.parameters().get(i).type() instanceof Type.ClassType ac0
-                            && ac0.fqn().equals("meta::pure::metamodel::type::Any")) {
+                            && ac0.fqn().equals(com.legend.compiler.element.type.PlatformTypes.ANY)) {
                         typed[i] = synth(lam, env);
                         kernel.unifyMult(chosen.parameters().get(i).multiplicity(),
                                 typed[i].info().multiplicity(),
@@ -2304,7 +2304,7 @@ final class Typer {
             // own scope — executionPlan's Function<{Any[1]->Any[*]}>
             // param family relies on it for {var:String[1]|...})
             if (pv.type() != null && paramType instanceof Type.ClassType ct
-                    && "meta::pure::metamodel::type::Any".equals(ct.fqn())) {
+                    && com.legend.compiler.element.type.PlatformTypes.ANY.equals(ct.fqn())) {
                 paramType = namedType(pv.type());
                 if (pv.multiplicity() != null) {
                     paramMult = Multiplicity.from(pv.multiplicity());
@@ -2576,7 +2576,7 @@ final class Typer {
             // the ROOT package literal (^Database(package = ::)): a
             // Package value, real m3's Root
             return new TypedPackageableRef("::",
-                    ExprType.one(new Type.ClassType("meta::pure::metamodel::Package")));
+                    ExprType.one(new Type.ClassType(com.legend.compiler.element.type.PlatformTypes.PACKAGE)));
         }
         var cls = ctx.findClass(ref.fullPath());
         if (cls.isPresent()) {

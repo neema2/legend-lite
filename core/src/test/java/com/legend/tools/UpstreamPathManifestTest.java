@@ -48,9 +48,10 @@ public class UpstreamPathManifestTest {
     /** 90 = 3 rcorpus roots (RELATIONAL, CORE_PURE, M2M_TESTS) + 6 LIBRARY_FILES
      *  + 64 SHAPE_FILES + 1 ENGINE_IMPLEMENTATION_FILES key + 1 graphFetch domain
      *  + 9 SpecBodyCensusTest.PLATFORM_ROOTS + 3 prelude ENGINE_SPEC_ROOTS
-     *  + 1 prelude CORPUS_ROOT + 1 m3.pure + 1 pure checkout root (indexed whole).
+     *  + 1 prelude CORPUS_ROOT + 1 m3.pure + 1 pure checkout root (indexed whole)
+     *  + 1 CompileContext.java (91, batch 5 audit).
      *  Measured 2026-09-10 (batch 2). */
-    static final int PINNED_COUNT = 90;
+    static final int PINNED_COUNT = 91;
 
     static List<Entry> manifest() {
         Path engine = Corpus.ENGINE_ROOT;
@@ -80,6 +81,9 @@ public class UpstreamPathManifestTest {
         out.add(new Entry("PreludeGeneratorTest.CORPUS_ROOT", "engine",
                 engine.resolve(PreludeGeneratorTest.CORPUS_ROOT), true));
         out.add(new Entry("PreludeGeneratorTest.M3_PURE", "pure", pure.resolve(PreludeGeneratorTest.M3_PURE), false));
+        // +1 (batch 5 audit, 2026-09-11): the engine's implicit-import sequence
+        out.add(new Entry("CoreImportsParityTest.COMPILE_CONTEXT", "engine",
+                engine.resolve(CoreImportsParityTest.COMPILE_CONTEXT), false));
         out.add(new Entry("PreludeGeneratorTest (pure checkout, indexed whole)", "pure", pure, true));
         return out;
     }

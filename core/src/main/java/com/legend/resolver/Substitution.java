@@ -2160,7 +2160,6 @@ final class Substitution {
         return java.util.Objects.requireNonNull(rewriteHeadProp(key, c),
                 "primary-key pseudo-binding read");
     }
-    private static final String ANY_FQN = "meta::pure::metamodel::type::Any";
 
     /** The three dispatch forms over the instance variable; null when
      * {@code n} is none of them (the walk continues). */
@@ -2297,7 +2296,7 @@ final class Substitution {
             throw new NotImplementedException("instanceOf with a non-literal"
                     + " type argument over a mapped row");
         }
-        if (fqn.equals(ANY_FQN) || fqn.equals(target.classFqn())) {
+        if (fqn.equals(com.legend.compiler.element.type.PlatformTypes.ANY) || fqn.equals(target.classFqn())) {
             return new TypedCBoolean(true, c.info());
         }
         AssocSub sub = subtypeTable(fqn, "instanceOf(" + fqn + ")");
@@ -2308,7 +2307,7 @@ final class Substitution {
 
     private TypedSpec castLeafRead(String fqn, TypedSpec head,
             TypedPropertyAccess pa) {
-        if (fqn.equals(ANY_FQN) || fqn.equals(target.classFqn())) {
+        if (fqn.equals(com.legend.compiler.element.type.PlatformTypes.ANY) || fqn.equals(target.classFqn())) {
             // identity cast: the plain read
             return rewrite(new TypedPropertyAccess(head, pa.property(),
                     pa.info()));
@@ -2345,7 +2344,7 @@ final class Substitution {
                         + " lower today (a union of per-kind extents is a"
                         + " later step)");
             }
-            if (arm.typeFqn().equals(ANY_FQN)
+            if (arm.typeFqn().equals(com.legend.compiler.element.type.PlatformTypes.ANY)
                     || arm.typeFqn().equals(target.classFqn())) {
                 // catch-all: the parameter IS the instance
                 elseArm = rewrite(inlineParam(arm.body(), arm.param(),

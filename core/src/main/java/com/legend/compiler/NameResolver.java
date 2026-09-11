@@ -203,8 +203,13 @@ public final class NameResolver {
         return resolve(model, knownFqns, wallSink, false);
     }
 
-    /** Real pure's implicit import group, verbatim from legend-pure
-     * {@code platform/pure/grammar/m3.pure} ({@code system::imports::coreImport}). */
+    /** The implicit import group every element resolves through, walked
+     * FIRST-MATCH — the ENGINE's sequence ({@code CompileContext.META_IMPORTS}:
+     * legend-pure's {@code system::imports::coreImport} 29 plus
+     * {@code metamodel::variant}, {@code metamodel::relation} and
+     * {@code precisePrimitives} at the engine's positions). GENERATED from the
+     * pinned checkout and held as a sequence by {@code CoreImportsParityTest}
+     * ({@code -Dimports.generate=1}). */
     public static final List<String> CORE_IMPORTS = List.of(
             "meta::pure::metamodel",
             "meta::pure::metamodel::type",
@@ -216,6 +221,7 @@ public final class NameResolver {
             "meta::pure::metamodel::function::property",
             "meta::pure::metamodel::extension",
             "meta::pure::metamodel::import",
+            "meta::pure::metamodel::variant",
             "meta::pure::functions::date",
             "meta::pure::functions::string",
             "meta::pure::functions::collection",
@@ -224,23 +230,18 @@ public final class NameResolver {
             "meta::pure::functions::lang",
             "meta::pure::functions::boolean",
             "meta::pure::functions::tools",
-            "meta::pure::functions::relation",
             "meta::pure::functions::io",
             "meta::pure::functions::math",
             "meta::pure::functions::asserts",
             "meta::pure::functions::test",
             "meta::pure::functions::multiplicity",
+            "meta::pure::functions::relation",
+            "meta::pure::metamodel::relation",
             "meta::pure::router",
             "meta::pure::service",
             "meta::pure::tds",
             "meta::pure::tools",
             "meta::pure::profiles",
-            // the ENGINE's implicit group is m3.pure's plus these three
-            // (legend-engine CompileContext.META_IMPORTS, "taken from
-            // m3.pure in PURE") — the corpus is engine code and spells
-            // `Relation<(…)>` bare on their strength (batch 153)
-            "meta::pure::metamodel::relation",
-            "meta::pure::metamodel::variant",
             "meta::pure::precisePrimitives");
 
     private static ParsedModel resolve(ParsedModel model, Set<String> knownFqns,

@@ -563,6 +563,14 @@ inference:** that the live protocol differential goes red on landing.
    key set and the constant-fold FQN switch read the platform constants. Batch 5 is
    closed: DIVERGENT ZERO, the registry, and the four audit legs. Open findings live in
    docs/LITE_REVIEW_2026_09_11.md (7–12). NEXT: batch 6 (protocol live).
+20. **Batches 1–5 AUDITED; batch 5 remainder LANDED** (2026-09-11,
+   docs/BATCH_1_5_AUDIT_2026_09_11.md): `CORE_IMPORTS` is the engine's
+   `META_IMPORTS` sequence, generated and held (`CoreImportsParityTest`); every
+   `PlatformTypes` spelling is held against the checkouts (`PlatformNamesSpellingTest`;
+   drift test deleted; inline literals gone); convergence runs in CI. Finding 5.4: the
+   Package/primitive re-homing is the platform's canonical spelling (recorded).
+   DEFERRED: 39 engine-root natives into the prelude (batch 4 §6.2) — the next leg,
+   then batch 6.
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.

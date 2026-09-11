@@ -44,7 +44,7 @@ final class MatchFold {
     /** Exact primitive FQN, the temporal ladder under Date, the numeric
      * ladder under Number, and Any; class inputs answer false. */
     private static boolean staticConforms(Type t, String armFqn) {
-        if ("meta::pure::metamodel::type::Any".equals(armFqn)) {
+        if (com.legend.compiler.element.type.PlatformTypes.ANY.equals(armFqn)) {
             return true;
         }
         if (!(t instanceof Type.Primitive p)) {
