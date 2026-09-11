@@ -110,7 +110,11 @@ class HarnessDisciplineTest {
             // only — source files by name, tests by the engine suite
             // order, setup packages by nesting depth; no result flows
             // through a sort (the platform judges every verdict).
-            Map.entry("MinimalCorpus.java", 4),
+            // 4 -> 2 (batch 7a, 2026-09-11): the test order and the setup
+            // packages' nesting order moved INTO THE PRODUCT with discovery
+            // and the runner (com.legend.test); the harness keeps only its
+            // source-file order.
+            Map.entry("MinimalCorpus.java", 2),
             // the timing ledger: the slowest tests DISPLAYED, no comparison
             Map.entry("MinimalCorpusTest.java", 1),
             // the eager corpus compile PROBE (COMPILE_EVERYTHING_HOMEWORK §10, run

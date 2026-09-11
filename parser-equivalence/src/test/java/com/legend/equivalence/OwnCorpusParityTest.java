@@ -38,8 +38,10 @@ import org.junit.jupiter.api.Test;
 class OwnCorpusParityTest {
 
     static final Path LEDGER = Path.of("..", "docs", "own-corpus-protocol-diffs.tsv");
-    /** Shrink-only floor on MATCHED elements (measured 2026-09-11). */
-    static final int MIN_MATCHED = 2292;
+    /** EXACT pin on MATCHED elements (measured 2026-09-11). 2292 → 2296
+     *  (batch 7a): the product test runner's proof model — four functions
+     *  in a core test — joined the own corpus and matched. */
+    static final int MIN_MATCHED = 2296;
 
     @Test
     @DisplayName("every own-corpus snippet the oracle accepts emits the oracle's bytes, element by element")

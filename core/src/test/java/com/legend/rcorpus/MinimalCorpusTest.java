@@ -149,7 +149,7 @@ class MinimalCorpusTest {
         java.util.Map<String, Long> elapsed = new java.util.LinkedHashMap<>();
         long t0 = System.nanoTime();
         try {
-            for (MinimalCorpus.TestCase t : corpus.tests()) {
+            for (com.legend.test.PureTests.TestCase t : corpus.tests()) {
                 if (!only.isEmpty() && !t.fqn().contains(only)) {
                     continue;
                 }

@@ -591,6 +591,11 @@ inference:** that the live protocol differential goes red on landing.
    core (`com.legend.test`: discovery, running, an observer; the harness becomes a
    caller), 7b the `spec` module (15 files, unchanged packages; nothing they pin may
    move), 7c the boundary enforced (groupId → `com.legend`; enforcer + ArchUnit rules).
+24. **Batch 7a LANDED** (2026-09-11): `com.legend.test` — `PureTests` (discovery over
+   the model, marks reported not applied), `PureTestRunner` (sessions, setups, the body
+   through the platform, one result), `TestObserver` (the harness's seam); the corpus
+   harness is a caller (926 → 699 lines); `PureTestRunnerTest` proves the runner with no
+   checkout. USER decided the groupId rename (7c). NEXT: 7b (the `spec` module).
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.

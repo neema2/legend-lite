@@ -40,6 +40,14 @@ class ErrorShapeGuardrailTest {
      * anywhere, including in these files, fails until reviewed.
      */
     private static final Map<String, Integer> BROAD_CATCH_COUNTS = Map.ofEntries(
+            // batch 7a (2026-09-11): the product's test runner — resolve,
+            // type, setup and body failures each become the test's FAIL
+            // result with the platform's whole message; the set of what
+            // the platform may raise for a test body is the platform's
+            // business, not the runner's (a narrowed list would silently
+            // abort the run on the next kind); the harness carried these
+            // same four before the extraction
+            Map.entry("PureTestRunner.java", 4),
             // F3.1b (2026-08-16): isValidJson delegates the VARIANT gate
             // to the platform reader; ANY parse failure means not-JSON —
             // a designed total catch (the reader throws ISE/SIOOBE/NFE
@@ -133,7 +141,12 @@ class ErrorShapeGuardrailTest {
     // counted rider decline + derived fallback value, never a silent
     // rescue. (prepCanon/runCanon's dead catches returned null and were
     // never in this count.)
-    private static final int CATCH_RETURNS_VALUE = 15;
+    // 15→17 (2026-09-11, batch 7a): the product's test runner turns a
+    // platform failure at resolve/typing time into the test's own FAIL
+    // result carrying the platform's whole message — the designed sentinel
+    // of a test runner (a failing test must never abort the run); the
+    // harness had the same two catches before it moved into the product.
+    private static final int CATCH_RETURNS_VALUE = 17;
 
     /** {@code endsWith("::…")} identification sites — the suffix-match
      * idiom exact-FQN doctrine retires; may only shrink. */

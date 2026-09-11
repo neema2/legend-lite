@@ -119,6 +119,13 @@ class JdbcSurfaceCensusTest {
             // shape); it opens no connection and executes nothing —
             // the harness implementation does, on the testing side
             "core/src/main/java/com/legend/exec/SqlReplayOracle.java",
+            // the product's test runner (batch 7a, 2026-09-11): opens one
+            // session per package through the caller's connection factory and
+            // HANDS the connection to the executor; the observer seam passes
+            // it to the caller's referee; neither executes a statement of its
+            // own (tenet #1 — the database executes what the platform compiles)
+            "core/src/main/java/com/legend/test/PureTestRunner.java",
+            "core/src/main/java/com/legend/test/TestObserver.java",
             "core/src/main/java/com/legend/server/ConnectionResolver.java",
             "core/src/main/java/com/legend/server/QueryService.java",
             "core/src/main/java/com/legend/testdatagen/TestDataGenerator.java",
@@ -375,6 +382,10 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/normalizer/AssocSimpleNameProbeTest.java",
             "core/src/test/java/com/legend/normalizer/AssociationViewJoinTest.java",
             "core/src/test/java/com/legend/rcorpus/DuckWorkspaces.java",
+            // the product test runner's proof (batch 7a, 2026-09-11): opens an
+            // in-memory DuckDB session and HANDS it to the runner, which hands
+            // it to the platform; it executes no SQL of its own (tenet #1)
+            "core/src/test/java/com/legend/test/PureTestRunnerTest.java",
             // the minimal harness (2026-09-06): opens the DuckDB session and
             // the referee's H2 mirror and HANDS them to the platform; it
             // executes no SQL of its own (tenet #1 — the database executes

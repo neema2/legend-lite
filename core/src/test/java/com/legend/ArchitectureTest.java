@@ -134,6 +134,9 @@ final class ArchitectureTest {
             // the server shell is a driver CONSUMER (HTTP/LSP/diagram on top
             // of Compiler) — a top-layer sibling, not a phase
             .and().resideOutsideOfPackage("com.legend.server..")
+            // the product's test runner (batch 7a) is a driver CONSUMER too:
+            // it discovers tests in a model and runs them through Compiler
+            .and().resideOutsideOfPackage("com.legend.test..")
             .and().resideInAPackage("com.legend..")
             .should().dependOnClassesThat().belongToAnyOf(
                     com.legend.Compiler.class,
@@ -513,6 +516,10 @@ final class ArchitectureTest {
         noClasses()
             .that().resideOutsideOfPackages("com.legend.exec",
                     "com.legend.server..", "com.legend.testdatagen",
+                    // the product's test runner (batch 7a): a driver like the
+                    // root's — it opens package sessions and hands the
+                    // connection to the executor, never a statement of its own
+                    "com.legend.test",
                     "com.legend")
             .and().resideInAPackage("com.legend..")
             .should().dependOnClassesThat()
