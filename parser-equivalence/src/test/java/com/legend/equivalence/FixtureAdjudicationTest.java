@@ -273,20 +273,24 @@ class FixtureAdjudicationTest {
                         ? "." : Path.of("").toAbsolutePath().getParent()
                                 .toString()));
         List<Path> out = new ArrayList<>();
-        // ONE module: the "engine" module was deleted (cd31b9f3) and the
-        // silent isDirectory-skip made this walk half-dead (deep-audit #2)
-        Path dir = root.resolve("core").resolve("src/test/java");
-        if (!Files.isDirectory(dir)) {
-            throw new IllegalStateException("core test tree missing at "
-                    + dir + " — set -Dlegend.lite.root");
-        }
-        try (Stream<Path> s = Files.walk(dir)) {
-            s.filter(f -> f.toString().endsWith(".java"))
-                    .filter(f -> !Corpus.slashed(f).contains("/target/"))
-                    .sorted(java.util.Comparator.comparing(Corpus::slashed))
-                    .forEach(out::add);
-        } catch (IOException e) {
-            throw new IllegalStateException("cannot walk " + dir, e);
+        // TWO modules, both REQUIRED: the "engine" module was deleted
+        // (cd31b9f3) and the silent isDirectory-skip made this walk half-dead
+        // (deep-audit #2); batch 7b (2026-09-11) moved the corpus harness and
+        // the generators — and the Pure fixtures their tests embed — to spec
+        for (String module : new String[] {"core", "spec"}) {
+            Path dir = root.resolve(module).resolve("src/test/java");
+            if (!Files.isDirectory(dir)) {
+                throw new IllegalStateException(module + " test tree missing at "
+                        + dir + " — set -Dlegend.lite.root");
+            }
+            try (Stream<Path> s = Files.walk(dir)) {
+                s.filter(f -> f.toString().endsWith(".java"))
+                        .filter(f -> !Corpus.slashed(f).contains("/target/"))
+                        .sorted(java.util.Comparator.comparing(Corpus::slashed))
+                        .forEach(out::add);
+            } catch (IOException e) {
+                throw new IllegalStateException("cannot walk " + dir, e);
+            }
         }
         return out;
     }

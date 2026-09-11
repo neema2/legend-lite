@@ -71,8 +71,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class PreludeGeneratorTest {
 
-    private static final Path OUT = Path.of(
-            "src/main/resources/com/legend/builtin/prelude.pure");
+    private static final Path OUT = CoreTree.resource("com/legend/builtin/prelude.pure");
 
     /** Packages whose shapes are not (yet) generated — each line a decision. */
     private static final List<String> EXCLUDED_PACKAGE_PREFIXES = List.of(
@@ -312,7 +311,7 @@ class PreludeGeneratorTest {
         // dispatch constant alike; comment lines never count. If our Java has
         // the name in it, the platform depends on the class existing; the
         // receipt is a grep. (A curated "constructed" list lived one batch, 154.)
-        try (Stream<Path> s = Files.walk(Path.of("src/main/java"))) {
+        try (Stream<Path> s = Files.walk(CoreTree.CORE.resolve("src/main/java"))) {
             for (Path f : s.filter(p -> p.toString().endsWith(".java")
                     && !p.getFileName().toString().equals("Prelude.java")).sorted().toList()) {
                 for (String line : Files.readString(f, StandardCharsets.UTF_8).split("\n")) {
@@ -1523,7 +1522,7 @@ class PreludeGeneratorTest {
     /** The FQNs {@code Pure.java} declares by hand ({@code native Class …}
      * and {@code Enum …} text), read from the source file. */
     static Set<String> handDeclaredFqns() throws IOException {
-        String src = Files.readString(Path.of("src/main/java/com/legend/builtin/Pure.java"),
+        String src = Files.readString(CoreTree.main("com/legend/builtin/Pure.java"),
                 StandardCharsets.UTF_8);
         Set<String> out = new LinkedHashSet<>();
         Matcher c = Pattern.compile("native Class ([A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)+)").matcher(src);

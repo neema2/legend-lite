@@ -151,7 +151,7 @@ gate4() {
     rec 4 1
   else
   g "GATE4 DuckDB corpus"
-  mvn -pl core test -Dtest=MinimalCorpusTest -Dsurefire.excludedGroups= "$R1" "$R2" > "$OUT/g4.out" 2>&1
+  mvn -pl spec test -Dtest=MinimalCorpusTest -Dsurefire.excludedGroups= "$R1" "$R2" > "$OUT/g4.out" 2>&1
   G4=$?; if skipped "$OUT/g4.out"; then
     echo "G4 SKIPPED — no legend-engine checkout at $ROOT_ENGINE. NOT a pass." >> "$L"; G4=1
   fi
@@ -169,7 +169,7 @@ gate5() {
     rec 5 1
   else
   g "GATE5 h2 corpus"
-  mvn -pl core test -Dtest=MinimalCorpusTest -Dsurefire.excludedGroups= -Drcorpus.backend=h2 "$R1" "$R2" > "$OUT/g5.out" 2>&1
+  mvn -pl spec test -Dtest=MinimalCorpusTest -Dsurefire.excludedGroups= -Drcorpus.backend=h2 "$R1" "$R2" > "$OUT/g5.out" 2>&1
   G5=$?; if skipped "$OUT/g5.out"; then
     echo "G5 SKIPPED — no legend-engine checkout at $ROOT_ENGINE. NOT a pass." >> "$L"; G5=1
   fi
@@ -320,13 +320,15 @@ gate8() {
 # Suites conflict exactly when they write the same directory, so the safe
 # decomposition is three groups and no finer:
 #
-#   A  core/target               gate 1, gate 4, gate 5
+#   A  core/target + spec/target gate 1 (core), gate 4, gate 5 (spec)
 #   B  pct/target                gate 6, gate 7, gate 9
 #   C  parser-equivalence/target gate 8   (only since it dropped -am)
 #
-# Gates 4 and 5 both write target/corpus2-{pass,fail,skipped}.txt at FIXED
-# paths and share one surefire-reports dir, which is why core's three suites
-# stay sequential rather than splitting further.
+# Gates 4 and 5 both write spec/target/corpus2-{pass,fail,skipped}.txt at
+# FIXED paths and share one surefire-reports dir, which is why they stay
+# sequential; since batch 7b (2026-09-11) they run in the spec module, so
+# gate 1 (core/target) could split off them — kept in stream A on purpose
+# until the H2 lane's memory beside gate 1 is measured.
 #
 # SEQUENTIAL BY DEFAULT. GATES_PARALLEL=1 runs the three streams at once,
 # which is only sound because THE BUILD already ran: every stream reads a

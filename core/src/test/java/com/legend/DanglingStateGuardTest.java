@@ -52,7 +52,7 @@ class DanglingStateGuardTest {
      * module of the reactor (core, nlq, pct, parser-equivalence), main and
      * test trees where they exist — a slot's readers may live in another
      * module (batch 123's lesson: pct reads core's censuses). */
-    private static final List<Path> ROOTS = Stream.of("core", "nlq", "pct", "parser-equivalence")
+    private static final List<Path> ROOTS = Stream.of("core", "spec", "nlq", "pct", "parser-equivalence")
             .flatMap(m -> Stream.of(Path.of("..", m, "src/main/java"), Path.of("..", m, "src/test/java")))
             .filter(Files::isDirectory)
             .toList();

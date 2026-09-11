@@ -473,6 +473,23 @@ final class ArchitectureTest {
             .check(CORE_PROD_CLASSES);
     }
 
+    /** THE UPSTREAM BOUNDARY (batch 7c, 2026-09-11): no class in core — main
+     *  OR test — depends on the engine's or pure's Java. The Maven enforcer
+     *  bans the artifacts; this bans the imports, so a class that arrives by
+     *  any other road (a shaded jar, a transitive test dependency) is caught
+     *  at the type level. Measured zero before the rule; the rule keeps it. */
+    @Test
+    void upstreamJavaNeverEntersCore() {
+        JavaClasses mainAndTests = new ClassFileImporter().importPackages("com.legend");
+        noClasses()
+            .that().resideInAPackage("com.legend..")
+            .should().dependOnClassesThat().resideInAnyPackage(
+                    "org.finos.legend..")
+            .as("the upstream boundary: core imports no org.finos.legend class"
+                    + " (docs/UPSTREAM_BOUNDARY_PROGRAM.md workstream B)")
+            .check(mainAndTests);
+    }
+
     /** Invariant 5 as an ALLOWLIST: lowering's whole dependency surface. */
     @Test
     void loweringDependencySurfaceIsPinned() {

@@ -68,7 +68,7 @@ class JdbcSurfaceCensusTest {
      * root it was never told about, so module creation reviews this
      * file. */
     private static final List<String> ROOTS = List.of(
-            "core/src", "pct/src", "nlq/src", "parser-equivalence/src");
+            "core/src", "spec/src", "pct/src", "nlq/src", "parser-equivalence/src");
 
     /** Coverage floor: files scanned on 2026-08-18. Shrink needs a
      * written justification (files deleted); growth is free. */
@@ -292,14 +292,14 @@ class JdbcSurfaceCensusTest {
             // (ExecCallFinder RETIRED from the register 2026-08-28 —
             // sideSqlText's evaluation path deleted with the slice-3
             // equality half; the finder is pure tree navigation now)
-            "core/src/test/java/com/legend/harness/H2Verify.java",
+            "spec/src/test/java/com/legend/harness/H2Verify.java",
             // SQLTEXT charter §8 slice 1: THE ORACLE SERVICE — the one
             // owner of the family-mirror session, seed-ledger replay
             // and fresh-replay fallback (extracted from the four
             // duplicated H2Verify arms). Testing-side by design: the
             // reference database IS its job; the platform reaches it
             // only through the SqlReplayOracle SPI on ExecEnv.
-            "core/src/test/java/com/legend/harness/ReplayOracle.java",
+            "spec/src/test/java/com/legend/harness/ReplayOracle.java",
             "core/src/test/java/com/legend/integration/AbstractDatabaseTest.java",
             "core/src/test/java/com/legend/integration/AsOfJoinCheckerTest.java",
             "core/src/test/java/com/legend/integration/AssociationIntegrationTest.java",
@@ -381,7 +381,7 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/lowering/ValueSortComparatorTest.java",
             "core/src/test/java/com/legend/normalizer/AssocSimpleNameProbeTest.java",
             "core/src/test/java/com/legend/normalizer/AssociationViewJoinTest.java",
-            "core/src/test/java/com/legend/rcorpus/DuckWorkspaces.java",
+            "spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java",
             // the product test runner's proof (batch 7a, 2026-09-11): opens an
             // in-memory DuckDB session and HANDS it to the runner, which hands
             // it to the platform; it executes no SQL of its own (tenet #1)
@@ -391,7 +391,7 @@ class JdbcSurfaceCensusTest {
             // executes no SQL of its own (tenet #1 — the database executes
             // what the platform compiles; the harness only finds and runs
             // tests)
-            "core/src/test/java/com/legend/rcorpus/MinimalCorpus.java",
+            "spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java",
             "core/src/test/java/com/legend/resolver/ResolveDeepEmptinessProbeTest.java",
             "core/src/test/java/com/legend/resolver/ResolveDerivedLeafProbeTest.java",
             "core/src/test/java/com/legend/resolver/ResolveFilterDemandTest.java",

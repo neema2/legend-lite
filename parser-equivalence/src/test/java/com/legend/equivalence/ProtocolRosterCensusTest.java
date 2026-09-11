@@ -91,7 +91,7 @@ class ProtocolRosterCensusTest {
         List<Corpus.Source> universe = new ArrayList<>(Corpus.all());
         universe.addAll(Corpus.engineFixtures());
         Path repo = Path.of(System.getProperty("user.dir")).getParent();
-        for (String module : new String[]{"core", "pct", "nlq"}) {
+        for (String module : new String[]{"core", "spec", "pct", "nlq"}) {
             universe.addAll(InlineSnippets.extract(repo.resolve(module),
                     "own-" + module, InlineSnippets.OWN_DECL));
         }

@@ -5,7 +5,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>org.finos.legend</groupId>
+        <groupId>com.legend</groupId>
         <artifactId>legend-lite</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
@@ -101,6 +101,50 @@
             <!-- The server entrypoint (moved from the deleted engine module):
                  `mvn -pl core exec:java` runs the HTTP server; `package`
                  produces the shaded fat jar. -->
+            <!-- THE UPSTREAM BOUNDARY, ENFORCED (batch 7c, 2026-09-11): this module
+                 depends on NO artifact of the engine's or pure's groups, in any
+                 scope — the checkouts are read as files by the spec module, the
+                 oracle jars live only in pct and parser-equivalence. Our own
+                 artifacts are com.legend (renamed from the squatted org.finos.legend
+                 for exactly this rule). The build fails, not a test. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.3.0</version>
+                <executions>
+                    <execution>
+                        <id>enforce-upstream-boundary</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <excludes>
+                                        <exclude>org.finos.legend:*</exclude>
+                                        <exclude>org.finos.legend.*:*</exclude>
+                                    </excludes>
+                                    <message>the upstream boundary: no org.finos.legend artifact may reach this module (docs/UPSTREAM_BOUNDARY_PROGRAM.md workstream B)</message>
+                                </bannedDependencies>
+                            </rules>
+                            <fail>true</fail>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- core's TEST jar (batch 7b): the spec module reads the claims
+                 registry and the test-side helpers from it -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>test-jar</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>

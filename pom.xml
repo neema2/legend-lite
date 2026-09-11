@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>org.finos.legend</groupId>
+    <groupId>com.legend</groupId>
     <artifactId>legend-lite</artifactId>
     <version>1.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
@@ -17,6 +17,7 @@
 
     <modules>
         <module>core</module>
+        <module>spec</module>
         <module>nlq</module>
         <module>pct</module>
         <module>parser-equivalence</module>
@@ -99,9 +100,17 @@
         <dependencies>
             <!-- Internal modules -->
             <dependency>
-                <groupId>org.finos.legend</groupId>
+                <groupId>com.legend</groupId>
                 <artifactId>legend-lite-core</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <!-- core's TEST jar: the claims registry and the test-side helpers
+                 the spec module's generators read (batch 7b) -->
+            <dependency>
+                <groupId>com.legend</groupId>
+                <artifactId>legend-lite-core</artifactId>
+                <version>${project.version}</version>
+                <type>test-jar</type>
             </dependency>
 
             <!-- ArchUnit (test scope; for core/ wall enforcement) -->

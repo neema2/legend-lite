@@ -99,7 +99,7 @@ class PlatformNamesSpellingTest {
         }
         Set<String> declared = declaredIn(roots);
         declared.addAll(com.legend.builtin.SystemMetamodel.elementFqns());
-        String src = Files.readString(Path.of("src/main/java/com/legend/compiler/element/type/PlatformTypes.java"),
+        String src = Files.readString(CoreTree.main("com/legend/compiler/element/type/PlatformTypes.java"),
                 StandardCharsets.UTF_8);
         Matcher m = CONSTANT.matcher(src);
         List<String> missing = new ArrayList<>();

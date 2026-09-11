@@ -162,6 +162,7 @@ class SkipCensusTest {
         // in parser-equivalence (the exact scope-rot this file's own
         // header warns about). pct is included for the same reason.
         for (Path root : List.of(Path.of("src/test/java"),
+                Path.of("../spec/src/test/java"),
                 Path.of("../parser-equivalence/src/test/java"),
                 Path.of("../pct/src/test/java"))) {
             if (!Files.isDirectory(root)) {

@@ -26,7 +26,7 @@ class OwnCorpusConformanceTest {
     static List<Corpus.Source> ownSnippets() {
         Path repo = Path.of(System.getProperty("user.dir")).getParent();
         List<Corpus.Source> ours = new ArrayList<>();
-        for (String module : new String[]{"core", "pct", "nlq"}) {
+        for (String module : new String[]{"core", "spec", "pct", "nlq"}) {
             ours.addAll(InlineSnippets.extract(repo.resolve(module),
                     "lite-" + module, InlineSnippets.OWN_DECL));
         }

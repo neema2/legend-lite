@@ -201,8 +201,10 @@ class HarnessDisciplineTest {
         Map<String, Integer> found = new TreeMap<>();
         int scanned = 0;
         for (Path root : new Path[] {
-                Path.of("src/test/java/com/legend/harness"),
-                Path.of("src/test/java/com/legend/rcorpus"),
+                // batch 7b (2026-09-11): the harness and the referee live in
+                // the spec module; the discipline is theirs wherever they sit
+                Path.of("../spec/src/test/java/com/legend/harness"),
+                Path.of("../spec/src/test/java/com/legend/rcorpus"),
                 // audit-of-audits #9: the comparison policy lives in
                 // PRODUCTION exec now (TdsCompare/PureAsserts moved
                 // from the harness) — the discipline follows the code

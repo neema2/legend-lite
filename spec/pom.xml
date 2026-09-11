@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.legend</groupId>
+        <artifactId>legend-lite</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>legend-lite-spec</artifactId>
+    <packaging>jar</packaging>
+    <name>Legend Lite - Spec (everything that reads the upstream checkouts)</name>
+    <description>
+        The upstream boundary's OUTSIDE (docs/UPSTREAM_BOUNDARY_PROGRAM.md workstream B,
+        batch 7b): every test that reads the pinned legend-engine / legend-pure checkouts
+        lives here — the relational corpus harness (gates 4 and 5), the generators of core's
+        generated resources (the prelude, the signature text, the dynafunction registry, the
+        implicit-import sequence) with their parity tests, the spec census, the path manifest,
+        the platform-spelling parity — and the referee that judges the platform against the
+        engine's goldens. It depends on core's installed jar and core's test jar (the claims
+        registry is a measurement over core and stays a core test); it depends on NO
+        org.finos.legend artifact: the checkouts are read as files, never as a classpath.
+    </description>
+
+    <properties>
+        <surefire.excludedGroups>heavy</surefire.excludedGroups>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.legend</groupId>
+            <artifactId>legend-lite-core</artifactId>
+        </dependency>
+        <!-- the claims registry (com.legend.claims.Claims) and the test-side
+             helpers the generators read: core's test jar -->
+        <dependency>
+            <groupId>com.legend</groupId>
+            <artifactId>legend-lite-core</artifactId>
+            <type>test-jar</type>
+            <scope>test</scope>
+        </dependency>
+        <!-- the two backends the corpus harness executes against -->
+        <dependency>
+            <groupId>org.duckdb</groupId>
+            <artifactId>duckdb_jdbc</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>2.1.214</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.tngtech.archunit</groupId>
+            <artifactId>archunit-junit5</artifactId>
+            <version>${archunit.version}</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- THE UPSTREAM BOUNDARY, ENFORCED (batch 7c, 2026-09-11): this module
+                 depends on NO artifact of the engine's or pure's groups, in any
+                 scope — the checkouts are read as files by the spec module, the
+                 oracle jars live only in pct and parser-equivalence. Our own
+                 artifacts are com.legend (renamed from the squatted org.finos.legend
+                 for exactly this rule). The build fails, not a test. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+                <version>3.3.0</version>
+                <executions>
+                    <execution>
+                        <id>enforce-upstream-boundary</id>
+                        <goals>
+                            <goal>enforce</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <bannedDependencies>
+                                    <excludes>
+                                        <exclude>org.finos.legend:*</exclude>
+                                        <exclude>org.finos.legend.*:*</exclude>
+                                    </excludes>
+                                    <message>the upstream boundary: no org.finos.legend artifact may reach this module (docs/UPSTREAM_BOUNDARY_PROGRAM.md workstream B)</message>
+                                </bannedDependencies>
+                            </rules>
+                            <fail>true</fail>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Heavy (corpus) tests run only when asked, as in core:
+                 mvn -pl spec test -Dtest=MinimalCorpusTest -Dsurefire.excludedGroups= -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <excludedGroups>${surefire.excludedGroups}</excludedGroups>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>

@@ -57,8 +57,8 @@ import org.junit.jupiter.api.Test;
  */
 class NativeSignatureGeneratorTest {
 
-    static final Path MEMBERSHIP = Path.of("src/main/resources/com/legend/builtin/native-membership.tsv");
-    static final Path PURE_JAVA = Path.of("src/main/java/com/legend/builtin/Pure.java");
+    static final Path MEMBERSHIP = CoreTree.resource("com/legend/builtin/native-membership.tsv");
+    static final Path PURE_JAVA = CoreTree.main("com/legend/builtin/Pure.java");
     /** A membership constant's declaration line in Pure.java: the text
      *  inside {@code signature("…")} is the generated part; the line's
      *  position and the comments around it are ours. */

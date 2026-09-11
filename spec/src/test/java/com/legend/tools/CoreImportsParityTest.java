@@ -99,7 +99,7 @@ class CoreImportsParityTest {
     }
 
     private static void generate(List<String> engine) throws IOException {
-        Path src = Path.of("src/main/java/com/legend/compiler/NameResolver.java");
+        Path src = CoreTree.main("com/legend/compiler/NameResolver.java");
         String text = Files.readString(src, StandardCharsets.UTF_8);
         int start = text.indexOf("CORE_IMPORTS = List.of(") + "CORE_IMPORTS = List.of(".length();
         int end = text.indexOf(");", start);

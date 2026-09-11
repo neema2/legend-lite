@@ -42,7 +42,7 @@ class DynaFnRegistryTest {
     private static final Pattern DYNA = Pattern.compile("dynaFnToSql\\('([A-Za-z0-9_]+)'");
     private static final Pattern INFERENCE_ENTRY = Pattern.compile("pair\\(\\s*\\n\\s*'([A-Za-z0-9_]+)',");
     private static final String INFERENCE_MAP = "getDynaFunctionTypeInferenceMap():";
-    private static final Path TRANSLATOR = Path.of("src/main/java/com/legend/normalizer/RelOpTranslator.java");
+    private static final Path TRANSLATOR = CoreTree.main("com/legend/normalizer/RelOpTranslator.java");
     /** Shrink-only: engine operators the platform handles by nothing yet. */
     static final int UNSUPPORTED_MAX = 37;
 
@@ -177,7 +177,7 @@ class DynaFnRegistryTest {
     /** Rewrite the member block of DynaFn.java from the checkout, keeping each
      *  existing member's resolution and Lite constant. */
     private static void generate(TreeMap<String, Upstream> up) throws IOException {
-        Path src = Path.of("src/main/java/com/legend/builtin/DynaFn.java");
+        Path src = CoreTree.main("com/legend/builtin/DynaFn.java");
         String text = Files.readString(src, StandardCharsets.UTF_8);
         Map<String, String[]> existing = new TreeMap<>();
         Matcher m = Pattern.compile("^    ([A-Z_0-9]+)\\(\"(\\w+)\", Resolution\\.(\\w+), (null|Pure\\.Lite\\.\\w+), Inference\\.\\w+", Pattern.MULTILINE).matcher(text);

@@ -596,6 +596,16 @@ inference:** that the live protocol differential goes red on landing.
    through the platform, one result), `TestObserver` (the harness's seam); the corpus
    harness is a caller (926 → 699 lines); `PureTestRunnerTest` proves the runner with no
    checkout. USER decided the groupId rename (7c). NEXT: 7b (the `spec` module).
+25. **Batch 7b LANDED** (2026-09-11): the `spec` module — rcorpus, tools and harness
+   (20 files + the rosters) moved with unchanged package names; core publishes a test
+   jar; `CoreTree` is the one root the generators write through; gates 4/5 run from
+   `spec`; every pinned number identical. NEXT: 7c (groupId → `com.legend`; enforcer +
+   ArchUnit bans in core and spec).
+26. **Batch 7c LANDED with 7b** (2026-09-11): groupId `com.legend` in six poms; the
+   Maven enforcer bans `org.finos.legend*` in core and spec (proved by a deliberate
+   breach); ArchUnit bans the imports in both. BATCH 7 IS COMPLETE; the thesis's four
+   sentences are enforced. NEXT: batch 8 — the bump to 4.145.0 / 5.99.0, the first under
+   the program (§5: one line, regenerate, review the three diffs).
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.
