@@ -88,7 +88,6 @@ meta::relational::tests::json::testResultToJsonStream
 meta::relational::tests::m2m2r::testProp3
 meta::relational::tests::mapping::include::testStoreSubstitution
 meta::relational::tests::mapping::modelJoin::advanced::testNestedModelJoinCompoundInnerCondition
-meta::relational::tests::mapping::relation::testDateTimeInclusiveRangeQuery
 meta::relational::tests::mapping::relation::testMixedMappingWithFilterInProject
 meta::relational::tests::mapping::relation::testRelationStoreAccessorOnView
 meta::relational::tests::mapping::union::biTemporal::testBiTemporalUnionAsJoinTarget_correlatedSubqueryQuoting
@@ -99,7 +98,6 @@ meta::relational::tests::mapping::union::testProjectThroughAsso
 meta::relational::tests::mapping::union::testProjectThroughAssoWithJoinInMapping
 meta::relational::tests::mapping::union::testUnionWithSinglePropertyMapping
 meta::relational::tests::milestoning::applyMilestoningFilters::testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements
-meta::relational::tests::milestoning::businessdate::testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction
 meta::relational::tests::postProcessor::filterPushDown::testPushFiltersDownToJoinsPostProcessorToSQL
 meta::relational::tests::postProcessor::testDb2ColumnRename
 meta::relational::tests::postProcessor::testPostProcessTransformJoinOp

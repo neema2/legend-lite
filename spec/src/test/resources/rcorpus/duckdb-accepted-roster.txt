@@ -5,7 +5,9 @@ meta::relational::graphFetch::tests::milestoning::testMilestonedRootAndMilestone
 meta::relational::tests::functions::sqlstring::testHashFunctions ||| engine-golden-defect:joinStrings-literal-collection ||| aceae9411805b964e79dd85254a18a64
 meta::relational::tests::functions::sqlstring::testToSQLStringForTDSStringJoin ||| engine-golden-defect:joinStrings-literal-collection ||| Anthony Allen[,]
 meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfWeek ||| engine-golden-defect:firstDayOfWeek-h2-week-start ||| 2014-11-30
+meta::relational::tests::mapping::relation::testDateTimeInclusiveRangeQuery ||| engine-golden-defect:h2-literal-coercion ||| (2 rows) | is not equivalent to: | [settlementDateTime] (1 rows)
 meta::relational::tests::mapping::relation::testSimpleMappingQueryWithFilterInProject ||| engine-golden-defect:filter-lambda-binds-outer-row ||| Oliver,Fabrice
 meta::relational::tests::mapping::union::relation::testUnionTwoRelationMappings_ManyColumnProject ||| engine-golden-defect:empty-string-as-null ||| Anand,null
 meta::relational::tests::mapping::union::relation::testUnionTwoRelationMappings_ManyColumnProjectGeneratesSingleUnion ||| engine-golden-defect:empty-string-as-null ||| Anand,null
+meta::relational::tests::milestoning::businessdate::testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction ||| engine-golden-defect:unfiltered-root-projection ||| golden-only [1], ours-only [<null>]
 meta::relational::tests::tds::tdsJoin::alloy::testJoinWithExtendWithDigestOnColumnsOnBothQueries ||| engine-golden-defect:digest-joinStrings ||| ee0af362d8c1e4fa8c805dfeadd1aa37

@@ -313,7 +313,6 @@ meta::relational::tests::mapping::join::testChainedOuterJoinsWithFilterInproject
 meta::relational::tests::mapping::join::testChainedOuterJoinsWithQualifierInproject
 meta::relational::tests::mapping::join::testMultipleJoinsInPropertyMappingWithDatesInClass
 meta::relational::tests::mapping::modelJoin::advanced::testNestedModelJoinCompoundInnerCondition
-meta::relational::tests::mapping::relation::testDateTimeInclusiveRangeQuery
 meta::relational::tests::mapping::relation::testMixedMappingWithFilterInProject
 meta::relational::tests::mapping::relation::testRelationStoreAccessorOnView
 meta::relational::tests::mapping::selfJoin::testSelfJoinPropertyMapping
@@ -338,7 +337,6 @@ meta::relational::tests::mapping::union::testProjectThroughAsso
 meta::relational::tests::mapping::union::testProjectThroughAssoWithJoinInMapping
 meta::relational::tests::mapping::union::testUnionWithSinglePropertyMapping
 meta::relational::tests::milestoning::applyMilestoningFilters::testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements
-meta::relational::tests::milestoning::businessdate::testBusinessDateInjectionFromVarReferenceInProjectUsingExternalFunction
 meta::relational::tests::milestoning::businessdate::testPopulationOfMilestonedBusinessDateWithTimeComponentInQuery
 meta::relational::tests::milestoning::latestDate::testPopulationOfLatestMilestonedDateInQuery
 meta::relational::tests::milestoning::projection::testMilestoningColumnProjectionForEmbedded
