@@ -350,10 +350,10 @@ per-minor is the cadence, and a scheduled job opening the PR is the natural endp
 | check | question it answers | where |
 |---|---|---|
 | `version-report.sh --check` | is upstream one release, everywhere? | CI, every push |
-| `classpath-convergence.sh` | did that release propagate transitively — every shared artifact at one version, zero legend jars in `core`/`spec`? | CI, on a pin change |
+| `classpath-convergence.sh` | did that release propagate transitively — every shared artifact at one version, zero legend jars in `core`/`spec`? | gate 2, every chain, after the install (batch 7d) |
 | path manifest | do all 132 upstream paths still resolve? | `spec`, gate |
-| parity tests | do core's generated facts match the pinned release? | `spec`, gate |
-| claim completeness | does every Pure.java entry have exactly one implementer? | `core`, gate 1 |
+| parity tests | do core's generated facts match the pinned release? | `spec`, gate 3 |
+| claim completeness | does every Pure.java entry have exactly one implementer? | `spec`, gate 3 (the ledger is core's generated resource; its generator lives with the others) |
 | ArchUnit + enforcer | no upstream deps in core; no `meta::` literal outside generated files; no new typed upstream fact | `core`, gate 1 |
 
 **What a bump can no longer do silently:** change a native's signature under us (parity
@@ -606,6 +606,12 @@ inference:** that the live protocol differential goes red on landing.
    breach); ArchUnit bans the imports in both. BATCH 7 IS COMPLETE; the thesis's four
    sentences are enforced. NEXT: batch 8 — the bump to 4.145.0 / 5.99.0, the first under
    the program (§5: one line, regenerate, review the three diffs).
+27. **Batch 7d LANDED** (2026-09-11, USER's questions on the test jar and the gate
+   coupling): no test jar — `RegistryKeys` is core's one public read-only view of the
+   implemented keys and the claims registry lives in spec with the generators; gate 3
+   (spec parity) runs the generated-fact checks alone, gates 4/5 the corpus alone;
+   convergence runs in gate 2 after the install (the batch-7 push was red in CI at the
+   pre-build step). The pipeline, step by step, is in the 7d record. NEXT: batch 8.
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.

@@ -63,18 +63,18 @@ class ParserBoundaryArchTest {
             "com/legend/rcorpus/LibraryPlatformNamespaceGuardTest.java",
             // the prelude GENERATOR parses the spec's declaration files in
             // the platform dialect (WORLD_MAP rule 2, 2026-09-04)
-            "com/legend/tools/PreludeGeneratorTest.java",
+            "com/legend/generators/PreludeGeneratorTest.java",
             // the SIGNATURE generator reads the same declaration files (upstream
             // boundary batch 5): Pure.java's text is upstream's, parsed as such
-            "com/legend/tools/NativeSignatureGeneratorTest.java",
+            "com/legend/generators/NativeSignatureGeneratorTest.java",
             // the typing CENSUS parses legend-pure's platform packages —
             // the spec's own declaration files, the same provenance as the
             // generator (SYSTEM_PRELUDE_DESIGN §6, 2026-09-08)
-            "com/legend/tools/SpecBodyCensusTest.java",
+            "com/legend/generators/SpecBodyCensusTest.java",
             // the census's RUNNING-WORLD pass parses the engine files a module
             // body runs against (its own spec file, the corpus's library
             // files) — COMPILE_EVERYTHING_HOMEWORK §6, batch 168
-            "com/legend/tools/CensusWorlds.java",
+            "com/legend/generators/CensusWorlds.java",
             // the EAGER corpus compile probe (COMPILE_EVERYTHING_HOMEWORK §10) parses
             // the corpus world plus legend-pure's platform packages to measure what
             // closes — a measurement run by name, not a gate (batch 169)

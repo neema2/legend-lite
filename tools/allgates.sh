@@ -33,7 +33,7 @@ SFLAG=()
 OFF=()
 [ "${MVN_OFFLINE:-1}" = "1" ] && OFF=(-o)
 # Gate subset: GATES=1,2,3 runs only those. Default is all nine.
-WANT=${GATES:-1,2,4,5,6,7,8,9}
+WANT=${GATES:-1,2,3,4,5,6,7,8,9}
 want() { case ",$WANT," in *",$1,"*) return 0;; *) return 1;; esac; }
 # Default the log to a PER-USER path. A fixed /tmp/gates.log is shared across
 # accounts on this box (it was found owned by another user), so writes fail
@@ -122,6 +122,18 @@ g "BUILD core once (clean compile = the null gate; install = what pct and"
 g "      parser-equivalence resolve)"
 mvn ${OFF[@]+"${OFF[@]}"} -pl .,core clean install -DskipTests > "$OUT/g2.out" 2>&1
 BUILD_EXIT=$?
+# INV-5 (tools/classpath-convergence.sh) rides gate 2, AFTER the install it
+# resolves against: every shared artifact at one version, zero org.finos.legend
+# artifacts on core's and spec's classpaths. It ran in the CI gate-env once
+# (batch 5 audit) and passed only from a cache of the OLD groupId — before the
+# install it has nothing to resolve (batch 7c, 2026-09-11).
+if [ "$BUILD_EXIT" -eq 0 ]; then
+  if ! tools/classpath-convergence.sh --quiet > "$OUT/g2-convergence.out" 2>&1; then
+    echo "G2 CONVERGENCE RED — tools/classpath-convergence.sh (INV-5 / the boundary):" >> "$L"
+    tail -8 "$OUT/g2-convergence.out" >> "$L"
+    BUILD_EXIT=1
+  fi
+fi
 rec 2 $BUILD_EXIT
 if [ "$BUILD_EXIT" -ne 0 ]; then
   echo "ALLGATES_DONE — FAILED: BUILD (nothing can be trusted without it)" >> "$L"
@@ -130,8 +142,27 @@ if [ "$BUILD_EXIT" -ne 0 ]; then
   exit 1
 fi
 
-# GATE3 (engine suite) folded into GATE1 — the engine module is deleted and
-# its behavioral tests live in core's suite (com.legend.integration).
+# GATE3 spec parity (batch 7, 2026-09-11): core's GENERATED facts — the prelude,
+# the signature text, the dynafunction registry, the implicit-import sequence,
+# the claims ledger, the platform spellings — recomputed from the pinned
+# checkouts by their generators (spec, com.legend.generators) and asserted
+# byte-identical to the committed files; plus the spec census, the path
+# manifest and the subsumed registry. Backend-free, so it runs once. (The old
+# gate 3 was the deleted engine module's suite, folded into gate 1.)
+gate3() {
+  if ! want 3; then return 0; fi
+  if ! roots_present; then
+    echo "G3 NOT RUN — upstream checkouts absent. NOT a pass." >> "$L"
+    rec 3 1
+  else
+  g "GATE3 spec parity (generated facts vs the pinned release; census; manifest)"
+  mvn -pl spec test "$R1" "$R2" > "$OUT/g3.out" 2>&1
+  G3=$?; if skipped "$OUT/g3.out"; then
+    echo "G3 SKIPPED — no upstream checkouts ($ROOT_ENGINE / $ROOT_PURE). NOT a pass." >> "$L"; G3=1
+  fi
+  rec 3 $G3; grep -E "Tests run: [0-9]+, Fail" "$OUT/g3.out" | tail -1 >> "$L"
+  fi
+}
 
 gate1() {
   if ! want 1; then return 0; fi
@@ -342,13 +373,13 @@ stream() {
 }
 
 if [ "${GATES_PARALLEL:-0}" = "1" ]; then
-  echo "streams: A(1,4,5) B(6,7,9) C(8) in PARALLEL" >> "$L"
+  echo "streams: A(1,3,4,5) B(6,7,9) C(8) in PARALLEL" >> "$L"
   # Each stream is a subshell with its OWN log. Three writers appending to one
   # file can tear a line, and the verdict below is derived from those lines —
   # so they are kept apart and concatenated in a fixed order afterwards, which
   # also makes the log read the same every run. The subshell's own G_T0 keeps
   # each gate's timing honest.
-  ( L="$OUT/stream-A.log"; : > "$L"; stream A gate1 gate4 gate5 ) &
+  ( L="$OUT/stream-A.log"; : > "$L"; stream A gate1 gate3 gate4 gate5 ) &
   PA=$!
   ( L="$OUT/stream-B.log"; : > "$L"; stream B gate6 gate7 gate9 ) &
   PB=$!
@@ -362,7 +393,7 @@ if [ "${GATES_PARALLEL:-0}" = "1" ]; then
   while read -r n; do FAILED+=("G$n"); done < <(
     grep -E "^G[0-9]+_EXIT=[1-9]" "$L" | sed -E 's/^G([0-9]+)_EXIT=.*/\1/')
 else
-  stream A gate1 gate4 gate5
+  stream A gate1 gate3 gate4 gate5
   stream B gate6 gate7 gate9
   stream C gate8
 fi

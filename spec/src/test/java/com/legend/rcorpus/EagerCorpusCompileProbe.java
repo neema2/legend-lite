@@ -111,7 +111,7 @@ class EagerCorpusCompileProbe {
         Path pure = Path.of(System.getProperty("legend.pure.root",
                 System.getProperty("user.home") + "/legend/legend-pure"));
         List<Compiler.ModelSource> w2 = new ArrayList<>(corpus.sources());
-        for (String r : com.legend.tools.SpecBodyCensusTest.PLATFORM_ROOTS) {
+        for (String r : com.legend.generators.SpecBodyCensusTest.PLATFORM_ROOTS) {
             Path root = pure.resolve(r);
             if (!Files.isDirectory(root)) continue;
             try (var walk = Files.walk(root)) {

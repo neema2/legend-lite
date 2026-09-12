@@ -1,4 +1,4 @@
-package com.legend.tools;
+package com.legend.generators;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 

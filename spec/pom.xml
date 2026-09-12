@@ -16,12 +16,15 @@
     <description>
         The upstream boundary's OUTSIDE (docs/UPSTREAM_BOUNDARY_PROGRAM.md workstream B,
         batch 7b): every test that reads the pinned legend-engine / legend-pure checkouts
-        lives here — the relational corpus harness (gates 4 and 5), the generators of core's
-        generated resources (the prelude, the signature text, the dynafunction registry, the
-        implicit-import sequence) with their parity tests, the spec census, the path manifest,
-        the platform-spelling parity — and the referee that judges the platform against the
-        engine's goldens. It depends on core's installed jar and core's test jar (the claims
-        registry is a measurement over core and stays a core test); it depends on NO
+        lives here, in two jobs: the GENERATORS (com.legend.generators — gate 3): one program per
+        generated resource in core (the prelude, the signature text, the dynafunction registry,
+        the implicit-import sequence, the claims ledger, the platform spellings), which WRITES
+        the resource with a flag and otherwise VERIFIES it byte-identical against the pinned
+        release — plus the spec census, the path manifest and the subsumed registry; and the
+        CORPUS (com.legend.rcorpus + the referee in com.legend.harness — gates 4 and 5): the
+        engine's relational test corpus run through the product's test runner and scored
+        against the committed rosters. It depends on core's installed jar (the claims
+        registry — a measurement over core — moves here with the generators; it depends on NO
         org.finos.legend artifact: the checkouts are read as files, never as a classpath.
     </description>
 
@@ -33,14 +36,6 @@
         <dependency>
             <groupId>com.legend</groupId>
             <artifactId>legend-lite-core</artifactId>
-        </dependency>
-        <!-- the claims registry (com.legend.claims.Claims) and the test-side
-             helpers the generators read: core's test jar -->
-        <dependency>
-            <groupId>com.legend</groupId>
-            <artifactId>legend-lite-core</artifactId>
-            <type>test-jar</type>
-            <scope>test</scope>
         </dependency>
         <!-- the two backends the corpus harness executes against -->
         <dependency>

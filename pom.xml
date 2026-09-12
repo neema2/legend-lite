@@ -104,15 +104,6 @@
                 <artifactId>legend-lite-core</artifactId>
                 <version>${project.version}</version>
             </dependency>
-            <!-- core's TEST jar: the claims registry and the test-side helpers
-                 the spec module's generators read (batch 7b) -->
-            <dependency>
-                <groupId>com.legend</groupId>
-                <artifactId>legend-lite-core</artifactId>
-                <version>${project.version}</version>
-                <type>test-jar</type>
-            </dependency>
-
             <!-- ArchUnit (test scope; for core/ wall enforcement) -->
             <dependency>
                 <groupId>com.tngtech.archunit</groupId>

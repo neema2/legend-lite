@@ -47,8 +47,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 public class ClaimRegistryTest {
 
-    static final Path RESOURCE = Path.of("src/main/resources/com/legend/builtin/native-claims.tsv");
-    static final Path MAIN = Path.of("src/main/java");
+    static final Path RESOURCE = com.legend.generators.CoreTree.resource("com/legend/builtin/native-claims.tsv");
+    static final Path MAIN = com.legend.generators.CoreTree.CORE.resolve("src/main/java");
 
     /** Shrink-only: UNCLAIMED overloads in the ledger. MEASURED at the batch-3
      *  landing (2026-09-10): 133 overloads / 94 FQNs — Pure.java entries no

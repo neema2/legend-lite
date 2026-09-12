@@ -6,7 +6,7 @@ package com.legend.claims;
 import com.legend.builtin.NativeFn;
 import com.legend.builtin.Pure;
 import com.legend.compiler.spec.CoreFn;
-import com.legend.lowering.LoweringClaims;
+import com.legend.lowering.RegistryKeys;
 import com.legend.model.NativeFunctionDefinition;
 
 import java.util.ArrayList;
@@ -94,16 +94,16 @@ public final class Claims {
             String key = d.signatureKey();
             String fqn = d.qualifiedName();
             String bare = fqn.substring(fqn.lastIndexOf(':') + 1);
-            if (LoweringClaims.scalarRuleKeys().contains(key)) {
+            if (RegistryKeys.scalarRules().contains(key)) {
                 claim(d, Kind.SCALAR_RULE, "Scalars.RULES");
             }
-            if (LoweringClaims.reducerKeys().contains(key)) {
+            if (RegistryKeys.reducers().contains(key)) {
                 claim(d, Kind.REDUCER, "Aggregates.REDUCERS");
             }
-            if (LoweringClaims.windowFnKeys().contains(key)) {
+            if (RegistryKeys.windowFunctions().contains(key)) {
                 claim(d, Kind.WINDOW_FN, "Windows.FNS");
             }
-            if (LoweringClaims.windowAggregateKeys().contains(key)) {
+            if (RegistryKeys.windowAggregates().contains(key)) {
                 claim(d, Kind.WINDOW_AGG, "Windows.AGGREGATES");
             }
             CoreFn fn = CoreFn.parseNames().get(bare);

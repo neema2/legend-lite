@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.tools;
+package com.legend.generators;
 
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;

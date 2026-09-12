@@ -132,19 +132,6 @@
                     </execution>
                 </executions>
             </plugin>
-            <!-- core's TEST jar (batch 7b): the spec module reads the claims
-                 registry and the test-side helpers from it -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-jar-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <goals>
-                            <goal>test-jar</goal>
-                        </goals>
-                    </execution>
-                </executions>
-            </plugin>
             <plugin>
                 <groupId>org.codehaus.mojo</groupId>
                 <artifactId>exec-maven-plugin</artifactId>

@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 //
-// GENERATED — do not edit (com.legend.tools.PreludeGeneratorTest, -Dprelude.generate=1).
+// GENERATED — do not edit (com.legend.generators.PreludeGeneratorTest, -Dprelude.generate=1).
 // THE PRELUDE AS A MODULE (docs/SYSTEM_PRELUDE_DESIGN_2026_09_08.md §10,
 // docs/PRELUDE_MODULE_HOMEWORK_2026_09_08.md): the library shapes the corpus and the platform's Java
 // name, copied VERBATIM from the legend-pure / legend-engine spec — one ###Pure section per spec file

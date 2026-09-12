@@ -1,4 +1,4 @@
-package com.legend.tools;
+package com.legend.generators;
 
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
