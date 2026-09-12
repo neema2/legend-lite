@@ -78,6 +78,7 @@ public final class NativeFn {
         out.put("LiteralForm", List.of(LiteralForm.values()));
         out.put("ContextOption", List.of(ContextOption.values()));
         out.put("PlanWrapper", List.of(PlanWrapper.values()));
+        out.put("RelationQuantifier", List.of(RelationQuantifier.values()));
         out.put("ObjectReference", List.of(ObjectReference.values()));
         out.put("SubtypeForm", List.of(SubtypeForm.values()));
         out.put("ResolverForm", List.of(ResolverForm.values()));
@@ -404,6 +405,63 @@ public final class NativeFn {
     }
 
     /** plan-time wrappers ExecuteChainAssembly / StoreResolver read through (identity for row semantics) or fold; relationalExtensions is an ignored test-data-generation argument. */
+    /** THE QUANTIFICATION FAMILY (engine core_functions_relation/quantification,
+     *  4.145.0): a value tested against a SINGLE-COLUMN relation —
+     *  {@code relation::in}, the ten quantified comparisons
+     *  ({@code equal/greaterThan/greaterThanEqual/lessThan/lessThanEqual} ×
+     *  {@code Any/All}) and {@code relation::exists(rel, predicate)} — lowered by
+     *  RelationPredicates as SQL subquery predicates (IN / op ANY|ALL / EXISTS),
+     *  two-valued the way the Pure bodies answer (engine
+     *  processRelationQuantifiedComparison, processRelationIn, processRelationExists). */
+    public enum RelationQuantifier implements Member {
+        EXISTS("meta::pure::functions::relation::exists", Pure.EXISTS__RELATION_1__FUNCTION_1),
+        IN("meta::pure::functions::relation::in", Pure.IN__U_0_1__RELATION_1),
+        EQUAL_ANY("meta::pure::functions::relation::equalAny", Pure.EQUAL_ANY__U_0_1__RELATION_1),
+        EQUAL_ALL("meta::pure::functions::relation::equalAll", Pure.EQUAL_ALL__U_0_1__RELATION_1),
+        GREATER_THAN_ANY("meta::pure::functions::relation::greaterThanAny",
+                Pure.GREATER_THAN_ANY__U_0_1__RELATION_1),
+        GREATER_THAN_ALL("meta::pure::functions::relation::greaterThanAll",
+                Pure.GREATER_THAN_ALL__U_0_1__RELATION_1),
+        GREATER_THAN_EQUAL_ANY("meta::pure::functions::relation::greaterThanEqualAny",
+                Pure.GREATER_THAN_EQUAL_ANY__U_0_1__RELATION_1),
+        GREATER_THAN_EQUAL_ALL("meta::pure::functions::relation::greaterThanEqualAll",
+                Pure.GREATER_THAN_EQUAL_ALL__U_0_1__RELATION_1),
+        LESS_THAN_ANY("meta::pure::functions::relation::lessThanAny",
+                Pure.LESS_THAN_ANY__U_0_1__RELATION_1),
+        LESS_THAN_ALL("meta::pure::functions::relation::lessThanAll",
+                Pure.LESS_THAN_ALL__U_0_1__RELATION_1),
+        LESS_THAN_EQUAL_ANY("meta::pure::functions::relation::lessThanEqualAny",
+                Pure.LESS_THAN_EQUAL_ANY__U_0_1__RELATION_1),
+        LESS_THAN_EQUAL_ALL("meta::pure::functions::relation::lessThanEqualAll",
+                Pure.LESS_THAN_EQUAL_ALL__U_0_1__RELATION_1);
+
+        private final String fqn;
+        private final List<NativeFunctionDefinition> overloads;
+
+        RelationQuantifier(String fqn, NativeFunctionDefinition... overloads) {
+            this.fqn = fqn;
+            this.overloads = List.of(overloads);
+        }
+
+        @Override
+        public String fqn() {
+            return fqn;
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return overloads;
+        }
+
+        private static final Map<String, RelationQuantifier> BY_FQN = index(values());
+
+        /** The member a callee FQN resolves to — empty when the callee is not
+         *  of this family (exact FQN, never a bare name). */
+        public static Optional<RelationQuantifier> of(String calleeFqn) {
+            return Optional.ofNullable(BY_FQN.get(calleeFqn));
+        }
+    }
+
     public enum PlanWrapper implements Member {
         WITH_FEATURE_FLAGS("meta::pure::executionPlan::featureFlag::withFeatureFlags",
                 Pure.WITH_FEATURE_FLAGS__T_MANY__ENUM_MANY),

@@ -155,6 +155,8 @@ final class Windows {
             // never over this window. Already-windowed calls keep their spec.
             case SqlExpr.Exists x -> x;
             case SqlExpr.ScalarSubquery s -> s;
+            case SqlExpr.InSubquery i -> i;
+            case SqlExpr.Quantified q -> q;
             case SqlExpr.CheckedOne co -> co;
             case SqlExpr.CompactList cl -> cl;
             case SqlExpr.DeferredTdsString dtds -> dtds;

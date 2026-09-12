@@ -15,6 +15,7 @@ public sealed interface SqlExpr
                 SqlExpr.OrderedListAgg, SqlExpr.JsonArray,
                 SqlExpr.StructLit, SqlExpr.StructGet, SqlExpr.Call,
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.CheckedOne,
+                SqlExpr.InSubquery, SqlExpr.Quantified,
                 SqlExpr.CompactList,
                 SqlExpr.DeferredTdsString, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
@@ -77,6 +78,8 @@ public sealed interface SqlExpr
             }
             case Exists ignored -> List.of();
             case ScalarSubquery ignored -> List.of();
+            case InSubquery i -> List.of(i.value());
+            case Quantified q -> List.of(q.value());
             case CheckedOne co -> List.of(co.list());   // flags ride
             case CompactList cl -> List.of(cl.list());
             case DeferredTdsString ignored -> List.of();
@@ -142,6 +145,8 @@ public sealed interface SqlExpr
             case TempTableInSplice ignored -> this;
             case Exists ignored -> this;
             case ScalarSubquery ignored -> this;
+            case InSubquery i -> new InSubquery(cs.get(0), i.subquery());
+            case Quantified q -> new Quantified(cs.get(0), q.comparison(), q.quantifier(), q.subquery());
             case CheckedOne co2 -> new CheckedOne(cs.get(0),
                     co2.scalarCarrier(), co2.atLeastOnly());
             case CompactList ignored -> new CompactList(cs.get(0));
@@ -717,6 +722,37 @@ public sealed interface SqlExpr
 
         public Exists(SqlQuery subquery) {
             this(subquery, SqlTyping.UNKNOWN);
+        }
+    }
+
+    /** {@code value IN (subquery)} &mdash; relation::in: the searched column is
+     *  a single-column subquery (its nulls dropped inside it by the lowering, so
+     *  the predicate is two-valued, the Pure body's answer). */
+    record InSubquery(SqlExpr value, SqlQuery subquery, TypeFact type)
+            implements SqlExpr {
+        public InSubquery {
+            type = SqlTyping.T_BOOLEAN;
+        }
+
+        public InSubquery(SqlExpr value, SqlQuery subquery) {
+            this(value, subquery, SqlTyping.UNKNOWN);
+        }
+    }
+
+    /** SQL's quantifier over a subquery. */
+    enum Quantifier { ANY, ALL }
+
+    /** {@code value <comparison> ANY|ALL (subquery)} &mdash; the ten quantified
+     *  comparisons of relation quantification; {@code comparison} is one of the
+     *  six infix comparison operators. */
+    record Quantified(SqlExpr value, SqlFn comparison, Quantifier quantifier,
+            SqlQuery subquery, TypeFact type) implements SqlExpr {
+        public Quantified {
+            type = SqlTyping.T_BOOLEAN;
+        }
+
+        public Quantified(SqlExpr value, SqlFn comparison, Quantifier quantifier, SqlQuery subquery) {
+            this(value, comparison, quantifier, subquery, SqlTyping.UNKNOWN);
         }
     }
 

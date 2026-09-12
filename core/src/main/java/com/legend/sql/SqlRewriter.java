@@ -208,6 +208,17 @@ public abstract class SqlRewriter {
                 SqlQuery sub = rewrite(ex.subquery());
                 yield sub == ex.subquery() ? ex : new SqlExpr.Exists(sub);
             }
+            case SqlExpr.InSubquery i -> {
+                SqlExpr v = rewriteExpr(i.value());
+                SqlQuery sub = rewrite(i.subquery());
+                yield v == i.value() && sub == i.subquery() ? i : new SqlExpr.InSubquery(v, sub);
+            }
+            case SqlExpr.Quantified q -> {
+                SqlExpr v = rewriteExpr(q.value());
+                SqlQuery sub = rewrite(q.subquery());
+                yield v == q.value() && sub == q.subquery() ? q
+                        : new SqlExpr.Quantified(v, q.comparison(), q.quantifier(), sub);
+            }
             // rewriteExpr, NOT the expr() hook: the hook alone is a
             // SHALLOW visit — nothing under the wrapper gets walked, so
             // dialect passes (SubstringClamp) never reach nested calls.

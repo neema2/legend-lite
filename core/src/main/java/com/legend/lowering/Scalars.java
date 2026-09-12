@@ -481,8 +481,10 @@ final class Scalars {
         // false, forAll([]) = true) — every dialect's expansion must honor
         // them (DuckDB: coalesce over list_bool_* lambdas).
         // c1-literal COLLECTION params box (DEEP_AUDIT §3: [7] bare)
-        for (var fx : List.of(Map.entry(SqlFn.LIST_EXISTS, "exists"),
-                Map.entry(SqlFn.LIST_FOR_ALL, "forAll"))) {
+        // (exact package: relation::exists(rel, f) is RelationPredicates' — the
+        // quantification family, NativeFn.RelationQuantifier)
+        for (var fx : List.of(Map.entry(SqlFn.LIST_EXISTS, "meta::pure::functions::collection::exists"),
+                Map.entry(SqlFn.LIST_FOR_ALL, "meta::pure::functions::collection::forAll"))) {
             for (var f : Pure.nativeKeysAt(fx.getValue())) {
                 RULES.put(f, (n, args) -> new SqlExpr.Call(fx.getKey(),
                         List.of(PureSql.asList(args.get(0),

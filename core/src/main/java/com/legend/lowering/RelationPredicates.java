@@ -132,6 +132,12 @@ final class RelationPredicates {
         if (e instanceof SqlExpr.Exists ex) {
             return readsUnbound(ex.subquery(), scope);
         }
+        if (e instanceof SqlExpr.InSubquery i) {
+            return exprUnbound(i.value(), scope) || readsUnbound(i.subquery(), scope);
+        }
+        if (e instanceof SqlExpr.Quantified q) {
+            return exprUnbound(q.value(), scope) || readsUnbound(q.subquery(), scope);
+        }
         for (SqlExpr c : e.children()) {
             if (exprUnbound(c, scope)) {
                 return true;
@@ -140,7 +146,94 @@ final class RelationPredicates {
         return false;
     }
 
+    /** Whether {@code n} is a relation-level predicate (the Lowerer's scalar
+     *  dispatch): a collection native over a RELATION first argument (a bare
+     *  variable is a per-element cell, never a subquery), or the quantification
+     *  family, whose searched relation is the SECOND argument. */
+    static boolean applies(TypedNativeCall n) {
+        if (n.args().isEmpty()) {
+            return false;
+        }
+        if (com.legend.builtin.NativeFn.RelationQuantifier.of(n.callee().qualifiedName()).isPresent()) {
+            return n.args().size() == 2 && Type.relationValued(n.args().get(
+                    n.callee().qualifiedName().endsWith("::exists") ? 0 : 1).info());
+        }
+        return Type.relationValued(n.args().get(0).info())
+                && !(n.args().get(0) instanceof com.legend.compiler.spec.typed.TypedVariable)
+                && of(n) != null;
+    }
+
+    /** The quantification family (NativeFn.RelationQuantifier), emitted the
+     *  engine's way: {@code exists} → EXISTS (SELECT 1 … WHERE p); {@code in} →
+     *  value IN (searched); a quantified comparison → value op ANY|ALL (searched)
+     *  — each under {@code value IS NOT NULL AND}, and the searched single
+     *  column's nulls dropped INSIDE the subquery, which makes the predicate
+     *  two-valued, the Pure bodies' answer (processRelationQuantifiedComparison:
+     *  "`false and unknown` is false … which is what makes the negation exact").
+     *  A subquery whose row set is already fixed (limit / offset / group /
+     *  distinct) is isolated first, so the null drop sits outside it
+     *  (excludeNullsFromQuantifiedSubSelect). */
+    private static Lowerer.RelationPredicate quantifier(
+            com.legend.builtin.NativeFn.RelationQuantifier q) {
+        return switch (q) {
+            case EXISTS -> (lw, call) -> new SqlExpr.Exists(Lowerer.select1(
+                    lw.whereLambda(call.args().get(0), call.args().get(1), false)));
+            case IN -> searched((v, sub) -> new SqlExpr.InSubquery(v, sub));
+            case EQUAL_ANY -> quantified(SqlFn.EQUAL, SqlExpr.Quantifier.ANY);
+            case EQUAL_ALL -> quantified(SqlFn.EQUAL, SqlExpr.Quantifier.ALL);
+            case GREATER_THAN_ANY -> quantified(SqlFn.GREATER, SqlExpr.Quantifier.ANY);
+            case GREATER_THAN_ALL -> quantified(SqlFn.GREATER, SqlExpr.Quantifier.ALL);
+            case GREATER_THAN_EQUAL_ANY -> quantified(SqlFn.GREATER_EQUAL, SqlExpr.Quantifier.ANY);
+            case GREATER_THAN_EQUAL_ALL -> quantified(SqlFn.GREATER_EQUAL, SqlExpr.Quantifier.ALL);
+            case LESS_THAN_ANY -> quantified(SqlFn.LESS, SqlExpr.Quantifier.ANY);
+            case LESS_THAN_ALL -> quantified(SqlFn.LESS, SqlExpr.Quantifier.ALL);
+            case LESS_THAN_EQUAL_ANY -> quantified(SqlFn.LESS_EQUAL, SqlExpr.Quantifier.ANY);
+            case LESS_THAN_EQUAL_ALL -> quantified(SqlFn.LESS_EQUAL, SqlExpr.Quantifier.ALL);
+        };
+    }
+
+    private static Lowerer.RelationPredicate quantified(SqlFn comparison, SqlExpr.Quantifier quantifier) {
+        return searched((v, sub) -> new SqlExpr.Quantified(v, comparison, quantifier, sub));
+    }
+
+    private static Lowerer.RelationPredicate searched(
+            java.util.function.BiFunction<SqlExpr, com.legend.sql.SqlQuery, SqlExpr> form) {
+        return (lw, call) -> {
+            SqlExpr value = lw.enclosingScalar(call.args().get(0));
+            SqlExpr pred = form.apply(value, searchedColumn(lw, call.args().get(1)));
+            return new SqlExpr.Group(SqlExpr.Call.of(SqlFn.AND,
+                    SqlExpr.Call.of(SqlFn.IS_NOT_NULL, value), pred));
+        };
+    }
+
+    /** The searched relation as a single-column subquery with its nulls dropped. */
+    private static SqlSelect searchedColumn(Lowerer lw, com.legend.compiler.spec.typed.TypedSpec rel) {
+        SqlSelect src = lw.relation(rel);
+        boolean rowSetFixed = src.limit() != null || src.offset() != null
+                || !src.groupBy().isEmpty() || src.distinct()
+                || src.having() != null || src.qualify() != null;
+        SqlSelect base = rowSetFixed ? lw.isolate(src) : src;
+        if (!(Type.relationSchema(rel.info().type()) instanceof Type.RelationType rt)
+                || rt.columns().size() != 1) {
+            throw new IllegalStateException("a quantified comparison expects a single-column relation");
+        }
+        SqlExpr col = base.projections().size() == 1
+                && !(base.projections().get(0).expr() instanceof SqlExpr.Star)
+                ? base.projections().get(0).expr()
+                : java.util.Objects.requireNonNull(
+                        Fold.sourceColumn(base.from(), rt.columns().get(0).name()),
+                        "searched column not found: " + rt.columns().get(0).name());
+        SqlExpr notNull = SqlExpr.Call.of(SqlFn.IS_NOT_NULL, col);
+        return base.withWhere(base.where() == null ? notNull
+                        : SqlExpr.Call.of(SqlFn.AND, base.where(), notNull))
+                .withProjections(List.of(new SqlSelect.Projection(col, null, null)));
+    }
+
     static Lowerer.@com.legend.Nullable RelationPredicate of(TypedNativeCall n) {
+        var quantifier = com.legend.builtin.NativeFn.RelationQuantifier.of(n.callee().qualifiedName());
+        if (quantifier.isPresent()) {
+            return quantifier(quantifier.get());
+        }
         // count over a RELATION argument is size (row count) — the graph-
         // leaf sub-aggregation emission rewrites nav-slot reads to their
         // correlated target relation and counts them (H4b)

@@ -45,7 +45,9 @@ final class SqlProbes {
             @Override
             protected SqlExpr expr(SqlExpr x) {
                 if (x instanceof SqlExpr.ScalarSubquery
-                        || x instanceof SqlExpr.Exists) {
+                        || x instanceof SqlExpr.Exists
+                        || x instanceof SqlExpr.InSubquery
+                        || x instanceof SqlExpr.Quantified) {
                     hit[0] = true;
                 }
                 return x;

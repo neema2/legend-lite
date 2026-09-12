@@ -2798,10 +2798,7 @@ public final class Lowerer {
             // A bare VARIABLE with a relation stamp is never a subquery:
             // a lambda binder holds a per-element CELL (stamp rides the
             // element) — it takes the scalar bridge.
-            case TypedNativeCall n when n.args().size() >= 1
-                    && Type.relationValued(n.args().get(0).info())
-                    && !(n.args().get(0) instanceof TypedVariable)
-                    && RelationPredicates.of(n) != null -> {
+            case TypedNativeCall n when RelationPredicates.applies(n) -> {
                 var predicate = Objects.requireNonNull(RelationPredicates.of(n));
                 enclosing.push(columns);
                 try {
@@ -3444,6 +3441,12 @@ public final class Lowerer {
 
     SqlSelect isolate(SqlSelect s) {
         return SqlSelect.starOf(new SqlSource.Subselect(s, nextAlias(), null));
+    }
+
+    /** A scalar of the predicate's OWN row (the resolver a relation predicate
+     *  was entered with — RelationPredicates' value argument). */
+    SqlExpr enclosingScalar(TypedSpec s) {
+        return scalar(s, Objects.requireNonNull(enclosing.peek(), "no enclosing resolver"));
     }
 
     static TypedSpec last(TypedLambda lambda) {

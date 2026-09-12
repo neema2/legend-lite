@@ -465,6 +465,11 @@ public class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.Call c -> call(c, parentPrec);
             case SqlExpr.Case c -> caseExpr(c);
             case SqlExpr.Exists ex -> "EXISTS (" + inline(ex.subquery()) + ")";
+            case SqlExpr.InSubquery i -> expr(i.value(), 4) + " IN (" + inline(i.subquery()) + ")";
+            case SqlExpr.Quantified q -> expr(q.value(), 4) + " "
+                    + java.util.Objects.requireNonNull(INFIX.get(q.comparison()),
+                            "quantified comparison must be an infix operator: " + q.comparison()).sql()
+                    + " " + q.quantifier() + " (" + inline(q.subquery()) + ")";
             case SqlExpr.ScalarSubquery sq -> "(" + inline(sq.subquery()) + ")";
             // CHECKED NARROWING (the ONE semantic node, D1): execution
             // dialects spell pure's toOne size guard — >1 raises pure's

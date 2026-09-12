@@ -99,7 +99,10 @@ class ChannelBRelationTest {
         // aggregate ORDER BY hoist dropped declared null placement —
         // AggOrderNullPlacementTest pins it).
         // 355 -> 350 with the universe (above): 100% of 350
-        assertTrue(c.pass() >= 350, "relation PASS fell: " + c.pass());
+        // 350 -> 449 (quantification family, 2026-09-12): the ten quantified
+        // comparisons, relation `in` and the two-argument `exists` pass on
+        // channel B too (ERROR 110 -> 20), measured in the landing chain
+        assertTrue(c.pass() >= 449, "relation PASS fell: " + c.pass());
         // 33→28 (slice 1: singleton extremes, carrier norm, chunk)
         // →24 (slice 4: CANONICAL variant text — to_json over the
         // JSON-cast value, compact with leaf quoting preserved)

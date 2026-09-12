@@ -650,6 +650,15 @@ inference:** that the live protocol differential goes red on landing.
    the corrected form was built and REJECTED the same day (USER: "why do we need a new
    lite only function?"). Decision owed: whether the flag should also cover indexOf
    (upstream's does not). The GATES.md record has the moves.
+30. **Batch 8 leg 2 LANDED** (2026-09-12): the QUANTIFICATION family — the ten quantified
+   comparisons, `relation::in`, two-argument `relation::exists` — 90 of the 111 Relation
+   PCT rows the bump opened, one design: a value tested against a single-column relation,
+   emitted the engine's way (two-valued: `value IS NOT NULL AND value op ANY|ALL (SELECT
+   col … WHERE col IS NOT NULL)`, fixed row sets isolated first). One closed family
+   (`NativeFn.RelationQuantifier`), two SQL IR nodes, one routine in RelationPredicates.
+   Census before code (USER: "bigger bucket first?" → the 111 rows bucketed by refusal
+   text; 90 were one mechanism). Remaining: joinStrings shapes (11), sort null forms (7),
+   variant columns (3). The GATES.md record has the moves.
 
 ## 9. Where this program overrides the homework
 
