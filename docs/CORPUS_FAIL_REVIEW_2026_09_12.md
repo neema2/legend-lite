@@ -142,3 +142,98 @@
 | `tds::window::routing::testExecutionPlanGeneration` | type: no overload of 'meta::pure::functions::relation::over' structurally matches the argument types (ExprType | full plan-TEXT equality (planToString / planToStringWithoutFormatting — PureExp / Sequence / Relational nodes): the engine's plan printer |
 | `typeInference::testTranslateDbType` | NotImplementedException: scalar match: no arm statically accepts input type meta::relational::metamodel::datat | engine internals with no user surface: connection equality over extension arms / DDL / SQL-model transforms / alias merging / temp tables / reflection / protocol / plan-node instanceOf |
 | `meta::relational::transform::autogen::tests::testClassesAssociationsAndMappingFromDatabase` | type: unknown class 'meta::protocols::pure::vX_X_X::metamodel::PureModelContextData' in ^meta::protocols::pure | engine internals with no user surface: connection equality over extension arms / DDL / SQL-model transforms / alias merging / temp tables / reflection / protocol / plan-node instanceOf |
+
+
+# Homework 2 — the burn and design rows, read to the mechanism (2026-09-12)
+
+USER: "Let's do the homework for the burn and design ones? Then we get to internals". Every row
+below: the test's assert, what the engine does (source read at 4.145.0), what we do (SQL dumped
+or refusal read), and the decided shape.
+
+## The remaining burns
+
+| test | the mechanism | decided shape |
+|---|---|---|
+| `graphFetch::tests::simple::testCheckedWithCircularConstraints` | `graphFetchChecked` over `Person{firstName, firm{legalName}}`. Firm's constraint `duplicateEmployee` reads `$this.employees->isDistinct(#{…}#)` unless `type == CORPORATION`. The engine evaluates constraints against the FETCHED TREE only: for Firm X (not a corporation) `employees` is not in the tree, the generated checker throws, and the catch branch reports the defect `Unable to evaluate constraint [duplicateEmployee]: data not available - check your mappings` on the `firm` path. Ours evaluates the constraint against the STORE (the subquery over employees is available to us) and finds it holds — no defect. `CheckedEnvelope` already produces exactly that catch-branch defect for a NULL predicate. | **BURN (a real leg): constraint scope = the fetched tree.** A constraint's property reference outside the tree lowers to the "data not available" marker (NULL), so `A \|\| unfetched` short-circuits to TRUE when A holds and to the defect when it does not — the engine's left-to-right evaluate-or-throw, in SQL three-valued logic. |
+| `mapping::relation::testMixedMappingWithFilterInProject` | `MixedMapping`: Person mapped through a RELATION FUNCTION (`~func …personFunctionWithProject`, a `+firmId` extra column) beside a Relational set; the projection navigates `$x.firm.employees->filter(age < 35).firstName`. Our union of Person's members needs the navigation key `firm_ID` and no member's projected row carries it — the relation-function member exposes `firmId` only through its `+firmId` extra column. | **DESIGN (union + relation-function mapping lane):** navigation keys must come from a relation-function member's extra columns. |
+| `alloy::connections::tests::relationalMapper::testRelationalMapperTwoDBs` / `…WithJoin` | The connection carries `relationalMapperPostProcessor(^RelationalMapper(databaseMappers, schemaMappers, tableMappers))`; the SQL text is asserted. OUR renames are already applied (`snDB.productSchemaNewDBINC.productTableNewINC` ✓ — `RelationalMapperRenames.extract`). What differs is TEXT: the join alias is derived from the RENAMED table (`synonymtablenew_0`) where the engine keeps the ORIGINAL (`synonymtable_0`), and the mapping's filtered join spells a subselect with `is distinct from` where the engine inlines `"synonymtable_0".ID <> 1` in the ON clause. | **BURN (text idiom, small):** alias from the pre-rename name; the filtered-join spelling is shared with other goldens — check those before touching it. Low value: no rows are judged (the renamed schemas do not exist on H2). |
+
+## The design rows, sorted by what they actually are
+
+| test | what it is after reading | verdict |
+|---|---|---|
+| `executionPlan::m2m2r::tests::planGraphFetchWithDerivedProperty` / `…NestedDerivedProperty` | full PLAN TEXT of `StoreMappingGlobalGraphFetch` / `InMemoryRootGraphFetch` nodes over an M2M mapping | OUT (plan-text of in-memory nodes) — see the plan-text census below |
+| `executionPlan::tests::execution::testPureExecutionStrategyFor…` ×2 | constructs `^Service(...)` instances and tests the execution STRATEGY chosen for plan nodes | OUT (engine plan machinery) |
+| `executionPlan::tests::testModelConnectionJoin` | M2M chain (`ModelChainConnection`) plan text; our refusal is the M2M source class unmapped | DESIGN (M2M chain) |
+| `graphFetch::tests::XStore::inMemoryAndRelational::testCrossMappingJsonToDBWithExplosion` | M2M explosion (a roadmap feature upstream too) | DESIGN (M2M) |
+| `graphFetch::tests::XStore::inMemoryAndRelational::testCrossStoreWithCSVDataSource` | cross-store: a JSON/CSV in-memory source joined to relational | DESIGN (XStore) |
+| `lineage::scanColumns::test::testNonDataTypeProperty` | the engine's LINEAGE program (scanColumns) — body not even a test of a query | OUT |
+| `tds::schema::tests::resolveSchemaTest` | `assertSchemaRoundTripEquality` = the engine's `resolveSchema` program vs execution | OUT (PARKED: needs reflective equality) |
+| `functions::sqlstring::testToSQLStringWithAbs` / `…WithAggregation` | `runTestCaseById('…')`: the engine's data-driven test REGISTRY (instances of a TestCase class, iterated) | OUT (instance-registry machinery); the underlying `toSQLString` asserts are ordinary text tests worth lifting out if ever needed |
+| `json::testResultToJsonStream` | an in-memory `^TabularDataSet(columns, rows)` instance streamed to JSON | DESIGN (instances / code-as-data) |
+| `mapping::include::testStoreSubstitution` | `mapping->resolveStore(store)` — the engine's mapping API over includes + store substitution; a fact we already hold as RELATIONS (metamodel-as-relations) | HIJACK CANDIDATE (see below) |
+| `mapping::modelJoin::advanced::testNestedModelJoinCompoundInnerCondition` | model join, association unmapped in the nested mapping | DESIGN (model join) |
+| `graphFetch::tests::union::propertyLevel::test6` | `special_union` (merge-by-join-name) member order | DESIGN (inclusive union) |
+| `advanced::forced::structure::testQualifierWithOperation` ×2 | qualified-property results in operator runs (StoreLane provenance) | DESIGN (operator-run provenance) |
+
+# Internals — can we "hijack" the engine's functions so its tests return OUR results?
+
+The honest frame: the platform already does this in two places, and those two are the only
+shapes of hijack that make sense.
+
+1. **The plan-text channel.** `planToString` is the engine's own vocabulary and we already
+   print single relational nodes, sequences and allocations in it, byte-exact. Every
+   "plan-text" OUT row is a node kind or a shape this channel does not print yet. Extending it
+   IS returning our result in the engine's clothes, and it is honest: the SQL inside is ours,
+   the envelope is theirs. The census below measures how far each of the 19 rows is.
+2. **Subsumed programs.** An engine PROGRAM whose value nothing consumes (createDbConfig,
+   relationalExtensions) stays a typed opaque value and the test passes around it. Shrink-only,
+   each with a written reason.
+
+A third shape is new and worth a small leg: **engine API functions over the METAMODEL** —
+`resolveStore(mapping, store)`, connection equality, `contextHasFlag(context, flag)`. Their
+inputs are model facts we already hold as relations (metamodel-as-relations) or typed context
+facts we already read (`ContextReading`). A platform native over those facts returns the
+engine's answer from our data — "Java orchestrates, the database executes", no fabrication.
+Rows: `testStoreSubstitution` (1), `testConnectionEquality*` (5), the 5
+`useDbNativeImplicitNullOrdering` rows IF `contextHasFlag` unlocks the printer function's
+body (uncertain — it is the printer's own config resolution).
+
+What does NOT make sense, and why:
+
+- **Router machinery** (`routeFunction`, `byPassRouterInfo`, …, 12 rows): the asserts inspect
+  the ROUTED structure (RoutedValueSpecification shapes). Faking that structure would be a
+  second router with no consumer — the definition of a stub.
+- **Walled printer bodies** (15 rows): hand-built `SelectSQLQuery` instances printed through
+  `sqlQueryToString`/`NullOrderingSupport`. Hijacking means an engine-SQL-metamodel → our IR
+  bridge PLUS reproducing the printer's edge spellings (CASE shims for null ordering). High
+  cost, no user surface, and every spelling we mirror is one we cannot later improve.
+- **Protocol / lineage / DDL / SQL-model transforms** (19 rows): programs over the engine's
+  own data structures with no user-visible result.
+- **Non-H2 dialect text goldens** (9 rows): DB2 / SQL Server spellings. Implementable as
+  dialect rows in the text renderer, but only worth it if a user targets those databases.
+
+Recommendation: after the burns, one leg on the plan-text channel driven by the census, and one
+small leg on the metamodel-API natives (`resolveStore` first — one row, a clean pattern).
+
+## Plan-text census (19 rows run one by one, first difference read)
+
+| row | how far | what it needs |
+|---|---|---|
+| `testGroupByWithOpenVariableInAgg`, `…TwoOpenVariablesInAggAndFilter` | NEAR: `else cast(0.0 as float)` vs our `else 0.0` inside the CASE under sum; and the calendar join emitted before the org-chart join where the engine joins org-chart first | two text spellings (float-literal cast in an aggregate CASE; calendar-aggregation join order) |
+| `testIsEmptyOnCollection` | NEAR: `where (${collectionSize(input![])}) = 0` vs our `coalesce(len('${input…}'), 0) = 0` | one plan-template idiom: an optional COLLECTION parameter's isEmpty spells the engine's `collectionSize` template |
+| `testTemporalDateVariableInFunctionExpressionWithPropagation` | MEDIUM: engine joins flat (`left outer join ProductClassificationTable … left outer join ProductExchangeTable`), ours isolates the milestoned navigation in a subselect | join form of a propagated milestoning variable |
+| `testTwoMappingsOneRuntime`, `…WithoutExternalMapping` | MEDIUM: two mappings, one runtime — the engine nests the union of the two mappings' sets in a fixed alias order (`persontable_1/_3`), ours flattens the first set | the multi-mapping union plan shape |
+| `withPlatform`, `testProp3` | NODE KIND: a `PureExp` node (a host expression such as `makeString` over a Relational child) — our text dialect refuses the collection reduction | the PureExp plan node |
+| `testQuoteIdentifiersFlagWithGraphFetch`, `testMilestonedProperty` | NODE KIND: `StoreMappingGlobalGraphFetch` (graph-fetch plans) | the graph-fetch plan node family |
+| `testEnumFilterWithUnionMappingPlanGeneration` | plan resultColumns over a union root: alias `t2` not resolvable to a table | union roots in the plan channel |
+| `testViewToTDS` | relation root over a VIEW | the view relation (the same design as the accessor-on-view row) |
+| `relationalResultSourcingOfListExecutionPlan` | computed scalar projection spelling pending | scalar-projection plan node |
+| `testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes` | the mapping argument is a user call returning a mapping | plan-path argument shape |
+| `testAlloyTestDatGenWithQuotedColumnsForViews` | test-data generation over a view | test-data-gen subsystem, not the plan channel |
+| `testExecutionPlanGeneration` (tds window routing) | a TYPING refusal: `over` over wrapped functions (`function1/2/3`) | typer, not plan text |
+| `testSupportStreamFlagWithGraphFetchAndFrom` | a TYPING refusal: a graph tree in a let binding has no type outside its call | typer |
+| `inheritance`, `testModelConnectionDeepFunction` | mapping lanes (inheritance sets; the M2M chain) | DESIGN |
+
+So the "hijack" of plan text that makes sense is REAL and measured: 5 rows are one or two
+spellings away, 4 are one node kind away (PureExp ×2, graph-fetch ×2), the rest are lanes.
