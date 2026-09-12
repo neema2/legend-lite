@@ -3077,8 +3077,8 @@ public final class StoreResolver {
                                         a.map()).identityLambda(a.map())
                                 : sub.apply(a.map()),
                         a.reduce(),
-                        a.orderKey() == null ? null : sub.apply(a.orderKey()),
-                        a.orderAsc());
+                        a.order().stream().map(o -> new TypedAggCol.AggOrder(
+                                sub.apply(o.key()), o.ascending(), o.nullOrder())).toList());
         return switch (top) {
             case TypedProject p -> new TypedProject(base,
                     p.columns().stream().map(col -> new TypedFuncCol(col.name(),

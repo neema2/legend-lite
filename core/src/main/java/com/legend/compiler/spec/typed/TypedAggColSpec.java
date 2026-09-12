@@ -25,7 +25,7 @@ public record TypedAggColSpec(TypedAggCol col, ExprType info) implements TypedSp
         TypedSpec.expectChildren(kids, 2, "TypedAggColSpec");
         return new TypedAggColSpec(new TypedAggCol(col.name(),
                 (TypedLambda) kids.get(0), (TypedLambda) kids.get(1),
-                col.orderKey(), col.orderAsc()), info);
+                col.order()), info);
     }
     @Override
     public TypedSpec withInfo(ExprType info) {

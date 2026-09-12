@@ -56,7 +56,7 @@ public record TypedPivot(TypedSpec source, List<String> pivotColumns, List<Typed
         for (TypedAggCol a : aggs) {
             TypedLambda m = (TypedLambda) kids.get(i++);
             TypedLambda r = (TypedLambda) kids.get(i++);
-            as.add(new TypedAggCol(a.name(), m, r, a.orderKey(), a.orderAsc()));
+            as.add(new TypedAggCol(a.name(), m, r, a.order()));
         }
         return new TypedPivot(kids.get(0), pivotColumns, vs, as, info);
     }

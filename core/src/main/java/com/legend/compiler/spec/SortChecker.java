@@ -239,6 +239,44 @@ final class SortChecker {
         return fn.isPresent() && (fn.get() == CoreFn.ASC || fn.get() == CoreFn.DESC);
     }
 
+    /** Sort keys read off their AST ({@code ~col}, {@code ~col->ascending()},
+     *  {@code descending(~col, NullOrder.FIRST)}, {@code …->emptyLast()}, or a
+     *  collection of those) — the group-lambda aggregate's sortInfos
+     *  (GroupLambdaAggs), whose keys become the reducer's ORDER BY. */
+    static List<TypedSort.TypedSortKey> keysFromAst(ValueSpecification vs) {
+        if (vs instanceof PureCollection c) {
+            List<TypedSort.TypedSortKey> out = new ArrayList<>();
+            c.values().forEach(v -> out.addAll(keysFromAst(v)));
+            return out;
+        }
+        if (vs instanceof ColSpec cs) {
+            return List.of(new TypedSort.TypedSortKey(cs.name(), true, null));
+        }
+        if (vs instanceof AppliedFunction f && isNullPlacement(f) && f.parameters().size() == 1) {
+            TypedSort.TypedSortKey inner = keysFromAst(f.parameters().get(0)).get(0);
+            return List.of(new TypedSort.TypedSortKey(inner.column(), inner.ascending(),
+                    CoreFn.of(f.function()).orElseThrow() == CoreFn.EMPTY_FIRST
+                            ? TypedSortInfo.NullOrder.FIRST : TypedSortInfo.NullOrder.LAST));
+        }
+        if (vs instanceof AppliedFunction f && isSortDirection(f)
+                && (f.parameters().size() == 1 || f.parameters().size() == 2)
+                && f.parameters().get(0) instanceof ColSpec cs) {
+            TypedSortInfo.NullOrder order = null;
+            if (f.parameters().size() == 2) {
+                if (!(f.parameters().get(1) instanceof com.legend.protocol.spec.EnumValue ev
+                        && PlatformTypes.NULL_ORDER.equals(ev.fullPath()))) {
+                    throw new TypeInferenceException(
+                            "a sort key's null order must be a literal NullOrder value");
+                }
+                order = TypedSortInfo.NullOrder.valueOf(ev.value());
+            }
+            return List.of(new TypedSort.TypedSortKey(cs.name(),
+                    CoreFn.of(f.function()).orElseThrow() == CoreFn.ASC, order));
+        }
+        throw new TypeInferenceException("expected sort key(s) (asc(~col) / desc(~col) / "
+                + "emptyFirst() / emptyLast()), got " + vs.getClass().getSimpleName());
+    }
+
     private static boolean isNullPlacement(AppliedFunction f) {
         Optional<CoreFn> fn = CoreFn.of(f.function());
         return fn.isPresent() && (fn.get() == CoreFn.EMPTY_FIRST || fn.get() == CoreFn.EMPTY_LAST);

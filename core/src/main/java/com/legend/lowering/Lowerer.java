@@ -1127,7 +1127,7 @@ public final class Lowerer {
             SqlExpr inner = aggValue(base, new TypedAggCol(a.name(), a.map(),
                     new TypedLambda(a.reduce().parameters(),
                             List.of(rc.source()), a.reduce().info()),
-                    a.orderKey(), a.orderAsc()));
+                    a.order()));
             return CastPolicy.castByPolicy(inner, rc.source().info().type(), rc.target(), rc.wire());
         }
         if (!(reduceBody instanceof TypedNativeCall call)) {
@@ -1145,11 +1145,13 @@ public final class Lowerer {
         // ORDER-SENSITIVE aggregation (sortBy before joinStrings): the key
         // lowers in the SAME row scope as the map body and rides inside
         // the SQL aggregate (string_agg(x, sep ORDER BY k))
-        List<SqlSelect.SortKey> aggOrder = a.orderKey() == null ? List.of()
-                : List.of(new SqlSelect.SortKey(
-                        scalar(last(a.orderKey()),
-                                (v, name) -> resolveOrThrow(base, name)),
-                        a.orderAsc(), null, null));
+        List<SqlSelect.SortKey> aggOrder = new ArrayList<>(a.order().size());
+        for (TypedAggCol.AggOrder o : a.order()) {
+            aggOrder.add(new SqlSelect.SortKey(
+                    scalar(last(o.key()), (v, name) -> resolveOrThrow(base, name)),
+                    o.ascending(), Sorts.nullsOf(new TypedSort.TypedSortKey("", o.ascending(),
+                            o.nullOrder()), false), null));
+        }
         // Reducer EXTRA arguments (joinStrings('_') carries its separator;
         // percentile carries p [+ ascending, continuous]): literal args ride
         // along after the value; variable refs are the reducer's own
@@ -1538,7 +1540,7 @@ public final class Lowerer {
         SqlExpr inner = aggValue(base, new TypedAggCol(a.name(), a.map(),
                 new TypedLambda(a.reduce().parameters(),
                         List.of(reducer), a.reduce().info()),
-                a.orderKey(), a.orderAsc()));
+                a.order()));
         java.util.function.Function<TypedSpec, SqlExpr> operand =
                 e -> e == reducer ? inner : scalar(e, noScope());
         List<SqlExpr> wrapped = new ArrayList<>();
@@ -2291,7 +2293,7 @@ public final class Lowerer {
                     && call.args().size() == 5
                     && call.args().get(3) instanceof TypedLambda mapFn
                     && call.args().get(4) instanceof TypedLambda aggFn -> {
-                return Windows.windowize(aggValue(base, new TypedAggCol("_reduce", mapFn, aggFn, null, true)),
+                return Windows.windowize(aggValue(base, new TypedAggCol("_reduce", mapFn, aggFn, List.of())),
                         over.partitionBy(), over.orderBy(), over.frame());
             }
             // zScore(p,w,r,~col): COMPOSED window expression — real zScore.pure
@@ -2801,6 +2803,9 @@ public final class Lowerer {
             // A bare VARIABLE with a relation stamp is never a subquery:
             // a lambda binder holds a per-element CELL (stamp rides the
             // element) — it takes the scalar bridge.
+            // emptiness of a variant's class conversion (VariantShapes)
+            case TypedNativeCall n when VariantShapes.emptinessOverClassCast(n)
+                    -> VariantShapes.emptiness(n, s -> scalar(s, columns));
             case TypedNativeCall n when RelationPredicates.applies(n) -> {
                 var predicate = Objects.requireNonNull(RelationPredicates.of(n));
                 enclosing.push(columns);

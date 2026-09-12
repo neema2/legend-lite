@@ -659,6 +659,15 @@ inference:** that the live protocol differential goes red on landing.
    Census before code (USER: "bigger bucket first?" → the 111 rows bucketed by refusal
    text; 90 were one mechanism). Remaining: joinStrings shapes (11), sort null forms (7),
    variant columns (3). The GATES.md record has the moves.
+31. **Batch 8 leg 3 LANDED** (2026-09-12, three commits): the sort null forms (7 rows:
+   `SortInfo.nullOrder` on the typed sort key, `emptyFirst`/`emptyLast`, the two-argument
+   direction overloads; one consumer rule at both sort sites and the window ORDER BY),
+   the group-lambda aggregates (11 rows: `~c : g | $g->joinStrings(…)` / `$g->size()`
+   desugared to the map/reduce form; the ordered aggregate generalized to a list of keys
+   with placement), the variant emptiness conversions (2 rows). THE RELATION PCT UNIVERSE
+   IS AT ITS FLOOR: 469 functions, 1 expected-failure row (the reference adapters' own
+   verdict); channel B Relation 469/469. USER: "Let's burn them all down". Records in
+   GATES.md ("SORT NULL FORMS", "GROUP-LAMBDA AGGREGATES + VARIANT EMPTINESS").
 
 ## 9. Where this program overrides the homework
 

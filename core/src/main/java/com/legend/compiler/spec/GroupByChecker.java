@@ -21,6 +21,7 @@ import com.legend.protocol.spec.ValueSpecification;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.legend.compiler.spec.typed.TypedAggCol;
 import java.util.Optional;
 
 /**
@@ -58,9 +59,17 @@ final class GroupByChecker {
             Application a = t.checkGeneric(af, env);
             return Typer.emitCall(a.chosen(), a.args(), a.out());
         }
+        // the group-lambda aggregate form (~c : g | $g->joinStrings(…)): desugared
+        // to map / reduce before the generic check, its sort keys typed after
+        GroupLambdaAggs.Desugared d = GroupLambdaAggs.rewrite(af, 2);
+        if (d != null) {
+            af = d.call();
+        }
         Application a = t.checkGeneric(af, env);
-        return new TypedGroupBy(a.args().get(0), groupKeys(a.args().get(1)),
-                Args.aggCols(a.args().get(2)), a.out());
+        List<TypedAggCol> aggs = d == null ? Args.aggCols(a.args().get(2))
+                : GroupLambdaAggs.withOrders(t, Args.aggCols(a.args().get(2)), d.orders(),
+                        a.args().get(0), env);
+        return new TypedGroupBy(a.args().get(0), groupKeys(a.args().get(1)), aggs, a.out());
     }
 
     /**

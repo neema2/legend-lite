@@ -160,15 +160,16 @@ class UserCallInlinerTest {
         var a = gb.aggs().get(0);
         var grafted = new com.legend.compiler.spec.typed.TypedGroupBy(gb.source(), gb.keys(),
                 java.util.List.of(new com.legend.compiler.spec.typed.TypedAggCol(
-                        a.name(), a.map(), a.reduce(), a.map(), false)),
+                        a.name(), a.map(), a.reduce(), java.util.List.of(
+                                new com.legend.compiler.spec.typed.TypedAggCol.AggOrder(a.map(), false, null)))),
                 gb.info());
         var out = new UserCallInliner(specs).inlineBody(java.util.List.of(grafted));
         var g2 = org.junit.jupiter.api.Assertions.assertInstanceOf(
                 com.legend.compiler.spec.typed.TypedGroupBy.class,
                 out.get(out.size() - 1));
-        org.junit.jupiter.api.Assertions.assertNotNull(g2.aggs().get(0).orderKey(),
-                "the inliner rebuild must not null the agg's orderKey");
-        org.junit.jupiter.api.Assertions.assertFalse(g2.aggs().get(0).orderAsc(),
-                "orderAsc must ride along too");
+        org.junit.jupiter.api.Assertions.assertEquals(1, g2.aggs().get(0).order().size(),
+                "the inliner rebuild must not drop the agg's order");
+        org.junit.jupiter.api.Assertions.assertFalse(g2.aggs().get(0).order().get(0).ascending(),
+                "the direction must ride along too");
     }
 }

@@ -1161,8 +1161,8 @@ private static boolean referencesVar(TypedSpec n, String var) {
                             java.util.Objects.requireNonNull(corrRowVar, "corrRowVar"),
                             java.util.Objects.requireNonNull(corrJoinedRow, "corrJoinedRow"));
         }
-        return new TypedAggCol(alias, map, reduce, orderLambda,
-                d.orderAsc());
+        return new TypedAggCol(alias, map, reduce, orderLambda == null ? List.of()
+                : List.of(new TypedAggCol.AggOrder(orderLambda, d.orderAsc(), null)));
     }
     /** The bare column a side of an equi conjunct reads on {@code var}. */
     private static @com.legend.Nullable String bareColumnOn(TypedSpec n, String var) {

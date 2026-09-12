@@ -62,6 +62,25 @@ final class VariantShapes {
      * ({@code to(@C).a.b} — every {@code source()} hop a property access),
      * or null when the chain roots elsewhere.
      */
+    /** {@code $x.payload->get('person')->to(@Person)->isEmpty()}: EMPTINESS of a
+     *  class conversion of a VARIANT. The conversion never materializes — the
+     *  value is empty exactly when the JSON node is NULL (a missing key, a JSON
+     *  null); the engine's DuckDB adapter passes these (PCT composition tests).
+     *  The materialized to(@Class) VALUE stays its verbatim refusal (CastPolicy). */
+    static boolean emptinessOverClassCast(com.legend.compiler.spec.typed.TypedNativeCall n) {
+        return (Lowerer.isFamily(n, "isEmpty") || Lowerer.isFamily(n, "isNotEmpty"))
+                && n.args().size() == 1
+                && n.args().get(0) instanceof TypedCast vc
+                && variantCastBase(vc) == vc;
+    }
+
+    static SqlExpr emptiness(com.legend.compiler.spec.typed.TypedNativeCall n,
+            java.util.function.Function<TypedSpec, SqlExpr> scalar) {
+        TypedCast vc = (TypedCast) n.args().get(0);
+        return SqlExpr.Call.of(Lowerer.isFamily(n, "isEmpty") ? SqlFn.IS_NULL : SqlFn.IS_NOT_NULL,
+                scalar.apply(vc.source()));
+    }
+
     static @com.legend.Nullable TypedCast variantCastBase(TypedSpec spec) {
         TypedSpec cur = spec;
         while (cur instanceof TypedPropertyAccess pa) {

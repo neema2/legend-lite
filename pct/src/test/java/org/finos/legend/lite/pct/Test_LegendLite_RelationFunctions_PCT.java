@@ -42,27 +42,13 @@ public class Test_LegendLite_RelationFunctions_PCT extends PCTReportConfiguratio
             // \'…\' since the 5.92.0 TDS reader quotes with the Pure string
             // form (Render.pctCell); the failure is the SAME (the empty-
             // string cell), only its spelling moved.
-            one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',null\n#'\""),
-            // 4.145.0 (batch 8): the relation universe grew 350 -> 469. The
-            // joinStrings / sort / extend / size additions are NEW upstream
-            // functions the platform does not implement yet. Each row is a
-            // leg; the fragment is the compiler's refusal. (The quantification
-            // family — the ten quantified comparisons, relation `in`, the
-            // two-argument `exists`, 90 rows — LANDED 2026-09-12:
-            // NativeFn.RelationQuantifier + RelationPredicates.)
-            one("meta::pure::functions::relation::tests::composition::testVariantColumn_filterOnIsEmptyOfModelConversion_Function_1__Boolean_1_", "not supported yet"),
-            one("meta::pure::functions::relation::tests::composition::testVariantColumn_filterOnIsNotEmptyOfModelConversion_Function_1__Boolean_1_", "not supported yet"),
-            one("meta::pure::functions::relation::tests::joinStrings::testJoinStrings_Aggregate_Ascending_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::aggregate' matches 2 argument(s)"),
-            one("meta::pure::functions::relation::tests::joinStrings::testJoinStrings_Aggregate_EmptyLast_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::aggregate' matches 2 argument(s)"),
-            one("meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Ascending_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::groupBy' matches 3 argument(s)"),
-            one("meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Descending_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::groupBy' matches 3 argument(s)"),
-            one("meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_EmptyFirst_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::groupBy' matches 3 argument(s)"),
-            one("meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_ForcingSubSelect_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::groupBy' matches 3 argument(s)"),
-            one("meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_MultipleSortColumns_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::groupBy' matches 3 argument(s)"),
-            one("meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_RowFunction_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::groupBy' matches 3 argument(s)"),
-            one("meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_SortColumnNotAggregated_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::groupBy' matches 3 argument(s)"),
-            one("meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::groupBy' matches 3 argument(s)"),
-            one("meta::pure::functions::relation::tests::size::testSize_GroupBy_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::groupBy' matches 3 argument(s)")
+            one("meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings_Function_1__Boolean_1_", "\"\nexpected: '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',\n#'\nactual:   '#TDS\n   id,payload,joined\n   1,\\'[1,2,3]\\',1,2,3\n   2,\\'[4,5,6]\\',4,5,6\n   3,\\'[7,8,9]\\',7,8,9\n   4,\\'null\\',null\n#'\"")
+            // 4.145.0 (batch 8): the relation universe grew 350 -> 469; every
+            // new-function row it opened LANDED 2026-09-12 (the quantification
+            // family, the sort null forms, the group-lambda aggregates, the
+            // variant emptiness conversions). The ONE row above is the
+            // reference adapters' own verdict at 4.145.0 (their manifests
+            // pin the same expected/actual text).
     );
 
     /**

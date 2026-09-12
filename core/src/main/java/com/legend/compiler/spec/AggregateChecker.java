@@ -15,7 +15,16 @@ final class AggregateChecker {
     }
 
     static TypedSpec check(Typer t, AppliedFunction af, Env env) {
+        // the group-lambda aggregate form (~c : g | $g->joinStrings(…)): see GroupByChecker
+        GroupLambdaAggs.Desugared d = GroupLambdaAggs.rewrite(af, 1);
+        if (d != null) {
+            af = d.call();
+        }
         Application a = t.checkGeneric(af, env);
-        return new TypedAggregate(a.args().get(0), Args.aggCols(a.args().get(1)), a.out());
+        java.util.List<com.legend.compiler.spec.typed.TypedAggCol> aggs = d == null
+                ? Args.aggCols(a.args().get(1))
+                : GroupLambdaAggs.withOrders(t, Args.aggCols(a.args().get(1)), d.orders(),
+                        a.args().get(0), env);
+        return new TypedAggregate(a.args().get(0), aggs, a.out());
     }
 }

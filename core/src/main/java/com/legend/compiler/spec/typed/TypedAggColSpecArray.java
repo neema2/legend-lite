@@ -33,7 +33,7 @@ public record TypedAggColSpecArray(List<TypedAggCol> cols, ExprType info) implem
         for (int i = 0; i < cols.size(); i++) {
             TypedAggCol c = cols.get(i);
             cs.add(new TypedAggCol(c.name(), (TypedLambda) kids.get(2 * i),
-                    (TypedLambda) kids.get(2 * i + 1), c.orderKey(), c.orderAsc()));
+                    (TypedLambda) kids.get(2 * i + 1), c.order()));
         }
         return new TypedAggColSpecArray(cs, info);
     }

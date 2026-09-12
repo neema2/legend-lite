@@ -53,7 +53,7 @@ public record TypedExtendAgg(TypedSpec source, List<TypedAggCol> aggs, ExprType 
         for (int i = 0; i < aggs.size(); i++) {
             TypedAggCol a = aggs.get(i);
             as.add(new TypedAggCol(a.name(), (TypedLambda) kids.get(1 + 2 * i),
-                    (TypedLambda) kids.get(2 + 2 * i), a.orderKey(), a.orderAsc()));
+                    (TypedLambda) kids.get(2 + 2 * i), a.order()));
         }
         return new TypedExtendAgg(kids.get(0), as, info, extentBoundary);
     }

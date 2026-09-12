@@ -26,9 +26,7 @@ public record TypedAggregate(TypedSpec source, List<TypedAggCol> aggs, ExprType 
         aggs.forEach(a -> {
             out.add(a.map());
             out.add(a.reduce());
-            if (a.orderKey() != null) {
-                out.add(a.orderKey());
-            }
+            a.order().forEach(o -> out.add(o.key()));
         });
         return out;
     }
@@ -40,8 +38,11 @@ public record TypedAggregate(TypedSpec source, List<TypedAggCol> aggs, ExprType 
         for (TypedAggCol a : aggs) {
             TypedLambda m = (TypedLambda) kids.get(i++);
             TypedLambda r = (TypedLambda) kids.get(i++);
-            TypedLambda ok = a.orderKey() != null ? (TypedLambda) kids.get(i++) : null;
-            as.add(new TypedAggCol(a.name(), m, r, ok, a.orderAsc()));
+            java.util.List<TypedAggCol.AggOrder> os = new java.util.ArrayList<>(a.order().size());
+            for (TypedAggCol.AggOrder o : a.order()) {
+                os.add(new TypedAggCol.AggOrder((TypedLambda) kids.get(i++), o.ascending(), o.nullOrder()));
+            }
+            as.add(new TypedAggCol(a.name(), m, r, os));
         }
         TypedSpec.expectChildren(kids, i, "TypedAggregate");
         return new TypedAggregate(kids.get(0), as, info);

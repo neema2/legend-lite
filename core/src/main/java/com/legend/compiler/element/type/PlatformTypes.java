@@ -522,6 +522,11 @@ public final class PlatformTypes {
     /** A sort key's explicit null placement (sort.pure, 4.145.0) — the
      *  two-argument ascending/descending overloads' enum argument. */
     public static final String NULL_ORDER = "meta::pure::functions::relation::NullOrder";
+    /** The group-lambda aggregate bodies (groupBy/aggregate over a FuncColSpec
+     *  whose lambda takes the GROUP as a relation, 4.145.0): {@code $g->joinStrings(…)}
+     *  and {@code $g->size()} — GroupLambdaAggs desugars them to the map/reduce form. */
+    public static final String RELATION_JOIN_STRINGS = "meta::pure::functions::relation::joinStrings";
+    public static final String RELATION_SIZE = "meta::pure::functions::relation::size";
     public static final String DURATION = "meta::pure::functions::date::Duration";
     public static final String MAP = "meta::pure::functions::collection::map";
     public static final String PLUS = "meta::pure::functions::math::plus";

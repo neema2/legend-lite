@@ -979,7 +979,7 @@ public final class Pipelines {
                                             UnaryOperator.identity()))
                                     .toList(),
                             a.map().info()),
-                    a.reduce(), a.orderKey(), a.orderAsc()));
+                    a.reduce(), a.order()));
         }
         return new TypedGroupBy(gSrc, gKeys, gAggs, g.info());
     }

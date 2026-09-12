@@ -79,6 +79,7 @@ public final class NativeFn {
         out.put("ContextOption", List.of(ContextOption.values()));
         out.put("PlanWrapper", List.of(PlanWrapper.values()));
         out.put("RelationQuantifier", List.of(RelationQuantifier.values()));
+        out.put("GroupAggregate", List.of(GroupAggregate.values()));
         out.put("ObjectReference", List.of(ObjectReference.values()));
         out.put("SubtypeForm", List.of(SubtypeForm.values()));
         out.put("ResolverForm", List.of(ResolverForm.values()));
@@ -459,6 +460,38 @@ public final class NativeFn {
          *  of this family (exact FQN, never a bare name). */
         public static Optional<RelationQuantifier> of(String calleeFqn) {
             return Optional.ofNullable(BY_FQN.get(calleeFqn));
+        }
+    }
+
+    /** THE GROUP-LAMBDA AGGREGATES (engine core_functions_relation joinStrings.pure,
+     *  4.145.0): {@code relation::joinStrings(rel, col|f, separator[, sortInfos])} —
+     *  written over the GROUP inside a groupBy/aggregate FuncColSpec
+     *  ({@code ~names : g | $g->joinStrings(~name, ',', ~id->ascending())}) and
+     *  desugared by GroupLambdaAggs to the map/reduce aggregate form whose
+     *  reducer is the ordered {@code string_agg}. Never lowered as a call. */
+    public enum GroupAggregate implements Member {
+        JOIN_STRINGS("meta::pure::functions::relation::joinStrings",
+                Pure.JOIN_STRINGS__RELATION_1__COL_SPEC_1__STRING_1,
+                Pure.JOIN_STRINGS__RELATION_1__COL_SPEC_1__STRING_1__SORT_INFO_MANY,
+                Pure.JOIN_STRINGS__RELATION_1__FUNCTION_1__STRING_1,
+                Pure.JOIN_STRINGS__RELATION_1__FUNCTION_1__STRING_1__SORT_INFO_MANY);
+
+        private final String fqn;
+        private final List<NativeFunctionDefinition> overloads;
+
+        GroupAggregate(String fqn, NativeFunctionDefinition... overloads) {
+            this.fqn = fqn;
+            this.overloads = List.of(overloads);
+        }
+
+        @Override
+        public String fqn() {
+            return fqn;
+        }
+
+        @Override
+        public List<NativeFunctionDefinition> overloads() {
+            return overloads;
         }
     }
 

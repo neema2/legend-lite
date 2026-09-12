@@ -1,5 +1,6 @@
 package com.legend.compiler.spec.typed;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -14,7 +15,16 @@ import java.util.Objects;
  * @param reduce the checked reduction over the grouped values ({@code {K[*]->V[0..1]}})
  */
 public record TypedAggCol(String name, TypedLambda map, TypedLambda reduce,
-        @com.legend.Nullable TypedLambda orderKey, boolean orderAsc) {
+        List<AggOrder> order) {
+
+    /** One ORDER BY key of an ordered aggregate ({@code string_agg(x, sep ORDER BY
+     *  k [DESC] [NULLS FIRST|LAST])}): the key lowers in the map body's row scope. */
+    public record AggOrder(TypedLambda key, boolean ascending,
+            @com.legend.Nullable TypedSortInfo.NullOrder nullOrder) {
+        public AggOrder {
+            Objects.requireNonNull(key, "key");
+        }
+    }
 
     // NO short overload: a defaulted orderKey silently turned an ordered
     // aggregate into an unordered one at rebuild sites (remediation T2.2 —
@@ -25,5 +35,6 @@ public record TypedAggCol(String name, TypedLambda map, TypedLambda reduce,
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(map, "map");
         Objects.requireNonNull(reduce, "reduce");
+        order = List.copyOf(order);
     }
 }

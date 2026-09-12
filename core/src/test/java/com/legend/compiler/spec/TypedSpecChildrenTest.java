@@ -218,7 +218,7 @@ class TypedSpecChildrenTest {
         }
         if (type == TypedAggCol.class) {
             return new TypedAggCol("c", (TypedLambda) dummy(TypedLambda.class, null),
-                    (TypedLambda) dummy(TypedLambda.class, null), null, true);
+                    (TypedLambda) dummy(TypedLambda.class, null), java.util.List.of());
         }
         if (type == TypedGroupBy.GroupKey.class) {
             return new TypedGroupBy.GroupKey("c",

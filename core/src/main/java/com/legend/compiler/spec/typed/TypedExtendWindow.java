@@ -80,7 +80,7 @@ public record TypedExtendWindow(TypedSpec source, TypedOver window, List<TypedFu
         for (TypedAggCol a : aggs) {
             TypedLambda m = (TypedLambda) kids.get(i++);
             TypedLambda r = (TypedLambda) kids.get(i++);
-            as.add(new TypedAggCol(a.name(), m, r, a.orderKey(), a.orderAsc()));
+            as.add(new TypedAggCol(a.name(), m, r, a.order()));
         }
         return new TypedExtendWindow(kids.get(0), (TypedOver) kids.get(1), cs, as, info,
                 extentBoundary);
