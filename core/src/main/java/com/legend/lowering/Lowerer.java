@@ -2229,9 +2229,12 @@ public final class Lowerer {
         }
         List<SqlSelect.SortKey> keys = new ArrayList<>(over.sortKeys().size());
         for (TypedSort.TypedSortKey k : over.sortKeys()) {
+            // an EXPLICIT placement (emptyFirst/emptyLast) wins over the
+            // window's canonical one (ASC nulls last, DESC nulls first)
             keys.add(new SqlSelect.SortKey(resolveOrThrow(base, k.column()), k.ascending(),
-                    k.ascending() ? SqlSelect.SortKey.NullOrder.NULLS_LAST
-                            : SqlSelect.SortKey.NullOrder.NULLS_FIRST, null));
+                    k.nullOrder() != null ? Sorts.nullsOf(k, false)
+                            : k.ascending() ? SqlSelect.SortKey.NullOrder.NULLS_LAST
+                                    : SqlSelect.SortKey.NullOrder.NULLS_FIRST, null));
         }
         return new Over(parts, keys, over.frame().map(Windows::sqlFrame).orElse(null));
     }

@@ -519,6 +519,9 @@ public final class PlatformTypes {
     public static final String FEATURE_FLAG_OPTION =
             "meta::pure::executionPlan::featureFlag::FeatureFlagOption";
     public static final String FEATURE = com.legend.compiler.spec.typed.Feature.FQN;
+    /** A sort key's explicit null placement (sort.pure, 4.145.0) — the
+     *  two-argument ascending/descending overloads' enum argument. */
+    public static final String NULL_ORDER = "meta::pure::functions::relation::NullOrder";
     public static final String DURATION = "meta::pure::functions::date::Duration";
     public static final String MAP = "meta::pure::functions::collection::map";
     public static final String PLUS = "meta::pure::functions::math::plus";

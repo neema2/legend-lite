@@ -52,8 +52,6 @@ public class Test_LegendLite_RelationFunctions_PCT extends PCTReportConfiguratio
             // NativeFn.RelationQuantifier + RelationPredicates.)
             one("meta::pure::functions::relation::tests::composition::testVariantColumn_filterOnIsEmptyOfModelConversion_Function_1__Boolean_1_", "not supported yet"),
             one("meta::pure::functions::relation::tests::composition::testVariantColumn_filterOnIsNotEmptyOfModelConversion_Function_1__Boolean_1_", "not supported yet"),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggWithNullableOrderEmptyFirst_Function_1__Boolean_1_", "unknown function 'meta::pure::functions::relation::emptyFirst'"),
-            one("meta::pure::functions::relation::tests::extend::testOLAPAggWithNullableOrderEmptyLast_Function_1__Boolean_1_", "unknown function 'meta::pure::functions::relation::emptyLast'"),
             one("meta::pure::functions::relation::tests::joinStrings::testJoinStrings_Aggregate_Ascending_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::aggregate' matches 2 argument(s)"),
             one("meta::pure::functions::relation::tests::joinStrings::testJoinStrings_Aggregate_EmptyLast_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::aggregate' matches 2 argument(s)"),
             one("meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Ascending_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::groupBy' matches 3 argument(s)"),
@@ -64,12 +62,7 @@ public class Test_LegendLite_RelationFunctions_PCT extends PCTReportConfiguratio
             one("meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_RowFunction_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::groupBy' matches 3 argument(s)"),
             one("meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_SortColumnNotAggregated_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::groupBy' matches 3 argument(s)"),
             one("meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::groupBy' matches 3 argument(s)"),
-            one("meta::pure::functions::relation::tests::size::testSize_GroupBy_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::groupBy' matches 3 argument(s)"),
-            one("meta::pure::functions::relation::tests::sort::testSortEmptyFirst_Function_1__Boolean_1_", "unknown function 'meta::pure::functions::relation::emptyFirst'"),
-            one("meta::pure::functions::relation::tests::sort::testSortEmptyFirstTwoArg_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::ascending' accepts 2 argument(s)"),
-            one("meta::pure::functions::relation::tests::sort::testSortEmptyLast_Function_1__Boolean_1_", "unknown function 'meta::pure::functions::relation::emptyLast'"),
-            one("meta::pure::functions::relation::tests::sort::testSortEmptyLastTwoArg_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::ascending' accepts 2 argument(s)"),
-            one("meta::pure::functions::relation::tests::sort::testSortMultipleColumnsMixedNullOrder_Function_1__Boolean_1_", "unknown function 'meta::pure::functions::relation::emptyLast'")
+            one("meta::pure::functions::relation::tests::size::testSize_GroupBy_Function_1__Boolean_1_", "no overload of 'meta::pure::functions::relation::groupBy' matches 3 argument(s)")
     );
 
     /**

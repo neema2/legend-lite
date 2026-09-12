@@ -4,6 +4,8 @@ import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedSort;
 import com.legend.compiler.spec.typed.TypedSortBy;
 import com.legend.compiler.spec.typed.TypedSortInfo;
+import com.legend.compiler.spec.typed.TypedEnumValue;
+import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.protocol.spec.AppliedFunction;
@@ -181,7 +183,30 @@ final class SortChecker {
                     af.propertyCall(), af.grouped(), af.infix());
         }
         Application a = t.checkGeneric(af, env);
-        return new TypedSortInfo(Args.colSpecName(a.args().get(0)), ascending, a.out());
+        // ascending(~col, NullOrder.FIRST|LAST) — the two-argument overload
+        // (4.145.0): the placement is a literal enum value of NullOrder
+        TypedSortInfo.NullOrder order = a.args().size() == 2
+                ? nullOrderOf(a.args().get(1)) : null;
+        return new TypedSortInfo(Args.colSpecName(a.args().get(0)), ascending, order, a.out());
+    }
+
+    /** {@code sortInfo->emptyFirst()} / {@code ->emptyLast()}: the same key with
+     *  its null placement set (upstream's {@code ^SortInfo(nullOrder = …)}). */
+    static TypedSpec nullOrder(Typer t, AppliedFunction af, Env env, TypedSortInfo.NullOrder order) {
+        Application a = t.checkGeneric(af, env);
+        if (!(a.args().get(0) instanceof TypedSortInfo si)) {
+            throw new TypeInferenceException("emptyFirst/emptyLast expects a sort key (asc(~col) / desc(~col)), got "
+                    + a.args().get(0).getClass().getSimpleName());
+        }
+        return new TypedSortInfo(si.column(), si.ascending(), order, a.out());
+    }
+
+    private static TypedSortInfo.NullOrder nullOrderOf(TypedSpec arg) {
+        if (arg instanceof TypedEnumValue ev && PlatformTypes.NULL_ORDER.equals(ev.enumFqn())) {
+            return TypedSortInfo.NullOrder.valueOf(ev.value());
+        }
+        throw new TypeInferenceException("a sort key's null order must be a literal NullOrder value, got "
+                + arg.getClass().getSimpleName());
     }
 
     /** A relation sort is one whose sort-info arg carries column specs ({@code asc/desc/~col}), not lambdas. */
@@ -192,8 +217,12 @@ final class SortChecker {
     private static boolean carriesColSpec(ValueSpecification vs) {
         return switch (vs) {
             case ColSpec ignored -> true;
+            // ascending(~col[, NullOrder.X]) / descending(…); a key wrapped by
+            // emptyFirst()/emptyLast() is the key it wraps (4.145.0 null forms)
+            case AppliedFunction f when isNullPlacement(f) && f.parameters().size() == 1
+                    -> carriesColSpec(f.parameters().get(0));
             case AppliedFunction f -> isSortDirection(f)
-                    && f.parameters().size() == 1
+                    && (f.parameters().size() == 1 || f.parameters().size() == 2)
                     && (f.parameters().get(0) instanceof ColSpec
                             || f.parameters().get(0) instanceof CString
                             || (f.parameters().get(0)
@@ -208,6 +237,11 @@ final class SortChecker {
     private static boolean isSortDirection(AppliedFunction f) {
         Optional<CoreFn> fn = CoreFn.of(f.function());
         return fn.isPresent() && (fn.get() == CoreFn.ASC || fn.get() == CoreFn.DESC);
+    }
+
+    private static boolean isNullPlacement(AppliedFunction f) {
+        Optional<CoreFn> fn = CoreFn.of(f.function());
+        return fn.isPresent() && (fn.get() == CoreFn.EMPTY_FIRST || fn.get() == CoreFn.EMPTY_LAST);
     }
 
     /**
@@ -239,7 +273,7 @@ final class SortChecker {
 
     private static TypedSort.TypedSortKey sortKeyOf(TypedSpec e) {
         if (e instanceof TypedSortInfo si) {
-            return new TypedSort.TypedSortKey(si.column(), si.ascending());
+            return new TypedSort.TypedSortKey(si.column(), si.ascending(), si.nullOrder());
         }
         throw new TypeInferenceException("sort expects asc(~col) or desc(~col) keys, got "
                 + e.getClass().getSimpleName());

@@ -36,8 +36,10 @@ public record TypedSort(TypedSpec source, List<TypedSortKey> keys,
         keys = List.copyOf(keys);
     }
 
-    /** One sort column: its name and direction. */
-    public record TypedSortKey(String column, boolean ascending) {
+    /** One sort column: its name, direction and explicit null placement
+     *  (null = the engine's canonical placement for a bare key). */
+    public record TypedSortKey(String column, boolean ascending,
+            @com.legend.Nullable TypedSortInfo.NullOrder nullOrder) {
     }
 
     @Override

@@ -79,7 +79,7 @@ final class ValueCollectionOps {
             // value-collection sort observes PURE semantics (null largest)
             return new TypedSort(n.args().get(0),
                     List.of(new TypedSort.TypedSortKey(
-                            rt.columns().get(0).name(), true)),
+                            rt.columns().get(0).name(), true, null)),
                     true, n.args().get(0).info());
         }
         return null;

@@ -22,6 +22,7 @@ import com.legend.compiler.spec.typed.TypedColSpec;
 import com.legend.compiler.spec.typed.TypedColSpecArray;
 import com.legend.compiler.spec.typed.TypedCollection;
 import com.legend.compiler.spec.typed.TypedEnumValue;
+import com.legend.compiler.spec.typed.TypedSortInfo;
 import com.legend.compiler.spec.typed.TypedFuncCol;
 import com.legend.compiler.spec.typed.TypedFuncColSpec;
 import com.legend.compiler.spec.typed.TypedFuncColSpecArray;
@@ -1442,6 +1443,8 @@ final class Typer {
             case SORT -> SortChecker.check(this, af, env);
             case ASC -> SortChecker.sortInfo(this, af, env, true);
             case DESC -> SortChecker.sortInfo(this, af, env, false);
+            case EMPTY_FIRST -> SortChecker.nullOrder(this, af, env, TypedSortInfo.NullOrder.FIRST);
+            case EMPTY_LAST -> SortChecker.nullOrder(this, af, env, TypedSortInfo.NullOrder.LAST);
             case RENAME -> RenameChecker.check(this, af, env);
             case SELECT -> SelectChecker.check(this, af, env);
             case DISTINCT -> DistinctChecker.check(this, af, env);

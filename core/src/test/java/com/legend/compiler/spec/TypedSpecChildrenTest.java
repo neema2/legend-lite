@@ -225,7 +225,7 @@ class TypedSpecChildrenTest {
                     Optional.of((TypedLambda) dummy(TypedLambda.class, null)));
         }
         if (type == TypedSort.TypedSortKey.class) {
-            return new TypedSort.TypedSortKey("c", true);
+            return new TypedSort.TypedSortKey("c", true, null);
         }
         if (type == TypedRename.ColRename.class) {
             return new TypedRename.ColRename("a", "b");

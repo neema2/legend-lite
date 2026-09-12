@@ -228,8 +228,8 @@ class TypeCheckerTest {
         TypedSpec n = typeQuery(T_PERSON + "->sort([ascending(~FIRST_NAME), descending(~AGE)])");
         TypedSort sort = assertInstanceOf(TypedSort.class, n);
         assertEquals(java.util.List.of(
-                        new TypedSort.TypedSortKey("FIRST_NAME", true),
-                        new TypedSort.TypedSortKey("AGE", false)),
+                        new TypedSort.TypedSortKey("FIRST_NAME", true, null),
+                        new TypedSort.TypedSortKey("AGE", false, null)),
                 sort.keys());
         assertEquals(6, schemaOf(n).columns().size(), "sort preserves the schema");
     }
@@ -238,7 +238,7 @@ class TypeCheckerTest {
     void sortBareColSpecDefaultsAscending() {
         // `~col` desugars to ascending(~col) (engine SortChecker's default direction).
         TypedSort sort = assertInstanceOf(TypedSort.class, typeQuery(T_PERSON + "->sort(~AGE)"));
-        assertEquals(java.util.List.of(new TypedSort.TypedSortKey("AGE", true)), sort.keys());
+        assertEquals(java.util.List.of(new TypedSort.TypedSortKey("AGE", true, null)), sort.keys());
     }
 
     @Test
@@ -246,8 +246,8 @@ class TypeCheckerTest {
         TypedSort sort = assertInstanceOf(TypedSort.class,
                 typeQuery(T_PERSON + "->sort([~FIRST_NAME, descending(~AGE)])"));
         assertEquals(java.util.List.of(
-                        new TypedSort.TypedSortKey("FIRST_NAME", true),
-                        new TypedSort.TypedSortKey("AGE", false)),
+                        new TypedSort.TypedSortKey("FIRST_NAME", true, null),
+                        new TypedSort.TypedSortKey("AGE", false, null)),
                 sort.keys());
     }
 
@@ -876,13 +876,13 @@ class TypeCheckerTest {
         // legacy TDS string-key forms — desugar to the colspec keys.
         TypedSort desc = assertInstanceOf(TypedSort.class, typeQuery(T_PERSON
                 + "->sort('AGE', meta::relational::metamodel::SortDirection.DESC)"));
-        assertEquals(java.util.List.of(new TypedSort.TypedSortKey("AGE", false)), desc.keys());
+        assertEquals(java.util.List.of(new TypedSort.TypedSortKey("AGE", false, null)), desc.keys());
 
         TypedSort multi = assertInstanceOf(TypedSort.class,
                 typeQuery(T_PERSON + "->sort(['FIRST_NAME', 'AGE'])"));
         assertEquals(java.util.List.of(
-                        new TypedSort.TypedSortKey("FIRST_NAME", true),
-                        new TypedSort.TypedSortKey("AGE", true)),
+                        new TypedSort.TypedSortKey("FIRST_NAME", true, null),
+                        new TypedSort.TypedSortKey("AGE", true, null)),
                 multi.keys());
     }
 
@@ -892,7 +892,7 @@ class TypeCheckerTest {
                 + "->extend(over(~LAST_NAME, [ascending(~AGE)], rows(-1, 0)),"
                 + " ~rnk : {p, w, r | $p->rank($w, $r)})"));
         assertTrue(ext.window().frame().isPresent());
-        assertEquals(java.util.List.of(new TypedSort.TypedSortKey("AGE", true)),
+        assertEquals(java.util.List.of(new TypedSort.TypedSortKey("AGE", true, null)),
                 ext.window().sortKeys());
     }
 

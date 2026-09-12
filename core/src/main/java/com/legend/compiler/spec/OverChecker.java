@@ -66,7 +66,7 @@ final class OverChecker {
         switch (arg) {
             case TypedColSpec cs -> partitions.add(cs.name());
             case TypedColSpecArray arr -> partitions.addAll(arr.names());
-            case TypedSortInfo si -> keys.add(new TypedSort.TypedSortKey(si.column(), si.ascending()));
+            case TypedSortInfo si -> keys.add(new TypedSort.TypedSortKey(si.column(), si.ascending(), si.nullOrder()));
             case TypedCollection c -> c.elements().forEach(e -> collect(e, partitions, keys));
             default -> throw new TypeInferenceException(
                     "unsupported over(…) argument: " + arg.getClass().getSimpleName());

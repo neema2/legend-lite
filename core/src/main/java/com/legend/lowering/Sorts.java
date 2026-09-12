@@ -40,11 +40,22 @@ final class Sorts {
             }
             // engine TEXT spells the OUTPUT column (order by "name" asc);
             // execution renders e — sortBy stays physical in both
-            keys.add(new SqlSelect.SortKey(e, k.ascending(),
-                    s.pureNullOrder() ? Fold.sortNulls(k.ascending()) : null,
+            keys.add(new SqlSelect.SortKey(e, k.ascending(), nullsOf(k, s.pureNullOrder()),
                     k.column()));
         }
         return base.withOrderBy(keys);
+    }
+
+    /** The key's null placement: EXPLICIT (emptyFirst/emptyLast, the NullOrder
+     *  argument) wins; else the Pure-language placement when the sort carries
+     *  it; else bare (the engine's canonical placement, the renderer's). */
+    static SqlSelect.SortKey.@com.legend.Nullable NullOrder nullsOf(TypedSort.TypedSortKey k,
+            boolean pureNullOrder) {
+        if (k.nullOrder() != null) {
+            return k.nullOrder() == com.legend.compiler.spec.typed.TypedSortInfo.NullOrder.FIRST
+                    ? SqlSelect.SortKey.NullOrder.NULLS_FIRST : SqlSelect.SortKey.NullOrder.NULLS_LAST;
+        }
+        return pureNullOrder ? Fold.sortNulls(k.ascending()) : null;
     }
 
     /**
@@ -82,9 +93,7 @@ final class Sorts {
                 throw new IllegalStateException("sort key '" + k.column()
                         + "' cannot be resolved after isolation");
             }
-            keys.add(new SqlSelect.SortKey(e, k.ascending(),
-                    s.pureNullOrder() ? Fold.sortNulls(k.ascending()) : null,
-                    null));
+            keys.add(new SqlSelect.SortKey(e, k.ascending(), nullsOf(k, s.pureNullOrder()), null));
         }
         return base.withOrderBy(keys);
     }

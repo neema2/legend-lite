@@ -74,6 +74,11 @@ public enum CoreFn {
     ASC("ascending", "asc"),
     /** {@code desc(~col)} / {@code descending(~col)} &mdash; a sort key; checked generically, own HIR node. */
     DESC("descending", "desc"),
+    /** {@code sortInfo->emptyFirst()} &mdash; the sort key with nulls placed FIRST
+     *  (upstream's {@code ^SortInfo(nullOrder = NullOrder.FIRST)}, 4.145.0). */
+    EMPTY_FIRST("emptyFirst"),
+    /** {@code sortInfo->emptyLast()} &mdash; the sort key with nulls placed LAST. */
+    EMPTY_LAST("emptyLast"),
     /** Relation {@code select(~cols)} &mdash; column projection by name; {@code newTDSRelationAccessor} is its legacy alias. */
     SELECT("select", "newTDSRelationAccessor"),
     /** Relation {@code distinct} / {@code distinct(~[cols])} &mdash; row dedup, optionally narrowing. */
