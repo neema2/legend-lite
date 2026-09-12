@@ -82,6 +82,13 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             one("meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_", "\"\nexpected: 0\nactual:   1\""),
             one("meta::pure::functions::string::tests::substring::testStart_Function_1__Boolean_1_", "expected: 'he quick brown fox jumps over the lazy dog'"),
             one("meta::pure::functions::string::tests::substring::testStartEnd_Function_1__Boolean_1_", "expected: 'he quick brown fox jumps over the lazy do'"),
+            // 5.99.0 (batch 8): substr(str, start[, end]) is a bodied platform
+            // function over substring — the SAME 1-based divergence, three
+            // more witnesses (upstream now carries a feature flag for the
+            // relational fix: testSubstringIndexingCorrectedByFeatureFlag)
+            one("meta::pure::functions::string::tests::substr::testSubstrStart_Function_1__Boolean_1_", "expected: 'he quick brown fox jumps over the lazy dog'"),
+            one("meta::pure::functions::string::tests::substr::testSubstrStartEnd_Function_1__Boolean_1_", "expected: 'quick'"),
+            one("meta::pure::functions::string::tests::substr::testSubstrEmptyResult_Function_1__Boolean_1_", "expected: ''"),
             one("meta::pure::functions::collection::tests::sort::testSimpleSortWithKey_Function_1__Boolean_1_", "actual:   ['Branche', 'Doe', 'Smith']"),
             one("meta::pure::functions::collection::tests::sort::testSimpleSortWithFunctionVariables_Function_1__Boolean_1_", "actual:   ['Branche', 'Doe', 'Smith']"),
 

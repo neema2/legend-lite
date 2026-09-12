@@ -84,8 +84,13 @@ class ChannelBRelationTest {
         // (70 -> 65 at the tag). Channel A's jar universe is ALSO 350 now
         // (it was 348 at 4.133.0): both channels referee ONE universe —
         // INV-3 closed and measured.
-        assertTrue(out.size() == 350,
-                "relation discovery moved: " + out.size() + " != 350");
+        // 350 -> 469 at the 4.145.0 bump (batch 8): the quantified
+        // comparisons, relation `in`, two-argument `exists`, joinStrings /
+        // sort / extend / size additions — 110 of them ERROR here (the new
+        // functions the platform does not implement yet; channel A pins
+        // them as expected failures, one row each); PASS 359 >= 350 holds
+        assertTrue(out.size() == 469,
+                "relation discovery moved: " + out.size() + " != 469");
         // 100% (2026-08-19): the DESC nulls-first sort burned the last
         // pair — pure null ordering is NULL-IS-LARGEST
         // 287 -> 355 (2026-08-23): 100% at the EXPANDED universe —

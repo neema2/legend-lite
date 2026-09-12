@@ -723,6 +723,27 @@ public final class ProtocolEmitter {
 
     static void relOp(StringBuilder b, Protocol.PRelOp op) {
         switch (op) {
+            case Protocol.PRelLambda l -> {
+                b.append("{\"_type\":\"relationalLambda\",\"body\":");
+                relOp(b, l.body());
+                b.append(",\"parameterNames\":[");
+                for (int i = 0; i < l.parameterNames().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    str(b, l.parameterNames().get(i));
+                }
+                b.append("],\"sourceInformation\":");
+                srcInfo(b, l.sourceInformation());
+                b.append('}');
+            }
+            case Protocol.PLambdaParam p -> {
+                b.append("{\"_type\":\"lambdaParameter\",\"name\":");
+                str(b, p.name());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, p.sourceInformation());
+                b.append('}');
+            }
             case Protocol.PDynaFunc f -> {
                 b.append("{\"_type\":\"dynaFunc\",\"funcName\":");
                 str(b, f.funcName());
@@ -1735,7 +1756,16 @@ public final class ProtocolEmitter {
             b.append(",\"value\":");
             str(b, tv.tag().value());
             b.append("},\"value\":");
-            str(b, tv.value());
+            if (tv.multiLine()) {
+                // the engine's TaggedValue.ValueSerializer (4.145.0): a value
+                // authored as a '''...''' block is an object carrying its own
+                // _type; every other value stays the bare string it was
+                b.append("{\"_type\":\"string\",\"multiLine\":true,\"value\":");
+                str(b, tv.value());
+                b.append('}');
+            } else {
+                str(b, tv.value());
+            }
             b.append('}');
         }
         b.append(']');

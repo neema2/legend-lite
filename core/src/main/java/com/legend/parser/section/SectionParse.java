@@ -19,13 +19,24 @@ final class SectionParse {
     }
 
     static Head head(TokenStreamCursor c, String expectedKind) {
+        return head(c, expectedKind, false);
+    }
+
+    /** The section-element head. {@code admitsDocumentation}: the engine's
+     *  grammar lists {@code documentation?} before this keyword (4.145.0:
+     *  Service, HostedService, the DataQuality validations, FunctionJar,
+     *  the Snowflake / MemSql / BigQuery functions, DataSpace, Data) — the
+     *  literal folds into the tagged values, first; elsewhere a leading
+     *  literal stays the refusal it always was. */
+    static Head head(TokenStreamCursor c, String expectedKind, boolean admitsDocumentation) {
         int declStart = c.pos();
+        TokenStreamCursor.Documentation doc = admitsDocumentation ? c.parseDocumentation() : null;
         String kind = c.safeText();
         if (!expectedKind.equals(kind)) {
             throw c.error("expected " + expectedKind + ", got " + kind);
         }
         c.advance();
-        TokenStreamCursor.Decorations dec = c.parseDecorations();
+        TokenStreamCursor.Decorations dec = c.withDocumentation(doc, c.parseDecorations());
         String qn = Protocol.unquotePath(c.parseQualifiedName());
         int cut = qn.lastIndexOf("::");
         return new Head(declStart, dec,

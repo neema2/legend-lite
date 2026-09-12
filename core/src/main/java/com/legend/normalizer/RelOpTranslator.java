@@ -112,7 +112,9 @@ final class RelOpTranslator {
             case RelationalOperation.IsNotNull n             -> collectTablesIn(n.operand(), sink);
             case RelationalOperation.Group g                 -> collectTablesIn(g.inner(), sink);
             case RelationalOperation.ArrayLiteral a          -> a.elements().forEach(e -> collectTablesIn(e, sink));
-            case RelationalOperation.JoinNavigation ignored  -> throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
+            case RelationalOperation.Lambda lam              -> collectTablesIn(lam.body(), sink);
+            case RelationalOperation.LambdaParam ignored     -> { }
+            case RelationalOperation.JoinNavigation ignored  -> throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "JoinNavigation inside expression");
         }
     }

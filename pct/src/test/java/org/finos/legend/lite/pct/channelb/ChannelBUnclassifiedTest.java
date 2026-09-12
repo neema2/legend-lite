@@ -63,9 +63,12 @@ class ChannelBUnclassifiedTest {
                         + "UnclassifiedFunctions_manifest.duckdb.json"));
         // measured 2026-08-19: PERFECT out of the box — 95/95 PASS,
         // every row corroborated, zero declines, zero wire bugs.
-        assertTrue(out.size() == 95,
-                "unclassified discovery moved: " + out.size() + " != 95");
-        assertTrue(c.pass() >= 95, "unclassified PASS fell: " + c.pass());
+        // 95 -> 94 at the 4.145.0 bump (batch 8): one unclassified PCT.test
+        // relocated upstream (the drift read predicted 89; the arithmetic
+        // did not model which files moved); 94/94 PASS
+        assertTrue(out.size() == 94,
+                "unclassified discovery moved: " + out.size() + " != 94");
+        assertTrue(c.pass() >= 94, "unclassified PASS fell: " + c.pass());
         assertTrue(c.trueWireBug() == 0,
                 "a TRUE wire bug appeared: " + c.trueWireBug());
         // V1 (OPEN_REGISTER): THE DUAL-VERDICT ALARM — the DB byte

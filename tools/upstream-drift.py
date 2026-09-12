@@ -97,7 +97,7 @@ def declared_paths():
              ("rcorpus Corpus.CORE_PURE", "engine", CORE_PURE, "dir"),
              ("rcorpus Corpus.M2M_TESTS", "engine", CORE_PURE + "/store/m2m/tests", "dir")]
 
-    c = src("core/src/test/java/com/legend/rcorpus/Corpus.java")
+    c = src("spec/src/test/java/com/legend/rcorpus/Corpus.java")
     bases = {"ENGINE_ROOT": "", "RELATIONAL": RELATIONAL + "/", "CORE_PURE": CORE_PURE + "/"}
     for name in ("LIBRARY_FILES", "SHAPE_FILES"):
         b = list_block(c, f"public static final java.util.List<Path> {name}")
@@ -105,16 +105,16 @@ def declared_paths():
             lit = "".join(re.findall(r'"([^"]*)"', m.group(2)))
             sites.append((f"rcorpus Corpus.{name}", "engine", bases[m.group(1)] + lit, "file"))
 
-    mc = src("core/src/test/java/com/legend/rcorpus/MinimalCorpus.java")
+    mc = src("spec/src/test/java/com/legend/rcorpus/MinimalCorpus.java")
     for lit in re.findall(r'"([^"]*\.pure)"', list_block(mc, "ENGINE_IMPLEMENTATION_FILES = Map.of(")):
         sites.append(("MinimalCorpus.ENGINE_IMPLEMENTATION_FILES", "engine",
                       RELATIONAL + "/" + lit, "file"))
 
-    sb = src("core/src/test/java/com/legend/tools/SpecBodyCensusTest.java")
+    sb = src("spec/src/test/java/com/legend/generators/SpecBodyCensusTest.java")
     for lit in re.findall(r'"([^"]+)"', list_block(sb, "PLATFORM_ROOTS = List.of(")):
         sites.append(("SpecBodyCensusTest.PLATFORM_ROOTS", "pure", lit, "dir"))
 
-    pg = src("core/src/test/java/com/legend/tools/PreludeGeneratorTest.java")
+    pg = src("spec/src/test/java/com/legend/generators/PreludeGeneratorTest.java")
     gen = pg[pg.index("static String generate()"):][:4000]
     for m in re.finditer(r'engine\.resolve\(\s*((?:"[^"]*"\s*\+?\s*)+)\)', gen):
         sites.append(("PreludeGeneratorTest roots", "engine",

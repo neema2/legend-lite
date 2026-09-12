@@ -1392,8 +1392,15 @@ class PreludeGeneratorTest {
                     if (depth != 0) {
                         continue;
                     }
-                    boolean atStart = k == 0 || ts.type(k - 1) == TokenType.SEMI_COLON
-                            || ts.type(k - 1) == TokenType.BRACE_CLOSE;
+                    // a DOCUMENTATION literal (5.99.0: `documentation? function
+                    // ...`) occupies declaration position and passes it on;
+                    // the declaration's slice then starts AT the literal, so
+                    // the prelude carries the doc tagged value the parser
+                    // makes of it — verbatim, as everything else here
+                    boolean docBefore = k > 0 && ts.type(k - 1) == TokenType.DOC_STRING;
+                    int declTok = docBefore ? k - 1 : k;
+                    boolean atStart = declTok == 0 || ts.type(declTok - 1) == TokenType.SEMI_COLON
+                            || ts.type(declTok - 1) == TokenType.BRACE_CLOSE;
                     // UPSTREAM NATIVES ARE CARRIED, RESPELLED (upstream boundary
                     // batch 4, program §0 right column): a `native function`
                     // declaration at declaration position is sliced from
@@ -1413,7 +1420,7 @@ class PreludeGeneratorTest {
                             throw new IllegalStateException("prelude generator: native declaration"
                                     + " without ';' at " + f + " token " + k);
                         }
-                        String slice = text.substring(ts.start(k), ts.end(semi));
+                        String slice = text.substring(ts.start(declTok), ts.end(semi));
                         com.legend.model.ParsedModel one;
                         try {
                             one = ElementParser.parse(slice, Dialect.LEGEND_PLATFORM);
@@ -1428,7 +1435,7 @@ class PreludeGeneratorTest {
                         }
                         String nfqn = nfd.qualifiedName();
                         if (!nfqn.contains("::tests::")) {
-                            int nstart = ts.start(k);
+                            int nstart = ts.start(declTok);
                             int nsectionStart = Math.max(0, text.lastIndexOf("###Pure", nstart));
                             List<String> nwildcards = new ArrayList<>();
                             Matcher nim = IMPORT_LINE.matcher(text.substring(nsectionStart, nstart));
@@ -1444,7 +1451,7 @@ class PreludeGeneratorTest {
                     if (ts.type(k) != TokenType.FUNCTION || !atStart) {
                         continue;
                     }
-                    ElementParser p = ElementParser.at(ts, k, Dialect.LEGEND_PLATFORM);
+                    ElementParser p = ElementParser.at(ts, declTok, Dialect.LEGEND_PLATFORM);
                     Protocol.PFunction fn;
                     try {
                         fn = p.parseFunctionProtocol();
@@ -1456,7 +1463,7 @@ class PreludeGeneratorTest {
                     boolean test = fn.stereotypes().stream().anyMatch(st ->
                             st.profile().endsWith("test") && !st.profile().endsWith("PCT")
                                     || (st.profile().endsWith("PCT") && st.value().equals("test")));
-                    int start = ts.start(k);
+                    int start = ts.start(declTok);
                     String fqn = fn.pkg().isEmpty() ? fn.name() : fn.pkg() + "::" + fn.name();
                     // a `tests` package is test SUPPORT (fixture models, helpers
                     // over them — the equality test model's ClassWithoutEquality):

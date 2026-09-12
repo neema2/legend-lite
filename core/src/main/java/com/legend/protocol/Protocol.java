@@ -918,8 +918,23 @@ public final class Protocol {
     /** A relational OPERATION node (join/filter/view expressions). */
     public sealed interface PRelOp
             permits PDynaFunc, PColumnRef, PRelLiteral, PRelLiteralList,
-            PElemtWithJoins {
+            PElemtWithJoins, PRelLambda, PLambdaParam {
         com.legend.protocol.SourceInfo sourceInformation();
+    }
+
+    /** A lambda as a function-operation argument (4.145.0,
+     *  {@code _type:"relationalLambda"}): a filter/map/fold over an array
+     *  take — {@code x | body} or {@code (a, b | body)}. */
+    public record PRelLambda(List<String> parameterNames, PRelOp body,
+                             com.legend.protocol.SourceInfo sourceInformation)
+            implements PRelOp {
+    }
+
+    /** {@code $x} inside a relational lambda's body (4.145.0,
+     *  {@code _type:"lambdaParameter"}). */
+    public record PLambdaParam(String name,
+                               com.legend.protocol.SourceInfo sourceInformation)
+            implements PRelOp {
     }
 
     /** {@code [1,2,3]} — items emit the NESTED literal form
@@ -1264,13 +1279,14 @@ public final class Protocol {
     public record PDataSpace(String pkg, String name,
                              List<PStereotype> stereotypes,
                              List<PTaggedValue> taggedValues,
-                             List<PDataSpaceContext> executionContexts,
+                             @com.legend.Nullable List<PDataSpaceContext> executionContexts,
                              @com.legend.Nullable String defaultExecutionContext,
                              @com.legend.Nullable String title,
                              @com.legend.Nullable String description,
                              @com.legend.Nullable List<PDataSpaceExecutable> executables,
                              @com.legend.Nullable List<PDataSpaceDiagram> diagrams,
                              @com.legend.Nullable PDataSpaceSupport supportInfo,
+                             @com.legend.Nullable PDataSpaceOperationalMetadata operationalMetadata,
                              @com.legend.Nullable List<PDataSpaceElementRef> elements,
                              com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
@@ -1281,16 +1297,36 @@ public final class Protocol {
 
     /** One dataspace execution context. Pointer spans cover the WHOLE
      *  {@code key: value;} statement (semicolon included); the testData
-     *  span covers the VALUE only ({@code Kind #{...}#}). */
+     *  span covers the VALUE only ({@code Kind #{...}#}). Since 4.145.0 a
+     *  context names EITHER a mapping OR a mapping provider, and its
+     *  default runtime is optional. */
     public record PDataSpaceContext(String name,
                                     @com.legend.Nullable String title,
                                     @com.legend.Nullable String description,
-                                    String mapping,
-                                    com.legend.protocol.SourceInfo mappingSpan,
-                                    String defaultRuntime,
-                                    com.legend.protocol.SourceInfo runtimeSpan,
+                                    @com.legend.Nullable String mapping,
+                                    @com.legend.Nullable com.legend.protocol.SourceInfo mappingSpan,
+                                    @com.legend.Nullable PDataSpaceMappingProvider mappingProvider,
+                                    @com.legend.Nullable String defaultRuntime,
+                                    @com.legend.Nullable com.legend.protocol.SourceInfo runtimeSpan,
                                     @com.legend.Nullable PDataSpaceTestData testData,
                                     com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code mappingProvider: fn.k1, k2;} (4.145.0) — an element pointer
+     *  (typeless on the wire) plus its keys; the provider's span covers
+     *  the whole statement, the element's its qualified name. */
+    public record PDataSpaceMappingProvider(String element,
+                                            com.legend.protocol.SourceInfo elementSpan,
+                                            List<String> keys,
+                                            com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code operationalMetadata: { coverageRegions: [..]; updateFrequency: X; };}
+     *  (4.145.0) — regions and frequency are the engine's enum names,
+     *  validated as written; span covers key through {@code }} . */
+    public record PDataSpaceOperationalMetadata(List<String> coverageRegions,
+                                                @com.legend.Nullable String updateFrequency,
+                                                com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** {@code testData: Kind #{ path }#} — kind Reference /
@@ -1308,7 +1344,27 @@ public final class Protocol {
                                        @com.legend.Nullable com.legend.protocol.SourceInfo executableSpan,
                                        @com.legend.Nullable com.legend.protocol.spec.ValueSpecification query,
                                        @com.legend.Nullable String executionContextKey,
+                                       @com.legend.Nullable PRelationElement sampleValues,
                                        com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code { label: '..'; url: '..'; }} inside the full support form
+     *  (4.145.0); span covers the braces. */
+    public record PDataSpaceLink(@com.legend.Nullable String label, String url,
+                                 com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code { title: '..'; address: '..'; }} — one email of the full
+     *  support form. */
+    public record PDataSpaceEmail(String title, String address,
+                                  com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** {@code { description: '..'; expertIds: ['..']; }} — one expertise
+     *  entry of the full support form. */
+    public record PDataSpaceExpertise(@com.legend.Nullable String description,
+                                      @com.legend.Nullable List<String> expertIds,
+                                      com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** One dataspace diagram reference — the pointer carries NO type
@@ -1341,6 +1397,20 @@ public final class Protocol {
                                 @com.legend.Nullable String supportUrl,
                                 @com.legend.Nullable List<String> emails,
                                 com.legend.protocol.SourceInfo sourceInformation)
+                implements PDataSpaceSupport {
+        }
+
+        /** The keyword-less FULL form (4.145.0, {@code _type:"full"}):
+         *  {@code supportInfo: { documentation: {..}; website: {..};
+         *  faqUrl: {..}; supportUrl: {..}; emails: [..]; expertise: [..]; };}
+         *  — links carry a label; emails and expertise are structured. */
+        record PSupportFull(@com.legend.Nullable PDataSpaceLink documentation,
+                            @com.legend.Nullable PDataSpaceLink website,
+                            @com.legend.Nullable PDataSpaceLink faqUrl,
+                            @com.legend.Nullable PDataSpaceLink supportUrl,
+                            @com.legend.Nullable List<PDataSpaceEmail> emails,
+                            @com.legend.Nullable List<PDataSpaceExpertise> expertise,
+                            com.legend.protocol.SourceInfo sourceInformation)
                 implements PDataSpaceSupport {
         }
     }
@@ -1773,11 +1843,41 @@ public final class Protocol {
                                                  List<PTaggedValue> taggedValues,
                                                  com.legend.protocol.spec.ValueSpecification query,
                                                  List<PDqRelationCheck> validations,
+                                                 @com.legend.Nullable List<PDqTestSuite> testSuites,
                                                  com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
             return pkg.isEmpty() ? name : pkg + "::" + name;
         }
+    }
+
+    /** {@code testSuites: [ id: { data: [store: EmbeddedData]; tests: [id: {
+     *  asserts: [id: Assertion] }] } ]} on the two relation-level DataQuality
+     *  elements (4.145.0, the engine's Testable): the suite's {@code _type}
+     *  is the owner's ({@code dataQualityRelationValidationTestSuite} /
+     *  {@code dataQualityRelationComparisonTestSuite}, tests likewise);
+     *  the data block is a wrapper object with its own span. */
+    public record PDqTestSuite(String id,
+                               @com.legend.Nullable PDqTestData testData,
+                               List<PDqTest> tests,
+                               com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** The {@code data: [...]} block — a wrapper carrying its own span. */
+    public record PDqTestData(List<PDqStoreData> testData,
+                              com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** One {@code store: EmbeddedData} entry (the engine's FunctionTestData:
+     *  a STORE pointer plus embedded data; span covers the whole entry). */
+    public record PDqStoreData(String store, com.legend.protocol.SourceInfo storeSpan,
+                               PEmbeddedDataValue data,
+                               com.legend.protocol.SourceInfo sourceInformation) {
+    }
+
+    /** One {@code id: { asserts: [...] }} test. */
+    public record PDqTest(String id, List<PTestAssertion> assertions,
+                          com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** {@code DataQualityRelationComparison} (ZTailProbe
@@ -1790,6 +1890,7 @@ public final class Protocol {
                                                  List<String> columnsToCompare,
                                                  @com.legend.Nullable Double expectedMatch,
                                                  PReconStrategy strategy,
+                                                 @com.legend.Nullable List<PDqTestSuite> testSuites,
                                                  com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
@@ -2911,7 +3012,14 @@ public final class Protocol {
     }
 
     /** {@code {"sourceInformation":…,"tag":{…},"value":…}}. */
-    public record PTaggedValue(PTag tag, String value, com.legend.protocol.SourceInfo sourceInformation) {
+    /** A tagged value. {@code multiLine} is the engine's own carrier (4.145.0,
+     *  {@code TaggedValue.value} became a {@code CString}): the value was
+     *  authored as a {@code '''...'''} block — a documentation literal, or an
+     *  explicit tagged value written as one. On the wire a flagged value is
+     *  an object ({@code _type:string, multiLine:true, value}); an unflagged
+     *  one stays the bare string it always was. */
+    public record PTaggedValue(PTag tag, String value, boolean multiLine,
+            com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /**

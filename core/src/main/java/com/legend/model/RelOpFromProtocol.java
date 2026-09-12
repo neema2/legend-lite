@@ -55,6 +55,12 @@ public final class RelOpFromProtocol {
                     l.values().stream().map(v -> op(v, enclosingDb)).toList());
             case Protocol.PElemtWithJoins j -> joinNavigation(j, enclosingDb);
             case Protocol.PDynaFunc f -> dynaFunc(f, enclosingDb);
+            // 4.145.0 relational lambdas (filter/map/fold over an array
+            // take): carried structurally; the translator refuses them at
+            // LOWERING until the leg lands
+            case Protocol.PRelLambda l -> new RelationalOperation.Lambda(l.parameterNames(),
+                    op(l.body(), enclosingDb));
+            case Protocol.PLambdaParam lp -> new RelationalOperation.LambdaParam(lp.name());
         };
     }
 

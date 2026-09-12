@@ -86,11 +86,14 @@ class MinimalCorpusTest {
      * excluded) that are not in 4.138.2; they return at the 4.145.0 bump
      * (homework §4b: +14 there, on top). A denominator move, not a
      * discovery change. */
-    private static final int DISCOVERED = 2558;
+    private static final int DISCOVERED = 2613;   // 4.145.0 bump (batch 8): +55 discovered,
+                                                   // +59 declared, +4 excluded — the corpus
+                                                   // gained 10 files (drift read: 18 tests + 6
+                                                   // parameterised) and existing files grew
     /** 2702 {@code <<test.Test>>} functions declared, 144 excluded by the
      * engine's ToFix / ExcludeAlloy (Phase 0.8; the audit's census). */
-    private static final int DECLARED = 2702;
-    private static final int EXCLUDED = 144;
+    private static final int DECLARED = 2761;
+    private static final int EXCLUDED = 148;
 
     /** Setups the platform derives as INERT on the full run (Phase 0.2;
      * measured 2026-09-08, the names print as {@code [corpus2] inert-setup}):
@@ -317,7 +320,13 @@ class MinimalCorpusTest {
     // (22 -> 20) ceilings shrank with the departed tests and are ratcheted
     // down in the same commit (shrink-only means shrink); they grow back,
     // with reasons, when the tests return at 4.145.0.
-    private static final int[] DUCKDB_STRENGTH = {1491, 45, 20};
+    // {1491, 45, 20} -> {1533, 49, 22} on 2026-09-12 (upstream boundary batch 8,
+    // the 4.145.0 bump): the 19 #4900 goldens RETURNED from the fail roster with
+    // their row verdicts (differential 1491 -> 1533, the floor follows the
+    // measurement up), and the four modelJoins constant-join tests among them
+    // are text-decided (rows-underivable), so spelling grows back 45 -> 49
+    // and cardinality 20 -> 22 — exactly the shrink batch 1 recorded.
+    private static final int[] DUCKDB_STRENGTH = {1533, 49, 22};
     // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
     // one of the gained passes carries only cardinality asserts (a new pass, not a
@@ -327,7 +336,9 @@ class MinimalCorpusTest {
     // on H2; their asserts are assertSize — the same 22 the DuckDB lane carries
     // {1279, 56, 22} -> {1264, 51, 20} on 2026-09-10 (upstream boundary batch 1):
     // the same denominator move as DUCKDB_STRENGTH above, measured on the H2 lane
-    private static final int[] H2_STRENGTH = {1264, 51, 20};
+    // {1264, 51, 20} -> {1378, 55, 22} on 2026-09-12 (batch 8): the same
+    // return of the #4900 goldens on the H2 lane (see DUCKDB_STRENGTH)
+    private static final int[] H2_STRENGTH = {1378, 55, 22};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per
@@ -411,12 +422,16 @@ class MinimalCorpusTest {
     // template, which the plan-text oracle DECLINES (unbound template
     // argument) — 14 land here, all 15 are on the fail rosters with this
     // reason. Shrinks back at the 4.145.0 bump (contains #4900).
+    // oracle-declined 36 -> 22 (DuckDB) / 42 -> 28 (H2), rows-underivable 29 -> 28 /
+    // 38 -> 36, 2026-09-12 (upstream boundary batch 8): the 4.145.0 spec contains
+    // #4900 again, the 14 pre-#4900 goldens are row-judged once more, and the
+    // ceilings shrink back to the measurement (shrink-only means shrink).
     private static final java.util.Map<String, Integer> DUCKDB_TEXT_DECIDED = java.util.Map.of(
-            "rows-underivable", 29, "plan-params-unbindable", 6, "oracle-declined", 36,
+            "rows-underivable", 28, "plan-params-unbindable", 6, "oracle-declined", 22,
             "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 7);
     // H2 foreign-dialect 30 -> 31 (batch 143): the same testSortQuotes arm (see above)
     private static final java.util.Map<String, Integer> H2_TEXT_DECIDED = java.util.Map.of(
-            "rows-underivable", 38, "plan-params-unbindable", 6, "oracle-declined", 42,
+            "rows-underivable", 36, "plan-params-unbindable", 6, "oracle-declined", 28,
             "foreign-dialect:DB2", 31, "foreign-dialect:Composite", 7);
     /** Ceilings on TESTS with a referee leniency, per tag (Phase 0.6). */
     private static final java.util.Map<String, Integer> DUCKDB_LENIENCY = java.util.Map.of(

@@ -232,7 +232,11 @@ gate6() {
 # family the H2 lane already errors on (`Function "LATERAL" not found`; the
 # DuckDB lane runs all 350 with 0 errors). The other 22 are the same
 # dialect-capability rows as before (LIST_*, UNNEST, fold, LATERAL x4).
-G7_MIN_RUN=350; G7_MAX_FAIL=1; G7_MAX_ERR=24
+# 4.145.0 (batch 8): the relation jar universe grew 350 -> 469 (the new
+# quantified comparisons etc. are EXPECTED failures, pinned per test in
+# Test_LegendLite_RelationFunctions_PCT); the H2 LATERAL family gained two
+# more tests (24 -> 26)
+G7_MIN_RUN=469; G7_MAX_FAIL=1; G7_MAX_ERR=26
 gate7() {
   if ! want 7; then return 0; fi
   g "GATE7 PCT h2modern Relation (run>=$G7_MIN_RUN, fail<=$G7_MAX_FAIL, err<=$G7_MAX_ERR)"

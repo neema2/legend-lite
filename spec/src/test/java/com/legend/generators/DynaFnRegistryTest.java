@@ -43,8 +43,14 @@ class DynaFnRegistryTest {
     private static final Pattern INFERENCE_ENTRY = Pattern.compile("pair\\(\\s*\\n\\s*'([A-Za-z0-9_]+)',");
     private static final String INFERENCE_MAP = "getDynaFunctionTypeInferenceMap():";
     private static final Path TRANSLATOR = CoreTree.main("com/legend/normalizer/RelOpTranslator.java");
-    /** Shrink-only: engine operators the platform handles by nothing yet. */
-    static final int UNSUPPORTED_MAX = 37;
+    /** Shrink-only: engine operators the platform handles by nothing yet.
+     *  37 → 42 at the 4.145.0 bump (batch 8): the engine ADDED five
+     *  dynafunctions — allOf, anyOf (quantified comparisons), nullSafeEqual,
+     *  nullSafeNotEqual (the #4900 null-safe equality the platform lowers
+     *  as IS [NOT] DISTINCT FROM, but the engine's new operator NAMES are
+     *  not yet claimed) and split — the denominator grew, the platform's
+     *  side did not move; each is a leg, not a ledger row. */
+    static final int UNSUPPORTED_MAX = 42;
 
     /** One upstream name's facts: registering dialects + inference-map membership. */
     record Upstream(TreeSet<String> dialects, boolean inferred) {

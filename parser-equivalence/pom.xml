@@ -136,6 +136,17 @@
                     <classifier>tests</classifier>
                     <scope>test</scope>
                 </dependency>
+                <!-- tier 2 (ZTier2FixtureHarvest): the checkout's extension
+                     grammar tests are COMPILED by tools/bump.sh against this
+                     profile's classpath; relationalStore-grammar's
+                     TestRelationFunctions asserts through json-unit, at the
+                     engine's own version (its root pom, jsonunit.version) -->
+                <dependency>
+                    <groupId>net.javacrumbs.json-unit</groupId>
+                    <artifactId>json-unit</artifactId>
+                    <version>2.17.0</version>
+                    <scope>test</scope>
+                </dependency>
             </dependencies>
         </profile>
     </profiles>

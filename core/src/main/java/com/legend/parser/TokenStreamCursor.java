@@ -886,6 +886,7 @@ public interface TokenStreamCursor {
                 String tagName = parseIdentifier();
                 expect(TokenType.EQUAL);
                 String value;
+                boolean multiLine;
                 com.legend.protocol.SourceInfo tvSpan;
                 if (peek() == TokenType.DOC_STRING) {
                     if (dialect().refusesPlatformDialect()
@@ -898,7 +899,9 @@ public interface TokenStreamCursor {
                     // shared strip rule; the tv span ends by the token's
                     // single-line column arithmetic
                     int dTok = pos();
-                    value = docStringValue(text());
+                    String raw = text();
+                    value = docStringValue(raw);
+                    multiLine = isTextBlock(raw);
                     advance();
                     com.legend.protocol.SourceInfo d = docStringSpan(dTok);
                     com.legend.protocol.SourceInfo s = spanOf(tS, tS);
@@ -909,12 +912,13 @@ public interface TokenStreamCursor {
                     String quoted = text();
                     expect(TokenType.STRING);
                     value = unquoteAndUnescape(quoted, this);
+                    multiLine = false;
                     tvSpan = spanOf(tS, pos() - 1);
                 }
                 tags.add(new com.legend.protocol.Protocol.PTaggedValue(
                         new com.legend.protocol.Protocol.PTag(profile, tagName, pSpan,
                                 spanOf(vS, vS)),
-                        value, tvSpan));
+                        value, multiLine, tvSpan));
                 if (peek() != TokenType.BRACE_CLOSE) {
                     expect(TokenType.COMMA);          // same engine rule as stereotypes
                 }
@@ -998,6 +1002,52 @@ public interface TokenStreamCursor {
      * whitespace, then Java-unescape.
      */
     static String docStringValue(String raw) {
+        return com.legend.protocol.Escapes.unescapeJavaLike(textBlockLayout(raw));
+    }
+
+    /** The engine's {@code isTextBlock}: a {@code '''} literal whose opening
+     *  delimiter is followed — after optional spaces or tabs — by a line
+     *  terminator, so the first content line is the line after it.
+     *  {@code '''abc'''} and {@code ''''''} are deliberately NOT blocks. */
+    static boolean isTextBlock(String raw) {
+        if (raw.length() < 7 || !raw.startsWith("'''") || !raw.endsWith("'''")) {
+            return false;
+        }
+        int i = 3;
+        while (i < raw.length() && (raw.charAt(i) == ' ' || raw.charAt(i) == '\t')) {
+            i++;
+        }
+        return i < raw.length() && (raw.charAt(i) == '\n' || raw.charAt(i) == '\r');
+    }
+
+    /** The engine's {@code canonicalizeDocumentation} (4.145.0,
+     *  {@code PureGrammarParserUtility}; identical to legend-pure's
+     *  {@code DocumentationCanonicalizer}): the text-block LAYOUT with NO
+     *  escape processing — documentation is prose, and unescaping it would
+     *  rewrite a regex, a Markdown escape or a Windows path — minus the
+     *  leading and trailing blank lines, which is what makes a block and the
+     *  equivalent explicit {@code doc.doc} tagged value hold the same string. */
+    static String canonicalizeDocumentation(String raw) {
+        String layout = textBlockLayout(raw);
+        // the layout already stripped trailing whitespace: blank == empty —
+        // so the edge blank lines are exactly the leading and trailing '\n'
+        // runs (hand-rolled: the regex family is banned on the drop-in
+        // surface, and split() is one of it)
+        int start = 0;
+        while (start < layout.length() && layout.charAt(start) == '\n') {
+            start++;
+        }
+        int end = layout.length();
+        while (end > start && layout.charAt(end - 1) == '\n') {
+            end--;
+        }
+        return layout.substring(start, end);
+    }
+
+    /** The text-block layout of a {@code '''...'''} literal WITHOUT the
+     *  unescape: the shared half of {@link #docStringValue} (which unescapes)
+     *  and {@link #canonicalizeDocumentation} (which must not). */
+    static String textBlockLayout(String raw) {
         String normalized = raw.replace("\r\n", "\n").replace('\r', '\n');
         int firstNl = normalized.indexOf('\n');
         if (firstNl < 0) {
@@ -1044,7 +1094,109 @@ public interface TokenStreamCursor {
             }
             builder.append(line, 0, end);
         }
-        return com.legend.protocol.Escapes.unescapeJavaLike(builder.toString());
+        return builder.toString();
+    }
+
+    // -----------------------------------------------------------------
+    // Documentation — `'''...'''` before a declaration (legend-pure 5.99.0
+    // / legend-engine 4.145.0): sugar for the meta::pure::profiles::doc
+    // `doc` tagged value, prepended to the declaration's own, its value
+    // canonicalized (never unescaped) and flagged multiLine on the wire.
+    // Listed explicitly at each declaration that accepts it, so a block in
+    // expression position is untouched. The engine reads it in ONE helper
+    // (PureGrammarParserUtility.taggedValuesWithDocumentation); so does
+    // the fleet, here.
+    // -----------------------------------------------------------------
+
+    static final String DOC_PROFILE_PATH = "meta::pure::profiles::doc";
+    static final String DOC_TAG = "doc";
+
+    /** A documentation literal read at declaration position: the token, its
+     *  raw text, and its span over the WHOLE literal (closing delimiter
+     *  included — a token reports only the line it starts on). */
+    record Documentation(int token, String raw, com.legend.protocol.SourceInfo span) {
+    }
+
+    /** The span of a documentation literal — computed from the text, the
+     *  engine's {@code documentationSourceInformation}: it always spans
+     *  lines and always ends on {@code '''}. (A tagged value's own
+     *  {@code '''} VALUE keeps the shared single-line arithmetic of
+     *  {@link #docStringSpan} — the engine's helper does, and its suites
+     *  pin those coordinates.) */
+    default com.legend.protocol.SourceInfo documentationSpan(int tok, String raw) {
+        TokenStream ts = tokens();
+        int newLines = 0;
+        for (int i = raw.indexOf('\n'); i >= 0; i = raw.indexOf('\n', i + 1)) {
+            newLines++;
+        }
+        int endColumn = raw.length() - raw.lastIndexOf('\n') - 1;
+        return new com.legend.protocol.SourceInfo(spanSourceId(),
+                ts.startLine(tok), ts.startColumn(tok),
+                ts.startLine(tok) + newLines, endColumn);
+    }
+
+    /** Read a documentation literal at the cursor, if one stands there.
+     *  A {@code '''} token is consumed and returned whatever its shape
+     *  (the block-shape check is {@link #taggedValuesWithDocumentation}'s,
+     *  as in the engine); a plain quoted string at declaration position is
+     *  the engine's refusal, verbatim. */
+    default @com.legend.Nullable Documentation parseDocumentation() {
+        if (peek() == TokenType.STRING && pos() + 1 < tokens().count()
+                && DECLARATION_HEADS.contains(peek(1))) {
+            throw error("Documentation must be written as a multi-line ('''...''') literal");
+        }
+        if (peek() != TokenType.DOC_STRING) {
+            return null;
+        }
+        int tok = pos();
+        String raw = text();
+        advance();
+        return new Documentation(tok, raw, documentationSpan(tok, raw));
+    }
+
+    /** The declaration keywords documentation may precede (the parser's
+     *  own dispatch reads through a leading literal to reach one). */
+    static final java.util.Set<TokenType> DECLARATION_HEADS = java.util.Set.of(
+            TokenType.CLASS, TokenType.ENUM, TokenType.ASSOCIATION, TokenType.FUNCTION,
+            TokenType.NATIVE, TokenType.PROFILE);
+
+    /** {@link #parseDecorations()}'s result with the documentation folded
+     *  into its tagged values — the relational store's five sites. */
+    default Decorations withDocumentation(@com.legend.Nullable Documentation doc, Decorations dec) {
+        return doc == null ? dec
+                : new Decorations(dec.stereotypes(), taggedValuesWithDocumentation(doc, dec.taggedValues()));
+    }
+
+    /** An element's tagged values with its documentation folded in as the
+     *  FIRST — the engine's helper, rule for rule: a non-block literal and a
+     *  conflicting explicit {@code doc.doc} (bare {@code doc} through an
+     *  import, or the qualified profile; {@code my::pkg::doc} is another
+     *  profile) both refuse with the engine's message. */
+    default java.util.List<com.legend.protocol.Protocol.PTaggedValue> taggedValuesWithDocumentation(
+            @com.legend.Nullable Documentation doc,
+            java.util.List<com.legend.protocol.Protocol.PTaggedValue> taggedValues) {
+        if (doc == null) {
+            return taggedValues;
+        }
+        if (!isTextBlock(doc.raw())) {
+            throw throwAt(tokens(), doc.token(),
+                    "Documentation must be written as a multi-line ('''...''') literal");
+        }
+        for (com.legend.protocol.Protocol.PTaggedValue tv : taggedValues) {
+            if (DOC_TAG.equals(tv.tag().value())
+                    && (DOC_TAG.equals(tv.tag().profile()) || DOC_PROFILE_PATH.equals(tv.tag().profile()))) {
+                throw new ParseException("Element has both documentation and an explicit doc.doc"
+                        + " tagged value. Use one.", tv.sourceInformation().startLine(),
+                        tv.sourceInformation().startColumn());
+            }
+        }
+        java.util.List<com.legend.protocol.Protocol.PTaggedValue> out =
+                new java.util.ArrayList<>(taggedValues.size() + 1);
+        out.add(new com.legend.protocol.Protocol.PTaggedValue(
+                new com.legend.protocol.Protocol.PTag(DOC_PROFILE_PATH, DOC_TAG, doc.span(), doc.span()),
+                canonicalizeDocumentation(doc.raw()), true, doc.span()));
+        out.addAll(taggedValues);
+        return out;
     }
 
 

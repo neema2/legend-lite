@@ -172,6 +172,9 @@ final class StoreSubstitutionRewrite {
             case RelationalOperation.ArrayLiteral a ->
                     new RelationalOperation.ArrayLiteral(
                             a.elements().stream().map(e -> op(e, m)).toList());
+            case RelationalOperation.Lambda lam ->
+                    new RelationalOperation.Lambda(lam.parameters(), op(lam.body(), m));
+            case RelationalOperation.LambdaParam p -> p;
             case RelationalOperation.JoinNavigation j ->
                     new RelationalOperation.JoinNavigation(
                             db(j.databaseName(), m),

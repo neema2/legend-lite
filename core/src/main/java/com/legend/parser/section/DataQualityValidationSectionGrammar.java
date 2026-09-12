@@ -73,7 +73,8 @@ public final class DataQualityValidationSectionGrammar
 
     private static Protocol.PDataQualityValidation parseValidation(
             TokenStreamCursor c) {
-        SectionParse.Head h = SectionParse.head(c, "DataQualityValidation");
+        // classValidationDefinition: documentation? DATAQUALITYVALIDATION ... (4.145.0)
+        SectionParse.Head h = SectionParse.head(c, "DataQualityValidation", true);
         c.expect(TokenType.BRACE_OPEN);
         String ctxKind = null;
         String ctxPath = null;
@@ -189,11 +190,13 @@ public final class DataQualityValidationSectionGrammar
 
     private static Protocol.PDataQualityRelationValidation
             parseRelationValidation(TokenStreamCursor c) {
+        // relationValidationDefinition: documentation? DATAQUALITYRELATIONVALIDATION ... (4.145.0)
         SectionParse.Head h = SectionParse.head(c,
-                "DataQualityRelationValidation");
+                "DataQualityRelationValidation", true);
         c.expect(TokenType.BRACE_OPEN);
         com.legend.protocol.spec.ValueSpecification query = null;
         List<Protocol.PDqRelationCheck> validations = new ArrayList<>();
+        List<Protocol.PDqTestSuite> testSuites = null;
         java.util.Set<String> seenKeys2 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
@@ -202,6 +205,11 @@ public final class DataQualityValidationSectionGrammar
             switch (key) {
                 case "query" -> query = SectionParse.lambdaToSemicolon(c);
                 case "validations" -> parseChecks(c, validations, h.declStart());
+                case "testSuites" -> {
+                    // 4.145.0: the Testable block — no terminating semicolon
+                    testSuites = parseTestSuites(c);
+                    continue;
+                }
                 default -> throw c.error(
                         "unknown DataQualityRelationValidation key '"
                                 + key + "'");
@@ -220,7 +228,105 @@ public final class DataQualityValidationSectionGrammar
         }
         return new Protocol.PDataQualityRelationValidation(h.pkg(), h.name(),
                 h.dec().stereotypes(), h.dec().taggedValues(), query,
-                validations, c.spanOf(h.declStart(), c.pos() - 1));
+                validations, testSuites, c.spanOf(h.declStart(), c.pos() - 1));
+    }
+
+    /** {@code testSuites: [ id: { data: [ store: EmbeddedData, ... ] tests:
+     *  [ id: { asserts: [ id: Assertion, ... ] }, ... ] }, ... ]} — the
+     *  engine's Testable block on the relation-level elements (4.145.0):
+     *  suite / test / data-entry spans cover their whole {@code id: {...}}
+     *  (or {@code store: data}) rule, the data wrapper's its {@code data:
+     *  [...]} rule; {@code tests} and {@code asserts} are required. */
+    private static List<Protocol.PDqTestSuite> parseTestSuites(TokenStreamCursor c) {
+        List<Protocol.PDqTestSuite> out = new ArrayList<>();
+        c.expect(TokenType.BRACKET_OPEN);
+        while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
+            int ss = c.pos();
+            String id = c.parseIdentifier();
+            c.expect(TokenType.COLON);
+            c.expect(TokenType.BRACE_OPEN);
+            Protocol.PDqTestData data = null;
+            List<Protocol.PDqTest> tests = null;
+            java.util.Set<String> seen = new java.util.HashSet<>();
+            while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                int keyStart = c.pos();
+                String key = c.parseIdentifier();
+                TokenStreamCursor.once(seen, key, c, ss);
+                c.expect(TokenType.COLON);
+                switch (key) {
+                    case "data" -> {
+                        List<Protocol.PDqStoreData> entries = new ArrayList<>();
+                        c.expect(TokenType.BRACKET_OPEN);
+                        while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
+                            int es = c.pos();
+                            String store = Protocol.unquotePath(c.parseQualifiedName());
+                            SourceInfo storeSpan = c.spanOf(es, c.pos() - 1);
+                            c.expect(TokenType.COLON);
+                            Protocol.PEmbeddedDataValue v =
+                                    com.legend.parser.MappingProtocolParser.parseEmbeddedValueAt(c);
+                            entries.add(new Protocol.PDqStoreData(store, storeSpan, v,
+                                    c.spanOf(es, c.pos() - 1)));
+                            if (!c.match(TokenType.COMMA)) {
+                                break;
+                            }
+                        }
+                        c.expect(TokenType.BRACKET_CLOSE);
+                        data = new Protocol.PDqTestData(entries, c.spanOf(keyStart, c.pos() - 1));
+                    }
+                    case "tests" -> {
+                        tests = new ArrayList<>();
+                        c.expect(TokenType.BRACKET_OPEN);
+                        while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
+                            int ts = c.pos();
+                            String testId = c.parseIdentifier();
+                            c.expect(TokenType.COLON);
+                            c.expect(TokenType.BRACE_OPEN);
+                            List<Protocol.PTestAssertion> asserts = null;
+                            java.util.Set<String> seenTest = new java.util.HashSet<>();
+                            while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+                                String tk = c.parseIdentifier();
+                                TokenStreamCursor.once(seenTest, tk, c, ts);
+                                c.expect(TokenType.COLON);
+                                if (!"asserts".equals(tk)) {
+                                    throw c.error("unknown test key '" + tk + "'");
+                                }
+                                asserts = new ArrayList<>();
+                                c.expect(TokenType.BRACKET_OPEN);
+                                while (!c.atEnd() && c.peek() != TokenType.BRACKET_CLOSE) {
+                                    asserts.add(com.legend.parser.MappingProtocolParser
+                                            .parseTestAssertionAt(c));
+                                    if (!c.match(TokenType.COMMA)) {
+                                        break;
+                                    }
+                                }
+                                c.expect(TokenType.BRACKET_CLOSE);
+                            }
+                            c.expect(TokenType.BRACE_CLOSE);
+                            if (asserts == null) {
+                                throw TokenStreamCursor.throwAt(c.tokens(), ts,
+                                        "Field 'asserts' is required");
+                            }
+                            tests.add(new Protocol.PDqTest(testId, asserts, c.spanOf(ts, c.pos() - 1)));
+                            if (!c.match(TokenType.COMMA)) {
+                                break;
+                            }
+                        }
+                        c.expect(TokenType.BRACKET_CLOSE);
+                    }
+                    default -> throw c.error("unknown testSuite key '" + key + "'");
+                }
+            }
+            c.expect(TokenType.BRACE_CLOSE);
+            if (tests == null) {
+                throw TokenStreamCursor.throwAt(c.tokens(), ss, "Field 'tests' is required");
+            }
+            out.add(new Protocol.PDqTestSuite(id, data, tests, c.spanOf(ss, c.pos() - 1)));
+            if (!c.match(TokenType.COMMA)) {
+                break;
+            }
+        }
+        c.expect(TokenType.BRACKET_CLOSE);
+        return out;
     }
 
     private static void parseChecks(TokenStreamCursor c,
@@ -279,6 +385,7 @@ public final class DataQualityValidationSectionGrammar
         List<String> columnsToCompare = new ArrayList<>();
         Double expectedMatch = null;
         Protocol.PReconStrategy strategy = null;
+        List<Protocol.PDqTestSuite> testSuites = null;
         java.util.Set<String> seenKeys3 = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
             String key = c.parseIdentifier();
@@ -313,6 +420,11 @@ public final class DataQualityValidationSectionGrammar
                     c.advance();
                     expectedMatch = Double.valueOf(num);
                 }
+                case "testSuites" -> {
+                    // 4.145.0: the Testable block — no terminating semicolon
+                    testSuites = parseTestSuites(c);
+                    continue;
+                }
                 default -> throw c.error(
                         "unknown DataQualityRelationComparison key '"
                                 + key + "'");
@@ -327,7 +439,7 @@ public final class DataQualityValidationSectionGrammar
         }
         return new Protocol.PDataQualityRelationComparison(h.pkg(), h.name(),
                 source, target, keys, columnsToCompare, expectedMatch,
-                strategy, c.spanOf(h.declStart(), c.pos() - 1));
+                strategy, testSuites, c.spanOf(h.declStart(), c.pos() - 1));
     }
 
     /** {@code MD5Hash ( '{' (sourceHashColumn|targetHashColumn|

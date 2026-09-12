@@ -1923,6 +1923,8 @@ public final class MappingNormalizer {
                     collectExprTables(g.inner(), sink);
             case RelationalOperation.ArrayLiteral a ->
                     a.elements().forEach(e -> collectExprTables(e, sink));
+            case RelationalOperation.Lambda lam -> collectExprTables(lam.body(), sink);
+            case RelationalOperation.LambdaParam ignored -> { }
             // DELIBERATE non-contributors (audit 15: exhaustive, no default):
             // literals/type refs carry no table; a bare/target column ref
             // without a database qualifier cannot name one; join navigations
@@ -3264,7 +3266,9 @@ public final class MappingNormalizer {
             case RelationalOperation.Group g                 -> containsTargetColumnRef(g.inner());
             case RelationalOperation.ArrayLiteral a          ->
                     a.elements().stream().anyMatch(MappingNormalizer::containsTargetColumnRef);
-            case RelationalOperation.JoinNavigation ignored -> throw new ModelException(LegendCompileException.Phase.NORMALIZE, 
+            case RelationalOperation.Lambda lam              -> containsTargetColumnRef(lam.body());
+            case RelationalOperation.LambdaParam ignored     -> false;
+            case RelationalOperation.JoinNavigation ignored -> throw new ModelException(LegendCompileException.Phase.NORMALIZE,
                     "JoinNavigation inside join condition");
         };
     }

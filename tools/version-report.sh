@@ -206,11 +206,17 @@ inv "2b" "$([ "$LEGEND_PURE_DESCRIBE" = "legend-pure-$LEGEND_PURE_RELEASE" ] && 
   "SOURCE pure pin $LEGEND_PURE_DESCRIBE is the release tag legend-pure-$LEGEND_PURE_RELEASE"
 
 # INV-2c: the pinned SHAs ARE the tags' commits — asked of the REMOTE (the
-# peeled `^{}` ref of `git ls-remote --tags`), so no clone needs tags and CI's
-# shallow clones are never consulted (USER 2026-09-10: no git against the
-# oracle clones in CI). Network; skipped offline.
+# peeled `^{}` ref of `git ls-remote --tags` for an ANNOTATED tag; the ref
+# itself for a LIGHTWEIGHT one — upstream's tags are lightweight since the
+# 4.14x "CI-friendly versions" release workflow: 4.138.2 was annotated,
+# 4.145.0 / 5.99.0 are not), so no clone needs tags and CI's shallow clones
+# are never consulted (USER 2026-09-10: no git against the oracle clones in
+# CI). Network; skipped offline.
 tag_commit() {  # tag_commit <owner/repo> <tag>
-  git ls-remote --tags "https://github.com/$1" "refs/tags/$2^{}" 2>/dev/null | awk '{print $1}' | head -1
+  local sha
+  sha=$(git ls-remote --tags "https://github.com/$1" "refs/tags/$2^{}" 2>/dev/null | awk '{print $1}' | head -1)
+  [ -n "$sha" ] || sha=$(git ls-remote --tags "https://github.com/$1" "refs/tags/$2" 2>/dev/null | awk '{print $1}' | head -1)
+  echo "$sha"
 }
 if [ "$OFFLINE" = 1 ]; then
   say "  SKIP  INV-2c (offline: tag commits not asked of the remote)"

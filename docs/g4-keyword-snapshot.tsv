@@ -244,6 +244,7 @@ connections	HostedService,Runtime,Service	present
 content	ExternalFormat,Text	present
 contentType	ExternalFormat,ExternalFormatData,HostedService	present
 context	DataQuality	present
+coverageRegions	DataSpace	present
 data	DataQuality,ExternalFormatData,HostedService,Mapping,Persistence,Service	present
 dataProcessingUnits	PersistenceCloud	present
 database	Athena,MongoDBConnection,Persistence,PersistenceRelational	present
@@ -297,6 +298,8 @@ executionContexts	DataSpace	present
 executions	HostedService,Service	present
 expected	EqualToContentPattern,EqualToJsonContentPattern	present
 expectedMatch	DataQuality	present
+expertIds	DataSpace	present
+expertise	DataSpace	present
 explode	ServiceStore	present
 extends	Domain,Mapping	present
 false	MongoDBSchema,Persistence	present
@@ -343,11 +346,13 @@ kerberosUseCanonicalHostname	Trino	present
 key	Service	present
 keyName	Authentication	present
 keys	DataQuality,HostedService,Persistence,Service	present
+label	DataSpace	present
 let	M3	present
 list	HostedService,Service	present
 location	Authentication,ExternalFormat,ServiceStore	present
 mappers	PostProcessor	present
 mapping	DataSpace,HostedService,Service	present
+mappingProvider	DataSpace	present
 mappings	ModelConnection,Runtime	present
 mcpServer	Service	present
 mergeStrategy	Persistence	present
@@ -367,6 +372,7 @@ notifier	Persistence	present
 notifyees	Persistence	present
 null	MongoDBSchema	present
 oauthKey	AuthenticationStrategy	present
+operationalMetadata	DataSpace	present
 optional	FlatData	present
 or	Relational	present
 organization	Snowflake	present
@@ -431,6 +437,7 @@ roleArn	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set
 roleSessionName	Authentication	oracle-unreachable (probed 2026-08-14: the pinned jar set does not register the extension — re-probe on oracle bump)
 runtime	HostedService,Service	present
 runtimeComponents	Service	present
+sampleValues	DataSpace	present
 schema	PostProcessor,Trino	present
 schemaFrom	PostProcessor	present
 schemaId	ExternalFormat	present
@@ -511,6 +518,7 @@ trustStorePasswordVaultReference	Trino	present
 trustStorePathVaultReference	Trino	present
 type	DataQuality,Mapping,RelationalDatabaseConnection,Text	present
 udfName	Snowflake	present
+updateFrequency	DataSpace	present
 updatesHandling	PersistenceRelational	present
 url	ModelConnection,Persistence,ServiceStoreEmbeddedData	present
 urlPath	ServiceStoreEmbeddedData	present

@@ -243,6 +243,14 @@ public final class RelationalOpRows {
                 }
                 colName = t.column();
             }
+            // 4.145.0 relational lambdas: parsed and carried; their
+            // metamodel rows are the lowering leg's — refused loudly here
+            case RelationalOperation.Lambda lam -> throw new IllegalStateException(
+                    "relational lambda " + lam.parameters() + " | ... has no metamodel rows yet"
+                            + " (4.145.0 construct; a lowering leg)");
+            case RelationalOperation.LambdaParam p -> throw new IllegalStateException(
+                    "relational lambda parameter $" + p.name() + " has no metamodel rows yet"
+                            + " (4.145.0 construct; a lowering leg)");
             case RelationalOperation.Literal l -> {
                 kind = "Literal";
                 literal = String.valueOf(l.value());

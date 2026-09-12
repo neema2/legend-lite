@@ -276,14 +276,13 @@ class ResolveSimpleClassTest {
                         + " not plangen's unshared scalar subquery:\n" + sql);
         assertEquals(1, count(sql, "SELECT"), sql);
         assertTrue(sql.contains("ORDER BY t1.LEGAL"), sql);
-        assertEquals(List.of("null", "ACME"), exec(sql),
-                "engine parity (§7 landing record 2026-09-01): the engine"
-                        + " spells no NULLS clause and rides its H2"
-                        + " backend's NULLS-LOW default — the OBSERVABLE"
-                        + " placement its own asserts pin (nulls FIRST"
-                        + " ascending); execution dialects emit it"
-                        + " explicitly, overriding DuckDB's opposite"
-                        + " default");
+        assertEquals(List.of("ACME", "null"), exec(sql),
+                "engine parity (4.145.0, batch 8): the engine's printer has ONE"
+                        + " canonical null placement — null is LARGEST (ASC nulls"
+                        + " last, DESC nulls first; dbExtension.pure"
+                        + " NullOrderingSupport) — and opens its H2 sessions"
+                        + " with DEFAULT_NULL_ORDERING=HIGH so bare keys order"
+                        + " that way; execution dialects spell it explicitly");
     }
 
     // ---- fixture 20b: plain object-space sortBy folds flat ----

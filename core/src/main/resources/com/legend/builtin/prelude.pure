@@ -64,6 +64,32 @@ native function
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/collection/anonymous/map/getIfAbsentPutWithKey.pure
 import meta::pure::test::pct::*;
 import meta::pure::functions::asserts::*;
+'''
+Looks up a key, computing and storing a value if it is not already present.
+
+Unlike most collection functions this **mutates the map**: on a miss the computed value is inserted,
+so a later lookup of the same key returns it. `func` receives the key and is called only on a miss —
+a second call with a different `func` returns the stored value and ignores the new function. That
+makes this the building block for memoisation and lazy caches.
+
+**Parameters**
+- `m` — the map to read and, on a miss, update.
+- `key` — the key to look up.
+- `func` — computes the value from the key, called only when the key is absent.
+
+**Returns** the existing value, or the newly computed and stored one.
+
+**Examples**
+```pure
+let m = newMap([pair(1, '_1')]);
+$m->getIfAbsentPutWithKey(3, {k | '_' + $k->toString()});   // '_3', now stored
+$m->get(3);                                                 // '_3'
+$m->getIfAbsentPutWithKey(3, {k | 'something else'});       // '_3' -- func not called
+```
+
+**See also** `newMap(Pair<U, V>[*]):Map<U, V>[1]`,
+`getMapStats(Map<U, V>[1]):MapStats[0..1]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::collection::getIfAbsentPutWithKey<U,V>(m:Map<U,V>[1], key:U[1], func:Function<{U[1]->V[0..1]}>[1]):V[0..1];
 
 
@@ -71,6 +97,27 @@ native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::collec
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/collection/anonymous/map/getMapStats.pure
 import meta::pure::test::pct::*;
 import meta::pure::functions::asserts::*;
+'''
+Diagnostic counters for a map: its size, and how many times a value has been computed on a miss.
+
+Intended for inspecting cache behaviour when a map is used with
+`getIfAbsentPutWithKey(Map<U, V>[1], U[1], Function<{U[1]->V[0..1]}>[1]):V[0..1]` — a rising
+`getIfAbsentCounter` relative to `size` indicates repeated misses. The result is `[0..1]`, so a map
+that keeps no statistics yields an empty value.
+
+**Parameters**
+- `m` — the map to inspect.
+
+**Returns** the map's statistics, or an empty value if none are recorded.
+
+**Examples**
+```pure
+$m->getMapStats().size
+$m->getMapStats().getIfAbsentCounter
+```
+
+**See also** `getIfAbsentPutWithKey(Map<U, V>[1], U[1], Function<{U[1]->V[0..1]}>[1]):V[0..1]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::collection::getMapStats<U,V>(m:Map<U,V>[1]):MapStats[0..1];
 
 Class meta::pure::functions::collection::MapStats
@@ -83,6 +130,30 @@ Class meta::pure::functions::collection::MapStats
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/collection/anonymous/map/replaceAll.pure
 import meta::pure::test::pct::*;
+'''
+Returns a map holding exactly the given entries, discarding those of the original map.
+
+Despite the name this is not a merge: entries of `m` whose keys are absent from `pairs` are dropped.
+The key-comparison behaviour of the original map — including any properties it was built with — is
+carried over. Use `putAll(Map<U, V>[1], Pair<U, V>[*]):Map<U, V>[1]` to add entries while keeping
+the ones already present.
+
+**Parameters**
+- `m` — the map whose key-comparison behaviour is reused.
+- `pairs` — the entries the new map holds.
+
+**Returns** a new map containing only `pairs`.
+
+**Examples**
+```pure
+// $m maps 1 -> '_1' and 2 -> '_2'
+$m->replaceAll([pair(1, '_1_1'), pair(3, '_3')])   // {1 -> '_1_1', 3 -> '_3'} -- key 2 is gone
+```
+
+**See also** `putAll(Map<U, V>[1], Pair<U, V>[*]):Map<U, V>[1]`,
+`newMap(Pair<U, V>[*]):Map<U, V>[1]`,
+`getIfAbsentPutWithKey(Map<U, V>[1], U[1], Function<{U[1]->V[0..1]}>[1]):V[0..1]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::collection::replaceAll<U,V>(m:Map<U,V>[1], pairs:Pair<U,V>[*]):Map<U,V>[1];
 
 
@@ -90,6 +161,28 @@ native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::collec
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/collection/transformation/removeAllOptimized.pure
 import meta::pure::functions::collection::tests::removeAllOptimized::*;
 import meta::pure::test::pct::*;
+'''
+Removes from a collection every element that appears in another collection.
+
+Set difference, using a hash-based lookup rather than a scan, so it stays efficient when `other` is
+large. Elements are matched by equality — for classes carrying `<<equality.Key>>` properties, that
+means the key properties rather than object identity.
+
+**Parameters**
+- `set` — the collection to remove from.
+- `other` — the elements to remove.
+
+**Returns** the elements of `set` that do not appear in `other`.
+
+**Examples**
+```pure
+[1, 2, 3, 4]->removeAllOptimized([2, 4])   // [1, 3]
+[1, 2]->removeAllOptimized([])             // [1, 2]
+```
+
+**See also** `removeDuplicates(T[*]):T[*]`,
+`filter(T[*], Function<{T[1]->Boolean[1]}>[1]):T[*]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::collection::removeAllOptimized<T>(set:T[*], other:T[*]):T[*];
 
 
@@ -174,12 +267,62 @@ Class meta::pure::functions::lang::KeyValue
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/lang/eval/evaluate.pure
 import meta::pure::functions::lang::tests::model::*;
 import meta::pure::test::pct::*;
+'''
+Calls a function whose arity is not known until runtime, passing its arguments as a collection.
+
+Where `eval(Function<{->V[m]}>[1]):V[m]` has a separate overload per arity and checks argument types
+at compile time, this takes the arguments as `List` objects and so accepts any number of them. Reach
+for it only when the arity genuinely varies — reflection over `Function` values, or generic
+dispatch — and prefer `eval` otherwise, since `eval` keeps its type checking.
+
+Each argument is wrapped in a `List`, which is what allows an argument to itself be a collection. The
+result is `Any[*]`, so the caller usually casts it to the expected type.
+
+**Parameters**
+- `func` — the function to call.
+- `params` — one `List` per argument, in order.
+
+**Returns** whatever `func` returns, as `Any[*]`.
+
+**Examples**
+```pure
+$someFunction->evaluate([list('a'), list(1)])
+```
+
+**See also** `eval(Function<{->V[m]}>[1]):V[m]`,
+`meta::pure::functions::collection::list(U[*]):List<U>[1]`,
+`cast(Any[m], T[1]):T[m]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::lang::evaluate(func:Function<Any>[1], params:List<Any>[*]):Any[*];
 
 
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/lang/eval/rawEvalProperty.pure
 import meta::pure::test::pct::*;
+'''
+Reads a property off an object, bypassing any getter override.
+
+`eval` on a `Property` respects overrides that the object may carry, so a value can be computed or
+substituted rather than read. This function ignores that machinery and returns the stored value
+directly, which is why it is "raw".
+
+Use it when you need the underlying state — serialization, diffing, or diagnosing an override — and
+`eval` otherwise, since normal reads should honour overrides.
+
+**Parameters**
+- `p` — the property to read.
+- `a` — the object to read it from.
+
+**Returns** the property's stored value.
+
+**Examples**
+```pure
+$myProperty->rawEvalProperty($object)
+```
+
+**See also** `eval(Function<{T[n]->V[m]}>[1], T[n]):V[m]`,
+`evaluate(Function<Any>[1], List<Any>[*]):Any[*]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::lang::rawEvalProperty<V|m>(p:Property<Nil,V|m>[1], a:Any[1]):V[m];
 
 
@@ -187,6 +330,29 @@ native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::lang::
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/lang/unit/getUnitValue.pure
 import meta::pure::functions::meta::tests::model::*;
 import meta::pure::test::pct::*;
+'''
+Extracts the plain magnitude from a unit-carrying value, discarding the unit.
+
+The inverse of `meta::pure::functions::meta::newUnit(Unit[1], Number[1]):Any[1]`. No conversion is
+performed — the number returned is the one the value was created with, in its own unit, so a value in
+`Cubitum` yields its Cubitum magnitude rather than a canonical one.
+
+Because the unit is dropped, mixing results from different units silently discards the distinction;
+convert first if the values are not already in the same unit.
+
+**Parameters**
+- `unit` — the unit-carrying value.
+
+**Returns** its magnitude, keeping the original numeric type.
+
+**Examples**
+```pure
+getUnitValue(5 RomanLength~Pes)           // 5
+getUnitValue(10.5D RomanLength~Cubitum)   // 10.5D
+```
+
+**See also** `meta::pure::functions::meta::newUnit(Unit[1], Number[1]):Any[1]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::getUnitValue(unit:Any[1]):Number[1];
 
 
@@ -194,44 +360,254 @@ native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/lang/unit/newUnit.pure
 import meta::pure::functions::meta::tests::model::*;
 import meta::pure::test::pct::*;
+'''
+Builds a unit-carrying value from a unit and a plain number.
+
+The programmatic equivalent of the literal form `5 RomanLength~Pes`. A unit is referenced as
+`Measure~Unit`, so `RomanLength~Pes` names the `Pes` unit of the `RomanLength` measure. Use this when
+the unit is chosen at runtime and cannot be written as a literal.
+
+The magnitude keeps the numeric type it was given, so passing a `Decimal` yields a decimal-valued
+quantity.
+
+**Parameters**
+- `type` — the unit, written `Measure~Unit`.
+- `value` — the magnitude.
+
+**Returns** the value in that unit.
+
+**Examples**
+```pure
+newUnit(RomanLength~Pes, 5)            // 5 RomanLength~Pes
+newUnit(RomanLength~Cubitum, 10.5D)    // 10.5D RomanLength~Cubitum
+```
+
+**See also** `meta::pure::functions::meta::getUnitValue(Any[1]):Number[1]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::newUnit(type:Unit[1], value:Number[1]):Any[1];
 
 
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/math/random.pure
 import meta::pure::test::pct::*;
+'''
+A pseudo-random number in the half-open interval from 0 inclusive to 1 exclusive.
+
+Marked as a side-effecting function because it returns a different value on each call: it is not
+referentially transparent, so an expression containing it cannot be assumed to be repeatable or safely
+cached.
+
+Scale it to the range you need — `$lo + random() * ($hi - $lo)` — and note that `1.0` never occurs, so
+`floor(random() * $n)` yields `0` to `n - 1`.
+
+Not suitable for cryptographic use.
+
+**Returns** a pseudo-random value in `[0, 1)`.
+
+**Examples**
+```pure
+random()                           // e.g. 0.7208...
+floor(random() * 6) + 1            // a die roll, 1 to 6
+```
+
+**See also** `floor(Number[1]):Integer[1]`
+'''
 native function <<functionType.SideEffectFunction, PCT.function>> meta::pure::functions::math::random():Float[1];
 
 
 ###Pure
-// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/graph/elementToPath.pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/math/round/binFloor.pure
+import meta::pure::test::pct::*;
+'''
+The largest multiple of `width` at or below an integer, computed as `value - (value mod width)`.
+
+Values are floored onto a grid of bins `width` apart and aligned on zero, so `binFloor(17, 10)`
+gives `10`, the start of the bin spanning 10 to 19.
+
+This is a floor, not a truncation toward zero: `binFloor(-1, 10)` gives `-10`, not `0`. The
+result is always the multiple at or below the input on the number line, whatever the sign. That
+is what makes every value in a bin map to the same result regardless of sign, which is the
+property that makes this usable as a partition or grouping key.
+
+A value already sitting on a multiple is returned unchanged, so binning twice gives the same
+answer as binning once. A `width` of `1` is the identity.
+
+The `width` must be positive; `0` raises a divide-by-zero error.
+
+**Parameters**
+- `value` — the integer to place in a bin.
+- `width` — the bin size, a positive integer.
+
+**Returns** the largest multiple of `width` that is less than or equal to `value`.
+
+**Examples**
+```pure
+binFloor(1, 10)      // 0
+binFloor(17, 10)     // 10
+binFloor(20, 10)     // 20   -- already a multiple
+binFloor(-1, 10)     // -10  -- floors down, not toward zero
+binFloor(-17, 10)    // -20
+binFloor(7, 1)       // 7    -- width 1 is the identity
+```
+
+**See also** `floor(Number[1]):Integer[1]`, `round(Number[1]):Integer[1]`,
+`mod(Integer[1], Integer[1]):Integer[1]`
+'''
+function <<PCT.function>> meta::pure::functions::math::binFloor(value:Integer[1], width:Integer[1]):Integer[1]
+{
+    $value - $value->mod($width)
+}
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/graph/elementPath.pure
 import meta::pure::functions::meta::tests::model::*;
 import meta::pure::test::pct::*;
-native function meta::pure::functions::meta::elementPath(element:PackageableElement[1]):PackageableElement[1..*];
+'''
+The chain of elements containing a packageable element, from the top-level package down to the element
+itself.
+
+Where `elementToPath(PackageableElement[1]):String[1]` renders that chain as a string, this returns the
+elements themselves: first the top-level package — `Root` for elements in the graph — then each package
+below it, and last the element that was passed in. An element that sits at the top level with no package
+at all, such as `Integer` or `Package`, is a chain of one. The result is never empty, since it always ends
+with the element itself.
+
+The chain is followed through the `package` property, so it works for elements assembled on the fly as
+well as for elements in the graph: an ephemeral element under an ephemeral package sitting under a package
+named `Other` has that package, not `Root`, at the head of its chain.
+
+**Parameters**
+- `element` — the element whose containing chain is wanted.
+
+**Returns** the containing elements from the top-level package down to `element`, inclusive.
+
+**Examples**
+```pure
+elementPath(::)          // [::]
+elementPath(Integer)     // [Integer]
+elementPath(meta)        // [::, meta]
+elementPath(CC_Person)   // [::, meta, meta::pure, meta::pure::functions, meta::pure::functions::meta,
+                         //  meta::pure::functions::meta::tests,
+                         //  meta::pure::functions::meta::tests::model, CC_Person]
+```
+
+**See also** `elementToPath(PackageableElement[1]):String[1]`,
+`pathToElement(String[1]):PackageableElement[1]`
+'''
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::elementPath(element:PackageableElement[1]):PackageableElement[1..*];
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/graph/lenientPathToElement.pure
+import meta::pure::functions::meta::tests::model::*;
+import meta::pure::test::pct::*;
+'''
+Looks up a model element by its fully-qualified path, yielding empty when the path does not resolve.
+
+As `pathToElement(String[1]):PackageableElement[1]`, except for the return multiplicity: an unresolvable
+path is an error there, whereas here the return type is `[0..1]` and the result is simply empty. Any
+segment of the path can be the one that fails — a package part that names no package empties the result
+just as a final part that names no element does.
+
+Use it when the path comes from configuration, user input, or generated code, and a miss is an expected
+outcome rather than a bug.
+
+**Parameters**
+- `path` — the `::`-separated path to resolve.
+
+**Returns** the element at that path, or empty if there is none.
+
+**Examples**
+```pure
+lenientPathToElement('meta::pure::functions::meta::tests::model::CC_Person')    // the CC_Person class
+lenientPathToElement('meta::pure::functions::meta::tests::model::CCC_Person')   // empty — no such element
+lenientPathToElement('meta::pure::functions::meta::tests::models::CC_Person')   // empty — no such package
+```
+
+**See also** `pathToElement(String[1]):PackageableElement[1]`,
+`elementToPath(PackageableElement[1]):String[1]`
+'''
+function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::lenientPathToElement(path:String[1]):PackageableElement[0..1]
+{
+    $path->lenientPathToElement('::')
+}
+
+'''
+As `lenientPathToElement(String[1]):PackageableElement[0..1]`, but splits `path` on `separator` instead of
+`::` — `lenientPathToElement('meta.pure.functions.meta.tests.model.CC_Person', '.')` resolves the same
+class, and an unresolvable segment likewise gives empty rather than an error.
+'''
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::lenientPathToElement(path:String[1], separator:String[1]):PackageableElement[0..1];
 
 
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/graph/pathToElement.pure
 import meta::pure::functions::meta::tests::model::*;
 import meta::pure::test::pct::*;
+'''
+Looks up a model element by its fully-qualified path.
+
+The inverse of `elementToPath(PackageableElement[1]):String[1]`, and the way to reach an element named at
+runtime — from configuration, user input, or generated code — rather than written as a literal.
+
+The path is `::`-separated. **A path that resolves to nothing is an error, not an empty result**, since
+the return multiplicity is `[1]`; use `lenientPathToElement(String[1]):PackageableElement[0..1]` when a
+missing element should yield empty instead.
+
+**Parameters**
+- `path` — the `::`-separated path to resolve.
+
+**Returns** the element at that path.
+
+**Examples**
+```pure
+'meta::pure::functions::meta::tests::model::CC_Person'->pathToElement()
+$className->pathToElement()->cast(@Class<Any>)
+```
+
+**See also** `elementToPath(Function<Any>[1]):String[1]`,
+`meta::pure::functions::lang::cast(Any[m], T[1]):T[m]`
+'''
 function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::pathToElement(path:String[1]):PackageableElement[1]
 {
     $path->pathToElement('::')
 }
 
-native function meta::pure::functions::meta::pathToElement(path:String[1], separator:String[1]):PackageableElement[1];
-
-function meta::pure::functions::meta::lenientPathToElement(path:String[1]):PackageableElement[0..1]
-{
-    $path->lenientPathToElement('::')
-}
-
-native function meta::pure::functions::meta::lenientPathToElement(path:String[1], separator:String[1]):PackageableElement[0..1];
+'''
+As `pathToElement(String[1]):PackageableElement[1]`, but splits `path` on `separator` instead of `::` —
+`pathToElement('meta.pure.functions.meta.tests.model.CC_Person', '.')` resolves the same class as the
+`::`-separated form. A path that resolves to nothing is still an error rather than an empty result.
+'''
+native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::pathToElement(path:String[1], separator:String[1]):PackageableElement[1];
 
 
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/instance/getHiddenPayload.pure
 import meta::pure::test::pct::*;
+'''
+The hidden payload carried by an instance created with getter overrides.
+
+`meta::pure::functions::lang::dynamicNew(Class<Any>[1], KeyValue[*], Function<{Any[1], Property<Nil, Any|0..1>[1]->Any[0..1]}>[0..1], Function<{Any[1], Property<Nil, Any|*>[1]->Any[*]}>[0..1], Any[0..1]):Any[1]`
+can attach arbitrary state to an instance that is not a property of its class — typically the context a
+getter override needs, such as a row handle or a connection. This reads that state back.
+
+**Only meaningful for an instance that actually has an override.** Calling it on an ordinary instance
+fails rather than returning empty, so guard accordingly.
+
+**Parameters**
+- `o` — the instance to read.
+
+**Returns** its hidden payload.
+
+**Examples**
+```pure
+$lazyInstance->getHiddenPayload()
+```
+
+**See also** `meta::pure::functions::lang::removeOverride(T[1]):T[1]`,
+`meta::pure::functions::lang::rawEvalProperty(Property<Nil, V|m>[1], Any[1]):V[m]`
+'''
 function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::getHiddenPayload(o:Any[1]):Any[1]
 {
    $o.elementOverride->toOne()->cast(@GetterOverride).hiddenPayload->toOne();
@@ -241,6 +617,31 @@ function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::getHidd
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/multiplicity/getUpperBound.pure
 import meta::pure::test::pct::*;
+'''
+The maximum number of values a multiplicity permits.
+
+**Only meaningful when the multiplicity actually has an upper bound** — test with
+`hasUpperBound(Multiplicity[1]):Boolean[1]` first. For an unbounded multiplicity such as `ZeroMany` or
+`OneMany` there is no upper bound to report, so the call fails rather than returning a count.
+
+**Parameters**
+- `multiplicity` — the multiplicity to inspect.
+
+**Returns** the upper bound, for a multiplicity that has one.
+
+**Examples**
+```pure
+PureZero->getUpperBound()   // 0
+ZeroOne->getUpperBound()    // 1
+PureOne->getUpperBound()    // 1
+
+if($m->hasUpperBound(), |$m->getUpperBound()->toString(), |'unbounded')
+```
+
+**See also** `hasUpperBound(Multiplicity[1]):Boolean[1]`,
+`getLowerBound(Multiplicity[1]):Integer[1]`,
+`isToMany(Multiplicity[1]):Boolean[1]`
+'''
 function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::getUpperBound(multiplicity:Multiplicity[1]):Integer[1]
 {
     $multiplicity.upperBound->toOne().value->toOne()
@@ -250,6 +651,31 @@ function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::getUppe
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/multiplicity/hasToOneUpperBound.pure
 import meta::pure::test::pct::*;
+'''
+Whether a multiplicity permits at most one value.
+
+True for `[0..1]` and `[1]`, which are the multiplicities that hold a single value or none. Says nothing
+about whether a value is *required* — for that, add a lower-bound check, which is exactly what
+`isToOne(Multiplicity[1]):Boolean[1]` does.
+
+`PureZero` (`[0]`) is false: its upper bound is `0`, not `1`.
+
+**Parameters**
+- `multiplicity` — the multiplicity to inspect.
+
+**Returns** `true` when the upper bound is exactly one.
+
+**Examples**
+```pure
+ZeroOne->hasToOneUpperBound()    // true
+PureOne->hasToOneUpperBound()    // true
+PureZero->hasToOneUpperBound()   // false -- upper bound is 0
+ZeroMany->hasToOneUpperBound()   // false -- unbounded
+```
+
+**See also** `isToOne(Multiplicity[1]):Boolean[1]`,
+`hasUpperBound(Multiplicity[1]):Boolean[1]`
+'''
 function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::hasToOneUpperBound(multiplicity:Multiplicity[1]):Boolean[1]
 {
     $multiplicity->hasUpperBound() && eq($multiplicity->getUpperBound(), 1)
@@ -259,6 +685,31 @@ function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::hasToOn
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/multiplicity/hasUpperBound.pure
 import meta::pure::test::pct::*;
+'''
+Whether a multiplicity is bounded above.
+
+The guard to call before `getUpperBound(Multiplicity[1]):Integer[1]`, since an unbounded multiplicity
+has no upper bound to report. Note that `PureZero` (`[0]`) *is* bounded — its upper bound is `0` — so
+"has an upper bound" is not the same as "can hold a value".
+
+**Parameters**
+- `multiplicity` — the multiplicity to inspect.
+
+**Returns** `true` when there is a concrete upper bound.
+
+**Examples**
+```pure
+PureZero->hasUpperBound()   // true  -- bounded at 0
+ZeroOne->hasUpperBound()    // true
+PureOne->hasUpperBound()    // true
+ZeroMany->hasUpperBound()   // false -- [*]
+OneMany->hasUpperBound()    // false -- [1..*]
+```
+
+**See also** `getUpperBound(Multiplicity[1]):Integer[1]`,
+`hasToOneUpperBound(Multiplicity[1]):Boolean[1]`,
+`isToMany(Multiplicity[1]):Boolean[1]`
+'''
 function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::hasUpperBound(multiplicity:Multiplicity[1]):Boolean[1]
 {
     let upperBound = $multiplicity.upperBound;
@@ -269,6 +720,33 @@ function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::hasUppe
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/multiplicity/isToMany.pure
 import meta::pure::test::pct::*;
+'''
+Whether a multiplicity can hold more than one value.
+
+True when the multiplicity is unbounded above, or bounded at more than one. This is the usual test for
+"is this a collection?" when reflecting over a property — a `[*]` or `[1..*]` property needs collection
+handling, while `[0..1]` and `[1]` do not.
+
+Not the negation of `isToOne(Multiplicity[1]):Boolean[1]`: `[0..1]` is neither to-one nor to-many.
+
+**Parameters**
+- `m` — the multiplicity to inspect.
+
+**Returns** `true` when more than one value is permitted.
+
+**Examples**
+```pure
+ZeroMany->isToMany()   // true  -- [*]
+OneMany->isToMany()    // true  -- [1..*]
+PureOne->isToMany()    // false
+ZeroOne->isToMany()    // false
+PureZero->isToMany()   // false
+```
+
+**See also** `isToOne(Multiplicity[1]):Boolean[1]`,
+`hasUpperBound(Multiplicity[1]):Boolean[1]`,
+`getUpperBound(Multiplicity[1]):Integer[1]`
+'''
 function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::isToMany(m:Multiplicity[1]):Boolean[1]
 {
    !$m->hasUpperBound() || ($m->getUpperBound() > 1);
@@ -278,6 +756,31 @@ function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::isToMan
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/multiplicity/isToOne.pure
 import meta::pure::test::pct::*;
+'''
+Whether a multiplicity requires exactly one value.
+
+True only for `[1]`. This is the strict test — a value is both required and single — so `[0..1]` is
+false because the value is optional. When you only care that at most one value is permitted, use
+`hasToOneUpperBound(Multiplicity[1]):Boolean[1]` instead.
+
+**Parameters**
+- `multiplicity` — the multiplicity to inspect.
+
+**Returns** `true` only for exactly-one.
+
+**Examples**
+```pure
+PureOne->isToOne()    // true
+ZeroOne->isToOne()    // false -- optional
+PureZero->isToOne()   // false
+ZeroMany->isToOne()   // false
+OneMany->isToOne()    // false
+```
+
+**See also** `isToMany(Multiplicity[1]):Boolean[1]`,
+`hasToOneUpperBound(Multiplicity[1]):Boolean[1]`,
+`getLowerBound(Multiplicity[1]):Integer[1]`
+'''
 function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::isToOne(multiplicity:Multiplicity[1]):Boolean[1]
 {
     hasToOneUpperBound($multiplicity) && eq($multiplicity->getLowerBound(), 1)
@@ -287,18 +790,98 @@ function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::isToOne
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/profile/tag.pure
 import meta::pure::test::pct::*;
+'''
+Looks up a tag on a profile by name.
+
+A TaggedValue annotation on a model element, `{Profile.name='value'}`, associates a Tag with a string value (unlike a stereotype, which is a bare marker). This resolves the name to the `Tag` object, which is what you
+match a `TaggedValue`'s `tag` against — comparing names alone would ignore which profile the tag belongs
+to, and two profiles may define tags of the same name.
+
+The `doc` tag of `meta::pure::profiles::doc` is the one behind documentation comments.
+
+**A name the profile does not define is an error, not an empty result**, since the return multiplicity is
+`[1]`.
+
+**Parameters**
+- `profile` — the profile that defines the tag.
+- `str` — the tag's name.
+
+**Returns** the tag.
+
+**Examples**
+```pure
+$element.taggedValues->filter(tv | $tv.tag == meta::pure::profiles::doc->tag('doc')).value
+```
+
+**See also** `stereotype(Profile[1], String[1]):Stereotype[1]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::tag(profile:Profile[1], str:String[1]):Tag[1];
 
 
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/reflect/canReactivateDynamically.pure
 import meta::pure::test::pct::*;
+'''
+Whether a syntax tree can be evaluated dynamically.
+
+Not every captured expression can be run back: a tree may refer to something the dynamic evaluator
+cannot resolve. This is the guard to call before
+`reactivate(ValueSpecification[1], Map<String, List<Any>>[1]):Any[*]` when the tree came from somewhere
+you do not control — user input, generated code, a stored query — so you can fail gracefully instead of
+erroring mid-evaluation.
+
+**Parameters**
+- `vs` — the syntax tree to test.
+
+**Returns** `true` when the tree can be evaluated dynamically.
+
+**Examples**
+```pure
+canReactivateDynamically({|1}->evaluateAndDeactivate().expressionSequence->toOne())   // true
+
+if($vs->canReactivateDynamically(), |$vs->reactivate(), |[])
+```
+
+**See also** `reactivate(ValueSpecification[1], Map<String, List<Any>>[1]):Any[*]`,
+`deactivate(Any[*]):ValueSpecification[1]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::canReactivateDynamically(vs:ValueSpecification[1]):Boolean[1];
 
 
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/reflect/openVariableValues.pure
 import meta::pure::test::pct::*;
+'''
+The values a function has captured from its surrounding scope, keyed by variable name.
+
+A lambda may refer to variables it does not declare — its *open* variables — which it captures from where
+it was written. `{|1 + $a->plus()}` has one open variable, `a`. This collects those captured values.
+
+The map it returns is exactly what
+`reactivate(ValueSpecification[1], Map<String, List<Any>>[1]):Any[*]` needs, so the pair is the reliable
+way to move a captured expression somewhere else and still run it: take the open variables from the
+original function, then reactivate the tree with them. Assembling that map by hand risks missing a
+variable, which surfaces only at evaluation time.
+
+Values are wrapped in `List` objects, so a captured collection survives intact; read them through
+`.values`.
+
+**Parameters**
+- `f` — the function whose captured variables should be collected.
+
+**Returns** a map from variable name to captured value.
+
+**Examples**
+```pure
+let a = [1, 2, 5];
+let f = {|1 + $a->plus()};
+$f->openVariableValues()->get('a').values;   // [1, 2, 5]
+```
+
+**See also** `reactivate(ValueSpecification[1], Map<String, List<Any>>[1]):Any[*]`,
+`deactivate(Any[*]):ValueSpecification[1]`,
+`meta::pure::functions::collection::list(U[*]):List<U>[1]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::openVariableValues(f:Function<Any>[1]):Map<String, List<Any>>[1];
 
 
@@ -306,6 +889,36 @@ native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/reflect/reactivate.pure
 import meta::pure::functions::meta::tests::model::*;
 import meta::pure::test::pct::*;
+'''
+Evaluates a syntax tree, supplying values for any variables it refers to but does not define.
+
+The counterpart of `deactivate(Any[*]):ValueSpecification[1]`: that captures an expression as structure,
+this runs the structure. Together they let a query be inspected or rewritten and then executed.
+
+A captured expression may mention variables from the scope it was written in — its *open* variables.
+Those are not part of the tree, so their values must be supplied here, keyed by name. Use
+`openVariableValues(Function<Any>[1]):Map<String, List<Any>>[1]` to collect them from the original
+function rather than assembling the map by hand. The single-argument overload in this package passes an
+empty map, which is enough when the tree has no open variables.
+
+The result is `Any[*]`, so callers normally cast it.
+
+**Parameters**
+- `vs` — the syntax tree to evaluate.
+- `vars` — values for the tree's open variables, keyed by name.
+
+**Returns** the values the expression produces.
+
+**Examples**
+```pure
+let f = [^CC_Person(firstName='ok', lastName='a')]->map(p | $p.lastName)->deactivate()->cast(@FunctionExpression);
+$f->reactivate();   // ['a']
+```
+
+**See also** `deactivate(Any[*]):ValueSpecification[1]`,
+`openVariableValues(Function<Any>[1]):Map<String, List<Any>>[1]`,
+`canReactivateDynamically(ValueSpecification[1]):Boolean[1]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::reactivate(vs:ValueSpecification[1], vars:Map<String, List<Any>>[1]):Any[*];
 
 function meta::pure::functions::meta::reactivate(vs:ValueSpecification[1]):Any[*]
@@ -317,6 +930,32 @@ function meta::pure::functions::meta::reactivate(vs:ValueSpecification[1]):Any[*
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/removeOverride.pure
 import meta::pure::test::pct::*;
+'''
+Returns an instance with any getter override stripped off.
+
+An instance built with getter overrides computes property values on access rather than reading stored
+state. This yields an equivalent instance without that behaviour, so subsequent reads see the stored
+values directly.
+
+Use it when an override has served its purpose — after materialising a lazily-loaded object, say — and
+you want a plain instance to pass on. To read past an override case by case instead, use
+`meta::pure::functions::lang::rawEvalProperty(Property<Nil, V|m>[1], Any[1]):V[m]`.
+
+The type is preserved, so no cast is needed afterwards.
+
+**Parameters**
+- `instance` — the instance to strip.
+
+**Returns** the same instance without its override.
+
+**Examples**
+```pure
+$lazyInstance->removeOverride()
+```
+
+**See also** `meta::pure::functions::lang::rawEvalProperty(Property<Nil, V|m>[1], Any[1]):V[m]`,
+`meta::pure::functions::meta::getHiddenPayload(Any[1]):Any[1]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::lang::removeOverride<T>(instance:T[1]):T[1];
 
 
@@ -335,6 +974,34 @@ Class meta::pure::functions::meta::SourceInformation
     <<equality.Key>> endColumn : Integer[1];
 }
 
+'''
+Where a model element was defined: its source file, and the span it occupies.
+
+Returns a `SourceInformation` carrying the file `source` plus two coordinate pairs — `startLine`/
+`startColumn` and `endLine`/`endColumn` delimit the element's whole span, while `line`/`column` point at
+its name. That distinction matters when reporting a diagnostic: the span is what to underline, the name
+is where to put the caret.
+
+**Values that were not written in a source file have no source information**, so the result is `[0..1]`
+and a primitive yields empty rather than an error.
+
+Note that these coordinates are line numbers in a file, so they move whenever anything above the element
+moves. Tests and tools that hard-code them need updating alongside any edit that shifts the file.
+
+**Parameters**
+- `node` — the element to locate.
+
+**Returns** its source information, or empty for a value that has none.
+
+**Examples**
+```pure
+XTestClass->sourceInformation()->toOne().source   // '/platform/pure/.../sourceInformation.pure'
+1->sourceInformation()                            // empty -- primitives have no source
+```
+
+**See also** `elementToPath(Function<Any>[1]):String[1]`,
+`meta::pure::functions::asserts::assertError(Function<{->Any[*]}>[1], String[1], Integer[0..1], Integer[0..1]):Boolean[1]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::sourceInformation(node:Any[1]):SourceInformation[0..1];
 
 
@@ -342,6 +1009,29 @@ native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/_subTypeOf.pure
 import meta::pure::functions::meta::tests::subTypeOf::*;
 import meta::pure::test::pct::*;
+'''
+Whether one type is the same as, or a subtype of, another — computed in Pure rather than natively.
+
+Behaves as `subTypeOf(Type[1], Type[1]):Boolean[1]`: reflexive, with `Nil` a subtype of everything. It
+reaches the answer by walking the generalisation chain, so prefer the native `subTypeOf` in ordinary
+code and use this where a Pure-level implementation is specifically wanted.
+
+**Parameters**
+- `subType` — the candidate subtype.
+- `superType` — the candidate supertype.
+
+**Returns** `true` when `subType` is `superType` or descends from it.
+
+**Examples**
+```pure
+Any->_subTypeOf(Any)       // true  -- reflexive
+Any->_subTypeOf(Nil)       // false
+Any->_subTypeOf(Integer)   // false
+```
+
+**See also** `subTypeOf(Type[1], Type[1]):Boolean[1]`,
+`generalizations(Type[1]):Type[1..*]`
+'''
 function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::_subTypeOf(subType:Type[1], superType:Type[1]):Boolean[1]
 {
     if($subType == Nil,|true, |$subType->getAllTypeGeneralisations()->contains($superType));  
@@ -352,6 +1042,32 @@ function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::_subTyp
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/class/class.pure
 import meta::pure::functions::meta::tests::model::*;
 import meta::pure::test::pct::*;
+'''
+The `Class` of a value, for values that have one.
+
+Narrower than `type(Any[*]):Type[1]`: only class instances have a `Class`. **A primitive yields an empty
+result** even though the signature says `[1]` — `1->class()` is empty, not `Integer`. Guard with
+`isEmpty()`, or use `type(Any[*]):Type[1]` when the value may be a primitive.
+
+Returning a `Class` rather than a `Type` is what makes the class's own members reachable, such as
+`.properties`.
+
+**Parameters**
+- `any` — the value to inspect.
+
+**Returns** its class, or empty for a primitive.
+
+**Examples**
+```pure
+^CC_Person(firstName='Pierre', lastName='Doe')->class()   // CC_Person
+1->class()                                                // empty -- not Integer
+'abc'->class()                                            // empty
+```
+
+**See also** `type(Any[*]):Type[1]`,
+`genericTypeClass(GenericType[1]):Class<Any>[1]`,
+`properties(GenericType[1]):Property<Nil, Any|*>[*]`
+'''
 function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::class<T>(any:T[*]):Class<T>[1]
 {
     $any->genericType()->genericTypeClass()->cast(@Class<T>);
@@ -362,6 +1078,30 @@ function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::class<T
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/class/genericTypeClass.pure
 import meta::pure::functions::meta::tests::model::*;
 import meta::pure::test::pct::*;
+'''
+The `Class` underlying a generic type, for generic types that have one.
+
+Takes the `GenericType` rather than the value, so it composes after
+`genericType(Any[*]):GenericType[1]` when you already hold one. **A generic type whose raw type is a
+primitive yields an empty result** despite the `[1]` in the signature.
+
+`class(T[*]):Class<T>[1]` is the shorthand for going straight from a value to its class.
+
+**Parameters**
+- `g` — the generic type to unwrap.
+
+**Returns** its class, or empty when the raw type is not a class.
+
+**Examples**
+```pure
+^CC_Person(firstName='Pierre', lastName='Doe')->genericType()->genericTypeClass()   // CC_Person
+1->genericType()->genericTypeClass()                                               // empty
+```
+
+**See also** `class(T[*]):Class<T>[1]`,
+`genericType(Any[*]):GenericType[1]`,
+`properties(GenericType[1]):Property<Nil, Any|*>[*]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::genericTypeClass(g:GenericType[1]):Class<Any>[1];
 
 
@@ -369,6 +1109,33 @@ native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/class/properties.pure
 import meta::pure::functions::meta::tests::model::*;
 import meta::pure::test::pct::*;
+'''
+Every property of a class, including inherited ones and those contributed by associations.
+
+Three sources are combined, which is what makes this more useful than reading `.properties` directly:
+the class's own properties, the properties it gains from `Association` declarations, and — walking the
+generalisation chain — everything inherited from its supertypes.
+
+Qualified properties are not included; those are a separate member list on the class.
+
+Each result is a `Property` metamodel object, so `.name` gives its name and
+`meta::pure::functions::lang::eval(Function<{T[n]->V[m]}>[1], T[n]):V[m]` reads it off an instance.
+
+**Parameters**
+- `genericType` — the generic type whose class should be inspected.
+
+**Returns** the properties, in no guaranteed order.
+
+**Examples**
+```pure
+$address->genericType()->properties()                      // own + association + inherited
+$address->genericType()->properties()->map(p | $p.name)
+```
+
+**See also** `genericType(Any[*]):GenericType[1]`,
+`genericTypeClass(GenericType[1]):Class<Any>[1]`,
+`generalizations(Type[1]):Type[1..*]`
+'''
 function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::properties(genericType:GenericType[1]):Property<Nil,Any|*>[*]
 {
     // TODO use this once problems with compiled execution are fixed
@@ -385,12 +1152,59 @@ function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::propert
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/enum/enumName.pure
 import meta::pure::functions::meta::tests::model::*;
 import meta::pure::test::pct::*;
+'''
+The simple name of an enumeration, without its package.
+
+Takes the enumeration itself, not one of its values, so it answers "what is this enumeration called" rather
+than "which value is this". The result is the bare name — use
+`elementToPath(PackageableElement[1]):String[1]` for the fully-qualified path.
+
+**Parameters**
+- `enum` — the enumeration to name.
+
+**Returns** its simple name.
+
+**Examples**
+```pure
+CC_GeographicEntityType->enumName()   // 'CC_GeographicEntityType'
+```
+
+**See also** `enumValues(Enumeration<T>[1]):T[*]`,
+`elementToPath(PackageableElement[1]):String[1]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::enumName<T>(enum:Enumeration<T>[1]):String[1];
 
 
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/function/functionType.pure
 import meta::pure::test::pct::*;
+'''
+The signature of a function, as a `FunctionType` metamodel object.
+
+Gives programmatic access to what a function accepts and returns: the result's `parameters` are the
+declared parameters, each with its own name, type and multiplicity, and `returnType` and
+`returnMultiplicity` describe the result. This is how generic code inspects a function value before
+calling it.
+
+**Supported only for ordinary and native functions.** Passing any other kind of `Function` — a lambda
+that is not a `FunctionDefinition`, or a property — fails with an explicit error rather than returning
+empty.
+
+**Parameters**
+- `f` — the function to inspect.
+
+**Returns** its function type.
+
+**Examples**
+```pure
+$someFunction->functionType().parameters->map(p | $p.name)
+$someFunction->functionType().returnMultiplicity->isToMany()
+```
+
+**See also** `meta::pure::functions::lang::eval(Function<{T[n]->V[m]}>[1], T[n]):V[m]`,
+`isToMany(Multiplicity[1]):Boolean[1]`,
+`type(Any[*]):Type[1]`
+'''
 function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::functionType(f:Function<Any>[1]):FunctionType[1]
 {
    assert($f->instanceOf(FunctionDefinition) || $f->instanceOf(NativeFunction), | 'functionType is not supported yet for this subtype of function '+$f->type()->id());
@@ -402,6 +1216,31 @@ function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::functio
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/generalizations.pure
 import meta::pure::functions::meta::tests::generalizations::*;
 import meta::pure::test::pct::*;
+'''
+A type together with all of its supertypes, in inheritance order. That is, the order in which types are searched when trying to resolve something (such as a property) through inheritance.
+
+**The type itself is the first element**, which is why the result is `[1..*]` and never empty — every
+type generalises to at least itself. The chain always ends at `Any`.
+
+Useful for walking an inheritance chain, or for a subtype test by membership; for the latter,
+`subTypeOf(Type[1], Type[1]):Boolean[1]` says the same thing more directly.
+
+**Parameters**
+- `class` — the type to inspect.
+
+**Returns** the type and its supertypes, most specific first.
+
+**Examples**
+```pure
+Integer->generalizations()   // [Integer, Number, Any]
+Boolean->generalizations()   // [Boolean, Any]
+Any->generalizations()       // [Any]
+```
+
+**See also** `subTypeOf(Type[1], Type[1]):Boolean[1]`,
+`type(Any[*]):Type[1]`,
+`instanceOf(Any[1], Type[1]):Boolean[1]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::generalizations(class:Type[1]):Type[1..*];
 
 
@@ -422,6 +1261,34 @@ function
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/meta/type/subtypeOf.pure
 import meta::pure::functions::meta::tests::subTypeOf::*;
 import meta::pure::test::pct::*;
+'''
+Whether one type is the same as, or a subtype of, another.
+
+**Reflexive** — every type is a subtype of itself, so `Boolean->subTypeOf(Boolean)` is true. This is
+the type-level relation; use `instanceOf(Any[1], Type[1]):Boolean[1]` to test a *value* instead.
+
+`Nil` is the bottom type and is a subtype of everything, including primitives. Nothing but `Nil` is a
+subtype of `Nil`, so `Any->subTypeOf(Nil)` is false.
+
+**Parameters**
+- `subType` — the candidate subtype.
+- `superType` — the candidate supertype.
+
+**Returns** `true` when `subType` is `superType` or descends from it.
+
+**Examples**
+```pure
+Integer->subTypeOf(Number)   // true
+Boolean->subTypeOf(Boolean)  // true  -- reflexive
+Boolean->subTypeOf(Any)      // true
+Nil->subTypeOf(String)       // true  -- Nil is the bottom type
+Any->subTypeOf(Nil)          // false
+```
+
+**See also** `instanceOf(Any[1], Type[1]):Boolean[1]`,
+`generalizations(Type[1]):Type[1..*]`,
+`_subTypeOf(Type[1], Type[1]):Boolean[1]`
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::meta::subTypeOf(subType:Type[1], superType:Type[1]):Boolean[1];
 
 
@@ -433,6 +1300,60 @@ function meta::pure::functions::string::lastIndexOf(str:String[1], toFind:String
 }
 
 native function meta::pure::functions::string::lastIndexOf(str:String[1], toFind:String[1], fromIndex:Integer[1]):Integer[1];
+
+
+###Pure
+// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/string/slice/substr.pure
+import meta::pure::test::pct::*;
+'''
+The portion of a string from `start` to its end.
+
+A synonym for `substring(String[1], Integer[1]):String[1]`, behaving identically to it.
+`left(String[1], Integer[1]):String[1]` and `right(String[1], Integer[1]):String[1]` are both
+defined in terms of `substr`, making it the single point at which the string-slicing family
+reaches the underlying platform primitive.
+
+Positions are zero-based, so `start` is the number of characters to drop from the front. A `start`
+of `0` returns the whole string. Note that `start` is a position, not a length — to keep a given
+number of leading characters, use `left(String[1], Integer[1]):String[1]`.
+
+**Parameters**
+- `str` — the string to take from.
+- `start` — zero-based index of the first character to keep.
+
+**Returns** the remainder of the string from `start` onwards.
+
+**Examples**
+```pure
+'the quick brown'->substr(0)   // 'the quick brown'
+'the quick brown'->substr(4)   // 'quick brown'
+```
+
+**See also** `substr(String[1], Integer[1], Integer[1]):String[1]`,
+`substring(String[1], Integer[1]):String[1]`, `left(String[1], Integer[1]):String[1]`
+'''
+function <<PCT.function>> meta::pure::functions::string::substr(str:String[1], start:Integer[1]):String[1]
+{
+    $str->substring($start)
+}
+
+'''
+The portion of a string between two positions: from `start` inclusive to `end` exclusive.
+
+As `substr(String[1], Integer[1]):String[1]`, but stopping at `end` rather than running to the
+end of the string. Both indexes are zero-based, so the result has `end - start` characters. A
+synonym for `substring(String[1], Integer[1], Integer[1]):String[1]`.
+
+**Examples**
+```pure
+'the quick brown fox'->substr(4, 9)   // 'quick'
+'the quick brown fox'->substr(0, 3)   // 'the'
+```
+'''
+function <<PCT.function>> meta::pure::functions::string::substr(str:String[1], start:Integer[1], end:Integer[1]):String[1]
+{
+    $str->substring($start, $end)
+}
 
 
 ###Pure
@@ -797,6 +1718,12 @@ native function
     }
     meta::pure::functions::lang::copy<T>(object:T[1], id:String[1], keyExpressions:KeyExpression[*]):T[1];
 
+'''
+Copies an instance, giving the copy a new identifier.
+
+The reflective form of `^$object(...)`. Property values are carried over from the original and the copy
+keeps its type, so no cast is needed. The `id` identifies the new instance rather than setting any property.
+'''
 native function <<PCT.function, PCT.platformOnly>> meta::pure::functions::lang::copy<T>(object:T[1], id:String[1]):T[1];
 
 
@@ -1054,10 +1981,16 @@ Class meta::pure::functions::relation::UnboundedFrameValue extends meta::pure::f
 ###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/functions/meta/type/relation/window/sort.pure
 import meta::pure::metamodel::relation::*;
+Enum meta::pure::functions::relation::NullOrder
+{
+    FIRST, LAST
+}
+
 Class meta::pure::functions::relation::SortInfo<T>
 {
    column : ColSpec<T>[1];
    direction : SortType[1];
+   nullOrder : meta::pure::functions::relation::NullOrder[0..1];
 }
 
 
@@ -2715,6 +3648,12 @@ Class meta::relational::metamodel::OrderBy
 {
     column : RelationalOperationElement[1];
     direction : meta::relational::metamodel::SortDirection[1];
+    nullOrder : meta::relational::metamodel::NullOrder[0..1];
+}
+
+Enum meta::relational::metamodel::NullOrder
+{
+    FIRST, LAST
 }
 
 Class meta::relational::metamodel::Pivot
@@ -2748,6 +3687,7 @@ Class meta::relational::metamodel::SortByInfo extends meta::relational::metamode
 
    sortByElement: RelationalOperationElement [1];
    sortDirection: meta::relational::metamodel::SortDirection[0..1] ;
+   nullOrder: meta::relational::metamodel::NullOrder[0..1] ;
 }
 
 Enum meta::relational::metamodel::FrameType
@@ -4158,6 +5098,7 @@ Class meta::pure::tds::SortInformation
 {
    column : String[1];
    direction : SortDirection[1];
+   nullOrder : meta::pure::functions::relation::NullOrder[0..1];
 }
 
 Class meta::pure::tds::OlapOperation<T>
@@ -4647,7 +5588,7 @@ Enum meta::pure::functions::string::RegexpParameter
    CASE_SENSITIVE, // Enables case-sensitive matching
    CASE_INSENSITIVE, // Enables case-insensitive matching
    MULTILINE, // Enables multi-line mode (that is, meta-characters ^ and $ mark the beginning and end of any line of the subject). By default, multi-line mode is disabled (that is, ^ and $ mark the beginning and end of the entire subject)
-   NON_NEWLINE_SENSITIVE // Enables the POSIX wildcard character . to match \n. By default, wildcard character matching is disabled
+   NON_NEWLINE_SENSITIVE // Enables the wildcard character . to match \n. By default, wildcard character matching is disabled
 }
 
 
@@ -4703,6 +5644,12 @@ meta::pure::functions::variant::convert::toJson(variant: Variant[1]): String[1];
 ###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-ide/legend-engine-pure-ide-light-pure-debug/src/main/resources/pure_ide_debug/debug.pure
 native function meta::pure::ide::debug():Nil[0];
+
+
+###Pure
+// legend-engine/legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-postgresSql/legend-engine-xt-relationalStore-postgresSqlParser-pure/src/main/resources/core_external_store_relational_postgres_sql_parser/parsePostgresDate.pure
+import meta::external::store::relational::postgresSql::parser::*;
+native function meta::external::store::relational::postgresSql::parser::parsePostgresDate(s: String[1]): Date[1];
 
 
 ###Pure
@@ -5208,6 +6155,7 @@ Class meta::relational::functions::sqlQueryToString::DbConfig
    dbType:DatabaseType[1];
    dbTimeZone:String[0..1];
    quoteIdentifiers:Boolean[1];
+   useDbNativeImplicitNullOrdering:Boolean[1] = false;
 
    dbExtension: DbExtension[1];
 
@@ -5270,10 +6218,29 @@ Class meta::relational::functions::sqlQueryToString::DbConfig
      $this.dbExtension.joinStringsProcessor->toOne()->eval($j, $sgc);
    }: String[1];
 
+   processSortItem(expression:String[1], direction:meta::relational::metamodel::SortDirection[0..1], nullOrder:meta::relational::metamodel::NullOrder[0..1])
+   {
+     $this.processSortItem($expression, $expression, $direction, $nullOrder);
+   }: String[1];
+
+   processSortItem(expression:String[1], nullCheckExpression:String[1], direction:meta::relational::metamodel::SortDirection[0..1], nullOrder:meta::relational::metamodel::NullOrder[0..1])
+   {
+     $this.dbExtension.nullOrderingSupport.processSortItem($expression, $nullCheckExpression, $direction, $nullOrder, $this.useDbNativeImplicitNullOrdering);
+   }: String[1];
+
+   // Defaults rather than requiring every dialect to opt in; a dialect with no ordered-set aggregates
+   // overrides this to fail with a clear message.
+   withinGroupProcessor(f:DynaFunction[1], sgc:SqlGenerationContext[1])
+   {
+     if($this.dbExtension.withinGroupProcessor->isEmpty(),
+        | meta::relational::functions::sqlQueryToString::default::processWithinGroup($f, $sgc),
+        | $this.dbExtension.withinGroupProcessor->toOne()->eval($f, $sgc));
+   }: String[1];
+
    selectSQLQueryProcessor(s:SelectSQLQuery[1], sgc:SqlGenerationContext[1], isSubSelect:Boolean[1])
    {
      let cte = $s.commonTableExpressions->isNotEmpty()->if(
-             | $this.dbExtension.commonTableExpressionsProcessor->toOne('Common table expression not supported on DB ' + $this.dbType.name)->eval($s.commonTableExpressions, $sgc, $isSubSelect),
+             | $this.dbExtension->processCommonTableExpressions($s.commonTableExpressions, $sgc, $isSubSelect),
              | ''
      );
      $cte + $this.dbExtension.selectSQLQueryProcessor->eval($s, $sgc, $isSubSelect);
@@ -5412,6 +6379,10 @@ Class meta::relational::functions::sqlQueryToString::DbExtension
    lateralJoinProcessor : meta::pure::metamodel::function::Function<{JoinTreeNode[1], DbConfig[1], Format[1], Extension[*] -> String[1]}>[0..1];
    joinProcessor : meta::pure::metamodel::function::Function<{JoinTreeNode[1], DbConfig[1], Format[1], Extension[*] -> String[1]}>[0..1];
    joinStringsProcessor: meta::pure::metamodel::function::Function<{JoinStrings[1], SqlGenerationContext[1] -> String[1]}>[0..1];
+   nullOrderingSupport: NullOrderingSupport[1];
+   // Unrendered, because dialects place the ordering differently: a WITHIN GROUP suffix, inside the
+   // aggregate's parentheses, or -- on H2's GROUP_CONCAT -- before the SEPARATOR.
+   withinGroupProcessor: meta::pure::metamodel::function::Function<{DynaFunction[1], SqlGenerationContext[1] -> String[1]}>[0..1];
    selectSQLQueryProcessor: meta::pure::metamodel::function::Function<{SelectSQLQuery[1], SqlGenerationContext[1], Boolean[1] -> String[1]}>[1];
    commonTableExpressionsProcessor: meta::pure::metamodel::function::Function<{CommonTableExpression[*], SqlGenerationContext[1], Boolean[1] -> String[1]}>[0..1];
    upsertSQLQueryProcessor: meta::pure::metamodel::function::Function<{UpsertSQLQuery[1], SqlGenerationContext[1] -> String[1]}>[0..1];
@@ -5436,6 +6407,25 @@ Class meta::relational::functions::sqlQueryToString::DbExtension
    buildDummyConnection : meta::pure::metamodel::function::Function<{->RelationalDatabaseConnection[1]}>[0..1];
 
    processTestConnectionDatasourceSpecification : meta::pure::metamodel::function::Function<{meta::pure::alloy::connections::alloy::specification::DatasourceSpecification[1], meta::relational::metamodel::Database[*] -> meta::pure::alloy::connections::alloy::specification::DatasourceSpecification[1]}>[0..1];
+}
+
+Class meta::relational::functions::sqlQueryToString::NullOrderingSupport
+{
+   nativeNullOrdering: meta::pure::metamodel::function::Function<{meta::relational::metamodel::SortDirection[1] -> meta::relational::metamodel::NullOrder[1]}>[1];
+   sortItemProcessor: meta::pure::metamodel::function::Function<{String[1], String[1], meta::relational::metamodel::SortDirection[0..1], meta::relational::metamodel::NullOrder[1] -> String[1]}>[1];
+
+   processSortItem(expression:String[1], nullCheckExpression:String[1], direction:meta::relational::metamodel::SortDirection[0..1], nullOrder:meta::relational::metamodel::NullOrder[0..1], useDbNativeImplicitNullOrdering:Boolean[1])
+   {
+      if($useDbNativeImplicitNullOrdering && $nullOrder->isEmpty(),
+         | $expression + $direction->renderSortDirection(),
+         | let resolvedDirection = $direction->defaultIfEmpty(meta::relational::metamodel::SortDirection.ASC)->toOne();
+           let canonicalNullOrder = if($resolvedDirection == meta::relational::metamodel::SortDirection.DESC, | meta::relational::metamodel::NullOrder.FIRST, | meta::relational::metamodel::NullOrder.LAST);
+           let resolvedNullOrder = $nullOrder->defaultIfEmpty($canonicalNullOrder)->toOne();
+
+           if($nullOrder->isEmpty() && $this.nativeNullOrdering->eval($resolvedDirection) == $canonicalNullOrder,
+              | $expression + $direction->renderSortDirection(),
+              | $this.sortItemProcessor->eval($expression, $nullCheckExpression, $direction, $resolvedNullOrder)););
+   }: String[1];
 }
 
 Class meta::relational::functions::sqlQueryToString::RelationalDDLCommandsTranslator
@@ -5599,10 +6589,20 @@ Class meta::relational::functions::sqlstring::SQLResult
 
    }:String[1];
 
+   toSQLString(connection:DatabaseConnection[1], format:Format[1])
+   {
+      let useDbNative = useDbNativeImplicitNullOrdering($connection, []);
+      let sqlStrings = $this.sqlQueries->map(s | $s->sqlQueryToString($connection.type, $connection.timeZone, $connection.quoteIdentifiers, $format, $useDbNative, true, $this.extensions));
+      let sql = $sqlStrings->joinStrings('\n');
+
+      if ($this.shouldWarn, | $sql + '\nWarning: Results only shown for first relational query. Other SQL statements could not be computed because they require results from the execution of the previous expression.' , | $sql);
+
+   }:String[1];
+
 }
 
-// 481 classes, 20 enums, 153 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
-// RESPELLED NATIVES — 67 upstream `native function` declarations the platform does not implement (carried so they
+// 482 classes, 22 enums, 157 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+// RESPELLED NATIVES — 68 upstream `native function` declarations the platform does not implement (carried so they
 // resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').
 // ENGINE NATIVES NOT CARRIED — the signature names a type the platform does not carry
 // (a decided exclusion or a platform-owned name); a call is 'unknown function':
@@ -5817,6 +6817,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::functions::string::indexOf
 //   meta::pure::functions::string::jaroWinklerSimilarity
 //   meta::pure::functions::string::joinStrings
+//   meta::pure::functions::string::left
 //   meta::pure::functions::string::length
 //   meta::pure::functions::string::levenshteinDistance
 //   meta::pure::functions::string::ltrim
@@ -5834,6 +6835,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::functions::string::regexpReplace
 //   meta::pure::functions::string::replace
 //   meta::pure::functions::string::reverseString
+//   meta::pure::functions::string::right
 //   meta::pure::functions::string::rtrim
 //   meta::pure::functions::string::split
 //   meta::pure::functions::string::startsWith
@@ -5984,6 +6986,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::relational::functions::sqlQueryToString::GenerationState
 //   meta::relational::functions::sqlQueryToString::LiteralProcessor
 //   meta::relational::functions::sqlQueryToString::LiteralReplacement
+//   meta::relational::functions::sqlQueryToString::NullOrderingSupport
 //   meta::relational::functions::sqlQueryToString::RelationalDDLCommandsTranslator
 //   meta::relational::functions::sqlQueryToString::SqlGenerationContext
 //   meta::relational::functions::sqlQueryToString::ToSql

@@ -318,7 +318,10 @@ public final class PmcdParser {
                     (t, c) -> CONNECTION_FLAVORS.contains(ts.text(c)) ? 7 : -1,
                     importsOk, -1, null, null);
             case "Relational" -> strictWalk(ts, r,
-                    (t, c) -> ts.type(c) == TokenType.DATABASE ? 8 : -1,
+                    (t, c) -> ts.type(c) == TokenType.DATABASE
+                            // database: documentation? DATABASE ... (4.145.0)
+                            || (ts.type(c) == TokenType.DOC_STRING && c + 1 < ts.count()
+                                    && ts.type(c + 1) == TokenType.DATABASE) ? 8 : -1,
                     importsOk, -1, null, null);
             case "Mapping" -> {
                 // the aggLambdaShift anchor is the HEADER line + 1 (the
@@ -330,7 +333,10 @@ public final class PmcdParser {
                         importsOk, line, null, null);
             }
             case "Data" -> strictWalk(ts, r,
-                    (t, c) -> "Data".equals(ts.text(c)) ? 10 : -1,
+                    (t, c) -> "Data".equals(ts.text(c))
+                            // dataElement: documentation? DATA ... (4.145.0)
+                            || (ts.type(c) == TokenType.DOC_STRING && c + 1 < ts.count()
+                                    && "Data".equals(ts.text(c + 1))) ? 10 : -1,
                     importsOk, -1, null, null);
             case "Snowflake", "MemSql", "BigQuery", "HostedService",
                     "FunctionJar" -> {
@@ -365,6 +371,12 @@ public final class PmcdParser {
      *  declaration. */
     private static int pureHead(TokenStream ts, int cursor) {
         TokenType t = ts.type(cursor);
+        // documentation stands BEFORE the marker (`documentation? CLASS ...`,
+        // 4.145.0): the head is the token after it; the site stays at the
+        // literal, which the element parser reads as the declaration's own
+        if (t == TokenType.DOC_STRING && cursor + 1 < ts.count()) {
+            return pureHead(ts, cursor + 1);
+        }
         Integer kind = MARKERS.get(t);
         if (kind != null && (cursor + 1 >= ts.count()
                 || ts.type(cursor + 1) != TokenType.PATH_SEPARATOR)) {
@@ -435,13 +447,21 @@ public final class PmcdParser {
                 cursor++;
                 continue;
             }
-            int kind = rule.kindOf(ts, cursor);
+            // DOCUMENTATION (4.145.0): a '''...''' literal at element position
+            // belongs to the declaration after it — the head rule reads the
+            // keyword past it; the element parser (at `cursor`) reads the
+            // literal as the element's own and refuses where its grammar
+            // does not admit one
+            int kind = rule.kindOf(ts, t == TokenType.DOC_STRING && cursor + 1 < ts.count()
+                    ? cursor + 1 : cursor);
             if (kind < 0) {
                 throw orphan(ts, cursor);
             }
             sawElement = true;
             if (headsOut != null) {
-                headsOut.add(t);
+                // the head is the keyword, not the documentation before it
+                headsOut.add(t == TokenType.DOC_STRING && cursor + 1 < ts.count()
+                        ? ts.type(cursor + 1) : t);
             }
             int[] end = new int[1];
             DocElement de = parseOneAt(ts, cursor, kind, mappingSectionLine,

@@ -574,11 +574,19 @@ public final class ElementParser implements TokenStreamCursor {
         // platform charter — so it reads as leading trivia here. The
         // drop-in/lite surfaces keep refusing it like the engine does.
         // (A5 platform-gap burn 2026-08-15: 43 top-level rows.)
-        while (!dialect.refusesPlatformDialect()
-                && peek() == TokenType.DOC_STRING) {
-            pos++;
-        }
+        // DOCUMENTATION (4.145.0): a '''...''' literal before a declaration
+        // is the declaration's own (TokenStreamCursor.parseDocumentation) —
+        // dispatch reads through it to the keyword; the site consumes it.
+        // Until 4.145.0 the platform dialect dropped these as trivia (A5
+        // platform-gap burn 2026-08-15); now every dialect keeps them, as
+        // the engine does.
         TokenType t = peek();
+        if (t == TokenType.DOC_STRING && pos + 1 < tokens.count()) {
+            t = peek(1);
+        } else if (t == TokenType.STRING && pos + 1 < tokens.count()
+                && DECLARATION_HEADS.contains(peek(1))) {
+            throw error("Documentation must be written as a multi-line ('''...''') literal");
+        }
         // STRICT SECTION BINDING (quarantine doctrine, OwnCorpusConformance):
         // the engine's default/###Pure section admits ONLY domain elements —
         // a Mapping/Runtime/Connection/Database/Service declared without its
@@ -661,8 +669,13 @@ public final class ElementParser implements TokenStreamCursor {
                 parseClassDefinition(isNative));
     }
 
-    /** PROTOCOL-FIRST for {@code native Class}; the function arm is not. */
+    /** PROTOCOL-FIRST for {@code native Class}; the function arm is not.
+     *  The documentation stands BEFORE {@code native} (pure's grammar:
+     *  {@code nativeFunction: documentation? NATIVE FUNCTION ...}), so it
+     *  is read here and handed to the arm. */
     private PackageableElement nativeElement() {
+        int declStart = pos;
+        Documentation doc = parseDocumentation();
         if (dialect.refusesPlatformDialect()) {
             // engine-verbatim (dialect quarantine): `native` declarations
             // are pure-dialect only — the engine grammar has no arm for them
@@ -670,8 +683,9 @@ public final class ElementParser implements TokenStreamCursor {
         }
         advance();                                  // consume 'native'
         return switch (peek()) {
-            case CLASS -> classElement(true);
-            case FUNCTION -> nativeFunctionElement();
+            case CLASS -> com.legend.model.FromProtocol.toClassDefinition(
+                    parseClassDefinition(true, declStart, doc));
+            case FUNCTION -> nativeFunctionElement(declStart, doc);
             default -> throw error("expected 'Class' or 'function' after"
                     + " 'native', got " + peek() + " ('" + safeText() + "')");
         };
@@ -806,9 +820,17 @@ public final class ElementParser implements TokenStreamCursor {
      *  {@link #parse(String)} instead. */
     public com.legend.protocol.Protocol.PClass parseClassDefinition(boolean isNative) {
         int classStartTok = pos;
+        return parseClassDefinition(isNative, classStartTok, parseDocumentation());
+    }
+
+    /** {@code documentation? CLASS stereotypes? taggedValues? ...}; the
+     *  element's own range starts at the documentation, as in the engine. */
+    private com.legend.protocol.Protocol.PClass parseClassDefinition(boolean isNative,
+            int classStartTok, @com.legend.Nullable Documentation doc) {
         expect(TokenType.CLASS);
         List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
-        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = parseTaggedValues();
+        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues =
+                taggedValuesWithDocumentation(doc, parseTaggedValues());
         String qualifiedName = parseQualifiedName();
 
         List<String> typeParams = parseClassTypeParams();
@@ -866,13 +888,8 @@ public final class ElementParser implements TokenStreamCursor {
         List<com.legend.protocol.Protocol.PProperty> properties = new ArrayList<>();
         List<DerivedPropertyDefinition> derivedProperties = new ArrayList<>();
         while (peek() != TokenType.BRACE_CLOSE && !atEnd()) {
-            // PLATFORM: member-level m3 doc literal — trivia (see
-            // parseSingleElement's top-level arm)
-            if (!dialect.refusesPlatformDialect()
-                    && peek() == TokenType.DOC_STRING) {
-                pos++;
-                continue;
-            }
+            // a member's documentation is the member's own (property /
+            // qualifiedProperty: documentation? stereotypes? ...)
             if (isDerivedPropertyStart()) {
                 derivedProperties.add(parseDerivedProperty());
             } else {
@@ -969,6 +986,10 @@ public final class ElementParser implements TokenStreamCursor {
      */
     private boolean isDerivedPropertyStart() {
         int saved = pos;
+        // skip a member's documentation literal
+        if (peek() == TokenType.DOC_STRING) {
+            pos++;
+        }
         // skip optional stereotypes <<...>>
         if (peek() == TokenType.LESS_THAN && peek(1) == TokenType.LESS_THAN) {
             int depth = 2;
@@ -1008,11 +1029,13 @@ public final class ElementParser implements TokenStreamCursor {
      */
     private DerivedPropertyDefinition parseDerivedProperty() {
         int declStart = pos;
+        Documentation doc = parseDocumentation();
         // CAPTURED, not dropped: the wire carries qualified-property annotations — the old
         // "engine consumes and drops" comment was engine-lite lore, refuted by the harness
         // (DIFF on ClassWithQualifiedProperties: stereotypes size expected=2 actual=0).
         List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
-        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = parseTaggedValues();
+        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues =
+                taggedValuesWithDocumentation(doc, parseTaggedValues());
         String name = parseIdentifier();
 
         expect(TokenType.PAREN_OPEN);
@@ -1318,11 +1341,13 @@ public final class ElementParser implements TokenStreamCursor {
     /** PROTOCOL-FIRST. */
     private PackageableElement associationElement() {
         int declStart = pos;
+        Documentation doc = parseDocumentation();
         expect(TokenType.ASSOCIATION);
         // CAPTURED, not dropped: the wire carries association annotations
         // (ProbeWireShapes "association").
         List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
-        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = parseTaggedValues();
+        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues =
+                taggedValuesWithDocumentation(doc, parseTaggedValues());
         String qualifiedName = parseQualifiedName();
         // PROJECTION association: `Association X projects Y<A, B>` — a
         // nominal registration only (like projection classes); the
@@ -1358,9 +1383,11 @@ public final class ElementParser implements TokenStreamCursor {
      *  record — the per-element protocol entry point (see {@link #at}). */
     public com.legend.protocol.Protocol.PAssociation parseAssociationDefinition() {
         int declStart = pos;
+        Documentation doc = parseDocumentation();
         expect(TokenType.ASSOCIATION);
         List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
-        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = parseTaggedValues();
+        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues =
+                taggedValuesWithDocumentation(doc, parseTaggedValues());
         String qualifiedName = parseQualifiedName();
         if (peek() == TokenType.VALID_STRING && "projects".equals(safeText())) {
             throw error("projection associations are a legend-lite-local form with no"
@@ -1408,9 +1435,11 @@ public final class ElementParser implements TokenStreamCursor {
      *  the wire carries declaration- and value-level stereotypes/taggedValues. */
     public com.legend.protocol.Protocol.PEnumeration parseEnumDefinition() {
         int declStart = pos;
+        Documentation doc = parseDocumentation();
         expect(TokenType.ENUM);
         List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
-        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = parseTaggedValues();
+        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues =
+                taggedValuesWithDocumentation(doc, parseTaggedValues());
         String qualifiedName = parseQualifiedName();
         expect(TokenType.BRACE_OPEN);
 
@@ -1432,8 +1461,10 @@ public final class ElementParser implements TokenStreamCursor {
 
     private com.legend.protocol.Protocol.PEnumValue parseEnumValue() {
         int entryStart = pos;
+        Documentation doc = parseDocumentation();
         List<com.legend.protocol.Protocol.PStereotype> ss = parseStereotypes();
-        List<com.legend.protocol.Protocol.PTaggedValue> ts = parseTaggedValues();
+        List<com.legend.protocol.Protocol.PTaggedValue> ts =
+                taggedValuesWithDocumentation(doc, parseTaggedValues());
         String value = parseIdentifier();
         // Engine convention: the entry span runs annotations..value name, comma excluded.
         return new com.legend.protocol.Protocol.PEnumValue(value, ss, ts,
@@ -1452,6 +1483,15 @@ public final class ElementParser implements TokenStreamCursor {
      *  declared name token only (engine convention, ProbeWireShapes "profile"). */
     public com.legend.protocol.Protocol.PProfile parseProfileDefinition() {
         int declStart = pos;
+        // pure's grammar admits documentation on a Profile (`profile:
+        // documentation? PROFILE ...`); the engine's does not — and the
+        // protocol Profile carries no applied-annotation field, so the
+        // platform lanes read it and DROP it like the profile's own
+        // stereotypes below; the exact-engine surface refuses at the keyword
+        Documentation doc = parseDocumentation();
+        if (doc != null && dialect.refusesPlatformDialect()) {
+            throw error("Unexpected token '" + safeText() + "'");
+        }
         expect(TokenType.PROFILE);
         // Stereotypes/tags ON the profile itself (m4-pure syntax —
         // upstream pctQualifiers.pure: Profile <<PCT.testQualifierProfile>>
@@ -1543,9 +1583,17 @@ public final class ElementParser implements TokenStreamCursor {
 
     private FunctionSignature parseFunctionSignature() {
         int declStart = pos;
+        return parseFunctionSignature(declStart, parseDocumentation());
+    }
+
+    /** {@code documentation? FUNCTION stereotypes? taggedValues? ...} — the
+     *  documentation, when the caller read it (before {@code native}), is
+     *  folded in first. */
+    private FunctionSignature parseFunctionSignature(int declStart, @com.legend.Nullable Documentation doc) {
         expect(TokenType.FUNCTION);
         List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
-        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = parseTaggedValues();
+        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues =
+                taggedValuesWithDocumentation(doc, parseTaggedValues());
         String qualifiedName = parseQualifiedName();
         List<String> typeParams = new ArrayList<>();
         List<String> multParams = new ArrayList<>();
@@ -1585,6 +1633,14 @@ public final class ElementParser implements TokenStreamCursor {
      *  (DomainParseTreeWalker: {@code canonicalUnit = nonConvertibleUnits.get(0)}). */
     public com.legend.protocol.Protocol.PMeasure parseMeasureDefinition() {
         int declStart = pos;
+        // pure's grammar admits documentation on a Measure; the engine's does
+        // not, and the protocol Measure carries no tagged values — read and
+        // dropped on the platform lanes (as a Profile's), refused by the
+        // exact-engine surface at the keyword
+        Documentation doc = parseDocumentation();
+        if (doc != null && dialect.refusesPlatformDialect()) {
+            throw error("Unexpected token '" + safeText() + "'");
+        }
         advance();                                  // 'Measure'
         String qualifiedName = parseQualifiedName();
         String measureFqn = com.legend.protocol.Protocol.unquotePath(qualifiedName);
@@ -2400,8 +2456,9 @@ public final class ElementParser implements TokenStreamCursor {
      * </pre>
      */
     /** STRAIGHT-TO-MODEL — not yet migrated; see docs/PROTOCOL_MIGRATION_CENSUS.md. */
-    private NativeFunctionDefinition nativeFunctionElement() {
-        FunctionSignature sig = parseFunctionSignature();
+    private NativeFunctionDefinition nativeFunctionElement(int declStart,
+            @com.legend.Nullable Documentation doc) {
+        FunctionSignature sig = parseFunctionSignature(declStart, doc);
         expect(TokenType.SEMI_COLON);
         return new NativeFunctionDefinition(
                 sig.qualifiedName(), sig.typeParams(), sig.multParams(),
@@ -2539,8 +2596,10 @@ public final class ElementParser implements TokenStreamCursor {
 
     private com.legend.protocol.Protocol.PProperty parseProperty() {
         int startTok = pos;
+        Documentation doc = parseDocumentation();
         List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
-        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues = parseTaggedValues();
+        List<com.legend.protocol.Protocol.PTaggedValue> taggedValues =
+                taggedValuesWithDocumentation(doc, parseTaggedValues());
         // AGGREGATION KIND — (composite) / (shared) / (none); UPPERCASE on the wire
         // (ProbeWireShapes "agg kind and varchar")
         String aggregation = null;
@@ -2595,8 +2654,15 @@ public final class ElementParser implements TokenStreamCursor {
                 // refusal-asymmetry INVESTIGATE row TestDefaultValue#41)
                 throw error("a lambda is not a legal property default value");
             }
-            defaultValue = new com.legend.protocol.Protocol.PDefaultValue(
-                    value, spanOf(defStart, pos - 1));
+            // the engine's shared span helper ends a MULTI-LINE token on its
+            // start line (start column + text length - 1): a '''...''' default
+            // value keeps that arithmetic (pure TestDocumentation, 4.145.0)
+            com.legend.protocol.SourceInfo defSpan = tokens.type(pos - 1) == TokenType.DOC_STRING
+                    ? new com.legend.protocol.SourceInfo(spanSourceId(),
+                            tokens.startLine(defStart), tokens.startColumn(defStart),
+                            docStringSpan(pos - 1).endLine(), docStringSpan(pos - 1).endColumn())
+                    : spanOf(defStart, pos - 1);
+            defaultValue = new com.legend.protocol.Protocol.PDefaultValue(value, defSpan);
         }
         expect(TokenType.SEMI_COLON);
         // Positions are captured HERE, at construction, because this is the only point where the
@@ -2739,15 +2805,19 @@ public final class ElementParser implements TokenStreamCursor {
             // strip rule; the tv span ends by the token's single-line
             // column arithmetic
             int dTok = pos;
-            String value = TokenStreamCursor.docStringValue(text());
+            String raw = text();
+            String value = TokenStreamCursor.docStringValue(raw);
             advance();
             com.legend.protocol.SourceInfo d = docStringSpan(dTok);
             com.legend.protocol.SourceInfo s = spanOf(start, start);
+            // the engine's toCString: a block-shaped literal is flagged
+            // multiLine (4.145.0) and rides the wire as an object
             return new com.legend.protocol.Protocol.PTaggedValue(
                     new com.legend.protocol.Protocol.PTag(profile, tag,
                             spanOf(profStart, profEnd),
                             spanOf(tagStart, tagEnd)),
-                    value, new com.legend.protocol.SourceInfo(s.sourceId(),
+                    value, TokenStreamCursor.isTextBlock(raw),
+                    new com.legend.protocol.SourceInfo(s.sourceId(),
                             s.startLine(), s.startColumn(), d.endLine(),
                             d.endColumn()));
         }
@@ -2778,7 +2848,7 @@ public final class ElementParser implements TokenStreamCursor {
         return new com.legend.protocol.Protocol.PTaggedValue(
                 new com.legend.protocol.Protocol.PTag(profile, tag,
                         spanOf(profStart, profEnd), spanOf(tagStart, tagEnd)),
-                value, spanOf(start, pos - 1));
+                value, false, spanOf(start, pos - 1));
     }
 
     // ============================================================

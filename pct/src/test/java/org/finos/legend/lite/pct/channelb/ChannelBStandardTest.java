@@ -73,8 +73,10 @@ class ChannelBStandardTest {
         // DOUBLE casts. TRUE pinned SHRINK-ONLY at measured (16); the
         // essential suite walked this exact arc to zero over five
         // slices.
-        assertTrue(out.size() == 204,
-                "standard discovery moved: " + out.size() + " != 204");
+        // 204 -> 205 at the 4.145.0 bump (batch 8): one PCT.test added
+        // upstream; 205/205 PASS
+        assertTrue(out.size() == 205,
+                "standard discovery moved: " + out.size() + " != 205");
         // 100% (2026-08-19): the columns() compile-time fold burned the
         // reflection pair
         assertTrue(c.pass() >= 204, "standard PASS fell: " + c.pass());

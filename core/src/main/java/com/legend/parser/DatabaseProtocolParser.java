@@ -135,8 +135,11 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
 
     private Protocol.PDatabase parseDatabase() {
         int declStart = pos;
+        // database: documentation? DATABASE stereotypes? taggedValues? ...
+        // (4.145.0; the walker folds it into the tagged values, first)
+        Documentation doc = parseDocumentation();
         expect(TokenType.DATABASE);
-        TokenStreamCursor.Decorations dbDec = parseDecorations();
+        TokenStreamCursor.Decorations dbDec = withDocumentation(doc, parseDecorations());
         String qn = Protocol.unquotePath(parseQualifiedName());
         int cut = qn.lastIndexOf("::");
         String pkg = cut < 0 ? "" : qn.substring(0, cut);
@@ -162,7 +165,9 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         List<Protocol.PDbJoin> joins = new ArrayList<>();
         List<Protocol.PDbFilter> filters = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
-            switch (peek()) {
+            // a member's documentation stands before its keyword (4.145.0:
+            // schema / table / view); the member parser reads it
+            switch (peek() == TokenType.DOC_STRING ? peek(1) : peek()) {
                 case INCLUDE -> {
                     int s = pos;
                     advance();
@@ -236,8 +241,9 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
 
     private Protocol.PDbSchema parseSchema() {
         int s = pos;
+        Documentation doc = parseDocumentation();
         expect(TokenType.SCHEMA);
-        TokenStreamCursor.Decorations dec = parseDecorations();
+        TokenStreamCursor.Decorations dec = withDocumentation(doc, parseDecorations());
         int nameTok = pos;
         // a QUOTED schema name keeps its single quotes in the wire name
         // ("'\"test\"'" — harvest testRelationalSchemaSingleAndDoubleQuoted;
@@ -255,9 +261,11 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         List<Protocol.PDbView> views = new ArrayList<>();
         List<Protocol.PDbTable> tabFns = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.PAREN_CLOSE) {
-            if (peek() == TokenType.TABLE) {
+            // a member's documentation stands before its keyword (4.145.0)
+            TokenType head = peek() == TokenType.DOC_STRING ? peek(1) : peek();
+            if (head == TokenType.TABLE) {
                 tables.add(parseTable());
-            } else if (peek() == TokenType.VIEW) {
+            } else if (head == TokenType.VIEW) {
                 views.add(parseView(name));
             } else if (peek() == TokenType.VALID_STRING
                     && "TabularFunction".equals(text())) {
@@ -306,8 +314,9 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
 
     private Protocol.PDbTable parseTable() {
         int s = pos;
+        Documentation doc = parseDocumentation();
         expect(TokenType.TABLE);
-        TokenStreamCursor.Decorations dec = parseDecorations();
+        TokenStreamCursor.Decorations dec = withDocumentation(doc, parseDecorations());
         String name = parseIdentifier();
         expect(TokenType.PAREN_OPEN);
         List<Protocol.PDbColumn> columns = new ArrayList<>();
@@ -321,10 +330,13 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                 continue;
             }
             int cS = pos;
+            // columnDefinition: documentation? relationalIdentifier
+            // stereotypes? taggedValues? identifier ... (4.145.0)
+            Documentation colDoc = parseDocumentation();
             String colName = parseIdentifier();
             // columns take stereotypes AND tagged values before the type
             // (probes column-stereotypes + db-and-column-decorations)
-            Decorations colDec = parseDecorations();
+            Decorations colDec = withDocumentation(colDoc, parseDecorations());
             Protocol.PDbType type = parseDbType(colName);
             boolean nullable = true;
             // PRIMARY KEY / NOT NULL lex as single tokens; the .g4 allows
@@ -570,8 +582,9 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
 
     private Protocol.PDbView parseView(String schemaCtx) {
         int s = pos;
+        Documentation doc = parseDocumentation();
         expect(TokenType.VIEW);
-        TokenStreamCursor.Decorations dec = parseDecorations();
+        TokenStreamCursor.Decorations dec = withDocumentation(doc, parseDecorations());
         String name = parseIdentifier();
         expect(TokenType.PAREN_OPEN);
         boolean distinct = false;
@@ -884,6 +897,10 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
                     stretch(c.sourceInformation(), end));
             case Protocol.PRelLiteral l -> new Protocol.PRelLiteral(l.value(),
                     stretch(l.sourceInformation(), end));
+            case Protocol.PRelLambda lam -> new Protocol.PRelLambda(lam.parameterNames(),
+                    lam.body(), stretch(lam.sourceInformation(), end));
+            case Protocol.PLambdaParam lp -> new Protocol.PLambdaParam(lp.name(),
+                    stretch(lp.sourceInformation(), end));
             case Protocol.PElemtWithJoins ej -> ej;   // nav spans stay put
             case Protocol.PRelLiteralList ll -> new Protocol.PRelLiteralList(
                     ll.values(), stretch(ll.sourceInformation(), end));
@@ -901,6 +918,46 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         TokenType n = peek(1);
         return n == TokenType.INTEGER || n == TokenType.FLOAT
                 || n == TokenType.STRING;
+    }
+
+    /** One function-operation argument: an operation, or a LAMBDA (4.145.0
+     *  {@code functionOperationLambda: identifier PIPE operation |
+     *  PAREN_OPEN identifier (COMMA identifier)* PIPE operation PAREN_CLOSE})
+     *  — a filter/map/fold over an array take, its body an ordinary
+     *  operation over {@code $x} parameters. Parentheses are required for
+     *  more than one parameter. The lambda's span covers its whole rule. */
+    private Protocol.PRelOp parseFunctionArgument(String schemaCtx) {
+        int s = pos;
+        if (isIdentifierToken(peek()) && peek(1) == TokenType.PIPE) {
+            String param = parseIdentifier();
+            expect(TokenType.PIPE);
+            Protocol.PRelOp body = parseOperation(schemaCtx);
+            return new Protocol.PRelLambda(List.of(param), body, spanOf(s, pos - 1));
+        }
+        if (peek() == TokenType.PAREN_OPEN && isIdentifierToken(peek(1))
+                && (peek(2) == TokenType.PIPE || peek(2) == TokenType.COMMA)) {
+            int save = pos;
+            advance();
+            List<String> params = new ArrayList<>();
+            params.add(parseIdentifier());
+            while (match(TokenType.COMMA)) {
+                if (!isIdentifierToken(peek())) {
+                    pos = save;
+                    return parseOperation(schemaCtx);
+                }
+                params.add(parseIdentifier());
+            }
+            if (peek() != TokenType.PIPE) {
+                // `(a, b)` was not a parameter list after all
+                pos = save;
+                return parseOperation(schemaCtx);
+            }
+            advance();
+            Protocol.PRelOp body = parseOperation(schemaCtx);
+            expect(TokenType.PAREN_CLOSE);
+            return new Protocol.PRelLambda(params, body, spanOf(s, pos - 1));
+        }
+        return parseOperation(schemaCtx);
     }
 
     private Protocol.PRelOp parseAtom(String schemaCtx) {
@@ -940,6 +997,14 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             double v = Double.parseDouble(text());
             advance();
             return new Protocol.PRelLiteral(v, spanOf(s, s));
+        }
+        if (peek() == TokenType.DOLLAR) {
+            // $x — a LAMBDA PARAMETER inside a function-operation lambda's
+            // body (4.145.0 `lambdaParameter: DOLLAR identifier`); its own
+            // sigil keeps it apart from a bare column reference
+            advance();
+            String name = parseIdentifier();
+            return new Protocol.PLambdaParam(name, spanOf(s, pos - 1));
         }
         if (peek() == TokenType.TARGET) {
             // {target} — lexes as ONE token; spells BOTH table and alias
@@ -1063,7 +1128,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
             advance();
             List<Protocol.PRelOp> args = new ArrayList<>();
             while (peek() != TokenType.PAREN_CLOSE && !atEnd()) {
-                args.add(parseOperation(schemaCtx));
+                args.add(parseFunctionArgument(schemaCtx));
                 match(TokenType.COMMA);
             }
             expect(TokenType.PAREN_CLOSE);

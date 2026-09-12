@@ -41,7 +41,9 @@ class OwnCorpusParityTest {
     /** EXACT pin on MATCHED elements (measured 2026-09-11). 2292 → 2296
      *  (batch 7a): the product test runner's proof model — four functions
      *  in a core test — joined the own corpus and matched. */
-    static final int MIN_MATCHED = 2296;
+    static final int MIN_MATCHED = 2312;   // 4.145.0 bump (batch 8): +16 —
+                                           // DocumentationTest's snippets
+                                           // joined the own corpus
 
     @Test
     @DisplayName("every own-corpus snippet the oracle accepts emits the oracle's bytes, element by element")

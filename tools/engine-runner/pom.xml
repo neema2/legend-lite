@@ -6,7 +6,7 @@
     <!-- standalone pom (no parent), so this cannot read the root pom's
          legend.engine.version; tools/version-report.sh asserts it equals
          LEGEND_ENGINE_RELEASE in tools/oracle-pins.env -->
-    <legend.version>4.138.2</legend.version>
+    <legend.version>4.145.0</legend.version>
     <maven.compiler.source>21</maven.compiler.source>
     <maven.compiler.target>21</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>

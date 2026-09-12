@@ -731,15 +731,41 @@ final class TailEmitter {
             }
             b.append(']');
         }
-        b.append(",\"executionContexts\":[");
-        for (int i = 0; i < d.executionContexts().size(); i++) {
-            if (i > 0) {
-                b.append(',');
+        if (d.executionContexts() != null) {
+            // optional since 4.145.0: unspelled -> the slot is omitted
+            b.append(",\"executionContexts\":[");
+            for (int i = 0; i < d.executionContexts().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                dataSpaceContext(b, d.executionContexts().get(i));
             }
-            dataSpaceContext(b, d.executionContexts().get(i));
+            b.append(']');
         }
-        b.append("],\"name\":");
+        b.append(",\"name\":");
         ProtocolEmitter.str(b, d.name());
+        Protocol.PDataSpaceOperationalMetadata om = d.operationalMetadata();
+        if (om != null) {
+            b.append(",\"operationalMetadata\":{");
+            if (!om.coverageRegions().isEmpty()) {
+                // an EMPTY list is omitted on the wire (NON_EMPTY)
+                b.append("\"coverageRegions\":[");
+                for (int i = 0; i < om.coverageRegions().size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    ProtocolEmitter.str(b, om.coverageRegions().get(i));
+                }
+                b.append("],");
+            }
+            b.append("\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, om.sourceInformation());
+            if (om.updateFrequency() != null) {
+                b.append(",\"updateFrequency\":");
+                ProtocolEmitter.str(b, om.updateFrequency());
+            }
+            b.append('}');
+        }
         b.append(",\"package\":");
         ProtocolEmitter.str(b, d.pkg());
         b.append(",\"sourceInformation\":");
@@ -761,15 +787,43 @@ final class TailEmitter {
 
     private static void dataSpaceContext(StringBuilder b,
             Protocol.PDataSpaceContext ctx) {
-        b.append("{\"defaultRuntime\":");
-        pointer(b, ctx.defaultRuntime(), ctx.runtimeSpan(), "RUNTIME");
-        if (ctx.description() != null) {
-            b.append(",\"description\":");
-            ProtocolEmitter.str(b, ctx.description());
+        b.append('{');
+        boolean first = true;
+        if (ctx.defaultRuntime() != null) {
+            b.append("\"defaultRuntime\":");
+            pointer(b, ctx.defaultRuntime(), java.util.Objects.requireNonNull(ctx.runtimeSpan()), "RUNTIME");
+            first = false;
         }
-        b.append(",\"mapping\":");
-        pointer(b, ctx.mapping(), ctx.mappingSpan(), "MAPPING");
-        b.append(",\"name\":");
+        if (ctx.description() != null) {
+            b.append(first ? "" : ",").append("\"description\":");
+            ProtocolEmitter.str(b, ctx.description());
+            first = false;
+        }
+        if (ctx.mapping() != null) {
+            b.append(first ? "" : ",").append("\"mapping\":");
+            pointer(b, ctx.mapping(), java.util.Objects.requireNonNull(ctx.mappingSpan()), "MAPPING");
+            first = false;
+        }
+        Protocol.PDataSpaceMappingProvider mp = ctx.mappingProvider();
+        if (mp != null) {
+            // 4.145.0: a TYPELESS element pointer plus its keys
+            b.append(first ? "" : ",").append("\"mappingProvider\":{\"element\":{\"path\":");
+            ProtocolEmitter.str(b, mp.element());
+            b.append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, mp.elementSpan());
+            b.append("},\"keys\":[");
+            for (int i = 0; i < mp.keys().size(); i++) {
+                if (i > 0) {
+                    b.append(',');
+                }
+                ProtocolEmitter.str(b, mp.keys().get(i));
+            }
+            b.append("],\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, mp.sourceInformation());
+            b.append('}');
+            first = false;
+        }
+        b.append(first ? "" : ",").append("\"name\":");
         ProtocolEmitter.str(b, ctx.name());
         b.append(",\"sourceInformation\":");
         ProtocolEmitter.srcInfo(b, ctx.sourceInformation());
@@ -834,6 +888,11 @@ final class TailEmitter {
             ProtocolEmitter.valueSpec(b,
                     java.util.Objects.requireNonNull(e.query()));
         }
+        if (e.sampleValues() != null) {
+            // 4.145.0: a standalone relation element
+            b.append(",\"sampleValues\":");
+            MappingEmitter.relationElement(b, e.sampleValues());
+        }
         b.append(",\"sourceInformation\":");
         ProtocolEmitter.srcInfo(b, e.sourceInformation());
         b.append(",\"title\":");
@@ -841,9 +900,94 @@ final class TailEmitter {
         b.append('}');
     }
 
+    private static void dataSpaceLink(StringBuilder b, Protocol.PDataSpaceLink l) {
+        b.append('{');
+        if (l.label() != null) {
+            b.append("\"label\":");
+            ProtocolEmitter.str(b, l.label());
+            b.append(',');
+        }
+        b.append("\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, l.sourceInformation());
+        b.append(",\"url\":");
+        ProtocolEmitter.str(b, l.url());
+        b.append('}');
+    }
+
     private static void dataSpaceSupport(StringBuilder b,
             Protocol.PDataSpaceSupport s) {
         switch (s) {
+            case Protocol.PDataSpaceSupport.PSupportFull f -> {
+                // 4.145.0: the keyword-less full form
+                b.append("{\"_type\":\"full\"");
+                if (f.documentation() != null) {
+                    b.append(",\"documentation\":");
+                    dataSpaceLink(b, f.documentation());
+                }
+                if (f.emails() != null) {
+                    b.append(",\"emails\":[");
+                    for (int i = 0; i < f.emails().size(); i++) {
+                        if (i > 0) {
+                            b.append(',');
+                        }
+                        Protocol.PDataSpaceEmail em = f.emails().get(i);
+                        b.append("{\"address\":");
+                        ProtocolEmitter.str(b, em.address());
+                        b.append(",\"sourceInformation\":");
+                        ProtocolEmitter.srcInfo(b, em.sourceInformation());
+                        b.append(",\"title\":");
+                        ProtocolEmitter.str(b, em.title());
+                        b.append('}');
+                    }
+                    b.append(']');
+                }
+                if (f.expertise() != null) {
+                    b.append(",\"expertise\":[");
+                    for (int i = 0; i < f.expertise().size(); i++) {
+                        if (i > 0) {
+                            b.append(',');
+                        }
+                        Protocol.PDataSpaceExpertise ex = f.expertise().get(i);
+                        b.append('{');
+                        boolean first = true;
+                        if (ex.description() != null) {
+                            b.append("\"description\":");
+                            ProtocolEmitter.str(b, ex.description());
+                            first = false;
+                        }
+                        if (ex.expertIds() != null) {
+                            b.append(first ? "" : ",").append("\"expertIds\":[");
+                            for (int j = 0; j < ex.expertIds().size(); j++) {
+                                if (j > 0) {
+                                    b.append(',');
+                                }
+                                ProtocolEmitter.str(b, ex.expertIds().get(j));
+                            }
+                            b.append(']');
+                            first = false;
+                        }
+                        b.append(first ? "" : ",").append("\"sourceInformation\":");
+                        ProtocolEmitter.srcInfo(b, ex.sourceInformation());
+                        b.append('}');
+                    }
+                    b.append(']');
+                }
+                if (f.faqUrl() != null) {
+                    b.append(",\"faqUrl\":");
+                    dataSpaceLink(b, f.faqUrl());
+                }
+                b.append(",\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, f.sourceInformation());
+                if (f.supportUrl() != null) {
+                    b.append(",\"supportUrl\":");
+                    dataSpaceLink(b, f.supportUrl());
+                }
+                if (f.website() != null) {
+                    b.append(",\"website\":");
+                    dataSpaceLink(b, f.website());
+                }
+                b.append('}');
+            }
             case Protocol.PDataSpaceSupport.PSupportEmail e -> {
                 b.append("{\"_type\":\"email\",\"address\":");
                 ProtocolEmitter.str(b, e.address());
@@ -2203,6 +2347,10 @@ final class TailEmitter {
         ProtocolEmitter.stereotypes(b, v.stereotypes());
         b.append(",\"taggedValues\":");
         ProtocolEmitter.taggedValues(b, v.taggedValues());
+        if (v.testSuites() != null) {
+            b.append(",\"testSuites\":");
+            dqTestSuites(b, v.testSuites(), "dataQualityRelationValidation");
+        }
         b.append(",\"validations\":[");
         for (int i = 0; i < v.validations().size(); i++) {
             Protocol.PDqRelationCheck ch = v.validations().get(i);
@@ -2273,6 +2421,94 @@ final class TailEmitter {
         }
         b.append("},\"target\":");
         ProtocolEmitter.valueSpec(b, v.target());
+        if (v.testSuites() != null) {
+            b.append(",\"testSuites\":");
+            dqTestSuites(b, v.testSuites(), "dataQualityRelationComparison");
+        }
+        b.append('}');
+    }
+
+    /** The Testable block of a relation-level DataQuality element
+     *  (4.145.0): suites and tests carry the OWNER's type name prefix;
+     *  the data block is an object wrapping FunctionTestData entries. */
+    private static void dqTestSuites(StringBuilder b, List<Protocol.PDqTestSuite> suites,
+            String owner) {
+        b.append('[');
+        for (int i = 0; i < suites.size(); i++) {
+            if (i > 0) {
+                b.append(',');
+            }
+            Protocol.PDqTestSuite s = suites.get(i);
+            b.append("{\"_type\":\"").append(owner).append("TestSuite\",\"id\":");
+            ProtocolEmitter.str(b, s.id());
+            b.append(",\"sourceInformation\":");
+            ProtocolEmitter.srcInfo(b, s.sourceInformation());
+            if (s.testData() != null) {
+                b.append(",\"testData\":{\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, s.testData().sourceInformation());
+                b.append(",\"testData\":[");
+                for (int j = 0; j < s.testData().testData().size(); j++) {
+                    if (j > 0) {
+                        b.append(',');
+                    }
+                    Protocol.PDqStoreData d = s.testData().testData().get(j);
+                    b.append("{\"data\":");
+                    MappingEmitter.embeddedDataValue(b, d.data());
+                    b.append(",\"packageableElementPointer\":{\"path\":");
+                    ProtocolEmitter.str(b, d.store());
+                    b.append(",\"sourceInformation\":");
+                    ProtocolEmitter.srcInfo(b, d.storeSpan());
+                    b.append(",\"type\":\"STORE\"},\"sourceInformation\":");
+                    ProtocolEmitter.srcInfo(b, d.sourceInformation());
+                    b.append('}');
+                }
+                b.append("]}");
+            }
+            b.append(",\"tests\":[");
+            for (int j = 0; j < s.tests().size(); j++) {
+                if (j > 0) {
+                    b.append(',');
+                }
+                Protocol.PDqTest t = s.tests().get(j);
+                b.append("{\"_type\":\"").append(owner).append("Test\",\"assertions\":[");
+                for (int k = 0; k < t.assertions().size(); k++) {
+                    if (k > 0) {
+                        b.append(',');
+                    }
+                    testAssertion(b, t.assertions().get(k));
+                }
+                b.append("],\"id\":");
+                ProtocolEmitter.str(b, t.id());
+                b.append(",\"sourceInformation\":");
+                ProtocolEmitter.srcInfo(b, t.sourceInformation());
+                b.append('}');
+            }
+            b.append("]}");
+        }
+        b.append(']');
+    }
+
+    /** One named test assertion — the three expected-value spellings the
+     *  service suites carry, keyed by the assertion's own id. */
+    private static void testAssertion(StringBuilder b, Protocol.PTestAssertion a) {
+        switch (a.expected()) {
+            case Protocol.PExternalFormatData ef -> {
+                b.append("{\"_type\":\"equalToJson\",\"expected\":");
+                MappingEmitter.externalFormatData(b, ef);
+            }
+            case Protocol.PRelationElement re -> {
+                b.append("{\"_type\":\"equalToRelation\",\"expected\":");
+                MappingEmitter.relationElement(b, re);
+            }
+            case Protocol.PEqualToValue ev -> {
+                b.append("{\"_type\":\"equalTo\",\"expected\":");
+                ProtocolEmitter.valueSpec(b, ev.value());
+            }
+        }
+        b.append(",\"id\":");
+        ProtocolEmitter.str(b, a.id());
+        b.append(",\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, a.sourceInformation());
         b.append('}');
     }
 

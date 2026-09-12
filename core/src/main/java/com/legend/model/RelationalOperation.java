@@ -38,7 +38,9 @@ public sealed interface RelationalOperation
                 RelationalOperation.IsNotNull,
                 RelationalOperation.Group,
                 RelationalOperation.ArrayLiteral,
-                RelationalOperation.JoinNavigation {
+                RelationalOperation.JoinNavigation,
+                RelationalOperation.Lambda,
+                RelationalOperation.LambdaParam {
 
     /**
      * The DIRECT {@link RelationalOperation} children, in rebuild order —
@@ -62,6 +64,8 @@ public sealed interface RelationalOperation
             case ArrayLiteral a -> a.elements();
             case JoinNavigation j -> j.terminal() == null
                     ? java.util.List.of() : java.util.List.of(j.terminal());
+            case Lambda l -> java.util.List.of(l.body());
+            case LambdaParam ignored -> java.util.List.of();
         };
     }
 
@@ -82,7 +86,28 @@ public sealed interface RelationalOperation
             case JoinNavigation j -> j.terminal() == null ? j
                     : new JoinNavigation(j.databaseName(), j.chain(),
                             cs.get(0));
+            case Lambda l -> new Lambda(l.parameters(), cs.get(0));
+            case LambdaParam ignored -> this;
         };
+    }
+
+    /** A lambda as a function-call argument (4.145.0 relational grammar:
+     *  {@code x | body}, {@code (a, b | body)}) — a filter/map/fold over an
+     *  array take. Parsed and carried; its LOWERING is a leg of its own,
+     *  and the translator refuses it loudly until then. */
+    record Lambda(List<String> parameters, RelationalOperation body)
+            implements RelationalOperation {
+        public Lambda {
+            parameters = List.copyOf(parameters);
+            java.util.Objects.requireNonNull(body);
+        }
+    }
+
+    /** {@code $x} inside a {@link Lambda}'s body. */
+    record LambdaParam(String name) implements RelationalOperation {
+        public LambdaParam {
+            java.util.Objects.requireNonNull(name);
+        }
     }
 
     /** Identity-preserving one-level rewrite through {@link #withChildren}. */

@@ -1338,10 +1338,13 @@ public final class NameResolver {
                         ds.executionContexts().size());
         boolean changed = false;
         for (var ctx : ds.executionContexts()) {
-            String m = resolveName(ctx.mapping(), scope);
-            String r = resolveName(ctx.defaultRuntime(), scope);
-            changed |= !m.equals(ctx.mapping())
-                    || !r.equals(ctx.defaultRuntime());
+            // 4.145.0: a context may name a mapping PROVIDER instead of a
+            // mapping, and its default runtime is optional
+            String m = ctx.mapping() == null ? null : resolveName(ctx.mapping(), scope);
+            String r = ctx.defaultRuntime() == null ? null
+                    : resolveName(ctx.defaultRuntime(), scope);
+            changed |= !java.util.Objects.equals(m, ctx.mapping())
+                    || !java.util.Objects.equals(r, ctx.defaultRuntime());
             contexts.add(new com.legend.model.DataSpaceDefinition
                     .ExecutionContext(ctx.name(), ctx.title(),
                             ctx.description(), m, r, ctx.testDataSource()));
@@ -1460,6 +1463,10 @@ public final class NameResolver {
             }
             case RelationalOperation.TargetColumnRef t -> t;
             case RelationalOperation.Literal l -> l;
+            // 4.145.0 relational lambdas: names resolve inside the body
+            case RelationalOperation.Lambda lam -> new RelationalOperation.Lambda(
+                    lam.parameters(), java.util.Objects.requireNonNull(resolveRelOp(lam.body(), scope)));
+            case RelationalOperation.LambdaParam p -> p;
             case RelationalOperation.FunctionCall fc -> {
                 // DESIGN CONTRACT: fc.name() is always a DB-side function name
                 // (e.g. concat, coalesce, substring) dispatched by the SQL

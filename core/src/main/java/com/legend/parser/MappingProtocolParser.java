@@ -116,8 +116,12 @@ public final class MappingProtocolParser implements TokenStreamCursor {
 
     private Protocol.PDataElement parseDataElement() {
         int declStart = pos;
+        // dataElement: documentation? DATA stereotypes? taggedValues? ...
+        Documentation doc = parseDocumentation();
         expectText("Data");
         Decorations dec = parseDecorations();
+        List<Protocol.PTaggedValue> taggedValues =
+                taggedValuesWithDocumentation(doc, dec.taggedValues());
         String qn = Protocol.unquotePath(parseQualifiedName());
         int cut = qn.lastIndexOf("::");
         String pkg = cut < 0 ? "" : qn.substring(0, cut);
@@ -150,7 +154,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         int close = pos;
         expect(TokenType.BRACE_CLOSE);
         return new Protocol.PDataElement(pkg, name, body, dec.stereotypes(),
-                dec.taggedValues(), spanOf(declStart, close));
+                taggedValues, spanOf(declStart, close));
     }
 
     /** Body-entry lookahead: 1 = qualified name then {@code ':'} (base
@@ -205,6 +209,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         host.setPos(p.pos());
         return v;
     }
+
 
     Protocol.PEmbeddedDataValue parseEmbeddedValue() {
         // 'Relational' is a LEXER KEYWORD, the rest lex as identifiers
@@ -1941,6 +1946,9 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                     f.parameters(), w);
             case Protocol.PRelLiteral l ->
                     new Protocol.PRelLiteral(l.value(), w);
+            case Protocol.PRelLambda lam ->
+                    new Protocol.PRelLambda(lam.parameterNames(), lam.body(), w);
+            case Protocol.PLambdaParam lp -> new Protocol.PLambdaParam(lp.name(), w);
             case Protocol.PRelLiteralList ll ->
                     new Protocol.PRelLiteralList(ll.values(), w);
         };
@@ -3206,7 +3214,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     /** {@code [schema.table:]\n HEADER \n ROWS... ;} groups inside a
      *  Relation island — a CSV sub-format the engine parses from raw
      *  chars; cells TRIM both sides (probe relation-data-exact). */
-    private List<Protocol.PRelationElement> parseRelationElements(
+    List<Protocol.PRelationElement> parseRelationElements(
             IslandBlock island, boolean withPaths) {
         String src = tokens.source();
         int p = island.contentStart();

@@ -70,8 +70,10 @@ class ChannelBGrammarTest {
         // newer commits had added one PCT.test to
         // grammar/functions/boolean/equality/equal.pure (11 -> 10 at the
         // tag). Channel A's jar universe is 136 too — one universe.
-        assertTrue(out.size() == 136,
-                "grammar discovery moved: " + out.size() + " != 136");
+        // 136 -> 137 at the 4.145.0 bump (batch 8): one PCT.test added
+        // upstream; channel A's jar universe is 137 too
+        assertTrue(out.size() == 137,
+                "grammar discovery moved: " + out.size() + " != 137");
         // 128 (slice 11): letFn ×2 (inline multi-statement hoist),
         // testSingle{Plus,Minus}Type + OneToOne (is/assertIs World-1
         // identity: type refs canonicalized, instance provenance)

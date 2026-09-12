@@ -61,7 +61,7 @@ class DuckDbRenderTest {
                 WHERE t0.AGE > 30
                 GROUP BY t0.FIRM
                 HAVING COUNT(*) > 2
-                ORDER BY t0.FIRM DESC NULLS LAST
+                ORDER BY t0.FIRM DESC NULLS FIRST
                 LIMIT 10
                 OFFSET 5""",
                 sql);
@@ -211,7 +211,7 @@ class DuckDbRenderTest {
                         new SqlExpr.IntLit(1)));
         assertEquals("""
                 SELECT ROW_NUMBER() OVER (PARTITION BY t0.FIRM ORDER BY t0.AGE DESC NULLS FIRST) AS rn,\
-                 SUM(t0.AGE) OVER (ORDER BY t0.AGE NULLS FIRST ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running
+                 SUM(t0.AGE) OVER (ORDER BY t0.AGE NULLS LAST ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS running
                 FROM T_PERSON AS t0
                 QUALIFY rn = 1""",
                 duck.render(s));

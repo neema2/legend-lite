@@ -608,9 +608,12 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 }
                 case "timezone" -> {
                     if (c.peek() == TokenType.STRING) {
-                        // a QUOTED value keeps its quotes on the wire
-                        // (probe timezone)
-                        timeZone = c.text();
+                        // a QUOTED zone id: the quotes are grammar syntax,
+                        // not part of the id — the engine strips them
+                        // since 4.145.0 (RelationalParseTreeWalker:
+                        // "'US/Arizona' names no zone"); until 4.138.2 the
+                        // wire carried them verbatim
+                        timeZone = TokenStreamCursor.unquoteAndUnescape(c.text(), c);
                         c.advance();
                     } else {
                         // UNQUOTED offset: +0700 / -0500 (harvest

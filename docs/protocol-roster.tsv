@@ -148,7 +148,7 @@ charGroupTokenizer	org.finos.legend.engine.protocol.store.elasticsearch.v7.speci
 charType	org.finos.legend.engine.protocol.deephaven.metamodel.type.CharType	UNCOVERED
 childrenAggregate	org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.types.aggregations.ChildrenAggregate	UNCOVERED
 childrenAggregation	org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.types.aggregations.ChildrenAggregation	UNCOVERED
-class	org.finos.legend.engine.protocol.pure.v1.model.executionPlan.result.ClassResultType	COVERED
+class	org.finos.legend.engine.protocol.pure.v1.model.valueSpecification.deprecated.Class	COVERED
 classInstance	org.finos.legend.engine.protocol.pure.m3.valuespecification.constant.classInstance.ClassInstance	COVERED
 closePointInTimeRequest	org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.global.closepointintime.ClosePointInTimeRequest	UNCOVERED
 coalesceOperation	org.finos.legend.engine.protocol.deephaven.metamodel.CoalesceOperation	UNCOVERED
@@ -197,6 +197,10 @@ dataElement	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.da
 dataQuality	org.finos.legend.engine.protocol.pure.v1.model.executionPlan.nodes.externalFormat.DataQualityExecutionNode	UNCOVERED
 dataQualityPropertyGraphFetchTree	org.finos.legend.engine.protocol.dataquality.metamodel.DataQualityPropertyGraphFetchTree	COVERED
 dataQualityRelationComparison	org.finos.legend.engine.protocol.dataquality.metamodel.DataQualityRelationComparison	COVERED
+dataQualityRelationComparisonTest	org.finos.legend.engine.protocol.dataquality.metamodel.testable.DataQualityRelationComparisonTest	COVERED
+dataQualityRelationComparisonTestSuite	org.finos.legend.engine.protocol.dataquality.metamodel.testable.DataQualityRelationComparisonTestSuite	COVERED
+dataQualityRelationValidationTest	org.finos.legend.engine.protocol.dataquality.metamodel.testable.DataQualityRelationValidationTest	COVERED
+dataQualityRelationValidationTestSuite	org.finos.legend.engine.protocol.dataquality.metamodel.testable.DataQualityRelationValidationTestSuite	COVERED
 dataQualityRootGraphFetchTree	org.finos.legend.engine.protocol.dataquality.metamodel.DataQualityRootGraphFetchTree	COVERED
 dataQualityValidation	org.finos.legend.engine.protocol.dataquality.metamodel.DataQuality	COVERED
 dataSpace	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.dataSpace.DataSpace	COVERED
@@ -309,6 +313,7 @@ executableDefinition	org.finos.legend.engine.protocol.graphQL.metamodel.executab
 executableDocument	org.finos.legend.engine.protocol.graphQL.metamodel.ExecutableDocument	UNCOVERED
 executionContextInstance	org.finos.legend.engine.protocol.pure.v1.model.valueSpecification.ClassInstanceWrapper	UNCOVERED
 executionEnvironmentInstance	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.service.ExecutionEnvironmentInstance	COVERED
+existsPredicate	org.finos.legend.engine.protocol.sql.metamodel.ExistsPredicate	UNCOVERED
 existsQuery	org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.types.querydsl.ExistsQuery	UNCOVERED
 expectedOutputMappingTestAssert	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.mapping.mappingTest.ExpectedOutputMappingTestAssert	COVERED
 exprQueryExpression	org.finos.legend.engine.protocol.mongodb.schema.metamodel.aggregation.ExprQueryExpression	UNCOVERED
@@ -359,6 +364,7 @@ fragmentDefinition	org.finos.legend.engine.protocol.graphQL.metamodel.executable
 fragmentSpread	org.finos.legend.engine.protocol.graphQL.metamodel.executable.FragmentSpread	UNCOVERED
 frameBound	org.finos.legend.engine.protocol.sql.metamodel.FrameBound	UNCOVERED
 freeMarkerConditionalExecutionNode	org.finos.legend.engine.protocol.pure.v1.model.executionPlan.nodes.FreeMarkerConditionalExecutionNode	UNCOVERED
+full	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.dataSpace.DataSpaceSupportFullInfo	COVERED
 func	org.finos.legend.engine.protocol.pure.m3.valuespecification.AppliedFunction	COVERED
 funcColSpecOperation	org.finos.legend.engine.protocol.deephaven.metamodel.FuncColSpecOperation	UNCOVERED
 function	org.finos.legend.engine.protocol.pure.m3.function.Function	COVERED
@@ -509,6 +515,7 @@ kuromojiTokenizer	org.finos.legend.engine.protocol.store.elasticsearch.v7.specif
 lTEOperatorExpression	org.finos.legend.engine.protocol.mongodb.schema.metamodel.aggregation.LTEOperatorExpression	UNCOVERED
 lTOperatorExpression	org.finos.legend.engine.protocol.mongodb.schema.metamodel.aggregation.LTOperatorExpression	UNCOVERED
 lambda	org.finos.legend.engine.protocol.pure.m3.function.LambdaFunction	COVERED
+lambdaParameter	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.store.relational.model.operation.LambdaParameter	COVERED
 lastOperation	org.finos.legend.engine.protocol.deephaven.metamodel.LastOperation	UNCOVERED
 lateralRelation	org.finos.legend.engine.protocol.sql.metamodel.LateralRelation	UNCOVERED
 latestDate	org.finos.legend.engine.protocol.pure.m3.valuespecification.constant.datatype.primitive.CLatestDate	COVERED
@@ -733,6 +740,7 @@ purePropertyMapping	org.finos.legend.engine.protocol.pure.v1.model.packageableEl
 pureSingleExecution	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.service.PureSingleExecution	COVERED
 qualifiedNameReference	org.finos.legend.engine.protocol.sql.metamodel.QualifiedNameReference	UNCOVERED
 qualifiedProperty	org.finos.legend.engine.protocol.pure.v1.model.valueSpecification.deprecated.AppliedQualifiedProperty	UNCOVERED
+quantifiedComparisonExpression	org.finos.legend.engine.protocol.sql.metamodel.QuantifiedComparisonExpression	UNCOVERED
 query	org.finos.legend.engine.protocol.sql.metamodel.Query	UNCOVERED
 queryBody	org.finos.legend.engine.protocol.sql.metamodel.QueryBody	UNCOVERED
 queryExprKeyValue	org.finos.legend.engine.protocol.mongodb.schema.metamodel.aggregation.QueryExprKeyValue	UNCOVERED
@@ -775,6 +783,7 @@ relationalCrossRootGraphFetchExecutionNode	org.finos.legend.engine.protocol.pure
 relationalCrossRootQueryTempTableGraphFetch	org.finos.legend.engine.protocol.pure.v1.model.executionPlan.nodes.graphFetch.RelationalCrossRootQueryTempTableGraphFetchExecutionNode	UNCOVERED
 relationalDataTypeInstantiation	org.finos.legend.engine.protocol.pure.v1.model.executionPlan.nodes.RelationalDataTypeInstantiationExecutionNode	UNCOVERED
 relationalGraphFetchExecutionNode	org.finos.legend.engine.protocol.pure.v1.model.executionPlan.nodes.graphFetch.RelationalGraphFetchExecutionNode	UNCOVERED
+relationalLambda	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.store.relational.model.operation.RelationalLambda	COVERED
 relationalMapper	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.mapper.RelationalMapper	COVERED
 relationalPersistenceTarget	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.persistence.relational.sink.RelationalPersistenceTarget	COVERED
 relationalPrimitiveQueryGraphFetch	org.finos.legend.engine.protocol.pure.v1.model.executionPlan.nodes.graphFetch.RelationalPrimitiveQueryGraphFetchExecutionNode	UNCOVERED

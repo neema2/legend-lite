@@ -253,7 +253,11 @@ public class SpecBodyCensusTest {
                         + String.join("\n  ", failures.keySet()));
         // 23 -> 22 (batch 5 leg 5c): SQLResult$prop$toSQLString is platform-IMPLEMENTED
         // (the toSQLString routine), counted with the natives, no longer a wall
-        org.junit.jupiter.api.Assertions.assertTrue(walled.size() <= 22,
+        // 22 -> 25 at the 4.145.0 bump (batch 8): the engine's SQL printer
+        // grew three properties (DbConfig.selectSQLQueryProcessor /
+        // .withinGroupProcessor, NullOrderingSupport.processSortItem) —
+        // the same PRINTER wall, three more rows, each with its reason
+        org.junit.jupiter.api.Assertions.assertTrue(walled.size() <= 25,
                 () -> "spec body census WALLED rows GREW: " + walled.size()
                         + " > 23 (shrink-only; a new wall needs its reason in WalledBodies):\n  "
                         + String.join("\n  ", walled.keySet()));

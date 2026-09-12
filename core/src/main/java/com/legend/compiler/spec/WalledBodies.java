@@ -41,9 +41,15 @@ public final class WalledBodies {
         REASONS.put("meta::relational::runtime::PostProcessors$prop$sqlQueryPostProcessorId", PRINTER);
         // the printer's bodies on the prelude's vocabulary classes (the census's B3 rows)
         for (String p : new String[] {"dataTypeToSqlText", "dynaFuncDispatch", "joinProcessor",
-                "lateralJoinProcessor", "literalProcessor"}) {
+                "lateralJoinProcessor", "literalProcessor",
+                // 4.145.0 (batch 8): the printer grew two properties — CTE
+                // extraction on the select processor, WITHIN GROUP dispatch
+                "selectSQLQueryProcessor", "withinGroupProcessor"}) {
             REASONS.put("meta::relational::functions::sqlQueryToString::DbConfig$prop$" + p, PRINTER);
         }
+        // 4.145.0: null-ordering rendering — the printer's, per dialect
+        REASONS.put("meta::relational::functions::sqlQueryToString::NullOrderingSupport$prop$processSortItem",
+                PRINTER);
         REASONS.put("meta::relational::functions::sqlQueryToString::DynaFunctionToSql$prop$toSql", PRINTER);
         // (SQLResult.toSQLString left the wall 2026-09-11, batch 5 leg 5c: it is the
         // qualified property the toSQLString ROUTINE implements — NativeFn.JavaRoutine

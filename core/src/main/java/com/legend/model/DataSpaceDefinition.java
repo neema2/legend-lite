@@ -44,16 +44,17 @@ public record DataSpaceDefinition(
 
     /** One {@code executionContexts:} entry; {@code testDataSource} carries
      *  the raw {@code testData:} payload (kind + island), if any. */
+    /** Since 4.145.0 a context names EITHER a mapping OR a mapping provider
+     *  (the provider rides the protocol record only; here {@code mapping}
+     *  is null for it), and the default runtime is optional. */
     public record ExecutionContext(String name,
             @com.legend.Nullable String title,
             @com.legend.Nullable String description,
-            String mapping, String defaultRuntime,
+            @com.legend.Nullable String mapping,
+            @com.legend.Nullable String defaultRuntime,
             @com.legend.Nullable String testDataSource) {
         public ExecutionContext {
             Objects.requireNonNull(name, "Context name cannot be null");
-            Objects.requireNonNull(mapping, "Context mapping cannot be null");
-            Objects.requireNonNull(defaultRuntime,
-                    "Context defaultRuntime cannot be null");
         }
     }
 

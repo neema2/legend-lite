@@ -29,11 +29,23 @@ public final class H2Settings {
     private H2Settings() {
     }
 
-    /** JDBC-URL suffix, {@code ;KEY=VALUE} form. */
-    public static final String SETTINGS =
-            ";NON_KEYWORDS=ANY,ASYMMETRIC,AUTHORIZATION,CAST,"
-            + "CURRENT_PATH,CURRENT_ROLE,DAY,DEFAULT,ELSE,END,HOUR,KEY,"
-            + "MINUTE,MONTH,SECOND,SESSION_USER,SET,SOME,SYMMETRIC,"
-            + "SYSTEM_USER,TO,UESCAPE,USER,VALUE,WHEN,YEAR,OVER"
-            + ";MODE=LEGACY";
+    /** JDBC-URL suffix, {@code ;KEY=VALUE} form — the engine's own H2
+     *  connection settings (H2Manager / H2Defaults, 4.145.0), so a golden
+     *  replayed here orders as it did in the engine's run:
+     *  {@code DEFAULT_NULL_ORDERING=HIGH} is the engine's canonical null
+     *  placement (null is largest — ASC nulls last, DESC nulls first; batch
+     *  8, the eleven testGroupBy.pure desc sorts) which its printer leaves
+     *  BARE on H2 2.x because the session already orders that way. */
+    // NOT a compile-time constant (String.join, not a literal): a literal
+    // would be INLINED into every class that reads it — the spec module's
+    // test classes kept the pre-4.145.0 value across a core install until
+    // a clean (batch 8: two chains chased a null-ordering divergence that
+    // was a stale inlined string)
+    public static final String SETTINGS = String.join("",
+            ";NON_KEYWORDS=ANY,ASYMMETRIC,AUTHORIZATION,CAST,",
+            "CURRENT_PATH,CURRENT_ROLE,DAY,DEFAULT,ELSE,END,HOUR,KEY,",
+            "MINUTE,MONTH,SECOND,SESSION_USER,SET,SOME,SYMMETRIC,",
+            "SYSTEM_USER,TO,UESCAPE,USER,VALUE,WHEN,YEAR,OVER",
+            ";MODE=LEGACY",
+            ";DEFAULT_NULL_ORDERING=HIGH");
 }

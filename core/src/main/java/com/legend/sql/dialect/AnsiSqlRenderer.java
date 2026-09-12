@@ -230,21 +230,23 @@ public class AnsiSqlRenderer implements SqlDialect {
             s += k.nullOrder() == SqlSelect.SortKey.NullOrder.NULLS_FIRST
                     ? " NULLS FIRST" : " NULLS LAST";
         } else {
-            // BARE key = engine relational sort semantics (§7 slice-2
-            // burn, 2026-09-01): the engine spells no NULLS clause and
-            // rides its H2 backend's NULLS-LOW default — ASC nulls
-            // first, DESC nulls last (receipts: testPropertyProjection-
-            // QueryWithInnerJoinEmbeddedMappingTable's own assert pins
-            // ['null','1 the street','5 Park Ave'] ascending; the
-            // LL_ORD_COUNT blast radius found exactly 2 ordered-query
-            // leniency passes, both ASC-null placement). Execution
-            // dialects pin it EXPLICITLY (DuckDB's default is the
-            // opposite on ASC); the engine-TEXT channel suppresses all
-            // NULLS spelling (EngineStyleH2.sortKey — goldens never
-            // spell one). Pure-semantics sorts (null-is-largest, PCT
-            // testRange witnesses) arrive STAMPED and take the branch
-            // above.
-            s += k.ascending() ? " NULLS FIRST" : " NULLS LAST";
+            // BARE key = engine relational sort semantics. Since 4.145.0
+            // (batch 8) the engine's printer has ONE canonical null
+            // placement for a sort without an explicit NullOrder —
+            // dbExtension.pure NullOrderingSupport.processSortItem:
+            // DESC -> NULLS FIRST, ASC -> NULLS LAST, i.e. NULL IS LARGEST
+            // — spelled as a clause wherever the dialect's native order
+            // differs, and left bare where it matches (H2 2.x is
+            // nullsHighWithClauseSupport, so the corpus goldens still spell
+            // none while their row asserts moved: testGroupBy.pure's eleven
+            // desc sorts now put the null group FIRST). That is the same
+            // placement the Pure-language sorts stamp (Fold.sortNulls): the
+            // two-spec split of §7 slice-2 (2026-09-01) closed UPSTREAM.
+            // Until 4.138.2 the bare key rode H2 1.4's nulls-low default
+            // (ASC nulls first, DESC nulls last) and the execution dialects
+            // pinned that explicitly; the engine-TEXT channel still spells
+            // no clause (EngineStyleH2.sortKey — goldens never do).
+            s += k.ascending() ? " NULLS LAST" : " NULLS FIRST";
         }
         return s;
     }

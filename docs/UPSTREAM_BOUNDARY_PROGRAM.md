@@ -337,13 +337,25 @@ membership-list format are decisions with a long tail; decide them once, in writ
 
 ## 5. Steady state
 
-**A bump is one line.** Change `LEGEND_ENGINE_RELEASE` in `tools/oracle-pins.env`.
-`tools/bump.sh` (**to build — the batch 8 deliverable; today the steps are §5 of the
-homework, run by hand**) moves the checkouts, regenerates every resource, runs `--check`
-and the gates. A human reviews **three things**: the generated-resource diffs (that *is* the
-upstream change, made legible), the ratchet moves (each with a reason), the ledger
-adjudications. CI runs it on three platforms. Upstream ships roughly weekly; monthly or
-per-minor is the cadence, and a scheduled job opening the PR is the natural endpoint.
+**A bump is one command.** `tools/bump.sh <engine release>` (batch 8's deliverable,
+2026-09-11): the release must be *published* on Central; the pure version is derived from
+that release's own pom (INV-1); the two tag commits come from `git ls-remote` (annotated or
+lightweight — upstream's tags are lightweight since 4.14x); both checkouts move; the pin, the
+root pom's two versions and four INV-6 managed versions, and the runner pom are rewritten;
+core is installed at the OLD facts, every generator that writes into core runs (natives,
+prelude, dynafn registry, core imports), core is re-installed, the claims ledger regenerates;
+the grammar fixture is re-harvested in two tiers (the published grammar/compiler tests-jars,
+then the checkout's extension test SOURCES compiled against the harvest classpath — upstream
+publishes no tests-jars for relationalStore/service/persistence), deduped, renamed to the
+release and censused by origin class against the committed file; the corpus manifest and
+protocol roster regenerate; `version-report.sh --check` must exit 0. It stops loudly at the
+first generator that refuses (a changed signature, a construct the parser does not know) —
+the "fix the platform first, then re-run" case; it is idempotent. What it does NOT do is the
+judgement: a human reviews **three things** — the generated-resource diffs (that *is* the
+upstream change, made legible), the ratchet moves the ONE chain reports (each with a reason),
+the ledger adjudications — then commits and pushes; CI runs the same gates on three platforms.
+Upstream ships roughly weekly; monthly or per-minor is the cadence, and a scheduled job
+opening the PR is the natural endpoint.
 
 **Six green checks define "sane":**
 
@@ -612,6 +624,19 @@ inference:** that the live protocol differential goes red on landing.
    (spec parity) runs the generated-fact checks alone, gates 4/5 the corpus alone;
    convergence runs in gate 2 after the install (the batch-7 push was red in CI at the
    pre-build step). The pipeline, step by step, is in the 7d record. NEXT: batch 8.
+28. **Batch 8 LANDED** (2026-09-12): the bump to 4.145.0 / 5.99.0 through
+   `tools/bump.sh` (§5 "a bump is one command"). The drift the tool read (files) was
+   a fraction of the drift the generators and gates found (grammar): documentation
+   blocks, DataSpace's new blocks, relational lambdas, DataQuality test suites,
+   unquoted time zones, `between` folded, three `elementToPath` overloads, five new
+   dynafunctions, ~120 new relation PCT functions, and the engine's ONE canonical
+   null placement (which closed §7 slice-2's two-spec split). Every move is in the
+   GATES.md batch-8 record with its reason; A–F held: no upstream fact was copied by
+   hand, every pin moved with a written reason, gate 8 is byte-exact on all 6,745
+   accepted documents. Lesson for §5: the drift tool must read GRAMMAR drift too
+   (the .g4 diff between tags), not only file sets. The program's eight batches are
+   complete; what remains are the legs the bump opened (the record's last paragraph)
+   and the cadence decision (§6 item 5).
 4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
    membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
    without one.

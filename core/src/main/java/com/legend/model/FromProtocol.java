@@ -663,9 +663,11 @@ public final class FromProtocol {
     /** A {@code ###DataSpace} element to its model form. Decorations ride
      *  the protocol record only. */
     public static DataSpaceDefinition toDataSpaceDefinition(Protocol.PDataSpace d) {
+        java.util.List<Protocol.PDataSpaceContext> pcs = d.executionContexts() == null
+                ? java.util.List.of() : d.executionContexts();   // optional since 4.145.0
         java.util.List<DataSpaceDefinition.ExecutionContext> contexts =
-                new ArrayList<>(d.executionContexts().size());
-        for (Protocol.PDataSpaceContext ctx : d.executionContexts()) {
+                new ArrayList<>(pcs.size());
+        for (Protocol.PDataSpaceContext ctx : pcs) {
             contexts.add(new DataSpaceDefinition.ExecutionContext(ctx.name(),
                     ctx.title(), ctx.description(), ctx.mapping(),
                     ctx.defaultRuntime(),
@@ -703,6 +705,7 @@ public final class FromProtocol {
             case Protocol.PDataSpaceSupport.PSupportEmail e ->
                     "Email " + e.address();
             case Protocol.PDataSpaceSupport.PSupportCombined cb -> "Combined";
+            case Protocol.PDataSpaceSupport.PSupportFull f -> "Full";
         };
         return new DataSpaceDefinition(d.qualifiedName(), contexts,
                 d.defaultExecutionContext(), d.title(), d.description(),

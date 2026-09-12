@@ -55,8 +55,11 @@ class ChannelBEssentialTest {
         }
         System.out.println("[chB] census=" + census + " total=" + out.size());
         // measured 2026-08-19 at the channel-B landing
-        assertTrue(out.size() == 327,
-                "essential discovery moved: " + out.size() + " != 327");
+        // 327 -> 345 at the 4.145.0 bump (batch 8): the drift read's 18 new
+        // PCT.test functions in the 6 new platform files (binFloor, left,
+        // right, substr, elementPath, lenientPathToElement)
+        assertTrue(out.size() == 345,
+                "essential discovery moved: " + out.size() + " != 345");
         int pass = census.getOrDefault(ChannelB.Status.PASS, 0);
         // 293 (slice 11): exists ×2 (adapter shadow-stop), concatenate
         // (type() sig [1]→[*] per real type.pure:18), + the is/assertIs

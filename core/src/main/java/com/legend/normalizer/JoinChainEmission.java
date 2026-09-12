@@ -869,6 +869,8 @@ final class JoinChainEmission {
             case RelationalOperation.Group g    -> collectJoinNavigations(g.inner(), out);
             case RelationalOperation.ArrayLiteral a ->
                     a.elements().forEach(e -> collectJoinNavigations(e, out));
+            case RelationalOperation.Lambda lam -> collectJoinNavigations(lam.body(), out);
+            case RelationalOperation.LambdaParam ignored -> { }
             case RelationalOperation.ColumnRef ignored -> { }
             case RelationalOperation.TargetColumnRef ignored -> { }
             case RelationalOperation.Literal ignored -> { }

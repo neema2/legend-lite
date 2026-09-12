@@ -50,8 +50,8 @@
              (tools/classpath-convergence.sh asserts both). The pure version is
              DERIVED: it is the <legend.pure.version> the engine release's own
              pom declares — never chosen independently. -->
-        <legend.engine.version>4.138.2</legend.engine.version>
-        <legend.pure.version>5.92.0</legend.pure.version>
+        <legend.engine.version>4.145.0</legend.engine.version>
+        <legend.pure.version>5.99.0</legend.pure.version>
 
         <!-- THE ORACLE ROOTS: the legend-engine / legend-pure source
              checkouts the tests read as the spec (corpus, PCT channel B,

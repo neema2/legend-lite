@@ -451,8 +451,22 @@ class FixtureAdjudicationTest {
         Map<Integer, String> starts = new LinkedHashMap<>();
         int depth = 0;
         boolean atElementStart = true;
+        int docStart = -1;      // a '''...''' block at element position belongs to the NEXT element
         for (int i = 0; i < t.length(); i++) {
             char c = t.charAt(i);
+            if (depth == 0 && atElementStart && t.startsWith("'''", i)) {
+                // documentation (4.145.0): skip the literal whole; the section
+                // header goes BEFORE it, never between it and its declaration
+                int close = t.indexOf("'''", i + 3);
+                if (close < 0) {
+                    return null;
+                }
+                if (docStart < 0) {
+                    docStart = i;
+                }
+                i = close + 2;
+                continue;
+            }
             if (c == '{' || c == '(' || c == '[') {
                 depth++;
             } else if (c == '}' || c == ')' || c == ']') {
@@ -477,7 +491,8 @@ class FixtureAdjudicationTest {
                 if (section == null) {
                     return null;        // an unknown head — do not guess
                 }
-                starts.put(i, section);
+                starts.put(docStart >= 0 ? docStart : i, section);
+                docStart = -1;
                 atElementStart = false;
                 i = j - 1;
             }
