@@ -82,8 +82,6 @@ meta::relational::tests::functions::sqlstring::testEqualityInFilterOnOptionalPro
 meta::relational::tests::functions::sqlstring::testIsDistinctSQLGeneration
 meta::relational::tests::functions::sqlstring::testNotEqualityInFilterOnOptionalPropertiesLegacy
 meta::relational::tests::functions::sqlstring::testSqlGenerationDivide_AllDBs
-meta::relational::tests::functions::sqlstring::testToSQLStringSubstrFoldsLiteralIndexes
-meta::relational::tests::functions::sqlstring::testToSQLStringSubstrWithComputedIndex
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAbs
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAggregation
 meta::relational::tests::groupBy::testGroupByWithJoinDB2

@@ -668,6 +668,12 @@ inference:** that the live protocol differential goes red on landing.
    IS AT ITS FLOOR: 469 functions, 1 expected-failure row (the reference adapters' own
    verdict); channel B Relation 469/469. USER: "Let's burn them all down". Records in
    GATES.md ("SORT NULL FORMS", "GROUP-LAMBDA AGGREGATES + VARIANT EMPTINESS").
+32. **substr is always corrected** (2026-09-12, USER relaying the engine devs): in the
+   engine's relational lowering `substr` is its own registration, always index-corrected;
+   `substring` is corrected only under the flag (backwards compatibility). The platform
+   inlined substr's Pure body into substring and got substr WRONG with the flag off —
+   now a native with the corrected rule, its body out of the prelude, proved end to end
+   by `SubstrIndexingTest`. Lesson: read the lowering registration, not only the body.
 
 ## 9. Where this program overrides the homework
 

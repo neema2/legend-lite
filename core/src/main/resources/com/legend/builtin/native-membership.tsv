@@ -684,6 +684,8 @@ SPLIT__STRING_1__STRING_1	meta::pure::functions::string::split	meta::pure::funct
 SPLIT_PART__STRING_0_1__STRING_1__INTEGER_1	meta::pure::functions::string::splitPart	meta::pure::functions::string::splitPart(meta::pure::metamodel::type::String[0..1],meta::pure::metamodel::type::String[1],meta::pure::metamodel::type::Integer[1])
 STARTS_WITH__STRING_0_1__STRING_1	meta::pure::functions::string::startsWith	meta::pure::functions::string::startsWith(meta::pure::metamodel::type::String[0..1],meta::pure::metamodel::type::String[1])
 STARTS_WITH__STRING_1__STRING_1	meta::pure::functions::string::startsWith	meta::pure::functions::string::startsWith(meta::pure::metamodel::type::String[1],meta::pure::metamodel::type::String[1])
+SUBSTR__STRING_1__INTEGER_1	meta::pure::functions::string::substr	meta::pure::functions::string::substr(meta::pure::metamodel::type::String[1],meta::pure::metamodel::type::Integer[1])
+SUBSTR__STRING_1__INTEGER_1__INTEGER_1	meta::pure::functions::string::substr	meta::pure::functions::string::substr(meta::pure::metamodel::type::String[1],meta::pure::metamodel::type::Integer[1],meta::pure::metamodel::type::Integer[1])
 SUBSTRING__STRING_1__INTEGER_1	meta::pure::functions::string::substring	meta::pure::functions::string::substring(meta::pure::metamodel::type::String[1],meta::pure::metamodel::type::Integer[1])
 SUBSTRING__STRING_1__INTEGER_1__INTEGER_1	meta::pure::functions::string::substring	meta::pure::functions::string::substring(meta::pure::metamodel::type::String[1],meta::pure::metamodel::type::Integer[1],meta::pure::metamodel::type::Integer[1])
 TO_LOWER__STRING_1	meta::pure::functions::string::toLower	meta::pure::functions::string::toLower(meta::pure::metamodel::type::String[1])

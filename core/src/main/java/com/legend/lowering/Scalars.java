@@ -1409,11 +1409,19 @@ final class Scalars {
         // platform pure's 0-based). ONE verbatim emission (Phase 1
         // audit): the DuckDB start-clamp is SubstringClamp, that
         // dialect's own rewrite pass.
-        for (String f : Pure.nativeKeysAt("substring")) {
+        for (String f : Pure.nativeKeysAt("meta::pure::functions::string::substring")) {
             RULES.put(f, (n, args) ->
                     new SqlExpr.Call(SqlFn.SUBSTRING, args));
         }
         // (the same call under CORRECT_SQL_SUBSTRING_INDEXING: FeatureRules)
+        // substr (legend-pure 5.94.0+): in Pure a synonym of substring — the
+        // engine's RELATIONAL lowering registers it separately and ALWAYS
+        // corrects it (processSubstr, "needs no flag"); so does the platform:
+        // a native with the corrected rule, never the prelude's body (which
+        // would inline to substring and lose the name before lowering).
+        for (String f : Pure.nativeKeysAt("meta::pure::functions::string::substr")) {
+            RULES.put(f, FeatureRules.CORRECTED_SUBSTRING);
+        }
         for (String f : Pure.nativeKeysAt("indexOf")) {
             RULES.put(f, (n, args) -> {
                 // Dispatch on the RESOLVED CALLEE's declared param: a [*]

@@ -77,11 +77,14 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // and excludes testFromIndex outright (no translation — ours
             // runs 1-based). One pipeline cannot be both bases; corpus
             // (engine-relational parity) is the acceptance surface.
-            // (substring / substr, sort-by-key: NOT here since the feature-flag
-            // leg, 2026-09-12 — the engine's CORRECT_SQL_SUBSTRING_INDEXING flag
-            // is a real knob, the adapter sets it as the engine's testable
-            // runner does, and the corrected lowering is selected by flag.
-            // indexOf has no such flag upstream: still the 1-based emission.)
+            // (substring + sort-by-key: NOT here since the feature-flag leg,
+            // 2026-09-12 — the adapter sets CORRECT_SQL_SUBSTRING_INDEXING, a
+            // written deviation from the reference adapters, and substring's
+            // corrected lowering is selected by that flag. substr: NOT here on
+            // its own merits — the engine's relational lowering ALWAYS corrects
+            // substr, "needs no flag" (PR #5045), and so does the platform
+            // (SubstrIndexingTest). indexOf has no such flag upstream: still the
+            // 1-based emission.)
             one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "\"\nexpected: 4\nactual:   5\""),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),
             one("meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_", "\"\nexpected: 0\nactual:   1\""),

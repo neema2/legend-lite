@@ -47,23 +47,33 @@ final class FeatureRules {
     private FeatureRules() {
     }
 
+    /** Pure's 0-based, end-exclusive indexes → SQL's 1-based start and length
+     *  (the engine's correctSubstrIndices: a literal index folds — substr(s, 4, 9)
+     *  → substring(s, 5, 5) — a computed one becomes plus / minus on the tree).
+     *  ALWAYS the rule for {@code substr} (Scalars; the engine's processSubstr
+     *  "is always corrected and needs no flag" — PR #5045) and, under
+     *  CORRECT_SQL_SUBSTRING_INDEXING, for {@code substring} (processSubstring:
+     *  "correcting substring unconditionally would change the results of
+     *  existing queries, hence the flag"). */
+    static final Scalars.Rule CORRECTED_SUBSTRING = (n, args) -> {
+        SqlExpr str = args.get(0);
+        SqlExpr start = args.get(1);
+        SqlExpr start1 = start instanceof SqlExpr.IntLit s
+                ? new SqlExpr.IntLit(s.value() + 1)
+                : SqlExpr.Call.of(SqlFn.PLUS, start, new SqlExpr.IntLit(1));
+        if (args.size() == 2) {
+            return new SqlExpr.Call(SqlFn.SUBSTRING, List.of(str, start1));
+        }
+        SqlExpr end = args.get(2);
+        SqlExpr length = start instanceof SqlExpr.IntLit s && end instanceof SqlExpr.IntLit e
+                ? new SqlExpr.IntLit(e.value() - s.value())
+                : SqlExpr.Call.of(SqlFn.MINUS, end, start);
+        return new SqlExpr.Call(SqlFn.SUBSTRING, List.of(str, start1, length));
+    };
+
     static {
-        for (String f : Pure.nativeKeysAt("substring")) {
-            under(Feature.CORRECT_SQL_SUBSTRING_INDEXING, f, (n, args) -> {
-                SqlExpr str = args.get(0);
-                SqlExpr start = args.get(1);
-                SqlExpr start1 = start instanceof SqlExpr.IntLit s
-                        ? new SqlExpr.IntLit(s.value() + 1)
-                        : SqlExpr.Call.of(SqlFn.PLUS, start, new SqlExpr.IntLit(1));
-                if (args.size() == 2) {
-                    return new SqlExpr.Call(SqlFn.SUBSTRING, List.of(str, start1));
-                }
-                SqlExpr end = args.get(2);
-                SqlExpr length = start instanceof SqlExpr.IntLit s && end instanceof SqlExpr.IntLit e
-                        ? new SqlExpr.IntLit(e.value() - s.value())
-                        : SqlExpr.Call.of(SqlFn.MINUS, end, start);
-                return new SqlExpr.Call(SqlFn.SUBSTRING, List.of(str, start1, length));
-            });
+        for (String f : Pure.nativeKeysAt("meta::pure::functions::string::substring")) {
+            under(Feature.CORRECT_SQL_SUBSTRING_INDEXING, f, CORRECTED_SUBSTRING);
         }
     }
 

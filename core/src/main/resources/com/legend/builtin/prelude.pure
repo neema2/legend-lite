@@ -1303,60 +1303,6 @@ native function meta::pure::functions::string::lastIndexOf(str:String[1], toFind
 
 
 ###Pure
-// legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/string/slice/substr.pure
-import meta::pure::test::pct::*;
-'''
-The portion of a string from `start` to its end.
-
-A synonym for `substring(String[1], Integer[1]):String[1]`, behaving identically to it.
-`left(String[1], Integer[1]):String[1]` and `right(String[1], Integer[1]):String[1]` are both
-defined in terms of `substr`, making it the single point at which the string-slicing family
-reaches the underlying platform primitive.
-
-Positions are zero-based, so `start` is the number of characters to drop from the front. A `start`
-of `0` returns the whole string. Note that `start` is a position, not a length — to keep a given
-number of leading characters, use `left(String[1], Integer[1]):String[1]`.
-
-**Parameters**
-- `str` — the string to take from.
-- `start` — zero-based index of the first character to keep.
-
-**Returns** the remainder of the string from `start` onwards.
-
-**Examples**
-```pure
-'the quick brown'->substr(0)   // 'the quick brown'
-'the quick brown'->substr(4)   // 'quick brown'
-```
-
-**See also** `substr(String[1], Integer[1], Integer[1]):String[1]`,
-`substring(String[1], Integer[1]):String[1]`, `left(String[1], Integer[1]):String[1]`
-'''
-function <<PCT.function>> meta::pure::functions::string::substr(str:String[1], start:Integer[1]):String[1]
-{
-    $str->substring($start)
-}
-
-'''
-The portion of a string between two positions: from `start` inclusive to `end` exclusive.
-
-As `substr(String[1], Integer[1]):String[1]`, but stopping at `end` rather than running to the
-end of the string. Both indexes are zero-based, so the result has `end - start` characters. A
-synonym for `substring(String[1], Integer[1], Integer[1]):String[1]`.
-
-**Examples**
-```pure
-'the quick brown fox'->substr(4, 9)   // 'quick'
-'the quick brown fox'->substr(0, 3)   // 'the'
-```
-'''
-function <<PCT.function>> meta::pure::functions::string::substr(str:String[1], start:Integer[1], end:Integer[1]):String[1]
-{
-    $str->substring($start, $end)
-}
-
-
-###Pure
 // legend-pure/legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/essential/tests/assertIsNot.pure
 import meta::pure::functions::asserts::*;
 function meta::pure::functions::asserts::assertIsNot(notExpected:Any[1], actual:Any[1]):Boolean[1]
@@ -6637,7 +6583,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 485 classes, 23 enums, 157 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+// 485 classes, 23 enums, 155 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
 // RESPELLED NATIVES — 68 upstream `native function` declarations the platform does not implement (carried so they
 // resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').
 // ENGINE NATIVES NOT CARRIED — the signature names a type the platform does not carry
@@ -6875,6 +6821,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::functions::string::rtrim
 //   meta::pure::functions::string::split
 //   meta::pure::functions::string::startsWith
+//   meta::pure::functions::string::substr
 //   meta::pure::functions::string::substring
 //   meta::pure::functions::string::toLower
 //   meta::pure::functions::string::toRepresentation

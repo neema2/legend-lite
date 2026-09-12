@@ -248,6 +248,10 @@ class JdbcSurfaceCensusTest {
             "core/src/test/java/com/legend/compiler/spec/MultiplicityStrictnessTest.java",
             "core/src/test/java/com/legend/AuditRound5Test.java",
             "core/src/test/java/com/legend/ConstantPlanParityTest.java",
+            // substr vs substring indexing (2026-09-12): each expression runs
+            // through QueryService end to end and the DATABASE computes the
+            // substring — the test only reads the scalar back (tenet #1)
+            "core/src/test/java/com/legend/SubstrIndexingTest.java",
             "core/src/test/java/com/legend/TenetRatchetTest.java",
             "core/src/test/java/com/legend/compiler/spec/UserCallInlinerTest.java",
             // Tier-1 audit regression pins (2026-08-18): drive the fixed
