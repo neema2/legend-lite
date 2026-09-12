@@ -20,7 +20,6 @@ meta::pure::executionPlan::tests::testPreprocessFunctionOnRuntime
 meta::pure::executionPlan::tests::testQuoteIdentifiersFlagWithGraphFetch
 meta::pure::executionPlan::tests::testRelationalProjectionWithExternalFormat
 meta::pure::executionPlan::tests::testRoutingContextBuilderFunctions
-meta::pure::executionPlan::tests::testSubstringIndexingCorrectedByFeatureFlag
 meta::pure::executionPlan::tests::testSupportStreamFlagWithGraphFetchAndFrom
 meta::pure::executionPlan::tests::testTemporalDateVariableInFunctionExpressionWithPropagation
 meta::pure::executionPlan::tests::testTwoMappingsOneRuntime
@@ -110,7 +109,6 @@ meta::relational::tests::postProcessor::testPostProcessTransformJoinOp
 meta::relational::tests::projection::filter::testFilterAfterJoinInRelationWithExtendedPrimitives
 meta::relational::tests::projection::view::testUnionOnViewsMapping
 meta::relational::tests::query::filter::isempty::testIsEmptyOnCollection
-meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagProjectionEmitsPlainEquals
 meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagRestoresOptionalParamFreeMarkerSelector
 meta::relational::tests::query::routing::multipleexpressions::testPlatformExpressionDependencyOnAFromExpression
 meta::relational::tests::query::routing::multipleexpressions::testPlatformExpressionDependencyOnAFromExpression2

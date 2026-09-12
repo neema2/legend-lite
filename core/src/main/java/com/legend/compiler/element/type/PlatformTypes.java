@@ -511,6 +511,14 @@ public final class PlatformTypes {
      *  context reader spells its fields. */
     public static final String RELATIONAL_EXECUTION_CONTEXT =
             "meta::relational::runtime::RelationalExecutionContext";
+    /** The engine's execution-OPTION context and its feature-flag option
+     *  (executionPlan_generation.pure / executionPlanFeature.pure) — the
+     *  context reader folds the flags into {@code ExecutionContext.features}. */
+    public static final String EXECUTION_OPTION_CONTEXT =
+            "meta::pure::executionPlan::ExecutionOptionContext";
+    public static final String FEATURE_FLAG_OPTION =
+            "meta::pure::executionPlan::featureFlag::FeatureFlagOption";
+    public static final String FEATURE = com.legend.compiler.spec.typed.Feature.FQN;
     public static final String DURATION = "meta::pure::functions::date::Duration";
     public static final String MAP = "meta::pure::functions::collection::map";
     public static final String PLUS = "meta::pure::functions::math::plus";

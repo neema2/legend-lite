@@ -261,7 +261,13 @@ public final class ChannelB {
                     ? NameResolver.resolveQuery(lambda)
                     : NameResolver.resolveQuery(lambda, imports,
                             ctx.elementFqns());
-            Compiler.executeResolved(resolved, ctx, null, conn);
+            // ONE universe with channel A (PctExecuteNative): the PCT runs
+            // with CORRECT_SQL_SUBSTRING_INDEXING on, as the engine's own
+            // testable runner does — the flag is the lowering's, so channel
+            // B's identity adapter carries it the same way
+            Compiler.executeResolved(resolved, ctx, null, conn, null, null,
+                    com.legend.ExecuteOptions.NONE.withFeatures(java.util.Set.of(
+                            com.legend.compiler.spec.typed.Feature.CORRECT_SQL_SUBSTRING_INDEXING)));
             return new Outcome(fqn, Status.PASS, "");
         } catch (java.sql.SQLException e) {
             // an assert failure arrives as the database's error() — a

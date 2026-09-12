@@ -195,6 +195,19 @@ public final class Lowerer {
      * own definition (NullSemantics.verbatim); ENGINE-TEXT (CastPolicy). */
     private boolean verbatimEquality;
     private boolean engineText;
+    /** The query's execution feature flags (FeatureRules): builder-style like
+     *  engineText; LEGACY_SQL_NULL_UNSAFE_EQUALS selects the verbatim equality
+     *  form (plain {@code =}) at the four scalar sites. */
+    private java.util.Set<com.legend.compiler.spec.typed.Feature> features = java.util.Set.of();
+    private boolean legacyNullUnsafeEquals;
+
+    public Lowerer withFeatures(java.util.Set<com.legend.compiler.spec.typed.Feature> features) {
+        FeatureRules.requireConsumed(features);
+        this.features = features.isEmpty() ? java.util.Set.of() : java.util.EnumSet.copyOf(features);
+        this.legacyNullUnsafeEquals = features.contains(
+                com.legend.compiler.spec.typed.Feature.LEGACY_SQL_NULL_UNSAFE_EQUALS);
+        return this;
+    }
 
     public Lowerer withEngineText() {
         this.engineText = true;
@@ -1532,7 +1545,7 @@ public final class Lowerer {
         for (TypedSpec arg : call.args()) {
             wrapped.add(arg instanceof TypedCollection run ? listLiteral(run, operand) : operand.apply(arg));
         }
-        return NullSemantics.verbatim(verbatimEquality, Scalars.lower(call, wrapped));
+        return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, wrapped, features));
     }
 
     /** The list literal a collection lowers to — ONE construction site;
@@ -1924,7 +1937,7 @@ public final class Lowerer {
         // chains stay one flat SELECT — the real engine's shape).
         List<SqlSelect.Projection> leftCarry = null;
         SqlSource left;
-        if (j.prefix().isPresent() && isRenameOnlySelect(leftSel)) {
+        if (j.prefix().isPresent() && SqlProbes.isRenameOnlySelect(leftSel)) {
             // Hosting is only sound when the new join is PREFIXED — the
             // prefixed joined() branch re-emits the carry; the unprefixed
             // branch is SELECT * and would DROP the renames/narrowing
@@ -2068,29 +2081,6 @@ public final class Lowerer {
                     renamed ? outName : null, Fold.named(contract, outName)));
         }
         return out.withProjections(ps);
-    }
-
-    /**
-     * Star + plain-column renames, nothing else — the shape a prefixed join
-     * produces. Such a select adds no row semantics; it can host further
-     * joins with its renames carried forward.
-     */
-    private static boolean isRenameOnlySelect(SqlSelect s) {
-        if (s.projections().isEmpty() || s.distinct()
-                || s.where() != null || !s.groupBy().isEmpty() || s.having() != null
-                || s.qualify() != null || !s.orderBy().isEmpty()
-                || s.limit() != null || s.offset() != null) {
-            return false;
-        }
-        if (!(s.from() instanceof SqlSource.Join || s.from() instanceof SqlSource.Table)) {
-            return false;
-        }
-        for (SqlSelect.Projection p : s.projections()) {
-            if (!(p.expr() instanceof SqlExpr.Star || p.expr() instanceof SqlExpr.Column)) {
-                return false;
-            }
-        }
-        return true;
     }
 
     /** A join side must be FROM-addressable: bare scans join directly,
@@ -2354,7 +2344,7 @@ public final class Lowerer {
             case TypedNativeCall call -> {
                 List<SqlExpr> args = call.args().stream()
                         .map(a -> windowScalar(a, base, over)).toList();
-                return NullSemantics.verbatim(verbatimEquality, Scalars.lower(call, args));
+                return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, args, features));
             }
             // The n-ary arithmetic carrier ($r.AGE - $p->lag($r).AGE spells
             // minus([a, b]) — upstream's variadic natives, batch 5 leg 5):
@@ -3027,16 +3017,16 @@ public final class Lowerer {
                 SqlExpr ie = InstanceEquality.lower(n, instanceKeysOf,
                         this::sqlTypeOf, s -> scalar(s, columns),
                         () -> "_iq" + aliasCounter++);
-                yield ie != null ? ie : NullSemantics.verbatim(verbatimEquality, Scalars.lower(n,
-                        n.args().stream().map(a -> scalar(a, columns)).toList()));
+                yield ie != null ? ie : NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n,
+                        n.args().stream().map(a -> scalar(a, columns)).toList(), features));
             }
             // arg lowering rides the unary-lambda binding convention
             // (LambdaBinding — M4's replacement for the parked branch's
             // LambdaWire ThreadLocal): a unary lambda param carries the
             // preceding list's element wire, so dispatch inside bodies
             // sees the carrier at construction
-            case TypedNativeCall n -> NullSemantics.verbatim(verbatimEquality, Scalars.lower(n,
-                    LambdaBinding.lowerNativeArgs(n, columns, this::scalar)));
+            case TypedNativeCall n -> NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n,
+                    LambdaBinding.lowerNativeArgs(n, columns, this::scalar), features));
             // write(rel, accessor) returns the COUNT of rows written (the
             // PCT contract) — Render.writeCount; a REAL store destination
             // stays loud until the insert path exists.

@@ -257,7 +257,11 @@ public class SpecBodyCensusTest {
         // grew three properties (DbConfig.selectSQLQueryProcessor /
         // .withinGroupProcessor, NullOrderingSupport.processSortItem) —
         // the same PRINTER wall, three more rows, each with its reason
-        org.junit.jupiter.api.Assertions.assertTrue(walled.size() <= 25,
+        // 25 -> 26 (feature-flag leg, 2026-09-12): the prelude carries
+        // MultiExecutionContext (ExecutionOptionContext's superclass); its
+        // allContexts body is the engine's plan-time context flattening — walled
+        // with its reason (the platform reads the option context's flags directly)
+        org.junit.jupiter.api.Assertions.assertTrue(walled.size() <= 26,
                 () -> "spec body census WALLED rows GREW: " + walled.size()
                         + " > 23 (shrink-only; a new wall needs its reason in WalledBodies):\n  "
                         + String.join("\n  ", walled.keySet()));

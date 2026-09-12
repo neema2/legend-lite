@@ -77,20 +77,14 @@ public class Test_LegendLite_EssentialFunctions_PCT extends PCTReportConfigurati
             // and excludes testFromIndex outright (no translation — ours
             // runs 1-based). One pipeline cannot be both bases; corpus
             // (engine-relational parity) is the acceptance surface.
+            // (substring / substr, sort-by-key: NOT here since the feature-flag
+            // leg, 2026-09-12 — the engine's CORRECT_SQL_SUBSTRING_INDEXING flag
+            // is a real knob, the adapter sets it as the engine's testable
+            // runner does, and the corrected lowering is selected by flag.
+            // indexOf has no such flag upstream: still the 1-based emission.)
             one("meta::pure::functions::string::tests::indexOf::testSimple_Function_1__Boolean_1_", "\"\nexpected: 4\nactual:   5\""),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),
             one("meta::pure::functions::collection::tests::indexof::testIndexOfOneElement_Function_1__Boolean_1_", "\"\nexpected: 0\nactual:   1\""),
-            one("meta::pure::functions::string::tests::substring::testStart_Function_1__Boolean_1_", "expected: 'he quick brown fox jumps over the lazy dog'"),
-            one("meta::pure::functions::string::tests::substring::testStartEnd_Function_1__Boolean_1_", "expected: 'he quick brown fox jumps over the lazy do'"),
-            // 5.99.0 (batch 8): substr(str, start[, end]) is a bodied platform
-            // function over substring — the SAME 1-based divergence, three
-            // more witnesses (upstream now carries a feature flag for the
-            // relational fix: testSubstringIndexingCorrectedByFeatureFlag)
-            one("meta::pure::functions::string::tests::substr::testSubstrStart_Function_1__Boolean_1_", "expected: 'he quick brown fox jumps over the lazy dog'"),
-            one("meta::pure::functions::string::tests::substr::testSubstrStartEnd_Function_1__Boolean_1_", "expected: 'quick'"),
-            one("meta::pure::functions::string::tests::substr::testSubstrEmptyResult_Function_1__Boolean_1_", "expected: ''"),
-            one("meta::pure::functions::collection::tests::sort::testSimpleSortWithKey_Function_1__Boolean_1_", "actual:   ['Branche', 'Doe', 'Smith']"),
-            one("meta::pure::functions::collection::tests::sort::testSimpleSortWithFunctionVariables_Function_1__Boolean_1_", "actual:   ['Branche', 'Doe', 'Smith']"),
 
             // INSTANCE IDENTITY through the wire (assertIs against the original
             // instance — addresses are nondeterministic, so the STABLE fragment

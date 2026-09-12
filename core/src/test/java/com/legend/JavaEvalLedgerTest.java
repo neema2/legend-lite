@@ -80,7 +80,10 @@ class JavaEvalLedgerTest {
             // orchestration), packer (transport-contingent inbound),
             // bridge (the permanent bijection). Pins re-seeded at the
             // split's measured stripped counts; shrink-only from here.
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 107),
+            // 107 -> 109 (feature-flag leg, 2026-09-12): the adapter sets ONE
+            // execution option (CORRECT_SQL_SUBSTRING_INDEXING) on the call —
+            // a runner default, evaluated nowhere in Java
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 109),
             // 250 -> 259 (B4): the no-shadowing WALL — a fixture function
             // colliding with a lite-native name refuses injection loudly;
             // guard growth, anti-compensation
@@ -591,7 +594,12 @@ class JavaEvalLedgerTest {
             // +4 (2026-09-10, Subsumed registry): the effect-reachability scan must
             // not compile a SUBSUMED engine program's body (it cannot compile here —
             // that is why the program is subsumed); a guard, not evaluation
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 1999),
+            // 1999 -> 2026 (feature-flag leg, 2026-09-12): the executor READS the
+            // query's execution feature flags off its two engine carriers (the
+            // exeCtx overload's ExecutionOptionContext, withFeatureFlags calls in
+            // the body) into the frame's options and hands them to the Lowerer —
+            // orchestration of a compile-time fact, no value evaluated in Java
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2026),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

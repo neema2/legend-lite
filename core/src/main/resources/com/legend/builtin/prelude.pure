@@ -4245,6 +4245,27 @@ Class meta::pure::executionPlan::FunctionParameter
 
 
 ###Pure
+// legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/executionPlan/executionPlanFeature.pure
+import meta::pure::executionPlan::*;
+import meta::pure::router::routing::*;
+import meta::pure::extension::*;
+import meta::pure::executionPlan::featureFlag::*;
+Enum  meta::pure::executionPlan::features::Feature
+{
+    PUSH_DOWN_ENUM_TRANSFORM,
+    VARIANT_TYPE_AS_INPUT,
+    LEGACY_SQL_NULL_UNSAFE_EQUALS,
+    CORRECT_SQL_SUBSTRING_INDEXING,
+    USE_DB_NATIVE_IMPLICIT_NULL_ORDERING
+}
+
+Class meta::pure::executionPlan::featureFlag::FeatureFlagOption  extends meta::pure::executionPlan::ExecutionOption
+{
+  <<equality.Key>> flags:Enum[*];
+}
+
+
+###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/executionPlan/executionPlan_generation.pure
 import meta::pure::metamodel::relation::*;
 import meta::pure::extension::*;
@@ -4257,6 +4278,21 @@ import meta::pure::mapping::*;
 import meta::pure::executionPlan::*;
 Class meta::pure::executionPlan::ExecutionOption
 {
+}
+
+Class meta::pure::executionPlan::MultiExecutionContext extends meta::pure::runtime::ExecutionContext
+{
+    <<equality.Key>> childExecutionContext:meta::pure::runtime::ExecutionContext[*];
+    allContexts()  {$this.childExecutionContext->map(e |if($e->instanceOf(MultiExecutionContext),
+                                                              | $e->concatenate($e->cast(@MultiExecutionContext)->collectionMultiExecutionContexts([])),
+                                                              |$e)
+                                                        );  
+                       }:meta::pure::runtime::ExecutionContext[*];
+}
+
+Class meta::pure::executionPlan::ExecutionOptionContext extends MultiExecutionContext
+{
+   <<equality.Key>> executionOptions : ExecutionOption[*];
 }
 
 Class meta::pure::executionPlan::PlanVarPlaceHolder extends meta::pure::executionPlan::FunctionParameter
@@ -6601,7 +6637,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 482 classes, 22 enums, 157 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+// 485 classes, 23 enums, 157 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
 // RESPELLED NATIVES — 68 upstream `native function` declarations the platform does not implement (carried so they
 // resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').
 // ENGINE NATIVES NOT CARRIED — the signature names a type the platform does not carry
@@ -6923,9 +6959,11 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::dataQuality::RuleType
 //   meta::pure::executionPlan::ExecutionNode
 //   meta::pure::executionPlan::ExecutionOption
+//   meta::pure::executionPlan::ExecutionOptionContext
 //   meta::pure::executionPlan::ExecutionPlan
 //   meta::pure::executionPlan::FunctionParameter
 //   meta::pure::executionPlan::FunctionParametersValidationNode
+//   meta::pure::executionPlan::MultiExecutionContext
 //   meta::pure::executionPlan::ParameterValidationContext
 //   meta::pure::executionPlan::PlanVarPlaceHolder
 //   meta::pure::executionPlan::PlatformImplementation
@@ -6933,6 +6971,8 @@ Class meta::relational::functions::sqlstring::SQLResult
 //   meta::pure::executionPlan::SequenceExecutionNode
 //   meta::pure::executionPlan::VariableInput
 //   meta::pure::executionPlan::extension::ExecutionPlanExtension
+//   meta::pure::executionPlan::featureFlag::FeatureFlagOption
+//   meta::pure::executionPlan::features::Feature
 //   meta::pure::executionPlan::platformBinding::PlatformBinding
 //   meta::pure::executionPlan::platformBinding::PlatformBindingConfig
 //   meta::pure::executionPlan::platformBinding::PlatformBindingExtension

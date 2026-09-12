@@ -326,7 +326,12 @@ class MinimalCorpusTest {
     // measurement up), and the four modelJoins constant-join tests among them
     // are text-decided (rows-underivable), so spelling grows back 45 -> 49
     // and cardinality 20 -> 22 — exactly the shrink batch 1 recorded.
-    private static final int[] DUCKDB_STRENGTH = {1533, 49, 22};
+    // cardinality 22 -> 24 (feature-flag leg, 2026-09-12): the two returning
+    // flag tests (testSubstringIndexingCorrectedByFeatureFlag,
+    // testLegacyFlagProjectionEmitsPlainEquals) are the engine's own verdict
+    // shape for flags — assert(planText->contains(...)), a boolean assert —
+    // which this census counts as cardinality-only; measured, both lanes
+    private static final int[] DUCKDB_STRENGTH = {1533, 49, 24};
     // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
     // one of the gained passes carries only cardinality asserts (a new pass, not a
@@ -338,7 +343,7 @@ class MinimalCorpusTest {
     // the same denominator move as DUCKDB_STRENGTH above, measured on the H2 lane
     // {1264, 51, 20} -> {1378, 55, 22} on 2026-09-12 (batch 8): the same
     // return of the #4900 goldens on the H2 lane (see DUCKDB_STRENGTH)
-    private static final int[] H2_STRENGTH = {1378, 55, 22};
+    private static final int[] H2_STRENGTH = {1378, 55, 24};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per

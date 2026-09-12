@@ -39,6 +39,12 @@ public final class WalledBodies {
         REASONS.put("meta::relational::runtime::PostProcessor$prop$executionPostProcessorId", PRINTER);
         REASONS.put("meta::relational::runtime::PostProcessors$prop$_sqlQueryPostProcessorId", PRINTER);
         REASONS.put("meta::relational::runtime::PostProcessors$prop$sqlQueryPostProcessorId", PRINTER);
+        // the engine's plan-time context flattening (feature-flag leg, 2026-09-12): the
+        // prelude carries MultiExecutionContext as ExecutionOptionContext's superclass —
+        // the platform reads the option context's flags directly (ContextReading)
+        REASONS.put("meta::pure::executionPlan::MultiExecutionContext$prop$allContexts",
+                "the engine's plan-time context flattening — the platform reads"
+                + " ExecutionOptionContext's feature flags directly (ContextReading.contextFeatures)");
         // the printer's bodies on the prelude's vocabulary classes (the census's B3 rows)
         for (String p : new String[] {"dataTypeToSqlText", "dynaFuncDispatch", "joinProcessor",
                 "lateralJoinProcessor", "literalProcessor",

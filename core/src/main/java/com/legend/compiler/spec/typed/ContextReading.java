@@ -63,7 +63,8 @@ final class ContextReading {
                 connectionName(runtimeArg), quoteIdentifiers(runtimeArg),
                 timeZone(runtimeArg),
                 conn == null ? null : databaseType(conn), conn,
-                storeFqn(runtimeArg), false, List.of(), postProcessors(runtimeArg));
+                storeFqn(runtimeArg), false, List.of(), postProcessors(runtimeArg),
+                java.util.Set.of());
     }
 
     /** The connection's SQL post-processors (sqlQueryPostProcessors /
@@ -343,6 +344,83 @@ final class ContextReading {
      * {@code importDataFlow}) off an execute call's ExecutionContext
      * argument — a RelationalExecutionContext instance (let-bound or literal)
      * whose flag is a literal true; anything else is the default (false). */
+    /** The feature flags an execute call's context argument carries: an
+     *  {@code ExecutionOptionContext} (bound through the lets) whose
+     *  {@code executionOptions} hold {@code FeatureFlagOption}s — every
+     *  {@code flags} value is a literal member of the engine's Feature enum
+     *  (a computed value, or a name the platform's mirror lacks, is loud: a
+     *  flag is a compile-time fact, never guessed). Any other context kind
+     *  carries none. */
+    static java.util.Set<Feature> contextFeatures(@com.legend.Nullable TypedSpec contextArg,
+            UnaryOperator<TypedSpec> bind) {
+        if (contextArg == null) {
+            return java.util.Set.of();
+        }
+        TypedSpec v = bind.apply(contextArg);
+        if (!(v instanceof TypedNewInstance ni)
+                || !PlatformTypes.EXECUTION_OPTION_CONTEXT.equals(ni.classFqn())) {
+            return java.util.Set.of();
+        }
+        TypedSpec options = ni.properties().get("executionOptions");
+        if (options == null) {
+            return java.util.Set.of();
+        }
+        java.util.Set<Feature> out = java.util.EnumSet.noneOf(Feature.class);
+        for (TypedSpec o : options instanceof TypedCollection c ? c.elements() : List.of(options)) {
+            TypedSpec ob = bind.apply(o);
+            if (!(ob instanceof TypedNewInstance opt)
+                    || !PlatformTypes.FEATURE_FLAG_OPTION.equals(opt.classFqn())) {
+                continue;
+            }
+            TypedSpec flags = opt.properties().get("flags");
+            if (flags != null) {
+                literalFlags(flags, out);
+            }
+        }
+        return java.util.Set.copyOf(out);
+    }
+
+    /** The engine's SECOND flag carrier: {@code withFeatureFlags(query, flags)}
+     *  calls inside the query itself (plan generation finds them in the
+     *  function body — executionPlan_generation.pure — and adds their flags
+     *  to the context; the call is the identity for row semantics). */
+    static java.util.Set<Feature> treeFeatures(List<TypedSpec> body) {
+        java.util.Set<Feature> out = java.util.EnumSet.noneOf(Feature.class);
+        for (TypedSpec s : body) {
+            collectTreeFeatures(s, out);
+        }
+        return out.isEmpty() ? java.util.Set.of() : java.util.Set.copyOf(out);
+    }
+
+    private static void collectTreeFeatures(TypedSpec n, java.util.Set<Feature> out) {
+        if (n instanceof TypedNativeCall call && call.args().size() == 2
+                && com.legend.builtin.Pure.WITH_FEATURE_FLAGS__T_MANY__ENUM_MANY.signatureKey()
+                        .equals(call.callee().signatureKey())) {
+            literalFlags(call.args().get(1), out);
+        }
+        for (TypedSpec c : n.children()) {
+            collectTreeFeatures(c, out);
+        }
+    }
+
+    /** {@code flags} — one literal Feature value or a collection of them — into {@code out}. */
+    private static void literalFlags(TypedSpec flags, java.util.Set<Feature> out) {
+        for (TypedSpec f : flags instanceof TypedCollection fc ? fc.elements() : List.of(flags)) {
+            if (!(f instanceof TypedEnumValue ev) || !Feature.FQN.equals(ev.enumFqn())) {
+                throw new com.legend.error.NotImplementedException(
+                        "a feature flag must be a literal Feature value; got "
+                                + f.getClass().getSimpleName());
+            }
+            try {
+                out.add(Feature.valueOf(ev.value()));
+            } catch (IllegalArgumentException e) {
+                throw new com.legend.error.NotImplementedException(
+                        "feature flag " + ev.value() + " is not in the platform's mirror of "
+                                + Feature.FQN + " (regenerate the mirror at the bump)");
+            }
+        }
+    }
+
     static boolean contextFlag(String option, @com.legend.Nullable TypedSpec contextArg,
             UnaryOperator<TypedSpec> bind) {
         if (contextArg == null) {

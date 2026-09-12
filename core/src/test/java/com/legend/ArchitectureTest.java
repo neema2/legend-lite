@@ -862,6 +862,7 @@ final class ArchitectureTest {
                 "com.legend.lowering.Windows.FNS",
                 "com.legend.lowering.Windows.AGGREGATES",
                 "com.legend.lowering.Scalars.RULES",
+                "com.legend.lowering.FeatureRules.UNDER",
                 "com.legend.lowering.Aggregates.REDUCERS",
                 "com.legend.compiler.spec.CoreFn.BY_NAME",
                 "com.legend.builtin.Pure.ALL_CLASSES",

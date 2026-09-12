@@ -609,9 +609,11 @@ final class StatementExecutor {
                 .resolve(body, env.runtimeFqn(), mappingFqn, chainMappings);
         body = com.legend.resolver.RelationalRootForm.apply(
                 body, env.ctx(), mappingFqn);
+        // the query's feature flags: a LOWERING concern (Lowerer.withFeatures)
         com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
-                f -> env.ctx().findClass(f).isPresent());
+                f -> env.ctx().findClass(f).isPresent())
+                .withFeatures(featuresOf(env, body));
         if (!temporalRoot) {
             lw = lw.withEngineExistsJoinForm();
         }
@@ -817,6 +819,24 @@ final class StatementExecutor {
         // quoteIdentifiers-flag goldens' testRuntime(quote) idiom)
         com.legend.compiler.spec.typed.ExecutionContext pc = hasRuntimeArg
                 ? boundContext(ep.args().get(2), specs) : null;
+        // the query's feature flags: the exeCtx overload's context argument
+        // (an ExecutionOptionContext) and withFeatureFlags calls in the query
+        // itself — read into the frame's options, the ONE ambient channel the
+        // lowering entries consult
+        java.util.Set<com.legend.compiler.spec.typed.Feature> flags =
+                java.util.EnumSet.noneOf(com.legend.compiler.spec.typed.Feature.class);
+        flags.addAll(com.legend.compiler.spec.typed.ExecutionContext.treeFeatures(lam.body()));
+        if (com.legend.builtin.Pure.EXECUTION_PLAN__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__EXTENSION_MANY
+                .signatureKey().equals(ep.callee().signatureKey()) && ep.args().size() == 5) {
+            flags.addAll((pc == null ? com.legend.compiler.spec.typed.ExecutionContext.NONE : pc)
+                    .withOptions(ep.args().get(3), v -> com.legend.compiler.spec
+                            .ExecuteChainAssembly.letBound(v, letPrefix))
+                    .features());
+        }
+        if (!flags.isEmpty()) {
+            flags.addAll(env.options().features());
+            env = env.withOptions(env.options().withFeatures(java.util.Set.copyOf(flags)));
+        }
         boolean quote = pc != null && pc.quoteIdentifiers();
         String tz = pc != null ? pc.timeZone() : null;
         String fromConn = pc == null
@@ -1199,6 +1219,21 @@ final class StatementExecutor {
     /** The execution context an executionPlan / execute / toSQLString call
      * binds through its RUNTIME argument: the argument is brought to its
      * VALUE (helper calls inlined) and read ONCE. */
+    /** The feature flags an execution runs under: the executing frame's own
+     *  (its execute call's context argument) plus the runner's defaults
+     *  (ExecuteOptions.features) — the two sources, merged ONCE here. */
+    static java.util.Set<com.legend.compiler.spec.typed.Feature> featuresOf(ExecEnv env,
+            java.util.List<TypedSpec> body) {
+        java.util.Set<com.legend.compiler.spec.typed.Feature> all =
+                java.util.EnumSet.noneOf(com.legend.compiler.spec.typed.Feature.class);
+        if (env.frame() != null) {
+            all.addAll(env.frame().features());
+        }
+        all.addAll(env.options().features());
+        all.addAll(com.legend.compiler.spec.typed.ExecutionContext.treeFeatures(body));
+        return all.isEmpty() ? java.util.Set.of() : java.util.Set.copyOf(all);
+    }
+
     static com.legend.compiler.spec.typed.ExecutionContext boundContext(
             TypedSpec runtimeArg, SpecCompiler specs) {
         TypedSpec value = new com.legend.compiler.spec.UserCallInliner(specs)
@@ -2003,6 +2038,8 @@ final class StatementExecutor {
         if (identity) {
             lowerer = lowerer.withInstanceIds(env.instanceIds()::idOf);
         }
+        // the query's feature flags: a LOWERING concern (Lowerer.withFeatures)
+        lowerer = lowerer.withFeatures(featuresOf(env, body));
         com.legend.sql.SqlQuery plan =
                 lowerer.lower(com.legend.lowering.SeedableLets
                         .withSeedableLetPrefix(body, env.queryLets(), ctx));

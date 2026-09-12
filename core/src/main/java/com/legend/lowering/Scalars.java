@@ -9,6 +9,7 @@ import com.legend.compiler.spec.typed.TypedCDate;
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedCollection;
+import com.legend.compiler.spec.typed.Feature;
 import com.legend.compiler.spec.typed.TypedEnumValue;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedCast;
@@ -1410,6 +1411,7 @@ final class Scalars {
             RULES.put(f, (n, args) ->
                     new SqlExpr.Call(SqlFn.SUBSTRING, args));
         }
+        // (the same call under CORRECT_SQL_SUBSTRING_INDEXING: FeatureRules)
         for (String f : Pure.nativeKeysAt("indexOf")) {
             RULES.put(f, (n, args) -> {
                 // Dispatch on the RESOLVED CALLEE's declared param: a [*]
@@ -2551,9 +2553,15 @@ final class Scalars {
         return new SqlExpr.BoolLit(true);
     }
 
-    /** The lowering for {@code call}'s resolved overload; loud error when unregistered. */
-    static SqlExpr lower(TypedNativeCall call, List<SqlExpr> loweredArgs) {
-        Rule rule = RULES.get(call.callee().signatureKey());
+    /** The lowering for {@code call}'s resolved overload under the query's
+     *  feature flags (a flagged rule, {@link FeatureRules}, wins over the
+     *  plain one for its key); loud error when unregistered. */
+    static SqlExpr lower(TypedNativeCall call, List<SqlExpr> loweredArgs, Set<Feature> features) {
+        String key = call.callee().signatureKey();
+        Rule rule = FeatureRules.select(key, features);
+        if (rule == null) {
+            rule = RULES.get(key);
+        }
         if (rule == null) {
             // A REDUCER reaching scalar rules always means WRONG CONTEXT —
             // the aggregation machinery owns it (projection sub-agg

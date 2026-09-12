@@ -153,8 +153,19 @@ public class PctExecuteNative extends NativeFunction {
             // their PCT wire text IN THE PLAN (Lowerer PCT-TDS root
             // mode) — the adapter receives one Scalar String and hands
             // it over verbatim; formatAsTds/formatValue are gone.
+            // The PCT runs with CORRECT_SQL_SUBSTRING_INDEXING on (USER
+            // 2026-09-12). A DELIBERATE, written deviation from the engine:
+            // its PCT never sets the flag and every reference relational
+            // adapter ledgers the substring tests as expected failures; the
+            // engine sets it only in its testable framework, for
+            // relation-returning function tests (TestExecutionContextHelper).
+            // Our PCT encodes the corrected (Pure) indexing; the corpus runs
+            // the uncorrected default, as the engine's relational tests do —
+            // one flag selects between them.
             ExecutionResult result = new QueryService().execute(model, pureExpression,
-                    null, connection, com.legend.ExecuteOptions.PCT_RENDER);
+                    null, connection, com.legend.ExecuteOptions.PCT_RENDER.withFeatures(
+                            java.util.Set.of(com.legend.compiler.spec.typed.Feature
+                                    .CORRECT_SQL_SUBSTRING_INDEXING)));
             return switch (result) {
                 case ExecutionResult.TdsText t -> {
                     System.out.println("[LegendLite PCT] TDS: "

@@ -637,10 +637,19 @@ inference:** that the live protocol differential goes red on landing.
    (the .g4 diff between tags), not only file sets. The program's eight batches are
    complete; what remains are the legs the bump opened (the record's last paragraph)
    and the cadence decision (§6 item 5).
-4. **Before batch 3**, write the design doc for the claim registry (§6.1) — shape,
-   membership-list format, how the ~80 ad-hoc sites claim. Do not start coding it
-   without one.
-5. **Decisions still open:** §6.1, §6.2, §6.4, §6.5, §6.6.
+29. **Batch 8 leg 1 LANDED** (2026-09-12): the engine's execution FEATURE FLAGS as a
+   platform fact — one verified enum mirror, one set on the typed context fed by the
+   engine's two carriers (the exeCtx option context; `withFeatureFlags` in the body), one
+   ambient merge on the runner options, one consumer (the lowering; a flag selects an
+   emission, never a tree — `FeatureRules`). First flag consumed:
+   `CORRECT_SQL_SUBSTRING_INDEXING` — the substring family returns (7 PCT Essential rows;
+   2 corpus tests on both lanes). USER DECISION: both PCT channels run with the flag on,
+   a written deviation from the reference adapters (the engine's PCT never sets it; only
+   its testable framework does, for relation-returning function tests); the corpus runs
+   the uncorrected default, as the engine's relational tests do. A Lite-only native for
+   the corrected form was built and REJECTED the same day (USER: "why do we need a new
+   lite only function?"). Decision owed: whether the flag should also cover indexOf
+   (upstream's does not). The GATES.md record has the moves.
 
 ## 9. Where this program overrides the homework
 

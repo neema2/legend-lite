@@ -22,7 +22,6 @@ meta::pure::executionPlan::tests::testPreprocessFunctionOnRuntime
 meta::pure::executionPlan::tests::testQuoteIdentifiersFlagWithGraphFetch
 meta::pure::executionPlan::tests::testRelationalProjectionWithExternalFormat
 meta::pure::executionPlan::tests::testRoutingContextBuilderFunctions
-meta::pure::executionPlan::tests::testSubstringIndexingCorrectedByFeatureFlag
 meta::pure::executionPlan::tests::testSupportStreamFlagWithGraphFetchAndFrom
 meta::pure::executionPlan::tests::testTemporalDateVariableInFunctionExpressionWithPropagation
 meta::pure::executionPlan::tests::testTwoMappingsOneRuntime
@@ -406,7 +405,6 @@ meta::relational::tests::query::filter::in::tempTable::testInExecutionWithTempTa
 meta::relational::tests::query::filter::isempty::testIsEmptyOnCollection
 meta::relational::tests::query::function::distinct::testCollectionDistinctFunction
 meta::relational::tests::query::function::round::testFilterUsingRoundFunctionWithScale
-meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagProjectionEmitsPlainEquals
 meta::relational::tests::query::legacyNullUnsafeEquals::testLegacyFlagRestoresOptionalParamFreeMarkerSelector
 meta::relational::tests::query::limit::testLimitWithVariables
 meta::relational::tests::query::paginate::testPaginated
