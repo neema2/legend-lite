@@ -331,7 +331,11 @@ class MinimalCorpusTest {
     // testLegacyFlagProjectionEmitsPlainEquals) are the engine's own verdict
     // shape for flags — assert(planText->contains(...)), a boolean assert —
     // which this census counts as cardinality-only; measured, both lanes
-    private static final int[] DUCKDB_STRENGTH = {1533, 49, 24};
+    // cardinality 24 -> 25 (enum push-down in the plan channel, 2026-09-12):
+    // testExecutionPlanGenerationForLambdaFromWithEnumMapping asserts
+    // assert(planText->contains(...)), the engine's plan-test shape — a boolean
+    // assert this census counts as cardinality-only; measured, both lanes
+    private static final int[] DUCKDB_STRENGTH = {1533, 49, 25};
     // H2 1198 → 1279 / 18 → 19 (batch 135, Phase 1): the SourceSpelling pass and
     // the one-branch explode brought 114 H2 passes back — 81 of them differential;
     // one of the gained passes carries only cardinality asserts (a new pass, not a
@@ -343,7 +347,7 @@ class MinimalCorpusTest {
     // the same denominator move as DUCKDB_STRENGTH above, measured on the H2 lane
     // {1264, 51, 20} -> {1378, 55, 22} on 2026-09-12 (batch 8): the same
     // return of the #4900 goldens on the H2 lane (see DUCKDB_STRENGTH)
-    private static final int[] H2_STRENGTH = {1378, 55, 24};
+    private static final int[] H2_STRENGTH = {1378, 55, 25};
 
     /** Phase 0.6 — the verdict CHANNELS the platform and the referee
      * reported: text-decided verdicts by the arm's reason (ceilings per

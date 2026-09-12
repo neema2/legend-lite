@@ -622,8 +622,12 @@ final class StatementExecutor {
         // since batch 136; a thread-local scope before)
         com.legend.sql.SqlQuery plan = lw.withEngineText().lower(body);
         // engine plans keep enum columns RAW (host-side decode) — the
-        // plan-text form of enum-mapped columns/parameters
-        if (plan instanceof com.legend.sql.SqlSelect sel
+        // plan-text form of enum-mapped columns/parameters — UNLESS the
+        // context carries PUSH_DOWN_ENUM_TRANSFORM (pureToSQLQuery
+        // pushDownEnumTransformations): then the decode stays in the SQL
+        if (!featuresOf(env, body).contains(
+                        com.legend.compiler.spec.typed.Feature.PUSH_DOWN_ENUM_TRANSFORM)
+                && plan instanceof com.legend.sql.SqlSelect sel
                 && com.legend.compiler.element.type.Type.relationSchema(
                         body.get(body.size() - 1).info().type())
                         instanceof com.legend.compiler.element.type.Type
@@ -826,6 +830,13 @@ final class StatementExecutor {
         java.util.Set<com.legend.compiler.spec.typed.Feature> flags =
                 java.util.EnumSet.noneOf(com.legend.compiler.spec.typed.Feature.class);
         flags.addAll(com.legend.compiler.spec.typed.ExecutionContext.treeFeatures(lam.body()));
+        // the MAPPING-LESS plan form (the query carries ->from): the engine's
+        // executionPlan(f, context, extensions) adds PUSH_DOWN_ENUM_TRANSFORM
+        // before routing (executionPlan_generation.pure contextWithEnumPushDown)
+        // — enum decodes stay in the SQL, the TDS tuple carries no mapping id
+        if (!(ep.args().get(1) instanceof com.legend.compiler.spec.typed.TypedPackageableRef)) {
+            flags.add(com.legend.compiler.spec.typed.Feature.PUSH_DOWN_ENUM_TRANSFORM);
+        }
         if (com.legend.builtin.Pure.EXECUTION_PLAN__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__EXTENSION_MANY
                 .signatureKey().equals(ep.callee().signatureKey()) && ep.args().size() == 5) {
             flags.addAll((pc == null ? com.legend.compiler.spec.typed.ExecutionContext.NONE : pc)
@@ -887,7 +898,7 @@ final class StatementExecutor {
                         // PRE-resolution body: the TDS-vs-Class shape and
                         // the documentation channel live in the G output
                         // (post-H everything is a relation)
-                        lam.body(), connName, chainMaps),
+                        lam.body(), connName, chainMaps, es.plan(), pushDownEnums(env, lam.body())),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
 
@@ -987,7 +998,7 @@ final class StatementExecutor {
             allocs.add(com.legend.plan.PlanText.allocation(var,
                     com.legend.plan.PlanText.typeBlock(env.ctx(), aRoot,
                             aImpl, aEs.plan(), java.util.List.of(at),
-                            mappingFqn),
+                            mappingFqn, pushDownEnums(env, java.util.List.of(at))),
                     com.legend.plan.PlanText.single(env.ctx(), aRoot,
                             mappingFqn, aEs.plan(), aSql,
                             java.util.List.of(at), connName, chainMaps,
@@ -996,7 +1007,8 @@ final class StatementExecutor {
                             // column INT), like the terminal's
                             prevVar == null ? aEs.plan()
                                     : com.legend.plan.PlanText.colsPlanFor(
-                                            aEs.plan(), prevVar))));
+                                            aEs.plan(), prevVar),
+                            pushDownEnums(env, java.util.List.of(at)))));
             prevVar = var;
         }
         EngineSql fullEs = engineSql(lam.body(), mappingFqn, specs, env,
@@ -1010,7 +1022,7 @@ final class StatementExecutor {
                 rootClass, mappingFqn, fullEs.plan(), splicedSql,
                 lam.body(), connName, chainMaps,
                 com.legend.plan.PlanText.colsPlanFor(
-                        fullEs.plan(), prevVar));
+                        fullEs.plan(), prevVar), pushDownEnums(env, lam.body()));
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass, chainMaps);
         java.util.List<String> children = new java.util.ArrayList<>(allocs);
@@ -1019,7 +1031,7 @@ final class StatementExecutor {
                 com.legend.plan.PlanText.sequence(
                         com.legend.plan.PlanText.typeBlock(env.ctx(),
                                 rootClass, impl, fullEs.plan(),
-                                lam.body(), mappingFqn),
+                                lam.body(), mappingFqn, pushDownEnums(env, lam.body())),
                         children),
                 com.legend.compiler.element.type.Type.Primitive.STRING);
     }
@@ -1222,6 +1234,13 @@ final class StatementExecutor {
     /** The feature flags an execution runs under: the executing frame's own
      *  (its execute call's context argument) plus the runner's defaults
      *  (ExecuteOptions.features) — the two sources, merged ONCE here. */
+    /** PUSH_DOWN_ENUM_TRANSFORM on this plan's context (the plan printer's
+     *  enum-tuple form follows it). */
+    static boolean pushDownEnums(ExecEnv env, java.util.List<TypedSpec> body) {
+        return featuresOf(env, body).contains(
+                com.legend.compiler.spec.typed.Feature.PUSH_DOWN_ENUM_TRANSFORM);
+    }
+
     static java.util.Set<com.legend.compiler.spec.typed.Feature> featuresOf(ExecEnv env,
             java.util.List<TypedSpec> body) {
         java.util.Set<com.legend.compiler.spec.typed.Feature> all =

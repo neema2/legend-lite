@@ -55,7 +55,7 @@ public final class PlanText {
             @com.legend.Nullable String connectionName,
             java.util.List<String> chainMappings) {
         return single(ctx, rootClassFqn, mappingFqn, plan, sql, body,
-                connectionName, chainMappings, plan);
+                connectionName, chainMappings, plan, false);
     }
 
     /** {@code colsPlan}: the plan resultColumns types against — the
@@ -66,7 +66,7 @@ public final class PlanText {
             String mappingFqn, SqlQuery plan, String sql,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
             @com.legend.Nullable String connectionName,
-            java.util.List<String> chainMappings, SqlQuery colsPlan) {
+            java.util.List<String> chainMappings, SqlQuery colsPlan, boolean pushDownEnums) {
         String[] impl = ScanRelations.rootImpl(ctx, mappingFqn,
                 rootClassFqn, chainMappings);
         com.legend.compiler.element.type.Type.RelationType rrt =
@@ -90,7 +90,7 @@ public final class PlanText {
                     chainMappings, impl[2]), colsPlan, rrt);
         }
         return "Relational\n(\n"
-                + typeBlock(ctx, rootClassFqn, impl, plan, body, mappingFqn)
+                + typeBlock(ctx, rootClassFqn, impl, plan, body, mappingFqn, pushDownEnums)
                 + "  resultColumns = [" + cols + "]\n"
                 + "  sql = " + sql + "\n"
                 + "  connection = " + connectionName + "\n"
@@ -142,7 +142,7 @@ public final class PlanText {
                     "plan: relation-rooted node with a non-relation terminal pending");
         }
         String tuples = tdsTuples(ctx, java.util.List.of(dbFqn), plan, rt,
-                docsOf(body.get(body.size() - 1)), null, false);
+                docsOf(body.get(body.size() - 1)), null, false, false);
         if (accessor) {
             StringBuilder sb = new StringBuilder();
             for (String t : tuples.split("\\), \\(")) {
@@ -240,13 +240,15 @@ public final class PlanText {
     public static String typeBlock(ModelContext ctx, String rootClassFqn,
             String[] impl, SqlQuery plan,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body) {
-        return typeBlock(ctx, rootClassFqn, impl, plan, body, null);
+        return typeBlock(ctx, rootClassFqn, impl, plan, body, null, false);
     }
 
+    /** {@code pushDownEnums}: PUSH_DOWN_ENUM_TRANSFORM on the plan's context —
+     *  enum-typed TDS tuples then carry no enumeration-mapping id. */
     public static String typeBlock(ModelContext ctx, String rootClassFqn,
             String[] impl, SqlQuery plan,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
-            @com.legend.Nullable String mappingFqn) {
+            @com.legend.Nullable String mappingFqn, boolean pushDownEnums) {
         com.legend.compiler.spec.typed.TypedSpec last =
                 body.get(body.size() - 1);
         if (com.legend.compiler.element.type.Type.relationSchema(last.info().type())
@@ -256,7 +258,7 @@ public final class PlanText {
             // column name exactly when a documentation string rides it
             return "  type = TDS[" + tdsTuples(ctx,
                     storeDbs(ctx, mappingFqn, body, java.util.List.of(), impl[2]),
-                    plan, rt, docsOf(last), mappingFqn, impl.length > 4) + "]\n";
+                    plan, rt, docsOf(last), mappingFqn, impl.length > 4, pushDownEnums) + "]\n";
         }
         String size = "*";
         if (last.info().multiplicity()
@@ -486,7 +488,7 @@ public final class PlanText {
             SqlQuery plan,
             com.legend.compiler.element.type.Type.RelationType rt,
             java.util.Map<String, String> docs, @com.legend.Nullable String mappingFqn) {
-        return tdsTuples(ctx, dbs, plan, rt, docs, mappingFqn, false);
+        return tdsTuples(ctx, dbs, plan, rt, docs, mappingFqn, false, false);
     }
 
     /** {@code m2m}: the root followed an M2M (~src) chase — tuple DB
@@ -496,7 +498,7 @@ public final class PlanText {
             SqlQuery plan,
             com.legend.compiler.element.type.Type.RelationType rt,
             java.util.Map<String, String> docs, @com.legend.Nullable String mappingFqn,
-            boolean m2m) {
+            boolean m2m, boolean pushDownEnums) {
         if (!(plan instanceof SqlSelect s)) {
             throw new NotImplementedException(
                     "plan: non-select TDS top query pending");
@@ -570,10 +572,13 @@ public final class PlanText {
                     .append(", \"").append(doc).append("\"");
             // ENUM columns append their ENUMERATION-MAPPING id (the
             // engine's 5-element tuple: (type, <enumFqn>, VARCHAR(20),
-            // "", Foo))
+            // "", Foo)) — the host-side decode; under PUSH_DOWN_ENUM_TRANSFORM
+            // the decode is the CASE in the SQL and the engine's tuple carries
+            // no id (relationalMappingExecution.pure: enumMappingId = [])
             if (cols.get(i).type()
                     instanceof com.legend.compiler.element.type.Type
-                            .EnumType et2 && mappingFqn != null) {
+                            .EnumType et2 && mappingFqn != null
+                    && !pushDownEnums) {
                 String emid = enumMappingIdFor(ctx, mappingFqn,
                         et2.fqn(), phys);
                 if (emid != null) {

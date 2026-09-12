@@ -120,7 +120,10 @@ class JavaEvalLedgerTest {
             // ITS table's store (the root's database first, then every
             // other root class's); a lookup over model facts for the
             // cross-store TDS join plans, no evaluation
-            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 881),
+            // 881 -> 882 (enum push-down, 2026-09-12): the TDS tuple stamps the
+            // enumeration-mapping id only when the plan does NOT push the decode
+            // down — one flag read, no evaluation
+            Map.entry("core/src/main/java/com/legend/plan/PlanText.java", 882),
             // 225 -> 227 (lambda-classifier slice: the lambda spelling
             // reader unwraps the m3 carrier stamp — LambdaFunction<ft> —
             // via PlatformTypes.functionTypeOf; a TYPE read, no evaluation)
@@ -599,7 +602,11 @@ class JavaEvalLedgerTest {
             // exeCtx overload's ExecutionOptionContext, withFeatureFlags calls in
             // the body) into the frame's options and hands them to the Lowerer —
             // orchestration of a compile-time fact, no value evaluated in Java
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2026),
+            // 2026 -> 2036 (enum push-down, 2026-09-12): the mapping-less plan form
+            // adds PUSH_DOWN_ENUM_TRANSFORM (the engine's contextWithEnumPushDown)
+            // and the plan printer is told the flag — orchestration of a
+            // compile-time fact, no value evaluated in Java
+            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2036),
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the

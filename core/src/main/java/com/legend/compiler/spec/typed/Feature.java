@@ -18,9 +18,12 @@ package com.legend.compiler.spec.typed;
  */
 public enum Feature {
     /** The engine transforms enum values in SQL (on) or in Java after the
-     *  query (off). The platform only ever transforms in SQL ("Java
-     *  orchestrates, the database executes"): both settings select its ONE
-     *  behaviour — a documented no-op. */
+     *  query (off). EXECUTION only ever transforms in SQL ("Java orchestrates,
+     *  the database executes"). Consumer: the PLAN-TEXT channel — off, the
+     *  plan reads the raw column and the TDS tuple names the enumeration
+     *  mapping (PlanEnumForm, PlanText); on, the decode stays in the SQL and
+     *  the tuple carries no id. The engine's mapping-less executionPlan
+     *  overload (a ->from query) sets it before routing. */
     PUSH_DOWN_ENUM_TRANSFORM,
     /** Variant-typed inputs to externalize / internalize (engine-internal
      *  programs; no corpus test sets it). No consumer: loud when set. */

@@ -10,7 +10,6 @@ meta::pure::executionPlan::tests::inheritance
 meta::pure::executionPlan::tests::tdsTwoJoinThreeDB
 meta::pure::executionPlan::tests::testCrossDbPlanGenerationWithRelationFromWithOnlyRuntimes
 meta::pure::executionPlan::tests::testEnumPushDownWithExternalFormat
-meta::pure::executionPlan::tests::testExecutionPlanGenerationForLambdaFromWithEnumMapping
 meta::pure::executionPlan::tests::testGraphFetchH2TempTableStrategy
 meta::pure::executionPlan::tests::testGraphFetchH2TempTableStrategyWithQuoteIdentifiers
 meta::pure::executionPlan::tests::testGroupByWithOpenVariableInAgg

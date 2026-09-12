@@ -590,6 +590,19 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
                 + "}'), '0 = 1')})";
     }
 
+    /** The right-hand literals of an equality or an OR-tree of equalities
+     *  over one source (DecodeShapes.conditionSource's shape). */
+    private static void collectEqualityRhs(SqlExpr cond, java.util.List<SqlExpr> out) {
+        if (cond instanceof SqlExpr.Call c && c.fn() == com.legend.sql.SqlFn.EQUAL
+                && c.args().size() == 2) {
+            out.add(c.args().get(1));
+        } else if (cond instanceof SqlExpr.Call o && o.fn() == com.legend.sql.SqlFn.OR) {
+            o.args().forEach(a -> collectEqualityRhs(a, out));
+        } else {
+            throw new IllegalStateException("decode branch is not an equality: " + cond);
+        }
+    }
+
     /** The ONE source expression a literal-decode case chain reads
      * ({@link com.legend.sql.DecodeShapes#sourceExpr}), or null. */
     private static @com.legend.Nullable SqlExpr decodeSourceColumn(SqlExpr e) {
@@ -1469,6 +1482,32 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         // GENERIC case spelling (engine text): lowercase keywords —
         // placed BELOW the specialized recognizers (week-diff) that
         // fold whole CASE shapes into engine idioms
+        // the mapping's ENUM DECODE chain pushed into the SQL (the plan's
+        // PUSH_DOWN_ENUM_TRANSFORM form): the engine spells it FLAT, a
+        // multi-source-value branch as `col in (a, b)`, a single one as
+        // `col = a`, `else null` (pureToSQLQuery processEnumMapping) — the
+        // lowered if-chain nests through its otherwise and ORs its arms
+        java.util.Optional<SqlExpr> decodeSrc = e instanceof SqlExpr.Case
+                ? com.legend.sql.DecodeShapes.sourceExpr(e) : java.util.Optional.empty();
+        java.util.Optional<java.util.List<SqlExpr.Case.When>> decodeArms = decodeSrc.isPresent()
+                ? com.legend.sql.DecodeShapes.flattenDecode(e) : java.util.Optional.empty();
+        if (decodeSrc.isPresent() && decodeArms.isPresent()) {
+            String src = expr(decodeSrc.get(), 4);
+            StringBuilder sb = new StringBuilder("case");
+            for (SqlExpr.Case.When w : decodeArms.get()) {
+                java.util.List<SqlExpr> values = new java.util.ArrayList<>();
+                collectEqualityRhs(w.condition(), values);
+                sb.append(" when ").append(src);
+                if (values.size() == 1) {
+                    sb.append(" = ").append(expr(values.get(0), 0));
+                } else {
+                    sb.append(" in (").append(values.stream().map(v -> expr(v, 0))
+                            .collect(java.util.stream.Collectors.joining(", "))).append(')');
+                }
+                sb.append(" then ").append(expr(w.then(), 0));
+            }
+            return sb.append(" else null end").toString();
+        }
         if (e instanceof SqlExpr.Case c) {
             StringBuilder sb = new StringBuilder("case");
             for (SqlExpr.Case.When w : c.whens()) {
