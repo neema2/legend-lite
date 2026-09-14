@@ -1317,6 +1317,18 @@ public final class Pipelines {
         List<TypedFuncCol> newCols = new ArrayList<>(p.columns());
         List<Type.Column> outCols = new ArrayList<>(
                 (Type.requireRelationSchema(p.info().type())).columns());
+        // a column the arm already PROJECTS (a routed union's key, computed
+        // in the projection) is not missing, whatever its source row holds
+        List<String> stillMissing = new ArrayList<>();
+        for (String c : missing) {
+            if (columnOf(Type.requireRelationSchema(p.info().type()), c) == null) {
+                stillMissing.add(c);
+            }
+        }
+        if (stillMissing.isEmpty()) {
+            return side;
+        }
+        missing = stillMissing;
         String v = "u_k";
         TypedVariable row = new TypedVariable(v,
                 new ExprType(srcRow, Multiplicity.Bounded.ONE));

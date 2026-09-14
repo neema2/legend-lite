@@ -527,11 +527,12 @@ private static @com.legend.Nullable List<String> parentEquiKeys(@com.legend.Null
         Map<String, Substitution.SubNav> subNavs = new LinkedHashMap<>();
         for (var e : navByHead.entrySet()) {
             String pfx = mat.slotPrefixes().get(e.getValue());
-            var stepT = java.util.Objects.requireNonNull(navSteps.get(e.getValue())).target();
+            var stepN = java.util.Objects.requireNonNull(navSteps.get(e.getValue()));
+            var stepT = stepN.target();
             if (pfx == null || !(stepT instanceof TypedGetAll stg)) {
                 continue;
             }
-            ClassSource sub = sources.get(cs.mappingFqn(), stg.classFqn(), cs.scope());
+            ClassSource sub = sources.navTarget(cs, stg.classFqn(), stepN, e.getValue());
             subNavs.put(e.getKey(), new Substitution.SubNav(
                     pfx, sub.rowVar(), sub.bindings()));
         }
@@ -1517,9 +1518,9 @@ private static boolean referencesVar(TypedSpec n, String var) {
         if (alias == null) {
             return null;
         }
-        return java.util.Objects.requireNonNull(navSteps.get(alias), "navSteps.get(alias)").target()
-                instanceof com.legend.compiler.spec.typed.TypedGetAll g
-                ? sources.get(parent.mappingFqn(), g.classFqn(), parent.scope()) : null;
+        var stepN = java.util.Objects.requireNonNull(navSteps.get(alias), "navSteps.get(alias)");
+        return stepN.target() instanceof com.legend.compiler.spec.typed.TypedGetAll g
+                ? sources.navTarget(parent, g.classFqn(), stepN, alias) : null;
     }
 
 record CompositeChain(TypedSpec pipeline,

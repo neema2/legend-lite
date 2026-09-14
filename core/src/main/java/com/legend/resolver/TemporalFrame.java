@@ -996,7 +996,7 @@ final class TemporalFrame {
                         instanceof com.legend.compiler.spec.typed.TypedGetAll g)) {
             return null;
         }
-        TypedSpec lb = sources.get(cs.mappingFqn(), g.classFqn(), cs.scope())
+        TypedSpec lb = sources.navTarget(cs, g.classFqn(), navSteps.get(alias), alias)
                 .bindings().get(leaf.property());
         lb = lb == null ? null : unwrapToOne(lb);
         return lb instanceof TypedPropertyAccess pb

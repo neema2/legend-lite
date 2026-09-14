@@ -81,6 +81,42 @@ final class UnionSynthesis {
     record UnionRoute(int targetOrdinal, PropertyMapping.Join join) {
     }
 
+    /** The ordinal of a single set-pinned route to a NON-root set outside
+     * any union: a route list of one; {@code -1} marks a root route (the
+     * un-routed navigation). */
+    static final int PINNED_SINGLE = -2;
+
+    /** The function realizing {@code member}, named by the mapping that
+     * DEFINES the set and by the driver's own rule: by class when the set
+     * is its class's root or sole set in that mapping, by class and set id
+     * otherwise (the driver binds every non-root set of a multi-set class
+     * that way). A plain function reference: an include is a call. */
+    static String memberFunction(ResolvedMapping md, ClassMapping member) {
+        String defining = md.qualifiedName();
+        String id = ResolvedMapping.idOf(member);
+        long setsOfClass = 0;
+        for (LegacyMappingDefinition m : md.closure()) {
+            boolean here = false;
+            long n = 0;
+            for (ClassMapping cm : m.classMappings()) {
+                if (cm.className().equals(member.className())) {
+                    n++;
+                    if (ResolvedMapping.idOf(cm).equals(id)) {
+                        here = true;
+                    }
+                }
+            }
+            if (here) {
+                defining = m.qualifiedName();
+                setsOfClass = n;
+                break;
+            }
+        }
+        return member.root() || setsOfClass <= 1
+                ? com.legend.compiler.SynthFqn.mappingClass(defining, member.className())
+                : com.legend.compiler.SynthFqn.mappingClassSet(defining, member.className(), id);
+    }
+
     /** Extends-merge identity: (property name, route) — per-set duplicates
      * of a routed property are distinct mappings. */
     static String pmIdentity(PropertyMapping pm) {
@@ -230,13 +266,11 @@ final class UnionSynthesis {
                 } else if (rootOrSole) {
                     routes.add(new UnionRoute(-1, j));
                 } else if (e.getValue().size() == 1) {
-                    // a SINGLE set-pinned route to a NON-root set: the
-                    // navigate emits un-routed and DISPATCHES through the
-                    // recorded routed-set hint at resolve (getForNav ->
-                    // set-pinned ClassSources.get — the target set's own
-                    // ~filter pipeline rides). employees2[p2] over
-                    // multi-set Person; no union machinery involved.
-                    routes.add(new UnionRoute(-1, j));
+                    // a SINGLE set-pinned route to a NON-root set: a route
+                    // list of ONE naming that set's function (legacy routes
+                    // as composition, 2b) — employees2[p2] over multi-set
+                    // Person; no stamped set-pin hint consulted
+                    routes.add(new UnionRoute(PINNED_SINGLE, j));
                 } else {
                     poison = "NON-root mapping set '" + j.targetSetId()
                             + "' — MULTI-route dispatch outside union members"
@@ -266,7 +300,7 @@ final class UnionSynthesis {
                         (a, b) -> a + "; " + b);
                 continue;
             }
-            if (routes.stream().allMatch(r -> r.targetOrdinal() < 0)) {
+            if (routes.stream().allMatch(r -> r.targetOrdinal() == -1)) {
                 continue;   // root routes = the un-routed navigation
             }
             p.unionRoutes.put(prop, routes);

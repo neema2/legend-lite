@@ -392,7 +392,9 @@ public final class ClassSources {
      * or null (a synthetic head the pipeline does not spell). */
     static com.legend.compiler.spec.typed.@com.legend.Nullable TypedNavigate stepOf(
             ClassSource source, String alias) {
-        return Pipelines.navSteps(source.pipeline()).get(alias);
+        // the OUTERMOST step of that alias: a union's lifted navigate above
+        // its members' own same-named steps inside the threads
+        return Pipelines.outerNavSteps(source.pipeline()).get(alias);
     }
 
     private ClassSource buildRoutedUnionSource(String mappingFqn, String classFqn,
@@ -418,22 +420,28 @@ public final class ClassSources {
             ClassSource m = routeTarget(mappingFqn, classFqn, r.target(), scope);
             members.add(m);
         }
+        // each arm: the member's own pipeline, with the route's mids joined
+        // on top of it (the route's rows, re-rooted from the member's table
+        // onto the member's pipeline)
+        List<TypedSpec> armPipes = new ArrayList<>();
+        for (int i = 0; i < routes.size(); i++) {
+            TypedSpec base = Pipelines.materialize(members.get(i).pipeline(), java.util.Set.of(), classFqn)
+                    .pipeline();
+            armPipes.add(rebaseRows(routes.get(i).rows(), base));
+        }
         for (int i = 0; i < routes.size(); i++) {
             var r = routes.get(i);
-            Type.RelationType mRow = Type.requireRelationSchema(
-                    Pipelines.materialize(members.get(i).pipeline(), java.util.Set.of(), classFqn)
-                            .pipeline().info().type());
+            Type.RelationType mRow = Type.requireRelationSchema(armPipes.get(i).info().type());
             for (int k = 0; k < r.keyNames().size(); k++) {
                 String read = r.targetReads().get(k);
                 if (seenKeys.add(r.keyNames().get(k))) {
-                    Type.Column c = mRow.columns().stream()
-                            .filter(x -> x.name().equals(read))
-                            .findFirst().orElseThrow(() -> new MappingResolutionException(
-                                    "route condition reads '" + read
-                                    + "', which the target set's rows do not carry"
-                                    + " (class '" + classFqn + "', mapping '" + mappingFqn + "')",
-                                    classFqn));
-                    keyCols.add(new Type.Column(r.keyNames().get(k), c.type(), optional));
+                    Type kt = pathType(mRow, read);
+                    if (kt == null) {
+                        throw new MappingResolutionException("route condition reads '" + read
+                                + "', which the target set's rows do not carry"
+                                + " (class '" + classFqn + "', mapping '" + mappingFqn + "')", classFqn);
+                    }
+                    keyCols.add(new Type.Column(r.keyNames().get(k), kt, optional));
                 }
             }
         }
@@ -444,8 +452,7 @@ public final class ClassSources {
         for (int i = 0; i < routes.size(); i++) {
             ClassSource m = members.get(i);
             var r = routes.get(i);
-            TypedSpec pipe = Pipelines.materialize(m.pipeline(), java.util.Set.of(), classFqn)
-                    .pipeline();
+            TypedSpec pipe = armPipes.get(i);
             Type.RelationType mRow = Type.requireRelationSchema(pipe.info().type());
             var mInfo = new ExprType(mRow, one);
             List<com.legend.compiler.spec.typed.TypedFuncCol> pcols = new ArrayList<>();
@@ -458,7 +465,7 @@ public final class ClassSources {
             for (Type.Column kc : keyCols) {
                 int k = r.keyNames().indexOf(kc.name());
                 TypedSpec v = k >= 0
-                        ? new TypedPropertyAccess(new TypedVariable(m.rowVar(), mInfo),
+                        ? pathRead(new TypedVariable(m.rowVar(), mInfo), mRow,
                                 r.targetReads().get(k), new ExprType(kc.type(), optional))
                         : new TypedCollection(List.of(), new ExprType(kc.type(), optional));
                 pcols.add(mixedCol(kc.name(), v, mRow, m.rowVar()));
@@ -480,6 +487,60 @@ public final class ClassSources {
         return new ClassSource(mappingFqn, classFqn, ClassSource.UNION_SET_ID,
                 java.util.Objects.requireNonNull(union, "routed navigate with no routes"),
                 rowVar, bindings, rowType);
+    }
+
+    /** The route's rows re-rooted: its base table reference (the member's
+     * main table, as the navigator spelled it) replaced by the member's own
+     * pipeline, so the mids the route joined ride the member's arm. */
+    private static TypedSpec rebaseRows(TypedSpec rows, TypedSpec base) {
+        if (rows instanceof com.legend.compiler.spec.typed.TypedTableReference) {
+            return base;
+        }
+        List<TypedSpec> kids = rows.children();
+        if (kids.isEmpty()) {
+            return rows;
+        }
+        List<TypedSpec> rebased = new ArrayList<>(kids.size());
+        for (int i = 0; i < kids.size(); i++) {
+            rebased.add(i == 0 ? rebaseRows(kids.get(0), base) : kids.get(i));
+        }
+        return rows.withChildren(rebased);
+    }
+
+    /** The type of {@code col} or {@code slot.col} in {@code row}; null when absent. */
+    private static @com.legend.Nullable Type pathType(Type.RelationType row, String path) {
+        Type.RelationType at = row;
+        Type found = null;
+        String[] parts = path.split("\\.");
+        for (int i = 0; i < parts.length; i++) {
+            String part = parts[i];
+            Type.Column c = at.columns().stream().filter(x -> x.name().equals(part)).findFirst().orElse(null);
+            if (c == null) {
+                return null;
+            }
+            found = c.type();
+            if (i + 1 < parts.length) {
+                Type.RelationType sub = Type.relationSchema(c.type());
+                if (sub == null) {
+                    return null;
+                }
+                at = sub;
+            }
+        }
+        return found;
+    }
+
+    /** {@code $m.col} or {@code $m.slot.col} over the member row. */
+    private static TypedSpec pathRead(TypedVariable m, Type.RelationType row, String path,
+            ExprType leafInfo) {
+        String[] parts = path.split("\\.");
+        if (parts.length == 1) {
+            return new TypedPropertyAccess(m, path, leafInfo);
+        }
+        Type.Column slot = row.columns().stream().filter(x -> x.name().equals(parts[0])).findFirst()
+                .orElseThrow();
+        TypedSpec sub = new TypedPropertyAccess(m, parts[0], new ExprType(slot.type(), slot.multiplicity()));
+        return new TypedPropertyAccess(sub, parts[1], leafInfo);
     }
 
     /** A route's target: the set's own FUNCTION (a user call — the binding

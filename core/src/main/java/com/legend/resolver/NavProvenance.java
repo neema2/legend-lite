@@ -130,11 +130,12 @@ final class NavProvenance {
             if (ip == null) {
                 continue;   // step not materialized: the read stays loud
             }
-            var navT = java.util.Objects.requireNonNull(tNavSteps.get(he.getValue())).target();
+            var navN = java.util.Objects.requireNonNull(tNavSteps.get(he.getValue()));
+            var navT = navN.target();
             if (!(navT instanceof com.legend.compiler.spec.typed.TypedGetAll ng)) {
                 continue;
             }
-            ClassSource sub = sources.get(src.mappingFqn(), ng.classFqn(), src.scope());
+            ClassSource sub = sources.navTarget(src, ng.classFqn(), navN, he.getValue());
             NavMaterializer.NavMat nmat = nestedMats.get(he.getValue());
             if (nmat == null) {
                 provOut.put(he.getKey(), new Substitution.AssocSub(

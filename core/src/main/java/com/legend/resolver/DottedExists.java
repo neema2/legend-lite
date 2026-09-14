@@ -164,7 +164,7 @@ final class DottedExists {
                         || !sources.binds(cs.mappingFqn(), tg.classFqn())) {
                     continue;
                 }
-                t = sources.get(cs.mappingFqn(), tg.classFqn(), cs.scope());
+                t = sources.navTarget(cs, tg.classFqn(), nav, java.util.Objects.requireNonNull(alias));
                 Pipelines.Materialized tm = Pipelines.materialize(
                         t.pipeline(), Set.of(), t.classFqn());
                 TypedSpec p0 = tm.pipeline();

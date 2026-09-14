@@ -778,9 +778,9 @@ final class NavMaterializer {
                 // the recursion's own gate returns a raw pipeline but
                 // cannot stop THIS level's join. Leave the sub-step
                 // undemanded: the leaf read stays LOUD downstream.
-                String subCls = ((TypedGetAll)
-                        java.util.Objects.requireNonNull(tNavSteps.get(subAlias)).target()).classFqn();
-                ClassSource subT = sources.get(mappingFqn, subCls, t.scope());
+                var subStep = java.util.Objects.requireNonNull(tNavSteps.get(subAlias));
+                String subCls = ((TypedGetAll) subStep.target()).classFqn();
+                ClassSource subT = sources.navTarget(t, subCls, subStep, subAlias);
                 // TEMPORAL sub-target: liftable when its CHAIN-KEYED
                 // spec (explicit hop date) or propagated context can
                 // filter it (temporalTargetPipe in the resolver lambda

@@ -441,14 +441,18 @@ final class JoinChainEmission {
                     routes = null;
                 }
                 if (routes != null) {
-                    RoutedNav rn = routedNavigation(p, routes, propName,
-                            prevTable, prevAlias, hopDb, targetTable,
-                            targetRows, s, t, model, md);
-                    navCond = rn.cond();
-                    targetRows = rn.rows();
+                    // LEGACY ROUTES AS COMPOSITION (2b): one navigate step
+                    // carrying every route the author wrote — each names the
+                    // target SET'S OWN FUNCTION, its rows (a per-arm chain's
+                    // mids joined inside the route) and its join as written.
+                    // The union publishes nothing; the navigator composed it.
+                    p.expr = new AppliedFunction(Pure.Lite.LEGACY_NAVIGATE,
+                            List.of(p.expr, slot, new PureCollection(routeList(p, routes,
+                                    propName, prevTable, prevAlias, mainTable, s, t, model, md))));
+                } else {
+                    p.expr = new AppliedFunction(Pure.Lite.LEGACY_NAVIGATE,
+                            List.of(p.expr, slot, targetRows, navCond));
                 }
-                p.expr = new AppliedFunction(Pure.Lite.LEGACY_NAVIGATE,
-                        List.of(p.expr, slot, targetRows, navCond));
                 p.classSlots.add(slotAlias);
             } else {
                 ValueSpecification targetRel = viewTarget != null
@@ -481,6 +485,99 @@ final class JoinChainEmission {
     /** One routed entry before suffixing: its RAW translated condition. */
     private record RouteEntry(UnionSynthesis.UnionRoute route, ValueSpecification raw,
             String db, String tgt) {
+    }
+
+    /**
+     * The ROUTE LIST of a routed navigation (legacy routes as composition,
+     * docs/LEGACY_ROUTES_AS_COMPOSITION_2026_09_13.md §5, §8.4 2b): per route,
+     * {@code route(<member set's function>, <rows>, {s,t|cond})}. A
+     * single-hop route and a shared-prefix chain's last hop read the
+     * member's table at the navigator's landing (the prefix's physical
+     * slots are already on the pipeline); a PER-ARM chain joins its mids
+     * onto the member's table INSIDE the route (walked back from the
+     * member, {@code UnionSynthesis.inboundArmSteps}) and its condition is
+     * the chain's FIRST hop over (navigator row, the landing mid). The
+     * member's function is named by the mapping that DEFINES the set: a
+     * plain function reference, resolved under the queried mapping.
+     */
+    private static List<ValueSpecification> routeList(Pipeline p,
+            List<UnionSynthesis.UnionRoute> routes, @com.legend.Nullable String propName,
+            @com.legend.Nullable String prevTable, @com.legend.Nullable String prevAlias,
+            String mainTable, Variable s, Variable t, ModelBuilder model,
+            ResolvedMapping md) {
+        boolean perArm = !UnionSynthesis.uniformChainedRoutes(
+                UnionSynthesis.memberJoins(routes));
+        List<ValueSpecification> out = new ArrayList<>(routes.size());
+        for (UnionSynthesis.UnionRoute route : routes) {
+            PropertyMapping.Join j = route.join();
+            List<JoinChainElement> chain = j.joins();
+            ClassMapping member = md.set(j.targetSetId());
+            if (!(member instanceof ClassMapping.Relational rm)) {
+                throw new NotImplementedException("route '" + propName + "[" + j.targetSetId()
+                        + "]' targets a set that is not Relational; mapping=" + md.qualifiedName());
+            }
+            LegacyMappingDefinition.TableReference memberMain = rm.mainTable() != null
+                    ? rm.mainTable() : MappingNormalizer.inferMainTableQuiet(rm);
+            if (memberMain == null) {
+                throw new NotImplementedException("route '" + propName + "[" + j.targetSetId()
+                        + "]' targets a set with no main table; mapping=" + md.qualifiedName());
+            }
+            boolean inArm = perArm && chain.size() > 1;
+            JoinChainElement hop = inArm ? chain.get(0) : chain.get(chain.size() - 1);
+            String db = hop.databaseName() != null ? hop.databaseName() : j.database();
+            DatabaseDefinition.JoinDefinition jd = model.findJoin(db, hop.joinName()).orElseThrow(() ->
+                    new ModelException(LegendCompileException.Phase.NORMALIZE,
+                            "Join '" + hop.joinName() + "' not found in db '" + db
+                            + "'; PM='" + propName + "', mapping=" + md.qualifiedName()));
+            ValueSpecification rows;
+            ValueSpecification cond;
+            if (inArm) {
+                List<UnionSynthesis.LiftMidStep> steps = UnionSynthesis.inboundArmSteps(
+                        j, java.util.Objects.requireNonNull(propName), memberMain.table(), md, model);
+                rows = new AppliedFunction("tableReference", List.of(
+                        new PackageableElementPtr(memberMain.database()),
+                        new CString(memberMain.table())));
+                for (UnionSynthesis.LiftMidStep st : steps) {
+                    rows = new AppliedFunction(Pure.Lite.JOIN_SLOT, List.of(rows,
+                            new ColSpec(st.alias(), new LambdaFunction(List.of(),
+                                    List.of(new AppliedFunction("tableReference", List.of(
+                                            new PackageableElementPtr(st.db()),
+                                            new CString(st.table()))))), null),
+                            st.cond()));
+                }
+                UnionSynthesis.LiftMidStep landing = steps.get(steps.size() - 1);
+                Map<String, ValueSpecification> scope = new LinkedHashMap<>();
+                scope.put(mainTable, s);
+                scope.put(landing.table(), new AppliedProperty(t, landing.alias()));
+                cond = RelOpTranslator.translate(jd.operation(), scope, t, null,
+                        RelOpTranslator.PipelineView.NONE);
+            } else {
+                String rPrev = java.util.Objects.requireNonNull(prevTable);
+                Set<String> tables = new LinkedHashSet<>();
+                RelOpTranslator.collectTablesIn(jd.operation(), tables);
+                tables.remove(rPrev);
+                String tgt = tables.size() == 1 && model.findView(db, tables.iterator().next()).isPresent()
+                        ? tables.iterator().next()
+                        : MappingNormalizer.determineTargetTable(jd.operation(), rPrev,
+                                hop.joinName(), propName, chain.size(), md.qualifiedName());
+                rows = model.findView(db, tgt).isPresent()
+                        ? ViewRelation.viewRelationExpr(model.findView(db, tgt).orElseThrow(),
+                                tgt, db, model, md)
+                        : new AppliedFunction("tableReference", List.of(
+                                new PackageableElementPtr(db), new CString(tgt)));
+                Map<String, ValueSpecification> scope = new LinkedHashMap<>();
+                scope.put(rPrev, prevAlias == null ? s : new AppliedProperty(s, prevAlias));
+                if (!tgt.equals(rPrev)) {
+                    scope.put(tgt, t);
+                }
+                cond = RelOpTranslator.translate(jd.operation(), scope, t, null,
+                        RelOpTranslator.PipelineView.NONE);
+            }
+            out.add(new AppliedFunction(Pure.Lite.ROUTE, List.of(
+                    new AppliedFunction(UnionSynthesis.memberFunction(md, rm), List.of()), rows,
+                    new LambdaFunction(List.of(s, t), List.of(cond)))));
+        }
+        return out;
     }
 
     private static RoutedNav routedNavigation(Pipeline p,

@@ -662,7 +662,7 @@ public final class StoreResolver {
             TypedLambda corr = synthetics.correlatedPred(head);
             if (corr != null && demandedNavs.contains(nav.alias().get())
                     && nav.target() instanceof TypedGetAll ga) {
-                ClassSource target = sources.get(cs.mappingFqn(), ga.classFqn(), cs.scope());
+                ClassSource target = sources.navTarget(cs, ga.classFqn(), nav, head);
                 NavMaterializer.NavMat mat = navMats.get(nav.alias().get());
                 TypedLambda aug = assocMaterial.andCorrelatedIntoCondition(
                         nav.predicate(), corr, cs, target,
@@ -796,7 +796,7 @@ public final class StoreResolver {
                     + "') is not supported yet");
         }
         String targetClass = tg.classFqn();
-        ClassSource t = sources.get(src.mappingFqn(), targetClass, src.scope());
+        ClassSource t = sources.navTarget(src, targetClass, step, alias);
         // DOWNSTREAM demand (#63): heads read off the re-rooted target
         // dispatch through its OWN nav/slot steps — materialize them INTO
         // the hop (composed prefixes employees_firm_*); provenance

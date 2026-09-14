@@ -243,19 +243,53 @@ final class NavigateChecker {
         return "__route" + shape + "_" + k;
     }
 
-    private static Type columnType(Type.RelationType row, String col) {
-        return row.columns().stream().filter(c -> c.name().equals(col)).findFirst()
-                .map(Type.Column::type)
-                .orElseThrow(() -> new TypeInferenceException("route condition reads '"
-                        + col + "', not a column of the route's rows"));
+    /** The type of a read path ({@code col}, or {@code slot.col} through a
+     * joined sub-row) in the route's rows. */
+    private static Type columnType(Type.RelationType row, String path) {
+        Type.RelationType at = row;
+        String[] parts = path.split("\\.");
+        Type found = null;
+        for (int i = 0; i < parts.length; i++) {
+            String part = parts[i];
+            Type.Column c = at.columns().stream().filter(x -> x.name().equals(part)).findFirst()
+                    .orElseThrow(() -> new TypeInferenceException("route condition reads '"
+                            + path + "', not a column of the route's rows"));
+            found = c.type();
+            if (i + 1 < parts.length) {
+                Type.RelationType sub = Type.relationSchema(c.type());
+                if (sub == null) {
+                    throw new TypeInferenceException("route condition reads through '" + part
+                            + "', which is not a joined sub-row of the route's rows");
+                }
+                at = sub;
+            }
+        }
+        return java.util.Objects.requireNonNull(found);
     }
 
-    /** The {@code $var.col} reads of {@code n}, in order of appearance. */
+    /** The read path of {@code n} off {@code var}: {@code col} or
+     * {@code slot.col} (one joined sub-row deep); null when {@code n} is not
+     * such a read. */
+    private static @com.legend.Nullable String readPath(TypedSpec n, String var) {
+        if (n instanceof TypedPropertyAccess pa) {
+            if (pa.source() instanceof TypedVariable v && v.name().equals(var)) {
+                return pa.property();
+            }
+            if (pa.source() instanceof TypedPropertyAccess inner
+                    && inner.source() instanceof TypedVariable v2 && v2.name().equals(var)) {
+                return inner.property() + "." + pa.property();
+            }
+        }
+        return null;
+    }
+
+    /** The {@code $var.col} / {@code $var.slot.col} reads of {@code n}, in
+     * order of appearance. */
     private static void collectReads(TypedSpec n, String var, List<String> out) {
-        if (n instanceof TypedPropertyAccess pa
-                && pa.source() instanceof TypedVariable v && v.name().equals(var)) {
-            if (!out.contains(pa.property())) {
-                out.add(pa.property());
+        String path = readPath(n, var);
+        if (path != null) {
+            if (!out.contains(path)) {
+                out.add(path);
             }
             return;
         }
@@ -268,16 +302,14 @@ final class NavigateChecker {
      * source variable normalized — two routes with equal shapes read the
      * same source columns the same way and may share their keys. */
     private static TypedSpec eraseReads(TypedSpec n, String tVar, String sVar) {
+        if (readPath(n, tVar) != null && n instanceof TypedPropertyAccess pa) {
+            // the placeholder carries the READ's type only: the route's
+            // own row type must not tell two same-shaped routes apart
+            return new TypedPropertyAccess(new TypedVariable("?", pa.info()), "?", pa.info());
+        }
         if (n instanceof TypedPropertyAccess pa
-                && pa.source() instanceof TypedVariable v) {
-            if (v.name().equals(tVar)) {
-                // the placeholder carries the READ's type only: the route's
-                // own row type must not tell two same-shaped routes apart
-                return new TypedPropertyAccess(new TypedVariable("?", pa.info()), "?", pa.info());
-            }
-            if (v.name().equals(sVar)) {
-                return new TypedPropertyAccess(new TypedVariable("s", v.info()), pa.property(), pa.info());
-            }
+                && pa.source() instanceof TypedVariable v && v.name().equals(sVar)) {
+            return new TypedPropertyAccess(new TypedVariable("s", v.info()), pa.property(), pa.info());
         }
         List<TypedSpec> kids = n.children();
         if (kids.isEmpty()) {
@@ -294,11 +326,11 @@ final class NavigateChecker {
     /** {@code $t.col} → {@code $u.<key>} by the route's read positions. */
     private static TypedSpec repointReads(TypedSpec n, String tVar, String uVar, ExprType uInfo,
             List<String> reads, List<String> keys, Type.RelationType urow) {
-        if (n instanceof TypedPropertyAccess pa
-                && pa.source() instanceof TypedVariable v && v.name().equals(tVar)) {
-            int k = reads.indexOf(pa.property());
+        String path = readPath(n, tVar);
+        if (path != null) {
+            int k = reads.indexOf(path);
             if (k < 0) {
-                throw new IllegalStateException("checker bug: route read '" + pa.property()
+                throw new IllegalStateException("checker bug: route read '" + path
                         + "' was not collected");
             }
             String key = keys.get(k);
