@@ -246,7 +246,31 @@ for *literal* element lists).
   index before the join predicate and raise. Explode in a subselect, filter outside.
   Both forms verified green.
 
-### 3.4 Java-in-SQL: what the `CREATE ALIAS` seam actually supports
+### 3.4 H2 2.5.250 buys us NOTHING — measured, not read
+
+H2 **2.5.250** shipped 2026-08-29, after every doc in this corpus was written. It is
+not a candidate for a version bump:
+
+- **All four probe batteries re-run on a real `h2-2.5.250.jar` are byte-identical to
+  2.4.240.** The 110-statement capability battery diffs clean (45 errors on each, same
+  45); `LATERAL`, correlated `UNNEST`, the Java table function, the array signatures,
+  the ordinal-join explode and every missing function name behave exactly as on 2.4.240.
+- **The whole difference between the two versions' documented SQL surface is a typo
+  fix.** Diffing H2's own `help.csv` (270,578 vs 270,598 bytes, extracted from the
+  nested `org/h2/util/data.zip`): two lines, "The garbage is run before returning the
+  value" → "The garbage **collector** is run…". No function added, no syntax added.
+
+The 2.5.250 changelog is data races, index selection and storage corruption. **Nothing
+in §3.2's structural gap moves, and nothing in §4.2's missing-function list is filled.**
+Stay on the 2.1.214 / 2.4.240 split the lane already has.
+
+> Method note: the first attempt at this cross-check read `org/h2/res/help.csv`, which
+> does not exist in these jars — it returned **0 bytes** and reported every function
+> "absent", including `CARDINALITY` and `BITAND`, which §3.1 had already *executed*
+> successfully. A check that passes on an empty file proves nothing. The real resource
+> is nested inside `org/h2/util/data.zip`.
+
+### 3.5 Java-in-SQL: what the `CREATE ALIAS` seam actually supports
 
 | capability | H2 2.4.240 |
 |---|---|
@@ -289,6 +313,35 @@ A per-dialect aggregate spelling map is the fix, and it is the same defect
 `BACKEND_PORTABILITY.md` §5.2 filed against every non-H2 backend.
 
 ### 4.2 Tier 1 — scalar Java UDFs, direct ports (≈33 PCT + ≈71 corpus)
+
+**"Scalar Java UDF" means exactly this**, and the mechanism is already proven in-tree
+(`H2ExtensionFunctions`, test scope) and re-probed in §3.5 — we write a plain static
+Java method and name it to H2:
+
+```java
+// core/src/main/java/com/legend/sql/dialect/h2/H2Functions.java  (new, src/main)
+public static @Nullable String[] string_split(@Nullable String s, @Nullable String sep) {
+    return s == null || sep == null ? null : s.split(java.util.regex.Pattern.quote(sep), -1);
+}
+```
+```java
+// H2.sessionSetup() — the product-side seam (END_TO_END_PLAN Phase 7)
+@Override public List<String> sessionSetup() {
+    return List.of(
+        "CREATE ALIAS IF NOT EXISTS string_split FOR \"com.legend.sql.dialect.h2.H2Functions.string_split\"",
+        ...);
+}
+```
+Then `Spellings.H2` maps `SqlFn.STRING_SPLIT → "string_split"` and the renderer is
+unchanged. No H2 fork, no native code, no server; `CREATE ALIAS` is enabled by default
+and `h2.allowedClasses` defaults to `*`. Semantics come from the engine's own
+`LegendH2Extensions` where one exists (nine of these are already written), and from the
+DuckDB function we are matching where one does not — the PCT/corpus row is the oracle
+either way.
+
+The one caveat that shapes the tier boundaries: **parameter and return types must be
+`Integer[]`/`String[]`/`java.sql.Array`, never `Object[]`, `Object` or `int[]`** (§3.5).
+That is why Tier 2 is a separate tier rather than more of this one.
 
 Nine of these **already exist** in `spec/src/test/java/com/legend/harness/H2ExtensionFunctions.java`
 and need only to move to `src/main` and be registered from `H2.sessionSetup()`.
@@ -427,9 +480,13 @@ mvn -pl spec test -Dtest=MinimalCorpusTest -Dsurefire.excludedGroups= \
   [-Drcorpus.backend=h2] -Dlegend.engine.root=$ENG -Dlegend.pure.root=$PUR
 ```
 
-The capability probes are three standalone JDBC programs (batteries in §3) run against
-`h2-2.4.240.jar` and `duckdb_jdbc-1.5.0.0.jar` with no legend-lite code on the
-classpath, so they measure the engines and not our rendering.
+The capability probes are four standalone JDBC programs (batteries in §3) run against
+`h2-2.4.240.jar`, `h2-2.5.250.jar` and `duckdb_jdbc-1.5.0.0.jar` with no legend-lite
+code on the classpath, so they measure the engines and not our rendering. The 2.5.250
+jar comes straight from Central
+(`repo1.maven.org/maven2/com/h2database/h2/2.5.250/h2-2.5.250.jar`); the version
+comparison in §3.4 is a diff of the four battery outputs plus a diff of each jar's own
+`help.csv`, extracted from the nested `org/h2/util/data.zip`.
 
 **Caveat on the oracle checkouts.** `~/legend/legend-engine` and `~/legend/legend-pure`
 were **off the `tools/oracle-pins.env` pins** when this ran (`943d38b3dc2` /
