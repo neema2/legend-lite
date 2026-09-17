@@ -156,6 +156,94 @@ fixes, not one SQL function.**
 
 ---
 
+## 2.5 THE STATIC CEILING — what the lowering can emit, not what tests happen to reach
+
+§2 is a **floor**: it counts the first wall each failing test hits. This section is the
+**ceiling** — every function the DuckDB dialect can emit, checked against a real H2,
+whether or not any test exercises it. It was done because first-wall attribution
+provably undercounts (§5.11: `REGEXP_EXTRACT` moved 17→26 untouched), and it found a
+class of defect the test-driven view cannot see at all.
+
+**Method.** Extract all 79 `SqlFn → name` rows from `Spellings.java`, execute each name
+as a call on `h2-2.1.214` and `h2-2.4.240` and on DuckDB 1.5.0.0, then subtract the
+`SqlFn` constants that `H2`/`H2Modern` intercept with a coded arm (17, measured by
+reading every `SqlFn.` reference in those two files) and the 3 `Spellings.h2()`
+overrides.
+
+| | count |
+|---|---:|
+| distinct DuckDB spellings in the table | 79 |
+| present on both H2 versions | 39 |
+| probe shape failed on DuckDB too (not a finding) | 4 |
+| **absent on both H2 versions** | **36** |
+| …of those, intercepted by an H2 coded arm or respelling | 12 |
+| **…LATENT: emitted verbatim as a name H2 does not have** | **24** |
+
+**None of the 36 differ between 2.1.214 and 2.4.240** — phase Z buys nothing here.
+
+### The 24 latent rows, and why they are a distinct problem
+
+| spelling | `SqlFn` | reached by a test today? |
+|---|---|---|
+| `string_split` | `SPLIT` | 49 corpus |
+| `regexp_extract` | `REGEXP_EXTRACT` | 26 corpus |
+| `epoch_ms` | `EPOCH_MS` | 4 PCT + 1 corpus |
+| `map_concat` | `MAP_CONCAT` | 3 PCT |
+| `md5` · `json_pretty` | `MD5` · `JSON_PRETTY` | 2 corpus each |
+| `levenshtein` · `jaro_winkler_similarity` · `regexp_extract_all` · `timezone` | | 2 PCT each |
+| `cbrt` · `make_date` · `reverse` · `sha1` · `sha256` | | 1 PCT each |
+| **`epoch`** | `EPOCH_SECONDS` | **no** |
+| **`flatten`** | `LIST_FLATTEN` | **no** |
+| **`json_type`** | `JSON_TYPE` | **no** |
+| **`map`** | `MAP_FROM_LISTS` | **no** |
+| **`map_extract`** | `MAP_EXTRACT` | **no** |
+| **`map_from_entries`** | `MAP_FROM_ENTRIES` | **no** |
+| **`map_keys`** | `MAP_KEYS` | **no** |
+| **`map_values`** | `MAP_VALUES` | **no** |
+| **`to_timestamp`** | `FROM_EPOCH_SECONDS` | **no** |
+
+**9 of the 24 are reached by no test on either lane.** They are invisible to §2 and
+would have been invisible to the plan. They are not hypothetical: any query using
+`toEpochSeconds`, `flatten`, `typeOf` over a variant, or the Map family emits them.
+
+**And they fail the wrong way.** A latent row does not raise `DialectCapability` — it
+renders a DuckDB name into H2 SQL and dies at execution with
+`Function "MAP_KEYS" not found`. That is a **runtime error masquerading as a data
+problem**, and it defeats the project's own tenet: *loud walls over wrong rows*, with
+honest gaps in the declared-gap registry. `Spellings.java:27-33` claims these names "are
+ABSENT so they fail loud and graduate into the declared-gap registry" — **measured, they
+are present in the H2 map** (H2 inherits `build()` and overrides only three), so they
+fail at the database instead.
+
+> **Fix the mechanism, not just the rows.** `Spellings.h2()` should start from an
+> explicitly H2-verified map rather than inheriting DuckDB's and subtracting three. A
+> `SpellingsTest` assertion that every `Spellings.H2` value is a function H2 actually has
+> would have caught all 24 at compile time, and would keep catching them as `SqlFn` grows.
+
+### Aggregates and window functions — the same check
+
+All 38 `SqlAgg.Fn` constants executed as SQL text (`AnsiSqlRenderer.reducer` renders the
+**enum constant name** as the function name unless a dialect overrides it):
+
+| | |
+|---|---|
+| accepted by DuckDB and both H2 versions | **30** |
+| rejected by both H2 versions | **6** — `LIST`, `QUANTILE_CONT`, `QUANTILE_DISC`, `ARG_MAX`, `ARG_MIN`, `WAVG` |
+| 2.1.214 rejects, 2.4.240 accepts | **1** — `ANY_VALUE` *(another phase-Z win)* |
+
+`H2.reducer:491` already special-cases `LIST` and `QUANTILE_CONT`, so the true latent
+aggregate set is **four**: `QUANTILE_DISC`, `ARG_MAX`, `ARG_MIN`, `WAVG`. `ARG_MAX` and
+`ARG_MIN` need `CREATE AGGREGATE` (proven in §3.5); the other two are expressible.
+
+> **This corrects §5.2 (phase B).** B2 was sized at ~12 PCT rows on the theory that
+> `STDDEV_SAMP`, `VAR_POP`, `MEDIAN`, `MODE` and `STRING_AGG` wall because the aggregate
+> renderer has no per-dialect table. **Measured, H2 accepts every one of those names.**
+> Those rows wall in `reduceCollection` — the *collection* path (`AnsiSqlRenderer:528`),
+> not the aggregate path — so they belong to **phase F**, not phase B. B2's real scope is
+> the four names above, and its value is the mechanism, not the row count.
+
+---
+
 ## 3. What H2 2.4.240 actually does — and three stale claims corrected
 
 Probe battery: 110 statements on H2 2.4.240 and DuckDB 1.5.0.0, same script
@@ -764,7 +852,8 @@ not change — PCT already ran 2.4.240.
 | **A2** | widen gate 7 to five suites | — | — | S | — |
 | **Z** | **bump corpus lane to H2 2.4.240 + ACOS/ASIN guard — MEASURED** | — | **+61 / −2** | **S** | — |
 | **A1** | `sessionSetup()` UDF seam (+ prod `H2Settings`) | — | — | S | — |
-| **B** | spellings: `BITAND`/`LSHIFT` + aggregate table | ~23 | ~8 | S | — |
+| **B** | spellings: `BITAND`/`LSHIFT`; aggregate table (**scope corrected — §2.5**: 4 names, not 12); **+ the `Spellings.H2` verification assertion that closes all 24 latent rows** | ~11 | ~8 | S | — |
+| **C+** | the **9 latent functions no test reaches** (§2.5): `epoch`, `to_timestamp`, `flatten`, `json_type`, and the 5-strong Map family | 0 today | 0 today | S–M | A1 |
 | **C** | scalar Java UDFs (9 ports + ~12 new) | ~33 | **82** | M | A1 |
 | **D** | codec fixes (CSV render, text/value, multiset) | ~7 | **26** | S | Z |
 | **E** | split the conflated `Caps` switch | — | — | S | — |
