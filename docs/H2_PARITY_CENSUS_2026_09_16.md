@@ -270,6 +270,32 @@ Stay on the 2.1.214 / 2.4.240 split the lane already has.
 > successfully. A check that passes on an empty file proves nothing. The real resource
 > is nested inside `org/h2/util/data.zip`.
 
+### 3.45 LANDMINE — aggregating over `UNNEST(<function call>)` returns NULLs, silently
+
+Probed on **2.1.214 and 2.4.240**, with a `String[]`-returning alias `ssplit`:
+
+| | result |
+|---|---|
+| `SELECT x FROM UNNEST(ssplit('c,a,b', ',')) u(x)` | ✅ `c; a; b` |
+| `SELECT COUNT(*), COUNT(x) FROM UNNEST(ssplit(...)) u(x)` | ✅ `3 \| 3` |
+| `SELECT ARRAY_AGG(x) FROM UNNEST(ssplit(...)) u(x)` | ❌ **`[null, null, null]`** |
+| `SELECT MIN(x) FROM UNNEST(ssplit(...)) u(x)` | ❌ **`null`** |
+| `SELECT ARRAY_AGG(v) FROM (SELECT x AS v FROM UNNEST(ssplit(...)) u(x)) q` | ❌ `[null, null, null]` |
+| `SELECT ARRAY_AGG(x) FROM UNNEST(ARRAY['c','a','b']) u(x)` *(literal)* | ✅ `[c, a, b]` |
+| `... FROM UNNEST(CAST(ssplit(...) AS VARCHAR ARRAY)) u(x)` | ✅ on **2.4.240** · ❌ on 2.1.214 |
+| the **ordinal-join** route (`arr[r.n]` + `SYSTEM_RANGE`), then `ARRAY_AGG` | ✅ **both versions** |
+
+**Wrong rows, no error.** `COUNT` sees three non-null rows while `MIN` and `ARRAY_AGG` over the
+same column see nulls, so nothing raises and nothing is skipped — the query just returns the
+wrong answer. It is specific to `UNNEST` over a **function-call** argument; a literal array is
+fine, and interposing a subselect does not rescue it.
+
+**Consequence for the plan, and it is not cosmetic:** the natural reading of phase F — "a Java
+UDF returns an array, then `UNNEST` it and aggregate" — is **exactly this bug**. Phase F and
+phase H must both explode through the §3.3 ordinal join, which is correct on both versions, and
+`UNNEST(<call>)` under an aggregate must never be emitted. Given the project's "loud walls over
+wrong rows" tenet, a renderer assertion forbidding that shape is worth more than a comment.
+
 ### 3.5 Java-in-SQL: what the `CREATE ALIAS` seam actually supports
 
 | capability | H2 2.4.240 |
@@ -342,6 +368,21 @@ either way.
 The one caveat that shapes the tier boundaries: **parameter and return types must be
 `Integer[]`/`String[]`/`java.sql.Array`, never `Object[]`, `Object` or `int[]`** (§3.5).
 That is why Tier 2 is a separate tier rather than more of this one.
+
+**`STRING_SPLIT` is verified end-to-end on both H2 versions**, since it is the single
+biggest corpus lever and rested on an untested return type. With the alias above:
+
+| | |
+|---|---|
+| `string_split('a,b,c', ',')` | ✅ `[a, b, c]` |
+| `string_split(s, ',')` over a column, NULL row included | ✅ `[a,b,c]; [x]; null` |
+| `CARDINALITY(string_split(...))` | ✅ `3` |
+| `(string_split('a,b,c', ','))[2]` | ✅ `b` |
+| explode via the §3.3 ordinal join | ✅ `1\|a; 2\|x; 1\|b; 1\|c` |
+| **`ARRAY_AGG` over `UNNEST(string_split(...))`** | ❌ **silent NULLs — §3.45** |
+
+`Double[]`, `BigDecimal[]` and `String[]` parameters all bind, arrays containing NULL
+elements round-trip intact, and a `String[]` parameter fed by `ARRAY_AGG(col)` works.
 
 Nine of these **already exist** in `spec/src/test/java/com/legend/harness/H2ExtensionFunctions.java`
 and need only to move to `src/main` and be registered from `H2.sessionSetup()`.
@@ -714,21 +755,25 @@ guard, and re-measure phases C and D against the new baseline before starting th
 
 ### 5.10 Summary
 
+**Corpus yields below are RE-MEASURED after Z** (§5.11), not carried over from the
+2.1.214 baseline. PCT yields are still the 2.4.240 measurement from §2.1, which Z does
+not change — PCT already ran 2.4.240.
+
 | phase | work | PCT | corpus | size | depends on |
 |---|---|---:|---:|---|---|
 | **A2** | widen gate 7 to five suites | — | — | S | — |
 | **Z** | **bump corpus lane to H2 2.4.240 + ACOS/ASIN guard — MEASURED** | — | **+61 / −2** | **S** | — |
 | **A1** | `sessionSetup()` UDF seam (+ prod `H2Settings`) | — | — | S | — |
 | **B** | spellings: `BITAND`/`LSHIFT` + aggregate table | ~23 | ~8 | S | — |
-| **C** | scalar Java UDFs (9 ports + ~12 new) | ~33 | ~71 | M | A1 |
-| **D** | codec fixes — **re-measure after Z; ~50 of its rows are subsumed** | ~7 | ~7 | S | Z |
+| **C** | scalar Java UDFs (9 ports + ~12 new) | ~33 | **82** | M | A1 |
+| **D** | codec fixes (CSV render, text/value, multiset) | ~7 | **26** | S | Z |
 | **E** | split the conflated `Caps` switch | — | — | S | — |
-| **F** | array UDFs over `Integer[]` | ~75 | ~76 | M | A1 |
+| **F** | array UDFs over `Integer[]` | ~75 | **84** | M | A1 |
 | **G** | carrier flip to native `ARRAY` | — | — | M ⚠ | E |
-| **H** | ordinal-join explode | ~45 | ~34 | L | G |
-| **I** | lambda lowering | ~23 | ~7 | L | H |
+| **H** | ordinal-join explode | ~45 | **37** | L | G |
+| **I** | lambda lowering | ~23 | **20** | L | H |
 
-**Z+A+B+C is ~56 PCT and ~140 corpus rows of S/M work with no architectural risk**, and
+**Z+A+B+C is ~56 PCT and ~90 corpus rows of S/M work with no architectural risk**, and
 Z alone is 59 of them for a two-line change. E+G+H+I is the remaining structural half.
 
 *Order to actually start in:* **A2** (an hour; makes every later claim checkable), then
@@ -743,6 +788,106 @@ sized against the 2.1.214 baseline and Z moves it — then **A1 → `STRING_SPLI
 > whether it is cheaper to just measure it.** Here the measurement both reversed the
 > recommendation and dissolved a 45-row phase that had been nominated as the best work
 > in the plan.
+
+### 5.11 The post-Z corpus roster, re-bucketed — **273 H2-only rows**
+
+Measured from the 2.4.240 run, H2-only = H2 fails minus the 108 DuckDB shares. This
+supersedes §2.2, which was the 2.1.214 baseline.
+
+| phase | rows | bucket |
+|:---:|---:|---|
+| C | 49 | `Function "STRING_SPLIT" not found` |
+| F | 46 | `LIST_MIN` wall |
+| H | 37 | `UNNEST` wall |
+| F | 30 | `LIST_GET` wall |
+| C | 26 | `Function "REGEXP_EXTRACT" not found` |
+| D | 16 | CSV render divergence |
+| I | 15 | `LIST_FILTER` wall |
+| — | 8 | sql-text golden assert *(harness policy, not in scope)* |
+| F | 8 | `STRING_AGG` collection reduction |
+| D | 8 | text/value divergence |
+| ? | 6 | `DataError` (other) |
+| I | 5 | nested checked defects |
+| ? | 4 | grid canonical divergence |
+| C | 3 + 2 + 2 | `TO_BASE64`, `MD5`, `JSON_PRETTY` |
+| D | 2 | multiset divergence |
+| ? | 5 | `assertContains`, ClassCastException, NotImplemented, `EPOCH_MS`, FULL-OUTER sort key |
+
+**Rollup: F 84 · C 82 · H 37 · D 26 · I 20 · unassigned 16 · out of scope 8.**
+
+**Two things this measurement proves that the pre-Z estimates could not:**
+
+1. **Variant navigation is GONE — all 19 rows.** Phase Z closed the family completely;
+   there is no residual variant work and no `json_navigate` UDF is needed.
+2. **Burning one layer reveals the next, and the yields move.** `REGEXP_EXTRACT` went
+   **17 → 26** and `LIST_FILTER` **7 → 15** *without either being touched* — those tests
+   previously failed earlier and now get further. This is the "first-wall attribution"
+   caveat made concrete: **totals will drift upward as phases land**, and each phase
+   should re-bucket rather than trust the number it inherited.
+
+### 5.12 What is still NOT measured — read before committing to a phase
+
+Everything above is executed evidence except these. They are named so a fresh session
+does not mistake them for settled:
+
+| # | Unmeasured | Why it matters | How to close it |
+|---|---|---|---|
+| 1 | **Phase G — the carrier flip has never been run.** | It is the only phase with no empirical basis at all; "M, high blast radius" is a judgement, not a measurement. | A spike: land E, flip `nativeLists`, change `arrayLit`, run gates 4/5/7. Same shape as the Z experiment, which twice overturned a judgement call. **Do the spike before committing to G's size.** |
+| 2 | **The 16 unassigned corpus rows** (§5.11) | 6% of the remaining gap has no phase. | Read the six `DataError (other)` and four grid-canonical rows individually. |
+| 3 | **Per-function DuckDB semantics for phase C's ~12 new UDFs** | Null handling and edge cases decide whether a row flips or diverges. The census names the *oracle* (engine `LegendH2Extensions`, else the DuckDB function) — not the answers. | Per function, at implementation time; the PCT/corpus row is the test. |
+| 4 | **Which named PCT tests each phase flips** | PCT failures are bucketed by error text, not test name — surefire reports every row as `PureTestCase`, so there is no expected-flip list to check against. | Correlate the `[LegendLite PCT] Executing:` line preceding each failure. |
+| 5 | **Whether phases interact** | F, H and I all touch collection lowering; their yields are measured independently and may overlap. | Re-bucket after each. |
+
+### 5.13 Starting a phase cold — the file map and the house rules
+
+Everything a session needs that is not in the phase text above.
+
+**Where each phase edits.** All paths from the repo root.
+
+| phase | files |
+|---|---|
+| A2 | `tools/allgates.sh` (`gate7`, `G7_MIN_RUN`/`G7_MAX_FAIL`/`G7_MAX_ERR`) |
+| Z | `core/pom.xml`, `spec/pom.xml` (h2 `2.1.214`→`2.4.240`); `core/src/main/java/com/legend/sql/dialect/H2.java` (ACOS/ASIN guard, mirroring `DuckDb.java:78`); `spec/src/test/resources/rcorpus/h2-fail-roster.txt` |
+| A1 | `H2.java` (`sessionSetup()` override); `com/legend/harness/H2ExtensionFunctions.java` → `core/src/main/java/com/legend/sql/dialect/h2/H2Functions.java`; `core/src/main/java/com/legend/server/ConnectionResolver.java:194-212` |
+| B | `H2.java` (`bitOp()`); `AnsiSqlRenderer.java:950` (`reducer`); `Spellings.java`; `SqlAgg.java` |
+| C | `.../dialect/h2/H2Functions.java`; `Spellings.java` (`h2()` builder at `:36-45`) |
+| D | `H2.java:651` (`normalize`) |
+| E | `CarrierStrategies.java:56-62` (the `Caps` record) and its three read sites `:83`, `:232`, `:654` |
+| F | `H2Functions.java`; `H2.java` (`listCall`, `membership`, `reduceCollection`) |
+| G | `CarrierStrategies.java` (`Caps.H2`); `H2.java:355` (`arrayLit`) |
+| H | `core/src/main/java/com/legend/sql/dialect/LateralExplodeToUnion.java` |
+| I | `core/src/main/java/com/legend/lowering/Scalars.java`, `Fold.java`, `ListShapes.java` |
+
+**The three landmines, in one place** — all probed, all silent-wrong-answer or
+raise-at-runtime, none of them caught by a type checker:
+
+1. **`arr[n]` out of range RAISES on H2**, returns NULL on DuckDB. Guard every generated
+   index: `CASE WHEN n <= CARDINALITY(arr) THEN arr[n] END` (§3.3).
+2. **Filtering on `arr[s.n]` in the join's own `WHERE`** lets H2 evaluate the index before
+   the join predicate and raise. Explode in a subselect, filter outside (§3.3).
+3. **`ARRAY_AGG`/`MIN` over `UNNEST(<function call>)` returns NULLs silently** (§3.45).
+   Always explode through the ordinal join; never emit `UNNEST(<call>)` under an aggregate.
+
+**House rules that bind this work** (from `AGENTS.md` / `docs/TENETS.md` / `docs/GATES.md`):
+
+- **Loud walls over wrong rows.** A capability that is not reachable raises
+  `DialectCapability`; it never silently degrades. The three landmines above are the
+  ways H2 breaks that rule for us, so the renderer has to enforce it.
+- **One owner per behaviour.** This is why the `json_navigate` UDF was dropped in favour
+  of Z: never a second implementation of something the platform already does.
+- **`tools/allgates.sh` has no `set -e` and always exits 0** — read the log, never the
+  exit code.
+- **`-Dlegend.engine.root` / `-Dlegend.pure.root` are SYSTEM PROPERTIES**, not env vars,
+  and `tools/oracle-roots.sh` fails the chain if the checkouts are off
+  `tools/oracle-pins.env`. They were off the pins when this census ran — see §7.
+- Run gates under `caffeinate -dims`; a slept run once produced a 21× timing error.
+- Roster changes carry a written reason in `docs/GATES.md`; strength floors are
+  shrink-only.
+
+**The verification each phase owes.** Gate 5 (corpus H2) and the widened gate 7 (PCT H2)
+are the scoreboard; gate 4 and gate 6 must not move. A phase is done when its rows flip
+*and* the DuckDB lanes are unchanged — a change that moves both lanes is a platform
+change wearing an H2 costume.
 
 ---
 
