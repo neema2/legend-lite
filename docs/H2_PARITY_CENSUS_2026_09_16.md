@@ -172,14 +172,27 @@ overrides.
 
 | | count |
 |---|---:|
+| `SqlFn` constants total (`SqlFn.java:10-119`) | **173** |
+| …`Spellings` data rows / coded arms | 76 / 97 |
 | distinct DuckDB spellings in the table | 79 |
 | present on both H2 versions | 39 |
 | probe shape failed on DuckDB too (not a finding) | 4 |
 | **absent on both H2 versions** | **36** |
 | …of those, intercepted by an H2 coded arm or respelling | 12 |
-| **…LATENT: emitted verbatim as a name H2 does not have** | **24** |
+| **…LATENT from the spelling table** | **24** |
+| **…LATENT from base coded arms** (executed, below) | **+8** |
+| **…LATENT outside the `SqlFn` switch** | **+3** |
+| **TOTAL verified silent emissions** | **~35** |
+| plus conditional guard fall-throughs | 3 |
+| `SqlFn` where H2 raises an honest `DialectCapability` wall | 40 |
+| `TypeNames` scalars DuckDB has and H2 lacks | **0 — category empty** |
 
 **None of the 36 differ between 2.1.214 and 2.4.240** — phase Z buys nothing here.
+
+> The **40 walls are fine** — they are honest, loud, and already funnel into the
+> declared-gap registry. It is the **~35 silent emissions** that are the ceiling problem,
+> and they all trace to one line: `Spellings.h2()` starts from `build()` and overrides
+> three rows, instead of starting from an empty, H2-verified map.
 
 ### The 24 latent rows, and why they are a distinct problem
 
@@ -219,6 +232,60 @@ fail at the database instead.
 > explicitly H2-verified map rather than inheriting DuckDB's and subtracting three. A
 > `SpellingsTest` assertion that every `Spellings.H2` value is a function H2 actually has
 > would have caught all 24 at compile time, and would keep catching them as `SqlFn` grows.
+
+### The coded arms — 10 more, found by reading `AnsiSqlRenderer.call()` rather than the table
+
+The spelling table is not the whole vocabulary. `SqlFn` has **173 constants** (not the
+~164 `DUCKDB_FUNCTION_COVERAGE.md` claims): **76** are `Spellings` rows and **97** are
+coded arms, and `SpellingsTest.everySqlFnClassified` pins that partition exactly. Ten
+base coded arms spell DuckDB with no H2 override. **Each was then executed** rather than
+inferred:
+
+| `SqlFn` | emitted on H2 | `AnsiSqlRenderer` | verdict |
+|---|---|---|---|
+| `JSON_MERGE_PATCH` | `json_merge_patch(…)` | `:626` | ❌ not found |
+| `MAP_EMPTY` | `MAP {}` | `:694` | ❌ syntax error |
+| `BIT_NOT` | `xor(x, -1)` | `:695` | ❌ not found |
+| `ENCODE_BASE64` | `to_base64(…)` | `:706` | ❌ not found |
+| `DECODE_BASE64` | `decode(from_base64(…))` | `:755` | ❌ not found |
+| `MAKE_TIMESTAMP` | `make_timestamp(…)` | `:731` | ❌ not found |
+| `TIME_BUCKET` | `time_bucket(to_days(n), …)` | `:744` | ❌ not found |
+| `FROM_EPOCH_MS` | `epoch_ms(…)` | `:751` | ❌ not found |
+| `GUID` | `CAST(uuid() AS VARCHAR)` | `:710` | ✅ **works — not a gap** |
+| `DATE_TRUNC` | `date_trunc('month', x)` | `:723` | ✅ **works — not a gap** |
+
+Plus three silent emissions outside the `SqlFn` switch, all executed:
+
+| node | emitted on H2 | verdict |
+|---|---|---|
+| `SqlExpr.OrderedListAgg` → `list(x ORDER BY y)` (`:460`, **no dialect hook at all**) | ❌ `Function "LIST" not found` |
+| `SqlType.Map` cast → `MAP(K, V)` (`:1051`, ungated) | ❌ `Unknown data type: "MAP"` |
+| `SqlType.Array` cast → `INTEGER[]` (`:1050`) | ❌ **syntax error — H2 spells `INTEGER ARRAY`** |
+
+> **The array-cast row is a new finding and it lands on phase G.** The capability matrix
+> assumed `T[]` "renders identically" on H2 because H2 has array types. It does not:
+> `CAST(ARRAY[1,2] AS INTEGER[])` is a syntax error, while `CARDINALITY(ARRAY[1,2,3])`
+> works. So the carrier flip needs a `castTypeName` change for `SqlType.Array` as well as
+> an `arrayLit` change — flipping `arrayLit` alone would produce arrays that cannot be cast.
+
+**Five claims from the static read were REFUTED by executing them**, and they are
+recorded because a plan built on the unexecuted version would have spent work on
+non-problems: `GUID`/`uuid()`, `DATE_TRUNC` with a string unit, `STRING_AGG`, legacy
+`MODE(x)`, and `substr` as a `SUBSTRING` alias **all work on H2**. Reading a dialect's
+documentation shape is not the same as running it.
+
+**Conditional fall-throughs — the subtlest class of all.** `H2.call()` intercepts
+`FORMAT`, `SPLIT_PART` and `DATE_DIFF` **only for literal arguments**:
+
+| `SqlFn` | interception guard | what a non-literal does |
+|---|---|---|
+| `FORMAT` | `a.get(0) instanceof SqlExpr.StringLit` (`H2:200`) | falls through to `printf(…)` |
+| `SPLIT_PART` | 1-char `StringLit` separator **and** `IntLit` index ≥ 1 (`H2:285-288`) | falls through to `split_part(…)` |
+| `DATE_DIFF` | `StringLit` unit (`H2:252`) | falls through to `date_diff(…)` |
+
+A static "is it intercepted?" check says yes; at runtime a dynamic template, separator or
+unit emits the DuckDB name. **No test currently exercises the dynamic form**, so this is
+invisible to every measurement in this document except this one.
 
 ### Aggregates and window functions — the same check
 
