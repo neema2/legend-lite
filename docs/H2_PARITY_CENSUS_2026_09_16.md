@@ -994,6 +994,124 @@ does not mistake them for settled:
 | 4 | **Which named PCT tests each phase flips** | PCT failures are bucketed by error text, not test name — surefire reports every row as `PureTestCase`, so there is no expected-flip list to check against. | Correlate the `[LegendLite PCT] Executing:` line preceding each failure. |
 | 5 | **Whether phases interact** | F, H and I all touch collection lowering; their yields are measured independently and may overlap. | Re-bucket after each. |
 
+### 5.14 LEG V — the vocabulary/structure separation (the root cause, not the symptom)
+
+> **Status: RECOMMENDED, user-directed 2026-09-16, not yet ratified.** This is
+> platform-wide work, not H2 work; it is written here because this census is the
+> evidence for it. `CARRIER_REDESIGN.md` §5 already chartered it as a deferred slice
+> ("later slices purify the ANSI base of DuckDB idioms — int-divide `//`, `EXCLUDE`,
+> interval spellings, carrier caps"); what is new is that the scope is now **measured**
+> rather than estimated.
+
+#### The diagnosis
+
+`AnsiSqlRenderer` does two unrelated jobs, and conflating them is what produces every
+silent emission in §2.5:
+
+| job | shared across dialects? | where it should live |
+|---|---|---|
+| **Traversal** — IR walk, operator precedence and parenthesisation, clause assembly, join nesting, subquery composition, `passes()`, hook dispatch | **yes, identically** | the base |
+| **Vocabulary** — which function name, which literal syntax, which type name | **no, never** | per-dialect data |
+
+The 40 honest walls prove the base already knows the right pattern: it declares a hook
+and throws when the dialect has not supplied a spelling. The ~35 silent emissions are
+arms that took the other path. **The architecture is right; a handful of places break it.**
+
+**The single line that breaks it** (`Spellings.java:36-45`):
+
+```java
+private static Map<SqlFn, String> h2() {
+    Map<SqlFn, String> m = build();     // ← inherits DuckDB's ENTIRE vocabulary
+    m.put(SqlFn.MATCHES,  "regexp_like");
+    m.put(SqlFn.STRFTIME, "formatdatetime");
+    m.put(SqlFn.STRPTIME, "parsedatetime");
+    return m;
+}
+```
+
+and `Compiler.java:730-733`, which hands SQLite the same table:
+`new AnsiSqlRenderer(Lexicon.SQLITE, TypeNames.ANSI, Spellings.DUCKDB)` — **SQLite is the
+second victim, and `SQLiteIntegrationTest` runs in gate 1.** Two independent witnesses
+make this a platform defect, not an H2 inconvenience.
+
+Measured contamination in the base itself (1,285 lines, 219 distinct string literals) —
+the function-shaped lowercase literals are few enough to enumerate:
+
+`current_date` · `current_user` · `date_trunc` · `lpad` · `rpad` · `make_timestamp` ·
+`to_weeks` · `rowid`
+
+`rowid` is precisely the DuckDB-ism `CARRIER_REDESIGN` §5 named (H2 spells `_ROWID_`).
+
+#### The rule
+
+> **The base contains only (a) IR traversal and (b) structural keywords identical across
+> every supported dialect. Any token that varies between two supported dialects lives in
+> per-dialect data or a hook that throws.**
+
+`SELECT`, `FROM`, `JOIN`, `ON`, `GROUP BY` stay — every SQL dialect spells them the same.
+`LIMIT` does **not** — it already varies (the H2 budget records "never a LIMIT/OFFSET
+pair") and is already hook territory. Vocabulary belongs in the three data tables that
+already exist (`Spellings`, `TypeNames`, `Lexicon`); shape logic that cannot be a table
+row becomes a hook. **Not 100 new hooks — data, with hooks only where shape varies.**
+
+#### Why not the two alternatives
+
+**Not "make it genuinely ANSI SQL:2016".** There is no ANSI engine to execute against, so
+base conformance would be asserted by nothing. That replaces "DuckDB in disguise" with
+"aspiration in disguise", which is worse because it looks principled. Every rule above is
+testable; conformance to an unrun standard is not.
+
+**Not "one renderer per dialect, no shared root".** Six backends × ~1,200 lines of
+traversal is ~7,000 lines of duplicated precedence and parenthesisation logic, with fixes
+landing in one copy and missing five. This project has already run that experiment in the
+other direction: **F10 slice 1 (`079ebfda`) collapsed three divergent copies of literal
+spelling into one owner and got byte-identical output.** Abolishing the root would
+deliberately recreate what that slice deleted — and the
+`EngineStyleH2 → EngineStyleDB2 → EngineStyleComposite` chain would need three more copies.
+
+#### The work
+
+| # | move | scope |
+|---|---|---|
+| V1 | `Spellings.h2()` starts from an **empty** map, every row H2-verified | closes 24 |
+| V2 | relocate the DuckDB-spelled coded arms from `AnsiSqlRenderer.call()` into `DuckDb.call()`; base throws | ~8 |
+| V3 | add hooks where there are none: `SqlExpr.OrderedListAgg` (`:460`, no hook at all), the `SqlType.Map` cast (`:1051`, ungated), the `SqlType.Array` cast (`:1050` — `T[]` is a **syntax error** on H2, which spells `INTEGER ARRAY`) | 3 |
+| V4 | purge the enumerated vocabulary literals from the base (`rowid`, `date_trunc`, `lpad`/`rpad`, `make_timestamp`, `to_weeks`, `current_date`, `current_user`) | 8 |
+| V5 | re-point the **six `super.call()` fall-throughs** in `EngineStyleH2` (`:1666, 1715, 1730, 1738, 1751, 1783`) — the golden-text renderers inherit base arms, so V2/V4 reach them | 6 sites |
+| V6 | **rename** `AnsiSqlRenderer` → `SqlRenderBase` | mechanical |
+
+**V6 is not cosmetic.** The name is a standing invitation to the defect: "AnsiSqlRenderer"
+tells a contributor that putting a function name in it is legitimate. It has been arguing
+for this bug since it was created.
+
+#### Acceptance tests — all three must hold
+
+1. **Base-literal scan.** A test scans `SqlRenderBase` for string literals against an
+   allowlist of universal structural keywords. Anything else fails. This is what stops
+   the defect regenerating as `SqlFn` grows — it is already at **173** constants.
+2. **DuckDB lane byte-unchanged.** Corpus **2477** and PCT **1247**, exactly. This is the
+   invariant that makes the whole leg safe: an arm moved base→`DuckDb` that leaves DuckDB
+   at its pins is *proven* behaviour-preserving. **This is the reason the leg is low-risk,
+   not high-risk** — the reference lane is a complete regression oracle.
+3. **Golden text byte-parity unchanged.** Gate 8 and the corpus sql-text lane pin
+   `EngineStyle*` output byte-exact, so any V2/V4/V5 drift is caught immediately and
+   loudly. This is the leg's sharpest hazard and its best instrument.
+
+#### Sequencing, and the honest cost
+
+**Split it.** V1 is contained and closes 24 rows — fold it into phase B. V2–V6 is a
+program leg of its own: run it **after Z/A/C** (bank the cheap parity first; do not churn
+the roster while measuring a burndown) and **before any new backend is added**, which is
+when the interest comes due — `DUCKDB_FUNCTION_COVERAGE` already priced widening `SqlFn`
+across six planned backends at **~1,770 render arms**, every one of which inherits this
+defect today.
+
+**It buys zero passing tests.** Say so plainly. What it buys is that every measurement
+taken after it is trustworthy, silent wrong answers become loud walls, and the next
+dialect costs a table instead of an archaeology session. Sized from the measured scope —
+~35 relocations, 3 new hooks, 8 literals, 6 fall-through sites, one conformance test —
+this is an **L: two or three batches, not a month.**
+
 ### 5.13 Starting a phase cold — the file map and the house rules
 
 Everything a session needs that is not in the phase text above.

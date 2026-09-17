@@ -416,6 +416,27 @@ classification must be explicit so "temporary" never silently becomes
   as the idioms they counteract stop being defaults. Exit check: the
   H2 dialect class is mostly Spellings/Lexicon DATA + strategy rules,
   not call-override code.
+
+  > **MEASURED AND RE-FRAMED 2026-09-16 — [H2_PARITY_CENSUS_2026_09_16.md](H2_PARITY_CENSUS_2026_09_16.md)
+  > §2.5 and §5.14 (register P6).** The diagnosis above is confirmed and now has a size:
+  > the inverted layering produces **~35 silent emissions** — DuckDB function names
+  > rendered into H2 SQL that die at execution as `Function "X" not found` rather than
+  > raising a loud `DialectCapability`. Root line: `Spellings.h2()` starts from `build()`
+  > (`Spellings.java:36-45`), so `Spellings.H2` carries all 76 DuckDB keys and overrides
+  > three. **`Spellings.java:27-33` asserts the opposite** — that these names "are ABSENT
+  > so they fail loud" — so the class javadoc describes an intent the code does not
+  > implement. **SQLite is the second victim** (`Compiler.java:730-733`), and it is in
+  > gate 1.
+  >
+  > **One correction to the end-state above: "the end-state base is honest ANSI" is the
+  > wrong target.** No ANSI engine executes, so base conformance would be asserted by
+  > nothing — that trades "DuckDB in disguise" for "aspiration in disguise". The testable
+  > end-state is a **traversal skeleton that knows no vocabulary**: the base keeps the IR
+  > walk, precedence and clause assembly plus structural keywords identical across every
+  > dialect; every varying token lives in per-dialect data (`Spellings`/`TypeNames`/`Lexicon`)
+  > or a hook that throws. Acceptance is a base-literal scan, not a standards claim — and
+  > the rename to `SqlRenderBase` is part of the fix, because the current name is what
+  > invites vocabulary into the file.
 - Small duplications to consolidate when touched: `H2.dateUnit` vs
   `EngineStyleH2.dbUnitOf` (deliberate quarantine copy — merge only if
   a THIRD consumer appears), `Ddl.H2_RESERVED` vs `Lexicon.H2`.
