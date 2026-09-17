@@ -417,29 +417,277 @@ The §2.3 families: NULL-string → `[]` (~45 corpus), `1E+1` float render (~12 
 
 ---
 
-## 5. Sequenced, with expected yield
+## 5. THE PLAN
 
-Yields are the §2 attributions summed; they are upper bounds (a test can carry two
-causes), so treat them as ordering evidence, not a forecast.
+Yields are the §2 attributions summed. They are **upper bounds** — a test can carry two
+causes, so a row fixed in phase C may also have needed phase F. Treat them as ordering
+evidence, not a forecast. Nothing below is scheduled; the phases are ordered by
+dependency and by evidence-per-unit-risk.
 
-| # | Work | PCT | corpus | size |
-|---|---|---:|---:|---|
-| 1 | **`sessionSetup()` UDF seam** on `H2`/`H2Modern` + move `H2ExtensionFunctions` to `src/main` | — | — | S — *also fixes a live production defect (§2.1)* |
-| 2 | Tier 0 spellings: `BITAND`/`LSHIFT`/native aggregates + a per-dialect aggregate spelling map | ~23 | ~8 | S |
-| 3 | Tier 1 scalar UDFs (11 ports + 12 new) | ~33 | ~71 | M |
-| 4 | Tier 4 codec fixes | ~7 | ~57 | S–M |
-| 5 | Tier 2 array UDFs over `Integer[]` | ~75 | ~76 | M |
-| 6 | Tier 3a carrier flip (`Caps.H2.nativeLists`) | — | — | M, high blast radius |
-| 7 | Tier 3b ordinal-join explode (generalise `LateralExplodeToUnion`) | ~45 | ~34 | L |
-| 8 | Tier 3c lambda lowering to explode/re-aggregate | ~23 | ~7 | L |
+### 5.0 The two lanes run DIFFERENT H2 versions — read this first
 
-**Steps 1–4 are ~63 PCT and ~136 corpus rows for S/M work**, and step 1 is required
-before any of it can run on a product-opened connection.
+| lane | gate | H2 version | dialect class |
+|---|---|---|---|
+| RCorpus | 5 | **2.1.214** (`core/pom.xml`, `spec/pom.xml`) | `H2` |
+| PCT | 7 | **2.4.240** (`-Dh2.version`) | `H2Modern` |
 
-**Gate recommendation, independent of the above:** gate 7 runs Relation only, so 219 of
-the 246 PCT gap rows are in **no gate**. Widening G7 to all five suites with the
-measured ceilings (fail ≤ 21, err ≤ 232) would stop the lane drifting further before
-any fix lands. That is the cheapest item in this document.
+`Compiler.dialectOf:654-657` picks `H2` for a connected 2.1/2.2 and `H2Modern`
+otherwise. **Every capability claim in this document was re-probed on BOTH versions.**
+The batteries are identical except for exactly two things:
+
+| | 2.1.214 | 2.4.240 |
+|---|---|---|
+| `2 = ANY(ARRAY[...])` | ❌ `ARRAY to BOOLEAN` | ✅ |
+| `ARRAY_CONTAINS(arr, v)` | ✅ | ✅ |
+| `(JSON '{"a":1}')."a"` (quoted key) | ❌ | ✅ **= 1** |
+| `(JSON '[10,20,30]')[2]` | ❌ | ✅ |
+
+So: **native arrays, `ARRAY_AGG`, `UNNEST`, `CARDINALITY`, the ordinal-join explode,
+`CREATE ALIAS`, `CREATE AGGREGATE` and the `Integer[]` in/out signature all work
+identically on 2.1.214.** Phases A–H below are version-independent. Only membership
+must spell `ARRAY_CONTAINS` rather than `= ANY` to serve both.
+
+> **Correction 5 (to `H2_BACKEND.md`'s addendum).** That addendum concluded JSON object
+> field access "exists in NO syntax" at 2.4.240 and that the version bump "buys array
+> indexing only". Probed here: `(JSON '{"a":1}')."a"` returns `1`. The **quoting is
+> load-bearing** — bare `.a` returns NULL silently, which is how the addendum's syntax
+> battery missed it. `CARRIER_REDESIGN.md`'s MODERN PROFILE already recorded the quoted
+> form; the two docs contradict each other and CARRIER_REDESIGN is right.
+>
+> Consequence: the **19 variant-navigation corpus rows are impossible natively on
+> 2.1.214 and native on 2.4.240.** That makes the corpus lane's H2 version a real
+> decision — see §5.9.
+
+### 5.1 Phase A — build the seam, stop the drift *(S; 0 rows directly, unblocks everything)*
+
+**A1. The `sessionSetup()` UDF seam.** Add a `sessionSetup()` override to `H2` that
+issues `CREATE ALIAS IF NOT EXISTS` for each registered function, and move
+`H2ExtensionFunctions` from `spec/src/test` to `core/src/main`. `H2Modern extends H2`
+inherits it. `SqlDialect.sessionSetup()` already exists and is already executed at
+`Compiler.dialectOf`'s seam (`:625-629`, `:658-660`) — **no new plumbing**.
+
+*This is a bug fix, not just an enabler.* `H2.splitPartCall:671` already emits
+`legend_h2_extension_split_part(...)`, and nothing in `src/main` registers it. Any H2
+connection the product opens itself (`ConnectionResolver:194`) fails that call today.
+
+*Verified by:* a new core test that opens a product-path H2 connection and calls each
+alias. Not by a corpus delta — A1 alone moves few rows.
+
+**A2. Widen gate 7 to all five PCT suites.** It runs `Test_LegendLite_RelationFunctions_PCT`
+only, so **219 of the 246 PCT gap rows are in no gate at all** and the lane can keep
+drifting silently. Change `-Dtest=` to the five suites and pin the measured ceilings
+(run 1249, fail ≤ 21, err ≤ 232), ratcheting down as phases land.
+
+Do A2 **first**. It is an hour's work and it is what makes every later phase's claim
+checkable.
+
+> **Also fix `H2Settings` on the production path.** `ConnectionResolver:194-212` builds
+> `jdbc:h2:...` URLs **without** `H2Settings.SETTINGS`, so a product-opened H2 session
+> has different keyword, mode and null-ordering semantics than every tested one. Same
+> phase, same reason.
+
+### 5.2 Phase B — spellings; no Java at all *(S; ~23 PCT + ~8 corpus)*
+
+**B1. `H2.bitOp()` override.** `AnsiSqlRenderer:807` walls because `H2` never overrides
+`bitOp`. H2 has the operations natively, under different names (probed):
+`BIT_AND→BITAND`, `BIT_OR→BITOR`, `BIT_XOR→BITXOR`, `BIT_SHIFT_LEFT→LSHIFT`,
+`BIT_SHIFT_RIGHT→RSHIFT`, and `XOR→BITXOR`. **11 PCT rows, one small override.**
+
+**B2. A per-dialect aggregate spelling table.** `AnsiSqlRenderer.reducer:950` renders
+`r.fn() + "(" + ... + ")"` — **the `SqlAgg.Fn` enum constant name IS the SQL text.**
+There is no `Spellings`-equivalent for aggregates, which is why `STDDEV_SAMP`,
+`VAR_POP`, `MEDIAN`, `MODE`, `STRING_AGG`, `QUANTILE_CONT` surface as "reached a
+dialect without a list encoding" rather than as a spelling miss. H2 has every one of
+them natively (`PERCENTILE_CONT(q) WITHIN GROUP (ORDER BY v)` for the last, already
+hand-coded at `H2.reducer:491`).
+
+Add `Spellings`-style `Map<SqlAgg.Fn, String>` per dialect and let `reducer()` consult
+it. **~12 PCT rows**, and it closes the same defect `BACKEND_PORTABILITY` §5.2 filed
+against *every* non-H2 backend — so it is worth more than its H2 yield.
+
+*Verified by:* gate 7 (widened) error count drops by ~23; gate 4 unchanged.
+
+### 5.3 Phase C — scalar Java UDFs *(M; ~33 PCT + ~71 corpus)*
+
+Mechanism and code shape in §4.2. Two batches:
+
+**C1. Port the nine already written** (`split_part`, `base64_encode/decode`, `hash_md5`,
+`reverse_string`, `lpad`, `rpad`, `edit_distance`, `jaro_winkler_similarity`) from test
+scope to `src/main`, registered by A1. Semantics are already the engine's, verbatim.
+
+**C2. Write the new ones**, in yield order:
+
+| function | rows | note |
+|---|---:|---|
+| `STRING_SPLIT → VARCHAR[]` | **49 corpus** | the single biggest corpus lever; returns a real ARRAY (§3.5) |
+| `TIME_BUCKET` | **11 PCT** | biggest PCT lever in this phase |
+| `REGEXP_EXTRACT` | 1 PCT + **17 corpus** | |
+| `EPOCH_MS`, `MAKE_DATE`, `MAKE_TIMESTAMP`, `TIMEZONE` | 10 PCT | `java.time` |
+| `PRINTF`/`%.Nf` | 3 PCT | H2 has no printf; `String.format` |
+| `SHA1`, `SHA256`, `CBRT`, `REGEXP_EXTRACT_ALL`, `JSON_PRETTY`, signed-64 `hashCode` | 10 | |
+
+*Oracle for semantics:* the engine's `LegendH2Extensions` where one exists; otherwise
+the DuckDB function being matched. The PCT/corpus row decides either way.
+
+*Verified by:* gates 5 and 7 both move; `Function "X" not found` disappears from both
+logs (today: 49 `STRING_SPLIT`, 17 `REGEXP_EXTRACT` on the corpus lane).
+
+### 5.4 Phase D — codec fixes; no SQL involved *(S–M; ~7 PCT + ~57 corpus)*
+
+These are **not** capability gaps and do not need any of the above. They can run in
+parallel with B and C by a second person.
+
+**D1. NULL-in-a-string-column reads back as an empty collection — ~45 corpus rows in
+one root cause.** `groupBy::testMax` expects `['null', 5.0, 'Firm X', …]` and gets
+`[[], 5.0, 'Firm X', …]`; every other cell agrees. Families: `calendarAggregations`
+(48), `groupBy` (30), `tds::groupBy` (15). **Diagnose this one row first** — it is the
+best rows-per-hour in the entire document.
+
+**D2. Float rendering, ~12 corpus rows.** `expected <2 years,1.0> got <2 years,1E+1>` —
+the LEGACY-mode `BigDecimal` carrier `H2.normalize:651` already partly handles, leaking
+through the CSV render path.
+
+**D3. `no typed conversion for [B`, 7 PCT rows.** H2 returns `JSON` as `byte[]`; the
+`Pair` decode has no arm for it. `H2.normalize` already has the byte[]→String row for
+the JSON case; extend it to the typed-conversion path.
+
+### 5.5 Phase E — split the conflated capability *(S; 0 rows, but phase G is unsafe without it)*
+
+**This is the finding that reorders the back half of the plan.**
+
+`CarrierStrategies.Caps` declares three booleans. Across **all** of `core/src/main`
+there are exactly three reads, and all three are `nativeLists`:
+
+| site | what it actually gates |
+|---|---|
+| `CarrierStrategies:83` `select()` | **FULL OUTER JOIN emulation** |
+| `CarrierStrategies:232` `source()` | **ASOF join emulation + static PIVOT emulation** |
+| `CarrierStrategies:654` `expr()` | the list/carrier strategies |
+
+`correlatedExplode` and `jsonCarrier` are **declared and never read anywhere** — dead
+fields that make the record look more expressive than it is.
+
+So `nativeLists` is a **single master switch over four unrelated emulations**. Setting
+`Caps.H2.nativeLists = true` (phase G) would silently switch off FULL OUTER, ASOF and
+PIVOT emulation for H2 — all three of which H2 genuinely needs (H2 rejects `FULL OUTER
+JOIN` outright; probed) — and the FULL OUTER emulation is recent, deliberate work
+(batch 125).
+
+**E1.** Replace the record with capabilities that mean what they say —
+`nativeLists`, `supportsFullOuterJoin`, `supportsAsOfJoin`, `supportsNativePivot` —
+gate each site on its own, and either wire or delete the two dead fields. `Caps.H2`
+becomes `(false, false, false, false)` with identical behaviour; `Caps.DUCKDB` all
+true. **A pure refactor with no intended behaviour change**, which is exactly why it
+should land on its own, gated, before G.
+
+### 5.6 Phase F — array Java UDFs *(M; ~75 PCT + ~76 corpus)*
+
+Signature proven in §3.5 on all three H2 versions: `Integer[]` in, `Integer[]` out, and
+the returned array is first-class (`CARDINALITY` and `UNNEST` work over it).
+
+| SqlFn | route | rows |
+|---|---|---:|
+| `LIST_MIN` / `LIST_MAX` | Java over `Integer[]` | 27 PCT + **46 corpus** |
+| `LIST_GET` | native `arr[n]` **with the OOB guard** | 18 PCT + 30 corpus |
+| `LIST_AVG`/`MEDIAN`/`MODE`/`SUM`/`PRODUCT` | Java scalar | 8 PCT + 1 corpus |
+| `LIST_SORT`/`REVERSE`/`POSITION`/`SLICE` | Java array→array; `ARRAY_SLICE` native | 6 PCT |
+| `LIST_CONTAINS` / membership | **`ARRAY_CONTAINS`** (not `= ANY` — §5.0) | 1 PCT |
+| `STRING_AGG` over a collection | Java `String[] → String` | 2 PCT + 8 corpus |
+| `LIST_LENGTH` | native `CARDINALITY` (already in `H2Modern`) | — |
+
+**The mandatory guard:** `arr[n]` out of range **raises** on H2 (`Array element error:
+"5", expected "1..2"`) where DuckDB returns NULL. Every generated index must be
+`CASE WHEN n <= CARDINALITY(arr) THEN arr[n] END`. This is a correctness landmine, not
+a style note — it turns a NULL into a thrown query.
+
+F can precede G: these are function calls over whatever carrier is in play.
+
+### 5.7 Phase G — the carrier flip *(M; 0 rows directly, high blast radius)*
+
+Set `Caps.H2.nativeLists = true` (safe only after E) and change `H2.arrayLit:355` from
+`JSON_ARRAY(...)` to `ARRAY[...]`.
+
+Today the H2 lane carries collections as **JSON**, which is why it pays the `byte[]`
+read-back of D3 and the `ABSENT ON NULL` mismatch. H2 has a full native `ARRAY`
+(§3.1) on **every** version in play. Flipping the carrier re-points phase F's work at
+native SQL and removes a class of codec problems rather than patching them.
+
+**Sequencing note:** `CAST(JSON '[1,2,3]' AS INT ARRAY)` **fails on both H2 versions**
+(probed) — there is no cheap JSON↔ARRAY bridge, so the carrier cannot be flipped
+half-way. G is a single atomic change with a full two-gate verification, and it is the
+one phase that warrants its own batch and its own rollback plan.
+
+### 5.8 Phase H/I — correlated explosion, then lambdas *(L; ~68 PCT + ~41 corpus)*
+
+**H. Generalise `LateralExplodeToUnion` to the ordinal join.** The pass already
+decorrelates lateral `UNNEST` into a `_ROWID_`-keyed `UNION ALL`, but only for
+*literal* element lists. Replace that with the general, probed recipe:
+
+```sql
+SELECT t.id, s.n AS ord,
+       CASE WHEN s.n <= CARDINALITY(t.arr) THEN t.arr[s.n] END AS x
+FROM t JOIN SYSTEM_RANGE(1, <bound>) s(n)
+  ON s.n <= COALESCE(CARDINALITY(t.arr), 0)
+```
+
+Bound from `(SELECT MAX(CARDINALITY(arr)) FROM t)` (probed) or a static cap.
+Empty/NULL collections are preserved with the `LEFT JOIN` + guard form (probed:
+`3|null; 4|null`). **Unblocks `UNNEST`: 45 PCT + 34 corpus.**
+
+Two hazards, both probed, both must be encoded in the pass:
+1. the OOB guard of §5.6;
+2. **explode in a subselect, filter outside** — filtering on `arr[s.n]` in the join's
+   own `WHERE` lets H2 evaluate the index before the join predicate and raise.
+
+**I. Lambda lowering** (`LIST_FILTER`, `LIST_TRANSFORM`, `fold`, `forAll`, `exists` —
+~23 PCT + 7 corpus). H2 has no lambdas and **no Java UDF can supply one**: the lambda
+body is legend-lite IR, not a value that can cross the JDBC boundary. These must lower
+to explode → ordinary SQL predicate/projection → re-`ARRAY_AGG`, which is why I follows
+H. This is also the shape `BACKEND_PORTABILITY` §2.1 argues for on every backend, so
+the work is not H2-specific.
+
+### 5.9 The one decision that is not ours to make
+
+**Should the corpus lane move from H2 2.1.214 to 2.4.240?**
+
+*For:* it is the only way to get the **19 variant-navigation corpus rows** natively
+(§5.0); it gives `= ANY` membership; it aligns the two lanes on one dialect class.
+
+*Against:* the engine's goldens were produced on a **forked** 2.1.214
+(`H2_BACKEND.md` §7: `charPadding = NEVER`, numeric↔boolean comparison patches), and
+the corpus lane replays those goldens **in the same session**. Changing the engine
+under the replay oracle risks a class of golden divergence that has nothing to do with
+this program. `core/pom.xml` sits at 2.1.214 deliberately.
+
+*The third option:* keep 2.1.214 and implement `json_navigate` as a Java UDF — which is
+**exactly what legend-engine itself does** (`legend_h2_extension_json_navigate`). That
+keeps the golden lane untouched and buys the 19 rows through the phase-A seam.
+
+**Recommendation: the third option**, and do not bump the corpus lane as part of this
+program. But it is a user call, and phase A makes it cheap either way.
+
+### 5.10 Summary
+
+| phase | work | PCT | corpus | size | depends on |
+|---|---|---:|---:|---|---|
+| **A2** | widen gate 7 to five suites | — | — | S | — |
+| **A1** | `sessionSetup()` UDF seam (+ prod `H2Settings`) | — | — | S | — |
+| **B** | spellings: `BITAND`/`LSHIFT` + aggregate table | ~23 | ~8 | S | — |
+| **C** | scalar Java UDFs (9 ports + ~12 new) | ~33 | ~71 | M | A1 |
+| **D** | codec fixes (NULL-string, float, `byte[]`) | ~7 | ~57 | S–M | — |
+| **E** | split the conflated `Caps` switch | — | — | S | — |
+| **F** | array UDFs over `Integer[]` | ~75 | ~76 | M | A1 |
+| **G** | carrier flip to native `ARRAY` | — | — | M ⚠ | E |
+| **H** | ordinal-join explode | ~45 | ~34 | L | G |
+| **I** | lambda lowering | ~23 | ~7 | L | H |
+
+**A+B+C+D is ~63 PCT and ~136 corpus rows of S/M work with no architectural risk** —
+roughly **40% of the entire gap**, none of it requiring the carrier decision. E+G+H+I
+is the remaining structural half.
+
+*Order to actually start in:* **A2** (makes everything checkable), then **D1** (one
+diagnosis, ~45 corpus rows), then **A1 → C2's `STRING_SPLIT`** (49 corpus rows), then
+**B**. That front-loads ~150 corpus rows before any architectural decision is needed.
 
 ---
 
@@ -456,6 +704,15 @@ any fix lands. That is the cheapest item in this document.
 4. The `H2_BACKEND.md` §2 "80% reachable / 19% impossible" figure and its copies are a
    2026-07-31 snapshot of a *constructs* denominator; the lane's real number is
    §1.2's, and the D-count shrinks materially under §3.1.
+5. `H2_BACKEND.md`'s addendum says JSON object field access "exists in NO syntax" at
+   2.4.240. **Refuted** — `(JSON '{"a":1}')."a"` returns `1`; the quoting is
+   load-bearing, and bare `.a` returning NULL silently is how the battery missed it
+   (§5.0). `CARRIER_REDESIGN.md`'s MODERN PROFILE is the correct account.
+6. **H2 2.5.250 adds nothing** (§3.4) — four batteries byte-identical to 2.4.240, and
+   the two versions' own `help.csv` differs by a two-line typo fix.
+7. `CarrierStrategies.Caps` advertises three capabilities; **two are never read**, and
+   the third is a master switch over four unrelated emulations (§5.5). Any future
+   backend reading that record as a capability model will be misled.
 
 ---
 
