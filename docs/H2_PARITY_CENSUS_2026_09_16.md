@@ -646,48 +646,103 @@ to explode → ordinary SQL predicate/projection → re-`ARRAY_AGG`, which is wh
 H. This is also the shape `BACKEND_PORTABILITY` §2.1 argues for on every backend, so
 the work is not H2-specific.
 
-### 5.9 The one decision that is not ours to make
+### 5.9 Phase Z — bump the corpus lane to H2 2.4.240. MEASURED: **+59 net, and it is the single biggest cheap win in this document**
 
-**Should the corpus lane move from H2 2.1.214 to 2.4.240?**
+This section originally recommended *not* bumping, on the grounds that the engine's
+goldens were produced on a **forked** 2.1.214 (`H2_BACKEND.md` §7: `charPadding =
+NEVER`, numeric↔boolean comparison patches) and the corpus lane replays them in the
+same session — so changing the engine under the replay oracle looked like an
+uncontrolled risk, and a Java `json_navigate` UDF looked like the safer buy.
 
-*For:* it is the only way to get the **19 variant-navigation corpus rows** natively
-(§5.0); it gives `= ANY` membership; it aligns the two lanes on one dialect class.
+**That recommendation was wrong, and the experiment was cheap enough that it should
+never have been left as a judgement call.** Setting `h2` to 2.4.240 in `core/pom.xml`
+and `spec/pom.xml` — which also flips the renderer to `H2Modern` automatically via
+`Compiler.dialectOf:654-657` — and re-running gate 5:
 
-*Against:* the engine's goldens were produced on a **forked** 2.1.214
-(`H2_BACKEND.md` §7: `charPadding = NEVER`, numeric↔boolean comparison patches), and
-the corpus lane replays those goldens **in the same session**. Changing the engine
-under the replay oracle risks a class of golden divergence that has nothing to do with
-this program. `core/pom.xml` sits at 2.1.214 deliberately.
+| | pass | fail |
+|---|---:|---:|
+| corpus H2 @ **2.1.214** | 2151 | 440 |
+| corpus H2 @ **2.4.240** | **2210** | **381** |
 
-*The third option:* keep 2.1.214 and implement `json_navigate` as a Java UDF — which is
-**exactly what legend-engine itself does** (`legend_h2_extension_json_navigate`). That
-keeps the golden lane untouched and buys the 19 rows through the phase-A seam.
+**61 tests fixed, 2 regressed, net +59, from a two-line pom change.** The gap to DuckDB
+closes from 326 to 267 — more than `STRING_SPLIT` (49) and `LIST_MIN` (46) combined,
+and it requires no new code at all.
 
-**Recommendation: the third option**, and do not bump the corpus lane as part of this
-program. But it is a user call, and phase A makes it cheap either way.
+**What the bump fixed**, by the cause those tests used to fail with:
+
+| | count |
+|---|---:|
+| `AssertFailed: assertEquals (TDSRow.values)` — **the §2.3 NULL-string family** | **50** |
+| variant navigation wall | 10 |
+| other assert | 1 |
+
+**The feared golden-fork breakage did not materialise.** Neither regression is a
+`charPadding` or boolean-comparison row. Both are the same known arm:
+
+- `testFilterUsingArcCosFunction`, `testFilterUsingArcSinFunction` —
+  `Invalid value "1.1" for parameter "ACOS() argument"`. `DuckDb.call:78` already
+  carries the out-of-domain guard (`CASE WHEN x BETWEEN -1 AND 1 THEN acos(x) ELSE
+  'NaN' END`); `H2`/`H2Modern` do not. **Porting that one arm should make the bump
+  +61 / −0.**
+
+**Verification was substantive, not just a bigger number.** `MinimalCorpusTest` under
+2.4.240 fails on exactly one assertion — `pinRoster:600`, "LOST 2, GAINED 61" — which
+is the roster *set* pin doing its job. The strength floors (`H2_STRENGTH`, asserted
+earlier in the same run at `:302`) **held**, so these are real differential passes and
+not verdicts that weakened into spelling-only agreement.
+
+**Two consequences for the rest of this plan:**
+
+1. **Phase D1 is largely subsumed.** The ~45-row NULL-string family was attributed to a
+   codec defect and nominated as the best rows-per-hour in the document. It is
+   substantially an H2 **2.1.214 engine behaviour**, and 50 of those rows fix
+   themselves on 2.4.240. Do not start there; do Phase Z instead, then re-measure what
+   is left of D.
+2. **The `json_navigate` UDF is off the table**, and rightly so — it would have been a
+   second owner for behaviour the platform already has natively, against the project's
+   one-owner tenet, to buy 10 rows the bump gives for free.
+
+**Remaining risk to close before landing it:** the bump is a *replay-oracle* change as
+well as an execution change, and 2,613 corpus rows is a broad but not exhaustive
+witness. The golden-text lane (`EngineStyleH2`, `H2_DIALECT_VERSION = '2.1.214'` at
+`RawSqlBoundary:147`) still pins the engine's version string and must stay 2.1.214 —
+**the execution engine and the golden-text dialect are separate decisions**, and only
+the first is being bumped here.
+
+**Recommendation, reversed on the evidence: do Phase Z first**, with the ACOS/ASIN
+guard, and re-measure phases C and D against the new baseline before starting them.
 
 ### 5.10 Summary
 
 | phase | work | PCT | corpus | size | depends on |
 |---|---|---:|---:|---|---|
 | **A2** | widen gate 7 to five suites | — | — | S | — |
+| **Z** | **bump corpus lane to H2 2.4.240 + ACOS/ASIN guard — MEASURED** | — | **+61 / −2** | **S** | — |
 | **A1** | `sessionSetup()` UDF seam (+ prod `H2Settings`) | — | — | S | — |
 | **B** | spellings: `BITAND`/`LSHIFT` + aggregate table | ~23 | ~8 | S | — |
 | **C** | scalar Java UDFs (9 ports + ~12 new) | ~33 | ~71 | M | A1 |
-| **D** | codec fixes (NULL-string, float, `byte[]`) | ~7 | ~57 | S–M | — |
+| **D** | codec fixes — **re-measure after Z; ~50 of its rows are subsumed** | ~7 | ~7 | S | Z |
 | **E** | split the conflated `Caps` switch | — | — | S | — |
 | **F** | array UDFs over `Integer[]` | ~75 | ~76 | M | A1 |
 | **G** | carrier flip to native `ARRAY` | — | — | M ⚠ | E |
 | **H** | ordinal-join explode | ~45 | ~34 | L | G |
 | **I** | lambda lowering | ~23 | ~7 | L | H |
 
-**A+B+C+D is ~63 PCT and ~136 corpus rows of S/M work with no architectural risk** —
-roughly **40% of the entire gap**, none of it requiring the carrier decision. E+G+H+I
-is the remaining structural half.
+**Z+A+B+C is ~56 PCT and ~140 corpus rows of S/M work with no architectural risk**, and
+Z alone is 59 of them for a two-line change. E+G+H+I is the remaining structural half.
 
-*Order to actually start in:* **A2** (makes everything checkable), then **D1** (one
-diagnosis, ~45 corpus rows), then **A1 → C2's `STRING_SPLIT`** (49 corpus rows), then
-**B**. That front-loads ~150 corpus rows before any architectural decision is needed.
+*Order to actually start in:* **A2** (an hour; makes every later claim checkable), then
+**Z** (measured, +59), then **re-measure the whole H2 roster** — phases C and D were
+sized against the 2.1.214 baseline and Z moves it — then **A1 → `STRING_SPLIT`**, then
+**B**.
+
+> **The methodological lesson, recorded because it cost a wrong recommendation.** Z was
+> first written up as "a decision that is not ours to make", weighing a documented fork
+> risk against 19 rows. The experiment that settled it was a two-line pom edit and one
+> 23-second gate run. **When a decision is framed as a judgement call, check first
+> whether it is cheaper to just measure it.** Here the measurement both reversed the
+> recommendation and dissolved a 45-row phase that had been nominated as the best work
+> in the plan.
 
 ---
 
