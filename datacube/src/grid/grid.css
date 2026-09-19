@@ -289,24 +289,37 @@
 /* The stub joining a row to its parent's vertical rule, plus the
    operator word. The word sits BETWEEN the things being combined,
    which is where the meaning is. */
+/* A FIXED box, so the operator word cannot move the row's controls.
+   Its right edge is what every sibling's controls line up against;
+   the word spills leftward into the indent instead of pushing. */
 .dc-filter-lead {
   display: flex;
   align-items: center;
-  flex-shrink: 0;
+  justify-content: flex-end;
+  flex: 0 0 22px;
+  width: 22px;
+  margin-right: 8px;
   height: 26px;
 }
 
 .dc-filter-connector {
-  display: block;
-  width: 22px;
+  flex: 0 0 22px;
   height: 1px;
   background: color-mix(in srgb, currentColor 20%, transparent);
 }
 
+/* With a word present the stub shortens rather than the word
+   wrapping or the box growing. */
+.dc-filter-lead.dc-has-word .dc-filter-connector {
+  flex-basis: 8px;
+}
+
 .dc-filter-joinword {
+  flex: 0 0 auto;
   padding-left: 4px;
   font-size: 11px;
   opacity: 0.7;
+  white-space: nowrap;
 }
 
 /* The four-button controller DataCube puts on every node. */

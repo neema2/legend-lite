@@ -192,6 +192,39 @@ describe('FilterEditor DOM', () => {
     );
   });
 
+  it('keeps siblings ALIGNED when one of them carries the word', () => {
+    // The word is inside the fixed-width lead, never a sibling of
+    // the controls. In flow it pushed everything after it, so a row
+    // carrying `or` sat further right than the row above it and the
+    // columns stopped lining up.
+    editor.addCondition();
+    editor.addCondition();
+    const rows = [...host.querySelectorAll('.dc-filter-row')].slice(1);
+    assert.equal(rows.length, 2);
+
+    const indents = rows.map((r) =>
+      (r as HTMLElement).style.getPropertyValue('--dc-f-indent'),
+    );
+    assert.equal(indents[0], indents[1], 'same indent');
+
+    // Same structure either side of the lead: the word is inside it.
+    for (const row of rows) {
+      const kids = [...row.children].map((c) => c.className.split(' ')[0]);
+      assert.deepEqual(
+        kids.slice(0, 2),
+        ['dc-filter-lead', 'dc-filter-controller'],
+        'the controller follows the lead directly, word or no word',
+      );
+    }
+    const word = host.querySelector('.dc-filter-joinword') as HTMLElement;
+    assert.equal(word.parentElement?.className.includes('dc-filter-lead'), true);
+    assert.equal(
+      word.parentElement?.classList.contains('dc-has-word'),
+      true,
+      'the lead is marked, so CSS can shorten the stub instead of growing',
+    );
+  });
+
   it('the root group has no controller; a nested one does', () => {
     // There is nothing to insert the root after, nothing to remove
     // it from, and no group to put it inside.

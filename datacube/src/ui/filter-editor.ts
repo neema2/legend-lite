@@ -703,6 +703,12 @@ export class FilterEditor {
       this.select(node.id);
     });
 
+    // The lead is a FIXED-WIDTH box, and the operator word lives
+    // inside it. In flow, the word pushes everything after it, so a
+    // row carrying `or` sits further right than its own siblings and
+    // the columns stop lining up. Fixing the box and letting its
+    // contents spill left into the indent keeps every sibling's
+    // controls on the same x, which is what DataCube does.
     const lead = doc.createElement('div');
     lead.className = 'dc-filter-lead';
     if (parent) {
@@ -711,6 +717,7 @@ export class FilterEditor {
       connector.setAttribute('aria-hidden', 'true');
       lead.append(connector);
       if (index > 0) {
+        lead.classList.add('dc-has-word');
         const word = doc.createElement('span');
         word.className = 'dc-filter-joinword';
         word.textContent = parent.join;
