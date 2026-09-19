@@ -106,7 +106,9 @@ export async function fetchTree(
     readonly maxRows?: number;
   },
 ): Promise<TreeView> {
-  const maxRows = deps.maxRows ?? DEFAULT_MAX_ROWS;
+  // The snapshot wins, so a saved view keeps its own cap; the deps
+  // override exists for tests and for a host that wants a hard lid.
+  const maxRows = deps.maxRows ?? snapshot.maxRows ?? DEFAULT_MAX_ROWS;
   const depth = snapshot.rows.length;
   const levels = new Map<string, LevelData>();
 

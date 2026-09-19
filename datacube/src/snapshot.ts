@@ -176,6 +176,20 @@ export interface CubeSnapshot {
   readonly sorts: readonly SortSpec[];
   readonly window?: RowWindow;
   /**
+   * Cap on the rows fetched for ONE level of the tree.
+   *
+   * Per level, not per grid: each open branch is its own query, so
+   * three open branches can fetch three times this. That matches how
+   * DataCube caps a block rather than a whole view, and it is the
+   * behaviour that keeps an expanded branch usable instead of
+   * starving it because its siblings were opened first.
+   *
+   * Lives on the snapshot because it changes the emitted query, so it
+   * travels with a saved view and a colleague opening the cube sees
+   * the same rows. Absent means DEFAULT_MAX_ROWS.
+   */
+  readonly maxRows?: number;
+  /**
    * Monotonic stamp, incremented for every new snapshot. A query result
    * carries the epoch it was issued under and is discarded unless it
    * still matches. This is the ONLY cancellation mechanism available in

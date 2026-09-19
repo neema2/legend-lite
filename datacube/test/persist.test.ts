@@ -86,6 +86,33 @@ describe('round trip', () => {
   });
 });
 
+describe('the row cap travels with the view', () => {
+  it('round-trips maxRows, so a colleague sees the same rows', () => {
+    const v = save({
+      name: 'x',
+      snapshot: { ...SNAPSHOT, maxRows: 250 },
+      tree: TREE,
+      now: NOW,
+    });
+    assert.equal(load(toJson(v)).snapshot.maxRows, 250);
+  });
+
+  it('leaves it absent when the cube never set one', () => {
+    const v = save({ name: 'x', snapshot: SNAPSHOT, tree: TREE, now: NOW });
+    assert.equal(load(toJson(v)).snapshot.maxRows, undefined);
+  });
+
+  it('ignores a non-numeric maxRows from a hand-edited file', () => {
+    const back = load(
+      JSON.stringify({
+        version: 1,
+        snapshot: { source: 'trades', maxRows: 'lots' },
+      }),
+    );
+    assert.equal(back.snapshot.maxRows, undefined);
+  });
+});
+
 describe('forward and backward compatibility', () => {
   it('preserves fields a newer writer added', () => {
     // An older client that opens and re-saves must not silently

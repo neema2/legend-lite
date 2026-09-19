@@ -181,7 +181,8 @@ async function boot(): Promise<void> {
       // sends someone hunting through the whole cube.
       status.textContent =
         view.truncated.length > 0
-          ? `${base} — showing the first ${DEFAULT_MAX_ROWS.toLocaleString()} ` +
+          ? `${base} — showing the first ` +
+            `${(view.snapshot.maxRows ?? DEFAULT_MAX_ROWS).toLocaleString()} ` +
             `of ${view.truncated.length} level` +
             `${view.truncated.length > 1 ? 's' : ''}; narrow the filter to see the rest`
           : base;
@@ -229,6 +230,15 @@ async function boot(): Promise<void> {
     snapshot = {
       ...snapshot,
       sorts: desc ? [{ column: 'region', direction: 'desc' }] : [],
+    };
+    void controller.update(snapshot);
+  });
+
+  must('maxrows').addEventListener('change', (e) => {
+    const n = Number((e.target as HTMLInputElement).value);
+    snapshot = {
+      ...snapshot,
+      ...(Number.isFinite(n) && n > 0 ? { maxRows: n } : {}),
     };
     void controller.update(snapshot);
   });

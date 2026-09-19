@@ -218,6 +218,7 @@ function migrateSnapshot(
       ? (raw['sorts'] as CubeSnapshot['sorts'])
       : [],
     ...(raw['window'] ? { window: raw['window'] as NonNullable<CubeSnapshot['window']> } : {}),
+    ...(typeof raw['maxRows'] === 'number' ? { maxRows: raw['maxRows'] } : {}),
     // A restored view starts a fresh session, so it starts at epoch 0.
     epoch: 0,
   };
