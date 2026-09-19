@@ -6,6 +6,7 @@ import { CubeApp } from '../src/app.ts';
 import type { Planner } from '../src/cube.ts';
 import type { QueryEngine } from '../src/engine.ts';
 import type { ResultTable } from '../src/result.ts';
+import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { setHeaderDrag } from '../src/ui/pivot-panel.ts';
 
@@ -236,6 +237,33 @@ describe('the app', () => {
       'input[type="text"]',
     ) as HTMLInputElement;
     assert.equal(text.value, 'EMEA');
+  });
+
+  it('a heatmap set on a measure reaches its PIVOTED leaves', async () => {
+    // The bug this replaced looked the spec up by leaf name, so a
+    // heatmap on `notional` never matched `2021__|__notional` and a
+    // pivoted cube showed nothing -- the same mistake the formats
+    // had. And it painted the cells that existed at the time, which
+    // a virtualised grid throws away on the next scroll.
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const pivoted = new CubeApp(
+      host,
+      { ...SNAPSHOT, pivotOn: ['desk'] },
+      {
+        engine,
+        planner,
+        configuration: {
+          ...DEFAULT_CONFIGURATION,
+          columns: { total: { heatmap: { from: '#ffffff', to: '#ff0000' } } },
+        },
+      },
+    );
+    await pivoted.open();
+    const painted = [...host.querySelectorAll('.dc-cell')].filter(
+      (c) => (c as HTMLElement).style.backgroundColor !== '',
+    );
+    assert.ok(painted.length > 0, 'no cell was painted');
   });
 
   it('the grid header carries the column name, so the menu knows what was clicked', () => {

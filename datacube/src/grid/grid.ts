@@ -22,7 +22,7 @@
 // rowindex a screen reader announces positions within the band and the
 // user has no idea where they are.
 
-import { TREE_COLUMN, type ColumnModel } from './columns.ts';
+import { TREE_COLUMN, type ColumnModel, type LeafColumn } from './columns.ts';
 import { computeRowWindow, isCovered, type RowWindow } from './viewport.ts';
 import type {
   FloatingFilterColumn,
@@ -108,6 +108,19 @@ export interface GridOptions {
    * can never land is worse than no drag handle at all.
    */
   readonly canGroup?: (column: string) => boolean;
+  /**
+   * A per-cell background, for a heatmap.
+   *
+   * A hook rather than a pass over the DOM afterwards, because the
+   * grid is VIRTUALISED: anything painted onto the cells that exist
+   * now is gone the moment a scroll rebuilds them. Returning null
+   * leaves the cell's own colours alone.
+   */
+  readonly cellBackground?: (
+    leaf: LeafColumn,
+    absoluteRow: number,
+    value: Scalar,
+  ) => string | null;
 }
 
 const DEFAULT_ROW_HEIGHT = 24;
@@ -521,6 +534,11 @@ export class DataGrid {
           for (const [k, v] of Object.entries(cellStyle(appearance, value))) {
             cell.style.setProperty(k, v);
           }
+
+          // After the value colours, so a heatmap wins over the
+          // normal/negative background it would otherwise fight.
+          const heat = this.#options.cellBackground?.(leaf, abs, value);
+          if (heat) cell.style.backgroundColor = heat;
 
           if (leaf.name === TREE_COLUMN) {
             // Depth is shown by indentation rather than by a column

@@ -40,11 +40,17 @@ import {
   FloatingFilterRow,
   type FloatingFilterColumn,
 } from './grid/floating-filter.ts';
-import { buildColumnModel, type ColumnLayout } from './grid/columns.ts';
+import {
+  PIVOT_SEPARATOR,
+  buildColumnModel,
+  type ColumnLayout,
+} from './grid/columns.ts';
 import { load, save, toJson, treeOf } from './persist.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
+import type { Scalar } from './result.ts';
 import { kindOf, type CubeSnapshot, type FilterNode } from './snapshot.ts';
 import { columnRange, heatColour } from './style.ts';
+import type { HeatmapRange, HeatmapSpec } from './style.ts';
 import { parsePathKey, pathKey, type TreeRow } from './tree.ts';
 import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
 import { FilterEditor } from './ui/filter-editor.ts';
@@ -112,6 +118,11 @@ export class CubeApp {
    * reference and reads it on every header render.
    */
   readonly #filterColumns: FloatingFilterColumn[] = [];
+  /** Measured heatmap scales, by leaf index. See `#refreshHeatmaps`. */
+  readonly #heatmaps = new Map<
+    number,
+    { spec: HeatmapSpec; byDepth: Map<number, HeatmapRange> }
+  >();
   readonly #columnsPanel: ColumnsToolPanel;
   readonly #els: {
     toolbar: HTMLElement;
@@ -194,6 +205,15 @@ export class CubeApp {
       floatingFilter: this.#filterRow,
       floatingFilterColumns: this.#filterColumns,
       canGroup: (c) => this.#isDimension(c),
+      cellBackground: (leaf, row, value) => {
+        const heat = this.#heatmaps.get(leaf.index);
+        if (!heat) return null;
+        return heatColour(
+          value,
+          heat.spec,
+          this.#heatRange(leaf.index, row) ?? null,
+        );
+      },
       rowMeta: (abs) => this.#rowMeta(abs),
       onToggleExpand: (key) => {
         void this.#controller.toggle(parsePathKey(key));
@@ -340,12 +360,12 @@ export class CubeApp {
       view.snapshot.measures.map((m) => m.name),
       toColumnLayout(this.#config) as ColumnLayout,
     );
-    // Formats are refreshed AFTER the view lands, because the pivot's
-    // leaf names are only known once the engine has answered.
+    // Refreshed AFTER the view lands, because the pivot's leaf names
+    // are only known once the engine has answered.
     this.#refreshFormats();
+    this.#refreshHeatmaps(view);
     this.#grid.setColumns(model);
     this.#grid.setRows(view.rows, 0, view.rows.rowCount);
-    this.#applyHeatmaps(view);
 
     const base =
       `${view.rows.rowCount.toLocaleString()} rows × ` +
@@ -380,49 +400,83 @@ export class CubeApp {
   }
 
   /**
-   * Paint the per-column heatmaps.
+   * Measure each heatmapped column, once per view, PER TREE DEPTH.
    *
-   * Applied after the rows land rather than inside the grid, because
-   * the scale is a property of the COLUMN's values and the grid
-   * renders a window: deriving it in the cell renderer would change
-   * the colours as the user scrolls, which is the hazard the heatmap
-   * module already documents. A column with a fixed range in its
-   * configuration is measured from that instead.
+   * Per column is not fine enough in a tree. A column holds the
+   * grand total, its subtotals and its leaves all at once, and those
+   * differ by orders of magnitude: measured together, the total
+   * takes the strongest colour and every leaf washes out to nothing.
+   * The screenshot of the first version showed exactly that -- a red
+   * total row above a sheet of white. style.ts already gives the
+   * reason per column beats per grid; the same argument carried one
+   * level further gives per depth.
+   *
+   * So a cell is coloured against its SIBLINGS, which is the
+   * comparison a reader is actually making.
+   *
+   * The range comes from the whole column, never the visible window:
+   * deriving it from what happens to be on screen makes the colours
+   * change as the user scrolls.
    */
-  #applyHeatmaps(view: CubeView): void {
-    const cells = this.#els.grid.querySelectorAll<HTMLElement>('.dc-cell');
-    if (cells.length === 0) return;
-    const leaves = view.columns.leaves;
-    const ranges = new Map<number, ReturnType<typeof columnRange>>();
-    for (let i = 0; i < leaves.length; i++) {
-      const leaf = leaves[i];
-      if (!leaf) continue;
-      const spec = columnConfig(this.#config, leaf.name).heatmap;
+  #refreshHeatmaps(view: CubeView): void {
+    this.#heatmaps.clear();
+    for (const leaf of view.columns.leaves) {
+      const spec = this.#heatmapFor(leaf.name);
       if (!spec) continue;
-      ranges.set(
-        i,
-        spec.range ?? columnRange(view.rows.columns[leaf.index]?.values ?? []),
-      );
-    }
-    if (ranges.size === 0) return;
+      const values = view.rows.columns[leaf.index]?.values ?? [];
 
-    for (const cell of cells) {
-      const row = cell.parentElement;
-      if (!row) continue;
-      const col = [...row.children].indexOf(cell);
-      const range = ranges.get(col);
-      if (range === undefined) continue;
-      const leaf = leaves[col];
-      if (!leaf) continue;
-      const spec = columnConfig(this.#config, leaf.name).heatmap;
-      const abs =
-        Number(row.getAttribute('aria-rowindex') ?? '0') -
-        view.columns.depth -
-        2;
-      const value = view.rows.columns[leaf.index]?.values[abs] ?? null;
-      const colour = spec ? heatColour(value, spec, range) : null;
-      if (colour) cell.style.backgroundColor = colour;
+      if (spec.range) {
+        // An explicitly fixed scale is the user's decision and is
+        // applied whole, at every depth.
+        this.#heatmaps.set(leaf.index, {
+          spec,
+          byDepth: new Map([[-1, spec.range]]),
+        });
+        continue;
+      }
+
+      const atDepth = new Map<number, Scalar[]>();
+      values.forEach((value, row) => {
+        const depth = this.#treeRows[row]?.depth ?? 0;
+        const bucket = atDepth.get(depth);
+        if (bucket) bucket.push(value);
+        else atDepth.set(depth, [value]);
+      });
+
+      const byDepth = new Map<number, HeatmapRange>();
+      for (const [depth, bucket] of atDepth) {
+        const range = columnRange(bucket);
+        if (range) byDepth.set(depth, range);
+      }
+      if (byDepth.size > 0) this.#heatmaps.set(leaf.index, { spec, byDepth });
     }
+  }
+
+  /** The scale a cell is measured against: its own depth's. */
+  #heatRange(leafIndex: number, row: number): HeatmapRange | undefined {
+    const heat = this.#heatmaps.get(leafIndex);
+    if (!heat) return undefined;
+    return (
+      heat.byDepth.get(-1) ?? heat.byDepth.get(this.#treeRows[row]?.depth ?? 0)
+    );
+  }
+
+  /**
+   * A leaf's heatmap: its own, else its measure's.
+   *
+   * A pivoted leaf is named for its measure, so a setting made on
+   * `notional` has to reach every `2021__|__notional` the pivot
+   * produced -- otherwise the feature works on a flat cube and
+   * silently stops at the first pivot, which is the bug this
+   * replaced.
+   */
+  #heatmapFor(leafName: string): HeatmapSpec | undefined {
+    const own = columnConfig(this.#config, leafName).heatmap;
+    if (own) return own;
+    const measure = leafName.split(PIVOT_SEPARATOR).pop();
+    return measure !== undefined && measure !== leafName
+      ? columnConfig(this.#config, measure).heatmap
+      : undefined;
   }
 
   // -- the drag zones -------------------------------------------------
