@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import type { CubeSnapshot } from '../src/snapshot.ts';
+import type {
+  CubeSnapshot,
+  FilterOperator,
+} from '../src/snapshot.ts';
 import { totalOrderSorts } from '../src/snapshot.ts';
 import {
   NULL_GROUP,
@@ -378,6 +381,68 @@ describe('the full filter vocabulary', () => {
       cond('equalColumn', { rightColumn: 'country' }),
       '$x.region == $x.country',
     );
+  });
+
+  it('lowers both columns for a case-insensitive column comparison', () => {
+    assert.equal(
+      cond('equalCaseInsensitiveColumn', { rightColumn: 'country' }),
+      '$x.region->toLower() == $x.country->toLower()',
+    );
+    assert.equal(
+      cond('notEqualCaseInsensitiveColumn', { rightColumn: 'country' }),
+      '$x.region->toLower() != $x.country->toLower()',
+    );
+  });
+
+  it("covers all 31 of DataCube's operators", () => {
+    // Counted from DataCubeQueryFilterOperator rather than
+    // remembered: the first pass had 29 and was missing the
+    // case-insensitive column-to-column pair.
+    const operators: FilterOperator[] = [
+      'equal',
+      'notEqual',
+      'lessThan',
+      'lessThanEqual',
+      'greaterThan',
+      'greaterThanEqual',
+      'isEmpty',
+      'isNotEmpty',
+      'contains',
+      'notContains',
+      'startsWith',
+      'notStartsWith',
+      'endsWith',
+      'notEndsWith',
+      'in',
+      'notIn',
+      'equalCaseInsensitive',
+      'notEqualCaseInsensitive',
+      'containsCaseInsensitive',
+      'startsWithCaseInsensitive',
+      'endsWithCaseInsensitive',
+      'inCaseInsensitive',
+      'notInCaseInsensitive',
+      'equalColumn',
+      'equalCaseInsensitiveColumn',
+      'notEqualColumn',
+      'notEqualCaseInsensitiveColumn',
+      'lessThanColumn',
+      'lessThanEqualColumn',
+      'greaterThanColumn',
+      'greaterThanEqualColumn',
+    ];
+    assert.equal(new Set(operators).size, 31);
+    // Every one must RENDER rather than fall through to the throw.
+    for (const operator of operators) {
+      const out = filterExpression({
+        kind: 'condition',
+        column: 'region',
+        operator,
+        value: operator.toLowerCase().includes('in') ? ['A'] : 'A',
+        rightColumn: 'country',
+      });
+      assert.ok(out.length > 0, operator);
+    }
   });
 
   it('refuses a column comparison with no second column', () => {

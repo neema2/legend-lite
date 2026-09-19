@@ -22,7 +22,8 @@ import {
 } from '../src/serialize.ts';
 import { parsePathKey, pathKey, type TreeRow } from '../src/tree.ts';
 import { DEFAULT_MAX_ROWS } from '../src/treeview.ts';
-import type { CubeSnapshot } from '../src/snapshot.ts';
+import { FilterEditor } from '../src/ui/filter-editor.ts';
+import type { CubeSnapshot, FilterNode } from '../src/snapshot.ts';
 import { referencedColumns, totalOrderSorts } from '../src/snapshot.ts';
 
 const ROWS = 200_000;
@@ -234,6 +235,19 @@ async function boot(): Promise<void> {
     void controller.update(snapshot);
   });
 
+  // The filter editor owns no query state: it emits a FilterNode and
+  // the snapshot is rebuilt from it, so there is no second copy to
+  // drift.
+  new FilterEditor(must('filters'), {
+    columns: snapshot.columns.map((c) => c.name),
+    onChange: (filter) => {
+      snapshot = filter
+        ? { ...snapshot, filter }
+        : (({ filter: _drop, ...rest }) => rest)(snapshot);
+      void controller.update(snapshot);
+    },
+  });
+
   must('maxrows').addEventListener('change', (e) => {
     const n = Number((e.target as HTMLInputElement).value);
     snapshot = {
@@ -310,6 +324,86 @@ async function choosePlanner(status: HTMLElement): Promise<Planner> {
  * src/ -- legend-lite is the single planner, and this exists purely so
  * the grid and snap mode can be seen without a JVM.
  */
+/**
+ * FilterNode to SQL, for the demo shim only.
+ *
+ * Mirrors src/serialize.ts's filterExpression, which renders the same
+ * tree to Pure. Two renderers of one tree is exactly the duplication
+ * the single-planner rule exists to prevent -- which is why this one
+ * lives in demo/ and is never imported by the product.
+ */
+function filterToSql(node: FilterNode, q: (n: string) => string): string {
+  const lit = (v: unknown): string =>
+    typeof v === 'number' || typeof v === 'boolean'
+      ? String(v)
+      : `'${String(v).replace(/'/g, "''")}'`;
+
+  switch (node.kind) {
+    case 'and':
+    case 'or': {
+      if (node.children.length === 0) return node.kind === 'and' ? 'TRUE' : 'FALSE';
+      const op = node.kind === 'and' ? ' AND ' : ' OR ';
+      return `(${node.children.map((c) => filterToSql(c, q)).join(op)})`;
+    }
+    case 'not':
+      return `NOT (${filterToSql(node.child, q)})`;
+    case 'condition': {
+      const col = q(node.column);
+      const lower = `lower(${col})`;
+      const one = () => lit(node.value);
+      const many = () =>
+        ((node.value as unknown[]) ?? []).map(lit).join(', ');
+      const lowerMany = () =>
+        ((node.value as unknown[]) ?? [])
+          .map((v) => lit(String(v).toLowerCase()))
+          .join(', ');
+      const right = node.rightColumn ? q(node.rightColumn) : col;
+
+      switch (node.operator) {
+        case 'equal': return `${col} = ${one()}`;
+        case 'notEqual': return `${col} <> ${one()}`;
+        case 'lessThan': return `${col} < ${one()}`;
+        case 'lessThanEqual': return `${col} <= ${one()}`;
+        case 'greaterThan': return `${col} > ${one()}`;
+        case 'greaterThanEqual': return `${col} >= ${one()}`;
+        case 'isEmpty': return `${col} IS NULL`;
+        case 'isNotEmpty': return `${col} IS NOT NULL`;
+        case 'in': return `${col} IN (${many()})`;
+        case 'notIn': return `${col} NOT IN (${many()})`;
+        case 'contains': return `${col} LIKE ${lit('%' + String(node.value) + '%')}`;
+        case 'notContains': return `${col} NOT LIKE ${lit('%' + String(node.value) + '%')}`;
+        case 'startsWith': return `${col} LIKE ${lit(String(node.value) + '%')}`;
+        case 'notStartsWith': return `${col} NOT LIKE ${lit(String(node.value) + '%')}`;
+        case 'endsWith': return `${col} LIKE ${lit('%' + String(node.value))}`;
+        case 'notEndsWith': return `${col} NOT LIKE ${lit('%' + String(node.value))}`;
+        case 'equalCaseInsensitive':
+          return `${lower} = ${lit(String(node.value).toLowerCase())}`;
+        case 'notEqualCaseInsensitive':
+          return `${lower} <> ${lit(String(node.value).toLowerCase())}`;
+        case 'containsCaseInsensitive':
+          return `${lower} LIKE ${lit('%' + String(node.value).toLowerCase() + '%')}`;
+        case 'startsWithCaseInsensitive':
+          return `${lower} LIKE ${lit(String(node.value).toLowerCase() + '%')}`;
+        case 'endsWithCaseInsensitive':
+          return `${lower} LIKE ${lit('%' + String(node.value).toLowerCase())}`;
+        case 'inCaseInsensitive': return `${lower} IN (${lowerMany()})`;
+        case 'notInCaseInsensitive': return `${lower} NOT IN (${lowerMany()})`;
+        case 'equalColumn': return `${col} = ${right}`;
+        case 'notEqualColumn': return `${col} <> ${right}`;
+        case 'lessThanColumn': return `${col} < ${right}`;
+        case 'lessThanEqualColumn': return `${col} <= ${right}`;
+        case 'greaterThanColumn': return `${col} > ${right}`;
+        case 'greaterThanEqualColumn': return `${col} >= ${right}`;
+        case 'equalCaseInsensitiveColumn':
+          return `${lower} = lower(${right})`;
+        case 'notEqualCaseInsensitiveColumn':
+          return `${lower} <> lower(${right})`;
+        default: return 'TRUE';
+      }
+    }
+  }
+}
+
 class DemoOnlyPlanner implements Planner {
   async plan(
     _grammar: string,
@@ -320,15 +414,19 @@ class DemoOnlyPlanner implements Planner {
     const lit = (v: string) => `'${v.replace(/'/g, "''")}'`;
     // Which dimensions group at THIS level, and which branch is pinned.
     const dims = scope ? s.rows.slice(0, scope.level) : s.rows;
-    const where = (scope?.parent ?? [])
-      .map((v, i) => {
-        const col = s.rows[i];
-        if (col === undefined) return null;
-        return v === NULL_GROUP
-          ? `${q(col)} IS NULL`
-          : `${q(col)} = ${lit(v)}`;
-      })
-      .filter((c): c is string => c !== null);
+    const where = [
+      // The cube's own filter comes first, then the branch pins.
+      ...(s.filter ? [filterToSql(s.filter, q)] : []),
+      ...(scope?.parent ?? [])
+        .map((v, i) => {
+          const col = s.rows[i];
+          if (col === undefined) return null;
+          return v === NULL_GROUP
+            ? `${q(col)} IS NULL`
+            : `${q(col)} = ${lit(v)}`;
+        })
+        .filter((c): c is string => c !== null),
+    ];
     const filter = where.length > 0 ? ` WHERE ${where.join(' AND ')}` : '';
     const agg = s.measures
       .map((m) =>

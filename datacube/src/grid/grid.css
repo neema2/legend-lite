@@ -203,3 +203,112 @@
     will-change: auto;
   }
 }
+
+
+/* -- filter tree ---------------------------------------------------
+ *
+ * Indentation plus a gutter line per level, as DataCube draws it: a
+ * nested group is only legible if the eye can follow which rows it
+ * contains. 36px matches its FILTER_TREE_INDENTATION_SPACE.
+ */
+
+.dc-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.dc-filter-row {
+  --dc-filter-level: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: calc(var(--dc-filter-level) * 36px);
+  min-height: 28px;
+}
+
+/* The gutter: a vertical line back to the owning group, so a deep
+   condition is visibly inside it rather than merely near it. */
+.dc-filter-row[style*="--dc-filter-level: 0"] { }
+
+.dc-filter-row::before {
+  content: "";
+  position: absolute;
+  left: -18px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  display: var(--dc-gutter, block);
+}
+
+.dc-filter-row[style*="level: 0"]::before {
+  display: none;
+}
+
+.dc-filter-group {
+  font-weight: 600;
+}
+
+.dc-filter-not {
+  font: 11px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  background: Canvas;
+  color: color-mix(in srgb, currentColor 55%, transparent);
+  cursor: pointer;
+}
+
+/* A negated node must be obvious at a glance: reading a filter
+   backwards is the most expensive mistake this editor can cause. */
+.dc-filter-not-on {
+  background: color-mix(in srgb, crimson 16%, Canvas);
+  border-color: color-mix(in srgb, crimson 45%, transparent);
+  color: color-mix(in srgb, crimson 85%, CanvasText);
+  font-weight: 700;
+}
+
+.dc-filters select,
+.dc-filters input {
+  font: inherit;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  background: Canvas;
+  color: CanvasText;
+}
+
+.dc-filter-op { max-width: 15em; }
+.dc-filter-value { min-width: 7em; }
+
+.dc-filter-btn,
+.dc-filter-remove {
+  font: inherit;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  background: Canvas;
+  color: CanvasText;
+  cursor: pointer;
+}
+
+.dc-filter-remove {
+  border-color: transparent;
+  opacity: 0.6;
+}
+
+.dc-filter-remove:hover {
+  opacity: 1;
+  border-color: color-mix(in srgb, crimson 40%, transparent);
+}
+
+.dc-filter-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 2px;
+}

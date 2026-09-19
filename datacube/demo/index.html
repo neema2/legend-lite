@@ -39,7 +39,8 @@
     background: color-mix(in srgb, mediumseagreen 18%, Canvas);
     border-color: color-mix(in srgb, mediumseagreen 45%, transparent);
   }
-  #grid { height: 460px; }
+  #grid { height: 420px; }
+  #filters { margin-bottom: 12px; }
   #status { font-size: 12px; opacity: .75; margin-top: 10px; }
   #status.bad { color: crimson; opacity: 1; }
   #status.warn-text { color: #a15c00; opacity: 1; font-weight: 600; }
@@ -95,6 +96,8 @@
     <label><input type="checkbox" id="sortdesc"> sort region desc</label>
     <span id="busy" hidden>running…</span>
   </div>
+
+  <div id="filters"></div>
 
   <div id="grid"></div>
   <p id="status">loading…</p>

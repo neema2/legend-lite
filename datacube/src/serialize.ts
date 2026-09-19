@@ -107,7 +107,9 @@ const COMPARISON: Partial<Record<string, string>> = {
 /** Column-to-column comparisons, sharing the operators above. */
 const COLUMN_COMPARISON: Partial<Record<string, string>> = {
   equalColumn: '==',
+  equalCaseInsensitiveColumn: '==',
   notEqualColumn: '!=',
+  notEqualCaseInsensitiveColumn: '!=',
   lessThanColumn: '<',
   lessThanEqualColumn: '<=',
   greaterThanColumn: '>',
@@ -150,7 +152,15 @@ export function filterExpression(node: FilterNode, param = 'x'): string {
             `operator '${node.operator}' on '${node.column}' needs a rightColumn`,
           );
         }
-        return `${ref} ${colCmp} ${colRef(param, node.rightColumn)}`;
+        // Case-insensitive column comparisons lower BOTH columns, for
+        // the same reason the literal forms do: collation differs
+        // between backends, and the same cube must not answer
+        // differently on two engines.
+        const insensitive = node.operator.includes('CaseInsensitive');
+        const right = colRef(param, node.rightColumn);
+        return insensitive
+          ? `${ref}->toLower() ${colCmp} ${right}->toLower()`
+          : `${ref} ${colCmp} ${right}`;
       }
 
       switch (node.operator) {
