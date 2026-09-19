@@ -1,15 +1,22 @@
 // Turning a flat result into the grid's column model, including the
 // nested header a pivot needs.
 //
-// A pivot's generated columns encode their path in the name, joined by
-// a separator. legend-lite builds multi-column pivot keys by
-// concatenating with '__|__', and DataCube uses the identical
-// separator (PIVOT_COLUMN_NAME_VALUE_SEPARATOR) -- the two sides
-// already agree, which is why this parses rather than negotiates.
+// A pivot's generated columns encode a path in their name, but the
+// exact spelling is the ENGINE's, not ours, and assuming otherwise was
+// a real bug here: DuckDB names a pivoted column `2021_notional`,
+// joining value to measure with an underscore, while '__|__' is what
+// legend-lite uses to join multiple pivot DIMENSIONS into one
+// composite key. Two different joins, two different separators.
+//
+// So the split is driven by what we ASKED for rather than by guessing
+// at a delimiter: the measure names are known, so a column ending in a
+// measure name splits there, and only the remaining prefix is parsed
+// for the multi-dimension separator. That works for either engine's
+// naming and degrades to a flat header rather than a wrong one.
 //
 //   region                     a row dimension, depth 1
-//   2023__|__total             pivot value + measure, depth 2
-//   USA__|__NYC__|__total      two pivot dimensions + measure, depth 3
+//   2023_total                 pivot value + measure, depth 2
+//   USA__|__NYC_total          two pivot dimensions + measure, depth 3
 //
 // The result is RAGGED: row dimensions sit at depth 1 while pivot
 // columns run deeper, so a row dimension's header has to span the full
@@ -36,6 +43,15 @@ export interface LeafColumn {
 
 export interface HeaderCell {
   readonly label: string;
+  /**
+   * Zero-based leaf column this cell starts at.
+   *
+   * Required because a ragged header cannot be laid out by document
+   * order alone: once a dimension spans several header rows, later
+   * rows have fewer cells than columns, and anything that just lays
+   * them out left to right puts them under the wrong columns.
+   */
+  readonly colStart: number;
   /** Columns spanned horizontally. */
   readonly colSpan: number;
   /** Header levels spanned vertically; >1 only for ragged dimensions. */
@@ -52,24 +68,57 @@ export interface ColumnModel {
   readonly depth: number;
 }
 
-export function splitPath(name: string): string[] {
+/**
+ * Split a generated column name into its header path.
+ *
+ * `measures` are the measure names the snapshot asked for. When a name
+ * ends in one of them, that becomes the last path segment and the
+ * prefix (minus any trailing separator character) is the pivot value
+ * path. The longest matching measure wins, so 'pnl' cannot shadow
+ * 'pnl_net'.
+ */
+export function splitPath(
+  name: string,
+  measures: readonly string[] = [],
+): string[] {
+  const matched = measures
+    .filter((m) => name === m || name.endsWith(m))
+    .sort((a, b) => b.length - a.length)[0];
+
+  if (matched && name !== matched) {
+    const prefix = name.slice(0, name.length - matched.length);
+    // Tolerate whatever single separator the engine used between the
+    // value and the measure -- '_' for DuckDB, '__|__' elsewhere.
+    const cleaned = prefix.endsWith(PIVOT_SEPARATOR)
+      ? prefix.slice(0, -PIVOT_SEPARATOR.length)
+      : prefix.replace(/[_\-.|]+$/, '');
+    return cleaned.length > 0
+      ? [...cleaned.split(PIVOT_SEPARATOR), matched]
+      : [matched];
+  }
+
   return name.split(PIVOT_SEPARATOR);
 }
 
 /**
  * Build the column model.
  *
- * `dimensions` names the row-dimension columns (from the snapshot's
- * `rows`), because a result alone cannot distinguish a dimension from a
- * single-level pivot column -- both are plain names. Passing them in is
- * what keeps this honest rather than heuristic.
+ * `dimensions` names the row-dimension columns and `measures` the
+ * measure names, both from the snapshot. A result alone cannot
+ * distinguish a dimension from a single-level pivot column, nor tell
+ * where a generated name stops being a pivot value and starts being a
+ * measure. Passing both in is what keeps this exact rather than
+ * heuristic.
  */
 export function buildColumnModel(
   table: ResultTable,
   dimensions: readonly string[] = [],
+  measures: readonly string[] = [],
 ): ColumnModel {
   const leaves: LeafColumn[] = table.columns.map((c, index) => {
-    const path = splitPath(c.name);
+    const path = dimensions.includes(c.name)
+      ? [c.name]
+      : splitPath(c.name, measures);
     return {
       index,
       name: c.name,
@@ -112,6 +161,7 @@ export function buildColumnModel(
       const isLeafHere = leaf.path.length === level + 1;
       row.push({
         label,
+        colStart: i,
         colSpan: j - i,
         // A short path spans the remaining header levels, so a row
         // dimension's header fills the header block.

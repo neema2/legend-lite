@@ -174,7 +174,18 @@ export class DataGrid {
     const doc = this.#root.ownerDocument;
     this.#head.replaceChildren();
 
+    // One CSS grid for the whole header, with every cell placed
+    // explicitly. Flexbox cannot express a cell spanning two rows, so
+    // a ragged header laid out in document order puts the lower row's
+    // cells under the dimension columns instead of under their values.
+    this.#head.style.gridTemplateColumns = this.#templateColumns(model);
+    this.#head.style.gridTemplateRows =
+      `repeat(${model.depth}, var(--dc-row-height))`;
+
     model.headerRows.forEach((cells, level) => {
+      // A row element per level keeps role=row correct for assistive
+      // technology; `display: contents` lets its children take part in
+      // the grid directly, so semantics and layout do not fight.
       const row = doc.createElement('div');
       row.setAttribute('role', 'row');
       row.className = 'dc-head-row';
@@ -187,18 +198,34 @@ export class DataGrid {
         el.setAttribute('role', 'columnheader');
         el.className = 'dc-th';
         el.textContent = cell.label;
+        el.style.gridColumn = `${cell.colStart + 1} / span ${cell.colSpan}`;
+        el.style.gridRow = `${level + 1} / span ${cell.rowSpan}`;
         if (cell.colSpan > 1) {
           el.setAttribute('aria-colspan', String(cell.colSpan));
-          el.style.setProperty('--dc-colspan', String(cell.colSpan));
         }
         if (cell.rowSpan > 1) {
           el.setAttribute('aria-rowspan', String(cell.rowSpan));
-          el.style.setProperty('--dc-rowspan', String(cell.rowSpan));
         }
         row.appendChild(el);
       }
       this.#head.appendChild(row);
     });
+  }
+
+  /**
+   * Column widths, shared by the header grid and the body rows.
+   *
+   * Both must derive from the SAME leaf list, or the header drifts out
+   * of line with the data -- which is what happened when only the
+   * header's first cell was given dimension width while every
+   * dimension cell in the body took it.
+   */
+  #templateColumns(model: ColumnModel): string {
+    return model.leaves
+      .map((l) =>
+        l.isDimension ? 'var(--dc-dim-width)' : 'var(--dc-col-width)',
+      )
+      .join(' ');
   }
 
   #onScroll = (): void => {
@@ -226,6 +253,7 @@ export class DataGrid {
 
     const frag = doc.createDocumentFragment();
     const headerLevels = model.headerRows.length;
+    const template = this.#templateColumns(model);
 
     for (let abs = wanted.start; abs < wanted.end; abs++) {
       const local = abs - this.#blockOffset;
@@ -233,6 +261,7 @@ export class DataGrid {
       row.setAttribute('role', 'row');
       row.className = 'dc-row';
       row.style.height = `${rowHeight}px`;
+      row.style.gridTemplateColumns = template;
       // Absolute position in the whole result, offset past the header
       // rows. Without this a virtualised grid announces the position
       // within the rendered band, which is meaningless to the user.

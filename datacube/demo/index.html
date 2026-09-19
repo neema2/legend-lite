@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DataCube demo</title>
+<link rel="stylesheet" href="../src/grid/grid.css">
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0;
+    padding: 20px;
+    font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: Canvas;
+    color: CanvasText;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { opacity: .7; margin: 0 0 16px; }
+  .bar {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    margin-bottom: 12px;
+  }
+  label { display: inline-flex; gap: 6px; align-items: center; }
+  button {
+    font: inherit; padding: 5px 12px; border-radius: 5px;
+    border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+    background: Canvas; color: CanvasText; cursor: pointer;
+  }
+  button:hover { background: color-mix(in srgb, currentColor 8%, Canvas); }
+  .plane {
+    padding: 4px 10px; border-radius: 999px; font-size: 12px;
+    border: 1px solid transparent;
+  }
+  .plane.live {
+    background: color-mix(in srgb, orange 18%, Canvas);
+    border-color: color-mix(in srgb, orange 45%, transparent);
+  }
+  .plane.snapped {
+    background: color-mix(in srgb, mediumseagreen 18%, Canvas);
+    border-color: color-mix(in srgb, mediumseagreen 45%, transparent);
+  }
+  #grid { height: 460px; }
+  #status { font-size: 12px; opacity: .75; margin-top: 10px; }
+  #status.bad { color: crimson; opacity: 1; }
+  #busy {
+    font-size: 12px; padding: 2px 8px; border-radius: 4px;
+    background: color-mix(in srgb, currentColor 10%, transparent);
+  }
+  details { margin-top: 12px; }
+  pre {
+    margin: 6px 0 0; padding: 10px; overflow-x: auto; font-size: 12px;
+    border-radius: 6px;
+    background: color-mix(in srgb, currentColor 7%, Canvas);
+  }
+  .warn {
+    margin: 0 0 12px; padding: 8px 12px; border-radius: 6px; font-size: 13px;
+    background: color-mix(in srgb, orange 14%, Canvas);
+    border: 1px solid color-mix(in srgb, orange 40%, transparent);
+  }
+</style>
+</head>
+<body>
+  <h1>DataCube</h1>
+  <p class="sub">
+    200,000 rows in DuckDB-WASM, pivoted in the browser. Arrow keys to
+    navigate, Ctrl+Home / Ctrl+End to jump.
+  </p>
+
+  <p class="warn" id="plannernote" hidden>
+    legend-lite is not running on :8080, so this page is using a
+    <strong>demo-only SQL shim</strong> instead of the real planner.
+    Start the server to exercise the actual
+    <code>/engine/plan</code> path.
+  </p>
+
+  <div class="bar">
+    <span id="plane" class="plane live">Live</span>
+    <button id="snap">Snap</button>
+    <label>Measure
+      <select id="measure">
+        <option value="sum">sum</option>
+        <option value="average">average</option>
+        <option value="count">count</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="pivoted" checked> pivot by year</label>
+    <label><input type="checkbox" id="sortdesc"> sort region desc</label>
+    <span id="busy" hidden>running…</span>
+  </div>
+
+  <div id="grid"></div>
+  <p id="status">loading…</p>
+
+  <details>
+    <summary>Generated Pure</summary>
+    <pre id="pure"></pre>
+  </details>
+  <details>
+    <summary>Generated SQL</summary>
+    <pre id="sql"></pre>
+  </details>
+
+  <script type="module" src="./bundle.js"></script>
+</body>
+</html>

@@ -1,0 +1,296 @@
+// A runnable demo: real DuckDB-WASM in the browser, real snap mode,
+// the real grid.
+//
+// The planner is the one piece that needs the legend-lite server. If it
+// is reachable the demo uses it; otherwise it falls back to a shim that
+// emits SQL directly, clearly labelled in the UI so nobody mistakes the
+// fallback for the product. That shim lives HERE, in demo/, and not in
+// src/, because "one planner" is an architectural commitment and a
+// convenient second planner is exactly how such commitments rot.
+
+import * as duckdb from '@duckdb/duckdb-wasm';
+
+import { CubeController, type Planner } from '../src/cube.ts';
+import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
+import { FormatterCache, type ColumnFormat } from '../src/format.ts';
+import { DataGrid } from '../src/grid/grid.ts';
+import { LegendLitePlanner } from '../src/planner.ts';
+import { serialize } from '../src/serialize.ts';
+import type { CubeSnapshot } from '../src/snapshot.ts';
+import { referencedColumns, totalOrderSorts } from '../src/snapshot.ts';
+
+const ROWS = 200_000;
+const LEGEND_LITE = 'http://localhost:8080';
+
+// -- sample data ----------------------------------------------------
+
+const REGIONS = ['EMEA', 'AMER', 'APAC'];
+const DESKS = ['Rates', 'Credit', 'FX', 'Equity', 'Commodities'];
+
+async function boot(): Promise<void> {
+  const status = must('status');
+  status.textContent = 'starting DuckDB…';
+
+  // Bundles are served from OUR origin, copied out of node_modules by
+  // `npm run demo:vendor`. Loading them from a CDN instead forces a
+  // cross-origin Worker, which the platform forbids outright and which
+  // is then usually worked around with a blob that importScripts the
+  // CDN url. That workaround exists to solve a problem worth not
+  // having: a deployment behind a firewall is not fetching its query
+  // engine from a CDN anyway.
+  // Absolute URLs, not relative ones. The WORKER resolves mainModule
+  // against its own location, so './vendor/x.wasm' becomes
+  // '/demo/vendor/vendor/x.wasm' and fails as an opaque
+  // "WebAssembly.compile: HTTP status code is not ok".
+  const asset = (f: string) => new URL(`./vendor/${f}`, location.href).href;
+  const bundle = await duckdb.selectBundle({
+    mvp: {
+      mainModule: asset('duckdb-mvp.wasm'),
+      mainWorker: asset('duckdb-browser-mvp.worker.js'),
+    },
+    eh: {
+      mainModule: asset('duckdb-eh.wasm'),
+      mainWorker: asset('duckdb-browser-eh.worker.js'),
+    },
+  });
+  const worker = new Worker(bundle.mainWorker!);
+  const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(), worker);
+  await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+  const conn = await db.connect();
+  const engine = new DuckDbEngine(conn as unknown as ArrowishConnection);
+
+  status.textContent = `generating ${ROWS.toLocaleString()} rows…`;
+  await engine.execute(
+    `CREATE OR REPLACE TABLE trades AS
+     SELECT
+       ${sqlPick(REGIONS, 'i % 3')}            AS region,
+       ${sqlPick(DESKS, '(i // 3) % 5')}       AS desk,
+       (2021 + ((i // 15) % 5))                AS year,
+       ((i * 7919) % 1000000) / 100.0  AS notional,
+       ((i * 104729) % 200000) / 100.0 - 1000.0 AS pnl,
+       ((i * 31) % 97) + 1             AS qty
+     FROM range(${ROWS}) t(i)`,
+    0,
+  );
+
+  // -- the cube ------------------------------------------------------
+
+  let snapshot: CubeSnapshot = {
+    source: { expression: 'trades' },
+    columns: [
+      { name: 'region', type: 'String' },
+      { name: 'desk', type: 'String' },
+      { name: 'year', type: 'Integer' },
+      { name: 'notional', type: 'Float' },
+      { name: 'pnl', type: 'Float' },
+      { name: 'qty', type: 'Integer' },
+    ],
+    derived: [],
+    rows: ['region', 'desk'],
+    pivotOn: ['year'],
+    measures: [{ name: 'notional', column: 'notional', fn: 'sum' }],
+    sorts: [],
+    epoch: 1,
+  };
+
+  const planner = await choosePlanner(status);
+  const formatters = new FormatterCache();
+
+  // Formats are keyed by the column names the ENGINE returned, not by
+  // a name we predicted. Guessing '2021__|__notional' when DuckDB
+  // actually emits '2021_notional' is exactly how every measure
+  // silently rendered unformatted.
+  const MONEY: ColumnFormat = {
+    kind: 'currency',
+    currency: 'USD',
+    locale: 'en-US',
+    maximumFractionDigits: 0,
+    negativeParens: true,
+  };
+  const formats: Record<string, ColumnFormat> = {};
+
+  const grid = new DataGrid(must('grid'), formatters, {
+    rowHeight: 24,
+    formats,
+    onActivateCell: (r, c) => {
+      status.textContent = `cell r${r} c${c} — drill-through would open here`;
+    },
+  });
+
+  const controller = new CubeController(engine, planner, {
+    onBusy: (busy) => {
+      must('busy').hidden = !busy;
+    },
+    onError: (e) => {
+      status.textContent = `error: ${e instanceof Error ? e.message : String(e)}`;
+      status.classList.add('bad');
+    },
+    onView: (view) => {
+      status.classList.remove('bad');
+      for (const leaf of view.columns.leaves) {
+        if (!leaf.isDimension) formats[leaf.name] = MONEY;
+      }
+      grid.setColumns(view.columns);
+      grid.setRows(view.rows, 0, view.rows.rowCount);
+      must('sql').textContent = view.sql;
+      must('pure').textContent = serialize(view.snapshot);
+      status.textContent =
+        `${view.rows.rowCount.toLocaleString()} rows × ` +
+        `${view.columns.leaves.length} cols in ` +
+        `${view.rows.elapsedMs.toFixed(0)}ms`;
+    },
+  });
+
+  await controller.update(snapshot);
+  renderPlaneBadge(controller);
+
+  // -- controls ------------------------------------------------------
+
+  must('measure').addEventListener('change', (e) => {
+    const fn = (e.target as HTMLSelectElement).value as 'sum' | 'average' | 'count';
+    snapshot = {
+      ...snapshot,
+      measures: [{ name: 'notional', column: 'notional', fn }],
+    };
+    void controller.update(snapshot);
+  });
+
+  must('pivoted').addEventListener('change', (e) => {
+    const on = (e.target as HTMLInputElement).checked;
+    snapshot = { ...snapshot, pivotOn: on ? ['year'] : [] };
+    void controller.update(snapshot);
+  });
+
+  must('sortdesc').addEventListener('change', (e) => {
+    const desc = (e.target as HTMLInputElement).checked;
+    snapshot = {
+      ...snapshot,
+      sorts: desc ? [{ column: 'region', direction: 'desc' }] : [],
+    };
+    void controller.update(snapshot);
+  });
+
+  must('snap').addEventListener('click', async () => {
+    const btn = must('snap') as HTMLButtonElement;
+    btn.disabled = true;
+    try {
+      if (controller.snaps.isSnapped) await controller.release();
+      else await controller.snap();
+      renderPlaneBadge(controller);
+    } catch (e) {
+      status.textContent = e instanceof Error ? e.message : String(e);
+      status.classList.add('bad');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+/** Rule 1 of snap mode: what you are looking at is never inferable. */
+function renderPlaneBadge(controller: CubeController): void {
+  const badge = must('plane');
+  const btn = must('snap');
+  const state = controller.snaps.state;
+  if (state.mode === 'snapped') {
+    const t = state.snap.takenAt.toLocaleTimeString();
+    badge.textContent =
+      `${state.snap.label} · frozen at ${t} · ` +
+      `${state.snap.rowCount.toLocaleString()} rows`;
+    badge.className = 'plane snapped';
+    btn.textContent = 'Go live';
+  } else {
+    badge.textContent = 'Live — data may move while you work';
+    badge.className = 'plane live';
+    btn.textContent = 'Snap';
+  }
+}
+
+async function choosePlanner(status: HTMLElement): Promise<Planner> {
+  try {
+    const r = await fetch(`${LEGEND_LITE}/health`, {
+      signal: AbortSignal.timeout(700),
+    });
+    if (r.ok) {
+      status.textContent = 'planner: legend-lite';
+      return new LegendLitePlanner({
+        baseUrl: LEGEND_LITE,
+        model: '',
+        runtime: 'demo::RT',
+      });
+    }
+  } catch {
+    // Not running; fall through to the shim.
+  }
+  const note = must('plannernote');
+  note.hidden = false;
+  return new DemoOnlyPlanner();
+}
+
+/**
+ * DEMO ONLY. Emits SQL straight from the snapshot so the page runs with
+ * no server. It is not the product's planner and must never move into
+ * src/ -- legend-lite is the single planner, and this exists purely so
+ * the grid and snap mode can be seen without a JVM.
+ */
+class DemoOnlyPlanner implements Planner {
+  async plan(_grammar: string, s: CubeSnapshot): Promise<string> {
+    const q = (n: string) => `"${n.replace(/"/g, '""')}"`;
+    const agg = s.measures
+      .map((m) =>
+        m.fn === 'count'
+          ? `count(*) AS ${q(m.name)}`
+          : `${m.fn === 'average' ? 'avg' : m.fn}(${q(m.column)}) AS ${q(m.name)}`,
+      )
+      .join(', ');
+    const by = s.rows.map(q).join(', ');
+    const order = totalOrderSorts(s)
+      .map((x) => `${q(x.column)} ${x.direction === 'asc' ? 'ASC' : 'DESC'}`)
+      .join(', ');
+    const cols = referencedColumns(s).map(q).join(', ');
+    const src = `(SELECT ${cols} FROM ${s.source.expression})`;
+
+    if (s.pivotOn.length === 0) {
+      return `SELECT ${by}, ${agg} FROM ${src} GROUP BY ${by} ORDER BY ${order}`;
+    }
+    const on = s.pivotOn.map(q).join(', ');
+    const using = s.measures
+      .map((m) =>
+        m.fn === 'count'
+          ? `count(*) AS ${q(m.name)}`
+          : `${m.fn === 'average' ? 'avg' : m.fn}(${q(m.column)}) AS ${q(m.name)}`,
+      )
+      .join(', ');
+    return (
+      `SELECT * FROM (PIVOT ${src} ON ${on} USING ${using} ` +
+      `GROUP BY ${by}) ORDER BY ${order}`
+    );
+  }
+}
+
+/**
+ * Pick a label by an explicit index expression.
+ *
+ * The index is passed in rather than derived from the value count,
+ * because deriving it gave every dimension the same `i % n` and made
+ * them perfectly correlated: each desk then had exactly one year, so
+ * four of five pivot columns were legitimately null and the grid
+ * looked broken. Independent divisors make every combination occur.
+ */
+function sqlPick(values: readonly string[], indexExpr: string): string {
+  const cases = values.map((v, i) => `WHEN ${i} THEN '${v}'`).join(' ');
+  return `CASE (${indexExpr}) ${cases} END`;
+}
+
+function must(id: string): HTMLElement {
+  const el = document.getElementById(id);
+  if (!el) throw new Error(`missing #${id}`);
+  return el;
+}
+
+void boot().catch((e) => {
+  const s = document.getElementById('status');
+  if (s) {
+    s.textContent = `failed to start: ${e instanceof Error ? e.message : e}`;
+    s.classList.add('bad');
+  }
+});

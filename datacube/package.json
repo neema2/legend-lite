@@ -5,7 +5,9 @@
   "scripts": {
     "test": "node --experimental-strip-types --test test/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm test"
+    "check": "npm run typecheck && npm test",
+    "build:demo": "esbuild demo/main.ts --bundle --format=esm --outfile=demo/bundle.js --target=es2022",
+    "demo:vendor": "mkdir -p demo/vendor && cp node_modules/@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm node_modules/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js demo/vendor/"
   },
   "keywords": [],
   "author": "",
@@ -19,7 +21,9 @@
   "devDependencies": {
     "@types/jsdom": "^30.0.0",
     "@types/node": "^26.6.2",
+    "esbuild": "^0.28.2",
     "jsdom": "^29.1.1",
+    "playwright": "^1.63.0",
     "typescript": "^7.0.2"
   }
 }

@@ -102,7 +102,11 @@ export class CubeController {
         const grammar = serialize(withEpoch);
         const sql = await this.#planner.plan(grammar, withEpoch);
         const rows = await this.#engine.execute(sql, epoch);
-        const columns = buildColumnModel(rows, withEpoch.rows);
+        const columns = buildColumnModel(
+          rows,
+          withEpoch.rows,
+          withEpoch.measures.map((m) => m.name),
+        );
         return { snapshot: withEpoch, columns, rows, sql } satisfies CubeView;
       });
 

@@ -1,0 +1,170 @@
+/* Grid styling.
+ *
+ * Layout is CSS grid driven by a column-count custom property, so the
+ * header and the body stay aligned without measuring anything in JS.
+ * Measuring in JS is how grids end up with a header that drifts one
+ * pixel out of line at certain zoom levels.
+ *
+ * Pivot value columns are a UNIFORM width on purpose: the scrollbar
+ * extent has to be right before any column has been measured, and all
+ * value columns hold the same measure in the same format anyway. Row
+ * dimensions get their own width and stick to the left.
+ */
+
+.dc-grid {
+  --dc-row-height: 24px;
+  --dc-dim-width: 160px;
+  --dc-col-width: 104px;
+  --dc-border: color-mix(in srgb, currentColor 14%, transparent);
+  --dc-head-bg: Canvas;
+  --dc-total-bg: color-mix(in srgb, currentColor 5%, transparent);
+  --dc-focus: Highlight;
+
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--dc-border);
+  border-radius: 6px;
+  font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+  background: Canvas;
+  color: CanvasText;
+}
+
+.dc-grid:focus-visible {
+  outline: 2px solid var(--dc-focus);
+  outline-offset: -2px;
+}
+
+/* -- header ------------------------------------------------------- */
+
+.dc-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--dc-head-bg);
+  border-bottom: 1px solid var(--dc-border);
+  overflow: hidden;
+}
+
+/* The header is one grid; every cell is placed explicitly, which is
+   the only way a ragged header (dimensions spanning several levels)
+   lands under the right columns. Widths come from the same leaf list
+   the body uses, so the two cannot drift apart. */
+.dc-head {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+}
+
+/* The row element carries role=row for assistive technology while its
+   children participate in the grid directly. */
+.dc-head-row {
+  display: contents;
+}
+
+.dc-th {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-weight: 600;
+  border-right: 1px solid var(--dc-border);
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--dc-head-bg);
+}
+
+/* -- body --------------------------------------------------------- */
+
+.dc-scroller {
+  flex: 1 1 auto;
+  overflow: auto;
+  /* Vertical scrolling is the common gesture and must not be hijacked
+     into horizontal panning by a trackpad's diagonal drift. */
+  overscroll-behavior: contain;
+}
+
+.dc-spacer {
+  position: relative;
+  width: max-content;
+  min-width: 100%;
+}
+
+.dc-body {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  will-change: transform;
+}
+
+.dc-row {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+  height: var(--dc-row-height);
+  border-bottom: 1px solid var(--dc-border);
+  box-sizing: border-box;
+}
+
+.dc-row.dc-total {
+  background: var(--dc-total-bg);
+  font-weight: 600;
+}
+
+.dc-cell {
+  padding: 0 8px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  border-right: 1px solid var(--dc-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Row dimensions read as labels, not as measures: left-aligned, wider,
+   and pinned so they stay legible while scrolling across a wide pivot. */
+.dc-cell.dc-dim {
+  justify-content: flex-start;
+  position: sticky;
+  left: 0;
+  background: Canvas;
+  z-index: 1;
+  font-variant-numeric: normal;
+}
+
+.dc-row.dc-total .dc-cell.dc-dim {
+  background: color-mix(in srgb, CanvasText 5%, Canvas);
+}
+
+/* A cell whose block has not arrived. Shown as a muted bar rather than
+   blank, so an empty VALUE and a not-yet-loaded cell never look alike. */
+.dc-cell.dc-pending::after {
+  content: "";
+  display: block;
+  width: 60%;
+  height: 0.7em;
+  border-radius: 2px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.dc-cell.dc-focus {
+  outline: 2px solid var(--dc-focus);
+  outline-offset: -2px;
+}
+
+.dc-cell:focus {
+  outline: 2px solid var(--dc-focus);
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-body {
+    will-change: auto;
+  }
+}

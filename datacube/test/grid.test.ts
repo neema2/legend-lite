@@ -107,9 +107,59 @@ describe('isCovered and sliceFor', () => {
 });
 
 describe('buildColumnModel', () => {
-  it('splits a pivot path on the shared separator', () => {
+  it('splits on the separator when no measures are known', () => {
     assert.deepEqual(splitPath('2023__|__total'), ['2023', 'total']);
     assert.deepEqual(splitPath('region'), ['region']);
+  });
+
+  it("splits on the engine's own naming, given the measure names", () => {
+    // DuckDB joins value to measure with '_', not '__|__'. Assuming
+    // the separator produced a flat header and unformatted measures;
+    // the measure name is the reliable anchor.
+    assert.deepEqual(splitPath('2021_notional', ['notional']), [
+      '2021',
+      'notional',
+    ]);
+    assert.deepEqual(splitPath('USA__|__NYC_total', ['total']), [
+      'USA',
+      'NYC',
+      'total',
+    ]);
+  });
+
+  it('prefers the longest measure so one cannot shadow another', () => {
+    assert.deepEqual(splitPath('2021_pnl_net', ['pnl', 'pnl_net']), [
+      '2021',
+      'pnl_net',
+    ]);
+  });
+
+  it('treats a bare measure column as depth 1', () => {
+    assert.deepEqual(splitPath('notional', ['notional']), ['notional']);
+  });
+
+  it('builds a nested header from engine-style names', () => {
+    const m = buildColumnModel(
+      table(['region', '2021_notional', '2022_notional']),
+      ['region'],
+      ['notional'],
+    );
+    assert.equal(m.depth, 2);
+    assert.deepEqual(
+      m.headerRows[0]?.map((h) => [h.label, h.rowSpan]),
+      [
+        ['region', 2],
+        ['2021', 1],
+        ['2022', 1],
+      ],
+    );
+  });
+
+  it('never splits a row dimension, even if it ends in a measure name', () => {
+    // A dimension called 'desk' with a measure called 'k' would
+    // otherwise be torn into ['des', 'k'].
+    const m = buildColumnModel(table(['desk', '2021_k']), ['desk'], ['k']);
+    assert.deepEqual(m.leaves[0]?.path, ['desk']);
   });
 
   it('builds a flat single-level header when there is no pivot', () => {
