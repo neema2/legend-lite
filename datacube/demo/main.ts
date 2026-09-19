@@ -21,6 +21,7 @@ import {
   type LevelScope,
 } from '../src/serialize.ts';
 import { parsePathKey, pathKey, type TreeRow } from '../src/tree.ts';
+import { DEFAULT_MAX_ROWS } from '../src/treeview.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { referencedColumns, totalOrderSorts } from '../src/snapshot.ts';
 
@@ -172,10 +173,19 @@ async function boot(): Promise<void> {
       grid.setRows(view.rows, 0, view.rows.rowCount);
       must('sql').textContent = view.sql;
       must('pure').textContent = serialize(view.snapshot);
-      status.textContent =
+      const base =
         `${view.rows.rowCount.toLocaleString()} rows × ` +
         `${view.columns.leaves.length} cols in ` +
         `${view.rows.elapsedMs.toFixed(0)}ms`;
+      // Saying WHICH level was cut matters: "some rows are missing"
+      // sends someone hunting through the whole cube.
+      status.textContent =
+        view.truncated.length > 0
+          ? `${base} — showing the first ${DEFAULT_MAX_ROWS.toLocaleString()} ` +
+            `of ${view.truncated.length} level` +
+            `${view.truncated.length > 1 ? 's' : ''}; narrow the filter to see the rest`
+          : base;
+      status.classList.toggle('warn-text', view.truncated.length > 0);
     },
   });
 

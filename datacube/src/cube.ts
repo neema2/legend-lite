@@ -17,7 +17,12 @@ import { referencedColumns } from './snapshot.ts';
 import { serialize, type LevelScope } from './serialize.ts';
 import type { ResultTable } from './result.ts';
 import { SnapManager } from './snap.ts';
-import { TreeState, type RowPath, type TreeRow } from './tree.ts';
+import {
+  TreeState,
+  type LevelRequest,
+  type RowPath,
+  type TreeRow,
+} from './tree.ts';
 import { fetchTree } from './treeview.ts';
 
 /**
@@ -54,6 +59,12 @@ export interface CubeView {
   readonly rows: ResultTable;
   /** Tree metadata per row, parallel to `rows`. Empty for a flat cube. */
   readonly treeRows: readonly TreeRow[];
+  /**
+   * Levels that hit the row cap. Non-empty means the grid shows a
+   * prefix, and the UI must say so rather than leave the user to
+   * infer it from a suspiciously round row count.
+   */
+  readonly truncated: readonly LevelRequest[];
   /** Generated Pure and SQL, for the "show me the query" panel. */
   readonly sql: string;
 }
@@ -165,6 +176,7 @@ export class CubeController {
             ),
             rows: view.table,
             treeRows: view.rows,
+            truncated: view.truncated,
             sql: serialize(withEpoch, { level: 1, parent: [] }),
           } satisfies CubeView;
         }
@@ -183,6 +195,7 @@ export class CubeController {
           columns,
           rows,
           treeRows: [],
+          truncated: [],
           sql,
         } satisfies CubeView;
       });

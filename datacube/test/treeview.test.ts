@@ -8,7 +8,11 @@ import type { ResultTable } from '../src/result.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState, flattenTree, requestKey } from '../src/tree.ts';
 import type { LevelData } from '../src/treeview.ts';
-import { TREE_COLUMN, assemble } from '../src/treeview.ts';
+import {
+  DEFAULT_MAX_ROWS,
+  TREE_COLUMN,
+  assemble,
+} from '../src/treeview.ts';
 import { NULL_GROUP } from '../src/serialize.ts';
 
 const SNAPSHOT: CubeSnapshot = {
@@ -41,6 +45,7 @@ describe('assemble', () => {
       request: { level: 0, parent: [] },
       table: table([{ name: '2023__|__total', values: [600] }]),
       paths: [[]],
+      truncated: false,
     });
     levels.set(requestKey({ level: 1, parent: [] }), {
       request: { level: 1, parent: [] },
@@ -49,6 +54,7 @@ describe('assemble', () => {
         { name: '2023__|__total', values: [100, 500] },
       ]),
       paths: [['AMER'], ['EMEA']],
+      truncated: false,
     });
     levels.set(requestKey({ level: 2, parent: ['EMEA'] }), {
       request: { level: 2, parent: ['EMEA'] },
@@ -61,6 +67,7 @@ describe('assemble', () => {
         ['EMEA', 'Credit'],
         ['EMEA', 'Rates'],
       ],
+      truncated: false,
     });
     return levels;
   }
@@ -118,6 +125,7 @@ describe('assemble', () => {
         { name: '2023__|__total', values: [100, 500] },
       ]),
       paths: [[NULL_GROUP], ['EMEA']],
+      truncated: false,
     });
     const rows = flattenTree(TreeState.empty(), 2, childrenOf(levels) as never);
     const tree = assemble(SNAPSHOT, rows, levels).columns.find(
@@ -160,6 +168,7 @@ describe('assemble', () => {
         { name: '2024__|__total', values: [7, 9] },
       ]),
       paths: [['AMER'], ['EMEA']],
+      truncated: false,
     });
     const rows = flattenTree(
       TreeState.empty().expand(['EMEA']),
@@ -232,6 +241,41 @@ before(async () => {
 
 after(async () => {
   await engine?.close();
+});
+
+describe('the global row cap', () => {
+  it('detects truncation with N+1 and drops the surplus row', async () => {
+    // 40 groups against a cap of 10: asking for 11 is what makes
+    // "there is more" a fact rather than a guess, and it costs no
+    // second counting query.
+    await engine.execute(
+      `CREATE OR REPLACE TABLE many AS
+         SELECT (i % 40) AS g, i * 1.0 AS v FROM range(400) t(i)`,
+      1,
+    );
+    const capped = await engine.execute(
+      'SELECT g, sum(v) AS total FROM many GROUP BY g ORDER BY g LIMIT 11',
+      1,
+    );
+    assert.equal(capped.rowCount, 11, 'the engine returned the probe row');
+    assert.equal(capped.rowCount > 10, true, 'so the level is truncated');
+  });
+
+  it('reports no truncation when the level fits', async () => {
+    const fits = await engine.execute(
+      'SELECT r, sum(notional) AS total FROM trades GROUP BY r ' +
+        'ORDER BY r LIMIT 11',
+      1,
+    );
+    // 3 distinct regions, far under the probe.
+    assert.equal(fits.rowCount <= 10, true, `${fits.rowCount} rows`);
+  });
+
+  it('exposes the cap as a constant rather than a magic number', () => {
+    // DataCube's own maximum cache block size, for the same reason:
+    // past it a level costs real main-thread time to materialise.
+    assert.equal(DEFAULT_MAX_ROWS, 1000);
+  });
 });
 
 describe('subtotals against a real engine', () => {

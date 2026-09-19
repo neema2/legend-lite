@@ -210,6 +210,18 @@ describe('serialize with a level scope', () => {
     );
   });
 
+  it('caps a level, AFTER the sort', () => {
+    // A limit before the sort caps an arbitrary subset, so the first
+    // page is not the first page.
+    const out = serialize(snap(), { level: 1, parent: [], limit: 1001 });
+    assert.match(out, /->sort\(\[~region->ascending\(\)\]\)->limit\(1001\)$/);
+  });
+
+  it('does not cap the grand total, which is one row', () => {
+    const out = serialize(snap(), { level: 0, parent: [], limit: 1001 });
+    assert.equal(out.includes('limit('), false);
+  });
+
   it('is unchanged without a scope', () => {
     assert.equal(serialize(snap()), serialize(snap(), undefined));
   });

@@ -229,6 +229,12 @@ function sortClause(sorts: readonly SortSpec[]): string {
 export interface LevelScope {
   readonly level: number;
   readonly parent: RowPath;
+  /**
+   * Cap on rows for this level. Callers pass maxRows + 1 so that the
+   * presence of the extra row reports "there is more" without a
+   * second counting query.
+   */
+  readonly limit?: number;
 }
 
 /**
@@ -327,13 +333,17 @@ export function serialize(
     parts.push(`groupBy(~[${by}], ~[${aggs}])`);
   }
 
-  // A grand total is a single row; sorting and slicing it is noise
+  // A grand total is a single row; sorting and limiting it is noise
   // that only makes the generated text harder to read in a bug report.
   if (groupCols.length > 0) {
     const sorts = totalOrderSorts(snapshot, groupCols);
     if (sorts.length > 0) parts.push(sortClause(sorts));
 
-    if (snapshot.window) {
+    if (scope?.limit !== undefined) {
+      // The cap must come AFTER the sort, or it caps an arbitrary
+      // subset and the first page is not the first page.
+      parts.push(`limit(${scope.limit})`);
+    } else if (snapshot.window) {
       // slice takes offset and END, not a count.
       const { offset, limit } = snapshot.window;
       parts.push(`slice(${offset}, ${offset + limit})`);
