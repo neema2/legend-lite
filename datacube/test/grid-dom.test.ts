@@ -256,6 +256,43 @@ describe('DataGrid keyboard', () => {
     assert.deepEqual(hits, [[0, 0]]);
   });
 
+  it('keeps DOM focus after a re-render', () => {
+    // Regression: re-rendering destroys the focused element, so DOM
+    // focus fell back to <body> and the next arrow key went nowhere.
+    // In the browser this ejected the keyboard user from the grid on
+    // every expand, while the .dc-focus class still looked correct.
+    const { table } = build(100);
+    press('ArrowDown');
+    const focused = container.querySelector('.dc-cell.dc-focus');
+    assert.equal(
+      dom.window.document.activeElement,
+      focused,
+      'the focused cell holds DOM focus',
+    );
+
+    // A refresh, as a controller would issue after expanding a group.
+    grid.setRows(table, 0, 100);
+    assert.equal(
+      dom.window.document.activeElement,
+      container.querySelector('.dc-cell.dc-focus'),
+      'focus follows the cell across a re-render',
+    );
+  });
+
+  it('does not steal focus it never had', () => {
+    const { table } = build(100);
+    const outside = dom.window.document.createElement('button');
+    dom.window.document.body.appendChild(outside);
+    outside.focus();
+
+    grid.setRows(table, 0, 100);
+    assert.equal(
+      dom.window.document.activeElement,
+      outside,
+      'a background refresh must not grab focus from the page',
+    );
+  });
+
   it('keeps exactly one cell in the tab order', () => {
     build(100);
     press('ArrowDown');

@@ -90,8 +90,44 @@ try {
   const rowcount = await page.getAttribute('[role="treegrid"]', 'aria-rowcount');
   check('announces a row count', Number(rowcount) > 0, `aria-rowcount=${rowcount}`);
 
-  const firstCell = await page.locator('.dc-cell.dc-dim').first().textContent();
-  check('row dimension is populated', Boolean(firstCell?.trim()), firstCell ?? '');
+  // Row 0 is the grand total and deliberately carries no dimension
+  // label, so the first LABELLED dimension cell belongs to row 1.
+  const dimLabels = (await page.locator('.dc-cell.dc-dim').allTextContents())
+    .map((t) => t.trim())
+    .filter(Boolean);
+  check('row dimensions are populated', dimLabels.length > 0, dimLabels.join(', '));
+
+  const rowCount = await page.locator('.dc-row').count();
+  check(
+    'collapsed tree shows the total plus the top level only',
+    rowCount === 4,
+    `${rowCount} rows (1 total + 3 regions)`,
+  );
+
+  check(
+    'the grand total row is marked as one',
+    (await page.locator('.dc-row.dc-total').count()) >= 1,
+  );
+
+  // The property the whole design rests on, read off the screen.
+  const money = (t) => Number(t.replace(/[^0-9.-]/g, ''));
+  const col2021 = async (row) =>
+    money(
+      (await page
+        .locator('.dc-row')
+        .nth(row)
+        .locator('.dc-cell:not(.dc-dim)')
+        .first()
+        .textContent()) ?? '0',
+    );
+  const grand = await col2021(0);
+  const kids = (await Promise.all([col2021(1), col2021(2), col2021(3)]))
+    .reduce((a, b) => a + b, 0);
+  check(
+    'the grand total equals the sum of its children',
+    Math.abs(grand - kids) <= 1,
+    `${grand} vs ${kids}`,
+  );
 
   const values = await page.locator('.dc-row').first()
     .locator('.dc-cell:not(.dc-dim)').allTextContents();
@@ -108,6 +144,35 @@ try {
     filled.length === values.length,
     `${filled.length}/${values.length} populated`,
   );
+
+  // Expanding a group fetches its children and inlines them.
+  await page.locator('.dc-row').nth(1).locator('.dc-cell').first().click();
+  await page.locator('[role="treegrid"]').focus();
+  // Move focus to the first region row, then open it with ArrowRight
+  // as the APG treegrid pattern specifies.
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(
+    () => document.querySelectorAll('.dc-row').length > 4,
+    { timeout: 60_000 },
+  );
+  const expanded = await page.locator('.dc-row').count();
+  check(
+    'ArrowRight expands a group and inlines its children',
+    expanded === 9,
+    `${expanded} rows (1 total + 3 regions + 5 desks)`,
+  );
+  check(
+    'the expanded group reports aria-expanded',
+    (await page.locator('.dc-row[aria-expanded="true"]').count()) === 1,
+  );
+
+  await page.keyboard.press('ArrowLeft');
+  await page.waitForFunction(
+    () => document.querySelectorAll('.dc-row').length === 4,
+    { timeout: 60_000 },
+  );
+  check('ArrowLeft collapses it again', true, '4 rows');
 
   // Keyboard: focus the grid and move.
   await page.locator('[role="treegrid"]').focus();

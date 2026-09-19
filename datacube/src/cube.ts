@@ -10,9 +10,11 @@ import { EpochGuard, isStale, type Stale } from './epoch.ts';
 import { buildColumnModel, type ColumnModel } from './grid/columns.ts';
 import type { CubeSnapshot } from './snapshot.ts';
 import { referencedColumns } from './snapshot.ts';
-import { serialize } from './serialize.ts';
+import { serialize, type LevelScope } from './serialize.ts';
 import type { ResultTable } from './result.ts';
 import { SnapManager } from './snap.ts';
+import { TreeState, type RowPath, type TreeRow } from './tree.ts';
+import { fetchTree } from './treeview.ts';
 
 /**
  * Turns a snapshot into SQL.
@@ -27,14 +29,28 @@ import { SnapManager } from './snap.ts';
  * interface stays narrow and the real implementation calls the engine.
  */
 export interface Planner {
-  /** Pure grammar in, SQL out. */
-  plan(pureGrammar: string, snapshot: CubeSnapshot): Promise<string>;
+  /**
+   * Pure grammar in, SQL out.
+   *
+   * `scope` names the tree level the grammar was generated for. A real
+   * planner ignores it, because the grammar already says which columns
+   * group -- it is passed so that a caller which cannot parse Pure
+   * still knows what it was handed.
+   */
+  plan(
+    pureGrammar: string,
+    snapshot: CubeSnapshot,
+    scope?: LevelScope,
+  ): Promise<string>;
 }
 
 export interface CubeView {
   readonly snapshot: CubeSnapshot;
   readonly columns: ColumnModel;
   readonly rows: ResultTable;
+  /** Tree metadata per row, parallel to `rows`. Empty for a flat cube. */
+  readonly treeRows: readonly TreeRow[];
+  /** Generated Pure and SQL, for the "show me the query" panel. */
   readonly sql: string;
 }
 
@@ -52,6 +68,7 @@ export class CubeController {
   readonly #options: CubeControllerOptions;
   #snapshot: CubeSnapshot | null = null;
   #view: CubeView | null = null;
+  #tree = TreeState.empty();
 
   constructor(
     engine: QueryEngine,
@@ -74,6 +91,28 @@ export class CubeController {
 
   get snapshot(): CubeSnapshot | null {
     return this.#snapshot;
+  }
+
+  get tree(): TreeState {
+    return this.#tree;
+  }
+
+  /**
+   * Open or close a group and refresh.
+   *
+   * Only the newly-opened branch is fetched; the rest of the tree is
+   * re-requested only because the level results are not yet cached
+   * across refreshes, which is a pure optimisation and not a
+   * correctness concern.
+   */
+  async toggle(path: RowPath): Promise<void> {
+    this.#tree = this.#tree.toggle(path);
+    await this.refresh();
+  }
+
+  async setTree(state: TreeState): Promise<void> {
+    this.#tree = state;
+    await this.refresh();
   }
 
   /**
@@ -99,15 +138,41 @@ export class CubeController {
         // The snapshot's own epoch is advisory; the guard's is
         // authoritative, so a stale answer cannot win a race.
         const withEpoch: CubeSnapshot = { ...snapshot, epoch };
+        const measureNames = withEpoch.measures.map((m) => m.name);
+
+        // A cube with row dimensions is a tree: the grand total and
+        // each open branch are separate queries, stitched in order.
+        if (withEpoch.rows.length > 0) {
+          const view = await fetchTree(withEpoch, this.#tree, {
+            planner: this.#planner,
+            engine: this.#engine,
+            guard: this.#guard,
+            epoch,
+          });
+          return {
+            snapshot: withEpoch,
+            columns: buildColumnModel(
+              view.table,
+              withEpoch.rows,
+              measureNames,
+            ),
+            rows: view.table,
+            treeRows: view.rows,
+            sql: serialize(withEpoch, { level: 1, parent: [] }),
+          } satisfies CubeView;
+        }
+
         const grammar = serialize(withEpoch);
         const sql = await this.#planner.plan(grammar, withEpoch);
         const rows = await this.#engine.execute(sql, epoch);
-        const columns = buildColumnModel(
+        const columns = buildColumnModel(rows, withEpoch.rows, measureNames);
+        return {
+          snapshot: withEpoch,
+          columns,
           rows,
-          withEpoch.rows,
-          withEpoch.measures.map((m) => m.name),
-        );
-        return { snapshot: withEpoch, columns, rows, sql } satisfies CubeView;
+          treeRows: [],
+          sql,
+        } satisfies CubeView;
       });
 
       if (isStale(out)) return out;

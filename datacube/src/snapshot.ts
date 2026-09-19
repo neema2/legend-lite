@@ -154,13 +154,21 @@ export interface CubeSnapshot {
   readonly epoch: number;
 }
 
-/** Columns a snapshot actually needs from the source, in emit order. */
-export function referencedColumns(s: CubeSnapshot): string[] {
+/**
+ * Columns a snapshot actually needs from the source, in emit order.
+ *
+ * `groupCols` defaults to every row dimension. Passing fewer is how a
+ * subtotal is expressed: the same measures over a shorter grouping.
+ */
+export function referencedColumns(
+  s: CubeSnapshot,
+  groupCols: readonly string[] = s.rows,
+): string[] {
   const out: string[] = [];
   const push = (n: string) => {
     if (!out.includes(n)) out.push(n);
   };
-  s.rows.forEach(push);
+  groupCols.forEach(push);
   s.pivotOn.forEach(push);
   for (const m of s.measures) {
     if (m.fn !== 'count') push(m.column);
@@ -186,9 +194,17 @@ export function columnType(
  * dimensions guarantees a deterministic order, because the row
  * dimensions are exactly what makes a group unique.
  */
-export function totalOrderSorts(s: CubeSnapshot): SortSpec[] {
-  const out: SortSpec[] = [...s.sorts];
-  for (const r of s.rows) {
+export function totalOrderSorts(
+  s: CubeSnapshot,
+  groupCols: readonly string[] = s.rows,
+): SortSpec[] {
+  // Only this level's grouping columns exist in its result, so a
+  // deeper dimension must not be named in the ORDER BY.
+  const present = new Set(groupCols);
+  const out: SortSpec[] = s.sorts.filter(
+    (x) => present.has(x.column) || !s.rows.includes(x.column),
+  );
+  for (const r of groupCols) {
     if (!out.some((x) => x.column === r)) {
       out.push({ column: r, direction: 'asc' });
     }

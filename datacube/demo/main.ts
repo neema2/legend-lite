@@ -15,7 +15,12 @@ import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { FormatterCache, type ColumnFormat } from '../src/format.ts';
 import { DataGrid } from '../src/grid/grid.ts';
 import { LegendLitePlanner } from '../src/planner.ts';
-import { serialize } from '../src/serialize.ts';
+import {
+  NULL_GROUP,
+  serialize,
+  type LevelScope,
+} from '../src/serialize.ts';
+import { parsePathKey, pathKey, type TreeRow } from '../src/tree.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { referencedColumns, totalOrderSorts } from '../src/snapshot.ts';
 
@@ -109,9 +114,26 @@ async function boot(): Promise<void> {
   };
   const formats: Record<string, ColumnFormat> = {};
 
+  // Tree rows come from the controller's last view, so the grid's
+  // per-row metadata and the data it renders can never disagree.
+  let treeRows: readonly TreeRow[] = [];
+
   const grid = new DataGrid(must('grid'), formatters, {
     rowHeight: 24,
     formats,
+    rowMeta: (abs) => {
+      const row = treeRows[abs];
+      if (!row) return { level: 1, key: String(abs) };
+      return {
+        level: Math.max(1, row.level),
+        key: pathKey(row.path),
+        ...(row.isGroup ? { expanded: row.expanded } : {}),
+        ...(row.isTotal || row.level === 0 ? { isTotal: true } : {}),
+      };
+    },
+    onToggleExpand: (key) => {
+      void controller.toggle(parsePathKey(key));
+    },
     onActivateCell: (r, c) => {
       status.textContent = `cell r${r} c${c} — drill-through would open here`;
     },
@@ -130,6 +152,7 @@ async function boot(): Promise<void> {
       for (const leaf of view.columns.leaves) {
         if (!leaf.isDimension) formats[leaf.name] = MONEY;
       }
+      treeRows = view.treeRows;
       grid.setColumns(view.columns);
       grid.setRows(view.rows, 0, view.rows.rowCount);
       must('sql').textContent = view.sql;
@@ -233,8 +256,25 @@ async function choosePlanner(status: HTMLElement): Promise<Planner> {
  * the grid and snap mode can be seen without a JVM.
  */
 class DemoOnlyPlanner implements Planner {
-  async plan(_grammar: string, s: CubeSnapshot): Promise<string> {
+  async plan(
+    _grammar: string,
+    s: CubeSnapshot,
+    scope?: LevelScope,
+  ): Promise<string> {
     const q = (n: string) => `"${n.replace(/"/g, '""')}"`;
+    const lit = (v: string) => `'${v.replace(/'/g, "''")}'`;
+    // Which dimensions group at THIS level, and which branch is pinned.
+    const dims = scope ? s.rows.slice(0, scope.level) : s.rows;
+    const where = (scope?.parent ?? [])
+      .map((v, i) => {
+        const col = s.rows[i];
+        if (col === undefined) return null;
+        return v === NULL_GROUP
+          ? `${q(col)} IS NULL`
+          : `${q(col)} = ${lit(v)}`;
+      })
+      .filter((c): c is string => c !== null);
+    const filter = where.length > 0 ? ` WHERE ${where.join(' AND ')}` : '';
     const agg = s.measures
       .map((m) =>
         m.fn === 'count'
@@ -242,15 +282,18 @@ class DemoOnlyPlanner implements Planner {
           : `${m.fn === 'average' ? 'avg' : m.fn}(${q(m.column)}) AS ${q(m.name)}`,
       )
       .join(', ');
-    const by = s.rows.map(q).join(', ');
-    const order = totalOrderSorts(s)
+    const by = dims.map(q).join(', ');
+    const order = totalOrderSorts(s, dims)
       .map((x) => `${q(x.column)} ${x.direction === 'asc' ? 'ASC' : 'DESC'}`)
       .join(', ');
-    const cols = referencedColumns(s).map(q).join(', ');
-    const src = `(SELECT ${cols} FROM ${s.source.expression})`;
+    const cols = referencedColumns(s, dims).map(q).join(', ');
+    const src = `(SELECT ${cols} FROM ${s.source.expression}${filter})`;
+    const orderBy = order ? ` ORDER BY ${order}` : '';
 
     if (s.pivotOn.length === 0) {
-      return `SELECT ${by}, ${agg} FROM ${src} GROUP BY ${by} ORDER BY ${order}`;
+      return dims.length === 0
+        ? `SELECT ${agg} FROM ${src}`
+        : `SELECT ${by}, ${agg} FROM ${src} GROUP BY ${by}${orderBy}`;
     }
     const on = s.pivotOn.map(q).join(', ');
     const using = s.measures
@@ -260,10 +303,12 @@ class DemoOnlyPlanner implements Planner {
           : `${m.fn === 'average' ? 'avg' : m.fn}(${q(m.column)}) AS ${q(m.name)}`,
       )
       .join(', ');
-    return (
-      `SELECT * FROM (PIVOT ${src} ON ${on} USING ${using} ` +
-      `GROUP BY ${by}) ORDER BY ${order}`
-    );
+    // With no grouping columns the pivot is the grand total: one row,
+    // no GROUP BY and nothing to order.
+    return dims.length === 0
+      ? `SELECT * FROM (PIVOT ${src} ON ${on} USING ${using})`
+      : `SELECT * FROM (PIVOT ${src} ON ${on} USING ${using} ` +
+        `GROUP BY ${by})${orderBy}`;
   }
 }
 

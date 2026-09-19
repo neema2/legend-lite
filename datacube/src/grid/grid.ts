@@ -311,8 +311,16 @@ export class DataGrid {
       frag.appendChild(row);
     }
 
+    // Re-rendering destroys the element that had DOM focus, which
+    // silently drops the keyboard user onto <body> -- every expand
+    // would eject them from the grid, and the next arrow key would go
+    // nowhere. Restore focus, but only if it was ours to begin with,
+    // so a background refresh never steals it from elsewhere.
+    const hadFocus =
+      doc.activeElement !== null && this.#root.contains(doc.activeElement);
     this.#body.replaceChildren(frag);
     this.#rendered = wanted;
+    if (hadFocus) this.#focusCell();
   }
 
   // -- keyboard ----------------------------------------------------

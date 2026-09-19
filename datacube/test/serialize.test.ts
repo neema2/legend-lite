@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { totalOrderSorts } from '../src/snapshot.ts';
 import {
+  NULL_GROUP,
   filterExpression,
   ident,
   literal,
@@ -131,6 +132,99 @@ describe('serialize', () => {
     assert.match(
       serialize(snap({ pivotValues: [2023, 2024] })),
       /->pivot\(~\[year\], \[2023, 2024\], ~\[total:/,
+    );
+  });
+});
+
+describe('serialize with a level scope', () => {
+  it('groups the grand total by nothing at all', () => {
+    // level 0: every grouping column dropped, which is exactly what
+    // makes the grand total the same expression as the detail.
+    const out = serialize(snap(), { level: 0, parent: [] });
+    assert.equal(
+      out,
+      '$trades->select(~[year, notional])' +
+        '->pivot(~[year], ~[total:x|$x.notional:y|$y->sum()])',
+    );
+    // A single row needs no ordering or slicing.
+    assert.equal(out.includes('sort('), false);
+    assert.equal(out.includes('slice('), false);
+  });
+
+  it('groups the top level by the first dimension only', () => {
+    assert.equal(
+      serialize(snap(), { level: 1, parent: [] }),
+      '$trades->select(~[region, year, notional])' +
+        '->pivot(~[year], ~[total:x|$x.notional:y|$y->sum()])' +
+        '->sort([~region->ascending()])',
+    );
+  });
+
+  it('pins the parent branch when expanding', () => {
+    const out = serialize(snap(), { level: 2, parent: ['EMEA'] });
+    assert.match(out, /filter\(x\|\$x\.region == 'EMEA'\)/);
+    assert.match(out, /select\(~\[region, country, year, notional\]\)/);
+  });
+
+  it('ands the parent branch onto the user filter', () => {
+    const s = snap({
+      filter: {
+        kind: 'condition',
+        column: 'notional',
+        operator: 'greaterThan',
+        value: 100,
+      },
+    });
+    assert.match(
+      serialize(s, { level: 2, parent: ['EMEA'] }),
+      /filter\(x\|\(\$x\.notional > 100 && \$x\.region == 'EMEA'\)\)/,
+    );
+  });
+
+  it('matches a NULL group key with isEmpty, not equals', () => {
+    // '== null' matches nothing in SQL, so expanding a null group
+    // would silently return no children.
+    assert.match(
+      serialize(snap(), { level: 2, parent: [NULL_GROUP] }),
+      /filter\(x\|\$x\.region->isEmpty\(\)\)/,
+    );
+  });
+
+  it('never orders by a dimension deeper than the level', () => {
+    // 'country' does not exist in a level-1 result; naming it in the
+    // ORDER BY would be a compile error at the engine.
+    const out = serialize(snap(), { level: 1, parent: [] });
+    assert.equal(out.includes('country'), false);
+  });
+
+  it('keeps a measure sort while dropping a deeper dimension sort', () => {
+    const s = snap({
+      sorts: [
+        { column: 'total', direction: 'desc' },
+        { column: 'country', direction: 'desc' },
+      ],
+    });
+    assert.match(
+      serialize(s, { level: 1, parent: [] }),
+      /sort\(\[~total->descending\(\), ~region->ascending\(\)\]\)/,
+    );
+  });
+
+  it('is unchanged without a scope', () => {
+    assert.equal(serialize(snap()), serialize(snap(), undefined));
+  });
+
+  it('subtotal and detail differ only by a grouping column', () => {
+    // The property the whole design rests on: strip the level-2
+    // query of its second dimension and it IS the level-1 query.
+    const detail = serialize(snap(), { level: 2, parent: [] });
+    const subtotal = serialize(snap(), { level: 1, parent: [] });
+    assert.equal(
+      detail
+        .replace('~[region, country, year, notional]', '~[region, year, notional]')
+        .replace('sort([~region->ascending(), ~country->ascending()])',
+                 'sort([~region->ascending()])'),
+      subtotal,
     );
   });
 });

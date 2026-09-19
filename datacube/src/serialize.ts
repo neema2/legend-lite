@@ -29,6 +29,7 @@ import {
   referencedColumns,
   totalOrderSorts,
 } from './snapshot.ts';
+import type { RowPath } from './tree.ts';
 
 /** Identifiers that are not plain alphanumerics need quoting. */
 const PLAIN_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -159,26 +160,92 @@ function sortClause(sorts: readonly SortSpec[]): string {
 }
 
 /**
+ * One level of the row-group tree.
+ *
+ * `level` is how many row dimensions to group by: 0 is the grand
+ * total, 1 the top level, and so on. `parent` pins the ancestors, so
+ * expanding EMEA fetches only EMEA's children.
+ *
+ * A subtotal is therefore literally the same measure expression with
+ * grouping columns dropped -- not a second aggregation pass that could
+ * disagree with the detail underneath it.
+ */
+export interface LevelScope {
+  readonly level: number;
+  readonly parent: RowPath;
+}
+
+/**
+ * Sentinel for a group whose key is SQL NULL.
+ *
+ * A group label is a rendered string, so any printable sentinel could
+ * collide with a real value; this one cannot be produced by
+ * formatting.
+ */
+export const NULL_GROUP = '\u0000null';
+
+/**
+ * Conditions pinning a branch: region == 'EMEA', and so on.
+ *
+ * A NULL group key cannot be matched with `==`, so it becomes an
+ * isEmpty test. Without that, expanding a group whose key is null
+ * silently returns no children.
+ */
+function parentConditions(
+  snapshot: CubeSnapshot,
+  parent: RowPath,
+): FilterNode[] {
+  const out: FilterNode[] = [];
+  parent.forEach((value, i) => {
+    const column = snapshot.rows[i];
+    if (column === undefined) return;
+    out.push(
+      value === NULL_GROUP
+        ? { kind: 'condition', column, operator: 'isEmpty' }
+        : { kind: 'condition', column, operator: 'equal', value },
+    );
+  });
+  return out;
+}
+
+/**
  * Serialize a snapshot to Pure relation grammar.
  *
  * The pipeline is emitted in the order legend-lite expects, and each
  * stage is omitted entirely when it would be a no-op, so a simple cube
  * produces simple text that a human can read in a bug report.
  */
-export function serialize(snapshot: CubeSnapshot): string {
+export function serialize(
+  snapshot: CubeSnapshot,
+  scope?: LevelScope,
+): string {
   const parts: string[] = [snapshot.source.expression];
+  // Grouping columns for this level. With no scope the cube is flat
+  // and every row dimension groups, which is the original behaviour.
+  const groupCols = scope
+    ? snapshot.rows.slice(0, Math.max(0, scope.level))
+    : snapshot.rows;
 
   for (const d of snapshot.derived) {
     parts.push(`extend(~[${ident(d.name)}: x|${d.expression}])`);
   }
 
-  if (snapshot.filter) {
-    parts.push(`filter(x|${filterExpression(snapshot.filter)})`);
+  const conditions: FilterNode[] = [];
+  if (snapshot.filter) conditions.push(snapshot.filter);
+  if (scope) conditions.push(...parentConditions(snapshot, scope.parent));
+  if (conditions.length === 1) {
+    parts.push(`filter(x|${filterExpression(conditions[0]!)})`);
+  } else if (conditions.length > 1) {
+    parts.push(
+      `filter(x|${filterExpression({ kind: 'and', children: conditions })})`,
+    );
   }
 
   // Selecting exactly the needed columns is what sets the pivot's
   // implicit grouping, so this stage is load-bearing, not tidying.
-  const needed = referencedColumns(snapshot);
+  // Dropping a row dimension here is precisely what turns the detail
+  // query into its subtotal.
+  const needed = referencedColumns(snapshot, groupCols);
   if (needed.length > 0) {
     parts.push(`select(~[${needed.map(ident).join(', ')}])`);
   }
@@ -200,19 +267,21 @@ export function serialize(snapshot: CubeSnapshot): string {
     // No column dimension: an ordinary aggregation over the row
     // dimensions. Needs an explicit groupBy, since there is no pivot to
     // infer the grouping from.
-    const by = snapshot.rows.map(ident).join(', ');
+    const by = groupCols.map(ident).join(', ');
     parts.push(`groupBy(~[${by}], ~[${aggs}])`);
   }
 
-  const sorts = totalOrderSorts(snapshot);
-  if (sorts.length > 0) {
-    parts.push(sortClause(sorts));
-  }
+  // A grand total is a single row; sorting and slicing it is noise
+  // that only makes the generated text harder to read in a bug report.
+  if (groupCols.length > 0) {
+    const sorts = totalOrderSorts(snapshot, groupCols);
+    if (sorts.length > 0) parts.push(sortClause(sorts));
 
-  if (snapshot.window) {
-    // slice takes offset and END, not a count.
-    const { offset, limit } = snapshot.window;
-    parts.push(`slice(${offset}, ${offset + limit})`);
+    if (snapshot.window) {
+      // slice takes offset and END, not a count.
+      const { offset, limit } = snapshot.window;
+      parts.push(`slice(${offset}, ${offset + limit})`);
+    }
   }
 
   return parts.join('->');
