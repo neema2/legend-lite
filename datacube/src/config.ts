@@ -127,6 +127,32 @@ export interface CubeConfiguration {
 /** DataCube's own default row cap. */
 export const DEFAULT_MAX_ROWS = 1000;
 
+/**
+ * DataCube's own defaults, taken from its DataCubeQueryEngine
+ * constants rather than chosen here.
+ *
+ * The colours matter more than they look. A cube that renders
+ * negatives in the same colour as positives is readable but wrong
+ * at a glance, and every one of these had been left unset -- so the
+ * value-state colouring machinery existed and did nothing by
+ * default. Their set:
+ *
+ *   foreground        black          DEFAULT_FOREGROUND_COLOR
+ *   negative          red-500        DEFAULT_NEGATIVE_FOREGROUND_COLOR
+ *   zero              neutral-400    DEFAULT_ZERO_FOREGROUND_COLOR
+ *   error             blue-600       DEFAULT_ERROR_FOREGROUND_COLOR
+ *   alternate row     #d7e0eb        DEFAULT_ROW_HIGHLIGHT_BACKGROUND_COLOR
+ *   grid line         neutral-300    DEFAULT_GRID_LINE_COLOR
+ *
+ * Note the grid LINE colour (neutral-300) is a shade darker than
+ * the grid's structural --ag-border-color (neutral-200): the lines
+ * a user can switch on are meant to read more strongly than the
+ * frame.
+ *
+ * The font is Roboto at 11px -- which is NOT the grid's 12px
+ * --ag-font-size. The cell font comes from the column's own font
+ * configuration and is a point smaller than the chrome around it.
+ */
 export const DEFAULT_CONFIGURATION: CubeConfiguration = {
   showRootAggregation: true,
   showLeafCount: false,
@@ -138,11 +164,28 @@ export const DEFAULT_CONFIGURATION: CubeConfiguration = {
   appearance: {
     showHorizontalGridLines: false,
     showVerticalGridLines: true,
+    gridLineColor: '#d4d4d4',
+    /* DataCube's own default here is OFF; this is a deliberate
+       departure, asked for directly. On a dense 20px grid the
+       banding is what lets the eye track a row across a wide pivot,
+       which is worth more than matching the default exactly. */
     alternateRows: true,
     alternateRowsCount: 1,
+    alternateRowsColor: '#d7e0eb',
+    fontFamily: 'Roboto, ui-sans-serif, system-ui, sans-serif',
+    fontSize: 11,
+    textAlign: 'left',
+    normalForeground: '#000000',
+    negativeForeground: '#ef4444',
+    zeroForeground: '#a3a3a3',
+    errorForeground: '#2563eb',
   },
   columns: {},
 };
+
+/** Their DEFAULT_COLUMN_WIDTH / MIN_WIDTH, for a column with none. */
+export const DEFAULT_COLUMN_WIDTH = 300;
+export const DEFAULT_COLUMN_MIN_WIDTH = 50;
 
 /** The settings for one column, or the empty set. */
 export function columnConfig(

@@ -7,10 +7,13 @@ import {
   conjuncts,
   floatingText,
   isComplex,
+  isTreeComplex,
   mentions,
   parseFloating,
+  readTreeFilter,
   renderFloating,
   withFloating,
+  withTreeFilter,
 } from '../src/grid/floating-filter.ts';
 import { filterExpression } from '../src/serialize.ts';
 import type { FilterCondition, FilterNode } from '../src/snapshot.ts';
@@ -193,6 +196,79 @@ describe('living in the same filter tree', () => {
       value: 'em',
     });
     assert.ok(filterExpression(f as FilterNode).includes('region'));
+  });
+});
+
+describe('the tree column\'s single box', () => {
+  const ROWS = ['region', 'desk', 'book'];
+
+  it('matches ANY row dimension', () => {
+    // The tree column holds a different dimension at every level,
+    // so no single column could be a box's subject. One box that
+    // matches any of them is what a box under a tree column means.
+    const f = withTreeFilter(undefined, ROWS, 'em') as FilterNode;
+    assert.equal(f.kind, 'or');
+    assert.deepEqual(
+      (f as { children: readonly FilterCondition[] }).children.map(
+        (c) => c.column,
+      ),
+      ROWS,
+    );
+  });
+
+  it('collapses to one condition for a single row dimension', () => {
+    const f = withTreeFilter(undefined, ['region'], 'em') as FilterNode;
+    assert.equal(f.kind, 'condition');
+  });
+
+  it('reads back what it wrote', () => {
+    const f = withTreeFilter(undefined, ROWS, 'em');
+    assert.equal(readTreeFilter(f, ROWS), 'em');
+  });
+
+  it('replaces itself rather than stacking', () => {
+    let f = withTreeFilter(undefined, ROWS, 'em');
+    f = withTreeFilter(f, ROWS, 'am');
+    assert.equal(conjuncts(f).length, 1);
+    assert.equal(readTreeFilter(f, ROWS), 'am');
+  });
+
+  it('leaves other conditions alone', () => {
+    let f: FilterNode | undefined = eq('notional', 5);
+    f = withTreeFilter(f, ROWS, 'em');
+    assert.equal(conjuncts(f).length, 2);
+    f = withTreeFilter(f, ROWS, '');
+    assert.deepEqual(f, eq('notional', 5));
+  });
+
+  it('returns the SAME filter when nothing changed', () => {
+    const f = withTreeFilter(undefined, ROWS, 'em');
+    assert.equal(withTreeFilter(f, ROWS, 'em'), f);
+  });
+
+  it('reports a filter it cannot show as complex, not as absent', () => {
+    // An OR over only SOME of the row dimensions is not the tree
+    // filter, and a blank box on filtered rows reads as unfiltered.
+    const partial: FilterNode = {
+      kind: 'or',
+      children: [eq('region', 'EMEA'), eq('desk', 'FX')],
+    };
+    assert.equal(readTreeFilter(partial, ROWS), '');
+    assert.equal(isTreeComplex(partial, ROWS), true);
+    assert.equal(isTreeComplex(undefined, ROWS), false);
+  });
+
+  it('a different text across the columns is not the tree filter', () => {
+    const mixed: FilterNode = {
+      kind: 'or',
+      children: ROWS.map((column, i) => ({
+        kind: 'condition' as const,
+        column,
+        operator: 'containsCaseInsensitive' as const,
+        value: `v${i}`,
+      })),
+    };
+    assert.equal(isTreeComplex(mixed, ROWS), true);
   });
 });
 

@@ -170,7 +170,12 @@ describe('gridVariables', () => {
       fontFamily: 'Inter',
       fontSize: 13,
     });
-    assert.equal(v['--dc-border'], '#ddd');
+    // The user's grid lines, NOT the structural frame. DataCube
+    // keeps them apart -- --ag-border-color is neutral-200 while
+    // DEFAULT_GRID_LINE_COLOR is neutral-300 -- and folding them
+    // together makes the frame move when a user recolours the lines.
+    assert.equal(v['--dc-grid-line'], '#ddd');
+    assert.equal('--dc-border' in v, false);
     assert.equal(v['--dc-alt-row'], '#fafafa');
     assert.equal(v['--dc-font'], 'Inter');
     assert.equal(v['--dc-font-size'], '13px');

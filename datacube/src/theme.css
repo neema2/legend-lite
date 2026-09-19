@@ -1,0 +1,162 @@
+/* The DataCube look, resolved rather than eyeballed.
+ *
+ * Every value here was derived from a source, not matched by eye.
+ * Four inputs, all readable:
+ *
+ *  1. legend-data-cube/style/index.scss -- their own 578 lines of
+ *     overrides (Apache-2.0).
+ *  2. ag-grid-community 35.0.0 + ag-theme-quartz (MIT), the version
+ *     their package.json pins, for the values they do NOT override.
+ *  3. The Tailwind utility classes in their components -- 183
+ *     distinct ones, a small closed vocabulary.
+ *  4. legend-dev-utils/TailwindCSSConfigUtils.js, their Tailwind
+ *     config, which is where the trap was.
+ *
+ * THE TRAP: their font scale is CUSTOMISED, not stock Tailwind.
+ * `text-sm` is 10px, not 14; `text-xl` is 16px, not 20; `text-xs` is
+ * 8px, not 12. `text-sm` alone appears 88 times in their components.
+ * Assuming the stock scale would have made every panel about 40%
+ * too large while looking superficially plausible -- the kind of
+ * wrong that survives a glance. Their spacing scale IS stock (with
+ * rem converted to px at 16), and their colours ARE stock Tailwind,
+ * merely re-exposed as --tw-color-* variables.
+ *
+ * WHAT THIS CANNOT REACH. Their text is Roboto; without that font
+ * the metrics differ and nothing is truly pixel-identical, so the
+ * demo loads it and the stack names it first. Their checkboxes are
+ * MUI components. And their grid is ag-Grid, whose DOM is nested
+ * viewports where this one is a CSS grid -- colours and metrics
+ * carry across, a few structural details do not. "Pixel identical"
+ * is also unfalsifiable without a reference render to diff against,
+ * which is why the browser run asserts these RESOLVED VALUES
+ * instead: that is a claim that can fail.
+ */
+
+.dc-app,
+.dc-grid,
+.dc-menu,
+.dc-filters {
+  /* ---- palette: stock Tailwind, the shades they actually use ---- */
+  --tw-white: #fff;
+  --tw-black: #000;
+  --tw-neutral-50: #fafafa;
+  --tw-neutral-100: #f5f5f5;
+  --tw-neutral-200: #e5e5e5;
+  --tw-neutral-300: #d4d4d4;
+  --tw-neutral-400: #a3a3a3;
+  --tw-neutral-500: #737373;
+  --tw-neutral-600: #525252;
+  --tw-neutral-700: #404040;
+  --tw-sky-50: #f0f9ff;
+  --tw-sky-100: #e0f2fe;
+  --tw-sky-200: #bae6fd;
+  --tw-sky-500: #0ea5e9;
+  --tw-sky-600: #0284c7;
+  --tw-sky-700: #0369a1;
+  --tw-red-500: #ef4444;
+  --tw-red-600: #dc2626;
+  --tw-amber-500: #f59e0b;
+  --tw-green-500: #22c55e;
+  --tw-orange-500: #f97316;
+
+  /* ---- type: their CUSTOM scale, not Tailwind's ---- */
+  --dc-font: Roboto, ui-sans-serif, system-ui, sans-serif;
+  --dc-font-mono: ui-monospace, 'Roboto Mono', SFMono-Regular, Menlo,
+    monospace;
+  /* .data-cube { font-size: 12px } is their base. */
+  --dc-text-base-size: 12px;
+  --dc-text-base-line: 16px;
+  --dc-text-xs-size: 8px;
+  --dc-text-xs-line: 8px;
+  --dc-text-sm-size: 10px;
+  --dc-text-sm-line: 12px;
+  --dc-text-lg-size: 14px;
+  --dc-text-lg-line: 20px;
+  --dc-text-xl-size: 16px;
+  --dc-text-xl-line: 24px;
+
+  /* ---- grid metrics: their ag-grid variables, resolved ---- */
+  --dc-header-height: 24px;
+  --dc-row-height: 20px;
+  /* They set --ag-grid-size: 1px, and quartz derives cell padding
+     as grid-size * 2. Hence 2px, which is what makes the grid read
+     as dense rather than merely small. */
+  --dc-grid-size: 1px;
+  --dc-cell-padding-x: 2px;
+  --dc-border-color: var(--tw-neutral-200);
+  --dc-header-bg: var(--tw-neutral-100);
+  --dc-header-fg: var(--tw-black);
+  /* NOT black: quartz's own foreground, which they leave alone. */
+  --dc-cell-fg: #181d1f;
+  --dc-bg: var(--tw-white);
+  --dc-row-hover: #d4d4d415;
+  --dc-active: var(--tw-sky-600);
+  --dc-selection-border: var(--tw-sky-600);
+  --dc-selection-fill: var(--tw-sky-50);
+  /* Pinned columns get a doubled rule, so a frozen edge is not
+     mistaken for an ordinary column border. */
+  --dc-pinned-separator: 3px double var(--tw-neutral-400);
+  --dc-radius: 0;
+  --dc-icon-size: 12px;
+  --dc-popup-shadow: 2px 2px 5px rgb(0 0 0 / 20%);
+
+  /* ---- chrome: the Tailwind classes they use, resolved ---- */
+  --dc-control-height: 24px; /* h-6 */
+  --dc-row-control-height: 20px; /* h-5 */
+  --dc-pad-1: 4px; /* px-1 */
+  --dc-pad-2: 8px; /* px-2 */
+  --dc-radius-sm: 2px; /* rounded-sm */
+  --dc-line: var(--tw-neutral-300); /* border-neutral-300 */
+  --dc-line-faint: var(--tw-neutral-200);
+  --dc-line-strong: var(--tw-neutral-400);
+  --dc-muted: var(--tw-neutral-500);
+  --dc-muted-strong: var(--tw-neutral-600);
+  --dc-disabled: var(--tw-neutral-400);
+  --dc-fill-faint: var(--tw-neutral-100);
+  --dc-fill: var(--tw-neutral-200);
+  --dc-hover: var(--tw-sky-100);
+  --dc-selected-bg: var(--tw-sky-50);
+  --dc-selected-line: var(--tw-sky-200);
+
+  font-family: var(--dc-font);
+  font-size: var(--dc-text-base-size);
+  line-height: var(--dc-text-base-line);
+  color: var(--dc-cell-fg);
+}
+
+/* Their focus ring, which is a 1.5px inset sky outline rather than
+ * the platform default. Applied at the same specificity they use. */
+.dc-app input:focus-visible,
+.dc-app button:focus-visible,
+.dc-app select:focus-visible,
+.dc-grid:focus-visible,
+.dc-menu button:focus-visible {
+  outline: 1.5px solid var(--tw-sky-600);
+  outline-offset: -1px;
+}
+
+/* Their scrollbars: 10px, a neutral-400 thumb inset by a 3.5px
+ * transparent border so it reads as a thin pill. Suppressing the
+ * OS auto-hide is deliberate on their part -- a grid whose
+ * scrollbar vanishes hides how much is left to read. */
+.dc-app ::-webkit-scrollbar {
+  appearance: none;
+  width: 10px;
+  height: 10px;
+}
+
+.dc-app ::-webkit-scrollbar-track,
+.dc-app ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.dc-app ::-webkit-scrollbar-thumb {
+  background: var(--tw-neutral-400);
+  border: 3.5px solid transparent;
+  background-clip: content-box;
+  border-radius: 2px;
+}
+
+.dc-app ::-webkit-scrollbar-thumb:hover {
+  background: var(--tw-neutral-500);
+}

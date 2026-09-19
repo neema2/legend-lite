@@ -90,16 +90,21 @@ export interface GridOptions {
    */
   readonly floatingFilter?: FloatingFilterRow;
   /**
-   * The columns the filter row offers a box for.
+   * What box, if any, a given leaf column gets.
    *
-   * Supplied rather than derived from the leaves, because in an
-   * AGGREGATING cube no leaf is a source column: the row dimensions
-   * collapse into one tree column and every value leaf is named for
-   * a pivot path the engine has never heard of. The columns worth
-   * filtering are the dimensions in play, and only the caller knows
-   * what those are. Empty means no row at all.
+   * Per LEAF, so every box sits in its own column and lines up with
+   * the data beneath it. Returning null leaves that column's cell
+   * empty, which is how a pivoted measure -- named for a path the
+   * engine has never heard of -- gets no box without breaking the
+   * alignment of the ones that do.
+   *
+   * The tree column is the case that makes this work at all: it
+   * holds a different dimension at every level, so it gets ONE box
+   * that matches any row dimension rather than none.
    */
-  readonly floatingFilterColumns?: readonly FloatingFilterColumn[];
+  readonly floatingFilterFor?: (
+    leaf: LeafColumn,
+  ) => FloatingFilterColumn | null;
   /**
    * Whether a column header may be dragged into the pivot zones.
    *
@@ -124,6 +129,9 @@ export interface GridOptions {
 }
 
 const DEFAULT_ROW_HEIGHT = 24;
+
+/** How many gradients the pivot group header rotates through. */
+const PIVOT_GROUP_COLOURS = 5;
 
 interface Focus {
   row: number;
@@ -235,10 +243,10 @@ export class DataGrid {
    * is noise that also silently shifts every aria-rowindex by one.
    */
   #showsFilterRow(): boolean {
-    return (
-      this.#options.floatingFilter !== undefined &&
-      (this.#options.floatingFilterColumns?.length ?? 0) > 0
-    );
+    const model = this.#model;
+    const forLeaf = this.#options.floatingFilterFor;
+    if (!this.#options.floatingFilter || !forLeaf || !model) return false;
+    return model.leaves.some((leaf) => forLeaf(leaf) !== null);
   }
 
   /**
@@ -304,9 +312,14 @@ export class DataGrid {
     // a ragged header laid out in document order puts the lower row's
     // cells under the dimension columns instead of under their values.
     this.#head.style.gridTemplateColumns = this.#templateColumns(model);
+    // Header rows are 24px where body rows are 20px -- their
+    // --ag-header-height and --ag-row-height differ, and laying the
+    // header out on the body's height makes every header cell 4px
+    // short of the real thing.
     this.#head.style.gridTemplateRows =
-      `repeat(${this.#headerLevels()}, var(--dc-row-height))`;
+      `repeat(${this.#headerLevels()}, var(--dc-head-height))`;
 
+    let pivotGroup = 0;
     model.headerRows.forEach((cells, level) => {
       // A row element per level keeps role=row correct for assistive
       // technology; `display: contents` lets its children take part in
@@ -331,6 +344,16 @@ export class DataGrid {
         if (cell.rowSpan > 1) {
           el.setAttribute('aria-rowspan', String(cell.rowSpan));
         }
+        // A pivot VALUE group -- the `2021` spanning its measures --
+        // takes one of five rotating gradients, as DataCube does.
+        // It is not decoration: with several measures under each
+        // pivot value, the bands are what tell you where one value's
+        // block ends and the next begins.
+        if (level === 0 && cell.rowSpan === 1 && model.depth > 1) {
+          el.classList.add(`dc-pivot-group-${pivotGroup % PIVOT_GROUP_COLOURS}`);
+          pivotGroup += 1;
+        }
+
         // Only a cell sitting directly over ONE leaf names a column;
         // a pivot value spanning four leaves is not a column and
         // dragging it would have to mean four things at once.
@@ -350,28 +373,29 @@ export class DataGrid {
     });
 
     const filterRow = this.#options.floatingFilter;
-    const filterColumns = this.#options.floatingFilterColumns ?? [];
-    if (filterRow && this.#showsFilterRow()) {
-      // ONE cell spanning the whole width, holding a labelled box per
-      // dimension, rather than a box per leaf. A box per leaf is
-      // ag-Grid's layout and it only works on a flat table: over a
-      // pivot the leaves are measures under pivot values, and a box
-      // under `2021 / notional` could only mean "filter the rows that
-      // feed this aggregate", which is not what the position implies.
+    const forLeaf = this.#options.floatingFilterFor;
+    if (filterRow && forLeaf && this.#showsFilterRow()) {
+      // One cell per LEAF, placed in that leaf's grid column, so a
+      // box sits over the data it filters. The free-floating strip
+      // this replaced lined up with nothing.
       const row = doc.createElement('div');
       row.setAttribute('role', 'row');
       row.className = 'dc-head-row dc-floating-row';
       row.setAttribute('aria-rowindex', String(model.depth + 1));
 
-      const cell = doc.createElement('div');
-      cell.className = 'dc-floating-strip';
-      cell.setAttribute('role', 'columnheader');
-      cell.style.gridColumn = `1 / span ${Math.max(1, model.leaves.length)}`;
-      cell.style.gridRow = `${model.depth + 1} / span 1`;
-      for (const column of filterColumns) {
-        cell.appendChild(filterRow.cell(column));
-      }
-      row.appendChild(cell);
+      model.leaves.forEach((leaf, i) => {
+        const spec = forLeaf(leaf);
+        const cell = spec
+          ? filterRow.cell(spec)
+          : (() => {
+              const blank = doc.createElement('div');
+              blank.className = 'dc-floating-cell';
+              return blank;
+            })();
+        cell.style.gridColumn = `${i + 1} / span 1`;
+        cell.style.gridRow = `${model.depth + 1} / span 1`;
+        row.appendChild(cell);
+      });
       this.#head.appendChild(row);
     }
   }

@@ -183,7 +183,12 @@ export function isAlternateRow(index: number, count = 1): boolean {
 /** CSS custom properties for the grid container. */
 export function gridVariables(a: GridAppearance): Record<string, string> {
   const vars: Record<string, string> = {};
-  if (a.gridLineColor) vars['--dc-border'] = a.gridLineColor;
+  // The user's GRID LINES, which are not the structural frame.
+  // DataCube keeps these apart -- --ag-border-color is neutral-200
+  // and DEFAULT_GRID_LINE_COLOR is neutral-300 -- and folding them
+  // together makes the frame move whenever a user recolours the
+  // lines, which is not what the setting says it does.
+  if (a.gridLineColor) vars['--dc-grid-line'] = a.gridLineColor;
   vars['--dc-hgrid'] = a.showHorizontalGridLines === false ? '0' : '1';
   vars['--dc-vgrid'] = a.showVerticalGridLines === false ? '0' : '1';
   if (a.alternateRowsColor) vars['--dc-alt-row'] = a.alternateRowsColor;

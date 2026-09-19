@@ -148,6 +148,160 @@ try {
     `${filled.length}/${values.length} populated`,
   );
 
+  // -- the style contract ------------------------------------------------
+  // "Pixel identical to DataCube" is unfalsifiable on its own: there
+  // is no reference render here to diff against. So the goal is
+  // stated as RESOLVED VALUES instead -- each derived from their
+  // stylesheet, their pinned ag-grid version, or their Tailwind
+  // config -- and measured from the live page. That can fail.
+  const styleOf = (selector, props) =>
+    page.evaluate(
+      ([sel, wanted]) => {
+        const el = document.querySelector(sel);
+        if (!el) return null;
+        const cs = getComputedStyle(el);
+        const out = {};
+        for (const p of wanted) out[p] = cs.getPropertyValue(p);
+        out.height = Math.round(el.getBoundingClientRect().height);
+        return out;
+      },
+      [selector, props],
+    );
+
+  const grid = await styleOf('.dc-grid', [
+    'font-family',
+    'font-size',
+    'color',
+    'border-radius',
+    'border-bottom-color',
+  ]);
+  check(
+    'the grid is 12px Roboto',
+    grid?.['font-size'] === '12px' && /Roboto/.test(grid?.['font-family'] ?? ''),
+    `${grid?.['font-size']} ${grid?.['font-family']}`,
+  );
+  check(
+    'cell text is quartz #181d1f, which they do NOT override to black',
+    grid?.color === 'rgb(24, 29, 31)',
+    grid?.color,
+  );
+  check(
+    'every radius is zeroed, as their three ag radius vars are',
+    grid?.['border-radius'] === '0px',
+    grid?.['border-radius'],
+  );
+
+  const bodyRow = await styleOf('.dc-row', []);
+  check(
+    'body rows are 20px (--ag-row-height)',
+    bodyRow?.height === 20,
+    `${bodyRow?.height}px`,
+  );
+
+  // A LEAF header cell. The tree column's header spans the whole
+  // header depth, so measuring the first cell measures 2 x 24.
+  const headRow = await page.evaluate(() => {
+    // Not the tree column, whose header spans the whole depth --
+    // a spanning cell carries aria-rowspan.
+    const el = document.querySelector('.dc-th[data-column]:not([aria-rowspan])');
+    return el ? Math.round(el.getBoundingClientRect().height) : null;
+  });
+  check(
+    'header cells are 24px (--ag-header-height)',
+    headRow === 24,
+    `${headRow}px`,
+  );
+
+  const cell = await styleOf('.dc-cell:not(.dc-dim)', [
+    'padding-left',
+    'padding-right',
+    'border-right-color',
+  ]);
+  const rowBorder = await styleOf('.dc-row', ['border-bottom-width']);
+  check(
+    'cell padding is 2px -- grid-size 1px, doubled by quartz',
+    cell?.['padding-left'] === '2px' && cell?.['padding-right'] === '2px',
+    `${cell?.['padding-left']} / ${cell?.['padding-right']}`,
+  );
+  // Their defaults: horizontal lines OFF, vertical ON in
+  // neutral-300 -- and the frame stays neutral-200 regardless, so
+  // recolouring the lines does not move the frame.
+  check(
+    'horizontal grid lines are off by default',
+    rowBorder?.['border-bottom-width'] === '0px',
+    rowBorder?.['border-bottom-width'],
+  );
+  check(
+    'vertical grid lines are on, in neutral-300',
+    cell?.['border-right-color'] === 'rgb(212, 212, 212)',
+    cell?.['border-right-color'],
+  );
+  check(
+    'and the structural frame stays neutral-200',
+    grid?.['border-bottom-color'] === 'rgb(229, 229, 229)',
+    grid?.['border-bottom-color'],
+  );
+
+  const th = await styleOf('.dc-th', ['background-color', 'color', 'font-weight']);
+  check(
+    'the header is neutral-100 on black at weight 500',
+    th?.color === 'rgb(0, 0, 0)' && th?.['font-weight'] === '500',
+    `${th?.['background-color']} ${th?.color} ${th?.['font-weight']}`,
+  );
+
+  // Their five-colour rotation over pivot value groups.
+  const groups = await page.evaluate(() =>
+    [...document.querySelectorAll(".dc-th[class*='dc-pivot-group-']")].map(
+      (el) => getComputedStyle(el).backgroundImage,
+    ),
+  );
+  check(
+    'pivot groups rotate through five gradients',
+    groups.length === 5 && new Set(groups).size === 5,
+    `${groups.length} groups, ${new Set(groups).size} distinct`,
+  );
+
+  // A deliberate departure from DataCube, asked for directly: on a
+  // dense 20px grid the banding is what lets the eye track a row
+  // across a wide pivot.
+  check(
+    'alternate row banding is ON by default',
+    (await page.locator('.dc-row.dc-alt').count()) > 0,
+    `${await page.locator('.dc-row.dc-alt').count()} banded rows`,
+  );
+
+  // The chrome, on their CUSTOM Tailwind scale -- the trap that would
+  // otherwise make every panel about 40% too large.
+  await tool('Properties');
+  await page.waitForSelector('.dc-editor', { timeout: 10_000 });
+  const title = await styleOf('.dc-panel-title', ['font-size']);
+  check(
+    'a panel title is text-xl = 16px, not the stock 20px',
+    title?.['font-size'] === '16px',
+    title?.['font-size'],
+  );
+  const selectorRow = await page.evaluate(() => {
+    const el = document.querySelector('.dc-selector-row');
+    return el ? Math.round(el.getBoundingClientRect().height) : null;
+  });
+  check(
+    'selector rows are 20px, their selector grid row height',
+    selectorRow === 20,
+    `${selectorRow}px`,
+  );
+
+  await page.locator('.dc-editor-tab', { hasText: 'General Properties' }).click();
+  await page.waitForTimeout(150);
+  const sectionTitle = await styleOf('.dc-section-title', ['font-size']);
+  check(
+    'a section label is text-sm = 10px, not the stock 14px',
+    sectionTitle?.['font-size'] === '10px',
+    sectionTitle?.['font-size'],
+  );
+  const tab = await styleOf('.dc-editor-tab', []);
+  check('editor tabs are h-6 = 24px', tab?.height === 24, `${tab?.height}px`);
+  await page.locator('.dc-editor-footer button', { hasText: 'Cancel' }).click();
+
   // No grand total -- which is DataCube's own default. The level-0
   // query should not be issued, and the top level should be promoted
   // rather than leaving a gap where the root used to be.
@@ -242,18 +396,50 @@ try {
     (await page.locator('.dc-zone-rows').textContent())?.trim(),
   );
 
-  // The filter strip offers a box per dimension IN PLAY -- three row
-  // groups and one pivot here. A box per leaf, which is ag-Grid's
-  // layout, only works on a flat table: over a pivot the leaves are
-  // measures under pivot values, and there is no source column for a
-  // box to sit under.
-  const filterLabels = await page
-    .locator('.dc-floating-label')
-    .allTextContents();
+  // One box per LEAF, so each sits over the data it filters. The
+  // tree column gets exactly ONE -- it holds a different dimension
+  // at every level, so no single column could be its subject -- and
+  // a pivoted measure gets none, its name being a path the engine
+  // has never heard of.
+  const boxes = await page.evaluate(() =>
+    [...document.querySelectorAll('.dc-floating-cell')].map((cell) => ({
+      hasInput: Boolean(cell.querySelector('input')),
+      left: Math.round(cell.getBoundingClientRect().left),
+      width: Math.round(cell.getBoundingClientRect().width),
+    })),
+  );
   check(
-    'the filter strip covers the dimensions in play',
-    filterLabels.join(',') === 'region,desk,book,year',
-    filterLabels.join(' | '),
+    'there is one filter cell per leaf column',
+    boxes.length === 6,
+    `${boxes.length} cells`,
+  );
+  check(
+    'and exactly one of them carries a box: the tree column',
+    boxes.filter((b) => b.hasInput).length === 1 && boxes[0]?.hasInput === true,
+    boxes.map((b) => (b.hasInput ? 'box' : '-')).join(' '),
+  );
+
+  // The box must sit OVER its column, which is the thing that was
+  // wrong when the row was a free-floating strip.
+  const treeCol = await page.evaluate(() => {
+    const cell = document.querySelector('.dc-row .dc-cell.dc-dim');
+    const box = document.querySelector('.dc-floating-cell');
+    if (!cell || !box) return null;
+    return {
+      cell: Math.round(cell.getBoundingClientRect().left),
+      box: Math.round(box.getBoundingClientRect().left),
+      cellWidth: Math.round(cell.getBoundingClientRect().width),
+      boxWidth: Math.round(box.getBoundingClientRect().width),
+    };
+  });
+  check(
+    'the tree box is aligned to the tree column it filters',
+    treeCol !== null &&
+      treeCol.cell === treeCol.box &&
+      treeCol.cellWidth === treeCol.boxWidth,
+    treeCol
+      ? `box ${treeCol.box}/${treeCol.boxWidth} vs cell ${treeCol.cell}/${treeCol.cellWidth}`
+      : 'not found',
   );
 
   // The tool panel is the drag SOURCE, and it has to be: in a
@@ -366,10 +552,15 @@ try {
   // Lowercased on BOTH sides, because a string box means
   // case-insensitive contains and the operator lowers the column
   // rather than relying on collation, which varies by backend.
+  // The tree box matches ANY row dimension, so it emits an OR over
+  // region, desk and book rather than a condition on one column.
   check(
-    'typing in the filter strip reaches the query',
-    /filter\(x\|.*region->toLower\(\)->contains\('emea'\)/s.test(pureAfter),
-    (pureAfter.match(/filter\([^)]*\)[^)]*\)\)/) ?? ['(no filter)'])[0],
+    'the tree box filters across every row dimension',
+    /region->toLower\(\)->contains\('emea'\)/.test(pureAfter) &&
+      /desk->toLower\(\)->contains\('emea'\)/.test(pureAfter) &&
+      /book->toLower\(\)->contains\('emea'\)/.test(pureAfter) &&
+      /\|\|/.test(pureAfter),
+    (pureAfter.match(/filter\(x\|[^\n]{0,120}/) ?? ['(no filter)'])[0],
   );
 
   const regions = (await page.locator('.dc-cell.dc-dim').allTextContents())
@@ -419,7 +610,7 @@ try {
   );
 
   check(
-    'a cube with no dimensions shows no filter strip',
+    'a cube with no dimensions shows no filter row',
     (await page.locator('.dc-floating-row').count()) === 0,
     'an empty strip would be noise, and would shift every rowindex',
   );

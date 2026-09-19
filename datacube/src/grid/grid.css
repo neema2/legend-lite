@@ -12,28 +12,39 @@
  */
 
 .dc-grid {
-  --dc-row-height: 24px;
+  /* Resolved from their ag-grid variables -- see theme.css for the
+     derivation. --ag-row-height: 20px, --ag-header-height: 24px,
+     --ag-font-size: 12px, --ag-grid-size: 1px (which is what makes
+     quartz compute a 2px cell padding). */
+  --dc-row-height: 20px;
+  --dc-head-height: 24px;
   --dc-dim-width: 200px;
   --dc-col-width: 104px;
-  --dc-border: color-mix(in srgb, currentColor 14%, transparent);
-  --dc-head-bg: Canvas;
-  --dc-total-bg: color-mix(in srgb, currentColor 5%, transparent);
-  --dc-focus: Highlight;
+  --dc-border: var(--dc-border-color, #e5e5e5);
+  --dc-head-bg: var(--dc-header-bg, #f5f5f5);
+  --dc-total-bg: #fafafa;
+  --dc-focus: var(--dc-active, #0284c7);
 
   display: flex;
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--dc-border);
-  border-radius: 6px;
-  font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Every radius in their grid is 0: --ag-border-radius,
+     --ag-card-radius and --ag-wrapper-border-radius are all zeroed. */
+  border-radius: 0;
+  font-family: var(--dc-font, Roboto, ui-sans-serif, system-ui, sans-serif);
+  font-size: var(--dc-text-base-size, 12px);
+  line-height: var(--dc-text-base-line, 16px);
   font-variant-numeric: tabular-nums;
-  background: Canvas;
-  color: CanvasText;
+  background: var(--dc-bg, #fff);
+  /* Quartz's own foreground, which they do not override. Not black:
+     the HEADER is black and the cells are a shade off it. */
+  color: var(--dc-cell-fg, #181d1f);
 }
 
 .dc-grid:focus-visible {
-  outline: 2px solid var(--dc-focus);
-  outline-offset: -2px;
+  outline: 1.5px solid var(--dc-focus);
+  outline-offset: -1px;
 }
 
 /* -- header ------------------------------------------------------- */
@@ -45,6 +56,7 @@
   background: var(--dc-head-bg);
   border-bottom: 1px solid var(--dc-border);
   overflow: hidden;
+  color: var(--dc-header-fg, #000);
 }
 
 /* The header is one grid; every cell is placed explicitly, which is
@@ -66,8 +78,12 @@
 .dc-th {
   display: flex;
   align-items: center;
-  padding: 0 8px;
-  font-weight: 600;
+  /* --ag-grid-size: 1px, and quartz computes cell padding as
+     grid-size * 2. This 2px is most of why their grid reads as
+     dense rather than merely small. */
+  padding: 0 var(--dc-cell-padding-x, 2px);
+  /* quartz's .ag-header-row is 500, not 600. */
+  font-weight: 500;
   border-right: 1px solid var(--dc-border);
   box-sizing: border-box;
   white-space: nowrap;
@@ -115,7 +131,7 @@
 }
 
 .dc-cell {
-  padding: 0 8px;
+  padding: 0 var(--dc-cell-padding-x, 2px);
   min-width: 0;
   display: flex;
   align-items: center;
@@ -168,13 +184,13 @@
   justify-content: flex-start;
   position: sticky;
   left: 0;
-  background: Canvas;
+  background: var(--tw-white);
   z-index: 1;
   font-variant-numeric: normal;
 }
 
 .dc-row.dc-total .dc-cell.dc-dim {
-  background: color-mix(in srgb, CanvasText 5%, Canvas);
+  background: var(--tw-neutral-50);
 }
 
 /* A cell whose block has not arrived. Shown as a muted bar rather than
@@ -222,7 +238,7 @@
 .dc-filter-tree {
   min-height: 120px;
   padding: 4px 0;
-  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border: 1px solid var(--tw-neutral-200);
   border-radius: 4px;
   overflow: auto;
 }
@@ -256,15 +272,15 @@
   bottom: 12px;
   left: var(--dc-f-gutter, 16px);
   width: 1px;
-  background: color-mix(in srgb, currentColor 20%, transparent);
+  background: var(--tw-neutral-300);
 }
 
 .dc-selected-group > .dc-filter-children::before {
-  background: color-mix(in srgb, SelectedItem 70%, transparent);
+  background: var(--tw-sky-600);
 }
 
 .dc-selected-group {
-  background: color-mix(in srgb, SelectedItem 8%, transparent);
+  background: var(--tw-sky-50);
 }
 
 .dc-filter-row {
@@ -278,12 +294,12 @@
 }
 
 .dc-filter-row:hover {
-  background: color-mix(in srgb, SelectedItem 8%, transparent);
+  background: var(--tw-sky-50);
 }
 
 .dc-filter-row.dc-selected {
-  background: color-mix(in srgb, SelectedItem 14%, transparent);
-  box-shadow: inset 2px 0 0 color-mix(in srgb, SelectedItem 80%, transparent);
+  background: var(--tw-sky-50);
+  box-shadow: inset 2px 0 0 var(--tw-sky-600);
 }
 
 /* The stub joining a row to its parent's vertical rule, plus the
@@ -305,7 +321,7 @@
 .dc-filter-connector {
   flex: 0 0 22px;
   height: 1px;
-  background: color-mix(in srgb, currentColor 20%, transparent);
+  background: var(--tw-neutral-300);
 }
 
 /* With a word present the stub shortens rather than the word
@@ -334,10 +350,10 @@
   min-width: 16px;
   height: 16px;
   padding: 0 3px;
-  border: 1px solid color-mix(in srgb, currentColor 32%, transparent);
+  border: 1px solid var(--tw-neutral-400);
   border-left-width: 0;
-  background: Canvas;
-  color: CanvasText;
+  background: var(--tw-white);
+  color: var(--tw-black);
   cursor: pointer;
 }
 
@@ -351,7 +367,7 @@
 }
 
 .dc-filter-ctl:hover {
-  background: color-mix(in srgb, currentColor 12%, Canvas);
+  background: var(--tw-neutral-200);
 }
 
 /* The standing badge beside a negated node. Reading a filter
@@ -362,8 +378,8 @@
   letter-spacing: 0.06em;
   padding: 2px 4px;
   border-radius: 3px;
-  background: color-mix(in srgb, crimson 16%, Canvas);
-  color: color-mix(in srgb, crimson 85%, CanvasText);
+  background: #fef2f2;
+  color: var(--tw-red-600);
   font-weight: 700;
 }
 
@@ -384,9 +400,9 @@
 /* A negated node must be obvious at a glance: reading a filter
    backwards is the most expensive mistake this editor can cause. */
 .dc-filter-not-on {
-  background: color-mix(in srgb, crimson 16%, Canvas);
-  border-color: color-mix(in srgb, crimson 45%, transparent);
-  color: color-mix(in srgb, crimson 85%, CanvasText);
+  background: #fef2f2;
+  border-color: var(--tw-red-500);
+  color: var(--tw-red-600);
   font-weight: 700;
 }
 
@@ -395,9 +411,9 @@
   font: inherit;
   padding: 2px 4px;
   border-radius: 4px;
-  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
-  background: Canvas;
-  color: CanvasText;
+  border: 1px solid var(--tw-neutral-400);
+  background: var(--tw-white);
+  color: var(--tw-black);
 }
 
 .dc-filter-op { max-width: 15em; }
@@ -408,9 +424,9 @@
   font: inherit;
   padding: 2px 8px;
   border-radius: 4px;
-  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
-  background: Canvas;
-  color: CanvasText;
+  border: 1px solid var(--tw-neutral-400);
+  background: var(--tw-white);
+  color: var(--tw-black);
   cursor: pointer;
 }
 
@@ -439,14 +455,14 @@
   position: sticky;
   left: 0;
   z-index: 1;
-  background: Canvas;
+  background: var(--tw-white);
 }
 
 .dc-cell.dc-pin-right {
   position: sticky;
   right: 0;
   z-index: 1;
-  background: Canvas;
+  background: var(--tw-white);
 }
 
 /* Obscured rather than hidden: the row still lines up, and the value
@@ -475,18 +491,32 @@
  */
 
 .dc-grid {
-  --dc-hgrid: 1;
+  /* Their defaults: horizontal off, vertical on. */
+  --dc-hgrid: 0;
   --dc-vgrid: 1;
-  --dc-alt-row: color-mix(in srgb, currentColor 4%, transparent);
+  /* Their DEFAULT_ROW_HIGHLIGHT_BACKGROUND_COLOR. */
+  --dc-alt-row: #d7e0eb;
 }
 
+/* The configurable lines. Their defaults are horizontal OFF and
+   vertical ON, so a row has no bottom rule out of the box and the
+   columns are separated instead -- which is what makes their grid
+   read as columns of figures rather than as a table of boxes. */
 .dc-row {
   border-bottom-width: calc(var(--dc-hgrid) * 1px);
+  border-bottom-color: var(--dc-grid-line, #d4d4d4);
 }
 
-.dc-cell,
+.dc-cell {
+  border-right-width: calc(var(--dc-vgrid) * 1px);
+  border-right-color: var(--dc-grid-line, #d4d4d4);
+}
+
+/* The header keeps the STRUCTURAL border, so recolouring the grid
+   lines does not move the frame. */
 .dc-th {
   border-right-width: calc(var(--dc-vgrid) * 1px);
+  border-right-color: var(--dc-border);
 }
 
 /* Banded rows sit UNDER the total shading, so a subtotal stays
@@ -496,7 +526,7 @@
 }
 
 .dc-row.dc-alt .dc-cell.dc-dim {
-  background: color-mix(in srgb, var(--dc-alt-row) 100%, Canvas);
+  background: var(--dc-alt-row);
 }
 
 .dc-row.dc-total,
@@ -512,12 +542,12 @@
  */
 
 .dc-cell.dc-selected {
-  background: color-mix(in srgb, Highlight 18%, Canvas);
+  background: var(--tw-sky-50);
 }
 
 .dc-row.dc-alt .dc-cell.dc-selected,
 .dc-row.dc-total .dc-cell.dc-selected {
-  background: color-mix(in srgb, Highlight 24%, Canvas);
+  background: var(--tw-sky-100);
 }
 
 
@@ -534,10 +564,10 @@
   min-width: 220px;
   padding: 4px;
   border-radius: 6px;
-  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
-  background: Canvas;
-  color: CanvasText;
-  box-shadow: 0 8px 24px color-mix(in srgb, CanvasText 18%, transparent);
+  border: 1px solid var(--tw-neutral-200);
+  background: var(--tw-white);
+  color: var(--tw-black);
+  box-shadow: var(--dc-popup-shadow, 2px 2px 5px rgb(0 0 0 / 20%));
   font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
   max-height: 80vh;
   overflow-y: auto;
@@ -552,12 +582,45 @@
 
 .dc-menu-item:hover,
 .dc-menu-item:focus {
-  background: color-mix(in srgb, Highlight 18%, Canvas);
+  background: var(--tw-sky-50);
   outline: none;
 }
 
 .dc-menu-sep {
   height: 1px;
   margin: 4px 6px;
-  background: color-mix(in srgb, currentColor 14%, transparent);
+  background: var(--tw-neutral-200);
+}
+
+/* Pivot column groups, on their five-colour rotation.
+ *
+ * Each is a gradient from a Tailwind 200 shade down to the matching
+ * 50, with a neutral-400 frame -- taken from their
+ * .data-cube-grid__utility--pivot-column-group-N rules. The point is
+ * legibility rather than decoration: when several measures sit under
+ * each pivot value, the colour is what separates one value's block
+ * from the next. */
+.dc-th[class*='dc-pivot-group-'] {
+  padding-left: 4px;
+  border: 1px solid var(--tw-neutral-400);
+}
+
+.dc-th.dc-pivot-group-0 {
+  background: linear-gradient(#bfdbfe, #eff6ff);
+}
+
+.dc-th.dc-pivot-group-1 {
+  background: linear-gradient(#a7f3d0, #ecfdf5);
+}
+
+.dc-th.dc-pivot-group-2 {
+  background: linear-gradient(#fecdd3, #fff1f2);
+}
+
+.dc-th.dc-pivot-group-3 {
+  background: linear-gradient(#99f6e4, #f0fdfa);
+}
+
+.dc-th.dc-pivot-group-4 {
+  background: linear-gradient(#fef08a, #fefce8);
 }

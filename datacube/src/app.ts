@@ -42,6 +42,7 @@ import {
 } from './grid/floating-filter.ts';
 import {
   PIVOT_SEPARATOR,
+  TREE_COLUMN,
   buildColumnModel,
   type ColumnLayout,
 } from './grid/columns.ts';
@@ -94,6 +95,9 @@ export interface CubeAppOptions {
 
 const VIEW_KEY = 'datacube.savedView';
 
+/** DataCube's --ag-row-height. Kept beside the CSS token in theme.css. */
+const DATACUBE_ROW_HEIGHT = 20;
+
 export class CubeApp {
   readonly #doc: Document;
   readonly #options: CubeAppOptions;
@@ -112,12 +116,6 @@ export class CubeApp {
    * every measure silently rendered unformatted the first time.
    */
   readonly #formats: Record<string, ColumnFormat> = {};
-  /**
-   * Which columns the filter row offers a box for. Mutated in place
-   * for the same reason `#formats` is -- the grid holds the
-   * reference and reads it on every header render.
-   */
-  readonly #filterColumns: FloatingFilterColumn[] = [];
   /** Measured heatmap scales, by leaf index. See `#refreshHeatmaps`. */
   readonly #heatmaps = new Map<
     number,
@@ -174,7 +172,6 @@ export class CubeApp {
     root.append(this.#els.overlay, this.#els.stats);
     this.#els.overlay.hidden = true;
 
-    this.#refreshFilterColumns();
     this.#columnsPanel = new ColumnsToolPanel(side, {
       labelFor: (c) => labelFor(this.#config, c),
       onPick: (c) => this.#onZoneChange('rows', [...this.#snapshot.rows, c]),
@@ -198,12 +195,16 @@ export class CubeApp {
     });
 
     this.#grid = new DataGrid(this.#els.grid, this.#formatters, {
-      rowHeight: 24,
+      // Their --ag-row-height. The CSS token said 20 and this said
+      // 24, and the JS wins because it sets the row's inline height
+      // -- so the grid rendered four pixels too tall per row while
+      // the stylesheet claimed otherwise.
+      rowHeight: DATACUBE_ROW_HEIGHT,
       formats: this.#formats,
       appearance: this.#config.appearance,
       columnAppearance: toColumnAppearance(this.#config),
       floatingFilter: this.#filterRow,
-      floatingFilterColumns: this.#filterColumns,
+      floatingFilterFor: (leaf) => this.#filterFor(leaf),
       canGroup: (c) => this.#isDimension(c),
       cellBackground: (leaf, row, value) => {
         const heat = this.#heatmaps.get(leaf.index);
@@ -284,7 +285,6 @@ export class CubeApp {
     this.#pivots.setColumns(next.rows, next.pivotOn);
     this.#refreshFormats();
     this.#refreshToolPanel();
-    this.#refreshFilterColumns();
     await this.#controller.update({ ...next, epoch: next.epoch + 1 });
   }
 
@@ -309,26 +309,42 @@ export class CubeApp {
   }
 
   /**
-   * The dimensions worth filtering: the ones in play.
+   * The box a leaf column gets, if any.
    *
-   * Row groups first, then pivots, in the order the user put them
-   * -- the same order the zones show, so the strip reads as the
-   * cube's shape rather than as an arbitrary list. A cube with no
-   * dimensions gets no strip at all.
+   * The tree column gets ONE box that matches any row dimension --
+   * it holds a different dimension at every level, so no single
+   * column could be its subject. A leaf that IS a source column
+   * gets its own box. A pivoted measure gets none: its name is a
+   * path the engine has never heard of, and filtering the measure's
+   * source column instead would quietly mean something else.
    */
-  #refreshFilterColumns(): void {
-    this.#filterColumns.length = 0;
-    const seen = new Set<string>();
-    for (const name of [...this.#snapshot.rows, ...this.#snapshot.pivotOn]) {
-      if (seen.has(name)) continue;
-      seen.add(name);
-      const spec = this.#snapshot.columns.find((c) => c.name === name);
-      this.#filterColumns.push({
-        name,
-        type: spec?.type ?? 'String',
-        filterable: true,
-      });
+  #filterFor(leaf: {
+    readonly name: string;
+    readonly path: readonly string[];
+  }): FloatingFilterColumn | null {
+    if (leaf.name === TREE_COLUMN) {
+      const rows = this.#snapshot.rows;
+      return rows.length === 0
+        ? null
+        : { name: TREE_COLUMN, type: 'String', filterable: true, mode: 'tree', rows };
     }
+    if (leaf.path.length > 1) return null;
+    // A MEASURE's output often shares its source column's name --
+    // `notional` is sum(notional) -- and a box there would filter
+    // the rows feeding the aggregate rather than the aggregate
+    // itself. Same name, different thing, so: no box.
+    if (this.#snapshot.measures.some((m) => m.name === leaf.name)) return null;
+    if ((this.#snapshot.groupDerived ?? []).some((d) => d.name === leaf.name)) {
+      return null;
+    }
+    const spec = this.#snapshot.columns.find((c) => c.name === leaf.name);
+    if (!spec) return null;
+    return {
+      name: spec.name,
+      type: spec.type,
+      filterable: true,
+      mode: 'column',
+    };
   }
 
   #refreshToolPanel(): void {

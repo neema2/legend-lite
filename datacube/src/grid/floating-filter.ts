@@ -221,11 +221,126 @@ export function withFloating(
   return fromConjuncts(next);
 }
 
+
+/**
+ * The tree column's single box: a quick filter over the row
+ * dimensions.
+ *
+ * The tree column holds a different dimension at every level, so
+ * there is no ONE column for a box under it to filter -- which is
+ * why the first attempt spread the boxes into a free-floating strip
+ * and they stopped lining up with anything. One box that matches
+ * ANY of the row dimensions is what a single box under a tree
+ * column means to a reader, and it restores per-column alignment
+ * for everything else.
+ *
+ * Built as an OR of case-insensitive contains, one per row
+ * dimension. With a single row dimension it collapses to that one
+ * condition, which is then indistinguishable from an ordinary
+ * column filter -- and correctly so.
+ */
+export function treeFilterNode(
+  rows: readonly string[],
+  text: string,
+): FilterNode | null {
+  const raw = text.trim();
+  if (raw === '' || rows.length === 0) return null;
+  const children: FilterNode[] = rows.map((column) => ({
+    kind: 'condition',
+    column,
+    operator: 'containsCaseInsensitive',
+    value: raw,
+  }));
+  return children.length === 1
+    ? (children[0] as FilterNode)
+    : { kind: 'or', children };
+}
+
+/** Whether a node is exactly the tree quick filter over these rows. */
+function isTreeFilter(node: FilterNode, rows: readonly string[]): boolean {
+  const text = treeFilterText(node, rows);
+  return text !== null;
+}
+
+/** The text a tree filter node carries, or null if it is not one. */
+function treeFilterText(
+  node: FilterNode,
+  rows: readonly string[],
+): string | null {
+  const parts =
+    node.kind === 'or' ? node.children : node.kind === 'condition' ? [node] : [];
+  if (parts.length !== rows.length || parts.length === 0) return null;
+  const columns = new Set<string>();
+  let value: string | null = null;
+  for (const part of parts) {
+    if (part.kind !== 'condition') return null;
+    if (part.operator !== 'containsCaseInsensitive') return null;
+    if (typeof part.value !== 'string') return null;
+    if (value === null) value = part.value;
+    else if (value !== part.value) return null;
+    columns.add(part.column);
+  }
+  if (columns.size !== rows.length) return null;
+  if (!rows.every((r) => columns.has(r))) return null;
+  return value;
+}
+
+/** What the tree box should show, given the whole filter. */
+export function readTreeFilter(
+  filter: FilterNode | undefined,
+  rows: readonly string[],
+): string {
+  const own = conjuncts(filter).filter((n) =>
+    rows.some((r) => mentions(n, r)),
+  );
+  if (own.length !== 1) return '';
+  return treeFilterText(own[0] as FilterNode, rows) ?? '';
+}
+
+/** Whether the rows carry a filter the tree box cannot show. */
+export function isTreeComplex(
+  filter: FilterNode | undefined,
+  rows: readonly string[],
+): boolean {
+  const own = conjuncts(filter).filter((n) =>
+    rows.some((r) => mentions(n, r)),
+  );
+  if (own.length === 0) return false;
+  if (own.length > 1) return true;
+  return !isTreeFilter(own[0] as FilterNode, rows);
+}
+
+/** Replace the tree quick filter, keeping everything else. */
+export function withTreeFilter(
+  filter: FilterNode | undefined,
+  rows: readonly string[],
+  text: string,
+): FilterNode | undefined {
+  const parts = conjuncts(filter);
+  const kept = parts.filter((n) => !isTreeFilter(n, rows));
+  const next = treeFilterNode(rows, text);
+  const combined = next ? [...kept, next] : kept;
+  if (
+    combined.length === parts.length &&
+    combined.every((n, i) => JSON.stringify(n) === JSON.stringify(parts[i]))
+  ) {
+    return filter;
+  }
+  return fromConjuncts(combined);
+}
+
 export interface FloatingFilterColumn {
   readonly name: string;
   readonly type: string;
   /** False renders an inert placeholder rather than a box. */
   readonly filterable: boolean;
+  /**
+   * 'tree' means the single box under the tree column, which
+   * matches any of `rows`. 'column' is an ordinary one.
+   */
+  readonly mode?: 'column' | 'tree';
+  /** The row dimensions a tree box filters. */
+  readonly rows?: readonly string[];
 }
 
 export interface FloatingFilterOptions {
@@ -277,23 +392,34 @@ export class FloatingFilterRow {
     cell.className = 'dc-floating-cell';
     if (!column.filterable) return cell;
 
-    // The box carries its column's NAME, because it no longer sits
-    // under that column's header: over a pivot there is no such
-    // header to sit under, so the label has to be on the box.
-    const label = doc.createElement('span');
-    label.className = 'dc-floating-label';
-    label.textContent = column.name;
-    cell.append(label);
+    const tree = column.mode === 'tree';
+    const rows = column.rows ?? [];
 
     const input = doc.createElement('input');
     input.type = 'text';
     input.className = 'dc-floating-input';
     input.dataset['column'] = column.name;
-    input.value = floatingText(this.#filter, column.name, column.type);
-    input.placeholder = isNumericType(column.type) ? '= value' : 'contains';
-    input.setAttribute('aria-label', `Filter ${column.name}`);
+    input.value = tree
+      ? readTreeFilter(this.#filter, rows)
+      : floatingText(this.#filter, column.name, column.type);
+    input.placeholder = tree
+      ? 'filter rows...'
+      : isNumericType(column.type)
+        ? '= value'
+        : 'contains';
+    input.setAttribute(
+      'aria-label',
+      tree ? `Filter rows by ${rows.join(', ')}` : `Filter ${column.name}`,
+    );
+    if (tree) {
+      input.title = `Matches any of: ${rows.join(', ')}`;
+    }
 
-    if (isComplex(this.#filter, column.name, column.type)) {
+    if (
+      tree
+        ? isTreeComplex(this.#filter, rows)
+        : isComplex(this.#filter, column.name, column.type)
+    ) {
       // A blank box on a filtered column reads as "not filtered", so
       // say so instead.
       input.disabled = true;
@@ -343,8 +469,14 @@ export class FloatingFilterRow {
 
   #commit(column: FloatingFilterColumn, text: string): void {
     this.#cancel(column.name);
-    const condition = parseFloating(column.name, column.type, text);
-    const next = withFloating(this.#filter, column.name, condition);
+    const next =
+      column.mode === 'tree'
+        ? withTreeFilter(this.#filter, column.rows ?? [], text)
+        : withFloating(
+            this.#filter,
+            column.name,
+            parseFloating(column.name, column.type, text),
+          );
     if (next === this.#filter) return;
     this.#filter = next;
     this.#options.onChange(next);
