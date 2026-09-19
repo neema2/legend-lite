@@ -13,7 +13,7 @@
 
 .dc-grid {
   --dc-row-height: 24px;
-  --dc-dim-width: 160px;
+  --dc-dim-width: 200px;
   --dc-col-width: 104px;
   --dc-border: color-mix(in srgb, currentColor 14%, transparent);
   --dc-head-bg: Canvas;
@@ -125,6 +125,41 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+/* The tree column: one column for the whole hierarchy, with depth
+   shown by indentation. DataCube gives its equivalent a 200px minimum
+   and pins it left; the same reasoning applies here, because the
+   labels are the only thing identifying a row. */
+.dc-cell.dc-tree {
+  --dc-indent: 0;
+  padding-left: calc(8px + var(--dc-indent) * 14px);
+  gap: 4px;
+}
+
+.dc-chevron {
+  flex: 0 0 auto;
+  width: 12px;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0.75;
+  user-select: none;
+}
+
+.dc-chevron:hover {
+  opacity: 1;
+}
+
+/* A leaf keeps the chevron's width so its label lines up with its
+   siblings' rather than shifting left by twelve pixels. */
+.dc-chevron-empty {
+  cursor: default;
+}
+
+.dc-tree-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* Row dimensions read as labels, not as measures: left-aligned, wider,

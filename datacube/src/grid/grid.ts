@@ -22,7 +22,7 @@
 // rowindex a screen reader announces positions within the band and the
 // user has no idea where they are.
 
-import type { ColumnModel } from './columns.ts';
+import { TREE_COLUMN, type ColumnModel } from './columns.ts';
 import { computeRowWindow, isCovered, type RowWindow } from './viewport.ts';
 import type { ColumnFormat, FormatterCache } from '../format.ts';
 import { DEFAULT_FORMAT } from '../format.ts';
@@ -122,6 +122,7 @@ export class DataGrid {
 
     this.#scroller.addEventListener('scroll', this.#onScroll);
     this.#root.addEventListener('keydown', this.#onKeyDown);
+    this.#body.addEventListener('click', this.#onClick);
   }
 
   /** Replace the column model. Resets the header. */
@@ -162,6 +163,7 @@ export class DataGrid {
   destroy(): void {
     this.#scroller.removeEventListener('scroll', this.#onScroll);
     this.#root.removeEventListener('keydown', this.#onKeyDown);
+    this.#body.removeEventListener('click', this.#onClick);
     if (this.#frame) cancelAnimationFrame(this.#frame);
     this.#root.replaceChildren();
   }
@@ -228,6 +230,26 @@ export class DataGrid {
       .join(' ');
   }
 
+  /**
+   * Clicking a disclosure chevron toggles its group.
+   *
+   * Delegated from the body rather than bound per cell: the body is
+   * rebuilt on every render, and per-cell listeners would have to be
+   * torn down with it.
+   */
+  #onClick = (event: MouseEvent): void => {
+    const target = event.target;
+    if (!(target instanceof Element)) return;
+    const chevron = target.closest('.dc-chevron');
+    if (!chevron || chevron.classList.contains('dc-chevron-empty')) return;
+    const row = chevron.closest<HTMLElement>('.dc-row');
+    const key = row?.dataset['key'];
+    if (key === undefined) return;
+    const expanded = row?.getAttribute('aria-expanded') === 'true';
+    event.preventDefault();
+    this.#options.onToggleExpand?.(key, !expanded);
+  };
+
   #onScroll = (): void => {
     // Coalesce to one render per frame. Scroll fires far more often
     // than the window changes, and this is what bounds the work.
@@ -288,10 +310,44 @@ export class DataGrid {
         if (loaded) {
           const value: Scalar =
             table.columns[leaf.index]?.values[local] ?? null;
-          cell.textContent = this.#formatters.format(
+          const text = this.#formatters.format(
             value,
             this.#options.formats?.[leaf.name] ?? DEFAULT_FORMAT,
           );
+
+          if (leaf.name === TREE_COLUMN) {
+            // Depth is shown by indentation rather than by a column
+            // per dimension, so the grid stays one width however deep
+            // the cube goes. Level 1 sits flush; each level indents.
+            cell.classList.add('dc-tree');
+            cell.style.setProperty(
+              '--dc-indent',
+              String(Math.max(0, (meta?.level ?? 1) - 1)),
+            );
+            if (meta?.expanded !== undefined) {
+              const chevron = doc.createElement('span');
+              chevron.className = 'dc-chevron';
+              // The row already carries aria-expanded, so the glyph is
+              // decoration; announcing it again would say "collapsed"
+              // twice.
+              chevron.setAttribute('aria-hidden', 'true');
+              chevron.textContent = meta.expanded ? '\u25be' : '\u25b8';
+              cell.appendChild(chevron);
+            } else {
+              // A leaf still needs the chevron's width, or its label
+              // fails to line up under its siblings' labels.
+              const spacer = doc.createElement('span');
+              spacer.className = 'dc-chevron dc-chevron-empty';
+              spacer.setAttribute('aria-hidden', 'true');
+              cell.appendChild(spacer);
+            }
+            const label = doc.createElement('span');
+            label.className = 'dc-tree-label';
+            label.textContent = text;
+            cell.appendChild(label);
+          } else {
+            cell.textContent = text;
+          }
         } else {
           // Not fetched yet. Rendered as a placeholder rather than
           // blocking the scroll, and marked busy so a screen reader

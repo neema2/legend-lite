@@ -8,7 +8,8 @@ import type { ResultTable } from '../src/result.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState, flattenTree, requestKey } from '../src/tree.ts';
 import type { LevelData } from '../src/treeview.ts';
-import { assemble } from '../src/treeview.ts';
+import { TREE_COLUMN, assemble } from '../src/treeview.ts';
+import { NULL_GROUP } from '../src/serialize.ts';
 
 const SNAPSHOT: CubeSnapshot = {
   source: { expression: 'trades' },
@@ -79,7 +80,10 @@ describe('assemble', () => {
     assert.deepEqual(total?.values, [600, 100, 500, 200, 300]);
   });
 
-  it('labels each row only in its own level column', () => {
+  it('uses ONE tree column by default, as DataCube does', () => {
+    // groupDisplayType: 'singleColumn'. One column holds whichever
+    // dimension belongs to the row, so the grid stays the same width
+    // however deep the cube goes.
     const levels = fixture();
     const rows = flattenTree(
       TreeState.empty().expand(['EMEA']),
@@ -87,6 +91,52 @@ describe('assemble', () => {
       childrenOf(levels) as never,
     );
     const t = assemble(SNAPSHOT, rows, levels);
+
+    assert.equal(
+      t.columns.filter((c) => c.name === 'region' || c.name === 'desk').length,
+      0,
+      'the per-dimension columns are gone',
+    );
+    const tree = t.columns.find((c) => c.name === TREE_COLUMN);
+    assert.deepEqual(tree?.values, [
+      'Total',
+      'AMER',
+      'EMEA',
+      'Credit',
+      'Rates',
+    ]);
+    // Heterogeneous by construction: a different dimension per level.
+    assert.equal(tree?.type, 'Any');
+  });
+
+  it('never leaks the NULL sentinel into the tree column', () => {
+    const levels = fixture();
+    levels.set(requestKey({ level: 1, parent: [] }), {
+      request: { level: 1, parent: [] },
+      table: table([
+        { name: 'region', values: [null, 'EMEA'] },
+        { name: '2023__|__total', values: [100, 500] },
+      ]),
+      paths: [[NULL_GROUP], ['EMEA']],
+    });
+    const rows = flattenTree(TreeState.empty(), 2, childrenOf(levels) as never);
+    const tree = assemble(SNAPSHOT, rows, levels).columns.find(
+      (c) => c.name === TREE_COLUMN,
+    );
+    // An internal sentinel must never reach the screen.
+    assert.deepEqual(tree?.values, ['Total', null, 'EMEA']);
+  });
+
+  it('labels each row only in its own level column, per-dimension', () => {
+    const levels = fixture();
+    const rows = flattenTree(
+      TreeState.empty().expand(['EMEA']),
+      2,
+      childrenOf(levels) as never,
+    );
+    const t = assemble(SNAPSHOT, rows, levels, {
+      treeColumn: 'perDimension',
+    });
     const region = t.columns.find((c) => c.name === 'region');
     const desk = t.columns.find((c) => c.name === 'desk');
 
@@ -133,10 +183,10 @@ describe('assemble', () => {
       childrenOf(levels) as never,
     );
     const t = assemble(SNAPSHOT, rows, levels);
-    const desk = t.columns.find((c) => c.name === 'desk');
+    const tree = t.columns.find((c) => c.name === TREE_COLUMN);
     // 'Credit' before 'Rates' because the engine said so; a client-side
     // sort here is how a grid disagrees with its own pagination.
-    assert.deepEqual(desk?.values.filter(Boolean), ['Credit', 'Rates']);
+    assert.deepEqual(tree?.values.slice(3), ['Credit', 'Rates']);
   });
 
   it('sums elapsed time across the levels it fetched', () => {

@@ -24,6 +24,9 @@
 // wrong is the classic misaligned-pivot-header bug.
 
 import type { ResultTable } from '../result.ts';
+import { TREE_COLUMN } from '../treeview.ts';
+
+export { TREE_COLUMN };
 
 /** legend-lite's and DataCube's shared pivot path separator. */
 export const PIVOT_SEPARATOR = '__|__';
@@ -116,15 +119,20 @@ export function buildColumnModel(
   measures: readonly string[] = [],
 ): ColumnModel {
   const leaves: LeafColumn[] = table.columns.map((c, index) => {
-    const path = dimensions.includes(c.name)
-      ? [c.name]
-      : splitPath(c.name, measures);
+    // The tree column's header is deliberately blank: it holds a
+    // different dimension at every level, so no single name is
+    // truthful. Real DataCube sets headerName: '' for the same reason.
+    const path = c.name === TREE_COLUMN
+      ? ['']
+      : dimensions.includes(c.name)
+        ? [c.name]
+        : splitPath(c.name, measures);
     return {
       index,
       name: c.name,
       path,
       type: c.type,
-      isDimension: dimensions.includes(c.name),
+      isDimension: c.name === TREE_COLUMN || dimensions.includes(c.name),
     };
   });
 

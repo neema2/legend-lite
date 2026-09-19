@@ -81,6 +81,7 @@ export async function fetchTree(
     readonly engine: QueryEngine;
     readonly guard: EpochGuard;
     readonly epoch: number;
+    readonly assemble?: AssembleOptions;
   },
 ): Promise<TreeView> {
   const depth = snapshot.rows.length;
@@ -115,7 +116,11 @@ export async function fetchTree(
   }
 
   const rows = flattenTree(state, depth, childrenOf);
-  return { rows, table: assemble(snapshot, rows, levels), levels };
+  return {
+    rows,
+    table: assemble(snapshot, rows, levels, deps.assemble ?? {}),
+    levels,
+  };
 }
 
 function emptyTable(epoch: number): ResultTable {
@@ -130,12 +135,43 @@ function emptyTable(epoch: number): ResultTable {
  * no 2021 rows produces no 2021 column, and without the union its
  * neighbours' values would shift left into the wrong columns.
  */
+/**
+ * How the row hierarchy is presented.
+ *
+ * `single` is what real DataCube does: one synthetic column carrying
+ * whichever dimension's value belongs to that row, with depth shown by
+ * indentation. It is heterogeneous by construction -- DataCube marks
+ * the column `cellDataType: false` for exactly this reason -- and it
+ * stays one column no matter how deep the cube goes.
+ *
+ * `perDimension` gives each row dimension its own column and steps the
+ * labels diagonally. Easier to scan on a shallow cube, and it puts a
+ * column header on every level, but it widens without bound.
+ */
+export type TreeColumnMode = 'single' | 'perDimension';
+
+/** Name of the synthetic tree column. Its header renders empty. */
+export const TREE_COLUMN = '__tree';
+
+export interface AssembleOptions {
+  readonly treeColumn?: TreeColumnMode;
+  readonly totalsLabel?: string;
+  /**
+   * Append the leaf count to a group label, as DataCube's
+   * `showLeafCount` does. Only rendered when the cube actually has a
+   * count measure to render -- inventing one would change the query.
+   */
+  readonly showLeafCount?: boolean;
+}
+
 export function assemble(
   snapshot: CubeSnapshot,
   rows: readonly TreeRow[],
   levels: ReadonlyMap<string, LevelData>,
-  totalsLabel = 'Total',
+  options: AssembleOptions = {},
 ): ResultTable {
+  const mode: TreeColumnMode = options.treeColumn ?? 'single';
+  const totalsLabel = options.totalsLabel ?? 'Total';
   const dims = snapshot.rows;
   const valueNames: string[] = [];
   const valueTypes = new Map<string, string>();
@@ -164,21 +200,41 @@ export function assemble(
     if (index >= 0) source.set(i, { data, index });
   });
 
-  const dimColumns: ResultColumn[] = dims.map((name, d) => ({
-    name,
-    type: 'String',
-    // A row shows a label only in its OWN level's column; deeper
-    // columns stay empty, which is what gives a pivot its stepped
-    // look instead of repeating the parent on every child.
-    //
-    // The grand total has no dimension value at all, so it would
-    // otherwise render as a blank row of numbers with no indication
-    // of what it totals. It takes a label in the first column.
-    values: rows.map((row) => {
-      if (row.level === 0) return d === 0 ? totalsLabel : null;
-      return row.level === d + 1 ? (row.path[d] ?? null) : null;
-    }),
-  }));
+  const labelOf = (row: TreeRow): Scalar => {
+    if (row.level === 0) return totalsLabel;
+    const own = row.path[row.path.length - 1];
+    // A group whose key is SQL NULL has no label of its own; showing
+    // the sentinel would leak an internal string into the grid.
+    return own === undefined || own === NULL_GROUP ? null : own;
+  };
+
+  const dimColumns: ResultColumn[] =
+    mode === 'single'
+      ? [
+          {
+            name: TREE_COLUMN,
+            // Heterogeneous on purpose: this column holds a different
+            // dimension's value at every level, so it has no single
+            // type. DataCube marks its own tree column the same way.
+            type: 'Any',
+            values: rows.map(labelOf),
+          },
+        ]
+      : dims.map((name, d) => ({
+          name,
+          type: 'String',
+          // A row shows a label only in its OWN level's column; deeper
+          // columns stay empty, which is what gives the stepped look
+          // instead of repeating the parent on every child.
+          //
+          // The grand total has no dimension value at all, so it takes
+          // its label in the first column rather than rendering as a
+          // blank row of numbers.
+          values: rows.map((row) => {
+            if (row.level === 0) return d === 0 ? totalsLabel : null;
+            return row.level === d + 1 ? (row.path[d] ?? null) : null;
+          }),
+        }));
 
   const valueColumns: ResultColumn[] = valueNames.map((name) => ({
     name,
