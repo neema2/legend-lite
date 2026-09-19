@@ -389,6 +389,48 @@ describe('buildColumnModel', () => {
     assert.equal(m.leaves[1]?.width, undefined);
   });
 
+  it('clamps a width to its bounds rather than applying it raw', () => {
+    // A width saved on a wider screen must not squeeze a column past
+    // the minimum that made it readable.
+    const m = buildColumnModel(table(['a', 'b', 'c']), [], [], {
+      widths: { a: 50, b: 900, c: 200 },
+      minWidths: { a: 120 },
+      maxWidths: { b: 400 },
+    });
+    assert.equal(m.leaves[0]?.width, 120, 'raised to the minimum');
+    assert.equal(m.leaves[1]?.width, 400, 'lowered to the maximum');
+    assert.equal(m.leaves[2]?.width, 200, 'left alone between them');
+  });
+
+  it('uses a bound as the width when none was set', () => {
+    const m = buildColumnModel(table(['a']), [], [], { minWidths: { a: 150 } });
+    assert.equal(m.leaves[0]?.width, 150);
+  });
+
+  it('carries a pin placement', () => {
+    const m = buildColumnModel(table(['a', 'b']), [], [], {
+      pinned: { a: 'left', b: 'right' },
+    });
+    assert.equal(m.leaves[0]?.pinned, 'left');
+    assert.equal(m.leaves[1]?.pinned, 'right');
+  });
+
+  it('renames the header without changing the identity', () => {
+    // The lookup still has to find the engine's column, so only the
+    // label moves.
+    const m = buildColumnModel(table(['notional']), [], [], {
+      displayNames: { notional: 'Notional (USD)' },
+    });
+    assert.equal(m.leaves[0]?.name, 'notional', 'identity is unchanged');
+    assert.equal(m.leaves[0]?.label, 'Notional (USD)');
+    assert.equal(m.headerRows[0]?.[0]?.label, 'Notional (USD)');
+  });
+
+  it('marks a column blurred', () => {
+    const m = buildColumnModel(table(['pnl']), [], [], { blurred: ['pnl'] });
+    assert.equal(m.leaves[0]?.blurred, true);
+  });
+
   it('separates dimensions from value columns', () => {
     const m = buildColumnModel(
       table(['region', '2023__|__total']),

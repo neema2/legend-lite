@@ -312,3 +312,38 @@
   align-items: center;
   margin-top: 2px;
 }
+
+
+/* -- pinned columns and blurred values ---------------------------- */
+
+.dc-cell.dc-pin-left,
+.dc-cell.dc-dim {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: Canvas;
+}
+
+.dc-cell.dc-pin-right {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: Canvas;
+}
+
+/* Obscured rather than hidden: the row still lines up, and the value
+   is one hover away for whoever is entitled to it. */
+.dc-cell.dc-blur {
+  filter: blur(5px);
+  transition: filter 120ms ease;
+}
+
+.dc-cell.dc-blur:hover,
+.dc-cell.dc-blur:focus,
+.dc-row:hover .dc-cell.dc-blur {
+  filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-cell.dc-blur { transition: none; }
+}

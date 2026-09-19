@@ -308,7 +308,13 @@ export class DataGrid {
         const leaf = model.leaves[c]!;
         const cell = doc.createElement('div');
         cell.setAttribute('role', 'gridcell');
-        cell.className = leaf.isDimension ? 'dc-cell dc-dim' : 'dc-cell';
+        const classes = ['dc-cell'];
+        if (leaf.isDimension) classes.push('dc-dim');
+        if (leaf.pinned) classes.push(`dc-pin-${leaf.pinned}`);
+        // Obscured until hovered, for a figure that should not be
+        // readable over a shoulder or in a screen share.
+        if (leaf.blurred) classes.push('dc-blur');
+        cell.className = classes.join(' ');
         cell.setAttribute('aria-colindex', String(c + 1));
 
         if (loaded) {

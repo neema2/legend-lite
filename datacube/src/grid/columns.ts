@@ -34,8 +34,14 @@ export const PIVOT_SEPARATOR = '__|__';
 export interface LeafColumn {
   /** Index into the result's columns. Survives reordering and hiding. */
   readonly index: number;
-  /** Pixel width, when the user has set one. */
+  /** Pixel width, when the user has set one, within its bounds. */
   readonly width?: number;
+  /** Frozen edge, if any. */
+  readonly pinned?: PinPlacement;
+  /** Header text, which may differ from the column's name. */
+  readonly label?: string;
+  /** Rendered obscured until hovered. */
+  readonly blurred?: boolean;
   /** Full generated name, e.g. '2023__|__total'. */
   readonly name: string;
   /** Path segments, e.g. ['2023', 'total']. */
@@ -115,6 +121,9 @@ export function splitPath(
  * measure. Passing both in is what keeps this exact rather than
  * heuristic.
  */
+/** Which edge a column is frozen to, if any. */
+export type PinPlacement = 'left' | 'right';
+
 export interface ColumnLayout {
   /** Display order. Columns not listed keep engine order, after these. */
   readonly order?: readonly string[];
@@ -122,6 +131,21 @@ export interface ColumnLayout {
   readonly hidden?: readonly string[];
   /** Pixel widths by column name. */
   readonly widths?: Readonly<Record<string, number>>;
+  /** Lower and upper bounds, applied to the width above. */
+  readonly minWidths?: Readonly<Record<string, number>>;
+  readonly maxWidths?: Readonly<Record<string, number>>;
+  /** Frozen columns, by edge. */
+  readonly pinned?: Readonly<Record<string, PinPlacement>>;
+  /** Header text, where it should differ from the column name. */
+  readonly displayNames?: Readonly<Record<string, string>>;
+  /**
+   * Columns rendered obscured until hovered.
+   *
+   * DataCube's `blur`. For a figure that should not be readable over
+   * a shoulder or in a screen share, which in this domain is a real
+   * requirement rather than a novelty.
+   */
+  readonly blurred?: readonly string[];
 }
 
 export function buildColumnModel(
@@ -134,11 +158,14 @@ export function buildColumnModel(
     // The tree column's header is deliberately blank: it holds a
     // different dimension at every level, so no single name is
     // truthful. Real DataCube sets headerName: '' for the same reason.
+    const display = layout.displayNames?.[c.name];
     const path = c.name === TREE_COLUMN
       ? ['']
-      : dimensions.includes(c.name)
-        ? [c.name]
-        : splitPath(c.name, measures);
+      : display !== undefined
+        ? [display]
+        : dimensions.includes(c.name)
+          ? [c.name]
+          : splitPath(c.name, measures);
     return {
       index,
       name: c.name,
@@ -173,9 +200,33 @@ export function buildColumnModel(
     : visible;
 
   const widths = layout.widths ?? {};
+  const minWidths = layout.minWidths ?? {};
+  const maxWidths = layout.maxWidths ?? {};
+  const pinned = layout.pinned ?? {};
+  const displayNames = layout.displayNames ?? {};
+  const blurred = new Set(layout.blurred ?? []);
+
   const sized: LeafColumn[] = ordered.map((l) => {
-    const w = widths[l.name];
-    return w === undefined ? l : { ...l, width: w };
+    // A width is clamped by its own bounds rather than applied raw,
+    // so a saved width from a wider screen cannot squeeze a column
+    // past the minimum that made it readable.
+    const raw = widths[l.name];
+    const lo = minWidths[l.name];
+    const hi = maxWidths[l.name];
+    let width = raw ?? lo ?? hi;
+    if (width !== undefined) {
+      if (lo !== undefined) width = Math.max(width, lo);
+      if (hi !== undefined) width = Math.min(width, hi);
+    }
+    const label = displayNames[l.name];
+    const pin = pinned[l.name];
+    return {
+      ...l,
+      ...(width !== undefined ? { width } : {}),
+      ...(pin ? { pinned: pin } : {}),
+      ...(label !== undefined ? { label } : {}),
+      ...(blurred.has(l.name) ? { blurred: true } : {}),
+    };
   });
 
   const depth = Math.max(1, ...sized.map((l) => l.path.length));
