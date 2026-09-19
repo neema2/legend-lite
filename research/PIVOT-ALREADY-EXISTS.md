@@ -83,3 +83,91 @@ in the browser, which would move the 10M-row snap ceiling.
 
 This is a day of work with a browser harness and it should happen before
 the 10M number is committed to anywhere user-visible.
+
+---
+
+# Correction: DuckDB uses native PIVOT; two-phase is the H2 emulation
+
+The framing above overstated the two-phase pass. Verified in the code:
+`SqlDialect.needsStaticPivot()` defaults to **false**, and **only `H2`
+overrides it to true**. So on DuckDB, legend-lite emits native dynamic
+`PIVOT` and `DynamicPivot.staticize` never runs; the two-phase discovery
+is specifically the emulation for a backend with no native dynamic pivot.
+
+This inverts a conclusion. **Native dynamic PIVOT emits *every* pivot
+column** — that is the `full` column in the width benchmark, 850ms at
+20,000 columns. The flat 20.8ms result came from
+`PIVOT ... ON pk IN (<40 visible keys>)`, a **static** pivot. Native
+dynamic pivot and column windowing are mutually exclusive: "dynamic"
+means the engine discovers and emits all columns, which is exactly what
+windowing declines to do.
+
+So we want the two-phase *discipline* on DuckDB as well — not because
+DuckDB lacks native dynamic pivot, but because **we do not want dynamic
+pivot at all.** We want discovery, then a static pivot over the visible
+slice.
+
+## Windowing is expressible today
+
+`Pivots.lower` builds the IN list from `pv.values()` — the Pure
+`pivot()` call's own values argument — so a windowed pivot needs **no
+engine change**. Values must be literals ("pivot values must be
+literal"), which is fine: the visible window is a literal list computed
+after discovery.
+
+## The trap: pinning an IN list pre-filters the source
+
+`Pivots.lower` lines 92-108 pre-filter the source to the pinned values,
+deliberately, to match engine semantics — the engine drops out-of-list
+rows while DuckDB's `PIVOT ... IN` keeps them as extra groups (witness
+`testStaticPivot_SingleSingle_StringPivotValue`: 9 groups where the
+engine produces 3).
+
+Correct for parity, and fatal for naive column windowing. Demonstrated:
+
+    CREATE TABLE t AS SELECT * FROM (VALUES
+      ('A', 1, 10.0), ('A', 1, 20.0), ('B', 99, 30.0)) v(grp, pk, amt);
+
+    PIVOT t ON pk IN (1) USING sum(amt) GROUP BY grp;
+    -- A -> 30.0,  B -> NULL          (both groups present)
+
+    PIVOT (SELECT * FROM t WHERE pk IN (1))
+      ON pk IN (1) USING sum(amt) GROUP BY grp;
+    -- A -> 30.0                      (group B is GONE)
+
+If the visible column window drives the pinned values, then **the row
+set becomes a function of the horizontal scroll position**: groups whose
+keys all fall outside the window disappear, and any row total computed
+this way silently becomes a total of the visible window only.
+
+## Consequence: three queries, each windowed on the axis it owns
+
+1. **Row axis** — `groupBy(rowDims)` plus row totals. No pivot, so no
+   pre-filter and no column dependence. Windowed on rows only. This is
+   the authority for which rows exist, the scrollbar extent, and row
+   totals across *all* columns.
+2. **Column axis** — `SELECT DISTINCT key ORDER BY key`, the ordered
+   column list. The grid needs this independently anyway, to build its
+   column model and know what the visible window is a window *of*.
+   DataCube does the same thing today via its `getCastColumns` call.
+3. **Cells** — the windowed static pivot, visible rows x visible
+   columns. Values only; never the authority for which rows exist.
+
+This also hands snap mode a real advantage: **while snapped, the
+discovered column list is immutable**, so discovery runs once per snap
+rather than once per query. Live mode must re-validate it.
+
+## Benchmark caveat
+
+`widepivot.py`'s row count was unaffected by the pre-filter only because
+every `(region, country)` group in the synthetic data contains every
+`pk`. The 41x figure remains valid as a **cell-value** measurement; it
+does not measure, and must not be read as endorsing, a design where the
+pivot query determines the row set.
+
+## One compatibility confirmation
+
+Multi-column pivots synthesize a composite key joined by `'__|__'`,
+which is byte-identical to DataCube's
+`PIVOT_COLUMN_NAME_VALUE_SEPARATOR` (`DataCubeQueryEngine.ts:311`). The
+two sides already agree on the separator.
