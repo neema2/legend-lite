@@ -1,0 +1,160 @@
+// Rendering the context menu.
+//
+// Thin on purpose: the menu's content is decided in menu.ts and
+// tested as data, so this only has to place it, keep it on screen,
+// and make it operable from the keyboard.
+//
+// The APG menu pattern, in the parts that matter: role=menu with
+// role=menuitem children, arrow keys to move, Escape to close, focus
+// returned to wherever it came from. A context menu that traps focus
+// or loses it is worse than no context menu, because the user cannot
+// get back to the grid.
+
+import type { MenuGroup, MenuItem } from './menu.ts';
+
+export interface MenuViewOptions {
+  readonly onSelect: (item: MenuItem) => void;
+  readonly onClose?: () => void;
+}
+
+export class MenuView {
+  readonly #doc: Document;
+  readonly #options: MenuViewOptions;
+  #el: HTMLElement | null = null;
+  #returnFocus: Element | null = null;
+
+  constructor(doc: Document, options: MenuViewOptions) {
+    this.#doc = doc;
+    this.#options = options;
+  }
+
+  get open(): boolean {
+    return this.#el !== null;
+  }
+
+  /** Items currently rendered, in order. For tests. */
+  get items(): HTMLElement[] {
+    return this.#el
+      ? [...this.#el.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+      : [];
+  }
+
+  show(groups: readonly MenuGroup[], x: number, y: number): void {
+    this.close();
+    if (groups.length === 0) return;
+
+    this.#returnFocus = this.#doc.activeElement;
+    const menu = this.#doc.createElement('div');
+    menu.className = 'dc-menu';
+    menu.setAttribute('role', 'menu');
+    menu.tabIndex = -1;
+
+    groups.forEach((group, gi) => {
+      if (gi > 0) {
+        const sep = this.#doc.createElement('div');
+        sep.className = 'dc-menu-sep';
+        // Decoration between groups, not an item: announcing it would
+        // make the menu read as twice as long as it is.
+        sep.setAttribute('role', 'separator');
+        menu.appendChild(sep);
+      }
+      for (const item of group.items) {
+        const el = this.#doc.createElement('div');
+        el.className = 'dc-menu-item';
+        el.setAttribute('role', 'menuitem');
+        el.tabIndex = -1;
+        el.textContent = item.label;
+        el.addEventListener('click', () => {
+          this.#options.onSelect(item);
+          this.close();
+        });
+        menu.appendChild(el);
+      }
+    });
+
+    menu.addEventListener('keydown', this.#onKeyDown);
+    this.#doc.body.appendChild(menu);
+    this.#el = menu;
+    this.#place(x, y);
+    this.items[0]?.focus();
+  }
+
+  close(): void {
+    if (!this.#el) return;
+    this.#el.removeEventListener('keydown', this.#onKeyDown);
+    this.#el.remove();
+    this.#el = null;
+    // Focus goes back where it came from, or the user is stranded
+    // outside the grid with no way back to it by keyboard.
+    //
+    // Duck-typed rather than `instanceof HTMLElement`: the
+    // constructor belongs to the document's realm, so in an iframe
+    // -- or a test DOM -- the check is false and focus is silently
+    // dropped. This is the second place that bit; it is a property of
+    // cross-realm DOM, not of any one call site.
+    const back = this.#returnFocus as { focus?: unknown } | null;
+    if (back && typeof back.focus === 'function') {
+      (back as HTMLElement).focus();
+    }
+    this.#returnFocus = null;
+    this.#options.onClose?.();
+  }
+
+  /**
+   * Keep the menu on screen.
+   *
+   * Flipped rather than clamped: a menu clamped to the bottom edge
+   * sits under the pointer and the first item is whatever the user
+   * happens to be hovering, which is how a wrong action gets clicked.
+   */
+  #place(x: number, y: number): void {
+    const el = this.#el;
+    if (!el) return;
+    const view = this.#doc.defaultView;
+    const vw = view?.innerWidth ?? 0;
+    const vh = view?.innerHeight ?? 0;
+    const rect = el.getBoundingClientRect();
+    const left = vw > 0 && x + rect.width > vw ? Math.max(0, x - rect.width) : x;
+    const top = vh > 0 && y + rect.height > vh ? Math.max(0, y - rect.height) : y;
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+  }
+
+  #onKeyDown = (event: KeyboardEvent): void => {
+    const items = this.items;
+    if (items.length === 0) return;
+    const current = items.indexOf(
+      this.#doc.activeElement as HTMLElement,
+    );
+
+    switch (event.key) {
+      case 'ArrowDown':
+        event.preventDefault();
+        items[(current + 1) % items.length]?.focus();
+        break;
+      case 'ArrowUp':
+        event.preventDefault();
+        items[(current - 1 + items.length) % items.length]?.focus();
+        break;
+      case 'Home':
+        event.preventDefault();
+        items[0]?.focus();
+        break;
+      case 'End':
+        event.preventDefault();
+        items[items.length - 1]?.focus();
+        break;
+      case 'Escape':
+        event.preventDefault();
+        this.close();
+        break;
+      case 'Enter':
+      case ' ':
+        event.preventDefault();
+        (items[current] ?? items[0])?.click();
+        break;
+      default:
+        break;
+    }
+  };
+}

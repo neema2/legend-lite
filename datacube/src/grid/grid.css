@@ -401,3 +401,45 @@
 .dc-row.dc-total .dc-cell.dc-selected {
   background: color-mix(in srgb, Highlight 24%, Canvas);
 }
+
+
+/* -- context menu --------------------------------------------------
+ *
+ * Fixed rather than absolute: the menu is positioned from viewport
+ * coordinates, and an absolutely-positioned menu inside a scrolled
+ * container lands somewhere else entirely.
+ */
+
+.dc-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 220px;
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  background: Canvas;
+  color: CanvasText;
+  box-shadow: 0 8px 24px color-mix(in srgb, CanvasText 18%, transparent);
+  font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.dc-menu-item {
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dc-menu-item:hover,
+.dc-menu-item:focus {
+  background: color-mix(in srgb, Highlight 18%, Canvas);
+  outline: none;
+}
+
+.dc-menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}
