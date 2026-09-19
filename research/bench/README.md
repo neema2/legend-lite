@@ -129,3 +129,71 @@ case for a financial dataset carrying trade ids and free text.
 data shape measured, and 30M+ for realistic shapes.** Design the ceiling
 at 10M rows with a pre-flight size estimate shown to the user, rather
 than a row count that happens to work for compressible data.
+
+## `dynvsstatic.py` — static is NOT much faster than dynamic
+
+Correction to a claim made from `widepivot.py`. That benchmark compared
+a **static full-width** pivot against a **static windowed** pivot — both
+arms were `PIVOT ... ON pk IN (…)`. Native dynamic PIVOT was never
+measured, so reading its 41x as a static-vs-dynamic result was wrong.
+
+Measured properly, at fixed width, three arms:
+
+    rows=2,000,000  threads=1  min of 3
+
+     width   dynamic  static-full  static-win  discovery  width cost
+       200      38.8         16.9        15.5      21.9ms        1.1x
+      1000      55.2         31.0        15.8      24.2ms        2.0x
+      5000     147.6        119.1        17.5      28.5ms        6.8x
+
+**Dynamic vs static is worth a near-constant ~22-28ms** — the extra scan
+to discover the distinct values. It does not scale with width.
+
+**The real driver is output size**, which is orthogonal to
+static-vs-dynamic. Dynamic is slower only because it *forces* full
+width: "dynamic" means emit every discovered value, so it always sits at
+the expensive end of the width curve. Static does not make the query
+fast; it makes narrowness *expressible*.
+
+## `cellcost.py` — the cost model is output cells, so window both axes
+
+`EXPLAIN` on a static pivot shows the mechanism — conditional
+aggregation, one FILTERed aggregate per pivot value, per group:
+
+    PERFECT_HASH_GROUP_BY
+      Groups: #0
+      Aggregates: sum(#1) FILTER (WHERE #4)
+                  sum(#3) FILTER (WHERE #5)
+                  sum(#5) FILTER (WHERE #6)
+                  sum(#7) FILTER (WHERE #7)
+
+with one boolean predicate column per pivot value in the projection
+below it. So the work is proportional to output cells = groups x
+columns, each needing an aggregate state allocated, updated and
+materialized.
+
+Testing that by sweeping the same cell count two ways:
+
+    rows=2,000,000  threads=1  min of 3
+
+     groups   cols       cells       ms   ns/cell
+         25    200       5,000     14.9    2982.6
+        200     25       5,000     13.1    2626.9
+        100   1000     100,000     32.2     322.1
+       1000    100     100,000     21.7     217.0
+        500   2000   1,000,000    125.0     125.0
+       2000    500   1,000,000    101.2     101.2
+
+Equal-product pairs land within 1.14-1.48x of each other, so **the cost
+model is roughly `constant scan + (groups x columns) x ~100ns`**, with
+columns modestly more expensive than rows. Falling ns/cell at small cell
+counts is the fixed 2M-row scan dominating.
+
+Methodological note: the first run of this used `grp = i%g` and
+`pk = i%c`, which are correlated whenever `g` and `c` share factors — at
+500x2000, `pk` fully determines `grp`, so most "cells" were structurally
+empty and the pairs looked asymmetric (up to 2.0x). Independent keys
+(`grp = (i//c)%g`) fixed it. The numbers above are the corrected run.
+
+**Consequence: both axes need windowing, and the savings multiply.**
+Neither axis is free, and neither dominates.
