@@ -32,20 +32,33 @@ export interface ExportOptions {
   readonly newline?: string;
 }
 
+/** A value a spreadsheet will read as a number, not as a formula. */
+const PLAIN_NUMBER = /^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/;
+
 /**
  * Quote a field for CSV.
  *
  * A field is quoted when it contains the delimiter, a quote, or any
- * newline; embedded quotes are doubled. A leading `=`, `+`, `-` or `@`
- * is also prefixed with a quote character, because spreadsheets treat
- * those as the start of a FORMULA -- the CSV-injection problem -- and
- * a cell whose value came from a database should never execute.
+ * newline; embedded quotes are doubled. A leading `=` or `@` is also
+ * prefixed with a quote character, because spreadsheets treat those as
+ * the start of a FORMULA -- the CSV-injection problem -- and a cell
+ * whose value came from a database should never execute.
  */
 export function escapeField(
   value: string,
   delimiter: string,
 ): string {
-  const risky = /^[=+\-@\t\r]/.test(value);
+  // '=' and '@' can only begin a formula. '+' and '-' usually begin a
+  // NUMBER, and prefixing those would turn -42 into text -- destroying
+  // the whole point of a raw export, which is that it can be summed
+  // again. So they are only defused when the rest is not numeric.
+  const leading = value.charAt(0);
+  const risky =
+    leading === '=' ||
+    leading === '@' ||
+    leading === '\t' ||
+    leading === '\r' ||
+    ((leading === '+' || leading === '-') && !PLAIN_NUMBER.test(value));
   const body = risky ? `'${value}` : value;
   const needsQuotes =
     body.includes(delimiter) ||
