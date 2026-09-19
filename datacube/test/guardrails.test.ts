@@ -73,3 +73,73 @@ describe('source guardrails', () => {
     assert.deepEqual(bad, [], `demo code in src: ${bad.join(', ')}`);
   });
 });
+
+describe('nothing is built and left unreachable', () => {
+  // The audit that prompted the editor found most of this codebase
+  // built, tested and unreachable: the context menu, the heatmap,
+  // the rich exporters, drill-through, selection statistics, saved
+  // views and named dimensions each had exactly ONE user -- the file
+  // that defined it. They were libraries, not features, and no test
+  // noticed, because every one of them had good unit tests.
+  //
+  // So: a module that exists to be used by the product must be
+  // imported by the product, and called. app.ts is the product.
+  const APP = readFileSync(join('src', 'app.ts'), 'utf8');
+
+  const REACHABLE: readonly [string, string][] = [
+    ['the context menu', './ui/menu.ts'],
+    ['the menu renderer', './ui/menu-view.ts'],
+    ['the heatmap', './style.ts'],
+    ['the rich exporters', './export-rich.ts'],
+    ['plain export', './export.ts'],
+    ['drill-through', './drill.ts'],
+    ['selection statistics', './selection.ts'],
+    ['saved views', './persist.ts'],
+    ['named dimensions', './dimensions.ts'],
+    ['the editor', './ui/editor.ts'],
+    ['the filter editor', './ui/filter-editor.ts'],
+    ['the drag zones', './ui/pivot-panel.ts'],
+    ['the columns tool panel', './ui/columns-panel.ts'],
+    ['the floating filter', './grid/floating-filter.ts'],
+    ['the configuration', './config.ts'],
+  ];
+
+  for (const [what, module] of REACHABLE) {
+    it(`reaches ${what}`, () => {
+      assert.ok(
+        APP.includes(`from '${module}'`),
+        `src/app.ts does not import ${module}; ${what} is unreachable`,
+      );
+    });
+  }
+
+  it('actually calls what it imports', () => {
+    // Importing a module and never calling it would satisfy the
+    // check above while leaving the feature just as unreachable.
+    for (const call of [
+      'buildMenu(',
+      'applyMenuAction(',
+      'heatColour(',
+      'columnRange(',
+      'toSpreadsheetML(',
+      'toHtml(',
+      'toCsv(',
+      'drillQuery(',
+      'selectionStats(',
+      'availableDimensions(',
+      'new CubeEditor(',
+      'new FilterEditor(',
+      'new PivotPanel(',
+      'new FloatingFilterRow(',
+      'new MenuView(',
+    ]) {
+      assert.ok(APP.includes(call), `src/app.ts never calls ${call}`);
+    }
+  });
+
+  it('binds the context menu to a contextmenu event', () => {
+    // The exact hole the audit found: the menu was built and tested
+    // as data, and `grep -c contextmenu src/grid/grid.ts` returned 0.
+    assert.ok(APP.includes("addEventListener('contextmenu'"));
+  });
+});

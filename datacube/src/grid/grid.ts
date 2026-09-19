@@ -24,7 +24,10 @@
 
 import { TREE_COLUMN, type ColumnModel } from './columns.ts';
 import { computeRowWindow, isCovered, type RowWindow } from './viewport.ts';
-import type { FloatingFilterRow } from './floating-filter.ts';
+import type {
+  FloatingFilterColumn,
+  FloatingFilterRow,
+} from './floating-filter.ts';
 import { makeHeaderDraggable } from '../ui/pivot-panel.ts';
 import type { ColumnFormat, FormatterCache } from '../format.ts';
 import { DEFAULT_FORMAT } from '../format.ts';
@@ -86,6 +89,17 @@ export interface GridOptions {
    * DataCube's -- see floating-filter.ts.
    */
   readonly floatingFilter?: FloatingFilterRow;
+  /**
+   * The columns the filter row offers a box for.
+   *
+   * Supplied rather than derived from the leaves, because in an
+   * AGGREGATING cube no leaf is a source column: the row dimensions
+   * collapse into one tree column and every value leaf is named for
+   * a pivot path the engine has never heard of. The columns worth
+   * filtering are the dimensions in play, and only the caller knows
+   * what those are. Empty means no row at all.
+   */
+  readonly floatingFilterColumns?: readonly FloatingFilterColumn[];
   /**
    * Whether a column header may be dragged into the pivot zones.
    *
@@ -196,8 +210,21 @@ export class DataGrid {
    */
   #headerLevels(): number {
     return (
-      (this.#model?.headerRows.length ?? 0) +
-      (this.#options.floatingFilter ? 1 : 0)
+      (this.#model?.headerRows.length ?? 0) + (this.#showsFilterRow() ? 1 : 0)
+    );
+  }
+
+  /**
+   * Whether the filter row is on screen.
+   *
+   * Not simply "was one supplied": a cube with no filterable
+   * dimension gets no row, because an empty strip under the header
+   * is noise that also silently shifts every aria-rowindex by one.
+   */
+  #showsFilterRow(): boolean {
+    return (
+      this.#options.floatingFilter !== undefined &&
+      (this.#options.floatingFilterColumns?.length ?? 0) > 0
     );
   }
 
@@ -310,24 +337,28 @@ export class DataGrid {
     });
 
     const filterRow = this.#options.floatingFilter;
-    if (filterRow) {
+    const filterColumns = this.#options.floatingFilterColumns ?? [];
+    if (filterRow && this.#showsFilterRow()) {
+      // ONE cell spanning the whole width, holding a labelled box per
+      // dimension, rather than a box per leaf. A box per leaf is
+      // ag-Grid's layout and it only works on a flat table: over a
+      // pivot the leaves are measures under pivot values, and a box
+      // under `2021 / notional` could only mean "filter the rows that
+      // feed this aggregate", which is not what the position implies.
       const row = doc.createElement('div');
       row.setAttribute('role', 'row');
       row.className = 'dc-head-row dc-floating-row';
       row.setAttribute('aria-rowindex', String(model.depth + 1));
-      model.leaves.forEach((leaf, i) => {
-        const cell = filterRow.cell({
-          name: leaf.name,
-          type: leaf.type,
-          // A row dimension is filtered on its source values, a
-          // pivoted measure on nothing a box can express -- its
-          // name is a path, not a column the engine knows.
-          filterable: leaf.path.length <= 1,
-        });
-        cell.style.gridColumn = `${i + 1} / span 1`;
-        cell.style.gridRow = `${model.depth + 1} / span 1`;
-        row.appendChild(cell);
-      });
+
+      const cell = doc.createElement('div');
+      cell.className = 'dc-floating-strip';
+      cell.setAttribute('role', 'columnheader');
+      cell.style.gridColumn = `1 / span ${Math.max(1, model.leaves.length)}`;
+      cell.style.gridRow = `${model.depth + 1} / span 1`;
+      for (const column of filterColumns) {
+        cell.appendChild(filterRow.cell(column));
+      }
+      row.appendChild(cell);
       this.#head.appendChild(row);
     }
   }

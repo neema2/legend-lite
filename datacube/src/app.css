@@ -1,0 +1,860 @@
+/* The application chrome: toolbar, drag zones, editor, forms.
+ *
+ * Built on the same system colours grid.css already uses (Canvas,
+ * CanvasText, color-mix) rather than a palette of its own, so the
+ * whole product follows the viewer's light/dark setting without a
+ * second theme to keep in step. A cube embedded in a host
+ * application inherits that host's ground for free.
+ *
+ * Sizes match DataCube's: a 24px control row, a 20px selector row, a
+ * 6px gutter. A grid user comparing the two side by side should see
+ * the same density, because density is most of what a dense tool
+ * feels like.
+ */
+
+.dc-app {
+  --dc-line: color-mix(in srgb, currentColor 22%, transparent);
+  --dc-faint: color-mix(in srgb, currentColor 8%, Canvas);
+  --dc-accent: color-mix(in srgb, SelectedItem 70%, Canvas);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+/* -- toolbar ------------------------------------------------------ */
+
+.dc-app-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.dc-tool,
+.dc-button {
+  font: inherit;
+  font-size: 13px;
+  line-height: 1;
+  padding: 5px 10px;
+  border-radius: 5px;
+  border: 1px solid var(--dc-line);
+  background: Canvas;
+  color: CanvasText;
+  cursor: pointer;
+}
+
+.dc-tool:hover,
+.dc-button:hover:not(:disabled) {
+  background: var(--dc-faint);
+}
+
+.dc-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.dc-button.dc-primary {
+  border-color: var(--dc-accent);
+  background: color-mix(in srgb, SelectedItem 22%, Canvas);
+}
+
+/* -- the drag zones ------------------------------------------------ */
+
+.dc-pivot-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dc-zone {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  min-height: 30px;
+  padding: 3px 8px;
+  border: 1px dashed var(--dc-line);
+  border-radius: 5px;
+  background: var(--dc-faint);
+}
+
+/* A drop target must be unmistakable while a drag is in flight;
+   the alternative is a user hovering, guessing, and letting go. */
+.dc-zone.dc-drop-target {
+  border-style: solid;
+  border-color: var(--dc-accent);
+  background: color-mix(in srgb, SelectedItem 12%, Canvas);
+}
+
+.dc-zone-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.6;
+  margin-right: 6px;
+}
+
+.dc-zone-prompt {
+  font-size: 12px;
+  opacity: 0.55;
+  font-style: italic;
+}
+
+.dc-zone-arrow {
+  opacity: 0.45;
+}
+
+.dc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 4px 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  border: 1px solid var(--dc-line);
+  background: Canvas;
+  cursor: grab;
+}
+
+.dc-chip:focus-visible {
+  outline: 2px solid var(--dc-accent);
+  outline-offset: 1px;
+}
+
+.dc-chip-remove {
+  font: inherit;
+  line-height: 1;
+  border: 0;
+  border-radius: 999px;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+}
+
+.dc-chip-remove:hover {
+  opacity: 1;
+  background: var(--dc-faint);
+}
+
+/* A draggable header earns a grab cursor; a measure header, which is
+   deliberately not draggable, must not pretend otherwise. */
+.dc-th.dc-draggable {
+  cursor: grab;
+}
+
+/* -- the floating filter row --------------------------------------- */
+
+.dc-floating-row {
+  display: contents;
+}
+
+/* One strip across the header holding a labelled box per dimension.
+   A box per leaf is ag-Grid's layout and it only works on a flat
+   table; over a pivot the leaves are measures under pivot values. */
+.dc-floating-strip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 6px;
+  border-top: 1px solid var(--dc-line);
+  background: var(--dc-faint);
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.dc-floating-cell {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.dc-floating-label {
+  font-size: 11px;
+  opacity: 0.65;
+  white-space: nowrap;
+}
+
+.dc-floating-input {
+  font: inherit;
+  font-size: 12px;
+  width: 9em;
+  min-width: 0;
+  padding: 1px 4px;
+  border: 1px solid var(--dc-line);
+  border-radius: 3px;
+  background: Canvas;
+  color: CanvasText;
+}
+
+.dc-floating-input:disabled {
+  /* Disabled means "filtered, but not by anything this box can show".
+     It must not read as an ordinary empty box. */
+  background: color-mix(in srgb, orange 14%, Canvas);
+  opacity: 1;
+  font-style: italic;
+}
+
+/* -- status and stats ----------------------------------------------- */
+
+.dc-app-stats {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+  min-height: 1em;
+}
+
+/* -- the overlay ------------------------------------------------------ */
+
+.dc-app-overlay {
+  border: 1px solid var(--dc-line);
+  border-radius: 6px;
+  background: Canvas;
+  overflow: hidden;
+}
+
+.dc-overlay-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 10px;
+  font-weight: 600;
+  border-bottom: 1px solid var(--dc-line);
+  background: var(--dc-faint);
+}
+
+.dc-overlay-close {
+  font: inherit;
+  font-size: 18px;
+  line-height: 1;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.dc-overlay-body {
+  padding: 8px;
+}
+
+.dc-drill {
+  max-height: 320px;
+  overflow: auto;
+  font-size: 12px;
+  margin: 0;
+}
+
+/* -- the editor --------------------------------------------------------- */
+
+.dc-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+}
+
+.dc-editor-tabs {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+}
+
+.dc-editor-tab {
+  font: inherit;
+  font-size: 13px;
+  white-space: nowrap;
+  padding: 5px 10px;
+  border: 1px solid var(--dc-line);
+  border-bottom: 0;
+  border-left: 0;
+  background: var(--dc-faint);
+  color: CanvasText;
+  cursor: pointer;
+}
+
+.dc-editor-tab:first-child {
+  border-left: 1px solid var(--dc-line);
+}
+
+.dc-editor-tab.dc-on {
+  background: Canvas;
+  font-weight: 600;
+}
+
+.dc-editor-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--dc-line);
+  background: Canvas;
+  padding: 8px;
+}
+
+.dc-editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 8px;
+}
+
+/* -- panels and forms ----------------------------------------------------- */
+
+.dc-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  min-height: 0;
+}
+
+.dc-panel-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.dc-panel-head-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.dc-panel-body {
+  flex: 1;
+  min-height: 280px;
+}
+
+.dc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0;
+  border-top: 1px solid var(--dc-line);
+}
+
+.dc-section:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.dc-section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.6;
+}
+
+.dc-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+}
+
+.dc-field-label {
+  flex: 0 0 auto;
+  width: 180px;
+  text-align: right;
+  font-size: 13px;
+  opacity: 0.85;
+}
+
+.dc-field-body {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dc-input,
+.dc-select {
+  font: inherit;
+  font-size: 13px;
+  padding: 2px 6px;
+  border: 1px solid var(--dc-line);
+  border-radius: 4px;
+  background: Canvas;
+  color: CanvasText;
+}
+
+.dc-input-number {
+  font-variant-numeric: tabular-nums;
+}
+
+.dc-select:disabled,
+.dc-input:disabled {
+  opacity: 0.5;
+}
+
+.dc-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dc-badge {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--dc-line);
+  background: var(--dc-faint);
+  opacity: 0.8;
+}
+
+.dc-toggles {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.dc-toggle {
+  font: inherit;
+  font-size: 13px;
+  min-width: 26px;
+  padding: 2px 6px;
+  border: 1px solid var(--dc-line);
+  border-radius: 4px;
+  background: Canvas;
+  color: CanvasText;
+  cursor: pointer;
+}
+
+.dc-toggle.dc-on {
+  background: color-mix(in srgb, SelectedItem 25%, Canvas);
+  border-color: var(--dc-accent);
+  font-weight: 700;
+}
+
+.dc-font-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dc-color {
+  display: inline-flex;
+  align-items: center;
+}
+
+.dc-color-input {
+  width: 28px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--dc-line);
+  border-radius: 4px 0 0 4px;
+  background: Canvas;
+  cursor: pointer;
+}
+
+.dc-color-clear {
+  font: inherit;
+  line-height: 1;
+  width: 18px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--dc-line);
+  border-left: 0;
+  border-radius: 0 4px 4px 0;
+  background: Canvas;
+  color: inherit;
+  opacity: 0.55;
+  cursor: pointer;
+}
+
+/* An unset swatch must not read as a deliberate black -- and must
+ * not read as a BROKEN control either, which is what a patterned
+ * background over a native colour input looks like. A dashed border
+ * and a faded swatch say "inheriting" without fighting the widget. */
+.dc-color-unset .dc-color-input {
+  opacity: 0.4;
+  border-style: dashed;
+}
+
+.dc-colour-grid {
+  display: grid;
+  grid-template-columns: 110px repeat(4, auto);
+  gap: 4px 8px;
+  align-items: center;
+}
+
+.dc-colour-head {
+  font-size: 11px;
+  opacity: 0.65;
+  text-align: center;
+}
+
+.dc-colour-row-label {
+  font-size: 13px;
+  text-align: right;
+  opacity: 0.85;
+}
+
+.dc-inline-colour {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+}
+
+.dc-note {
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.dc-warning {
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 10px;
+  border-radius: 5px;
+  background: color-mix(in srgb, orange 16%, Canvas);
+  border: 1px solid color-mix(in srgb, orange 45%, transparent);
+}
+
+/* -- the columns selector ---------------------------------------------------- */
+
+.dc-selector {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  height: 100%;
+  min-height: 260px;
+}
+
+.dc-selector-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-width: 0;
+  gap: 3px;
+}
+
+.dc-selector-caption {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.dc-selector-box {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--dc-line);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.dc-selector-search {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--dc-line);
+}
+
+.dc-selector-search-icon {
+  opacity: 0.5;
+}
+
+.dc-selector-search-input {
+  font: inherit;
+  font-size: 12px;
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 3px 2px;
+  background: transparent;
+  color: CanvasText;
+}
+
+.dc-selector-search-input:focus {
+  outline: none;
+}
+
+.dc-selector-search-clear {
+  font: inherit;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  opacity: 0.55;
+}
+
+.dc-selector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 6px;
+  border: 0;
+  border-bottom: 1px solid var(--dc-line);
+  background: var(--dc-faint);
+  color: CanvasText;
+  cursor: pointer;
+  text-align: left;
+}
+
+.dc-selector-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  opacity: 0.6;
+}
+
+.dc-selector-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.dc-selector-list.dc-drop-target {
+  background: color-mix(in srgb, SelectedItem 10%, Canvas);
+  outline: 1px solid var(--dc-accent);
+  outline-offset: -1px;
+}
+
+.dc-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 20px;
+  padding: 0 6px;
+  font-size: 12px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.dc-selector-row:hover {
+  background: var(--dc-faint);
+}
+
+.dc-selector-row.dc-picked {
+  background: color-mix(in srgb, SelectedItem 22%, Canvas);
+}
+
+.dc-selector-row-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-selector-row-hint {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.55;
+  white-space: nowrap;
+}
+
+.dc-selector-row select {
+  font: inherit;
+  font-size: 11px;
+  padding: 0 2px;
+  border: 1px solid var(--dc-line);
+  border-radius: 3px;
+  background: Canvas;
+  color: CanvasText;
+}
+
+.dc-selector-middle {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.dc-selector-move {
+  font: inherit;
+  font-size: 16px;
+  line-height: 1;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid var(--dc-line);
+  border-radius: 4px;
+  background: var(--dc-faint);
+  color: CanvasText;
+  cursor: pointer;
+}
+
+.dc-selector-move:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* -- the dimensions panel ------------------------------------------------------- */
+
+.dc-dimension-body {
+  display: flex;
+  gap: 10px;
+  height: 100%;
+  min-height: 280px;
+}
+
+.dc-dimension-side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 0 0 200px;
+}
+
+.dc-dimension-list {
+  flex: 1;
+  min-height: 120px;
+  overflow: auto;
+  border: 1px solid var(--dc-line);
+  border-radius: 4px;
+}
+
+.dc-dimension-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dc-dimension-row:hover {
+  background: var(--dc-faint);
+}
+
+.dc-dimension-row.dc-on {
+  background: color-mix(in srgb, SelectedItem 22%, Canvas);
+}
+
+.dc-dimension-count {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.6;
+}
+
+.dc-dimension-controls {
+  display: flex;
+  gap: 6px;
+}
+
+.dc-dimension-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* -- the grid and its sidebar ------------------------------------------------- */
+
+.dc-app-middle {
+  display: flex;
+  gap: 8px;
+  min-height: 0;
+}
+
+.dc-app-middle .dc-app-grid {
+  flex: 1;
+  min-width: 0;
+}
+
+.dc-app-side {
+  flex: 0 0 200px;
+  min-height: 0;
+}
+
+/* The drag SOURCE. Without it, a pivoted cube has no draggable
+   header at all: the row dimensions collapse into one tree column
+   and every other header is a pivot value or a measure. */
+.dc-tool-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  border: 1px solid var(--dc-line);
+  border-radius: 5px;
+  overflow: hidden;
+  background: Canvas;
+}
+
+.dc-tool-panel-head {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.6;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--dc-line);
+  background: var(--dc-faint);
+}
+
+.dc-tool-panel-search {
+  font: inherit;
+  font-size: 12px;
+  border: 0;
+  border-bottom: 1px solid var(--dc-line);
+  padding: 4px 8px;
+  background: transparent;
+  color: CanvasText;
+}
+
+.dc-tool-panel-search:focus {
+  outline: none;
+  background: var(--dc-faint);
+}
+
+.dc-tool-panel-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.dc-tool-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  font-size: 12px;
+  cursor: grab;
+}
+
+.dc-tool-panel-row:hover {
+  background: var(--dc-faint);
+}
+
+/* A measure is listed but not draggable, so it must not offer a
+   grab cursor it will not honour. */
+.dc-tool-panel-row.dc-measure {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.dc-tool-panel-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-tool-panel-badge {
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, SelectedItem 25%, Canvas);
+}
+
+.dc-tool-panel-type {
+  font-size: 10px;
+  opacity: 0.5;
+}

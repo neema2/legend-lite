@@ -263,9 +263,74 @@ export function addTo(
 
 // -- the DOM editor ---------------------------------------------------
 
+/**
+ * Build a draft tree from a filter that already exists.
+ *
+ * The inverse of `toFilterNode`, and it has to exist: without it the
+ * editor opens EMPTY on a cube that is already filtered, and the
+ * user's first change writes that emptiness back -- silently
+ * dropping a filter they could see in force on the grid behind the
+ * dialog.
+ *
+ * `not` is a wrapping node in the model and a flag on a draft, so
+ * unwrapping folds it onto the child. A double negation collapses,
+ * which is the one place the round trip is not literal: `NOT NOT x`
+ * and `x` are the same filter and the editor should show the simpler
+ * one.
+ */
+export function fromFilterNode(node: FilterNode): DraftNode {
+  if (node.kind === 'not') {
+    const inner = fromFilterNode(node.child);
+    return { ...inner, not: !inner.not } as DraftNode;
+  }
+  if (node.kind === 'condition') {
+    return {
+      kind: 'condition',
+      id: nextId(),
+      not: false,
+      column: node.column,
+      operator: node.operator,
+      text: textOf(node.value),
+      rightColumn: node.rightColumn ?? '',
+    };
+  }
+  return {
+    kind: 'group',
+    id: nextId(),
+    not: false,
+    join: node.kind,
+    children: node.children.map(fromFilterNode),
+  };
+}
+
+/**
+ * Render a stored value back into what a user would have typed.
+ *
+ * A list joins with commas because that is how `parseList` reads it;
+ * a string that LOOKS numeric is requoted, or reopening the editor
+ * would silently turn an account code into a number.
+ */
+function textOf(value: FilterValue | readonly FilterValue[] | undefined): string {
+  if (value === undefined) return '';
+  if (Array.isArray(value)) {
+    return (value as readonly FilterValue[]).map(scalarText).join(', ');
+  }
+  return scalarText(value as FilterValue);
+}
+
+function scalarText(value: FilterValue): string {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value))) {
+    return `"${value}"`;
+  }
+  return String(value);
+}
+
 export interface FilterEditorOptions {
   readonly columns: readonly string[];
   readonly onChange: (filter: FilterNode | undefined) => void;
+  /** The filter already in force, so the editor opens showing it. */
+  readonly value?: FilterNode;
 }
 
 /** Indentation per level, matching DataCube's FILTER_TREE_INDENTATION_SPACE. */
@@ -279,6 +344,14 @@ export class FilterEditor {
   constructor(container: HTMLElement, options: FilterEditorOptions) {
     this.#root = container;
     this.#options = options;
+    if (options.value) {
+      // A seeded filter that is already a top-level group keeps that
+      // group rather than being nested inside a fresh one, or every
+      // reopen adds a level of brackets to a filter nobody changed.
+      const seeded = fromFilterNode(options.value);
+      this.#tree =
+        seeded.kind === 'group' && !seeded.not ? seeded : newGroup([seeded]);
+    }
     this.#root.classList.add('dc-filters');
     this.render();
   }

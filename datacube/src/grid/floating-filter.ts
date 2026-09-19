@@ -221,10 +221,31 @@ export function withFloating(
   return fromConjuncts(next);
 }
 
+/**
+ * Whether a leaf column can take a filter box.
+ *
+ * Only a leaf that IS a source column can. The tree column holds a
+ * different dimension at every level, so no single box could filter
+ * it; a pivoted leaf is named for a path (`2021__|__notional`) the
+ * engine has never heard of, and filtering the measure's source
+ * column instead would silently mean something else -- narrowing the
+ * rows that feed the aggregate rather than the aggregate itself.
+ *
+ * So a fully pivoted cube has no filter boxes, and that is correct
+ * rather than a gap: the grid drops the row entirely instead of
+ * showing an empty strip under the header.
+ */
+export function canFloat(
+  leaf: { readonly name: string; readonly path: readonly string[] },
+  treeColumn: string,
+): boolean {
+  return leaf.name !== treeColumn && leaf.path.length <= 1;
+}
+
 export interface FloatingFilterColumn {
   readonly name: string;
   readonly type: string;
-  /** A dimension header spanning several leaves takes no box. */
+  /** False renders an inert placeholder rather than a box. */
   readonly filterable: boolean;
 }
 
@@ -265,8 +286,15 @@ export class FloatingFilterRow {
     const doc = this.#doc;
     const cell = doc.createElement('div');
     cell.className = 'dc-floating-cell';
-    cell.setAttribute('role', 'columnheader');
     if (!column.filterable) return cell;
+
+    // The box carries its column's NAME, because it no longer sits
+    // under that column's header: over a pivot there is no such
+    // header to sit under, so the label has to be on the box.
+    const label = doc.createElement('span');
+    label.className = 'dc-floating-label';
+    label.textContent = column.name;
+    cell.append(label);
 
     const input = doc.createElement('input');
     input.type = 'text';

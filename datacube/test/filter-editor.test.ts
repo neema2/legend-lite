@@ -5,6 +5,7 @@ import { JSDOM } from 'jsdom';
 import {
   FilterEditor,
   OPERATORS,
+  fromFilterNode,
   addTo,
   newCondition,
   newGroup,
@@ -15,6 +16,7 @@ import {
   updateNode,
 } from '../src/ui/filter-editor.ts';
 import { filterExpression } from '../src/serialize.ts';
+import type { FilterNode } from '../src/snapshot.ts';
 
 const COLUMNS = ['region', 'desk', 'notional'];
 
@@ -228,5 +230,116 @@ describe('FilterEditor DOM', () => {
     editor.remove(first);
     assert.equal(editor.tree.children.length, 1);
     assert.notEqual(editor.tree.children[0]!.id, first);
+  });
+});
+
+describe('opening on a filter that already exists', () => {
+  // Without the inverse, the editor opens EMPTY on a filtered cube
+  // and the user's first change writes that emptiness back --
+  // silently dropping a filter they can see in force on the grid
+  // behind the dialog.
+
+  const roundTrip = (f: FilterNode): FilterNode | undefined =>
+    toFilter(
+      (() => {
+        const d = fromFilterNode(f);
+        return d.kind === 'group' && !d.not ? d : newGroup([d]);
+      })(),
+    );
+
+  it('round-trips a bare condition', () => {
+    const f: FilterNode = {
+      kind: 'condition',
+      column: 'region',
+      operator: 'equal',
+      value: 'EMEA',
+    };
+    assert.deepEqual(roundTrip(f), f);
+  });
+
+  it('round-trips a nested group', () => {
+    const f: FilterNode = {
+      kind: 'and',
+      children: [
+        { kind: 'condition', column: 'a', operator: 'greaterThan', value: 5 },
+        {
+          kind: 'or',
+          children: [
+            { kind: 'condition', column: 'b', operator: 'equal', value: 'x' },
+            { kind: 'condition', column: 'b', operator: 'equal', value: 'y' },
+          ],
+        },
+      ],
+    };
+    assert.deepEqual(roundTrip(f), f);
+  });
+
+  it('round-trips a negation, which is a NODE here and a FLAG there', () => {
+    const f: FilterNode = {
+      kind: 'not',
+      child: {
+        kind: 'or',
+        children: [
+          { kind: 'condition', column: 'b', operator: 'equal', value: 'x' },
+          { kind: 'condition', column: 'b', operator: 'equal', value: 'y' },
+        ],
+      },
+    };
+    assert.deepEqual(roundTrip(f), f);
+  });
+
+  it('collapses a double negation rather than showing it', () => {
+    // The one place the round trip is not literal: NOT NOT x and x
+    // are the same filter and the editor should show the simpler.
+    const inner: FilterNode = {
+      kind: 'condition',
+      column: 'a',
+      operator: 'equal',
+      value: 1,
+    };
+    const f: FilterNode = { kind: 'not', child: { kind: 'not', child: inner } };
+    assert.deepEqual(roundTrip(f), inner);
+  });
+
+  it('round-trips a list', () => {
+    const f: FilterNode = {
+      kind: 'condition',
+      column: 'region',
+      operator: 'in',
+      value: ['EMEA', 'APAC'],
+    };
+    assert.deepEqual(roundTrip(f), f);
+  });
+
+  it('requotes a string that LOOKS numeric', () => {
+    // Otherwise reopening the editor silently turns an account code
+    // into a number, and the filter stops matching.
+    const f: FilterNode = {
+      kind: 'condition',
+      column: 'account',
+      operator: 'equal',
+      value: '0042',
+    };
+    assert.deepEqual(roundTrip(f), f);
+  });
+
+  it('keeps a valueless operator valueless', () => {
+    const f: FilterNode = {
+      kind: 'condition',
+      column: 'a',
+      operator: 'isEmpty',
+    };
+    assert.deepEqual(roundTrip(f), f);
+  });
+
+  it('does NOT add a bracket level on every reopen', () => {
+    const f: FilterNode = {
+      kind: 'and',
+      children: [
+        { kind: 'condition', column: 'a', operator: 'equal', value: 1 },
+        { kind: 'condition', column: 'b', operator: 'equal', value: 2 },
+      ],
+    };
+    assert.deepEqual(roundTrip(roundTrip(f) as FilterNode), f);
   });
 });

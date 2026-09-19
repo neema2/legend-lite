@@ -10,19 +10,20 @@
 
 import * as duckdb from '@duckdb/duckdb-wasm';
 
+import { CubeApp } from '../src/app.ts';
+import {
+  DEFAULT_CONFIGURATION,
+  type CubeConfiguration,
+} from '../src/config.ts';
 import { CubeController, type Planner } from '../src/cube.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
-import { FormatterCache, type ColumnFormat } from '../src/format.ts';
-import { DataGrid } from '../src/grid/grid.ts';
+import type { ColumnFormat } from '../src/format.ts';
 import { LegendLitePlanner } from '../src/planner.ts';
 import {
   NULL_GROUP,
   serialize,
   type LevelScope,
 } from '../src/serialize.ts';
-import { parsePathKey, pathKey, type TreeRow } from '../src/tree.ts';
-import { DEFAULT_MAX_ROWS } from '../src/treeview.ts';
-import { FilterEditor } from '../src/ui/filter-editor.ts';
 import type { CubeSnapshot, FilterNode } from '../src/snapshot.ts';
 import { referencedColumns, totalOrderSorts } from '../src/snapshot.ts';
 
@@ -84,13 +85,13 @@ async function boot(): Promise<void> {
 
   // -- the cube ------------------------------------------------------
 
-  let snapshot: CubeSnapshot = {
+  const snapshot: CubeSnapshot = {
     source: { expression: 'trades' },
     columns: [
       { name: 'region', type: 'String' },
       { name: 'desk', type: 'String' },
       { name: 'book', type: 'String' },
-      { name: 'year', type: 'Integer' },
+      { name: 'year', type: 'Integer', kind: 'dimension' },
       { name: 'qtr', type: 'String' },
       { name: 'notional', type: 'Float' },
       { name: 'pnl', type: 'Float' },
@@ -105,12 +106,15 @@ async function boot(): Promise<void> {
   };
 
   const planner = await choosePlanner(status);
-  const formatters = new FormatterCache();
 
-  // Formats are keyed by the column names the ENGINE returned, not by
-  // a name we predicted. Guessing '2021__|__notional' when DuckDB
-  // actually emits '2021_notional' is exactly how every measure
-  // silently rendered unformatted.
+  // The page builds the APP, not a grid and a pile of checkboxes.
+  // Those checkboxes were the demo standing in for a product; what
+  // they reached is now reachable from the toolbar, the drag zones,
+  // the context menu and the properties editor -- which is the whole
+  // reason src/app.ts exists.
+  // The host knows what the snapshot cannot: that notional and pnl
+  // are money and qty is a count. Rendering a trade count as $10,005
+  // is the kind of wrong that looks plausible.
   const MONEY: ColumnFormat = {
     kind: 'currency',
     currency: 'USD',
@@ -118,170 +122,60 @@ async function boot(): Promise<void> {
     maximumFractionDigits: 0,
     negativeParens: true,
   };
-  const COUNT: ColumnFormat = {
-    kind: 'number',
-    locale: 'en-US',
-    maximumFractionDigits: 0,
+  const configuration: CubeConfiguration = {
+    ...DEFAULT_CONFIGURATION,
+    reportTitle: 'Trades',
+    showSelectionStats: true,
+    columns: {
+      notional: { format: MONEY },
+      pnl: { format: MONEY },
+      qty: {
+        format: { kind: 'number', locale: 'en-US', maximumFractionDigits: 0 },
+      },
+    },
   };
-  const formats: Record<string, ColumnFormat> = {};
 
-  // Tree rows come from the controller's last view, so the grid's
-  // per-row metadata and the data it renders can never disagree.
-  let treeRows: readonly TreeRow[] = [];
-  let measureFn: 'sum' | 'average' | 'count' = 'sum';
-
-  const grid = new DataGrid(must('grid'), formatters, {
-    rowHeight: 24,
-    formats,
-    rowMeta: (abs) => {
-      const row = treeRows[abs];
-      if (!row) return { level: 1, key: String(abs) };
-      return {
-        level: row.depth,
-        key: pathKey(row.path),
-        ...(row.isGroup ? { expanded: row.expanded } : {}),
-        ...(row.isTotal || row.level === 0 ? { isTotal: true } : {}),
-      };
+  const app = new CubeApp(must('app'), snapshot, {
+    engine,
+    planner,
+    configuration,
+    storage: window.localStorage,
+    showColumnZone: true,
+    dimensions: [
+      { name: 'Geography', columns: ['region', 'desk', 'book'] },
+      { name: 'Calendar', columns: ['year', 'qtr'] },
+    ],
+    writeClipboard: (text) => navigator.clipboard?.writeText(text),
+    download: (name, mime, text) => {
+      const url = URL.createObjectURL(new Blob([text], { type: mime }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(url);
     },
-    onToggleExpand: (key) => {
-      void controller.toggle(parsePathKey(key));
-    },
-    onActivateCell: (r, c) => {
-      status.textContent = `cell r${r} c${c} — drill-through would open here`;
-    },
-  });
-
-  const controller = new CubeController(engine, planner, {
-    onBusy: (busy) => {
-      must('busy').hidden = !busy;
-    },
-    onError: (e) => {
-      status.textContent = `error: ${e instanceof Error ? e.message : String(e)}`;
-      status.classList.add('bad');
+    onStatus: (text, kind) => {
+      status.textContent = text;
+      status.classList.toggle('bad', kind === 'error');
+      status.classList.toggle('warn-text', kind === 'warn');
     },
     onView: (view) => {
-      status.classList.remove('bad');
-      // Keyed off the MEASURE, not off "is it a value column": a
-      // trade count is not money, and rendering it as $10,005 is the
-      // kind of wrong that looks plausible.
-      for (const leaf of view.columns.leaves) {
-        if (leaf.isDimension) continue;
-        const measure = leaf.path[leaf.path.length - 1];
-        formats[leaf.name] = measure === 'trades' ? COUNT : MONEY;
-      }
-      treeRows = view.treeRows;
-      grid.setColumns(view.columns);
-      grid.setRows(view.rows, 0, view.rows.rowCount);
       must('sql').textContent = view.sql;
       must('pure').textContent = serialize(view.snapshot);
-      const base =
-        `${view.rows.rowCount.toLocaleString()} rows × ` +
-        `${view.columns.leaves.length} cols in ` +
-        `${view.rows.elapsedMs.toFixed(0)}ms`;
-      // Saying WHICH level was cut matters: "some rows are missing"
-      // sends someone hunting through the whole cube.
-      status.textContent =
-        view.truncated.length > 0
-          ? `${base} — showing the first ` +
-            `${(view.snapshot.maxRows ?? DEFAULT_MAX_ROWS).toLocaleString()} ` +
-            `of ${view.truncated.length} level` +
-            `${view.truncated.length > 1 ? 's' : ''}; narrow the filter to see the rest`
-          : base;
-      status.classList.toggle('warn-text', view.truncated.length > 0);
     },
+    onPlane: () => renderPlaneBadge(app.controller),
   });
 
-  await controller.update(snapshot);
-  renderPlaneBadge(controller);
-
-  // -- controls ------------------------------------------------------
-
-  must('measure').addEventListener('change', (e) => {
-    measureFn = (e.target as HTMLSelectElement).value as typeof measureFn;
-    repivot();
-  });
-
-  const repivot = () => {
-    const byYear = (must('pivoted') as HTMLInputElement).checked;
-    const byQtr = (must('byqtr') as HTMLInputElement).checked;
-    const pivotOn = [
-      ...(byYear ? ['year'] : []),
-      ...(byQtr ? ['qtr'] : []),
-    ];
-    const twoMeasures = (must('twomeasures') as HTMLInputElement).checked;
-    snapshot = {
-      ...snapshot,
-      pivotOn,
-      measures: twoMeasures
-        ? [
-            { name: 'notional', column: 'notional', fn: measureFn },
-            { name: 'trades', column: 'notional', fn: 'count' },
-          ]
-        : [{ name: 'notional', column: 'notional', fn: measureFn }],
-    };
-    void controller.update(snapshot);
-  };
-
-  must('pivoted').addEventListener('change', repivot);
-  must('byqtr').addEventListener('change', repivot);
-  must('twomeasures').addEventListener('change', repivot);
-
-  must('sortdesc').addEventListener('change', (e) => {
-    const desc = (e.target as HTMLInputElement).checked;
-    snapshot = {
-      ...snapshot,
-      sorts: desc ? [{ column: 'region', direction: 'desc' }] : [],
-    };
-    void controller.update(snapshot);
-  });
-
-  // The filter editor owns no query state: it emits a FilterNode and
-  // the snapshot is rebuilt from it, so there is no second copy to
-  // drift.
-  new FilterEditor(must('filters'), {
-    columns: snapshot.columns.map((c) => c.name),
-    onChange: (filter) => {
-      snapshot = filter
-        ? { ...snapshot, filter }
-        : (({ filter: _drop, ...rest }) => rest)(snapshot);
-      void controller.update(snapshot);
-    },
-  });
-
-  must('maxrows').addEventListener('change', (e) => {
-    const n = Number((e.target as HTMLInputElement).value);
-    snapshot = {
-      ...snapshot,
-      ...(Number.isFinite(n) && n > 0 ? { maxRows: n } : {}),
-    };
-    void controller.update(snapshot);
-  });
-
-  must('totals').addEventListener('change', (e) => {
-    const show = (e.target as HTMLInputElement).checked;
-    void controller.setTree(controller.tree.withTotals(show));
-  });
-
-  must('snap').addEventListener('click', async () => {
-    const btn = must('snap') as HTMLButtonElement;
-    btn.disabled = true;
-    try {
-      if (controller.snaps.isSnapped) await controller.release();
-      else await controller.snap();
-      renderPlaneBadge(controller);
-    } catch (e) {
-      status.textContent = e instanceof Error ? e.message : String(e);
-      status.classList.add('bad');
-    } finally {
-      btn.disabled = false;
-    }
-  });
+  await app.open();
+  renderPlaneBadge(app.controller);
 }
 
 /** Rule 1 of snap mode: what you are looking at is never inferable. */
 function renderPlaneBadge(controller: CubeController): void {
+  // The BADGE says which plane you are on; the snap button lives on
+  // the app's own toolbar now. A mode indicator that is only a
+  // button label is a mode indicator people miss.
   const badge = must('plane');
-  const btn = must('snap');
   const state = controller.snaps.state;
   if (state.mode === 'snapped') {
     const t = state.snap.takenAt.toLocaleTimeString();
@@ -289,11 +183,9 @@ function renderPlaneBadge(controller: CubeController): void {
       `${state.snap.label} · frozen at ${t} · ` +
       `${state.snap.rowCount.toLocaleString()} rows`;
     badge.className = 'plane snapped';
-    btn.textContent = 'Go live';
   } else {
     badge.textContent = 'Live — data may move while you work';
     badge.className = 'plane live';
-    btn.textContent = 'Snap';
   }
 }
 

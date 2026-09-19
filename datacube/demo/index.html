@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DataCube demo</title>
 <link rel="stylesheet" href="../src/grid/grid.css">
+<link rel="stylesheet" href="../src/app.css">
 <style>
   :root { color-scheme: light dark; }
   body {
@@ -39,8 +40,7 @@
     background: color-mix(in srgb, mediumseagreen 18%, Canvas);
     border-color: color-mix(in srgb, mediumseagreen 45%, transparent);
   }
-  #grid { height: 420px; }
-  #filters { margin-bottom: 12px; }
+  .dc-app-grid { height: 420px; }
   #status { font-size: 12px; opacity: .75; margin-top: 10px; }
   #status.bad { color: crimson; opacity: 1; }
   #status.warn-text { color: #a15c00; opacity: 1; font-weight: 600; }
@@ -64,8 +64,10 @@
 <body>
   <h1>DataCube</h1>
   <p class="sub">
-    200,000 rows in DuckDB-WASM, pivoted in the browser. Arrow keys to
-    navigate, Ctrl+Home / Ctrl+End to jump.
+    200,000 rows in DuckDB-WASM, pivoted in the browser. Drag a column
+    header into a zone to group or pivot by it; type in the row under
+    the header to filter; right-click for the menu; Properties&hellip;
+    (or Ctrl+E) for the seven configuration panels.
   </p>
 
   <p class="warn" id="plannernote" hidden>
@@ -77,29 +79,10 @@
 
   <div class="bar">
     <span id="plane" class="plane live">Live</span>
-    <button id="snap">Snap</button>
-    <label>Measure
-      <select id="measure">
-        <option value="sum">sum</option>
-        <option value="average">average</option>
-        <option value="count">count</option>
-      </select>
-    </label>
-    <label><input type="checkbox" id="pivoted" checked> pivot by year</label>
-    <label><input type="checkbox" id="byqtr"> + quarter</label>
-    <label><input type="checkbox" id="twomeasures"> + trade count</label>
-    <label>Max rows / level
-      <input type="number" id="maxrows" value="1000" min="1" step="100"
-             style="width: 6em; font: inherit;">
-    </label>
-    <label><input type="checkbox" id="totals" checked> grand total</label>
-    <label><input type="checkbox" id="sortdesc"> sort region desc</label>
     <span id="busy" hidden>running…</span>
   </div>
 
-  <div id="filters"></div>
-
-  <div id="grid"></div>
+  <div id="app"></div>
   <p id="status">loading…</p>
 
   <details>
