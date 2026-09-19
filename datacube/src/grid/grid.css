@@ -1,0 +1,445 @@
+/* Grid styling.
+ *
+ * Layout is CSS grid driven by a column-count custom property, so the
+ * header and the body stay aligned without measuring anything in JS.
+ * Measuring in JS is how grids end up with a header that drifts one
+ * pixel out of line at certain zoom levels.
+ *
+ * Pivot value columns are a UNIFORM width on purpose: the scrollbar
+ * extent has to be right before any column has been measured, and all
+ * value columns hold the same measure in the same format anyway. Row
+ * dimensions get their own width and stick to the left.
+ */
+
+.dc-grid {
+  --dc-row-height: 24px;
+  --dc-dim-width: 200px;
+  --dc-col-width: 104px;
+  --dc-border: color-mix(in srgb, currentColor 14%, transparent);
+  --dc-head-bg: Canvas;
+  --dc-total-bg: color-mix(in srgb, currentColor 5%, transparent);
+  --dc-focus: Highlight;
+
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--dc-border);
+  border-radius: 6px;
+  font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+  background: Canvas;
+  color: CanvasText;
+}
+
+.dc-grid:focus-visible {
+  outline: 2px solid var(--dc-focus);
+  outline-offset: -2px;
+}
+
+/* -- header ------------------------------------------------------- */
+
+.dc-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--dc-head-bg);
+  border-bottom: 1px solid var(--dc-border);
+  overflow: hidden;
+}
+
+/* The header is one grid; every cell is placed explicitly, which is
+   the only way a ragged header (dimensions spanning several levels)
+   lands under the right columns. Widths come from the same leaf list
+   the body uses, so the two cannot drift apart. */
+.dc-head {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+}
+
+/* The row element carries role=row for assistive technology while its
+   children participate in the grid directly. */
+.dc-head-row {
+  display: contents;
+}
+
+.dc-th {
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  font-weight: 600;
+  border-right: 1px solid var(--dc-border);
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--dc-head-bg);
+}
+
+/* -- body --------------------------------------------------------- */
+
+.dc-scroller {
+  flex: 1 1 auto;
+  overflow: auto;
+  /* Vertical scrolling is the common gesture and must not be hijacked
+     into horizontal panning by a trackpad's diagonal drift. */
+  overscroll-behavior: contain;
+}
+
+.dc-spacer {
+  position: relative;
+  width: max-content;
+  min-width: 100%;
+}
+
+.dc-body {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  will-change: transform;
+}
+
+.dc-row {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+  height: var(--dc-row-height);
+  border-bottom: 1px solid var(--dc-border);
+  box-sizing: border-box;
+}
+
+.dc-row.dc-total {
+  background: var(--dc-total-bg);
+  font-weight: 600;
+}
+
+.dc-cell {
+  padding: 0 8px;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  border-right: 1px solid var(--dc-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The tree column: one column for the whole hierarchy, with depth
+   shown by indentation. DataCube gives its equivalent a 200px minimum
+   and pins it left; the same reasoning applies here, because the
+   labels are the only thing identifying a row. */
+.dc-cell.dc-tree {
+  --dc-indent: 0;
+  padding-left: calc(8px + var(--dc-indent) * 14px);
+  gap: 4px;
+}
+
+.dc-chevron {
+  flex: 0 0 auto;
+  width: 12px;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0.75;
+  user-select: none;
+}
+
+.dc-chevron:hover {
+  opacity: 1;
+}
+
+/* A leaf keeps the chevron's width so its label lines up with its
+   siblings' rather than shifting left by twelve pixels. */
+.dc-chevron-empty {
+  cursor: default;
+}
+
+.dc-tree-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Row dimensions read as labels, not as measures: left-aligned, wider,
+   and pinned so they stay legible while scrolling across a wide pivot. */
+.dc-cell.dc-dim {
+  justify-content: flex-start;
+  position: sticky;
+  left: 0;
+  background: Canvas;
+  z-index: 1;
+  font-variant-numeric: normal;
+}
+
+.dc-row.dc-total .dc-cell.dc-dim {
+  background: color-mix(in srgb, CanvasText 5%, Canvas);
+}
+
+/* A cell whose block has not arrived. Shown as a muted bar rather than
+   blank, so an empty VALUE and a not-yet-loaded cell never look alike. */
+.dc-cell.dc-pending::after {
+  content: "";
+  display: block;
+  width: 60%;
+  height: 0.7em;
+  border-radius: 2px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.dc-cell.dc-focus {
+  outline: 2px solid var(--dc-focus);
+  outline-offset: -2px;
+}
+
+.dc-cell:focus {
+  outline: 2px solid var(--dc-focus);
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-body {
+    will-change: auto;
+  }
+}
+
+
+/* -- filter tree ---------------------------------------------------
+ *
+ * Indentation plus a gutter line per level, as DataCube draws it: a
+ * nested group is only legible if the eye can follow which rows it
+ * contains. 36px matches its FILTER_TREE_INDENTATION_SPACE.
+ */
+
+.dc-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.dc-filter-row {
+  --dc-filter-level: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: calc(var(--dc-filter-level) * 36px);
+  min-height: 28px;
+}
+
+/* The gutter: a vertical line back to the owning group, so a deep
+   condition is visibly inside it rather than merely near it. */
+.dc-filter-row[style*="--dc-filter-level: 0"] { }
+
+.dc-filter-row::before {
+  content: "";
+  position: absolute;
+  left: -18px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, currentColor 18%, transparent);
+  display: var(--dc-gutter, block);
+}
+
+.dc-filter-row[style*="level: 0"]::before {
+  display: none;
+}
+
+.dc-filter-group {
+  font-weight: 600;
+}
+
+.dc-filter-not {
+  font: 11px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  padding: 3px 6px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  background: Canvas;
+  color: color-mix(in srgb, currentColor 55%, transparent);
+  cursor: pointer;
+}
+
+/* A negated node must be obvious at a glance: reading a filter
+   backwards is the most expensive mistake this editor can cause. */
+.dc-filter-not-on {
+  background: color-mix(in srgb, crimson 16%, Canvas);
+  border-color: color-mix(in srgb, crimson 45%, transparent);
+  color: color-mix(in srgb, crimson 85%, CanvasText);
+  font-weight: 700;
+}
+
+.dc-filters select,
+.dc-filters input {
+  font: inherit;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  background: Canvas;
+  color: CanvasText;
+}
+
+.dc-filter-op { max-width: 15em; }
+.dc-filter-value { min-width: 7em; }
+
+.dc-filter-btn,
+.dc-filter-remove {
+  font: inherit;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
+  background: Canvas;
+  color: CanvasText;
+  cursor: pointer;
+}
+
+.dc-filter-remove {
+  border-color: transparent;
+  opacity: 0.6;
+}
+
+.dc-filter-remove:hover {
+  opacity: 1;
+  border-color: color-mix(in srgb, crimson 40%, transparent);
+}
+
+.dc-filter-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 2px;
+}
+
+
+/* -- pinned columns and blurred values ---------------------------- */
+
+.dc-cell.dc-pin-left,
+.dc-cell.dc-dim {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: Canvas;
+}
+
+.dc-cell.dc-pin-right {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: Canvas;
+}
+
+/* Obscured rather than hidden: the row still lines up, and the value
+   is one hover away for whoever is entitled to it. */
+.dc-cell.dc-blur {
+  filter: blur(5px);
+  transition: filter 120ms ease;
+}
+
+.dc-cell.dc-blur:hover,
+.dc-cell.dc-blur:focus,
+.dc-row:hover .dc-cell.dc-blur {
+  filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-cell.dc-blur { transition: none; }
+}
+
+
+/* -- appearance ---------------------------------------------------
+ *
+ * Grid lines are switched by a custom property rather than a class,
+ * so the whole grid changes with one declaration instead of a class
+ * toggle on every cell.
+ */
+
+.dc-grid {
+  --dc-hgrid: 1;
+  --dc-vgrid: 1;
+  --dc-alt-row: color-mix(in srgb, currentColor 4%, transparent);
+}
+
+.dc-row {
+  border-bottom-width: calc(var(--dc-hgrid) * 1px);
+}
+
+.dc-cell,
+.dc-th {
+  border-right-width: calc(var(--dc-vgrid) * 1px);
+}
+
+/* Banded rows sit UNDER the total shading, so a subtotal stays
+   distinguishable inside a banded region. */
+.dc-row.dc-alt {
+  background: var(--dc-alt-row);
+}
+
+.dc-row.dc-alt .dc-cell.dc-dim {
+  background: color-mix(in srgb, var(--dc-alt-row) 100%, Canvas);
+}
+
+.dc-row.dc-total,
+.dc-row.dc-total.dc-alt {
+  background: var(--dc-total-bg);
+}
+
+
+/* -- selection -----------------------------------------------------
+ *
+ * A wash rather than a border: a border on each cell of a rectangle
+ * draws a grid inside the selection instead of an outline around it.
+ */
+
+.dc-cell.dc-selected {
+  background: color-mix(in srgb, Highlight 18%, Canvas);
+}
+
+.dc-row.dc-alt .dc-cell.dc-selected,
+.dc-row.dc-total .dc-cell.dc-selected {
+  background: color-mix(in srgb, Highlight 24%, Canvas);
+}
+
+
+/* -- context menu --------------------------------------------------
+ *
+ * Fixed rather than absolute: the menu is positioned from viewport
+ * coordinates, and an absolutely-positioned menu inside a scrolled
+ * container lands somewhere else entirely.
+ */
+
+.dc-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 220px;
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  background: Canvas;
+  color: CanvasText;
+  box-shadow: 0 8px 24px color-mix(in srgb, CanvasText 18%, transparent);
+  font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.dc-menu-item {
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dc-menu-item:hover,
+.dc-menu-item:focus {
+  background: color-mix(in srgb, Highlight 18%, Canvas);
+  outline: none;
+}
+
+.dc-menu-sep {
+  height: 1px;
+  margin: 4px 6px;
+  background: color-mix(in srgb, currentColor 14%, transparent);
+}

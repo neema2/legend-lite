@@ -1,0 +1,6 @@
+node_modules/
+*.duckdb
+*.duckdb.wal
+demo/vendor/
+demo/bundle.js
+demo/screenshot.png

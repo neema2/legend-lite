@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
  * - POST /lsp - Handle LSP JSON-RPC messages (diagnostics, completions, etc.)
  * - POST /engine/execute - Execute Pure query (compile + generate SQL + run)
  * - POST /engine/sql - Execute raw SQL against Connection from Runtime
+ * - POST /engine/plan - Compile Pure to SQL WITHOUT executing (plan only)
  * - GET /health - Health check
  */
 public class LegendHttpServer {
@@ -49,6 +50,7 @@ public class LegendHttpServer {
         // Engine - query and SQL execution
         server.createContext("/engine/execute", new ExecuteHandler());
         server.createContext("/engine/sql", new ExecuteSqlHandler());
+        server.createContext("/engine/plan", new PlanHandler());
         server.createContext("/engine/diagram", new DiagramHandler());
 
         // Health check
@@ -190,6 +192,89 @@ public class LegendHttpServer {
      * "runtime": "test::TestRuntime"
      * }
      */
+    /**
+     * Compile Pure to SQL WITHOUT executing it.
+     *
+     * <p>The seam a CLIENT-SIDE executor needs. DataCube's browser plane
+     * runs SQL against an embedded DuckDB, but that SQL must still be
+     * produced here, so that there is exactly ONE planner: the same Pure
+     * lowers to the same SQL whether it then runs against a warehouse on
+     * this side or against a local snap in a browser tab. A second
+     * planner written in the client would be a second thing that has to
+     * agree about null ordering, coercion and aggregate semantics.
+     *
+     * <p>{@link com.legend.Compiler#plan} needs no Connection, so this
+     * endpoint touches no database: parse, compile, lower, render, return.
+     *
+     * <p>Request: {@code {"code": "<model + query>", "runtime": "<name>"}}
+     * — runtime is optional, and extracted from the source when absent.
+     * Response: {@code {"sql": "…", "shape": "…"}}
+     */
+    private class PlanHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            addCorsHeaders(exchange);
+            if ("OPTIONS".equals(exchange.getRequestMethod())) {
+                exchange.sendResponseHeaders(204, -1);
+                exchange.close();
+                return;
+            }
+            if (!"POST".equals(exchange.getRequestMethod())) {
+                sendResponse(exchange, 405, "{\"error\":\"Method not allowed\"}");
+                return;
+            }
+
+            try {
+                Json.Obj request = Json.parseObject(readBody(exchange));
+                String fullSource = request.getStringOr("code", null);
+                if (fullSource == null || fullSource.isBlank()) {
+                    sendResponse(exchange, 400,
+                            "{\"error\":\"Missing 'code' field\"}");
+                    return;
+                }
+
+                String runtimeName = request.getStringOr("runtime", null);
+                if (runtimeName == null || runtimeName.isBlank()) {
+                    runtimeName = extractRuntimeName(fullSource);
+                    if (runtimeName == null) {
+                        sendResponse(exchange, 400,
+                                "{\"error\":\"Missing 'runtime' field and no Runtime in source\"}");
+                        return;
+                    }
+                }
+
+                String[] parts = separateModelAndQuery(fullSource);
+                String modelSource = parts[0];
+                String query = parts[1];
+                if (query == null || query.isBlank()) {
+                    sendResponse(exchange, 400,
+                            "{\"error\":\"No query expression found after Runtime definition\"}");
+                    return;
+                }
+
+                com.legend.exec.QueryPlan plan =
+                        com.legend.Compiler.plan(modelSource, query, runtimeName);
+
+                Map<String, Object> response = new LinkedHashMap<>();
+                response.put("success", true);
+                response.put("sql", plan.sql());
+                response.put("shape", String.valueOf(plan.shape()));
+                sendResponse(exchange, 200, Json.toCompact(response));
+            } catch (com.legend.error.LegendCompileException
+                    | com.legend.error.NotImplementedException
+                    | com.legend.sql.dialect.DialectCapability e) {
+                // The three honest outcomes of a plan-only call: the
+                // model or query does not compile, the construct is not
+                // implemented, or the dialect cannot express it. Anything
+                // else is a bug and propagates rather than being dressed
+                // up as a user-facing error message.
+                sendResponse(exchange, 500,
+                        "{\"error\":\"" + Json.escape(String.valueOf(e.getMessage()))
+                        + "\"}");
+            }
+        }
+    }
+
     private class ExecuteSqlHandler implements HttpHandler {
         @Override
         public void handle(HttpExchange exchange) throws IOException {
