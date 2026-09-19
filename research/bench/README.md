@@ -69,3 +69,63 @@ nothing here depends on it.
 Both need only the `duckdb` CLI / Python module (tested on 1.4.4). Never
 read these numbers off a loaded machine; re-run on an idle one before
 quoting them as anything but upper bounds.
+
+## `snapcost.py` — what a user-initiated snap costs
+
+Question: if a user explicitly "snaps" a cache and explores it locally,
+what does that cost to create, how big is the payload that has to live
+in a browser tab, and how fast is it to query afterwards?
+
+A snap freezes the *filtered source rows at drillable grain* — not the
+aggregated result — because re-pivoting and drill-through both need the
+underlying rows. Parquet is the container: it sidesteps the
+apache-arrow JS version hazard (duckdb-wasm wants ^17, current is 21.2.0,
+and a mismatch fails silently leaving the table uncreated).
+
+    5M rows, 8 columns, zstd, threads=1
+
+            rows   snap ms   parquet   B/row  pivot@pq ms  pivot@tbl ms
+       1,000,000        90     2.5MB     2.6         14.1           7.1
+       5,000,000       422    12.3MB     2.6         68.3          33.8
+      20,000,000      1581    49.0MB     2.6        270.3         132.4
+
+Two findings:
+
+1. **Snap cost is linear at ~79ms per million rows** single-threaded, so
+   a 10M-row snap is well under a second. That is a legitimate
+   foreground "snapping..." moment, not a background job.
+
+2. **Querying the Parquet file is consistently 2x slower than querying a
+   native table** (14.1/7.1, 68.3/33.8, 270.3/132.4 — the decompression
+   cost). So Parquet is the *transport* format: on arrival, load it into
+   a DuckDB table and query that. Keeping the snap as a file and
+   querying it in place silently halves throughput.
+
+At 20M rows a windowed pivot from a native table is 132ms
+single-threaded, inside the 300ms p95 budget, and a browser gets more
+than one thread.
+
+## `snapentropy.py` — the snap ceiling, bracketed honestly
+
+The 2.6 B/row above is **not a usable planning number**. It is an
+artifact of modulo-patterned synthetic columns, which Parquet's
+dictionary and RLE encodings compress unrealistically well. Real data
+sits higher, so the range was measured with the same column count at
+three entropy levels.
+
+    5,000,000 rows, 8 columns, zstd parquet, threads=1
+
+                       shape    parquet    B/row   rows in 500MB
+             regular (floor)      12.3MB      2.6     203,277,499
+                   realistic      73.9MB     15.5      33,819,197
+      high entropy (ceiling)     270.1MB     56.6       9,256,337
+
+"realistic" keeps dimensions low-cardinality (that is what makes them
+dimensions) while ids are unique and measures genuinely continuous.
+"high entropy" replaces the text columns with UUIDs — the pessimistic
+case for a financial dataset carrying trade ids and free text.
+
+**Planning number: a ~500MB snap budget holds 10M rows across every
+data shape measured, and 30M+ for realistic shapes.** Design the ceiling
+at 10M rows with a pre-flight size estimate shown to the user, rather
+than a row count that happens to work for compressible data.
