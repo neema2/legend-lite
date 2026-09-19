@@ -225,7 +225,11 @@ export class DataGrid {
   #templateColumns(model: ColumnModel): string {
     return model.leaves
       .map((l) =>
-        l.isDimension ? 'var(--dc-dim-width)' : 'var(--dc-col-width)',
+        l.width !== undefined
+          ? `${l.width}px`
+          : l.isDimension
+            ? 'var(--dc-dim-width)'
+            : 'var(--dc-col-width)',
       )
       .join(' ');
   }

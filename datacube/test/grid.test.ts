@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  TREE_COLUMN,
   buildColumnModel,
   splitPath,
   valueColumns,
@@ -256,6 +257,69 @@ describe('buildColumnModel', () => {
         `level ${level} must cover every column exactly once`,
       );
     }
+  });
+
+  it('hides columns before building the header', () => {
+    // Hiding after the header is built leaves a phantom colSpan that
+    // pushes every neighbour sideways.
+    const m = buildColumnModel(
+      table(['region', 'a', 'b']),
+      ['region'],
+      [],
+      { hidden: ['a'] },
+    );
+    assert.deepEqual(m.leaves.map((l) => l.name), ['region', 'b']);
+    assert.deepEqual(
+      m.headerRows[0]?.map((h) => [h.label, h.colStart]),
+      [
+        ['region', 0],
+        ['b', 1],
+      ],
+    );
+  });
+
+  it('never hides the tree column', () => {
+    // Without it a grouped cube has no row labels at all.
+    const m = buildColumnModel(
+      table([TREE_COLUMN, 'a']),
+      [],
+      [],
+      { hidden: [TREE_COLUMN, 'a'] },
+    );
+    assert.deepEqual(m.leaves.map((l) => l.name), [TREE_COLUMN]);
+  });
+
+  it('reorders columns, keeping unlisted ones behind in engine order', () => {
+    // A measure added after a view was saved must not vanish.
+    const m = buildColumnModel(
+      table(['a', 'b', 'c', 'd']),
+      [],
+      [],
+      { order: ['c', 'a'] },
+    );
+    assert.deepEqual(m.leaves.map((l) => l.name), ['c', 'a', 'b', 'd']);
+  });
+
+  it('keeps the source index across reordering, so cells follow', () => {
+    const m = buildColumnModel(table(['a', 'b']), [], [], { order: ['b', 'a'] });
+    assert.deepEqual(
+      m.leaves.map((l) => [l.name, l.index]),
+      [
+        ['b', 1],
+        ['a', 0],
+      ],
+    );
+  });
+
+  it('carries an explicit width', () => {
+    const m = buildColumnModel(
+      table(['a', 'b']),
+      [],
+      [],
+      { widths: { a: 320 } },
+    );
+    assert.equal(m.leaves[0]?.width, 320);
+    assert.equal(m.leaves[1]?.width, undefined);
   });
 
   it('separates dimensions from value columns', () => {

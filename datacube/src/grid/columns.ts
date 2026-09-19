@@ -32,8 +32,10 @@ export { TREE_COLUMN };
 export const PIVOT_SEPARATOR = '__|__';
 
 export interface LeafColumn {
-  /** Index into the result's columns. */
+  /** Index into the result's columns. Survives reordering and hiding. */
   readonly index: number;
+  /** Pixel width, when the user has set one. */
+  readonly width?: number;
   /** Full generated name, e.g. '2023__|__total'. */
   readonly name: string;
   /** Path segments, e.g. ['2023', 'total']. */
@@ -113,10 +115,20 @@ export function splitPath(
  * measure. Passing both in is what keeps this exact rather than
  * heuristic.
  */
+export interface ColumnLayout {
+  /** Display order. Columns not listed keep engine order, after these. */
+  readonly order?: readonly string[];
+  /** Hidden from the grid. Still queried, so totals stay correct. */
+  readonly hidden?: readonly string[];
+  /** Pixel widths by column name. */
+  readonly widths?: Readonly<Record<string, number>>;
+}
+
 export function buildColumnModel(
   table: ResultTable,
   dimensions: readonly string[] = [],
   measures: readonly string[] = [],
+  layout: ColumnLayout = {},
 ): ColumnModel {
   const leaves: LeafColumn[] = table.columns.map((c, index) => {
     // The tree column's header is deliberately blank: it holds a
@@ -136,15 +148,45 @@ export function buildColumnModel(
     };
   });
 
-  const depth = Math.max(1, ...leaves.map((l) => l.path.length));
+  // Hiding happens BEFORE the header is built, or a hidden column
+  // still contributes a colSpan and pushes its neighbours sideways.
+  // The tree column is never hidden: without it a grouped cube has no
+  // row labels at all.
+  const hidden = new Set(layout.hidden ?? []);
+  const visible = leaves.filter(
+    (l) => l.name === TREE_COLUMN || !hidden.has(l.name),
+  );
+
+  // Ordering is applied to the VISIBLE leaves; anything unlisted keeps
+  // engine order behind the listed ones, so adding a measure does not
+  // silently vanish from a saved view that predates it.
+  const order = layout.order;
+  const ordered = order
+    ? [...visible].sort((a, b) => {
+        const ia = order.indexOf(a.name);
+        const ib = order.indexOf(b.name);
+        if (ia === -1 && ib === -1) return a.index - b.index;
+        if (ia === -1) return 1;
+        if (ib === -1) return -1;
+        return ia - ib;
+      })
+    : visible;
+
+  const widths = layout.widths ?? {};
+  const sized: LeafColumn[] = ordered.map((l) => {
+    const w = widths[l.name];
+    return w === undefined ? l : { ...l, width: w };
+  });
+
+  const depth = Math.max(1, ...sized.map((l) => l.path.length));
 
   // Level by level, merge runs of adjacent leaves that share a prefix.
   const headerRows: HeaderCell[][] = [];
   for (let level = 0; level < depth; level++) {
     const row: HeaderCell[] = [];
     let i = 0;
-    while (i < leaves.length) {
-      const leaf = leaves[i]!;
+    while (i < sized.length) {
+      const leaf = sized[i]!;
 
       // A leaf shallower than this level has already been covered by a
       // rowSpan emitted at its own level -- skip it rather than
@@ -159,8 +201,8 @@ export function buildColumnModel(
       // two different years can both have a 'total' beneath them, and
       // merging on the segment alone would fuse unrelated columns.
       let j = i + 1;
-      while (j < leaves.length) {
-        const next = leaves[j]!;
+      while (j < sized.length) {
+        const next = sized[j]!;
         if (next.path.length <= level) break;
         if (!samePrefix(leaf.path, next.path, level)) break;
         j += 1;
@@ -181,7 +223,7 @@ export function buildColumnModel(
     headerRows.push(row);
   }
 
-  return { leaves, headerRows, depth };
+  return { leaves: sized, headerRows, depth };
 }
 
 function samePrefix(

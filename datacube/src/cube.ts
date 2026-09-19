@@ -7,7 +7,11 @@
 
 import type { QueryEngine } from './engine.ts';
 import { EpochGuard, isStale, type Stale } from './epoch.ts';
-import { buildColumnModel, type ColumnModel } from './grid/columns.ts';
+import {
+  buildColumnModel,
+  type ColumnLayout,
+  type ColumnModel,
+} from './grid/columns.ts';
 import type { CubeSnapshot } from './snapshot.ts';
 import { referencedColumns } from './snapshot.ts';
 import { serialize, type LevelScope } from './serialize.ts';
@@ -55,6 +59,8 @@ export interface CubeView {
 }
 
 export interface CubeControllerOptions {
+  /** Column order, visibility and widths. */
+  readonly layout?: ColumnLayout;
   readonly onView?: (view: CubeView) => void;
   readonly onError?: (error: unknown) => void;
   readonly onBusy?: (busy: boolean) => void;
@@ -155,6 +161,7 @@ export class CubeController {
               view.table,
               withEpoch.rows,
               measureNames,
+              this.#options.layout ?? {},
             ),
             rows: view.table,
             treeRows: view.rows,
@@ -165,7 +172,12 @@ export class CubeController {
         const grammar = serialize(withEpoch);
         const sql = await this.#planner.plan(grammar, withEpoch);
         const rows = await this.#engine.execute(sql, epoch);
-        const columns = buildColumnModel(rows, withEpoch.rows, measureNames);
+        const columns = buildColumnModel(
+          rows,
+          withEpoch.rows,
+          measureNames,
+          this.#options.layout ?? {},
+        );
         return {
           snapshot: withEpoch,
           columns,
