@@ -239,3 +239,70 @@ the `prefilter=True` arm is the one that matches what legend-lite emits.
 This belongs in the regression suite: it is the invariant that makes
 column windowing sound, and the counter-case that makes the separate
 row-axis query mandatory rather than merely tidy.
+
+## `projectprune.py` — there is no safe middle path
+
+Pinning an IN list buys narrow compute but makes legend-lite pre-filter
+the source, which changes row membership. A PROJECTION over a full-width
+pivot cannot change row membership, so if DuckDB's projection pushdown
+pruned the unused FILTERed aggregates we would get narrow compute for
+free and none of the complexity. It does not.
+
+    rows=2,000,000  width=5000  window=40  threads=1  min of 3
+
+                   A full (all cols)     275.0ms   rows=400
+               B projected from full     257.6ms   rows=400
+              C prefiltered (narrow)       3.6ms   rows=400
+              D dynamic + projection     276.4ms   rows=400
+
+B costs what A costs. The aggregates are computed whether or not the
+columns are selected, so **the cost is computing groups x columns
+aggregate states, not materializing them** — which corrects the cost
+model in `cellcost.py`: it is compute-bound, not output-bound.
+
+So the choice is binary: narrow compute with the pre-filter's
+row-membership hazard, or full-width compute with one simple consistent
+query. There is no third option at the SQL level.
+
+Note this fixture cannot show the row-drop hazard — with
+`grp = (i//WIDTH)%500` every group contains every pivot key, so arm C
+keeps all 400 rows. `windowinvariant.py` uses deliberately ragged data
+for that. The 76x gap between A and C here (vs 6.6x in `widepivot.py`
+at the same width) shows how strongly the windowing payoff depends on
+data shape: it ranges from ~1.2x on narrow pivots to ~76x on wide dense
+ones.
+
+## Where this lands: start simple
+
+Collecting the width numbers in one place, because they decide how much
+complexity is justified:
+
+    pivot columns    full-width    windowed    payoff
+              200        19.9ms      16.6ms      1.2x
+             1000        36.2ms      18.3ms      2.0x
+             5000       119.9ms      18.2ms      6.6x
+            20000       850.4ms      20.8ms     40.9x
+
+**Below roughly 1,000 columns, full-width is already inside the frame
+budget and column windowing buys nothing measurable.** Every piece of
+brittleness in the windowed design — the three-query split, the
+row-membership invariant, column overscan, the window cache, uniform
+column widths — exists solely to serve column windowing, and therefore
+solely to serve pivots wider than about a thousand columns.
+
+A month-by-three-measures pivot is 36 columns. Quarter by category by
+two measures is about a hundred. Reaching five thousand takes pivoting
+on something high-cardinality, like instrument or trader id.
+
+So v1 should be **one query, full width, row-axis windowing only**.
+Column windowing becomes a documented escape hatch with a measured
+trigger, built as the three-query split if and when a real cube needs
+it. Row windowing is kept because it always pays and carries no
+correctness hazard: bounding the row window bounds the payload, since
+payload = row window x columns.
+
+What is worth keeping regardless, none of it brittle: keyset row
+pagination, epoch-stamped discarding (forced anyway — `query()` cannot
+be cancelled), the formatter cache (27ms -> 1ms, unrelated to
+windowing), identity-keyed view state, subtotals via `concatenate`, and
+snap mode.
