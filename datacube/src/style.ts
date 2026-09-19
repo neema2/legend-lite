@@ -191,3 +191,100 @@ export function gridVariables(a: GridAppearance): Record<string, string> {
   if (a.fontSize !== undefined) vars['--dc-font-size'] = `${a.fontSize}px`;
   return vars;
 }
+
+
+// -- heatmaps ---------------------------------------------------------
+
+export interface HeatmapRange {
+  readonly min: number;
+  readonly max: number;
+}
+
+export interface HeatmapSpec {
+  /** Colour at the low end. */
+  readonly from: string;
+  /** Colour at the high end. */
+  readonly to: string;
+  /**
+   * Fix the scale rather than deriving it from the data.
+   *
+   * Useful when two cubes must be comparable, and necessary when the
+   * visible rows are a windowed prefix -- deriving the range from
+   * what happens to be on screen makes the colours change as the
+   * user scrolls.
+   */
+  readonly range?: HeatmapRange;
+}
+
+/**
+ * The numeric range of a column, ignoring blanks and non-numbers.
+ *
+ * Returns null when there is nothing to scale, so a caller renders no
+ * heatmap rather than a uniform block of the low colour.
+ */
+export function columnRange(values: readonly Scalar[]): HeatmapRange | null {
+  let min = Number.POSITIVE_INFINITY;
+  let max = Number.NEGATIVE_INFINITY;
+  let seen = false;
+  for (const v of values) {
+    if (typeof v !== 'number' || !Number.isFinite(v)) continue;
+    seen = true;
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  return seen ? { min, max } : null;
+}
+
+/**
+ * Where a value sits in a range, from 0 to 1.
+ *
+ * A zero-width range maps everything to the TOP rather than dividing
+ * by zero: when every value is identical they are all the maximum,
+ * and rendering them all as the minimum reads as "all low", which is
+ * the opposite of true.
+ */
+export function heatPosition(value: number, range: HeatmapRange): number {
+  const span = range.max - range.min;
+  if (span <= 0) return 1;
+  const t = (value - range.min) / span;
+  return t < 0 ? 0 : t > 1 ? 1 : t;
+}
+
+/** Mix two `#rrggbb` colours. Returns `from` when t is 0. */
+export function mixHex(from: string, to: string, t: number): string {
+  const parse = (hex: string): [number, number, number] => {
+    const h = hex.replace('#', '');
+    const full =
+      h.length === 3
+        ? h
+            .split('')
+            .map((c) => c + c)
+            .join('')
+        : h;
+    return [
+      Number.parseInt(full.slice(0, 2), 16),
+      Number.parseInt(full.slice(2, 4), 16),
+      Number.parseInt(full.slice(4, 6), 16),
+    ];
+  };
+  const [r1, g1, b1] = parse(from);
+  const [r2, g2, b2] = parse(to);
+  const c = (a: number, b: number): number => Math.round(a + (b - a) * t);
+  const hex = (n: number): string => n.toString(16).padStart(2, '0');
+  return `#${hex(c(r1, r2))}${hex(c(g1, g2))}${hex(c(b1, b2))}`;
+}
+
+/**
+ * The background colour for one heatmapped cell, or null when the
+ * value cannot be placed on the scale.
+ */
+export function heatColour(
+  value: Scalar,
+  spec: HeatmapSpec,
+  range: HeatmapRange | null,
+): string | null {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const r = spec.range ?? range;
+  if (!r) return null;
+  return mixHex(spec.from, spec.to, heatPosition(value, r));
+}

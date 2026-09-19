@@ -3,6 +3,10 @@ import { describe, it } from 'node:test';
 
 import {
   cellStyle,
+  columnRange,
+  heatColour,
+  heatPosition,
+  mixHex,
   coloursFor,
   gridVariables,
   isAlternateRow,
@@ -170,5 +174,63 @@ describe('gridVariables', () => {
     assert.equal(v['--dc-alt-row'], '#fafafa');
     assert.equal(v['--dc-font'], 'Inter');
     assert.equal(v['--dc-font-size'], '13px');
+  });
+});
+
+describe('heatmap', () => {
+  it('ignores blanks and non-numbers when measuring a column', () => {
+    assert.deepEqual(columnRange([10, null, 'x', -5, 30]), { min: -5, max: 30 });
+  });
+
+  it('reports no range when there is nothing to scale', () => {
+    // A caller must render no heatmap rather than a uniform block of
+    // the low colour.
+    assert.equal(columnRange([null, 'x']), null);
+  });
+
+  it('places a value in its range', () => {
+    const r = { min: 0, max: 100 };
+    assert.equal(heatPosition(0, r), 0);
+    assert.equal(heatPosition(50, r), 0.5);
+    assert.equal(heatPosition(100, r), 1);
+  });
+
+  it('clamps a value outside a fixed range', () => {
+    const r = { min: 0, max: 10 };
+    assert.equal(heatPosition(-5, r), 0);
+    assert.equal(heatPosition(99, r), 1);
+  });
+
+  it('maps a flat column to the TOP, not the bottom', () => {
+    // When every value is identical they are all the maximum;
+    // rendering them all as the minimum reads as "all low", which is
+    // the opposite of true.
+    assert.equal(heatPosition(7, { min: 7, max: 7 }), 1);
+  });
+
+  it('mixes colours across the scale', () => {
+    assert.equal(mixHex('#000000', '#ffffff', 0), '#000000');
+    assert.equal(mixHex('#000000', '#ffffff', 1), '#ffffff');
+    assert.equal(mixHex('#000000', '#ffffff', 0.5), '#808080');
+  });
+
+  it('accepts short hex', () => {
+    assert.equal(mixHex('#000', '#fff', 1), '#ffffff');
+  });
+
+  it('colours a cell, or declines to', () => {
+    const spec = { from: '#ffffff', to: '#ff0000' };
+    const range = { min: 0, max: 10 };
+    assert.equal(heatColour(10, spec, range), '#ff0000');
+    assert.equal(heatColour(null, spec, range), null);
+    assert.equal(heatColour('x', spec, range), null);
+    assert.equal(heatColour(5, spec, null), null, 'no range, no colour');
+  });
+
+  it('prefers a fixed range over the measured one', () => {
+    // Deriving the scale from the visible rows makes the colours
+    // change as the user scrolls a windowed grid.
+    const spec = { from: '#000000', to: '#ffffff', range: { min: 0, max: 100 } };
+    assert.equal(heatColour(50, spec, { min: 49, max: 51 }), '#808080');
   });
 });
