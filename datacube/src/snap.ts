@@ -55,6 +55,17 @@ export interface SnapInfo {
   /** Table name the snap materialised into. */
   readonly table: string;
   /**
+   * What a query should read from while this snap holds.
+   *
+   * A SOURCE EXPRESSION, not a table name, because the query is
+   * Pure before it is SQL: with the real planner the live source is
+   * `#>{db.TABLE}#` and the snapped one has to be a relation the
+   * planner can also resolve. Substituting a bare SQL identifier
+   * into Pure produces something no compiler accepts -- which is
+   * exactly what the first end-to-end run against legend-lite hit.
+   */
+  readonly sourceExpression: string;
+  /**
    * The ordered distinct values of each pivot-capable column, captured
    * once. While snapped this cannot change, so discovery runs once per
    * SNAP rather than once per query -- one of the concrete wins of an
@@ -109,10 +120,18 @@ export class SnapManager {
     return this.#state.mode === 'snapped';
   }
 
-  /** The relation a query should read from, given the current plane. */
+  /**
+   * The relation a query should read from, given the current plane.
+   *
+   * This existed and NOTHING CALLED IT, so snapping materialised a
+   * table and then went on querying the live source: the badge
+   * changed and the data did not. The controller calls it on every
+   * refresh now, and a test pins that the snapped plane reads the
+   * snap.
+   */
   sourceFor(liveSource: string): string {
     return this.#state.mode === 'snapped'
-      ? quoteIdent(this.#state.snap.table)
+      ? this.#state.snap.sourceExpression
       : liveSource;
   }
 
@@ -153,6 +172,14 @@ export class SnapManager {
     options: {
       readonly label?: string;
       readonly pivotCandidates?: readonly string[];
+      /**
+       * Where to materialise, and what to call it in a query
+       * afterwards. Supplied by the caller because only the caller
+       * knows whether the source is a SQL identifier or a Pure
+       * accessor into a model -- and with a model, the snap target
+       * has to be a table that model also declares.
+       */
+      readonly target?: { readonly table: string; readonly expression: string };
     } = {},
   ): Promise<SnapInfo> {
     const estimate = await this.preflight(sourceSql, epoch);
@@ -161,7 +188,7 @@ export class SnapManager {
     }
 
     this.#counter += 1;
-    const table = `dc_snap_${this.#counter}`;
+    const table = options.target?.table ?? `dc_snap_${this.#counter}`;
     await this.#engine.execute(
       `CREATE OR REPLACE TABLE ${quoteIdent(table)} AS ${sourceSql}`,
       epoch,
@@ -187,6 +214,7 @@ export class SnapManager {
       takenAt,
       rowCount: estimate.rowCount,
       table,
+      sourceExpression: options.target?.expression ?? quoteIdent(table),
       columnValues,
     };
     this.#state = { mode: 'snapped', snap };

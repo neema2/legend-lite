@@ -17,6 +17,7 @@ import { referencedColumns } from './snapshot.ts';
 import { serialize, type LevelScope } from './serialize.ts';
 import type { ResultTable } from './result.ts';
 import { SnapManager } from './snap.ts';
+import { requestKey } from './tree.ts';
 import {
   TreeState,
   type LevelRequest,
@@ -65,7 +66,16 @@ export interface CubeView {
    * infer it from a suspiciously round row count.
    */
   readonly truncated: readonly LevelRequest[];
-  /** Generated Pure and SQL, for the "show me the query" panel. */
+  /**
+   * The query, for the "show me the query" panel.
+   *
+   * BOTH, because they answer different questions: the Pure is what
+   * this product emitted, the SQL is what the planner made of it
+   * and what the engine actually ran. `sql` held Pure for the whole
+   * life of this project -- a panel labelled SQL that had never
+   * shown any.
+   */
+  readonly pure: string;
   readonly sql: string;
 }
 
@@ -75,6 +85,15 @@ export interface CubeControllerOptions {
   readonly onView?: (view: CubeView) => void;
   readonly onError?: (error: unknown) => void;
   readonly onBusy?: (busy: boolean) => void;
+  /**
+   * Where a snap materialises, when the source is a model relation.
+   *
+   * With the demo shim the source is a bare SQL identifier and a
+   * generated `dc_snap_N` works. With the real planner the source
+   * is `#>{db.TABLE}#`, and the snapped source must be another
+   * relation the SAME model declares -- so the host names it.
+   */
+  readonly snapTarget?: { readonly table: string; readonly expression: string };
 }
 
 export class CubeController {
@@ -154,7 +173,15 @@ export class CubeController {
       const out = await this.#guard.issue(async (epoch) => {
         // The snapshot's own epoch is advisory; the guard's is
         // authoritative, so a stale answer cannot win a race.
-        const withEpoch: CubeSnapshot = { ...snapshot, epoch };
+        // The PLANE decides what a query reads from. Without this
+        // the snap was cosmetic: a table was materialised and every
+        // subsequent query still went to the live source.
+        const source = this.#snaps.sourceFor(snapshot.source.expression);
+        const withEpoch: CubeSnapshot = {
+          ...snapshot,
+          epoch,
+          source: { ...snapshot.source, expression: source },
+        };
         const measureNames = withEpoch.measures.map((m) => m.name);
 
         // A cube with row dimensions is a tree: the grand total and
@@ -177,7 +204,12 @@ export class CubeController {
             rows: view.table,
             treeRows: view.rows,
             truncated: view.truncated,
-            sql: serialize(withEpoch, { level: 1, parent: [] }),
+            pure: serialize(withEpoch, { level: 1, parent: [] }),
+            // The level-1 plan is the representative one: it is the
+            // query behind the rows a user is looking at.
+            sql:
+              view.levels.get(requestKey({ level: 1, parent: [] }))?.sql ??
+              '',
           } satisfies CubeView;
         }
 
@@ -196,6 +228,7 @@ export class CubeController {
           rows,
           treeRows: [],
           truncated: [],
+          pure: grammar,
           sql,
         } satisfies CubeView;
       });
@@ -221,11 +254,23 @@ export class CubeController {
     const snapshot = this.#snapshot;
     if (!snapshot) throw new Error('no snapshot set');
 
-    const columns = referencedColumns(snapshot).map(quoteIdent).join(', ');
-    const source = `SELECT ${columns} FROM ${snapshot.source.expression}`;
-    await this.#snaps.snap(source, this.#guard.current, {
+    // Through the PLANNER, like every other query. This used to
+    // build `SELECT "a", "b" FROM <source>` by hand, which worked
+    // only because the demo's source happened to be a bare SQL
+    // identifier; against the real planner the source is a Pure
+    // accessor and the hand-built SQL was nonsense. "One planner"
+    // is an architectural commitment and this was the one place
+    // that quietly broke it.
+    const columns = referencedColumns(snapshot).join(', ');
+    const pure = `${snapshot.source.expression}->select(~[${columns}])`;
+    const sourceSql = await this.#planner.plan(pure, snapshot);
+
+    await this.#snaps.snap(sourceSql, this.#guard.current, {
       ...(label !== undefined ? { label } : {}),
       pivotCandidates: snapshot.pivotOn,
+      ...(this.#options.snapTarget
+        ? { target: this.#options.snapTarget }
+        : {}),
     });
     await this.refresh();
   }
@@ -239,8 +284,4 @@ export class CubeController {
     this.#options.onError?.(error);
     throw error;
   }
-}
-
-function quoteIdent(name: string): string {
-  return `"${name.replace(/"/g, '""')}"`;
 }

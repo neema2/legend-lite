@@ -296,6 +296,14 @@ try {
   }
   await shot('rebuilt-from-tool-panel', '.dc-app');
 
+  // The query panels, which is where the end-to-end path is visible:
+  // the Pure this product emits, and the SQL legend-lite made of it.
+  await page.evaluate(() => {
+    for (const d of document.querySelectorAll('details')) d.open = true;
+  });
+  await page.waitForTimeout(200);
+  await shot('generated-pure-and-sql');
+
   console.log(`\n${n} screenshots in ${OUT}/`);
 } catch (e) {
   console.error('FAILED:', e instanceof Error ? e.message : String(e));

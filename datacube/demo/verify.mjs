@@ -118,6 +118,25 @@ try {
   const status = await page.textContent('#status');
   check('boots and renders', true, status?.trim());
 
+  // WHICH PLANNER ran. Without this the whole run passes just as
+  // happily on the demo shim, and "verified end to end against
+  // legend-lite" becomes a claim nothing can refute.
+  const real = await page.locator('#plannerreal').isVisible();
+  console.log(
+    real
+      ? '      planner: legend-lite on :8080 (real)'
+      : '      planner: demo shim (start legend-lite for the real path)',
+  );
+  if (real) {
+    // legend-lite's own shape: aliased relations and DuckDB PIVOT.
+    const sql = (await page.textContent('#sql')) ?? '';
+    check(
+      'the SQL came from legend-lite, not the shim',
+      /AS t\d+/.test(sql) && /PIVOT \(/.test(sql),
+      sql.split('\n')[0],
+    );
+  }
+
   const rows = await page.locator('.dc-row').count();
   check('renders a window, not every row', rows > 0 && rows < 60, `${rows} rows`);
 

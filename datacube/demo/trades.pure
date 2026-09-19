@@ -24,6 +24,25 @@ Database trades::DB
         pnl DOUBLE,
         qty INTEGER
     )
+
+    // Where a SNAP materialises.
+    //
+    // It has to be declared in the model, not invented at runtime:
+    // while snapped, queries are still planned as Pure, so the
+    // frozen relation must be one the planner can resolve. A
+    // generated `dc_snap_1` is a SQL identifier and means nothing
+    // to a compiler.
+    Table TRADES_SNAP
+    (
+        region VARCHAR(32),
+        desk VARCHAR(32),
+        book VARCHAR(32),
+        year INTEGER,
+        qtr VARCHAR(8),
+        notional DOUBLE,
+        pnl DOUBLE,
+        qty INTEGER
+    )
 )
 
 ###Connection

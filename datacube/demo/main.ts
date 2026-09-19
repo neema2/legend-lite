@@ -19,11 +19,7 @@ import { CubeController, type Planner } from '../src/cube.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import type { ColumnFormat } from '../src/format.ts';
 import { LegendLitePlanner } from '../src/planner.ts';
-import {
-  NULL_GROUP,
-  serialize,
-  type LevelScope,
-} from '../src/serialize.ts';
+import { NULL_GROUP, type LevelScope } from '../src/serialize.ts';
 import type { CubeSnapshot, FilterNode } from '../src/snapshot.ts';
 import { referencedColumns, totalOrderSorts } from '../src/snapshot.ts';
 
@@ -85,8 +81,10 @@ async function boot(): Promise<void> {
 
   // -- the cube ------------------------------------------------------
 
+  const { planner, source, real, snapTarget } = await choosePlanner(status);
+
   const snapshot: CubeSnapshot = {
-    source: { expression: 'trades' },
+    source: { expression: source },
     columns: [
       { name: 'region', type: 'String' },
       { name: 'desk', type: 'String' },
@@ -105,7 +103,6 @@ async function boot(): Promise<void> {
     epoch: 1,
   };
 
-  const planner = await choosePlanner(status);
 
   // The page builds the APP, not a grid and a pile of checkboxes.
   // Those checkboxes were the demo standing in for a product; what
@@ -135,10 +132,13 @@ async function boot(): Promise<void> {
     },
   };
 
+  if (real) must('plannerreal').hidden = false;
+
   const app = new CubeApp(must('app'), snapshot, {
     engine,
     planner,
     configuration,
+    ...(snapTarget ? { snapTarget } : {}),
     storage: window.localStorage,
     showColumnZone: true,
     dimensions: [
@@ -160,8 +160,13 @@ async function boot(): Promise<void> {
       status.classList.toggle('warn-text', kind === 'warn');
     },
     onView: (view) => {
-      must('sql').textContent = view.sql;
-      must('pure').textContent = serialize(view.snapshot);
+      // The Pure this product emitted, and the SQL the planner made
+      // of it. Both, because they answer different questions -- and
+      // because the SQL panel showed Pure until the real planner
+      // started returning SQL worth reading.
+      must('pure').textContent = view.pure;
+      must('sql').textContent =
+        view.sql || '(the demo shim plans per level; expand a row)';
     },
     onPlane: () => renderPlaneBadge(app.controller),
   });
@@ -189,25 +194,55 @@ function renderPlaneBadge(controller: CubeController): void {
   }
 }
 
-async function choosePlanner(status: HTMLElement): Promise<Planner> {
+/**
+ * The planner, and the source expression that goes with it.
+ *
+ * These travel together because they are two halves of one choice.
+ * The real planner resolves a table through a MODEL --
+ * `#>{trades::DB.TRADES}#` names the Database and the table in it --
+ * where the shim only ever knew a bare SQL identifier. Returning
+ * the planner alone was how the page ended up asking legend-lite to
+ * compile `trades`, which is not a relation it has heard of.
+ */
+interface PlannerChoice {
+  readonly planner: Planner;
+  readonly source: string;
+  readonly real: boolean;
+  /** Where a snap goes, when the source is a model relation. */
+  readonly snapTarget?: { readonly table: string; readonly expression: string };
+}
+
+async function choosePlanner(status: HTMLElement): Promise<PlannerChoice> {
   try {
-    const r = await fetch(`${LEGEND_LITE}/health`, {
+    const health = await fetch(`${LEGEND_LITE}/health`, {
       signal: AbortSignal.timeout(700),
     });
-    if (r.ok) {
+    if (health.ok) {
+      // The model is fetched rather than inlined so the SAME text is
+      // what the server compiles and what a reader opens -- one copy,
+      // in demo/trades.pure.
+      const model = await (await fetch('./trades.pure')).text();
       status.textContent = 'planner: legend-lite';
-      return new LegendLitePlanner({
-        baseUrl: LEGEND_LITE,
-        model: '',
-        runtime: 'demo::RT',
-      });
+      return {
+        planner: new LegendLitePlanner({
+          baseUrl: LEGEND_LITE,
+          model,
+          runtime: 'trades::RT',
+        }),
+        source: '#>{trades::DB.TRADES}#',
+        real: true,
+        snapTarget: {
+          table: 'TRADES_SNAP',
+          expression: '#>{trades::DB.TRADES_SNAP}#',
+        },
+      };
     }
   } catch {
     // Not running; fall through to the shim.
   }
   const note = must('plannernote');
   note.hidden = false;
-  return new DemoOnlyPlanner();
+  return { planner: new DemoOnlyPlanner(), source: 'trades', real: false };
 }
 
 /**

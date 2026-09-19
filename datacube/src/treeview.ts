@@ -47,6 +47,20 @@ export interface LevelData {
   readonly paths: readonly RowPath[];
   /** True when the engine had more rows than the cap allowed. */
   readonly truncated: boolean;
+  /**
+   * The Pure that was planned, and the SQL that came back.
+   *
+   * Kept because "show me the query" has to show the query that
+   * RAN. The view's `sql` field carried Pure for the whole life of
+   * this project -- a panel labelled SQL that had never shown any
+   * -- and nothing noticed until a real planner started returning
+   * SQL worth reading.
+   *
+   * Optional because a level assembled by hand in a test has no
+   * query behind it, and `assemble` does not read them.
+   */
+  readonly pure?: string;
+  readonly sql?: string;
 }
 
 export interface TreeView {
@@ -137,6 +151,8 @@ export async function fetchTree(
         table,
         paths: pathsOf(request, table),
         truncated,
+        pure: grammar,
+        sql,
       });
       // A superseded interaction should stop fetching the rest of the
       // tree rather than finish work nobody will look at.
