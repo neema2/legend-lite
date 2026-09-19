@@ -26,7 +26,16 @@ const CUBE: CubeSnapshot = {
 };
 
 const ids = (ctx: Parameters<typeof buildMenu>[0]): MenuActionId[] =>
-  menuItems(buildMenu(ctx)).map((i) => i.id);
+  menuItems(buildMenu(ctx))
+    .map((i) => i.id)
+    .filter((id): id is MenuActionId => id !== undefined);
+
+/** Ids of the entries a user can actually invoke. */
+const enabled = (ctx: Parameters<typeof buildMenu>[0]): MenuActionId[] =>
+  menuItems(buildMenu(ctx))
+    .filter((i) => !i.disabled)
+    .map((i) => i.id)
+    .filter((id): id is MenuActionId => id !== undefined);
 
 describe('buildMenu', () => {
   it('names the target in every column-specific label', () => {
@@ -54,23 +63,137 @@ describe('buildMenu', () => {
     );
   });
 
-  it('will not offer to pivot BY a pivoted measure', () => {
+  it('will not let you pivot BY a pivoted measure', () => {
     // "Vertical Pivot on 2021 / notional" is an action with no
-    // meaning. The caller says whether a column can be grouped.
-    const pivoted = '2021__|__notional';
-    const ids2 = ids({ snapshot: CUBE, column: pivoted, canGroup: false });
+    // meaning. Present, as their menu keeps its shape, but dead.
+    const ctx = {
+      snapshot: CUBE,
+      column: '2021__|__notional',
+      canGroup: false,
+    };
     assert.equal(
-      ids2.some((i) => i.startsWith('pivot.')),
+      enabled(ctx).some((i) => i.startsWith('pivot.') && i !== 'pivot.clearVertical' && i !== 'pivot.clearHorizontal'),
       false,
-      ids2.join(', '),
+      enabled(ctx).join(', '),
+    );
+  });
+
+  it('NESTS, as theirs does', () => {
+    // A flat list of the same entries is a different product:
+    // sixteen top-level items scan as a wall where eight verbs with
+    // their variants underneath scan as a sentence.
+    const top = buildMenu({ snapshot: CUBE, column: 'desk' }).flatMap((g) => [
+      ...g.items,
+    ]);
+    const withSub = top.filter((i) => i.submenu);
+    assert.deepEqual(
+      withSub.map((i) => i.label),
+      ['Export', 'Copy', 'Sort', 'Filter', 'Pivot', 'Resize', 'Pin', 'Heatmap'],
+    );
+    // A submenu parent does nothing itself.
+    assert.ok(withSub.every((i) => i.id === undefined));
+  });
+
+  it('offers the clicked VALUE as a one-click filter', () => {
+    // The most useful thing in their menu, and the part a
+    // labels-only reading misses.
+    const items = menuItems(
+      buildMenu({
+        snapshot: CUBE,
+        column: 'region',
+        columnType: 'String',
+        value: 'EMEA',
+      }),
+    );
+    assert.ok(
+      items.some((i) => i.label === 'Add Filter: region = EMEA'),
+      items.map((i) => i.label).join(' | '),
+    );
+  });
+
+  it('puts every OTHER operator one level down, typed to the column', () => {
+    const forString = buildMenu({
+      snapshot: CUBE,
+      column: 'region',
+      columnType: 'String',
+      value: 'EMEA',
+    });
+    const more = menuItems(forString).find((i) =>
+      i.label.startsWith('More Filters on'),
+    );
+    assert.notEqual(more, undefined);
+    // A string takes the comparisons AND the text predicates; the
+    // equality it leads with is not repeated.
+    assert.equal(more?.submenu?.length, 11);
+    assert.ok(more?.submenu?.some((i) => i.operator === 'startsWith'));
+
+    // A number takes the comparisons only -- "starts with 5" is not
+    // a question anyone asks.
+    const forNumber = menuItems(
+      buildMenu({
+        snapshot: CUBE,
+        column: 'notional',
+        columnType: 'Float',
+        value: 5,
+      }),
+    ).find((i) => i.label.startsWith('More Filters on'));
+    assert.equal(forNumber?.submenu?.length, 5);
+    assert.equal(
+      forNumber?.submenu?.some((i) => i.operator === 'contains'),
+      false,
+    );
+  });
+
+  it('a BLANK cell offers the null predicates instead', () => {
+    // "= " against nothing is not a filter anyone means.
+    const items = menuItems(
+      buildMenu({
+        snapshot: CUBE,
+        column: 'region',
+        columnType: 'String',
+        value: null,
+      }),
+    );
+    assert.ok(items.some((i) => i.operator === 'isEmpty'));
+    assert.ok(items.some((i) => i.operator === 'isNotEmpty'));
+    assert.equal(
+      items.some((i) => i.operator === 'equal'),
+      false,
+    );
+  });
+
+  it('offers no value filter from a HEADER, where there is no value', () => {
+    const items = menuItems(
+      buildMenu({ snapshot: CUBE, column: 'region', columnType: 'String' }),
+    );
+    assert.equal(
+      items.some((i) => i.id === 'filter.add'),
+      false,
+    );
+    // The dialog is still one click away.
+    assert.ok(items.some((i) => i.id === 'filter.column'));
+  });
+
+  it('offers no value filter on a type with no operators', () => {
+    const items = menuItems(
+      buildMenu({
+        snapshot: CUBE,
+        column: 'flag',
+        columnType: 'Boolean',
+        value: true,
+      }),
+    );
+    assert.equal(
+      items.some((i) => i.id === 'filter.add'),
+      false,
     );
   });
 
   it('still offers LAYOUT actions on a column it cannot group by', () => {
-    // These sat inside the pivot block, so gating that block took
-    // hide, pin and resize away with it -- caught by a screenshot,
-    // not by a test, which is why this one exists.
-    const ids2 = ids({
+    // Hiding or pinning `2021 / notional` is meaningful where
+    // grouping by it is not. These once sat inside the pivot block,
+    // so gating that block took them away with it.
+    const live = enabled({
       snapshot: CUBE,
       column: '2021__|__notional',
       canGroup: false,
@@ -80,7 +203,7 @@ describe('buildMenu', () => {
       'column.pinLeft',
       'column.autoSize',
     ] as const) {
-      assert.ok(ids2.includes(id), `${id} missing from ${ids2.join(', ')}`);
+      assert.ok(live.includes(id), `${id} missing from ${live.join(', ')}`);
     }
   });
 
@@ -94,69 +217,111 @@ describe('buildMenu', () => {
     );
   });
 
-  it('omits an action that cannot apply rather than disabling it', () => {
-    // 'desk' is not a vertical pivot, so "Remove Vertical Pivot on
-    // desk" would be a lie.
+  it('DISABLES an action that cannot apply rather than omitting it', () => {
+    // This reverses an earlier decision here. DataCube is right: a
+    // menu whose entries move depending on context cannot be
+    // learned, and the value of a context menu is that the third
+    // time you use it you no longer read it.
     const forDesk = ids({ snapshot: CUBE, column: 'desk' });
-    assert.equal(forDesk.includes('pivot.removeVertical'), false);
-    assert.equal(forDesk.includes('pivot.vertical'), true);
+    assert.equal(forDesk.includes('pivot.removeVertical'), true, 'present');
+    assert.equal(
+      enabled({ snapshot: CUBE, column: 'desk' }).includes(
+        'pivot.removeVertical',
+      ),
+      false,
+      'but not actionable: desk is not a vertical pivot',
+    );
+    assert.equal(
+      enabled({ snapshot: CUBE, column: 'desk' }).includes('pivot.vertical'),
+      true,
+    );
 
-    // 'region' IS one, so the pair flips.
-    const forRegion = ids({ snapshot: CUBE, column: 'region' });
+    // 'region' IS one, so which of the pair is live flips -- while
+    // both stay in the same place in the menu.
+    const forRegion = enabled({ snapshot: CUBE, column: 'region' });
     assert.equal(forRegion.includes('pivot.removeVertical'), true);
-    assert.equal(forRegion.includes('pivot.vertical'), false);
+    assert.equal(forRegion.includes('pivot.addVertical'), false);
   });
 
-  it('offers Add only when there is something to add to', () => {
-    const noRows = ids({ snapshot: { ...CUBE, rows: [] }, column: 'desk' });
-    assert.equal(noRows.includes('pivot.addVertical'), false);
+  it('greys Add Vertical Pivot for a column already pivoted', () => {
+    const already = enabled({ snapshot: CUBE, column: 'region' });
+    assert.equal(already.includes('pivot.addVertical'), false);
     assert.equal(
-      ids({ snapshot: CUBE, column: 'desk' }).includes('pivot.addVertical'),
+      enabled({ snapshot: CUBE, column: 'desk' }).includes(
+        'pivot.addVertical',
+      ),
       true,
     );
   });
 
-  it('offers Clear Sort only for a column that is sorted', () => {
-    const unsorted = ids({ snapshot: CUBE, column: 'desk' });
-    assert.equal(unsorted.includes('sort.clearColumn'), false);
-
-    const sorted = ids({
-      snapshot: { ...CUBE, sorts: [{ column: 'desk', direction: 'asc' }] },
-      column: 'desk',
-    });
-    assert.equal(sorted.includes('sort.clearColumn'), true);
-    assert.equal(sorted.includes('sort.addAsc'), true, 'and Add becomes real');
+  it('greys Clear Sort for a column that is not sorted', () => {
+    assert.equal(
+      enabled({ snapshot: CUBE, column: 'desk' }).includes('sort.clearColumn'),
+      false,
+    );
+    const sorted = {
+      ...CUBE,
+      sorts: [{ column: 'desk', direction: 'asc' as const }],
+    };
+    assert.equal(
+      enabled({ snapshot: sorted, column: 'desk' }).includes(
+        'sort.clearColumn',
+      ),
+      true,
+    );
   });
 
-  it('offers Clear All Filters only when a filter exists', () => {
-    assert.equal(ids({ snapshot: CUBE }).includes('filter.clearAll'), false);
+  it('greys Clear All Filters when there is no filter', () => {
     assert.equal(
-      ids({
-        snapshot: {
-          ...CUBE,
-          filter: { kind: 'condition', column: 'region', operator: 'isEmpty' },
-        },
-      }).includes('filter.clearAll'),
+      enabled({ snapshot: CUBE }).includes('filter.clearAll'),
+      false,
+    );
+    const filtered = {
+      ...CUBE,
+      filter: {
+        kind: 'condition' as const,
+        column: 'region',
+        operator: 'equal' as const,
+        value: 'EMEA',
+      },
+    };
+    assert.equal(
+      enabled({ snapshot: filtered }).includes('filter.clearAll'),
       true,
     );
   });
 
   it('gates copy on a selection and collapse on an open group', () => {
-    const bare = ids({ snapshot: CUBE });
+    const bare = enabled({ snapshot: CUBE });
     assert.equal(bare.includes('copy.selection'), false);
     assert.equal(bare.includes('tree.collapseAll'), false);
-
-    const rich = ids({ snapshot: CUBE, hasSelection: true, hasExpanded: true });
-    assert.equal(rich.includes('copy.selection'), true);
-    assert.equal(rich.includes('tree.collapseAll'), true);
+    const live = enabled({
+      snapshot: CUBE,
+      hasSelection: true,
+      hasExpanded: true,
+    });
+    assert.equal(live.includes('copy.selection'), true);
+    assert.equal(live.includes('tree.collapseAll'), true);
   });
 
-  it('drops a group with nothing in it', () => {
-    // A right-click on empty space must not open a menu of headings.
-    const groups = buildMenu({ snapshot: CUBE });
-    assert.equal(groups.some((g) => g.items.length === 0), false);
-    assert.equal(groups.some((g) => g.label === 'Sort'), false);
-    assert.equal(groups.some((g) => g.label === 'Export'), true);
+  it('keeps its SHAPE with no column under the pointer', () => {
+    // The menu is the same menu wherever it opens; what changes is
+    // which entries are live. That is the whole point of disabling
+    // rather than omitting.
+    const bare = buildMenu({ snapshot: CUBE }).flatMap((g) => [...g.items]);
+    const onColumn = buildMenu({ snapshot: CUBE, column: 'desk' }).flatMap(
+      (g) => [...g.items],
+    );
+    // Same entries, same order; only the target names and which
+    // ones are live differ.
+    assert.deepEqual(
+      bare.map((i) => i.id ?? i.label),
+      onColumn.map((i) => i.id ?? i.label),
+    );
+    assert.equal(
+      bare.some((g) => g.label === 'Export'),
+      true,
+    );
   });
 });
 

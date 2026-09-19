@@ -61,16 +61,34 @@ page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
 
 let failed = false;
 /** Open the grid's right-click menu, optionally over an element. */
-const rightClick = async (selector = '.dc-app-grid') => {
-  await page.locator(selector).first().click({ button: 'right' });
+const rightClick = async (target = '.dc-app-grid') => {
+  const loc = typeof target === 'string' ? page.locator(target) : target;
+  await loc.first().click({ button: 'right' });
   await page.waitForSelector('.dc-menu', { timeout: 10_000 });
 };
-/** Click a menu entry by the words a user reads. */
+/** The dimension cell of a group row, which carries a real value. */
+const groupLabelCell = () =>
+  page.locator('.dc-row').nth(1).locator('.dc-cell.dc-dim');
+/**
+ * Click a menu entry by the words a user reads.
+ *
+ * Focuses it first: a submenu entry is not VISIBLE until its parent
+ * opens, and the CSS opens one on hover or on focus-within -- so
+ * focusing walks the chain open exactly as a keyboard user would,
+ * and Playwright can then click something that exists on screen.
+ */
 const pick = async (label) => {
-  await page
-    .locator('.dc-menu [role="menuitem"]', { hasText: label })
-    .first()
-    .click();
+  const found = await page.evaluate((text) => {
+    const el = [...document.querySelectorAll('.dc-menu .dc-menu-label')].find(
+      (e) => e.textContent === text,
+    );
+    const item = el?.parentElement;
+    if (!item) return false;
+    item.focus();
+    item.click();
+    return true;
+  }, label);
+  if (!found) throw new Error(`no menu entry "${label}"`);
 };
 /** Do something from the grid's right-click menu. */
 const fromMenu = async (label, selector) => {
@@ -467,6 +485,49 @@ try {
   await page.waitForSelector('.dc-menu', { timeout: 10_000 });
   const menuItems = await page.locator('.dc-menu [role="menuitem"]').count();
   check('right-click opens the context menu', menuItems > 0, `${menuItems} items`);
+
+  // It NESTS. Their menu is eight verbs with their variants tucked
+  // underneath, not a flat wall of sixteen entries.
+  const tops = await page.evaluate(() =>
+    [...document.querySelectorAll('.dc-menu > [role="menuitem"]')].map((el) => ({
+      label: el.querySelector('.dc-menu-label')?.textContent ?? '',
+      sub: el.querySelectorAll(':scope > .dc-submenu > [role="menuitem"]').length,
+    })),
+  );
+  check(
+    'the menu nests, with a submenu per verb',
+    tops.filter((t) => t.sub > 0).length === 8,
+    tops.map((t) => `${t.label}${t.sub ? `(${t.sub})` : ''}`).join(' '),
+  );
+
+  // A submenu opens on hover, and is clipped by nothing.
+  const filterTop = page
+    .locator('.dc-menu > [role="menuitem"]', { hasText: 'Filter' })
+    .first();
+  await filterTop.hover();
+  await page.waitForTimeout(200);
+  const subVisible = await filterTop
+    .locator('.dc-submenu [role="menuitem"]')
+    .first()
+    .isVisible();
+  check('a submenu opens on hover', subVisible);
+
+  await page.keyboard.press('Escape');
+
+  // The third level lives under "More Filters on X...", which only
+  // appears when there is a VALUE under the pointer -- so this has
+  // to right-click a real group label, not empty grid.
+  await rightClick(groupLabelCell());
+  const deeper = await page.evaluate(() =>
+    [
+      ...document.querySelectorAll('.dc-submenu .dc-submenu [role="menuitem"]'),
+    ].map((el) => el.querySelector('.dc-menu-label')?.textContent ?? ''),
+  );
+  check(
+    'a third level under More Filters, typed to the column',
+    deeper.length === 11,
+    `${deeper.length}: ${deeper.slice(0, 3).join(', ')}...`,
+  );
   await page.keyboard.press('Escape');
 
   // The editor: seven tabs, in DataCube's order.
@@ -531,6 +592,43 @@ try {
   check(
     'no filter in the query to begin with',
     !pureBefore.includes('filter('),
+  );
+
+  // The value-aware entry first: right-click a group label and the
+  // menu offers a filter on THAT value, resolved to the dimension
+  // at that row's level.
+  await rightClick(groupLabelCell());
+  const valueEntry = await page
+    .locator('.dc-menu .dc-menu-label')
+    .filter({ hasText: /^Add Filter: region = / })
+    .first()
+    .textContent();
+  check(
+    'the menu offers a filter on the clicked VALUE',
+    /^Add Filter: region = \w+$/.test((valueEntry ?? '').trim()),
+    valueEntry?.trim(),
+  );
+  await page.evaluate(() => {
+    const el = [...document.querySelectorAll('.dc-menu .dc-menu-label')].find(
+      (e) => /^Add Filter: region = /.test(e.textContent ?? ''),
+    );
+    el?.parentElement?.click();
+  });
+  await page.waitForFunction(
+    () => document.getElementById('pure')?.textContent?.includes('filter('),
+    { timeout: 60_000 },
+  );
+  check(
+    'and clicking it filters the cube',
+    /filter\(x\|\$x\.region == /.test(
+      (await page.textContent('#pure')) ?? '',
+    ),
+    ((await page.textContent('#pure')) ?? '').match(/filter\(x\|[^)]*\)/)?.[0],
+  );
+  await fromMenu('Clear All Filters');
+  await page.waitForFunction(
+    () => !document.getElementById('pure')?.textContent?.includes('filter('),
+    { timeout: 60_000 },
   );
 
   await fromMenu('Filters...');

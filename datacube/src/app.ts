@@ -38,13 +38,19 @@ import { FormatterCache, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
 import {
   PIVOT_SEPARATOR,
+  TREE_COLUMN,
   buildColumnModel,
   type ColumnLayout,
 } from './grid/columns.ts';
 import { load, save, toJson, treeOf } from './persist.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
 import type { Scalar } from './result.ts';
-import { kindOf, type CubeSnapshot, type FilterNode } from './snapshot.ts';
+import {
+  kindOf,
+  type CubeSnapshot,
+  type FilterNode,
+  type FilterValue,
+} from './snapshot.ts';
 import { columnRange, heatColour } from './style.ts';
 import type { HeatmapRange, HeatmapSpec } from './style.ts';
 import { parsePathKey, pathKey, type TreeRow } from './tree.ts';
@@ -514,9 +520,52 @@ export class CubeApp {
       const target = event.target;
       if (!(target && 'closest' in (target as object))) return;
       const el = target as Element;
-      const header = el.closest<HTMLElement>('[data-column]');
-      const column = header?.dataset['column'];
+      const named = el.closest<HTMLElement>('[data-column]');
+      let column = named?.dataset['column'];
       event.preventDefault();
+
+      // The clicked VALUE, which is what makes the filter entries
+      // one-click rather than a door to a dialog. A cell in the
+      // TREE column belongs to whichever row dimension sits at that
+      // row's level -- right-clicking EMEA under region filters
+      // region, and the desk beneath it filters desk. Their menu
+      // resolves it the same way, from the node's level.
+      let value: FilterValue | null | undefined;
+      let columnType: string | undefined;
+      const cell = el.closest<HTMLElement>('.dc-cell');
+      const row = cell?.closest<HTMLElement>('.dc-row');
+      if (cell && row && this.#view) {
+        const abs =
+          Number(row.getAttribute('aria-rowindex') ?? '0') -
+          this.#view.columns.depth -
+          1;
+        const meta = this.#treeRows[abs];
+        if (column === TREE_COLUMN) {
+          // The row's PATH says which dimension it is, not its
+          // depth: depth shifts by one when the grand total is
+          // shown, so a depth-based reading resolved AMER -- a
+          // region -- to `desk`, and then found no value there.
+          // A path of length n is the nth row dimension; the grand
+          // total's path is empty and offers no value filter.
+          const path = meta?.path ?? [];
+          column = this.#snapshot.rows[path.length - 1];
+          value = path.length > 0 ? (path[path.length - 1] ?? null) : undefined;
+        } else if (column !== undefined) {
+          const leaf = this.#view.columns.leaves.find(
+            (l) => l.name === column,
+          );
+          const raw =
+            leaf === undefined
+              ? null
+              : (this.#view.rows.columns[leaf.index]?.values[abs] ?? null);
+          value = raw as FilterValue | null;
+        }
+        if (column !== undefined) {
+          columnType = this.#snapshot.columns.find(
+            (c) => c.name === column,
+          )?.type;
+        }
+      }
       const groups = buildMenu({
         snapshot: this.#snapshot,
         ...(column !== undefined ? { column } : {}),
@@ -528,6 +577,8 @@ export class CubeApp {
         hasHeatmap:
           column !== undefined && this.#heatmapFor(column) !== undefined,
         canGroup: column === undefined || this.#isDimension(column),
+        ...(value !== undefined ? { value } : {}),
+        ...(columnType !== undefined ? { columnType } : {}),
       });
       this.#menu.show(groups, event.clientX, event.clientY);
     });

@@ -563,37 +563,85 @@
  * container lands somewhere else entirely.
  */
 
+/* Their menu: w-40 minimum, no radius, a neutral-400 border and a
+   22px item at text-base. `overflow: visible` matters -- a submenu
+   is nested inside its parent and would be clipped otherwise. */
 .dc-menu {
   position: fixed;
   z-index: 1000;
-  min-width: 220px;
-  padding: 4px;
-  border-radius: 6px;
-  border: 1px solid var(--tw-neutral-200);
+  min-width: 160px;
+  padding: 2px 0;
+  border-radius: 0;
+  border: 1px solid var(--tw-neutral-400);
   background: var(--tw-white);
   color: var(--tw-black);
   box-shadow: var(--dc-popup-shadow, 2px 2px 5px rgb(0 0 0 / 20%));
-  font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  max-height: 80vh;
-  overflow-y: auto;
+  font-family: var(--dc-font);
+  font-size: var(--dc-text-base-size);
+  line-height: var(--dc-text-base-line);
 }
 
 .dc-menu-item {
-  padding: 5px 10px;
-  border-radius: 4px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--dc-pad-2);
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 0;
   cursor: pointer;
   white-space: nowrap;
 }
 
 .dc-menu-item:hover,
 .dc-menu-item:focus {
-  background: var(--tw-sky-50);
+  background: var(--tw-neutral-100);
   outline: none;
+}
+
+/* Shown but dead. It keeps its place so the menu can be learned. */
+.dc-menu-item.dc-disabled {
+  color: var(--tw-neutral-400);
+  cursor: default;
+}
+
+.dc-menu-item.dc-disabled:hover {
+  background: transparent;
+}
+
+.dc-menu-chevron {
+  color: var(--tw-neutral-500);
+}
+
+/* Nested INSIDE its parent, so it cannot outlive the menu. Opened
+   on hover and on focus-within, so the keyboard reaches it too. */
+.dc-submenu {
+  position: absolute;
+  left: 100%;
+  top: -3px;
+  display: none;
+  min-width: 160px;
+  padding: 2px 0;
+  border: 1px solid var(--tw-neutral-400);
+  background: var(--tw-white);
+  box-shadow: var(--dc-popup-shadow, 2px 2px 5px rgb(0 0 0 / 20%));
+}
+
+.dc-menu-item.dc-has-submenu:hover > .dc-submenu,
+.dc-menu-item.dc-has-submenu:focus-within > .dc-submenu {
+  display: block;
+}
+
+/* A submenu that would run off the right edge opens leftward. */
+.dc-menu.dc-flip-x .dc-submenu {
+  left: auto;
+  right: 100%;
 }
 
 .dc-menu-sep {
   height: 1px;
-  margin: 4px 6px;
+  margin: 2px 0;
   background: var(--tw-neutral-200);
 }
 

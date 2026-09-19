@@ -69,11 +69,24 @@ const rightClick = async (selector = '.dc-app-grid') => {
   await page.locator(selector).first().click({ button: 'right' });
   await page.waitForSelector('.dc-menu', { timeout: 10_000 });
 };
+/**
+ * Click a menu entry by the words a user reads.
+ *
+ * Focuses it first: a submenu entry is not VISIBLE until its parent
+ * opens, and the CSS opens one on hover or on focus-within.
+ */
 const pick = async (label) => {
-  await page
-    .locator('.dc-menu [role="menuitem"]', { hasText: label })
-    .first()
-    .click();
+  const found = await page.evaluate((text) => {
+    const el = [...document.querySelectorAll('.dc-menu .dc-menu-label')].find(
+      (e) => e.textContent === text,
+    );
+    const item = el?.parentElement;
+    if (!item) return false;
+    item.focus();
+    item.click();
+    return true;
+  }, label);
+  if (!found) throw new Error(`no menu entry "${label}"`);
 };
 const tool = async (label) => {
   const viaMenu = {
@@ -114,9 +127,34 @@ try {
   await shot('tree-expanded', '.dc-app-middle');
 
   // -- the context menu ----------------------------------------------
-  await page.locator('.dc-cell').nth(1).click({ button: 'right' });
+  // Over a GROUP LABEL, so the value-aware filter entries are the
+  // ones a user would actually meet.
+  await page.locator('.dc-row').nth(1).locator('.dc-cell.dc-dim').click({
+    button: 'right',
+  });
   await page.waitForSelector('.dc-menu', { timeout: 10_000 });
   await shot('context-menu');
+
+  // Its submenus, which is the shape of their menu: eight verbs
+  // with their variants underneath, and a third level under
+  // "More Filters on...".
+  await page.evaluate(() => {
+    const open = (text) =>
+      [...document.querySelectorAll('.dc-menu .dc-menu-label')]
+        .find((e) => e.textContent === text)
+        ?.parentElement?.focus();
+    open('Filter');
+  });
+  await page.waitForTimeout(150);
+  await shot('context-menu-filter-submenu');
+  await page.evaluate(() => {
+    const el = [...document.querySelectorAll('.dc-menu .dc-menu-label')].find(
+      (e) => (e.textContent ?? '').startsWith('More Filters on'),
+    );
+    el?.parentElement?.focus();
+  });
+  await page.waitForTimeout(150);
+  await shot('context-menu-third-level');
   await page.keyboard.press('Escape');
 
   // -- selection statistics -------------------------------------------

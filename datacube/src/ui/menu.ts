@@ -6,17 +6,38 @@
 // context, tested as data -- and the renderer is thin. A menu built
 // by conditional DOM is a menu nobody can test.
 //
-// Two rules that matter more than the list:
+// It NESTS. Reading their DataCubeGridMenuBuilder properly rather
+// than grepping its labels turned up three levels: Export, Copy,
+// Sort, Filter, Pivot, Resize, Pin and Heatmap are all submenus,
+// and Filter's own "More Filters on X..." is a submenu inside a
+// submenu. A flat list of the same entries is a different product:
+// sixteen top-level items scan as a wall, where eight verbs with
+// their variants tucked underneath scan as a sentence.
 //
-//  - An action that cannot apply is ABSENT, not disabled-and-silent.
-//    "Remove Vertical Pivot" on a column that is not pivoted would be
-//    a lie; a disabled entry at least says so, but omitting it says
-//    it better.
+// The rules the shape enforces:
+//
+//  - An inapplicable action is DISABLED, not omitted. This reverses
+//    an earlier decision here, and DataCube is right: a menu whose
+//    entries move depending on context cannot be learned, and the
+//    whole value of a context menu is that the third time you use
+//    it you no longer read it. "Remove Vertical Pivot", greyed,
+//    still says the column is not pivoted.
 //  - Every entry names its target. "Vertical Pivot on desk" rather
 //    than "Vertical Pivot", because a context menu is read after the
 //    right-click, when which column was clicked is already fading.
+//  - The FILTER entries know the value that was clicked. Right-click
+//    a cell reading EMEA and the menu offers "Add Filter: region =
+//    EMEA" directly, with every other operator for that column's
+//    type one level down. This is the single most useful thing in
+//    their menu and it is the part a labels-only reading misses.
 
-import type { CubeSnapshot, SortDirection } from '../snapshot.ts';
+import type {
+  CubeSnapshot,
+  FilterNode,
+  FilterOperator,
+  FilterValue,
+  SortDirection,
+} from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 
 /**
@@ -50,6 +71,18 @@ export interface MenuContext {
    * apply rather than disabling them.
    */
   readonly canGroup?: boolean;
+  /**
+   * The value in the cell that was right-clicked, if any.
+   *
+   * This is what turns the Filter submenu from a door to a dialog
+   * into a one-click action, and it is the part a labels-only
+   * reading of their menu misses entirely. Absent when the menu
+   * came from a header, where there is no value to filter on;
+   * null means the cell was blank.
+   */
+  readonly value?: FilterValue | null;
+  /** The type of the column that value belongs to. */
+  readonly columnType?: string;
 }
 
 export type MenuActionId =
@@ -59,6 +92,7 @@ export type MenuActionId =
   | 'sort.addDesc'
   | 'sort.clearColumn'
   | 'sort.clearAll'
+  | 'filter.add'
   | 'filter.column'
   | 'filter.clearAll'
   | 'pivot.vertical'
@@ -94,11 +128,21 @@ export type MenuActionId =
   | 'view.dimension';
 
 export interface MenuItem {
-  readonly id: MenuActionId;
+  /** Absent on a pure submenu parent, which does nothing itself. */
+  readonly id?: MenuActionId;
   readonly label: string;
   /** Column the action applies to, when it is column-specific. */
   readonly column?: string;
   readonly direction?: SortDirection;
+  /** For a value-aware filter entry. */
+  readonly operator?: FilterOperator;
+  readonly value?: FilterValue;
+  /**
+   * Shown but not actionable. DataCube disables rather than omits,
+   * so the menu keeps its shape and can be learned.
+   */
+  readonly disabled?: boolean;
+  readonly submenu?: readonly MenuItem[];
 }
 
 export interface MenuGroup {
@@ -107,10 +151,94 @@ export interface MenuGroup {
 }
 
 /**
+ * Operators offered for a column's type, as theirs are.
+ *
+ * A string takes the comparisons AND the text predicates; a number
+ * or a date takes the comparisons only; anything else -- a boolean
+ * -- takes none, because "starts with true" is not a question.
+ */
+export function filterOperatorsFor(type: string): FilterOperator[] {
+  switch (type) {
+    case 'String':
+      return [
+        'equal',
+        'notEqual',
+        'lessThan',
+        'lessThanEqual',
+        'greaterThan',
+        'greaterThanEqual',
+        'contains',
+        'notContains',
+        'startsWith',
+        'notStartsWith',
+        'endsWith',
+        'notEndsWith',
+      ];
+    case 'Integer':
+    case 'Float':
+    case 'Number':
+    case 'Decimal':
+    case 'Date':
+    case 'StrictDate':
+    case 'DateTime':
+      return [
+        'equal',
+        'notEqual',
+        'lessThan',
+        'lessThanEqual',
+        'greaterThan',
+        'greaterThanEqual',
+      ];
+    default:
+      return [];
+  }
+}
+
+/** Their label for each operator, for the value-aware filter items. */
+const OPERATOR_LABEL: Readonly<Partial<Record<FilterOperator, string>>> = {
+  equal: '=',
+  notEqual: '!=',
+  lessThan: '<',
+  lessThanEqual: '<=',
+  greaterThan: '>',
+  greaterThanEqual: '>=',
+  contains: 'contains',
+  notContains: 'does not contain',
+  startsWith: 'starts with',
+  notStartsWith: 'does not start with',
+  endsWith: 'ends with',
+  notEndsWith: 'does not end with',
+  isEmpty: 'is null',
+  isNotEmpty: 'is not null',
+};
+
+/**
+ * "Add Filter: region = EMEA" -- their wording exactly.
+ *
+ * The value is in the label because the menu is read after the
+ * click, and by then which cell was under the pointer has gone.
+ */
+function filterItem(
+  column: string,
+  operator: FilterOperator,
+  value: FilterValue | undefined,
+): MenuItem {
+  const shown = value === undefined ? '' : ` ${String(value)}`;
+  return {
+    id: 'filter.add',
+    label: `Add Filter: ${columnLabel(column)} ${OPERATOR_LABEL[operator] ?? operator}${shown}`,
+    column,
+    operator,
+    ...(value !== undefined ? { value } : {}),
+  };
+}
+
+/**
  * Build the menu for a context.
  *
- * Groups with no applicable items are dropped, so a right-click on
- * empty space does not open a menu of headings.
+ * One list of top-level verbs, most of them carrying a submenu --
+ * their structure, not a flattening of it. Groups here are the
+ * separated blocks their menu draws rules between.
  */
 export function buildMenu(ctx: MenuContext): MenuGroup[] {
   const { snapshot: s, column } = ctx;
@@ -123,152 +251,274 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
   const sorted = column
     ? s.sorts.find((x) => x.column === column)
     : undefined;
+  const isVertical = column ? s.rows.includes(column) : false;
+  const isHorizontal = column ? s.pivotOn.includes(column) : false;
+  const groupable = column !== undefined && ctx.canGroup !== false;
 
-  if (column) {
-    push('Sort', [
-      { id: 'sort.asc', label: 'Ascending', column, direction: 'asc' },
-      { id: 'sort.desc', label: 'Descending', column, direction: 'desc' },
-      // "Add" only means something once there is a sort to add to.
-      s.sorts.length > 0
-        ? { id: 'sort.addAsc', label: 'Add Ascending', column, direction: 'asc' }
-        : null,
-      s.sorts.length > 0
-        ? {
-            id: 'sort.addDesc',
-            label: 'Add Descending',
-            column,
-            direction: 'desc',
-          }
-        : null,
-      sorted ? { id: 'sort.clearColumn', label: 'Clear Sort', column } : null,
-      s.sorts.length > 0
-        ? { id: 'sort.clearAll', label: 'Clear All Sorts' }
-        : null,
-    ]);
-  }
-
-  // Their two entries, verbatim. The editor opens unscoped -- there
-  // is no per-column filter dialog in DataCube, because the filter
-  // is one tree over the whole cube rather than a set of per-column
-  // widgets that have to be reconciled.
-  push('Filter', [
-    { id: 'filter.column', label: 'Filters...', ...(column ? { column } : {}) },
-    s.filter ? { id: 'filter.clearAll', label: 'Clear All Filters' } : null,
+  // ---- Export / Copy ----------------------------------------------
+  push('', [
+    {
+      label: 'Export',
+      submenu: [
+        { id: 'export.html', label: 'HTML' },
+        { id: 'export.excel', label: 'Excel (Grid)' },
+        { id: 'export.csv', label: 'CSV (Grid)' },
+        { id: 'export.specification', label: 'DataCube Specification' },
+      ],
+    },
+    {
+      label: 'Copy',
+      submenu: [
+        {
+          id: 'copy.selection',
+          label: 'Selected Cells as Plain Text',
+          disabled: !ctx.hasSelection,
+        },
+        {
+          id: 'copy.column',
+          label: column
+            ? `Column ${columnLabel(column)} as Plain Text`
+            : 'Selected Column as Plain Text',
+          disabled: !column,
+          ...(column ? { column } : {}),
+        },
+      ],
+    },
   ]);
 
-  if (column && ctx.canGroup !== false) {
-    const isVertical = s.rows.includes(column);
-    const isHorizontal = s.pivotOn.includes(column);
-    push('Pivot', [
-      // Replace, or add alongside: two different intentions, so two
-      // entries rather than one that guesses.
-      !isVertical
-        ? { id: 'pivot.vertical', label: `Vertical Pivot on ${columnLabel(column)}`, column }
-        : null,
-      !isVertical && s.rows.length > 0
-        ? {
-            id: 'pivot.addVertical',
-            label: `Add Vertical Pivot on ${columnLabel(column)}`,
-            column,
-          }
-        : null,
-      isVertical
-        ? {
-            id: 'pivot.removeVertical',
-            label: `Remove Vertical Pivot on ${columnLabel(column)}`,
-            column,
-          }
-        : null,
-      s.rows.length > 0
-        ? { id: 'pivot.clearVertical', label: 'Clear All Vertical Pivots' }
-        : null,
-      !isHorizontal
-        ? {
-            id: 'pivot.horizontal',
-            label: `Horizontal Pivot on ${columnLabel(column)}`,
-            column,
-          }
-        : null,
-      !isHorizontal && s.pivotOn.length > 0
-        ? {
-            id: 'pivot.addHorizontal',
-            label: `Add Horizontal Pivot on ${columnLabel(column)}`,
-            column,
-          }
-        : null,
-      isHorizontal
-        ? {
-            id: 'pivot.removeHorizontal',
-            label: `Remove Horizontal Pivot on ${columnLabel(column)}`,
-            column,
-          }
-        : null,
-      s.pivotOn.length > 0
-        ? { id: 'pivot.clearHorizontal', label: 'Clear All Horizontal Pivots' }
-        : null,
-    ]);
-
-  }
-
-  // Layout actions apply to ANY column, pivoted measures included:
-  // hiding or pinning `2021 / notional` is meaningful where
-  // grouping by it is not. These sat inside the pivot block, so
-  // gating that block on canGroup took them away too.
-  if (column) {
-    push('Column', [
-      { id: 'column.hide', label: `Hide ${columnLabel(column)}`, column },
-      { id: 'column.autoSize', label: 'Auto-size to Fit Content', column },
-      { id: 'column.autoSizeAll', label: 'Auto-size All Columns' },
-      { id: 'column.pinLeft', label: 'Pin Left', column },
-      { id: 'column.pinRight', label: 'Pin Right', column },
-      { id: 'column.unpin', label: 'Unpin', column },
-      { id: 'column.unpinAll', label: 'Remove All Pinnings' },
-    ]);
-  }
-
-  push('Tree', [
-    ctx.hasExpanded
-      ? { id: 'tree.collapseAll', label: 'Collapse All' }
-      : null,
+  // ---- Sort / Filter / Pivot ----------------------------------------
+  push('', [
+    {
+      label: 'Sort',
+      submenu: [
+        {
+          id: 'sort.asc',
+          label: 'Ascending',
+          disabled: !column,
+          ...(column ? { column, direction: 'asc' as const } : {}),
+        },
+        {
+          id: 'sort.desc',
+          label: 'Descending',
+          disabled: !column,
+          ...(column ? { column, direction: 'desc' as const } : {}),
+        },
+        {
+          id: 'sort.addAsc',
+          label: 'Add Ascending',
+          disabled: !column,
+          ...(column ? { column, direction: 'asc' as const } : {}),
+        },
+        {
+          id: 'sort.addDesc',
+          label: 'Add Descending',
+          disabled: !column,
+          ...(column ? { column, direction: 'desc' as const } : {}),
+        },
+        {
+          id: 'sort.clearColumn',
+          label: 'Clear Sort',
+          disabled: !sorted,
+          ...(column ? { column } : {}),
+        },
+        {
+          id: 'sort.clearAll',
+          label: 'Clear All Sorts',
+          disabled: s.sorts.length === 0,
+        },
+      ],
+    },
+    { label: 'Filter', submenu: filterSubmenu(ctx) },
+    {
+      label: 'Pivot',
+      submenu: [
+        {
+          id: 'pivot.vertical',
+          label: groupable
+            ? `Vertical Pivot on ${columnLabel(column)}`
+            : 'Vertical Pivot',
+          disabled: !groupable,
+          ...(column ? { column } : {}),
+        },
+        {
+          id: 'pivot.addVertical',
+          label: groupable
+            ? `Add Vertical Pivot on ${columnLabel(column)}`
+            : 'Add Vertical Pivot',
+          disabled: !groupable || isVertical,
+          ...(column ? { column } : {}),
+        },
+        {
+          id: 'pivot.removeVertical',
+          label: groupable
+            ? `Remove Vertical Pivot on ${columnLabel(column)}`
+            : 'Remove Vertical Pivot',
+          disabled: !isVertical,
+          ...(column ? { column } : {}),
+        },
+        {
+          id: 'pivot.clearVertical',
+          label: 'Clear All Vertical Pivots',
+          disabled: s.rows.length === 0,
+        },
+        {
+          id: 'pivot.horizontal',
+          label: groupable
+            ? `Horizontal Pivot on ${columnLabel(column)}`
+            : 'Horizontal Pivot',
+          disabled: !groupable,
+          ...(column ? { column } : {}),
+        },
+        {
+          id: 'pivot.addHorizontal',
+          label: groupable
+            ? `Add Horizontal Pivot on ${columnLabel(column)}`
+            : 'Add Horizontal Pivot',
+          disabled: !groupable || isHorizontal,
+          ...(column ? { column } : {}),
+        },
+        {
+          id: 'pivot.removeHorizontal',
+          label: groupable
+            ? `Remove Horizontal Pivot on ${columnLabel(column)}`
+            : 'Remove Horizontal Pivot',
+          disabled: !isHorizontal,
+          ...(column ? { column } : {}),
+        },
+        {
+          id: 'pivot.clearHorizontal',
+          label: 'Clear All Horizontal Pivots',
+          disabled: s.pivotOn.length === 0,
+        },
+      ],
+    },
   ]);
 
-  push('Copy', [
-    ctx.hasSelection
-      ? { id: 'copy.selection', label: 'Selected Cells as Plain Text' }
-      : null,
-    column
-      ? { id: 'copy.column', label: `Column ${columnLabel(column)} as Plain Text`, column }
-      : null,
+  // ---- Resize / Pin / Hide / Collapse / Heatmap -----------------------
+  push('', [
+    {
+      label: 'Resize',
+      submenu: [
+        {
+          id: 'column.autoSize',
+          label: 'Auto-size to Fit Content',
+          disabled: !column,
+          ...(column ? { column } : {}),
+        },
+        { id: 'column.autoSizeAll', label: 'Auto-size All Columns' },
+      ],
+    },
+    {
+      label: 'Pin',
+      submenu: [
+        {
+          id: 'column.pinLeft',
+          label: 'Pin Left',
+          disabled: !column,
+          ...(column ? { column } : {}),
+        },
+        {
+          id: 'column.pinRight',
+          label: 'Pin Right',
+          disabled: !column,
+          ...(column ? { column } : {}),
+        },
+        {
+          id: 'column.unpin',
+          label: 'Unpin',
+          disabled: !column,
+          ...(column ? { column } : {}),
+        },
+        { id: 'column.unpinAll', label: 'Remove All Pinnings' },
+      ],
+    },
+    {
+      id: 'column.hide',
+      label: column ? `Hide ${columnLabel(column)}` : 'Hide',
+      disabled: !column,
+      ...(column ? { column } : {}),
+    },
+    {
+      id: 'tree.collapseAll',
+      label: 'Collapse All',
+      disabled: !ctx.hasExpanded,
+    },
+    {
+      label: 'Heatmap',
+      submenu: [
+        {
+          id: 'heatmap.add',
+          label: column
+            ? `Add Heatmap to ${columnLabel(column)}`
+            : 'Add Heatmap',
+          disabled: !column || Boolean(ctx.hasHeatmap),
+          ...(column ? { column } : {}),
+        },
+        {
+          id: 'heatmap.remove',
+          label: 'Remove Heatmap',
+          disabled: !column || !ctx.hasHeatmap,
+          ...(column ? { column } : {}),
+        },
+      ],
+    },
   ]);
 
-  push('Export', [
-    { id: 'export.html', label: 'HTML' },
-    { id: 'export.excel', label: 'Excel (Grid)' },
-    { id: 'export.csv', label: 'CSV (Grid)' },
-    { id: 'export.specification', label: 'DataCube Specification' },
-  ]);
-
-  // Heatmap is per COLUMN, because per column is the only scale that
-  // means anything -- see style.ts.
-  if (column) {
-    push('Heatmap', [
-      ctx.hasHeatmap
-        ? { id: 'heatmap.remove', label: 'Remove Heatmap', column }
-        : { id: 'heatmap.add', label: 'Add Heatmap', column },
-    ]);
-  }
-
-  // Their menu is where the editor opens from. A toolbar button for
-  // it would be a second door to the same room, and not one their
-  // users would look for.
   push('', [{ id: 'view.properties', label: 'Properties...' }]);
 
   return groups;
 }
 
-/** Every item in a menu, flattened — for tests and for keyboard use. */
+/**
+ * The Filter submenu, which is the value-aware one.
+ *
+ * With a value under the pointer it leads with the equality filter
+ * on that value and tucks every other operator for the column's
+ * type into a submenu of its own -- their three-level shape. A
+ * blank cell gets the two null predicates instead, because "= "
+ * against nothing is not a filter anyone means.
+ */
+function filterSubmenu(ctx: MenuContext): MenuItem[] {
+  const { column, value } = ctx;
+  const items: MenuItem[] = [];
+
+  if (column !== undefined && value !== undefined) {
+    if (value === null) {
+      items.push(
+        filterItem(column, 'isEmpty', undefined),
+        filterItem(column, 'isNotEmpty', undefined),
+      );
+    } else {
+      const operators = filterOperatorsFor(ctx.columnType ?? 'String');
+      if (operators.includes('equal')) {
+        items.push(filterItem(column, 'equal', value));
+        const more = operators.filter((op) => op !== 'equal');
+        if (more.length > 0) {
+          items.push({
+            label: `More Filters on ${columnLabel(column)}...`,
+            submenu: more.map((op) => filterItem(column, op, value)),
+          });
+        }
+      }
+    }
+  }
+
+  items.push(
+    { id: 'filter.column', label: 'Filters...' },
+    {
+      id: 'filter.clearAll',
+      label: 'Clear All Filters',
+      disabled: !ctx.snapshot.filter,
+    },
+  );
+  return items;
+}
+
+/** Every item in a menu, submenus included -- for tests and search. */
 export function menuItems(groups: readonly MenuGroup[]): MenuItem[] {
-  return groups.flatMap((g) => [...g.items]);
+  const walk = (items: readonly MenuItem[]): MenuItem[] =>
+    items.flatMap((i) => [i, ...(i.submenu ? walk(i.submenu) : [])]);
+  return groups.flatMap((g) => walk(g.items));
 }
 
 // -- applying an action to the snapshot -------------------------------
@@ -311,6 +561,26 @@ export function applyMenuAction(
         : s;
     case 'sort.clearAll':
       return { ...s, sorts: [] };
+
+    case 'filter.add': {
+      // ADDS to the filter rather than replacing it, which is what
+      // "Add Filter" says and what makes the entry usable twice in
+      // a row. The new condition joins the existing tree with AND;
+      // an OR is the filter editor's job.
+      if (!col || !item.operator) return s;
+      const condition: FilterNode = {
+        kind: 'condition',
+        column: col,
+        operator: item.operator,
+        ...(item.value !== undefined ? { value: item.value } : {}),
+      };
+      const filter: FilterNode = s.filter
+        ? s.filter.kind === 'and'
+          ? { kind: 'and', children: [...s.filter.children, condition] }
+          : { kind: 'and', children: [s.filter, condition] }
+        : condition;
+      return { ...s, filter };
+    }
 
     case 'filter.clearAll': {
       const { filter: _drop, ...rest } = s;

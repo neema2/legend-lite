@@ -59,16 +59,7 @@ export class MenuView {
         menu.appendChild(sep);
       }
       for (const item of group.items) {
-        const el = this.#doc.createElement('div');
-        el.className = 'dc-menu-item';
-        el.setAttribute('role', 'menuitem');
-        el.tabIndex = -1;
-        el.textContent = item.label;
-        el.addEventListener('click', () => {
-          this.#options.onSelect(item);
-          this.close();
-        });
-        menu.appendChild(el);
+        menu.appendChild(this.#item(item));
       }
     });
 
@@ -77,6 +68,66 @@ export class MenuView {
     this.#el = menu;
     this.#place(x, y);
     this.items[0]?.focus();
+  }
+
+  /**
+   * One entry, with its submenu if it has one.
+   *
+   * The submenu is nested INSIDE its parent element rather than
+   * positioned as a second popup, so it inherits the parent's
+   * lifetime and cannot survive the menu closing -- an orphaned
+   * submenu floating over the grid is the classic bug here. CSS
+   * opens it on hover and on focus-within, so it works from the
+   * keyboard as well as the mouse.
+   */
+  #item(item: MenuItem): HTMLElement {
+    const doc = this.#doc;
+    const el = doc.createElement('div');
+    el.className = 'dc-menu-item';
+    el.setAttribute('role', 'menuitem');
+    el.tabIndex = -1;
+
+    const label = doc.createElement('span');
+    label.className = 'dc-menu-label';
+    label.textContent = item.label;
+    el.appendChild(label);
+
+    if (item.disabled) {
+      // Shown but dead. The menu keeps its shape so it can be
+      // learned; aria-disabled says so rather than leaving a screen
+      // reader to discover it by clicking.
+      el.classList.add('dc-disabled');
+      el.setAttribute('aria-disabled', 'true');
+    }
+
+    if (item.submenu && item.submenu.length > 0) {
+      el.classList.add('dc-has-submenu');
+      el.setAttribute('aria-haspopup', 'menu');
+      const chevron = doc.createElement('span');
+      chevron.className = 'dc-menu-chevron';
+      chevron.setAttribute('aria-hidden', 'true');
+      chevron.textContent = '\u203a';
+      el.appendChild(chevron);
+
+      const sub = doc.createElement('div');
+      sub.className = 'dc-submenu';
+      sub.setAttribute('role', 'menu');
+      for (const child of item.submenu) sub.appendChild(this.#item(child));
+      el.appendChild(sub);
+    }
+
+    // A submenu parent has no action of its own; clicking it must
+    // not close the menu the user is still navigating.
+    if (item.id !== undefined && !item.disabled) {
+      el.addEventListener('click', (event) => {
+        event.stopPropagation();
+        this.#options.onSelect(item);
+        this.close();
+      });
+    } else {
+      el.addEventListener('click', (event) => event.stopPropagation());
+    }
+    return el;
   }
 
   close(): void {

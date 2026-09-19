@@ -125,7 +125,10 @@ describe('the app', () => {
     ] as HTMLElement[];
   /** Click a menu entry by the words a user reads. */
   const pick = (label: string): void => {
-    const item = menuItems().find((i) => i.textContent === label);
+    const item = menuItems().find((i) =>
+      (i.querySelector('.dc-menu-label')?.textContent ?? i.textContent) ===
+      label,
+    );
     if (!item) {
       throw new Error(
         `no menu entry "${label}"; saw: ${menuItems()
@@ -218,17 +221,60 @@ describe('the app', () => {
   });
 
   it('adds and removes a heatmap from the menu', () => {
-    rightClick('.dc-cell');
-    pick('Add Heatmap');
+    rightClick('.dc-cell:not(.dc-dim)');
+    pick('Add Heatmap to total');
     const column = Object.entries(app.configuration.columns).find(
       ([, c]) => c.heatmap,
     );
     assert.notEqual(column, undefined);
-    rightClick('.dc-cell');
+    rightClick('.dc-cell:not(.dc-dim)');
     pick('Remove Heatmap');
     assert.equal(
       Object.values(app.configuration.columns).some((c) => c.heatmap),
       false,
+    );
+  });
+
+  it('a right-click on a TREE cell resolves the dimension at that level', () => {
+    // Their menu does the same, from the node's level: right-click
+    // EMEA under region and the filter entries are about region.
+    // Row 1, not row 0: the grand total's path is empty, so it
+    // names no dimension -- and every column-specific entry
+    // correctly greys out there.
+    const treeCell = root
+      .querySelectorAll('.dc-row')[1]
+      ?.querySelector('.dc-cell.dc-tree') as HTMLElement;
+    treeCell.dispatchEvent(
+      new dom.window.MouseEvent('contextmenu', { bubbles: true }),
+    );
+    assert.ok(
+      menuItems().some((i) =>
+        (i.querySelector('.dc-menu-label')?.textContent ?? '').startsWith(
+          'Add Filter: region =',
+        ),
+      ),
+      menuItems()
+        .map((i) => i.querySelector('.dc-menu-label')?.textContent)
+        .join(' | '),
+    );
+  });
+
+  it('the grand total row names no dimension, and greys what needs one', () => {
+    const totalCell = root
+      .querySelector('.dc-row .dc-cell.dc-tree') as HTMLElement;
+    totalCell.dispatchEvent(
+      new dom.window.MouseEvent('contextmenu', { bubbles: true }),
+    );
+    const live = menuItems().filter(
+      (i) => i.getAttribute('aria-disabled') !== 'true',
+    );
+    assert.equal(
+      live.some(
+        (i) =>
+          (i.querySelector('.dc-menu-label')?.textContent ?? '') === 'Hide',
+      ),
+      false,
+      'Hide with nothing to hide must not be actionable',
     );
   });
 
