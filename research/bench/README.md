@@ -306,3 +306,73 @@ pagination, epoch-stamped discarding (forced anyway — `query()` cannot
 be cancelled), the formatter cache (27ms -> 1ms, unrelated to
 windowing), identity-keyed view state, subtotals via `concatenate`, and
 snap mode.
+
+## `cachehost.py` — where should the snap live?
+
+The snap does not have to live in a browser tab. The candidates are: a
+browser tab's memory, a browser tab persisted to OPFS, a native DuckDB
+running locally on the user's machine, a per-user cache on a shared
+server, or a temp table in the warehouse itself.
+
+Two of the deciding factors are measurable without a browser: the cost
+of putting the snap on disk, and the cost of losing multiple cores —
+which is the real price of hosting the cache in a browser at all, since
+multi-core needs COOP/COEP and only single-thread bundles are registered
+today.
+
+    snap = 10,000,000 rows x 6 cols   cpus=10   min of 3
+
+          host  threads   build ms   pivot ms   scan ms   on-disk
+        memory        1        692      168.4      11.2         -
+        memory       10        712      115.3       2.1         -
+          file        1       1754      192.1      28.9      239MB
+          file       10       1773      122.7       5.1      238MB
+
+    cost of 1 thread vs 10:  1.5x slower
+    cost of disk vs memory (1 thread): 1.14x
+
+**Disk is nearly free for query work (1.14x).** Build is 2.5x slower but
+that is a one-time snap cost. So disk-backing lifts the size ceiling
+without a meaningful query penalty.
+
+**Single-threading costs only 1.5x.** Pivot aggregation does not
+parallelize especially well, so the browser's core limitation is far
+cheaper than expected. Caveat: the machine was at load 1.6, so the
+10-thread figure is likely flattered and the true gap may be wider.
+
+10M rows x 500 pivot columns single-threaded is 168ms — inside the
+300ms budget with room for the WASM factor on top.
+
+At 239MB for 10M rows (24 B/row), this also sits inside the bracket
+measured in `snapentropy.py`.
+
+### What this does not answer
+
+Two things need the browser harness and cannot be measured here:
+
+- **The WASM penalty itself**, separate from single-threading. If WASM
+  costs ~2x on top of the 1.5x threading penalty, 168ms becomes roughly
+  500ms at this size — borderline. Smaller or narrower cubes stay fine.
+- **Whether OPFS persistence works well** for a snap of this size, which
+  decides whether snaps survive a page refresh.
+
+Both belong in step 1's scope.
+
+### The factor no benchmark settles
+
+Whether material data may sit at rest on an endpoint — a browser's
+storage or a laptop's disk — is a policy question, and in a bank it
+frequently dominates the technical trade-off. It can rule out every
+browser- and laptop-hosted option regardless of speed.
+
+This argues for treating the snap's **location as swappable**, which is
+unusually cheap here: all the candidates run *the same engine* over the
+same SQL, so moving the snap from a tab to a server changes neither the
+queries nor the answers. A server-side snap also gains something
+browser-local cannot offer — it is **shareable**, so "here is my 09:00
+snap" becomes a link, which fits the reconciliation workflow directly.
+
+The warehouse-temp-table option is the only one where data never leaves
+the datacenter, but warehouse latency per query (100ms-1s+) is too slow
+for the interaction this product is for, so it is not really a cache in
+the needed sense.
