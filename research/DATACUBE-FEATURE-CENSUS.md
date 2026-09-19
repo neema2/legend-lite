@@ -136,6 +136,50 @@ is the saved-view JSON that already existed.
 scale; named dimensions drilled as a unit, composed onto the existing
 row tree rather than a second mode.
 
+## Phase 7 — the product
+
+The audit that closed phase 6 found the honest problem: most of
+phases 4 to 6 were built, tested and **unreachable**. `grep -c
+contextmenu src/grid/grid.ts` returned 0; `MenuView`, `buildMenu`,
+`heatColour`, `toHtml`, `toSpreadsheetML`, `drillQuery` and
+`selectionStats` each had exactly one user, the file that defined
+it. Good unit tests on all of them, and no user could reach any.
+
+So phase 7 is the editor and the assembly.
+
+**One configuration.** It existed four times over -- ColumnLayout,
+GridOptions.formats, GridOptions.appearance, and the snapshot. Now
+`config.ts` is authoritative and those four are projections. A
+column's settings live under its NAME, which is what makes them
+survive being hidden, reordered, pivoted and brought back.
+
+**The seven panels**, in DataCube's tab order, with its labels, over
+one draft: nothing reaches the cube until Apply, so a half-built
+pivot never issues a query and Cancel is a discard rather than an
+undo log.
+
+**Drag to pivot**, which is ag-Grid's row group panel
+(`rowGroupPanelShow: 'always'`). DataCube deliberately disables the
+matching pivot panel because of ag-Grid restrictions that do not
+apply here, so both zones exist -- the column zone being the one
+place this goes beyond DataCube rather than matching it. The drag
+SOURCE is a Columns tool panel, because a pivoted cube has no
+dimension header to drag: the row dimensions collapse into one tree
+column with a blank header.
+
+**A floating filter**, which DataCube does NOT have -- grepping
+legend-data-cube for `floatingFilter` returns nothing. It writes
+into the same FilterNode tree the editor edits, so the two cannot
+drift, and a filter too complex for a box disables the box rather
+than blanking it. It is a strip of labelled boxes over the
+dimensions in play rather than a box per leaf: in an aggregating
+cube no leaf is ever a source column.
+
+**A reachability guardrail**, so the phase-6 failure cannot recur:
+each module must be imported by `src/app.ts` and called, by name.
+
+531 tests, 45 browser checks against real DuckDB-WASM.
+
 ## Still open
 
 - The app has only ever run against the demo SQL shim. `/engine/plan`
