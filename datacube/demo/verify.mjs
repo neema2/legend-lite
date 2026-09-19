@@ -424,6 +424,92 @@ try {
     'an empty strip would be noise, and would shift every rowindex',
   );
 
+  // -- the filter tree lines up ----------------------------------------
+  // The operator word sits in a fixed-width lead so it cannot push
+  // the row's controls. `and` is wider than `or`, so it is the case
+  // that fails first if the box ever goes back into the flow. This
+  // measures real geometry rather than trusting the markup.
+  await tool('Filters');
+  await page.waitForSelector('.dc-filters', { timeout: 10_000 });
+  await page.locator('.dc-filter-btn', { hasText: 'Create New Filter' }).click();
+  await page.locator('.dc-filter-row').nth(1).locator('.dc-filter-ctl').first().click();
+  await page.locator('.dc-filter-row').nth(1).locator('.dc-filter-ctl').first().click();
+  await page.waitForTimeout(300);
+
+  /** Left edge of each sibling's column dropdown, in device pixels. */
+  const columnLefts = async () =>
+    page.evaluate(() =>
+      [...document.querySelectorAll('.dc-filter-row .dc-filter-column')].map(
+        (el) => Math.round(el.getBoundingClientRect().left),
+      ),
+    );
+
+  const andLefts = await columnLefts();
+  check(
+    'three siblings joined by "and" line up',
+    andLefts.length === 3 && new Set(andLefts).size === 1,
+    `lefts: ${andLefts.join(', ')}`,
+  );
+
+  await page
+    .locator('.dc-filter-row.dc-filter-group')
+    .first()
+    .locator('.dc-filter-join')
+    .selectOption('or');
+  await page.waitForTimeout(300);
+  const orLefts = await columnLefts();
+  check(
+    'and they still line up as "or"',
+    orLefts.length === 3 && new Set(orLefts).size === 1,
+    `lefts: ${orLefts.join(', ')}`,
+  );
+  check(
+    'switching the operator does not move the row either',
+    andLefts[0] === orLefts[0],
+    `${andLefts[0]} vs ${orLefts[0]}`,
+  );
+
+  // Nested: a sub-group's own children must line up with each other
+  // too, at their deeper indent.
+  await page.locator('.dc-filter-row').nth(3).locator('.dc-filter-ctl').nth(2).click();
+  await page.waitForTimeout(200);
+  await page.locator('.dc-filter-row').nth(4).locator('.dc-filter-ctl').first().click();
+  await page.waitForTimeout(300);
+  const nested = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('.dc-filter-row')];
+    return rows
+      .map((r) => ({
+        level: Number(r.style.getPropertyValue('--dc-filter-level')),
+        left: r.querySelector('.dc-filter-column')
+          ? Math.round(
+              r.querySelector('.dc-filter-column').getBoundingClientRect().left,
+            )
+          : null,
+      }))
+      .filter((x) => x.left !== null);
+  });
+  const byLevel = new Map();
+  for (const { level, left } of nested) {
+    byLevel.set(level, (byLevel.get(level) ?? new Set()).add(left));
+  }
+  check(
+    'nested siblings line up at their own depth',
+    [...byLevel.values()].every((set) => set.size === 1),
+    [...byLevel.entries()]
+      .map(([l, set]) => `L${l}: ${[...set].join('/')}`)
+      .join('  '),
+  );
+  check(
+    'and a deeper level is indented further than its parent',
+    [...byLevel.keys()].length > 1 &&
+      Math.min(...byLevel.get(2)) > Math.min(...byLevel.get(1)),
+    [...byLevel.entries()]
+      .map(([l, set]) => `L${l}=${Math.min(...set)}`)
+      .join(' '),
+  );
+
+  await page.locator('.dc-overlay-close').click();
+
   const afterAll = await page.textContent('#status');
   check('no error after all of that', !/error/i.test(afterAll ?? ''), afterAll?.trim());
 
