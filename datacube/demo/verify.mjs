@@ -145,6 +145,35 @@ try {
     `${filled.length}/${values.length} populated`,
   );
 
+  // No grand total -- which is DataCube's own default. The level-0
+  // query should not be issued, and the top level should be promoted
+  // rather than leaving a gap where the root used to be.
+  await page.uncheck('#totals');
+  await page.waitForFunction(
+    () => document.querySelectorAll('.dc-row').length === 3,
+    { timeout: 60_000 },
+  );
+  const noTotalLevels = await page.evaluate(() =>
+    [...document.querySelectorAll('.dc-row')].map((r) =>
+      r.getAttribute('aria-level'),
+    ),
+  );
+  check(
+    'without a total the top level is promoted to level 1',
+    noTotalLevels.every((l) => l === '1'),
+    noTotalLevels.join(','),
+  );
+  check(
+    'no total row remains',
+    (await page.locator('.dc-row.dc-total').count()) === 0,
+  );
+  await page.check('#totals');
+  await page.waitForFunction(
+    () => document.querySelectorAll('.dc-row').length === 4,
+    { timeout: 60_000 },
+  );
+  check('the total comes back as the root', true, '4 rows');
+
   // Expanding a group fetches its children and inlines them.
   await page.locator('.dc-row').nth(1).locator('.dc-cell').first().click();
   await page.locator('[role="treegrid"]').focus();

@@ -223,6 +223,11 @@ async function boot(): Promise<void> {
     void controller.update(snapshot);
   });
 
+  must('totals').addEventListener('change', (e) => {
+    const show = (e.target as HTMLInputElement).checked;
+    void controller.setTree(controller.tree.withTotals(show));
+  });
+
   must('snap').addEventListener('click', async () => {
     const btn = must('snap') as HTMLButtonElement;
     btn.disabled = true;
