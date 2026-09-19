@@ -24,6 +24,8 @@
 
 import { TREE_COLUMN, type ColumnModel } from './columns.ts';
 import { computeRowWindow, isCovered, type RowWindow } from './viewport.ts';
+import type { FloatingFilterRow } from './floating-filter.ts';
+import { makeHeaderDraggable } from '../ui/pivot-panel.ts';
 import type { ColumnFormat, FormatterCache } from '../format.ts';
 import { DEFAULT_FORMAT } from '../format.ts';
 import type { ResultTable, Scalar } from '../result.ts';
@@ -76,6 +78,22 @@ export interface GridOptions {
    * and a test must not depend on a browser granting it.
    */
   readonly writeClipboard?: (text: string) => void | Promise<void>;
+  /**
+   * A filter box under each column header.
+   *
+   * Supplying the row turns it on; the grid places one cell per leaf
+   * and the row owns the filter tree. ag-Grid's idiom, not
+   * DataCube's -- see floating-filter.ts.
+   */
+  readonly floatingFilter?: FloatingFilterRow;
+  /**
+   * Whether a column header may be dragged into the pivot zones.
+   *
+   * Returning false leaves the header undraggable rather than
+   * letting a drag start and refusing the drop, because a drag that
+   * can never land is worse than no drag handle at all.
+   */
+  readonly canGroup?: (column: string) => boolean;
 }
 
 const DEFAULT_ROW_HEIGHT = 24;
@@ -164,7 +182,37 @@ export class DataGrid {
   setColumns(model: ColumnModel): void {
     this.#model = model;
     this.#renderHeader();
+    this.#announceRowCount();
     this.#rendered = null;
+  }
+
+  /**
+   * Header rows above the data, INCLUDING the floating filter row.
+   *
+   * Every aria-rowindex in the body is offset by this, so the filter
+   * row appearing or not must move the data rows with it -- a body
+   * row announced as row 4 while the header occupies rows 1-4 is a
+   * grid a screen-reader user cannot navigate.
+   */
+  #headerLevels(): number {
+    return (
+      (this.#model?.headerRows.length ?? 0) +
+      (this.#options.floatingFilter ? 1 : 0)
+    );
+  }
+
+  /**
+   * aria-rowcount counts the header rows too.
+   *
+   * It has to, because aria-rowindex does: the last data row
+   * announces as headerLevels + totalRows, and a count of totalRows
+   * alone makes every row read as "row N of fewer-than-N".
+   */
+  #announceRowCount(): void {
+    this.#root.setAttribute(
+      'aria-rowcount',
+      String(this.#headerLevels() + this.#totalRows),
+    );
   }
 
   /**
@@ -177,7 +225,7 @@ export class DataGrid {
     this.#table = table;
     this.#blockOffset = blockOffset;
     this.#totalRows = totalRows;
-    this.#root.setAttribute('aria-rowcount', String(totalRows));
+    this.#announceRowCount();
     this.#rendered = null;
     this.#render();
   }
@@ -217,7 +265,7 @@ export class DataGrid {
     // cells under the dimension columns instead of under their values.
     this.#head.style.gridTemplateColumns = this.#templateColumns(model);
     this.#head.style.gridTemplateRows =
-      `repeat(${model.depth}, var(--dc-row-height))`;
+      `repeat(${this.#headerLevels()}, var(--dc-row-height))`;
 
     model.headerRows.forEach((cells, level) => {
       // A row element per level keeps role=row correct for assistive
@@ -243,10 +291,45 @@ export class DataGrid {
         if (cell.rowSpan > 1) {
           el.setAttribute('aria-rowspan', String(cell.rowSpan));
         }
+        // Only a cell sitting directly over ONE leaf names a column;
+        // a pivot value spanning four leaves is not a column and
+        // dragging it would have to mean four things at once.
+        const leaf =
+          cell.leafIndex !== undefined ? model.leaves[cell.leafIndex] : undefined;
+        if (leaf) {
+          el.dataset['column'] = leaf.name;
+          makeHeaderDraggable(
+            el,
+            leaf.name,
+            this.#options.canGroup?.(leaf.name) ?? false,
+          );
+        }
         row.appendChild(el);
       }
       this.#head.appendChild(row);
     });
+
+    const filterRow = this.#options.floatingFilter;
+    if (filterRow) {
+      const row = doc.createElement('div');
+      row.setAttribute('role', 'row');
+      row.className = 'dc-head-row dc-floating-row';
+      row.setAttribute('aria-rowindex', String(model.depth + 1));
+      model.leaves.forEach((leaf, i) => {
+        const cell = filterRow.cell({
+          name: leaf.name,
+          type: leaf.type,
+          // A row dimension is filtered on its source values, a
+          // pivoted measure on nothing a box can express -- its
+          // name is a path, not a column the engine knows.
+          filterable: leaf.path.length <= 1,
+        });
+        cell.style.gridColumn = `${i + 1} / span 1`;
+        cell.style.gridRow = `${model.depth + 1} / span 1`;
+        row.appendChild(cell);
+      });
+      this.#head.appendChild(row);
+    }
   }
 
   /**
@@ -291,7 +374,7 @@ export class DataGrid {
       const cells = row ? [...row.children] : [];
       const col = cells.indexOf(cell);
       const abs = Number(row?.getAttribute('aria-rowindex') ?? '0') -
-        (this.#model?.headerRows.length ?? 0) - 1;
+        this.#headerLevels() - 1;
       if (col >= 0 && abs >= 0) {
         // Shift extends from the ANCHOR, so growing a selection works
         // from where it started rather than from the last cell
@@ -341,7 +424,7 @@ export class DataGrid {
     this.#body.style.transform = `translateY(${wanted.offsetTop}px)`;
 
     const frag = doc.createDocumentFragment();
-    const headerLevels = model.headerRows.length;
+    const headerLevels = this.#headerLevels();
     const template = this.#templateColumns(model);
 
     for (let abs = wanted.start; abs < wanted.end; abs++) {

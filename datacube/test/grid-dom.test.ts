@@ -114,7 +114,11 @@ describe('DataGrid DOM', () => {
     // The mistake virtualised grids make: without these, a reader says
     // "row 3 of 12" when the user is at row 5,000 of a million.
     const { scroller } = build(10_000);
-    assert.equal(container.getAttribute('aria-rowcount'), '10000');
+    // The count includes the header rows, because the INDEX does:
+    // the last data row announces as headerLevels + totalRows, so a
+    // count of totalRows alone makes every row read as "row N of
+    // fewer-than-N".
+    assert.equal(container.getAttribute('aria-rowcount'), '10002');
 
     scroller.scrollTop = 100_000; // row 5,000
     scroller.dispatchEvent(new dom.window.Event('scroll'));
