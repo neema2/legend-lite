@@ -347,3 +347,41 @@
 @media (prefers-reduced-motion: reduce) {
   .dc-cell.dc-blur { transition: none; }
 }
+
+
+/* -- appearance ---------------------------------------------------
+ *
+ * Grid lines are switched by a custom property rather than a class,
+ * so the whole grid changes with one declaration instead of a class
+ * toggle on every cell.
+ */
+
+.dc-grid {
+  --dc-hgrid: 1;
+  --dc-vgrid: 1;
+  --dc-alt-row: color-mix(in srgb, currentColor 4%, transparent);
+}
+
+.dc-row {
+  border-bottom-width: calc(var(--dc-hgrid) * 1px);
+}
+
+.dc-cell,
+.dc-th {
+  border-right-width: calc(var(--dc-vgrid) * 1px);
+}
+
+/* Banded rows sit UNDER the total shading, so a subtotal stays
+   distinguishable inside a banded region. */
+.dc-row.dc-alt {
+  background: var(--dc-alt-row);
+}
+
+.dc-row.dc-alt .dc-cell.dc-dim {
+  background: color-mix(in srgb, var(--dc-alt-row) 100%, Canvas);
+}
+
+.dc-row.dc-total,
+.dc-row.dc-total.dc-alt {
+  background: var(--dc-total-bg);
+}

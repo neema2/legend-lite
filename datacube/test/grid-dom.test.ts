@@ -177,6 +177,61 @@ describe('DataGrid DOM', () => {
   });
 });
 
+describe('DataGrid appearance', () => {
+  function appearanceGrid(opts: Record<string, unknown>) {
+    const table = makeTable(30);
+    grid = new DataGrid(container, new FormatterCache(), {
+      rowHeight: ROW_HEIGHT,
+      overscan: 2,
+      ...opts,
+    });
+    stubLayout(container.querySelector('.dc-scroller')!, VIEW_HEIGHT);
+    grid.setColumns(buildColumnModel(table, ['region']));
+    grid.setRows(table, 0, 30);
+    return table;
+  }
+
+  it('colours a cell by its value, not by its column', () => {
+    appearanceGrid({
+      appearance: { normalForeground: 'rgb(17, 17, 17)' },
+      columnAppearance: {
+        '2023__|__total': { negativeForeground: 'rgb(220, 20, 60)' },
+      },
+    });
+    const cells = container.querySelectorAll('.dc-row .dc-cell:not(.dc-dim)');
+    // Every value in the fixture is non-negative, so the normal
+    // colour applies; the negative slot is configured but unused.
+    assert.equal(
+      (cells[0] as HTMLElement).style.color,
+      'rgb(17, 17, 17)',
+    );
+  });
+
+  it('bands rows by absolute index, so scrolling does not flicker', () => {
+    appearanceGrid({ appearance: { alternateRows: true } });
+    const rows = [...container.querySelectorAll('.dc-row')];
+    assert.equal(rows[0]?.classList.contains('dc-alt'), false);
+    assert.equal(rows[1]?.classList.contains('dc-alt'), true);
+    assert.equal(rows[2]?.classList.contains('dc-alt'), false);
+  });
+
+  it('honours a band size greater than one', () => {
+    appearanceGrid({
+      appearance: { alternateRows: true, alternateRowsCount: 2 },
+    });
+    const banded = [...container.querySelectorAll('.dc-row')].map((r) =>
+      r.classList.contains('dc-alt'),
+    );
+    assert.deepEqual(banded.slice(0, 6), [false, false, true, true, false, false]);
+  });
+
+  it('sets grid-line variables on the container', () => {
+    appearanceGrid({ appearance: { showHorizontalGridLines: false } });
+    assert.equal(container.style.getPropertyValue('--dc-hgrid'), '0');
+    assert.equal(container.style.getPropertyValue('--dc-vgrid'), '1');
+  });
+});
+
 describe('DataGrid keyboard', () => {
   function press(key: string, init: KeyboardEventInit = {}) {
     container.dispatchEvent(

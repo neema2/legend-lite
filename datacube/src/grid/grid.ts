@@ -27,6 +27,14 @@ import { computeRowWindow, isCovered, type RowWindow } from './viewport.ts';
 import type { ColumnFormat, FormatterCache } from '../format.ts';
 import { DEFAULT_FORMAT } from '../format.ts';
 import type { ResultTable, Scalar } from '../result.ts';
+import {
+  cellStyle,
+  gridVariables,
+  isAlternateRow,
+  mergeAppearance,
+  type CellAppearance,
+  type GridAppearance,
+} from '../style.ts';
 
 export interface GridRowMeta {
   /** Depth in the row-group tree; 1 for a top-level row. */
@@ -44,6 +52,10 @@ export interface GridOptions {
   readonly overscan?: number;
   /** Per-column display format, by leaf column name. */
   readonly formats?: Readonly<Record<string, ColumnFormat>>;
+  /** Grid-wide appearance: fonts, grid lines, alternating rows. */
+  readonly appearance?: GridAppearance;
+  /** Per-column appearance, merged over the grid's, by column name. */
+  readonly columnAppearance?: Readonly<Record<string, CellAppearance>>;
   /** Metadata per absolute row index, for grouping and totals. */
   readonly rowMeta?: (absoluteRow: number) => GridRowMeta;
   readonly onToggleExpand?: (key: string, expanded: boolean) => void;
@@ -95,6 +107,12 @@ export class DataGrid {
 
     const doc = container.ownerDocument;
     this.#root.classList.add('dc-grid');
+    // Appearance rides CSS custom properties rather than per-cell
+    // styles wherever it can: one declaration for the whole grid
+    // instead of a style attribute on every cell.
+    for (const [k, v] of Object.entries(gridVariables(options.appearance ?? {}))) {
+      this.#root.style.setProperty(k, v);
+    }
     this.#root.setAttribute('role', 'treegrid');
     this.#root.tabIndex = 0;
 
@@ -293,6 +311,15 @@ export class DataGrid {
       // within the rendered band, which is meaningless to the user.
       row.setAttribute('aria-rowindex', String(headerLevels + abs + 1));
 
+      // Banding is by absolute row, so it does not flicker as the
+      // window scrolls past.
+      if (
+        this.#options.appearance?.alternateRows &&
+        isAlternateRow(abs, this.#options.appearance.alternateRowsCount ?? 1)
+      ) {
+        row.classList.add('dc-alt');
+      }
+
       const meta = this.#options.rowMeta?.(abs);
       if (meta) {
         row.setAttribute('aria-level', String(meta.level));
@@ -324,6 +351,17 @@ export class DataGrid {
             value,
             this.#options.formats?.[leaf.name] ?? DEFAULT_FORMAT,
           );
+
+          // Colour follows the VALUE, not the column: a scale across
+          // a nested pivot compares a subtotal against a leaf and
+          // puts the strongest colour on whatever aggregates most.
+          const appearance = mergeAppearance(
+            this.#options.appearance ?? {},
+            this.#options.columnAppearance?.[leaf.name],
+          );
+          for (const [k, v] of Object.entries(cellStyle(appearance, value))) {
+            cell.style.setProperty(k, v);
+          }
 
           if (leaf.name === TREE_COLUMN) {
             // Depth is shown by indentation rather than by a column
