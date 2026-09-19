@@ -65,8 +65,25 @@ const shot = async (name, selector) => {
   console.log(`  ${file}`);
 };
 
-const tool = (label) =>
-  page.locator('.dc-app-toolbar .dc-tool', { hasText: label }).first().click();
+const rightClick = async (selector = '.dc-app-grid') => {
+  await page.locator(selector).first().click({ button: 'right' });
+  await page.waitForSelector('.dc-menu', { timeout: 10_000 });
+};
+const pick = async (label) => {
+  await page
+    .locator('.dc-menu [role="menuitem"]', { hasText: label })
+    .first()
+    .click();
+};
+const tool = async (label) => {
+  const viaMenu = {
+    'Properties': 'Properties...',
+    'Filters': 'Filters...',
+    'Collapse all': 'Collapse All',
+  };
+  await rightClick();
+  await pick(viaMenu[label] ?? label);
+};
 const tab = (label) =>
   page.locator('.dc-editor-tab', { hasText: label }).first().click();
 const field = (label) =>
@@ -150,18 +167,11 @@ try {
   await page.waitForTimeout(2500);
   await shot('heatmap', '.dc-app-middle');
 
-  // -- the filter strip, end to end ---------------------------------------
-  await page.locator('.dc-floating-input').first().fill('EMEA');
-  await page.waitForFunction(
-    () => document.getElementById('pure')?.textContent?.includes('filter('),
-    { timeout: 60_000 },
-  );
-  await shot('filter-strip', '.dc-app');
-  await page.locator('.dc-floating-input').first().fill('');
-  await page.waitForFunction(
-    () => !document.getElementById('pure')?.textContent?.includes('filter('),
-    { timeout: 60_000 },
-  );
+  // -- the title bar menu ----------------------------------------------
+  await page.locator('.dc-titlebar-menu').click();
+  await page.waitForSelector('.dc-menu', { timeout: 10_000 });
+  await shot('title-bar-menu');
+  await page.keyboard.press('Escape');
 
   // -- the nested filter editor ---------------------------------------------
   await tool('Filters');

@@ -73,9 +73,10 @@
   <h1>DataCube</h1>
   <p class="sub">
     200,000 rows in DuckDB-WASM, pivoted in the browser. Drag a column
-    header into a zone to group or pivot by it; type in the row under
-    the header to filter; right-click for the menu; Properties&hellip;
-    (or Ctrl+E) for the seven configuration panels.
+    from the Columns panel into a zone to group or pivot by it, and
+    <strong>right-click the grid</strong> for everything else &mdash;
+    sorting, filters, pivots, exports, heatmaps and Properties&hellip;
+    (also Ctrl+E), which opens the seven configuration panels.
   </p>
 
   <p class="warn" id="plannernote" hidden>
@@ -89,7 +90,6 @@
     <span id="plane" class="plane live">Live</span>
     <span id="busy" hidden>running…</span>
   </div>
-
   <div id="app"></div>
   <p id="status">loading…</p>
 

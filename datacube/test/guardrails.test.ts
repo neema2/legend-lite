@@ -100,7 +100,6 @@ describe('nothing is built and left unreachable', () => {
     ['the filter editor', './ui/filter-editor.ts'],
     ['the drag zones', './ui/pivot-panel.ts'],
     ['the columns tool panel', './ui/columns-panel.ts'],
-    ['the floating filter', './grid/floating-filter.ts'],
     ['the configuration', './config.ts'],
   ];
 
@@ -130,7 +129,6 @@ describe('nothing is built and left unreachable', () => {
       'new CubeEditor(',
       'new FilterEditor(',
       'new PivotPanel(',
-      'new FloatingFilterRow(',
       'new MenuView(',
     ]) {
       assert.ok(APP.includes(call), `src/app.ts never calls ${call}`);

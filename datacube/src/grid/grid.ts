@@ -24,10 +24,6 @@
 
 import { TREE_COLUMN, type ColumnModel, type LeafColumn } from './columns.ts';
 import { computeRowWindow, isCovered, type RowWindow } from './viewport.ts';
-import type {
-  FloatingFilterColumn,
-  FloatingFilterRow,
-} from './floating-filter.ts';
 import { makeHeaderDraggable } from '../ui/pivot-panel.ts';
 import type { ColumnFormat, FormatterCache } from '../format.ts';
 import { DEFAULT_FORMAT } from '../format.ts';
@@ -81,30 +77,6 @@ export interface GridOptions {
    * and a test must not depend on a browser granting it.
    */
   readonly writeClipboard?: (text: string) => void | Promise<void>;
-  /**
-   * A filter box under each column header.
-   *
-   * Supplying the row turns it on; the grid places one cell per leaf
-   * and the row owns the filter tree. ag-Grid's idiom, not
-   * DataCube's -- see floating-filter.ts.
-   */
-  readonly floatingFilter?: FloatingFilterRow;
-  /**
-   * What box, if any, a given leaf column gets.
-   *
-   * Per LEAF, so every box sits in its own column and lines up with
-   * the data beneath it. Returning null leaves that column's cell
-   * empty, which is how a pivoted measure -- named for a path the
-   * engine has never heard of -- gets no box without breaking the
-   * alignment of the ones that do.
-   *
-   * The tree column is the case that makes this work at all: it
-   * holds a different dimension at every level, so it gets ONE box
-   * that matches any row dimension rather than none.
-   */
-  readonly floatingFilterFor?: (
-    leaf: LeafColumn,
-  ) => FloatingFilterColumn | null;
   /**
    * Whether a column header may be dragged into the pivot zones.
    *
@@ -222,31 +194,14 @@ export class DataGrid {
   }
 
   /**
-   * Header rows above the data, INCLUDING the floating filter row.
+   * Header rows above the data.
    *
-   * Every aria-rowindex in the body is offset by this, so the filter
-   * row appearing or not must move the data rows with it -- a body
-   * row announced as row 4 while the header occupies rows 1-4 is a
-   * grid a screen-reader user cannot navigate.
+   * Every aria-rowindex in the body is offset by this -- a body row
+   * announced as row 4 while the header occupies rows 1-2 is a grid
+   * a screen-reader user cannot navigate.
    */
   #headerLevels(): number {
-    return (
-      (this.#model?.headerRows.length ?? 0) + (this.#showsFilterRow() ? 1 : 0)
-    );
-  }
-
-  /**
-   * Whether the filter row is on screen.
-   *
-   * Not simply "was one supplied": a cube with no filterable
-   * dimension gets no row, because an empty strip under the header
-   * is noise that also silently shifts every aria-rowindex by one.
-   */
-  #showsFilterRow(): boolean {
-    const model = this.#model;
-    const forLeaf = this.#options.floatingFilterFor;
-    if (!this.#options.floatingFilter || !forLeaf || !model) return false;
-    return model.leaves.some((leaf) => forLeaf(leaf) !== null);
+    return this.#model?.headerRows.length ?? 0;
   }
 
   /**
@@ -372,32 +327,6 @@ export class DataGrid {
       this.#head.appendChild(row);
     });
 
-    const filterRow = this.#options.floatingFilter;
-    const forLeaf = this.#options.floatingFilterFor;
-    if (filterRow && forLeaf && this.#showsFilterRow()) {
-      // One cell per LEAF, placed in that leaf's grid column, so a
-      // box sits over the data it filters. The free-floating strip
-      // this replaced lined up with nothing.
-      const row = doc.createElement('div');
-      row.setAttribute('role', 'row');
-      row.className = 'dc-head-row dc-floating-row';
-      row.setAttribute('aria-rowindex', String(model.depth + 1));
-
-      model.leaves.forEach((leaf, i) => {
-        const spec = forLeaf(leaf);
-        const cell = spec
-          ? filterRow.cell(spec)
-          : (() => {
-              const blank = doc.createElement('div');
-              blank.className = 'dc-floating-cell';
-              return blank;
-            })();
-        cell.style.gridColumn = `${i + 1} / span 1`;
-        cell.style.gridRow = `${model.depth + 1} / span 1`;
-        row.appendChild(cell);
-      });
-      this.#head.appendChild(row);
-    }
   }
 
   /**
@@ -539,6 +468,10 @@ export class DataGrid {
         if (leaf.blurred) classes.push('dc-blur');
         cell.className = classes.join(' ');
         cell.setAttribute('aria-colindex', String(c + 1));
+        // The context menu reads this. Without it a right-click on a
+        // CELL produced a menu with every column-specific entry
+        // missing, which is most of the menu.
+        cell.dataset['column'] = leaf.name;
 
         if (loaded) {
           const value: Scalar =

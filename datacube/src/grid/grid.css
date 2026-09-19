@@ -78,6 +78,11 @@
 .dc-th {
   display: flex;
   align-items: center;
+  /* Centred in the header box. A pivot value sits over a block of
+     measures rather than over one column of figures, so centring is
+     what associates the label with the span it heads. */
+  justify-content: center;
+  text-align: center;
   /* --ag-grid-size: 1px, and quartz computes cell padding as
      grid-size * 2. This 2px is most of why their grid reads as
      dense rather than merely small. */

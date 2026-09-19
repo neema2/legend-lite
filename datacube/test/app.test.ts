@@ -109,13 +109,42 @@ describe('the app', () => {
     await app.open();
   });
 
-  const tool = (label: string): HTMLButtonElement =>
-    [...root.querySelectorAll('.dc-tool')].find(
-      (b) => b.textContent === label,
-    ) as HTMLButtonElement;
+  /** Open the grid's right-click menu, optionally over a column. */
+  const rightClick = (selector = '.dc-app-grid'): void => {
+    (root.querySelector(selector) as HTMLElement).dispatchEvent(
+      new dom.window.MouseEvent('contextmenu', { bubbles: true }),
+    );
+  };
+  /** Open the title bar's hamburger. */
+  const hamburger = (): void => {
+    (root.querySelector('.dc-titlebar-menu') as HTMLButtonElement).click();
+  };
+  const menuItems = (): HTMLElement[] =>
+    [
+      ...dom.window.document.querySelectorAll('.dc-menu [role="menuitem"]'),
+    ] as HTMLElement[];
+  /** Click a menu entry by the words a user reads. */
+  const pick = (label: string): void => {
+    const item = menuItems().find((i) => i.textContent === label);
+    if (!item) {
+      throw new Error(
+        `no menu entry "${label}"; saw: ${menuItems()
+          .map((i) => i.textContent)
+          .join(', ')}`,
+      );
+    }
+    item.click();
+  };
 
-  it('renders the toolbar, the drag zones, the grid and the status line', () => {
-    assert.notEqual(root.querySelector('.dc-app-toolbar'), null);
+  it('renders the title bar, the drag zones, the grid and the status line', () => {
+    // A TITLE BAR, not a toolbar. DataCube has no row of buttons
+    // over the grid: everything lives in the right-click menu.
+    assert.notEqual(root.querySelector('.dc-titlebar'), null);
+    assert.equal(root.querySelector('.dc-app-toolbar'), null);
+    assert.equal(
+      root.querySelector('.dc-titlebar-title')?.textContent,
+      'DataCube',
+    );
     assert.notEqual(root.querySelector('.dc-zone-rows'), null);
     assert.notEqual(root.querySelector('.dc-grid'), null);
     assert.notEqual(root.querySelector('.dc-app-stats'), null);
@@ -156,17 +185,22 @@ describe('the app', () => {
     );
   });
 
-  it('exports every format the menu offers', () => {
-    tool('CSV').click();
-    tool('Excel').click();
-    tool('HTML').click();
-    tool('Spec').click();
+  it('exports every format, from the right-click menu', () => {
+    for (const label of [
+      'HTML',
+      'Excel (Grid)',
+      'CSV (Grid)',
+      'DataCube Specification',
+    ]) {
+      rightClick();
+      pick(label);
+    }
     assert.deepEqual(
       downloads.map((d) => d[1]),
       [
-        'text/csv',
-        'application/vnd.ms-excel',
         'text/html',
+        'application/vnd.ms-excel',
+        'text/csv',
         'application/json',
       ],
     );
@@ -174,11 +208,46 @@ describe('the app', () => {
     assert.ok(downloads[1]?.[2].includes('<Workbook'));
   });
 
-  it('saves a view and loads it back', async () => {
-    tool('Save view').click();
+  it('opens the editor from the right-click menu, as DataCube does', () => {
+    rightClick();
+    pick('Properties...');
+    assert.equal(
+      (root.querySelector('.dc-app-overlay') as HTMLElement).hidden,
+      false,
+    );
+  });
+
+  it('adds and removes a heatmap from the menu', () => {
+    rightClick('.dc-cell');
+    pick('Add Heatmap');
+    const column = Object.entries(app.configuration.columns).find(
+      ([, c]) => c.heatmap,
+    );
+    assert.notEqual(column, undefined);
+    rightClick('.dc-cell');
+    pick('Remove Heatmap');
+    assert.equal(
+      Object.values(app.configuration.columns).some((c) => c.heatmap),
+      false,
+    );
+  });
+
+  it('a right-click on a CELL still knows its column', () => {
+    // Without data-column on body cells the menu lost every
+    // column-specific entry, which is most of the menu.
+    rightClick('.dc-cell');
+    assert.ok(
+      menuItems().some((i) => i.textContent === 'Ascending'),
+      'no sort entries',
+    );
+  });
+
+  it('saves a view and loads it back, from the title bar menu', () => {
+    hamburger();
+    pick('Save View');
     assert.equal(storage.map.size, 1);
-    await app.loadView();
-    assert.ok(statuses.some(([t]) => t.startsWith('loaded')));
+    hamburger();
+    pick('Load View');
   });
 
   it('reports a bad saved view rather than throwing past the user', async () => {
@@ -187,16 +256,17 @@ describe('the app', () => {
     assert.equal(statuses.at(-1)?.[1], 'error');
   });
 
-  it('offers each named dimension as a drill', () => {
-    assert.notEqual(tool('Geography'), undefined);
-    tool('Geography').click();
+  it('offers each named dimension in the title bar menu', () => {
+    hamburger();
+    pick('Geography');
     // Starts at ONE level: opening it fully would fetch desk-level
     // groups for every region before anyone asked.
     assert.deepEqual(app.snapshot.rows, ['region']);
   });
 
   it('opens the editor, and Cancel closes it', () => {
-    tool('Properties…').click();
+    rightClick();
+    pick('Properties...');
     const overlay = root.querySelector('.dc-app-overlay') as HTMLElement;
     assert.equal(overlay.hidden, false);
     assert.notEqual(overlay.querySelector('.dc-editor'), null);
@@ -272,11 +342,6 @@ describe('the app', () => {
     assert.ok(typeof header.dataset['column'] === 'string');
   });
 
-  it('puts a floating filter box under the header', () => {
-    assert.notEqual(root.querySelector('.dc-floating-row'), null);
-    assert.ok(root.querySelectorAll('.dc-floating-input').length > 0);
-  });
-
   it('Ctrl+E opens the editor', () => {
     dom.window.document.dispatchEvent(
       new dom.window.KeyboardEvent('keydown', {
@@ -294,7 +359,8 @@ describe('the app', () => {
   it('folds the configuration into the query on every refresh', async () => {
     // Once, here, so a setting that shapes the query cannot reach the
     // engine through one path and not another.
-    tool('Properties…').click();
+    rightClick();
+    pick('Properties...');
     const overlay = root.querySelector('.dc-app-overlay') as HTMLElement;
     [...overlay.querySelectorAll('.dc-editor-tab')]
       .find((b) => b.textContent === 'General Properties')

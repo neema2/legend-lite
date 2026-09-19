@@ -35,9 +35,62 @@ describe('buildMenu', () => {
     const items = menuItems(buildMenu({ snapshot: CUBE, column: 'desk' }));
     const pivot = items.find((i) => i.id === 'pivot.vertical');
     assert.equal(pivot?.label, 'Vertical Pivot on desk');
+  });
+
+  it('opens the filter editor UNSCOPED, as DataCube does', () => {
+    // Their entry is plain "Filters...". There is no per-column
+    // filter dialog, because the filter is one tree over the whole
+    // cube rather than a set of per-column widgets to reconcile.
+    const items = menuItems(buildMenu({ snapshot: CUBE, column: 'desk' }));
     assert.equal(
       items.find((i) => i.id === 'filter.column')?.label,
-      'More Filters on desk...',
+      'Filters...',
+    );
+    // Still offered with no column under the pointer.
+    assert.ok(
+      menuItems(buildMenu({ snapshot: CUBE })).some(
+        (i) => i.id === 'filter.column',
+      ),
+    );
+  });
+
+  it('will not offer to pivot BY a pivoted measure', () => {
+    // "Vertical Pivot on 2021 / notional" is an action with no
+    // meaning. The caller says whether a column can be grouped.
+    const pivoted = '2021__|__notional';
+    const ids2 = ids({ snapshot: CUBE, column: pivoted, canGroup: false });
+    assert.equal(
+      ids2.some((i) => i.startsWith('pivot.')),
+      false,
+      ids2.join(', '),
+    );
+  });
+
+  it('still offers LAYOUT actions on a column it cannot group by', () => {
+    // These sat inside the pivot block, so gating that block took
+    // hide, pin and resize away with it -- caught by a screenshot,
+    // not by a test, which is why this one exists.
+    const ids2 = ids({
+      snapshot: CUBE,
+      column: '2021__|__notional',
+      canGroup: false,
+    });
+    for (const id of [
+      'column.hide',
+      'column.pinLeft',
+      'column.autoSize',
+    ] as const) {
+      assert.ok(ids2.includes(id), `${id} missing from ${ids2.join(', ')}`);
+    }
+  });
+
+  it('reads a pivoted column name back readably', () => {
+    const items = menuItems(
+      buildMenu({ snapshot: CUBE, column: '2021__|__notional' }),
+    );
+    assert.equal(
+      items.find((i) => i.id === 'column.hide')?.label,
+      'Hide 2021 / notional',
     );
   });
 

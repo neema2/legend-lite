@@ -31,13 +31,83 @@
   background: var(--tw-white);
 }
 
-/* -- toolbar ------------------------------------------------------ */
+/* -- the title bar ------------------------------------------------- */
 
-.dc-app-toolbar {
+/* Their h-7 bar in neutral-100: a cube glyph, the report title in
+   text-lg medium, a slot for the host, and a hamburger. There is no
+   toolbar, because everything else is in the right-click menu. */
+.dc-titlebar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
   align-items: center;
+  height: 28px;
+  background: var(--tw-neutral-100);
+}
+
+.dc-titlebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 320px;
+  padding: 0 var(--dc-pad-2) 0 var(--dc-pad-1);
+  font-size: var(--dc-text-lg-size);
+  line-height: var(--dc-text-lg-line);
+  font-weight: 500;
+}
+
+.dc-titlebar-glyph {
+  font-size: var(--dc-text-lg-size);
+}
+
+.dc-titlebar-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The host slot. Snap is legend-lite's, not DataCube's, and this is
+   where their design puts an embedder's own controls. */
+.dc-titlebar-host {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.dc-titlebar-toggle {
+  font: inherit;
+  font-size: var(--dc-text-base-size);
+  height: var(--dc-row-control-height);
+  padding: 0 var(--dc-pad-2);
+  border: 1px solid var(--tw-neutral-400);
+  border-radius: var(--dc-radius-sm);
+  background: var(--tw-white);
+  color: var(--tw-neutral-600);
+  cursor: pointer;
+}
+
+/* Rule one of snap mode: which plane you are on is never inferable,
+   so the control states it rather than merely offering it. */
+.dc-titlebar-toggle.dc-on {
+  background: var(--tw-sky-100);
+  border-color: var(--tw-sky-600);
+  color: var(--tw-sky-700);
+  font-weight: 500;
+}
+
+.dc-titlebar-menu {
+  font: inherit;
+  font-size: var(--dc-text-xl-size);
+  line-height: 1;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: var(--tw-black);
+  cursor: pointer;
+}
+
+.dc-titlebar-menu:hover {
+  background: var(--tw-neutral-200);
 }
 
 /* h-6, px-2, rounded-sm, border-neutral-400, bg-neutral-100 -- their
@@ -162,65 +232,49 @@
   cursor: grab;
 }
 
-/* -- the filter strip ------------------------------------------------ */
+/* -- the status bar -------------------------------------------------- */
 
-.dc-floating-row {
-  display: contents;
-}
-
-.dc-floating-strip {
+/* Their h-5 strip, right-aligned, in neutral-100 under a
+   neutral-200 rule. */
+.dc-app-stats {
   display: flex;
   align-items: center;
-  gap: var(--dc-pad-2);
-  padding: 0 4px;
-  border-top: 1px solid var(--dc-border-color);
+  justify-content: flex-end;
+  height: var(--dc-row-control-height);
+  border-top: 1px solid var(--tw-neutral-200);
   background: var(--tw-neutral-100);
-  overflow-x: auto;
-  min-width: 0;
 }
 
-.dc-floating-cell {
+/* Monospaced, because the count changes as the tree expands and a
+   proportional figure jitters its neighbours every time it does. */
+.dc-status-rows {
+  font-family: var(--dc-font-mono);
+  font-size: var(--dc-text-sm-size);
+  color: var(--tw-neutral-500);
+  padding: 0 var(--dc-pad-2);
+}
+
+.dc-status-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--tw-neutral-200);
+}
+
+.dc-status-warning {
   display: flex;
   align-items: center;
   gap: 4px;
-  min-width: 0;
-}
-
-.dc-floating-label {
+  padding: 0 var(--dc-pad-2);
   font-size: var(--dc-text-sm-size);
-  color: var(--tw-neutral-500);
-  white-space: nowrap;
+  font-weight: 600;
+  color: var(--tw-orange-500);
 }
 
-.dc-floating-input {
-  font: inherit;
-  font-size: var(--dc-text-base-size);
-  height: 16px;
-  width: 9em;
-  min-width: 0;
-  padding: 0 4px;
-  border: 1px solid var(--tw-neutral-300);
-  border-radius: var(--dc-radius-sm);
-  background: var(--tw-white);
-  color: var(--tw-black);
-}
-
-.dc-floating-input:disabled {
-  /* Disabled means "filtered, but not by anything this box can show".
-     It must not read as an ordinary empty box. */
-  background: var(--tw-neutral-200);
-  color: var(--tw-neutral-500);
-  font-style: italic;
-}
-
-/* -- status and stats ----------------------------------------------- */
-
-.dc-app-stats {
+.dc-status-stats {
+  padding: 0 var(--dc-pad-2);
   font-size: var(--dc-text-sm-size);
-  line-height: var(--dc-text-sm-line);
   font-variant-numeric: tabular-nums;
   color: var(--tw-neutral-600);
-  min-height: 12px;
 }
 
 /* -- the grid and its sidebar ---------------------------------------- */

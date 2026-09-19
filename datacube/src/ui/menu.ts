@@ -17,6 +17,17 @@
 //    right-click, when which column was clicked is already fading.
 
 import type { CubeSnapshot, SortDirection } from '../snapshot.ts';
+import { PIVOT_SEPARATOR } from '../grid/columns.ts';
+
+/**
+ * A pivoted column's name is a PATH -- `2021__|__notional` -- and a
+ * menu that shows it raw asks the user to read the separator. It
+ * reads back as "2021 / notional", the same presentation the sorts
+ * panel uses.
+ */
+export function columnLabel(name: string): string {
+  return name.split(PIVOT_SEPARATOR).join(' / ');
+}
 
 export interface MenuContext {
   readonly snapshot: CubeSnapshot;
@@ -28,6 +39,17 @@ export interface MenuContext {
   readonly hasSelection?: boolean;
   /** Whether any group is currently open, which gates Collapse All. */
   readonly hasExpanded?: boolean;
+  /** Whether the column under the pointer already has a heatmap. */
+  readonly hasHeatmap?: boolean;
+  /**
+   * Whether the column may be grouped or pivoted by at all.
+   *
+   * A pivoted measure cannot: "Vertical Pivot on 2021 / notional"
+   * is an action with no meaning, and offering it is worse than
+   * omitting it -- the menu already omits actions that cannot
+   * apply rather than disabling them.
+   */
+  readonly canGroup?: boolean;
 }
 
 export type MenuActionId =
@@ -59,7 +81,17 @@ export type MenuActionId =
   | 'copy.column'
   | 'export.csv'
   | 'export.excel'
-  | 'export.specification';
+  | 'export.html'
+  | 'export.specification'
+  | 'heatmap.add'
+  | 'heatmap.remove'
+  | 'view.properties'
+  // Host-level entries, which live in the title bar's menu rather
+  // than the grid's. DataCube reserves that menu for the embedding
+  // application the same way.
+  | 'view.save'
+  | 'view.load'
+  | 'view.dimension';
 
 export interface MenuItem {
   readonly id: MenuActionId;
@@ -115,33 +147,35 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
     ]);
   }
 
+  // Their two entries, verbatim. The editor opens unscoped -- there
+  // is no per-column filter dialog in DataCube, because the filter
+  // is one tree over the whole cube rather than a set of per-column
+  // widgets that have to be reconciled.
   push('Filter', [
-    column
-      ? { id: 'filter.column', label: `More Filters on ${column}...`, column }
-      : null,
+    { id: 'filter.column', label: 'Filters...', ...(column ? { column } : {}) },
     s.filter ? { id: 'filter.clearAll', label: 'Clear All Filters' } : null,
   ]);
 
-  if (column) {
+  if (column && ctx.canGroup !== false) {
     const isVertical = s.rows.includes(column);
     const isHorizontal = s.pivotOn.includes(column);
     push('Pivot', [
       // Replace, or add alongside: two different intentions, so two
       // entries rather than one that guesses.
       !isVertical
-        ? { id: 'pivot.vertical', label: `Vertical Pivot on ${column}`, column }
+        ? { id: 'pivot.vertical', label: `Vertical Pivot on ${columnLabel(column)}`, column }
         : null,
       !isVertical && s.rows.length > 0
         ? {
             id: 'pivot.addVertical',
-            label: `Add Vertical Pivot on ${column}`,
+            label: `Add Vertical Pivot on ${columnLabel(column)}`,
             column,
           }
         : null,
       isVertical
         ? {
             id: 'pivot.removeVertical',
-            label: `Remove Vertical Pivot on ${column}`,
+            label: `Remove Vertical Pivot on ${columnLabel(column)}`,
             column,
           }
         : null,
@@ -151,21 +185,21 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
       !isHorizontal
         ? {
             id: 'pivot.horizontal',
-            label: `Horizontal Pivot on ${column}`,
+            label: `Horizontal Pivot on ${columnLabel(column)}`,
             column,
           }
         : null,
       !isHorizontal && s.pivotOn.length > 0
         ? {
             id: 'pivot.addHorizontal',
-            label: `Add Horizontal Pivot on ${column}`,
+            label: `Add Horizontal Pivot on ${columnLabel(column)}`,
             column,
           }
         : null,
       isHorizontal
         ? {
             id: 'pivot.removeHorizontal',
-            label: `Remove Horizontal Pivot on ${column}`,
+            label: `Remove Horizontal Pivot on ${columnLabel(column)}`,
             column,
           }
         : null,
@@ -174,8 +208,15 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         : null,
     ]);
 
+  }
+
+  // Layout actions apply to ANY column, pivoted measures included:
+  // hiding or pinning `2021 / notional` is meaningful where
+  // grouping by it is not. These sat inside the pivot block, so
+  // gating that block on canGroup took them away too.
+  if (column) {
     push('Column', [
-      { id: 'column.hide', label: `Hide ${column}`, column },
+      { id: 'column.hide', label: `Hide ${columnLabel(column)}`, column },
       { id: 'column.autoSize', label: 'Auto-size to Fit Content', column },
       { id: 'column.autoSizeAll', label: 'Auto-size All Columns' },
       { id: 'column.pinLeft', label: 'Pin Left', column },
@@ -196,15 +237,31 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
       ? { id: 'copy.selection', label: 'Selected Cells as Plain Text' }
       : null,
     column
-      ? { id: 'copy.column', label: `Column ${column} as Plain Text`, column }
+      ? { id: 'copy.column', label: `Column ${columnLabel(column)} as Plain Text`, column }
       : null,
   ]);
 
   push('Export', [
-    { id: 'export.csv', label: 'CSV' },
+    { id: 'export.html', label: 'HTML' },
     { id: 'export.excel', label: 'Excel (Grid)' },
+    { id: 'export.csv', label: 'CSV (Grid)' },
     { id: 'export.specification', label: 'DataCube Specification' },
   ]);
+
+  // Heatmap is per COLUMN, because per column is the only scale that
+  // means anything -- see style.ts.
+  if (column) {
+    push('Heatmap', [
+      ctx.hasHeatmap
+        ? { id: 'heatmap.remove', label: 'Remove Heatmap', column }
+        : { id: 'heatmap.add', label: 'Add Heatmap', column },
+    ]);
+  }
+
+  // Their menu is where the editor opens from. A toolbar button for
+  // it would be a second door to the same room, and not one their
+  // users would look for.
+  push('', [{ id: 'view.properties', label: 'Properties...' }]);
 
   return groups;
 }

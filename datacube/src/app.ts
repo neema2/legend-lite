@@ -37,12 +37,7 @@ import { toHtml, toSpreadsheetML } from './export-rich.ts';
 import { FormatterCache, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
 import {
-  FloatingFilterRow,
-  type FloatingFilterColumn,
-} from './grid/floating-filter.ts';
-import {
   PIVOT_SEPARATOR,
-  TREE_COLUMN,
   buildColumnModel,
   type ColumnLayout,
 } from './grid/columns.ts';
@@ -105,7 +100,6 @@ export class CubeApp {
   readonly #grid: DataGrid;
   readonly #pivots: PivotPanel;
   readonly #menu: MenuView;
-  readonly #filterRow: FloatingFilterRow;
   readonly #formatters = new FormatterCache();
   /**
    * Handed to the grid ONCE and mutated in place.
@@ -133,6 +127,8 @@ export class CubeApp {
   #view: CubeView | null = null;
   #treeRows: readonly TreeRow[] = [];
   #selection: CellRange | null = null;
+  /** Where selection statistics are written, inside the status bar. */
+  #statsSlot: HTMLElement | null = null;
 
   constructor(
     root: HTMLElement,
@@ -150,7 +146,7 @@ export class CubeApp {
 
     root.classList.add('dc-app');
     this.#els = {
-      toolbar: this.#div(root, 'dc-app-toolbar'),
+      toolbar: this.#div(root, 'dc-titlebar'),
       grid: this.#doc.createElement('div'),
       overlay: this.#doc.createElement('div'),
       stats: this.#doc.createElement('div'),
@@ -186,10 +182,6 @@ export class CubeApp {
         : {}),
     });
 
-    this.#filterRow = new FloatingFilterRow(this.#doc, {
-      onChange: (filter) => this.#setFilter(filter),
-    });
-
     this.#menu = new MenuView(this.#doc, {
       onSelect: (item) => this.#onMenuAction(item),
     });
@@ -203,8 +195,6 @@ export class CubeApp {
       formats: this.#formats,
       appearance: this.#config.appearance,
       columnAppearance: toColumnAppearance(this.#config),
-      floatingFilter: this.#filterRow,
-      floatingFilterFor: (leaf) => this.#filterFor(leaf),
       canGroup: (c) => this.#isDimension(c),
       cellBackground: (leaf, row, value) => {
         const heat = this.#heatmaps.get(leaf.index);
@@ -281,7 +271,6 @@ export class CubeApp {
     // another.
     const next = applyToSnapshot(this.#snapshot, this.#config);
     this.#snapshot = next;
-    this.#filterRow.setFilter(next.filter);
     this.#pivots.setColumns(next.rows, next.pivotOn);
     this.#refreshFormats();
     this.#refreshToolPanel();
@@ -306,45 +295,6 @@ export class CubeApp {
       const format = measure !== undefined ? byColumn[measure] : undefined;
       if (format) this.#formats[leaf.name] = format;
     }
-  }
-
-  /**
-   * The box a leaf column gets, if any.
-   *
-   * The tree column gets ONE box that matches any row dimension --
-   * it holds a different dimension at every level, so no single
-   * column could be its subject. A leaf that IS a source column
-   * gets its own box. A pivoted measure gets none: its name is a
-   * path the engine has never heard of, and filtering the measure's
-   * source column instead would quietly mean something else.
-   */
-  #filterFor(leaf: {
-    readonly name: string;
-    readonly path: readonly string[];
-  }): FloatingFilterColumn | null {
-    if (leaf.name === TREE_COLUMN) {
-      const rows = this.#snapshot.rows;
-      return rows.length === 0
-        ? null
-        : { name: TREE_COLUMN, type: 'String', filterable: true, mode: 'tree', rows };
-    }
-    if (leaf.path.length > 1) return null;
-    // A MEASURE's output often shares its source column's name --
-    // `notional` is sum(notional) -- and a box there would filter
-    // the rows feeding the aggregate rather than the aggregate
-    // itself. Same name, different thing, so: no box.
-    if (this.#snapshot.measures.some((m) => m.name === leaf.name)) return null;
-    if ((this.#snapshot.groupDerived ?? []).some((d) => d.name === leaf.name)) {
-      return null;
-    }
-    const spec = this.#snapshot.columns.find((c) => c.name === leaf.name);
-    if (!spec) return null;
-    return {
-      name: spec.name,
-      type: spec.type,
-      filterable: true,
-      mode: 'column',
-    };
   }
 
   #refreshToolPanel(): void {
@@ -383,6 +333,8 @@ export class CubeApp {
     this.#grid.setColumns(model);
     this.#grid.setRows(view.rows, 0, view.rows.rowCount);
 
+    this.#renderStatusBar(view);
+
     const base =
       `${view.rows.rowCount.toLocaleString()} rows × ` +
       `${model.leaves.length} cols in ${view.rows.elapsedMs.toFixed(0)}ms`;
@@ -397,6 +349,49 @@ export class CubeApp {
     } else {
       this.#status(base, 'ok');
     }
+  }
+
+  /**
+   * Their status bar: a 20px strip, right-aligned, carrying the row
+   * count in a monospaced face and the truncation warning in orange.
+   *
+   * Monospaced because the number changes as you expand the tree,
+   * and a proportional figure jitters its neighbours every time it
+   * does. The separators are theirs too -- a 1px by 12px neutral
+   * rule between groups rather than padding alone.
+   */
+  #renderStatusBar(view: CubeView): void {
+    const doc = this.#doc;
+    const bar = this.#els.stats;
+    bar.replaceChildren();
+
+    const rows = doc.createElement('div');
+    rows.className = 'dc-status-rows';
+    rows.textContent = `Rows: ${view.rows.rowCount.toLocaleString()}`;
+    bar.append(rows);
+
+    if (view.truncated.length > 0 && this.#config.showTruncationWarning) {
+      bar.append(this.#statusSeparator());
+      const warn = doc.createElement('div');
+      warn.className = 'dc-status-warning';
+      warn.textContent =
+        `⚠ Results truncated to fit within row limit ` +
+        `(${this.#config.maxRows.toLocaleString()})`;
+      bar.append(warn);
+    }
+
+    const stats = doc.createElement('div');
+    stats.className = 'dc-status-stats';
+    bar.append(this.#statusSeparator(), stats);
+    this.#statsSlot = stats;
+    this.#renderSelectionStats();
+  }
+
+  #statusSeparator(): HTMLElement {
+    const sep = this.#doc.createElement('div');
+    sep.className = 'dc-status-sep';
+    sep.setAttribute('aria-hidden', 'true');
+    return sep;
   }
 
   #rowMeta(abs: number): {
@@ -530,12 +525,16 @@ export class CubeApp {
           : false,
         hasSelection: this.#selection !== null,
         hasExpanded: this.#controller.tree.openPaths.length > 0,
+        hasHeatmap:
+          column !== undefined && this.#heatmapFor(column) !== undefined,
+        canGroup: column === undefined || this.#isDimension(column),
       });
       this.#menu.show(groups, event.clientX, event.clientY);
     });
   }
 
   #onMenuAction(item: MenuItem): void {
+    if (this.#onHostAction(item)) return;
     // The query actions go through applyMenuAction, which returns the
     // SAME snapshot when nothing changed; the rest are layout,
     // clipboard and export, which never touch the query.
@@ -574,6 +573,18 @@ export class CubeApp {
       case 'copy.column':
         if (column) this.#copy(this.#columnCsv(column));
         return;
+      case 'view.properties':
+        this.openEditor();
+        return;
+      case 'heatmap.add':
+        if (column) this.#setHeatmap(column, true);
+        return;
+      case 'heatmap.remove':
+        if (column) this.#setHeatmap(column, false);
+        return;
+      case 'export.html':
+        this.#export('html');
+        return;
       case 'export.csv':
         this.#export('csv');
         return;
@@ -591,6 +602,20 @@ export class CubeApp {
     }
   }
 
+  /**
+   * Turn a heatmap on or off for a column.
+   *
+   * Set on the MEASURE rather than the leaf, so it reaches every
+   * `2021__|__notional` the pivot produced -- a heatmap applied to
+   * one pivoted leaf and not its siblings is worse than none.
+   */
+  #setHeatmap(leafName: string, on: boolean): void {
+    const measure = leafName.split(PIVOT_SEPARATOR).pop() ?? leafName;
+    this.#patchColumn(measure, {
+      heatmap: on ? { from: '#ffffff', to: '#ff8a65' } : undefined,
+    });
+  }
+
   #patchColumn(
     column: string,
     patch: Parameters<typeof withColumn>[2],
@@ -605,16 +630,23 @@ export class CubeApp {
 
   #onSelectionChange(range: CellRange | null): void {
     this.#selection = range;
+    this.#renderSelectionStats();
+  }
+
+  #renderSelectionStats(): void {
+    const slot = this.#statsSlot;
+    if (!slot) return;
     const table = this.#view?.rows;
+    const range = this.#selection;
     if (!range || !table || !this.#config.showSelectionStats) {
-      this.#els.stats.textContent = '';
+      slot.textContent = '';
       return;
     }
     const s = selectionStats(table, range);
     // Blanks are reported rather than folded into the count, because
     // an average over a pivot region that treated empty combinations
     // as zero would be wrong in the direction of looking plausible.
-    this.#els.stats.textContent =
+    slot.textContent =
       s.numeric === 0
         ? `${s.cells} cells, none numeric`
         : `sum ${fmt(s.sum)} · avg ${fmt(s.average)} · min ${fmt(s.min)} · ` +
@@ -806,8 +838,19 @@ export class CubeApp {
   }
 
   #applyDraft(draft: CubeDraft): void {
+    const wasRoot = this.#config.showRootAggregation;
     this.#snapshot = draft.snapshot;
     this.#config = draft.config;
+    // "Show root aggregation" is a SETTING in their General
+    // Properties, and it decides whether the level-0 query is issued
+    // at all. It was never connected to the tree, so the checkbox
+    // moved and the grand total stayed exactly where it was.
+    if (draft.config.showRootAggregation !== wasRoot) {
+      void this.#controller
+        .setTree(this.#controller.tree.withTotals(draft.config.showRootAggregation))
+        .then(() => this.#refresh());
+      return;
+    }
     void this.#refresh();
   }
 
@@ -841,30 +884,46 @@ export class CubeApp {
 
   // -- the toolbar ------------------------------------------------------------
 
+  /**
+   * Their title bar, not a toolbar.
+   *
+   * DataCube has no row of buttons over the grid. It has a 28px bar
+   * carrying a cube glyph, the report title, whatever the HOST wants
+   * to add, and a hamburger -- and everything else lives in the
+   * grid's right-click menu, which is where its users look for it.
+   * The toolbar this replaced was thirteen buttons that existed only
+   * because the features behind them had nowhere else to be reached
+   * from; now they do.
+   */
   #buildToolbar(): void {
     const bar = this.#els.toolbar;
-    const add = (label: string, onClick: () => void, title?: string): void => {
-      const b = this.#doc.createElement('button');
-      b.type = 'button';
-      b.className = 'dc-tool';
-      b.textContent = label;
-      if (title !== undefined) b.title = title;
-      b.addEventListener('click', onClick);
-      bar.append(b);
-    };
+    const doc = this.#doc;
 
-    add('Properties…', () => this.openEditor(), 'Edit the cube (Ctrl+E)');
+    const brand = this.#div(bar, 'dc-titlebar-brand');
+    const glyph = doc.createElement('span');
+    glyph.className = 'dc-titlebar-glyph';
+    glyph.setAttribute('aria-hidden', 'true');
+    glyph.textContent = '\u25a3';
+    const title = doc.createElement('span');
+    title.className = 'dc-titlebar-title';
+    title.textContent = this.#config.reportTitle ?? 'DataCube';
+    brand.append(glyph, title);
 
-    // Snap belongs on the toolbar rather than in a demo page: it is
-    // the product's own mode switch, and rule one of snap mode is
-    // that what you are looking at is never inferable.
-    const snap = this.#doc.createElement('button');
+    // The host slot. Snap is legend-lite's own idea rather than
+    // DataCube's, and this is the place their design reserves for a
+    // host's controls -- so it goes here rather than being smuggled
+    // into their menu.
+    const host = this.#div(bar, 'dc-titlebar-host');
+    const snap = doc.createElement('button');
     snap.type = 'button';
-    snap.className = 'dc-tool';
+    snap.className = 'dc-titlebar-toggle';
     const paint = (): void => {
-      snap.textContent = this.#controller.snaps.isSnapped
-        ? 'Release snap'
-        : 'Snap';
+      const snapped = this.#controller.snaps.isSnapped;
+      snap.textContent = snapped ? 'Snapped' : 'Live';
+      snap.classList.toggle('dc-on', snapped);
+      snap.title = snapped
+        ? 'Frozen against a local snapshot. Click to go live.'
+        : 'Live data, which may move while you work. Click to snap.';
     };
     snap.addEventListener('click', () => {
       snap.disabled = true;
@@ -882,41 +941,33 @@ export class CubeApp {
       });
     });
     paint();
-    bar.append(snap);
-    add('Filters…', () => this.openFilters());
-    add('Collapse all', () => {
-      void this.#controller.setTree(this.#controller.tree.collapseAll());
+    host.append(snap);
+
+    // The hamburger. Theirs carries host-level entries -- View
+    // Source, Settings, About -- so ours carries the equivalents:
+    // the saved view, and the named hierarchies this cube was given.
+    const burger = doc.createElement('button');
+    burger.type = 'button';
+    burger.className = 'dc-titlebar-menu';
+    burger.setAttribute('aria-label', 'Menu');
+    burger.textContent = '\u2261';
+    burger.addEventListener('click', (event) => {
+      const items: MenuItem[] = [{ id: 'view.properties', label: 'Properties...' }];
+      if (this.#options.storage) {
+        items.push(
+          { id: 'view.save', label: 'Save View' },
+          { id: 'view.load', label: 'Load View' },
+        );
+      }
+      for (const d of availableDimensions(
+        this.#snapshot,
+        this.#options.dimensions ?? [],
+      )) {
+        items.push({ id: 'view.dimension', label: d.name, column: d.name });
+      }
+      this.#menu.show([{ label: '', items }], event.clientX, event.clientY);
     });
-    add('Totals', () => {
-      const tree = this.#controller.tree;
-      void this.#controller.setTree(tree.withTotals(!tree.showTotals));
-    });
-
-    for (const [label, kind] of [
-      ['CSV', 'csv'],
-      ['Excel', 'excel'],
-      ['HTML', 'html'],
-      ['Spec', 'specification'],
-    ] as const) {
-      add(label, () => this.#export(kind), `Export as ${label}`);
-    }
-
-    if (this.#options.storage) {
-      add('Save view', () =>
-        this.saveView(this.#config.reportTitle ?? 'view'),
-      );
-      add('Load view', () => {
-        void this.loadView();
-      });
-    }
-
-    const dimensions = availableDimensions(
-      this.#snapshot,
-      this.#options.dimensions ?? [],
-    );
-    for (const d of dimensions) {
-      add(d.name, () => this.useDimension(d), `Drill ${d.name}`);
-    }
+    bar.append(burger);
 
     this.#doc.addEventListener('keydown', (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key === 'e') {
@@ -925,6 +976,28 @@ export class CubeApp {
       }
     });
   }
+
+  /** Entries the title bar menu adds on top of the grid's own. */
+  #onHostAction(item: MenuItem): boolean {
+    switch (item.id as string) {
+      case 'view.save':
+        this.saveView(this.#config.reportTitle ?? 'view');
+        return true;
+      case 'view.load':
+        void this.loadView();
+        return true;
+      case 'view.dimension': {
+        const found = (this.#options.dimensions ?? []).find(
+          (d) => d.name === item.column,
+        );
+        if (found) this.useDimension(found);
+        return true;
+      }
+      default:
+        return false;
+    }
+  }
+
 }
 
 function fmt(n: number): string {

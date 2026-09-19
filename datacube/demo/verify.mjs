@@ -60,9 +60,29 @@ page.on('console', (m) => {
 page.on('pageerror', (e) => problems.push(`pageerror: ${e.message}`));
 
 let failed = false;
-/** Click a toolbar button by the label a user reads. */
-const tool = (label) =>
-  page.locator('.dc-app-toolbar .dc-tool', { hasText: label }).first().click();
+/** Open the grid's right-click menu, optionally over an element. */
+const rightClick = async (selector = '.dc-app-grid') => {
+  await page.locator(selector).first().click({ button: 'right' });
+  await page.waitForSelector('.dc-menu', { timeout: 10_000 });
+};
+/** Click a menu entry by the words a user reads. */
+const pick = async (label) => {
+  await page
+    .locator('.dc-menu [role="menuitem"]', { hasText: label })
+    .first()
+    .click();
+};
+/** Do something from the grid's right-click menu. */
+const fromMenu = async (label, selector) => {
+  await rightClick(selector);
+  await pick(label);
+};
+/** Do something from the title bar's hamburger. */
+const fromTitleMenu = async (label) => {
+  await page.locator('.dc-titlebar-menu').click();
+  await page.waitForSelector('.dc-menu', { timeout: 10_000 });
+  await pick(label);
+};
 const check = (name, ok, detail = '') => {
   console.log(`${ok ? 'ok  ' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`);
   if (!ok) failed = true;
@@ -272,7 +292,7 @@ try {
 
   // The chrome, on their CUSTOM Tailwind scale -- the trap that would
   // otherwise make every panel about 40% too large.
-  await tool('Properties');
+  await fromMenu('Properties...');
   await page.waitForSelector('.dc-editor', { timeout: 10_000 });
   const title = await styleOf('.dc-panel-title', ['font-size']);
   check(
@@ -302,10 +322,23 @@ try {
   check('editor tabs are h-6 = 24px', tab?.height === 24, `${tab?.height}px`);
   await page.locator('.dc-editor-footer button', { hasText: 'Cancel' }).click();
 
-  // No grand total -- which is DataCube's own default. The level-0
-  // query should not be issued, and the top level should be promoted
+  // No grand total. In DataCube this is a SETTING -- "Show root
+  // aggregation" in General Properties -- not a menu action, so it
+  // is driven the way a user would drive it. The level-0 query
+  // should not be issued, and the top level should be promoted
   // rather than leaving a gap where the root used to be.
-  await tool('Totals');
+  const setRootAggregation = async (on) => {
+    await fromMenu('Properties...');
+    await page
+      .locator('.dc-editor-tab', { hasText: 'General Properties' })
+      .click();
+    const box = page.locator('.dc-check', {
+      hasText: 'Show root aggregation',
+    }).locator('input');
+    if ((await box.isChecked()) !== on) await box.click();
+    await page.locator('.dc-editor-footer button', { hasText: 'OK' }).click();
+  };
+  await setRootAggregation(false);
   await page.waitForFunction(
     () => document.querySelectorAll('.dc-row').length === 3,
     { timeout: 60_000 },
@@ -324,7 +357,7 @@ try {
     'no total row remains',
     (await page.locator('.dc-row.dc-total').count()) === 0,
   );
-  await tool('Totals');
+  await setRootAggregation(true);
   await page.waitForFunction(
     () => document.querySelectorAll('.dc-row').length === 4,
     { timeout: 60_000 },
@@ -368,7 +401,7 @@ try {
   check('keyboard moves a single focus cell', focused === 1, `${focused} focused`);
 
   // Snap mode.
-  await tool('Snap');
+  await page.locator('.dc-titlebar-toggle').click();
   await page.waitForFunction(
     () => document.getElementById('plane')?.className.includes('snapped'),
     { timeout: 120_000 },
@@ -376,7 +409,7 @@ try {
   const badge = await page.textContent('#plane');
   check('snap freezes and labels the plane', /frozen at/.test(badge ?? ''), badge?.trim());
 
-  await tool('Release snap');
+  await page.locator('.dc-titlebar-toggle').click();
   await page.waitForFunction(
     () => document.getElementById('plane')?.className.includes('live'),
     { timeout: 120_000 },
@@ -396,50 +429,12 @@ try {
     (await page.locator('.dc-zone-rows').textContent())?.trim(),
   );
 
-  // One box per LEAF, so each sits over the data it filters. The
-  // tree column gets exactly ONE -- it holds a different dimension
-  // at every level, so no single column could be its subject -- and
-  // a pivoted measure gets none, its name being a path the engine
-  // has never heard of.
-  const boxes = await page.evaluate(() =>
-    [...document.querySelectorAll('.dc-floating-cell')].map((cell) => ({
-      hasInput: Boolean(cell.querySelector('input')),
-      left: Math.round(cell.getBoundingClientRect().left),
-      width: Math.round(cell.getBoundingClientRect().width),
-    })),
-  );
+  // The filter boxes over the grid are GONE. DataCube has none --
+  // grepping legend-data-cube for `floatingFilter` returns nothing
+  // -- and everything they do lives in the right-click menu.
   check(
-    'there is one filter cell per leaf column',
-    boxes.length === 6,
-    `${boxes.length} cells`,
-  );
-  check(
-    'and exactly one of them carries a box: the tree column',
-    boxes.filter((b) => b.hasInput).length === 1 && boxes[0]?.hasInput === true,
-    boxes.map((b) => (b.hasInput ? 'box' : '-')).join(' '),
-  );
-
-  // The box must sit OVER its column, which is the thing that was
-  // wrong when the row was a free-floating strip.
-  const treeCol = await page.evaluate(() => {
-    const cell = document.querySelector('.dc-row .dc-cell.dc-dim');
-    const box = document.querySelector('.dc-floating-cell');
-    if (!cell || !box) return null;
-    return {
-      cell: Math.round(cell.getBoundingClientRect().left),
-      box: Math.round(box.getBoundingClientRect().left),
-      cellWidth: Math.round(cell.getBoundingClientRect().width),
-      boxWidth: Math.round(box.getBoundingClientRect().width),
-    };
-  });
-  check(
-    'the tree box is aligned to the tree column it filters',
-    treeCol !== null &&
-      treeCol.cell === treeCol.box &&
-      treeCol.cellWidth === treeCol.boxWidth,
-    treeCol
-      ? `box ${treeCol.box}/${treeCol.boxWidth} vs cell ${treeCol.cell}/${treeCol.cellWidth}`
-      : 'not found',
+    'there is no filter row over the grid',
+    (await page.locator('.dc-floating-row').count()) === 0,
   );
 
   // The tool panel is the drag SOURCE, and it has to be: in a
@@ -475,7 +470,7 @@ try {
   await page.keyboard.press('Escape');
 
   // The editor: seven tabs, in DataCube's order.
-  await tool('Properties');
+  await fromMenu('Properties...');
   await page.waitForSelector('.dc-editor', { timeout: 10_000 });
   const tabs = (await page.locator('.dc-editor-tab').allTextContents()).map((t) =>
     t.trim(),
@@ -527,64 +522,41 @@ try {
   await page.screenshot({ path: 'demo/shot-editor.png', fullPage: true });
   await page.locator('.dc-editor-footer button', { hasText: 'Cancel' }).click();
 
-  await tool('Collapse all');
+  await fromMenu('Collapse All');
   await page.waitForTimeout(1500);
 
-  // End to end: type, wait for the debounce, and the generated PURE
-  // must carry the condition. Checking the Pure rather than the SQL
-  // because the Pure is the product's own output; the SQL here comes
-  // from the demo shim.
-  const rowsBefore = await page.locator('.dc-row').count();
+  // End to end through the FILTER EDITOR, which is now the only
+  // way in -- opened from the grid's own menu, as DataCube does.
   const pureBefore = (await page.textContent('#pure')) ?? '';
   check(
     'no filter in the query to begin with',
     !pureBefore.includes('filter('),
-    `${rowsBefore} rows`,
   );
 
-  await page.locator('.dc-floating-input').first().fill('EMEA');
+  await fromMenu('Filters...');
+  await page.waitForSelector('.dc-filters', { timeout: 10_000 });
+  await page.locator('.dc-filter-btn', { hasText: 'Create New Filter' }).click();
+  await page.locator('.dc-filter-value').first().fill('EMEA');
+  await page.locator('.dc-filter-value').first().dispatchEvent('change');
   await page.waitForFunction(
     () => document.getElementById('pure')?.textContent?.includes('filter('),
-    undefined,
     { timeout: 60_000 },
   );
   const pureAfter = (await page.textContent('#pure')) ?? '';
-  // Lowercased on BOTH sides, because a string box means
-  // case-insensitive contains and the operator lowers the column
-  // rather than relying on collation, which varies by backend.
-  // The tree box matches ANY row dimension, so it emits an OR over
-  // region, desk and book rather than a condition on one column.
   check(
-    'the tree box filters across every row dimension',
-    /region->toLower\(\)->contains\('emea'\)/.test(pureAfter) &&
-      /desk->toLower\(\)->contains\('emea'\)/.test(pureAfter) &&
-      /book->toLower\(\)->contains\('emea'\)/.test(pureAfter) &&
-      /\|\|/.test(pureAfter),
-    (pureAfter.match(/filter\(x\|[^\n]{0,120}/) ?? ['(no filter)'])[0],
+    'the filter editor reaches the query',
+    /filter\(x\|\$x\.region == 'EMEA'\)/.test(pureAfter),
+    (pureAfter.match(/filter\(x\|[^\n]{0,80}/) ?? ['(no filter)'])[0],
   );
 
-  const regions = (await page.locator('.dc-cell.dc-dim').allTextContents())
-    .map((t) => t.replace(/[^A-Za-z ]/g, '').trim())
-    .filter((t) => t && t !== 'Total');
-  check(
-    'and the cube on screen is narrowed to the match',
-    regions.length > 0 && regions.every((r) => r === 'EMEA' || /^[A-Z]/.test(r)),
-    regions.join(', '),
-  );
-  const rowsFiltered = await page.locator('.dc-row').count();
-  check(
-    'with fewer rows than before',
-    rowsFiltered < rowsBefore,
-    `${rowsBefore} rows -> ${rowsFiltered}`,
-  );
-
-  await page.locator('.dc-floating-input').first().fill('');
+  // Clear All Filters is a menu entry of theirs, so use it.
+  await page.locator('.dc-overlay-close').click();
+  await fromMenu('Clear All Filters');
   await page.waitForFunction(
     () => !document.getElementById('pure')?.textContent?.includes('filter('),
-    undefined,
     { timeout: 60_000 },
   );
-  check('clearing it removes the condition again', true);
+  check('and Clear All Filters takes it away again', true);
 
   // Removing the last row-group chip flattens the cube, which is also
   // what gives the floating filter something to work on: while a
@@ -620,7 +592,7 @@ try {
   // the row's controls. `and` is wider than `or`, so it is the case
   // that fails first if the box ever goes back into the flow. This
   // measures real geometry rather than trusting the markup.
-  await tool('Filters');
+  await fromMenu('Filters...');
   await page.waitForSelector('.dc-filters', { timeout: 10_000 });
   await page.locator('.dc-filter-btn', { hasText: 'Create New Filter' }).click();
   await page.locator('.dc-filter-row').nth(1).locator('.dc-filter-ctl').first().click();
