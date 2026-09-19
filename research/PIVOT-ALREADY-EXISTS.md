@@ -40,11 +40,28 @@ It exists, implemented, not merely declared.
   the implementation comments (`testStaticPivot_SingleSingle_StringPivotValue`,
   `test_Static_Pivot_Filter`).
 
-## Verification status
+## Verification status: RUN, and passing
 
-**Read, not run.** Maven is not installed in this environment and there
-are no existing `core/target/surefire-reports`, so the 31 tests were not
-executed. Treat "passing" as unverified until `tools/allgates.sh` runs.
+**23 tests, 0 failures, BUILD SUCCESS in 19s** —
+`PivotCheckerTest` (SingleColumnPivot, MultiColumnPivot, NullSemantics,
+TypeParity, ChainedOperations, ComplexSourceChains,
+FullPipelineWithNulls) plus `DynamicPivotKeyLiteralTest`.
+
+An earlier version of this note said "read, not run — Maven is not
+installed in this environment." **That was wrong.** JDK 21 (Temurin
+21.0.11) and Maven 3.9.9 are both installed, under `~/jdk`, simply not
+on a non-interactive shell's PATH. The check that produced the false
+conclusion was a single `ls` over several candidate paths whose first
+glob matched nothing; zsh aborts the whole command line on an unmatched
+glob, so the Maven and SDKMAN probes in that same command never ran, and
+the empty output read as "absent".
+
+`tools/env.sh` now resolves the toolchain so this cannot recur:
+
+    source tools/env.sh
+    mvn -o -pl core test -Dtest='PivotCheckerTest,DynamicPivotKeyLiteralTest'
+
+`sh tools/env.sh --show` prints what it resolved without sourcing.
 
 The distinction that matters: this is implementation substance — an IR
 node, a lowering file, a staticization pass, a capability flag — unlike
