@@ -205,6 +205,13 @@ function migrateSnapshot(
     derived: Array.isArray(raw['derived'])
       ? (raw['derived'] as CubeSnapshot['derived'])
       : [],
+    ...(Array.isArray(raw['groupDerived'])
+      ? {
+          groupDerived: raw['groupDerived'] as NonNullable<
+            CubeSnapshot['groupDerived']
+          >,
+        }
+      : {}),
     ...(raw['filter'] ? { filter: raw['filter'] as NonNullable<CubeSnapshot['filter']> } : {}),
     rows: arr('rows'),
     pivotOn: arr('pivotOn'),

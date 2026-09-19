@@ -12,11 +12,56 @@
 // query be matched against the snapshot that asked for it and discarded
 // if it is stale (see `epoch` below).
 
+/**
+ * What a column may be used for.
+ *
+ * DataCube carries this per column, and it is load-bearing rather
+ * than cosmetic: without it a UI offers to sum a region name, or to
+ * group by a notional, and the resulting query fails somewhere far
+ * from the mistake.
+ */
+export type ColumnKind = 'dimension' | 'measure';
+
 /** A column available from the source, with the type the engine reports. */
 export interface ColumnSpec {
   readonly name: string;
   /** Pure type name, e.g. 'String' | 'Integer' | 'Float' | 'Date'. */
   readonly type: string;
+  /** Defaults by type: numeric columns measure, everything else groups. */
+  readonly kind?: ColumnKind;
+  /**
+   * Keep this column out of the horizontal pivot even when it would
+   * otherwise be carried into it.
+   */
+  readonly excludedFromPivot?: boolean;
+}
+
+/**
+ * The kind a column should be treated as.
+ *
+ * Numeric columns default to measures and everything else to
+ * dimensions, which is right far more often than not; an explicit
+ * kind always wins, because a year is numeric and is almost always a
+ * dimension.
+ */
+export function kindOf(column: ColumnSpec): ColumnKind {
+  if (column.kind) return column.kind;
+  return column.type === 'Integer' ||
+    column.type === 'Float' ||
+    column.type === 'Number' ||
+    column.type === 'Decimal'
+    ? 'measure'
+    : 'dimension';
+}
+
+/** Columns a cube may group or pivot by. */
+export function dimensionColumns(s: CubeSnapshot): ColumnSpec[] {
+  return s.columns.filter((c) => kindOf(c) === 'dimension');
+}
+
+/** Columns a cube may aggregate. */
+export function measureColumns(s: CubeSnapshot): ColumnSpec[] {
+  return s.columns.filter((c) => kindOf(c) === 'measure');
 }
 
 /**
@@ -55,7 +100,13 @@ export interface Measure {
   readonly weight?: string;
 }
 
-/** A column computed before aggregation, via `extend`. */
+/**
+ * A column computed with `extend`.
+ *
+ * Which STAGE it belongs to decides what it can see, and the two are
+ * not interchangeable -- see `derived` and `groupDerived` on the
+ * snapshot.
+ */
 export interface DerivedColumn {
   readonly name: string;
   /** Pure expression body, with `$x` bound to the row, e.g. '$x.a * 2'. */
@@ -158,7 +209,24 @@ export interface RowWindow {
 export interface CubeSnapshot {
   readonly source: SourceRef;
   readonly columns: readonly ColumnSpec[];
+  /**
+   * Columns computed per SOURCE ROW, before aggregation. They can see
+   * the source columns and are then aggregated like any other.
+   */
   readonly derived: readonly DerivedColumn[];
+  /**
+   * Columns computed from the AGGREGATES, after grouping and pivoting.
+   *
+   * This is how a margin percentage, a ratio of two measures or a
+   * contribution-to-total is expressed: sum(profit) / sum(revenue)
+   * over the group. Computing that per row and averaging gives a
+   * different and wrong answer -- the classic weighted-average defect
+   * -- so the two extend stages cannot substitute for each other.
+   *
+   * The expressions see MEASURE names, not source columns, because by
+   * this point the source rows are gone.
+   */
+  readonly groupDerived?: readonly DerivedColumn[];
   readonly filter?: FilterNode;
   /** Row dimensions, outermost first. These become the group-by. */
   readonly rows: readonly string[];
@@ -177,6 +245,12 @@ export interface CubeSnapshot {
   readonly measures: readonly Measure[];
   readonly sorts: readonly SortSpec[];
   readonly window?: RowWindow;
+  /**
+   * Sort direction for the tree column itself, which orders the
+   * GROUPS rather than any measure. Separate from `sorts` because it
+   * applies at every level, including ones the user has not opened.
+   */
+  readonly treeColumnSort?: SortDirection;
   /**
    * Cap on the rows fetched for ONE level of the tree.
    *
@@ -216,7 +290,13 @@ export function referencedColumns(
     if (!out.includes(n)) out.push(n);
   };
   groupCols.forEach(push);
-  s.pivotOn.forEach(push);
+  // A column marked excludedFromPivot stays out of the pivot key even
+  // if it was listed there, so the exclusion cannot be defeated by
+  // the order the user configured things in.
+  const excluded = new Set(
+    s.columns.filter((c) => c.excludedFromPivot).map((c) => c.name),
+  );
+  s.pivotOn.filter((c) => !excluded.has(c)).forEach(push);
   for (const m of s.measures) {
     if (m.fn !== 'count') push(m.column);
     if (m.weight) push(m.weight);
@@ -245,6 +325,9 @@ export function totalOrderSorts(
   s: CubeSnapshot,
   groupCols: readonly string[] = s.rows,
 ): SortSpec[] {
+  // The tree-column sort orders the GROUPS, so it applies to this
+  // level's dimensions rather than to any measure.
+  const treeDirection = s.treeColumnSort;
   // Only this level's grouping columns exist in its result, so a
   // deeper dimension must not be named in the ORDER BY.
   const present = new Set(groupCols);
@@ -253,7 +336,7 @@ export function totalOrderSorts(
   );
   for (const r of groupCols) {
     if (!out.some((x) => x.column === r)) {
-      out.push({ column: r, direction: 'asc' });
+      out.push({ column: r, direction: treeDirection ?? 'asc' });
     }
   }
   return out;

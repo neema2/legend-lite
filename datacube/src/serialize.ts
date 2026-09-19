@@ -324,8 +324,13 @@ export function serialize(
 
   const aggs = snapshot.measures.map(aggregateSpec).join(', ');
 
-  if (snapshot.pivotOn.length > 0) {
-    const on = snapshot.pivotOn.map(ident).join(', ');
+  const excludedFromPivot = new Set(
+    snapshot.columns.filter((c) => c.excludedFromPivot).map((c) => c.name),
+  );
+  const pivotOn = snapshot.pivotOn.filter((c) => !excludedFromPivot.has(c));
+
+  if (pivotOn.length > 0) {
+    const on = pivotOn.map(ident).join(', ');
     if (snapshot.pivotValues && snapshot.pivotValues.length > 0) {
       // Pinning values also PRE-FILTERS the source, dropping groups
       // whose keys all sit outside the list. Only ever for a cube the
@@ -341,6 +346,13 @@ export function serialize(
     // infer the grouping from.
     const by = groupCols.map(ident).join(', ');
     parts.push(`groupBy(~[${by}], ~[${aggs}])`);
+  }
+
+  // Post-aggregation columns come AFTER the pivot or groupBy, which
+  // is the whole point: they see the aggregates rather than the rows
+  // that produced them.
+  for (const d of snapshot.groupDerived ?? []) {
+    parts.push(`extend(~[${ident(d.name)}: x|${d.expression}])`);
   }
 
   // A grand total is a single row; sorting and limiting it is noise
