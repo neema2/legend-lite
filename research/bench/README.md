@@ -197,3 +197,45 @@ empty and the pairs looked asymmetric (up to 2.0x). Independent keys
 
 **Consequence: both axes need windowing, and the savings multiply.**
 Neither axis is free, and neither dominates.
+
+## `windowinvariant.py` — the witness for horizontal scrolling
+
+Scrolling the column axis re-runs the cell query with a different pinned
+IN list. That is only sound if a cell's value does not depend on which
+window fetched it. Checked against a full-width pivot over deliberately
+ragged data (groups whose keys sit only low, only high, or spanning):
+
+    OK          W1 [1-5]  cells= 15  groups=3
+    OK         W2 [6-10]  cells= 10  groups=2
+    OK        W3 [11-15]  cells=  5  groups=1
+    OK        W4 [16-20]  cells= 15  groups=3
+    OK    overlap [4-12]  cells= 18  groups=2
+
+    CELL VALUES window-invariant: YES
+
+**Cell values are window-invariant.** `sum(x) FILTER (WHERE pk = k)`
+reads only rows with `pk = k`, so pre-filtering the source to a window
+containing `k` cannot change it. Every cell matched the full-width
+truth, including under an overlapping window.
+
+**Row membership is not**, and the magnitude is the point:
+
+               window   groups
+           full width        4
+             W1 [1-5]        3
+            W2 [6-10]        2
+           W3 [11-15]        1
+           W4 [16-20]        3
+
+Scrolling from W1 to W3 would take the grid from three rows to one.
+
+A first version of this test used DuckDB's raw `PIVOT t ON pk IN (…)`,
+which *keeps* groups with no matching rows and therefore reported row
+membership as invariant — testing DuckDB's semantics rather than
+legend-lite's. `Pivots.lower` pre-filters the source when values are
+pinned (for legend-engine parity), so the test now runs both forms and
+the `prefilter=True` arm is the one that matches what legend-lite emits.
+
+This belongs in the regression suite: it is the invariant that makes
+column windowing sound, and the counter-case that makes the separate
+row-axis query mandatory rather than merely tidy.
