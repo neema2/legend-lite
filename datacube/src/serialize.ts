@@ -104,6 +104,21 @@ const COMPARISON: Partial<Record<string, string>> = {
   greaterThanEqual: '>=',
 };
 
+/** Column-to-column comparisons, sharing the operators above. */
+const COLUMN_COMPARISON: Partial<Record<string, string>> = {
+  equalColumn: '==',
+  notEqualColumn: '!=',
+  lessThanColumn: '<',
+  lessThanEqualColumn: '<=',
+  greaterThanColumn: '>',
+  greaterThanEqualColumn: '>=',
+};
+
+/** Lower-cased literal, for the case-insensitive comparisons. */
+function lowerLiteral(v: FilterValue): string {
+  return typeof v === 'string' ? literal(v.toLowerCase()) : literal(v);
+}
+
 export function filterExpression(node: FilterNode, param = 'x'): string {
   switch (node.kind) {
     case 'and':
@@ -121,25 +136,66 @@ export function filterExpression(node: FilterNode, param = 'x'): string {
       return `!(${filterExpression(node.child, param)})`;
     case 'condition': {
       const ref = colRef(param, node.column);
+      const lower = `${ref}->toLower()`;
+      const one = () => literal(node.value as FilterValue);
+      const many = () => (node.value as readonly FilterValue[]) ?? [];
+
       const cmp = COMPARISON[node.operator];
-      if (cmp) {
-        return `${ref} ${cmp} ${literal(node.value as FilterValue)}`;
+      if (cmp) return `${ref} ${cmp} ${one()}`;
+
+      const colCmp = COLUMN_COMPARISON[node.operator];
+      if (colCmp) {
+        if (!node.rightColumn) {
+          throw new Error(
+            `operator '${node.operator}' on '${node.column}' needs a rightColumn`,
+          );
+        }
+        return `${ref} ${colCmp} ${colRef(param, node.rightColumn)}`;
       }
+
       switch (node.operator) {
         case 'isEmpty':
           return `${ref}->isEmpty()`;
         case 'isNotEmpty':
-          return `!${ref}->isEmpty()`;
+          // isNotEmpty is a function in its own right, so use it rather
+          // than negating isEmpty: the engine's own vocabulary reads
+          // better in a generated query someone has to debug.
+          return `${ref}->isNotEmpty()`;
         case 'contains':
-          return `${ref}->contains(${literal(node.value as FilterValue)})`;
+          return `${ref}->contains(${one()})`;
+        case 'notContains':
+          return `!${ref}->contains(${one()})`;
         case 'startsWith':
-          return `${ref}->startsWith(${literal(node.value as FilterValue)})`;
+          return `${ref}->startsWith(${one()})`;
+        case 'notStartsWith':
+          return `!${ref}->startsWith(${one()})`;
         case 'endsWith':
-          return `${ref}->endsWith(${literal(node.value as FilterValue)})`;
-        case 'in': {
-          const vs = (node.value as readonly FilterValue[]) ?? [];
-          return `${ref}->in([${vs.map(literal).join(', ')}])`;
-        }
+          return `${ref}->endsWith(${one()})`;
+        case 'notEndsWith':
+          return `!${ref}->endsWith(${one()})`;
+        case 'in':
+          return `${ref}->in([${many().map(literal).join(', ')}])`;
+        case 'notIn':
+          return `!${ref}->in([${many().map(literal).join(', ')}])`;
+
+        // Both sides are lowered rather than trusting collation, which
+        // differs between backends and would let the same cube answer
+        // differently on two engines.
+        case 'equalCaseInsensitive':
+          return `${lower} == ${lowerLiteral(node.value as FilterValue)}`;
+        case 'notEqualCaseInsensitive':
+          return `${lower} != ${lowerLiteral(node.value as FilterValue)}`;
+        case 'containsCaseInsensitive':
+          return `${lower}->contains(${lowerLiteral(node.value as FilterValue)})`;
+        case 'startsWithCaseInsensitive':
+          return `${lower}->startsWith(${lowerLiteral(node.value as FilterValue)})`;
+        case 'endsWithCaseInsensitive':
+          return `${lower}->endsWith(${lowerLiteral(node.value as FilterValue)})`;
+        case 'inCaseInsensitive':
+          return `${lower}->in([${many().map(lowerLiteral).join(', ')}])`;
+        case 'notInCaseInsensitive':
+          return `!${lower}->in([${many().map(lowerLiteral).join(', ')}])`;
+
         default: {
           const never: never = node.operator as never;
           throw new Error(`unhandled filter operator: ${String(never)}`);

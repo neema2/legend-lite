@@ -305,6 +305,89 @@ describe('filterExpression', () => {
   });
 });
 
+describe('the full filter vocabulary', () => {
+  const cond = (
+    operator: string,
+    extra: Record<string, unknown> = {},
+  ): string =>
+    filterExpression({
+      kind: 'condition',
+      column: 'region',
+      operator,
+      ...extra,
+    } as never);
+
+  it('renders negated string tests', () => {
+    assert.equal(cond('notContains', { value: 'X' }), "!$x.region->contains('X')");
+    assert.equal(
+      cond('notStartsWith', { value: 'X' }),
+      "!$x.region->startsWith('X')",
+    );
+    assert.equal(cond('notEndsWith', { value: 'X' }), "!$x.region->endsWith('X')");
+    assert.equal(
+      cond('notIn', { value: ['A', 'B'] }),
+      "!$x.region->in(['A', 'B'])",
+    );
+  });
+
+  it('uses isNotEmpty rather than negating isEmpty', () => {
+    // The engine has the function; using its own vocabulary keeps a
+    // generated query readable for whoever has to debug it.
+    assert.equal(cond('isNotEmpty'), '$x.region->isNotEmpty()');
+  });
+
+  it('lowers BOTH sides for case-insensitive comparisons', () => {
+    // Relying on collation would let the same cube answer differently
+    // on two backends.
+    assert.equal(
+      cond('equalCaseInsensitive', { value: 'EMEA' }),
+      "$x.region->toLower() == 'emea'",
+    );
+    assert.equal(
+      cond('containsCaseInsensitive', { value: 'Em' }),
+      "$x.region->toLower()->contains('em')",
+    );
+    assert.equal(
+      cond('inCaseInsensitive', { value: ['EMEA', 'Amer'] }),
+      "$x.region->toLower()->in(['emea', 'amer'])",
+    );
+    assert.equal(
+      cond('notInCaseInsensitive', { value: ['EMEA'] }),
+      "!$x.region->toLower()->in(['emea'])",
+    );
+  });
+
+  it('compares two columns', () => {
+    assert.equal(
+      cond('greaterThanColumn', { rightColumn: 'country' }),
+      '$x.region > $x.country',
+    );
+    assert.equal(
+      cond('equalColumn', { rightColumn: 'country' }),
+      '$x.region == $x.country',
+    );
+  });
+
+  it('refuses a column comparison with no second column', () => {
+    assert.throws(
+      () => cond('equalColumn'),
+      /needs a rightColumn/,
+    );
+  });
+
+  it('quotes an awkward column name on both sides', () => {
+    assert.equal(
+      filterExpression({
+        kind: 'condition',
+        column: 'odd name',
+        operator: 'equalColumn',
+        rightColumn: '2023__|__total',
+      }),
+      "$x.'odd name' == $x.'2023__|__total'",
+    );
+  });
+});
+
 describe('ident and literal', () => {
   it('leaves plain identifiers alone and quotes the rest', () => {
     assert.equal(ident('region'), 'region');

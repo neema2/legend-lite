@@ -69,6 +69,18 @@ export interface SortSpec {
   readonly direction: SortDirection;
 }
 
+/**
+ * The filter vocabulary.
+ *
+ * Matches the operator set DataCube exposes, so a cube saved there can
+ * be opened here without losing a condition. The case-insensitive
+ * forms lower BOTH sides rather than relying on collation, which
+ * varies by backend and would make the same cube answer differently on
+ * two engines.
+ *
+ * The `*Column` operators compare two columns instead of a column and
+ * a literal; they read `rightColumn` rather than `value`.
+ */
 export type FilterOperator =
   | 'equal'
   | 'notEqual'
@@ -79,17 +91,36 @@ export type FilterOperator =
   | 'isEmpty'
   | 'isNotEmpty'
   | 'contains'
+  | 'notContains'
   | 'startsWith'
+  | 'notStartsWith'
   | 'endsWith'
-  | 'in';
+  | 'notEndsWith'
+  | 'in'
+  | 'notIn'
+  | 'equalCaseInsensitive'
+  | 'notEqualCaseInsensitive'
+  | 'containsCaseInsensitive'
+  | 'startsWithCaseInsensitive'
+  | 'endsWithCaseInsensitive'
+  | 'inCaseInsensitive'
+  | 'notInCaseInsensitive'
+  | 'equalColumn'
+  | 'notEqualColumn'
+  | 'lessThanColumn'
+  | 'lessThanEqualColumn'
+  | 'greaterThanColumn'
+  | 'greaterThanEqualColumn';
 
 /** A leaf comparison against a column. */
 export interface FilterCondition {
   readonly kind: 'condition';
   readonly column: string;
   readonly operator: FilterOperator;
-  /** Absent for isEmpty / isNotEmpty; an array for `in`. */
+  /** Absent for isEmpty / isNotEmpty and the *Column forms; an array for `in`. */
   readonly value?: FilterValue | readonly FilterValue[];
+  /** The other column, for the `*Column` operators. */
+  readonly rightColumn?: string;
 }
 
 export type FilterValue = string | number | boolean | Date;
