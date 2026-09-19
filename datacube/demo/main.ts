@@ -71,6 +71,7 @@ async function boot(): Promise<void> {
        ${sqlPick(REGIONS, 'i % 3')}            AS region,
        ${sqlPick(DESKS, '(i // 3) % 5')}       AS desk,
        (2021 + ((i // 15) % 5))                AS year,
+       ('Q' || (1 + ((i // 75) % 4)))          AS qtr,
        ((i * 7919) % 1000000) / 100.0  AS notional,
        ((i * 104729) % 200000) / 100.0 - 1000.0 AS pnl,
        ((i * 31) % 97) + 1             AS qty
@@ -86,6 +87,7 @@ async function boot(): Promise<void> {
       { name: 'region', type: 'String' },
       { name: 'desk', type: 'String' },
       { name: 'year', type: 'Integer' },
+      { name: 'qtr', type: 'String' },
       { name: 'notional', type: 'Float' },
       { name: 'pnl', type: 'Float' },
       { name: 'qty', type: 'Integer' },
@@ -112,11 +114,17 @@ async function boot(): Promise<void> {
     maximumFractionDigits: 0,
     negativeParens: true,
   };
+  const COUNT: ColumnFormat = {
+    kind: 'number',
+    locale: 'en-US',
+    maximumFractionDigits: 0,
+  };
   const formats: Record<string, ColumnFormat> = {};
 
   // Tree rows come from the controller's last view, so the grid's
   // per-row metadata and the data it renders can never disagree.
   let treeRows: readonly TreeRow[] = [];
+  let measureFn: 'sum' | 'average' | 'count' = 'sum';
 
   const grid = new DataGrid(must('grid'), formatters, {
     rowHeight: 24,
@@ -149,8 +157,13 @@ async function boot(): Promise<void> {
     },
     onView: (view) => {
       status.classList.remove('bad');
+      // Keyed off the MEASURE, not off "is it a value column": a
+      // trade count is not money, and rendering it as $10,005 is the
+      // kind of wrong that looks plausible.
       for (const leaf of view.columns.leaves) {
-        if (!leaf.isDimension) formats[leaf.name] = MONEY;
+        if (leaf.isDimension) continue;
+        const measure = leaf.path[leaf.path.length - 1];
+        formats[leaf.name] = measure === 'trades' ? COUNT : MONEY;
       }
       treeRows = view.treeRows;
       grid.setColumns(view.columns);
@@ -170,19 +183,34 @@ async function boot(): Promise<void> {
   // -- controls ------------------------------------------------------
 
   must('measure').addEventListener('change', (e) => {
-    const fn = (e.target as HTMLSelectElement).value as 'sum' | 'average' | 'count';
-    snapshot = {
-      ...snapshot,
-      measures: [{ name: 'notional', column: 'notional', fn }],
-    };
-    void controller.update(snapshot);
+    measureFn = (e.target as HTMLSelectElement).value as typeof measureFn;
+    repivot();
   });
 
-  must('pivoted').addEventListener('change', (e) => {
-    const on = (e.target as HTMLInputElement).checked;
-    snapshot = { ...snapshot, pivotOn: on ? ['year'] : [] };
+  const repivot = () => {
+    const byYear = (must('pivoted') as HTMLInputElement).checked;
+    const byQtr = (must('byqtr') as HTMLInputElement).checked;
+    const pivotOn = [
+      ...(byYear ? ['year'] : []),
+      ...(byQtr ? ['qtr'] : []),
+    ];
+    const twoMeasures = (must('twomeasures') as HTMLInputElement).checked;
+    snapshot = {
+      ...snapshot,
+      pivotOn,
+      measures: twoMeasures
+        ? [
+            { name: 'notional', column: 'notional', fn: measureFn },
+            { name: 'trades', column: 'notional', fn: 'count' },
+          ]
+        : [{ name: 'notional', column: 'notional', fn: measureFn }],
+    };
     void controller.update(snapshot);
-  });
+  };
+
+  must('pivoted').addEventListener('change', repivot);
+  must('byqtr').addEventListener('change', repivot);
+  must('twomeasures').addEventListener('change', repivot);
 
   must('sortdesc').addEventListener('change', (e) => {
     const desc = (e.target as HTMLInputElement).checked;
@@ -287,7 +315,20 @@ class DemoOnlyPlanner implements Planner {
       .map((x) => `${q(x.column)} ${x.direction === 'asc' ? 'ASC' : 'DESC'}`)
       .join(', ');
     const cols = referencedColumns(s, dims).map(q).join(', ');
-    const src = `(SELECT ${cols} FROM ${s.source.expression}${filter})`;
+    // A COMPOSITE key, built the way legend-lite does, rather than
+    // DuckDB's native multi-column PIVOT: it names columns the same
+    // way and, because the key only takes values that occur, it does
+    // not emit the cross product of every dimension's values.
+    const key = '__pivotkey';
+    const keyExpr = s.pivotOn
+      .map((c) => `CAST(${q(c)} AS VARCHAR)`)
+      .join(" || '__|__' || ");
+    const src =
+      s.pivotOn.length > 0
+        ? `(SELECT * EXCLUDE (${s.pivotOn.map(q).join(', ')}), ` +
+          `${keyExpr} AS ${q(key)} ` +
+          `FROM (SELECT ${cols} FROM ${s.source.expression}${filter}))`
+        : `(SELECT ${cols} FROM ${s.source.expression}${filter})`;
     const orderBy = order ? ` ORDER BY ${order}` : '';
 
     if (s.pivotOn.length === 0) {
@@ -295,12 +336,17 @@ class DemoOnlyPlanner implements Planner {
         ? `SELECT ${agg} FROM ${src}`
         : `SELECT ${by}, ${agg} FROM ${src} GROUP BY ${by}${orderBy}`;
     }
-    const on = s.pivotOn.map(q).join(', ');
+    const on = q(key);
+    // DuckDB joins the pivot value to the alias with a single '_', so
+    // the alias is pre-compensated to land on the canonical five-
+    // character separator -- exactly what legend-lite emits.
+    const alias = (n: string) => q(`_|__${n}`);
     const using = s.measures
       .map((m) =>
         m.fn === 'count'
-          ? `count(*) AS ${q(m.name)}`
-          : `${m.fn === 'average' ? 'avg' : m.fn}(${q(m.column)}) AS ${q(m.name)}`,
+          ? `count(*) AS ${alias(m.name)}`
+          : `${m.fn === 'average' ? 'avg' : m.fn}(${q(m.column)}) ` +
+            `AS ${alias(m.name)}`,
       )
       .join(', ');
     // With no grouping columns the pivot is the grand total: one row,

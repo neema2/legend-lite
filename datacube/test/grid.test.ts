@@ -238,6 +238,73 @@ describe('buildColumnModel', () => {
     );
   });
 
+  it('builds a 3-level header from a real multi-dimension pivot', () => {
+    // Verified against legend-lite: it concatenates the pivot
+    // dimensions with the separator BEFORE pivoting, so generated
+    // names look like 2023__|__Q1__|__total rather than DuckDB's
+    // native 2023_Q1.
+    const m = buildColumnModel(
+      table([
+        'region',
+        '2023__|__Q1__|__total',
+        '2023__|__Q2__|__total',
+        '2024__|__Q1__|__total',
+      ]),
+      ['region'],
+      ['total'],
+    );
+    assert.equal(m.depth, 3);
+    assert.deepEqual(
+      m.headerRows[0]?.map((h) => [h.label, h.colSpan, h.rowSpan]),
+      [
+        ['region', 1, 3],
+        ['2023', 2, 1],
+        ['2024', 1, 1],
+      ],
+    );
+    assert.deepEqual(m.headerRows[1]?.map((h) => h.label), ['Q1', 'Q2', 'Q1']);
+    assert.deepEqual(
+      m.headerRows[2]?.map((h) => h.label),
+      ['total', 'total', 'total'],
+    );
+  });
+
+  it('is SPARSE: a combination with no data has no column', () => {
+    // legend-lite's composite key only takes values that occur, so a
+    // year/quarter pair with no rows produces nothing. DuckDB's native
+    // multi-column PIVOT emits the full cross product instead, which
+    // multiplies the column count with every dimension added.
+    const m = buildColumnModel(
+      table([
+        '2023__|__Q1__|__total',
+        '2023__|__Q2__|__total',
+        '2024__|__Q1__|__total',
+      ]),
+      [],
+      ['total'],
+    );
+    assert.equal(m.leaves.length, 3, 'not 2 years x 2 quarters = 4');
+  });
+
+  it('nests two measures under each pivot value', () => {
+    const m = buildColumnModel(
+      table(['2023__|__total', '2023__|__n', '2024__|__total', '2024__|__n']),
+      [],
+      ['total', 'n'],
+    );
+    assert.deepEqual(
+      m.headerRows[0]?.map((h) => [h.label, h.colSpan]),
+      [
+        ['2023', 2],
+        ['2024', 2],
+      ],
+    );
+    assert.deepEqual(
+      m.headerRows[1]?.map((h) => h.label),
+      ['total', 'n', 'total', 'n'],
+    );
+  });
+
   it('gives every leaf a header cell exactly once per level', () => {
     const m = buildColumnModel(
       table(['region', 'country', '2023__|__total', '2024__|__total']),
