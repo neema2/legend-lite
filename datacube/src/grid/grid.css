@@ -385,3 +385,19 @@
 .dc-row.dc-total.dc-alt {
   background: var(--dc-total-bg);
 }
+
+
+/* -- selection -----------------------------------------------------
+ *
+ * A wash rather than a border: a border on each cell of a rectangle
+ * draws a grid inside the selection instead of an outline around it.
+ */
+
+.dc-cell.dc-selected {
+  background: color-mix(in srgb, Highlight 18%, Canvas);
+}
+
+.dc-row.dc-alt .dc-cell.dc-selected,
+.dc-row.dc-total .dc-cell.dc-selected {
+  background: color-mix(in srgb, Highlight 24%, Canvas);
+}

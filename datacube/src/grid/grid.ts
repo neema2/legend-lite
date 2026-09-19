@@ -28,6 +28,14 @@ import type { ColumnFormat, FormatterCache } from '../format.ts';
 import { DEFAULT_FORMAT } from '../format.ts';
 import type { ResultTable, Scalar } from '../result.ts';
 import {
+  contains,
+  extend as extendRange,
+  selectionTable,
+  single,
+  type CellRange,
+} from '../selection.ts';
+import { toClipboard } from '../export.ts';
+import {
   cellStyle,
   gridVariables,
   isAlternateRow,
@@ -60,6 +68,14 @@ export interface GridOptions {
   readonly rowMeta?: (absoluteRow: number) => GridRowMeta;
   readonly onToggleExpand?: (key: string, expanded: boolean) => void;
   readonly onActivateCell?: (row: number, column: number) => void;
+  /** Called whenever the selected rectangle changes. */
+  readonly onSelectionChange?: (range: CellRange | null) => void;
+  /**
+   * Write text to the clipboard. Injected rather than calling the
+   * navigator directly, because clipboard access is permission-gated
+   * and a test must not depend on a browser granting it.
+   */
+  readonly writeClipboard?: (text: string) => void | Promise<void>;
 }
 
 const DEFAULT_ROW_HEIGHT = 24;
@@ -94,6 +110,7 @@ export class DataGrid {
   #totalRows = 0;
   #rendered: RowWindow | null = null;
   #focus: Focus = { row: 0, col: 0 };
+  #selection: CellRange | null = null;
   #frame = 0;
 
   constructor(
@@ -260,9 +277,37 @@ export class DataGrid {
    * torn down with it.
    */
   #onClick = (event: MouseEvent): void => {
-    const target = event.target;
-    if (!(target instanceof Element)) return;
-    const chevron = target.closest('.dc-chevron');
+    // Duck-typed rather than `instanceof Element`: the constructor
+    // belongs to the document's realm, so an iframe -- or a test DOM
+    // -- fails the check and the handler silently does nothing.
+    const target = event.target as { closest?: unknown } | null;
+    if (!target || typeof target.closest !== 'function') return;
+    const el = target as unknown as Element;
+
+    const cell = el.closest<HTMLElement>('.dc-cell');
+    const chevron = el.closest('.dc-chevron');
+    if (cell && !chevron) {
+      const row = cell.closest<HTMLElement>('.dc-row');
+      const cells = row ? [...row.children] : [];
+      const col = cells.indexOf(cell);
+      const abs = Number(row?.getAttribute('aria-rowindex') ?? '0') -
+        (this.#model?.headerRows.length ?? 0) - 1;
+      if (col >= 0 && abs >= 0) {
+        // Shift extends from the ANCHOR, so growing a selection works
+        // from where it started rather than from the last cell
+        // touched.
+        this.#selection =
+          event.shiftKey && this.#selection
+            ? extendRange(this.#selection, { row: abs, col })
+            : single(abs, col);
+        this.#focus = { row: abs, col };
+        this.#options.onSelectionChange?.(this.#selection);
+        this.#rendered = null;
+        this.#render();
+      }
+      return;
+    }
+
     if (!chevron || chevron.classList.contains('dc-chevron-empty')) return;
     const row = chevron.closest<HTMLElement>('.dc-row');
     const key = row?.dataset['key'];
@@ -404,6 +449,9 @@ export class DataGrid {
           cell.setAttribute('aria-busy', 'true');
         }
 
+        if (this.#selection && contains(this.#selection, abs, c)) {
+          cell.classList.add('dc-selected');
+        }
         if (abs === this.#focus.row && c === this.#focus.col) {
           cell.tabIndex = 0;
           cell.classList.add('dc-focus');
@@ -436,6 +484,13 @@ export class DataGrid {
     const lastRow = Math.max(0, this.#totalRows - 1);
     let { row, col } = this.#focus;
     let handled = true;
+
+    // Copy before the movement switch, so it does not also move.
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
+      event.preventDefault();
+      this.copySelection();
+      return;
+    }
 
     switch (event.key) {
       case 'ArrowDown':
@@ -488,7 +543,17 @@ export class DataGrid {
 
     if (!handled) return;
     event.preventDefault();
+    const moved = row !== this.#focus.row || col !== this.#focus.col;
     this.#focus = { row, col };
+    if (moved) {
+      // Shift+arrow grows the selection; a bare arrow replaces it,
+      // which is what every grid and spreadsheet does.
+      this.#selection =
+        event.shiftKey && this.#selection
+          ? extendRange(this.#selection, { row, col })
+          : single(row, col);
+      this.#options.onSelectionChange?.(this.#selection);
+    }
     this.#scrollFocusIntoView();
     this.#rendered = null;
     this.#render();
@@ -520,5 +585,31 @@ export class DataGrid {
   /** Focused cell position, for tests. */
   get focus(): Readonly<Focus> {
     return this.#focus;
+  }
+
+  /** The selected rectangle, if any. */
+  get selection(): CellRange | null {
+    return this.#selection;
+  }
+
+  select(range: CellRange | null): void {
+    this.#selection = range;
+    this.#options.onSelectionChange?.(range);
+    this.#rendered = null;
+    this.#render();
+  }
+
+  /**
+   * Copy the selection as TSV, which is what a spreadsheet expects on
+   * the clipboard. Reuses the exporter, so escaping cannot drift
+   * between a copy and a download.
+   */
+  copySelection(): string | null {
+    const table = this.#table;
+    const range = this.#selection;
+    if (!table || !range) return null;
+    const text = toClipboard(selectionTable(table, range));
+    void this.#options.writeClipboard?.(text);
+    return text;
   }
 }

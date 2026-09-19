@@ -177,6 +177,103 @@ describe('DataGrid DOM', () => {
   });
 });
 
+describe('DataGrid selection', () => {
+  function press(key: string, init: KeyboardEventInit = {}) {
+    container.dispatchEvent(
+      new dom.window.KeyboardEvent('keydown', {
+        key,
+        bubbles: true,
+        ...init,
+      }) as unknown as KeyboardEvent,
+    );
+  }
+
+  function clickCell(row: number, col: number, shift = false) {
+    const cells = container
+      .querySelectorAll('.dc-row')
+      [row]!.querySelectorAll('.dc-cell');
+    cells[col]!.dispatchEvent(
+      new dom.window.MouseEvent('click', { bubbles: true, shiftKey: shift }),
+    );
+  }
+
+  it('selects a single cell on click', () => {
+    build(50);
+    clickCell(2, 1);
+    assert.deepEqual(grid.selection?.anchor, { row: 2, col: 1 });
+    assert.equal(container.querySelectorAll('.dc-selected').length, 1);
+  });
+
+  it('extends from the ANCHOR on shift-click', () => {
+    // Growing from the last cell touched rather than the anchor is
+    // the classic shift-click bug.
+    build(50);
+    clickCell(1, 0);
+    clickCell(3, 2, true);
+    assert.deepEqual(grid.selection?.anchor, { row: 1, col: 0 });
+    assert.equal(container.querySelectorAll('.dc-selected').length, 9);
+
+    // Shift-clicking back must still measure from the anchor.
+    clickCell(0, 0, true);
+    assert.deepEqual(grid.selection?.anchor, { row: 1, col: 0 });
+    assert.equal(container.querySelectorAll('.dc-selected').length, 2);
+  });
+
+  it('shift-arrow grows and a bare arrow replaces', () => {
+    build(50);
+    clickCell(0, 0);
+    press('ArrowDown', { shiftKey: true });
+    assert.equal(container.querySelectorAll('.dc-selected').length, 2);
+    press('ArrowDown');
+    assert.equal(
+      container.querySelectorAll('.dc-selected').length,
+      1,
+      'a bare arrow collapses the selection to one cell',
+    );
+  });
+
+  it('reports every selection change', () => {
+    const seen: unknown[] = [];
+    const table = makeTable(20);
+    grid = new DataGrid(container, new FormatterCache(), {
+      rowHeight: ROW_HEIGHT,
+      onSelectionChange: (r) => seen.push(r),
+    });
+    stubLayout(container.querySelector('.dc-scroller')!, VIEW_HEIGHT);
+    grid.setColumns(buildColumnModel(table, ['region']));
+    grid.setRows(table, 0, 20);
+    grid.select({ anchor: { row: 0, col: 0 }, focus: { row: 1, col: 1 } });
+    assert.equal(seen.length, 1);
+  });
+
+  it('copies the selection as TSV through the injected writer', () => {
+    // Clipboard access is permission-gated, so the writer is injected
+    // rather than reached for on the navigator.
+    const written: string[] = [];
+    const table = makeTable(20);
+    grid = new DataGrid(container, new FormatterCache(), {
+      rowHeight: ROW_HEIGHT,
+      writeClipboard: (t) => {
+        written.push(t);
+      },
+    });
+    stubLayout(container.querySelector('.dc-scroller')!, VIEW_HEIGHT);
+    grid.setColumns(buildColumnModel(table, ['region']));
+    grid.setRows(table, 0, 20);
+    grid.select({ anchor: { row: 0, col: 0 }, focus: { row: 1, col: 1 } });
+
+    const text = grid.copySelection();
+    assert.equal(written.length, 1);
+    assert.equal(written[0], text);
+    assert.match(text ?? '', /^region\t2023__\|__total\nR0\t0\nR1\t1\.5\n$/);
+  });
+
+  it('copies nothing when nothing is selected', () => {
+    build(20);
+    assert.equal(grid.copySelection(), null);
+  });
+});
+
 describe('DataGrid appearance', () => {
   function appearanceGrid(opts: Record<string, unknown>) {
     const table = makeTable(30);
