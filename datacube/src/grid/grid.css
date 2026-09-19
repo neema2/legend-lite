@@ -219,48 +219,153 @@
   font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
+.dc-filter-tree {
+  min-height: 120px;
+  padding: 4px 0;
+  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border-radius: 4px;
+  overflow: auto;
+}
+
+.dc-filter-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+}
+
+/* A group and its children are ONE block, so the group's highlight
+   and its gutter line can cover the subtree rather than the header
+   row alone. */
+.dc-filter-group-block {
+  position: relative;
+}
+
+/* The vertical rule down the left of a group's children. Its offset
+   is DataCube's gutterIndent, set per block in JS, because the
+   connector stubs are measured to meet it exactly. */
+.dc-filter-children {
+  position: relative;
+}
+
+.dc-filter-children::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 12px;
+  left: var(--dc-f-gutter, 16px);
+  width: 1px;
+  background: color-mix(in srgb, currentColor 20%, transparent);
+}
+
+.dc-selected-group > .dc-filter-children::before {
+  background: color-mix(in srgb, SelectedItem 70%, transparent);
+}
+
+.dc-selected-group {
+  background: color-mix(in srgb, SelectedItem 8%, transparent);
+}
+
 .dc-filter-row {
   --dc-filter-level: 0;
   position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-left: calc(var(--dc-filter-level) * 36px);
-  min-height: 28px;
+  gap: 4px;
+  padding-left: var(--dc-f-indent, 10px);
+  min-height: 26px;
 }
 
-/* The gutter: a vertical line back to the owning group, so a deep
-   condition is visibly inside it rather than merely near it. */
-.dc-filter-row[style*="--dc-filter-level: 0"] { }
-
-.dc-filter-row::before {
-  content: "";
-  position: absolute;
-  left: -18px;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-  background: color-mix(in srgb, currentColor 18%, transparent);
-  display: var(--dc-gutter, block);
+.dc-filter-row:hover {
+  background: color-mix(in srgb, SelectedItem 8%, transparent);
 }
 
-.dc-filter-row[style*="level: 0"]::before {
-  display: none;
+.dc-filter-row.dc-selected {
+  background: color-mix(in srgb, SelectedItem 14%, transparent);
+  box-shadow: inset 2px 0 0 color-mix(in srgb, SelectedItem 80%, transparent);
 }
 
+/* The stub joining a row to its parent's vertical rule, plus the
+   operator word. The word sits BETWEEN the things being combined,
+   which is where the meaning is. */
+.dc-filter-lead {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  height: 26px;
+}
+
+.dc-filter-connector {
+  display: block;
+  width: 22px;
+  height: 1px;
+  background: color-mix(in srgb, currentColor 20%, transparent);
+}
+
+.dc-filter-joinword {
+  padding-left: 4px;
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+/* The four-button controller DataCube puts on every node. */
+.dc-filter-controller {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
+.dc-filter-ctl {
+  font: 11px/1 ui-sans-serif, system-ui, sans-serif;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border: 1px solid color-mix(in srgb, currentColor 32%, transparent);
+  border-left-width: 0;
+  background: Canvas;
+  color: CanvasText;
+  cursor: pointer;
+}
+
+.dc-filter-ctl:first-child {
+  border-left-width: 1px;
+  border-radius: 3px 0 0 3px;
+}
+
+.dc-filter-ctl:last-child {
+  border-radius: 0 3px 3px 0;
+}
+
+.dc-filter-ctl:hover {
+  background: color-mix(in srgb, currentColor 12%, Canvas);
+}
+
+/* The standing badge beside a negated node. Reading a filter
+   backwards is the most expensive mistake this editor can cause, so
+   the state is shown twice: on the toggle and next to the row. */
+.dc-filter-notlabel {
+  font: 10px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: color-mix(in srgb, crimson 16%, Canvas);
+  color: color-mix(in srgb, crimson 85%, CanvasText);
+  font-weight: 700;
+}
+
+/* A group row is a heading for the list beneath it. */
 .dc-filter-group {
   font-weight: 600;
 }
 
+.dc-filter-join {
+  font-weight: 600;
+  min-width: 5.5em;
+}
+
 .dc-filter-not {
-  font: 11px/1 ui-sans-serif, system-ui, sans-serif;
-  letter-spacing: 0.04em;
-  padding: 3px 6px;
-  border-radius: 4px;
-  border: 1px solid color-mix(in srgb, currentColor 22%, transparent);
-  background: Canvas;
-  color: color-mix(in srgb, currentColor 55%, transparent);
-  cursor: pointer;
+  font-weight: 700;
 }
 
 /* A negated node must be obvious at a glance: reading a filter

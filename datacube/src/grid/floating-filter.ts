@@ -221,27 +221,6 @@ export function withFloating(
   return fromConjuncts(next);
 }
 
-/**
- * Whether a leaf column can take a filter box.
- *
- * Only a leaf that IS a source column can. The tree column holds a
- * different dimension at every level, so no single box could filter
- * it; a pivoted leaf is named for a path (`2021__|__notional`) the
- * engine has never heard of, and filtering the measure's source
- * column instead would silently mean something else -- narrowing the
- * rows that feed the aggregate rather than the aggregate itself.
- *
- * So a fully pivoted cube has no filter boxes, and that is correct
- * rather than a gap: the grid drops the row entirely instead of
- * showing an empty strip under the header.
- */
-export function canFloat(
-  leaf: { readonly name: string; readonly path: readonly string[] },
-  treeColumn: string,
-): boolean {
-  return leaf.name !== treeColumn && leaf.path.length <= 1;
-}
-
 export interface FloatingFilterColumn {
   readonly name: string;
   readonly type: string;
@@ -270,7 +249,17 @@ export class FloatingFilterRow {
   readonly #doc: Document;
   readonly #options: FloatingFilterOptions;
   #filter: FilterNode | undefined;
-  #pending: unknown = null;
+  /**
+   * Pending commits, PER COLUMN.
+   *
+   * One shared handle looked like an obvious simplification and was
+   * a bug: typing in a second box cancelled the first box's pending
+   * commit, so a filter the user had typed and could still see in
+   * the box was silently never applied. Caught by a screenshot, not
+   * by a test -- the two boxes have to be used within the debounce
+   * window for it to show.
+   */
+  readonly #pending = new Map<string, unknown>();
 
   constructor(doc: Document, options: FloatingFilterOptions) {
     this.#doc = doc;
@@ -333,23 +322,27 @@ export class FloatingFilterRow {
 
   #queue(column: FloatingFilterColumn, text: string): void {
     const set = this.#options.setTimeoutFn ?? setTimeout;
-    const clear = this.#options.clearTimeoutFn ?? clearTimeout;
-    if (this.#pending !== null) clear(this.#pending as never);
-    this.#pending = set(
-      () => {
-        this.#pending = null;
+    this.#cancel(column.name);
+    this.#pending.set(
+      column.name,
+      set(() => {
+        this.#pending.delete(column.name);
         this.#commit(column, text);
-      },
-      this.#options.debounceMs ?? DEFAULT_DEBOUNCE_MS,
+      }, this.#options.debounceMs ?? DEFAULT_DEBOUNCE_MS),
     );
   }
 
-  #commit(column: FloatingFilterColumn, text: string): void {
+  #cancel(column: string): void {
     const clear = this.#options.clearTimeoutFn ?? clearTimeout;
-    if (this.#pending !== null) {
-      clear(this.#pending as never);
-      this.#pending = null;
+    const handle = this.#pending.get(column);
+    if (handle !== undefined) {
+      clear(handle as never);
+      this.#pending.delete(column);
     }
+  }
+
+  #commit(column: FloatingFilterColumn, text: string): void {
+    this.#cancel(column.name);
     const condition = parseFloating(column.name, column.type, text);
     const next = withFloating(this.#filter, column.name, condition);
     if (next === this.#filter) return;

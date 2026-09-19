@@ -200,23 +200,40 @@ describe('the row', () => {
   let dom: JSDOM;
   let doc: Document;
   let emitted: (FilterNode | undefined)[];
-  let timers: (() => void)[];
+  /**
+   * A fake clock that HONOURS cancellation.
+   *
+   * A stub whose clearTimeout does nothing lets every queued commit
+   * fire, which makes a test for "the second box did not cancel the
+   * first" pass against code that cancels it. The bug this file
+   * tests would have slipped straight through.
+   */
+  let timers: Map<number, () => void>;
+  let nextHandle: number;
+
+  const fireAll = (): void => {
+    for (const fn of [...timers.values()]) fn();
+  };
 
   beforeEach(() => {
     dom = new JSDOM('<!doctype html><body></body>');
     doc = dom.window.document;
     emitted = [];
-    timers = [];
+    timers = new Map();
+    nextHandle = 0;
   });
 
   const make = (filter?: FilterNode): FloatingFilterRow => {
     const row = new FloatingFilterRow(doc, {
       onChange: (f) => emitted.push(f),
       setTimeoutFn: (fn) => {
-        timers.push(fn);
-        return timers.length;
+        nextHandle += 1;
+        timers.set(nextHandle, fn);
+        return nextHandle;
       },
-      clearTimeoutFn: () => {},
+      clearTimeoutFn: (handle) => {
+        timers.delete(handle as number);
+      },
     });
     row.setFilter(filter);
     return row;
@@ -234,8 +251,37 @@ describe('the row', () => {
     type(input(cell), 'e');
     type(input(cell), 'em');
     assert.deepEqual(emitted, [], 'nothing yet');
-    (timers.at(-1) as () => void)();
+    assert.equal(timers.size, 1, 'the earlier keystroke was cancelled');
+    fireAll();
     assert.equal(emitted.length, 1);
+  });
+
+  it('debounces EACH BOX separately', () => {
+    // One shared handle looked like an obvious simplification and
+    // was a bug: typing in a second box cancelled the first box's
+    // pending commit, so a filter the user had typed and could
+    // still see in the box was never applied. A screenshot caught
+    // it; both boxes have to be used inside the debounce window.
+    const row = make();
+    const region = row.cell({
+      name: 'region',
+      type: 'String',
+      filterable: true,
+    });
+    const year = row.cell({ name: 'year', type: 'Integer', filterable: true });
+
+    type(input(region), 'EM');
+    type(input(year), '>=2023');
+    assert.equal(timers.size, 2, 'one live timer per box');
+
+    fireAll();
+    const last = emitted.at(-1) as FilterNode;
+    assert.equal(
+      floatingText(last, 'region', 'String'),
+      'EM',
+      'the first box survived the second',
+    );
+    assert.equal(floatingText(last, 'year', 'Integer'), '>=2023');
   });
 
   it('commits at once on Enter', () => {

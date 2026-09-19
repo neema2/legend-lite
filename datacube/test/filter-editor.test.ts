@@ -5,6 +5,8 @@ import { JSDOM } from 'jsdom';
 import {
   FilterEditor,
   OPERATORS,
+  gutterIndent,
+  rowIndent,
   fromFilterNode,
   addTo,
   newCondition,
@@ -151,14 +153,58 @@ describe('FilterEditor DOM', () => {
     });
   });
 
-  it('starts with just an add control', () => {
+  it('starts on DataCube\'s empty state, not an empty tree', () => {
     assert.equal(host.querySelectorAll('.dc-filter-row').length, 0);
-    assert.equal(host.querySelector('.dc-filter-btn')?.textContent, 'Add filter');
+    assert.match(
+      host.querySelector('.dc-filter-empty')?.textContent ?? '',
+      /No filter is specified/,
+    );
+    assert.equal(
+      host.querySelector('.dc-filter-btn')?.textContent,
+      'Create New Filter',
+    );
+  });
+
+  it('the root is itself a group row, reading "All of"', () => {
+    // The whole point of the rewrite: AND/OR is a heading over the
+    // list it combines, not a dropdown at the bottom of a flat list.
+    editor.addCondition();
+    const rows = [...host.querySelectorAll('.dc-filter-row')];
+    assert.equal(rows.length, 2, 'the group row plus one condition');
+    assert.ok(rows[0]?.classList.contains('dc-filter-group'));
+    const join = rows[0]?.querySelector('.dc-filter-join') as HTMLSelectElement;
+    assert.equal(join.options[0]?.textContent, 'All of');
+    assert.equal(join.options[1]?.textContent, 'Any of');
+  });
+
+  it('puts the operator word BETWEEN siblings, from the second on', () => {
+    editor.addCondition();
+    editor.addCondition();
+    const words = [...host.querySelectorAll('.dc-filter-joinword')].map(
+      (w) => w.textContent,
+    );
+    assert.deepEqual(words, ['and'], 'one word, between the two conditions');
+
+    editor.update(editor.tree.id, { join: 'or' });
+    assert.deepEqual(
+      [...host.querySelectorAll('.dc-filter-joinword')].map((w) => w.textContent),
+      ['or'],
+    );
+  });
+
+  it('the root group has no controller; a nested one does', () => {
+    // There is nothing to insert the root after, nothing to remove
+    // it from, and no group to put it inside.
+    editor.addGroup();
+    const rows = [...host.querySelectorAll('.dc-filter-row.dc-filter-group')];
+    assert.equal(rows[0]?.querySelector('.dc-filter-controller'), null);
+    assert.notEqual(rows[1]?.querySelector('.dc-filter-controller'), null);
   });
 
   it('adds a condition row with column, operator and value', () => {
     editor.addCondition();
-    const row = host.querySelector('.dc-filter-row');
+    // The FIRST row is now the root group; the condition is under it.
+    const row = host.querySelectorAll('.dc-filter-row')[1];
     assert.ok(row);
     assert.ok(row.querySelector('.dc-filter-column'));
     assert.ok(row.querySelector('.dc-filter-op'));
@@ -189,15 +235,80 @@ describe('FilterEditor DOM', () => {
     assert.equal(input?.getAttribute('placeholder'), 'a, b, c');
   });
 
-  it('indents nested groups', () => {
+  it('indents the tree: root, its children, their children', () => {
     editor.addCondition();
     editor.addGroup();
     const levels = [...host.querySelectorAll('.dc-filter-row')].map((r) =>
       (r as HTMLElement).style.getPropertyValue('--dc-filter-level'),
     );
-    // The root's own conditions sit at 0; a nested group and its
-    // children sit deeper.
-    assert.deepEqual(levels, ['0', '1', '2']);
+    // Root group at 0; its condition and its sub-group at 1; the
+    // sub-group's own condition at 2.
+    assert.deepEqual(levels, ['0', '1', '1', '2']);
+  });
+
+  it('places rows on DataCube\'s geometry', () => {
+    // The numbers are what make the connector stubs meet the gutter
+    // line; approximating them makes the tree stop reading as one.
+    assert.equal(rowIndent(0), 10);
+    assert.equal(rowIndent(1), 46);
+    assert.equal(rowIndent(2), 142);
+    assert.equal(gutterIndent(0), 16);
+    assert.equal(gutterIndent(1), 112);
+  });
+
+  it('the + button inserts JUST AFTER, not at the end', () => {
+    // Appending instead puts the new condition somewhere the user
+    // was not looking, which in a deep tree means losing it.
+    editor.addCondition();
+    editor.addCondition();
+    const first = editor.tree.children[0]!.id;
+    editor.insertAfter(first);
+    assert.equal(editor.tree.children.length, 3);
+    assert.equal(editor.tree.children[1]!.id !== first, true);
+    assert.equal(editor.tree.children[0]!.id, first);
+  });
+
+  it('the group button wraps a node in place, keeping its meaning', () => {
+    // The only way to get from A AND B to A AND (B OR C) without
+    // deleting and retyping B.
+    editor.addCondition();
+    editor.update(editor.tree.children[0]!.id, { text: 'EMEA', not: true });
+    const before = editor.filter;
+    editor.layer(editor.tree.children[0]!.id);
+
+    const wrapped = editor.tree.children[0]!;
+    assert.equal(wrapped.kind, 'group');
+    assert.equal(wrapped.not, true, 'the NOT moved out to the wrapper');
+    assert.deepEqual(
+      (wrapped as { children: readonly { not: boolean }[] }).children[0]?.not,
+      false,
+      'and off the child, so the meaning is unchanged',
+    );
+    assert.deepEqual(editor.filter, before);
+  });
+
+  it('will not layer the root, which IS the outermost group', () => {
+    editor.addCondition();
+    const before = editor.tree;
+    editor.layer(editor.tree.id);
+    assert.equal(editor.tree, before);
+  });
+
+  it('selects a node on click, and clears on the background', () => {
+    editor.addCondition();
+    const row = host.querySelectorAll('.dc-filter-row')[1] as HTMLElement;
+    row.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    assert.equal(editor.selected, editor.tree.children[0]!.id);
+    assert.equal(
+      (host.querySelectorAll('.dc-filter-row')[1] as HTMLElement).classList
+        .contains('dc-selected'),
+      true,
+    );
+
+    (host.querySelector('.dc-filter-tree') as HTMLElement).dispatchEvent(
+      new dom.window.MouseEvent('click', { bubbles: true }),
+    );
+    assert.equal(editor.selected, null);
   });
 
   it('marks a negated node for assistive technology', () => {

@@ -3,7 +3,6 @@ import { beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
 import { ColumnsToolPanel } from '../src/ui/columns-panel.ts';
-import { canFloat } from '../src/grid/floating-filter.ts';
 import { currentHeaderDrag, setHeaderDrag } from '../src/ui/pivot-panel.ts';
 
 const COLUMNS = [
@@ -12,26 +11,6 @@ const COLUMNS = [
   { name: 'year', type: 'Integer', groupable: true, usedAs: 'columns' as const },
   { name: 'notional', type: 'Float', groupable: false },
 ];
-
-describe('canFloat', () => {
-  // The rule that the browser run forced: in an AGGREGATING cube no
-  // leaf is a source column, so a per-leaf filter box can never
-  // apply to one.
-  it('refuses the tree column', () => {
-    assert.equal(canFloat({ name: '__tree', path: [''] }, '__tree'), false);
-  });
-
-  it('refuses a pivoted leaf, whose name is a path', () => {
-    assert.equal(
-      canFloat({ name: '2021__|__notional', path: ['2021', 'notional'] }, '__tree'),
-      false,
-    );
-  });
-
-  it('accepts a plain source column', () => {
-    assert.equal(canFloat({ name: 'region', path: ['region'] }, '__tree'), true);
-  });
-});
 
 describe('the columns tool panel', () => {
   let dom: JSDOM;

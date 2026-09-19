@@ -166,14 +166,48 @@ try {
   // -- the nested filter editor ---------------------------------------------
   await tool('Filters');
   await page.waitForSelector('.dc-filters', { timeout: 10_000 });
-  // Build a small nested filter, which is the shape a flat list of
-  // conditions cannot express: A AND NOT (B OR C).
-  await page.locator('.dc-filter-btn', { hasText: 'Add filter' }).click();
+  // Build A AND NOT (B OR C), the shape a flat list of conditions
+  // cannot express -- entirely through the controller buttons, which
+  // is the point of them.
+  await page.locator('.dc-filter-btn', { hasText: 'Create New Filter' }).click();
   await page.locator('.dc-filter-value').first().fill('EMEA');
-  await page.locator('.dc-filter-btn', { hasText: '+ group' }).click();
-  await page.locator('.dc-filter-btn', { hasText: '+ condition' }).last().click();
-  await page.waitForTimeout(300);
-  await shot('filter-editor', '.dc-app-overlay');
+  await page.locator('.dc-filter-value').first().dispatchEvent('change');
+  await page.waitForTimeout(250);
+
+  // `+` on the first condition inserts a sibling just after it.
+  await page.locator('.dc-filter-row').nth(1).locator('.dc-filter-ctl').first().click();
+  const second = page.locator('.dc-filter-row').nth(2);
+  await second.locator('.dc-filter-column').selectOption('desk');
+  await second.locator('.dc-filter-value').fill('Rates');
+  await second.locator('.dc-filter-value').dispatchEvent('change');
+  await page.waitForTimeout(250);
+
+  // `( )` wraps it in its own sub-group; then a sibling inside that,
+  // the group set to "Any of", and the group negated.
+  await page.locator('.dc-filter-row').nth(2).locator('.dc-filter-ctl').nth(2).click();
+  await page.waitForTimeout(200);
+  await page.locator('.dc-filter-row').nth(3).locator('.dc-filter-ctl').first().click();
+  await page.waitForTimeout(200);
+  const groupRow = page.locator('.dc-filter-row.dc-filter-group').nth(1);
+  await groupRow.locator('.dc-filter-join').selectOption('or');
+  await groupRow.locator('.dc-filter-ctl').nth(3).click();
+  const last = page.locator('.dc-filter-row').last();
+  await last.locator('.dc-filter-column').selectOption('desk');
+  await last.locator('.dc-filter-value').fill('Credit');
+  await last.locator('.dc-filter-value').dispatchEvent('change');
+  await page.waitForTimeout(400);
+
+  await shot('filter-editor-nested', '.dc-app-overlay');
+  await page.locator('.dc-overlay-close').click();
+  await page.waitForTimeout(2000);
+  // Clear it again, so the states after this one are not filtered.
+  await tool('Filters');
+  await page.waitForSelector('.dc-filters');
+  while ((await page.locator('.dc-filter-row').count()) > 1) {
+    await page.locator('.dc-filter-row').nth(1).locator('.dc-filter-ctl').nth(1).click();
+    await page.waitForTimeout(150);
+  }
+  await page.waitForTimeout(1500);
   await page.locator('.dc-overlay-close').click();
 
   // -- the drag zones, mid-drag ----------------------------------------------

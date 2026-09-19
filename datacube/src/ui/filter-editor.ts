@@ -209,10 +209,15 @@ export function toFilterNode(node: DraftNode): FilterNode | null {
     .filter((c): c is FilterNode => c !== null);
   if (children.length === 0) return null;
 
+  // A group of ONE is that one, negated or not. The `not` wraps
+  // whatever comes out, so keeping the group around a single child
+  // would emit NOT(AND(x)) where NOT(x) says the same thing -- and
+  // the difference is visible, because the user reads the generated
+  // Pure. This also makes wrapping a node in a sub-group leave the
+  // query byte-for-byte unchanged, which is what lets the group
+  // button be a safe, reversible gesture.
   const inner: FilterNode =
-    children.length === 1 && !node.not
-      ? children[0]!
-      : { kind: node.join, children };
+    children.length === 1 ? children[0]! : { kind: node.join, children };
   return node.not ? { kind: 'not', child: inner } : inner;
 }
 
@@ -259,6 +264,74 @@ export function addTo(
     n.kind === 'group' ? { ...n, children: [...n.children, child] } : n,
   );
   return (next as DraftGroup | null) ?? root;
+}
+
+/** The group a node sits in, or null for the root. */
+export function parentOf(root: DraftGroup, id: string): DraftGroup | null {
+  if (root.children.some((c) => c.id === id)) return root;
+  for (const child of root.children) {
+    if (child.kind === 'group') {
+      const found = parentOf(child, id);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+/**
+ * Insert a node immediately AFTER a sibling.
+ *
+ * DataCube's `+` button reads "insert a new column filter, just
+ * after this filter", and the position matters: appending to the end
+ * of the group instead puts the new condition somewhere the user was
+ * not looking, which in a deep tree means losing it.
+ */
+export function insertAfter(
+  root: DraftGroup,
+  siblingId: string,
+  node: DraftNode,
+): DraftGroup {
+  const rebuild = (group: DraftGroup): DraftGroup => {
+    const children: DraftNode[] = [];
+    let placed = false;
+    for (const child of group.children) {
+      children.push(child.kind === 'group' ? rebuild(child) : child);
+      if (child.id === siblingId) {
+        children.push(node);
+        placed = true;
+      }
+    }
+    return placed || children !== group.children
+      ? { ...group, children }
+      : group;
+  };
+  return rebuild(root);
+}
+
+/**
+ * Wrap a node in a new group, in place.
+ *
+ * DataCube's third controller button: "put this filter in its own
+ * sub-group (and combine it with other filters)". This is the only
+ * way to build `A AND (B OR C)` from an existing flat list without
+ * deleting and retyping B.
+ *
+ * The new group inherits the node's `not` and the node loses it, so
+ * the meaning of the tree is unchanged by the wrapping itself.
+ */
+export function layerNode(root: DraftGroup, id: string): DraftGroup {
+  const rebuild = (group: DraftGroup): DraftGroup => ({
+    ...group,
+    children: group.children.map((child) => {
+      if (child.id === id) {
+        const inner: DraftNode = { ...child, not: false } as DraftNode;
+        return { ...newGroup([inner]), not: child.not };
+      }
+      return child.kind === 'group' ? rebuild(child) : child;
+    }),
+  });
+  // The root itself cannot be layered: it IS the outermost group.
+  return root.id === id ? root : rebuild(root);
 }
 
 // -- the DOM editor ---------------------------------------------------
@@ -333,13 +406,45 @@ export interface FilterEditorOptions {
   readonly value?: FilterNode;
 }
 
-/** Indentation per level, matching DataCube's FILTER_TREE_INDENTATION_SPACE. */
+/**
+ * DataCube's own tree geometry, in pixels.
+ *
+ * Copied rather than approximated because the numbers are what make
+ * the connectors meet the gutter line: change one and the little
+ * horizontal stub either overshoots the vertical rule or stops
+ * short of it, and the tree stops reading as a tree.
+ */
+export const FILTER_TREE_OFFSET = 10;
 export const INDENT_PX = 36;
+export const FILTER_TREE_CONTROLLER_OFFSET = 60;
+export const FILTER_TREE_GUTTER_OFFSET = 6;
+export const FILTER_TREE_GUTTER_PADDING = 8;
+
+/** Left padding of a node's row, at a depth. */
+export function rowIndent(level: number): number {
+  return (
+    level * INDENT_PX +
+    FILTER_TREE_OFFSET +
+    Math.max(0, level - 1) * FILTER_TREE_CONTROLLER_OFFSET
+  );
+}
+
+/** Where a group's vertical gutter line sits, for its children. */
+export function gutterIndent(level: number): number {
+  return (
+    level * INDENT_PX +
+    FILTER_TREE_OFFSET +
+    FILTER_TREE_GUTTER_OFFSET +
+    level * FILTER_TREE_CONTROLLER_OFFSET
+  );
+}
 
 export class FilterEditor {
   readonly #root: HTMLElement;
   readonly #options: FilterEditorOptions;
   #tree: DraftGroup = newGroup();
+  /** The node the user last clicked. Highlights it and its subtree. */
+  #selected: string | null = null;
 
   constructor(container: HTMLElement, options: FilterEditorOptions) {
     this.#root = container;
@@ -370,6 +475,20 @@ export class FilterEditor {
     this.#options.onChange(this.filter);
   }
 
+  get selected(): string | null {
+    return this.#selected;
+  }
+
+  select(id: string | null): void {
+    this.#selected = id;
+    this.render();
+  }
+
+  /** Start a filter from the empty state. */
+  initialize(): void {
+    this.tree = newGroup([newCondition(this.#options.columns[0] ?? '')]);
+  }
+
   addCondition(groupId = this.#tree.id): void {
     this.tree = addTo(
       this.#tree,
@@ -386,6 +505,20 @@ export class FilterEditor {
     );
   }
 
+  /** The controller's `+`: a new condition just after this node. */
+  insertAfter(id: string): void {
+    this.tree = insertAfter(
+      this.#tree,
+      id,
+      newCondition(this.#options.columns[0] ?? ''),
+    );
+  }
+
+  /** The controller's group button: wrap this node in a sub-group. */
+  layer(id: string): void {
+    this.tree = layerNode(this.#tree, id);
+  }
+
   remove(id: string): void {
     this.tree = removeNode(this.#tree, id);
   }
@@ -398,63 +531,110 @@ export class FilterEditor {
     this.tree = newGroup();
   }
 
+  // -- rendering -------------------------------------------------------
+
   render(): void {
+    const doc = this.#root.ownerDocument;
     this.#root.replaceChildren();
-    this.#renderGroup(this.#tree, 0, this.#root, true);
+
+    if (this.#tree.children.length === 0) {
+      const empty = doc.createElement('div');
+      empty.className = 'dc-filter-empty';
+      const text = doc.createElement('div');
+      text.textContent =
+        'No filter is specified. Click the button below to start.';
+      const create = this.#button(
+        'Create New Filter',
+        () => this.initialize(),
+        'dc-filter-btn',
+      );
+      empty.append(text, create);
+      this.#root.append(empty);
+      return;
+    }
+
+    const tree = doc.createElement('div');
+    tree.className = 'dc-filter-tree';
+    // Clicking the empty space below the tree clears the selection,
+    // which is the only way to deselect without changing anything.
+    tree.addEventListener('click', () => this.select(null));
+    const body = doc.createElement('div');
+    body.className = 'dc-filter-tree-body';
+    body.addEventListener('click', (event) => event.stopPropagation());
+    this.#renderGroup(this.#tree, 0, body, null, 0);
+    tree.append(body);
+    this.#root.append(tree);
   }
 
   #renderGroup(
     group: DraftGroup,
     level: number,
     into: HTMLElement,
-    isRoot: boolean,
+    parent: DraftGroup | null,
+    index: number,
   ): void {
     const doc = this.#root.ownerDocument;
+    const block = doc.createElement('div');
+    block.className = 'dc-filter-group-block';
+    if (group.id === this.#selected) block.classList.add('dc-selected-group');
+    block.style.setProperty('--dc-f-gutter', `${gutterIndent(level)}px`);
 
-    if (!isRoot) {
-      into.appendChild(
-        this.#nodeRow(group, level, [
-          this.#notToggle(group),
-          this.#joinSelect(group),
-          this.#button('+ condition', () => this.addCondition(group.id)),
-          this.#button('+ group', () => this.addGroup(group.id)),
-        ]),
-      );
-    }
+    block.append(this.#groupRow(group, level, parent, index));
 
-    group.children.forEach((child) => {
+    const children = doc.createElement('div');
+    children.className = 'dc-filter-children';
+    group.children.forEach((child, i) => {
       if (child.kind === 'group') {
-        this.#renderGroup(child, level + 1, into, false);
+        this.#renderGroup(child, level + 1, children, group, i);
       } else {
-        into.appendChild(this.#conditionRow(child, level + (isRoot ? 0 : 1)));
+        children.append(this.#conditionRow(child, level + 1, group, i));
       }
     });
-
-    if (isRoot) {
-      const bar = doc.createElement('div');
-      bar.className = 'dc-filter-actions';
-      // The root's join only matters once there is something to join.
-      if (group.children.length > 1) bar.appendChild(this.#joinSelect(group));
-      bar.appendChild(
-        this.#button(
-          group.children.length === 0 ? 'Add filter' : '+ condition',
-          () => this.addCondition(),
-        ),
-      );
-      bar.appendChild(this.#button('+ group', () => this.addGroup()));
-      if (group.children.length > 0) {
-        bar.appendChild(this.#button('Clear', () => this.clear()));
-      }
-      into.appendChild(bar);
-    }
+    block.append(children);
+    into.append(block);
   }
 
-  #conditionRow(c: DraftCondition, level: number): HTMLElement {
+  /**
+   * A group's own row.
+   *
+   * Reads "All of" / "Any of" rather than AND / OR, which is
+   * DataCube's wording and is the right one: the row is a heading
+   * for the list beneath it, and "All of" scans as one.
+   */
+  #groupRow(
+    group: DraftGroup,
+    level: number,
+    parent: DraftGroup | null,
+    index: number,
+  ): HTMLElement {
+    const parts: HTMLElement[] = [];
+    if (level !== 0) {
+      parts.push(this.#controller(group), ...this.#notLabel(group));
+    }
+    parts.push(
+      this.#select(
+        ['and', 'or'],
+        group.join,
+        'dc-filter-join',
+        (v) => this.update(group.id, { join: v === 'or' ? 'or' : 'and' }),
+        ['All of', 'Any of'],
+      ),
+    );
+    return this.#nodeRow(group, level, parts, parent, index);
+  }
+
+  #conditionRow(
+    c: DraftCondition,
+    level: number,
+    parent: DraftGroup,
+    index: number,
+  ): HTMLElement {
     const doc = this.#root.ownerDocument;
     const kind = operandKind(c.operator);
 
     const parts: HTMLElement[] = [
-      this.#notToggle(c),
+      this.#controller(c),
+      ...this.#notLabel(c),
       this.#select(this.#options.columns, c.column, 'dc-filter-column', (v) =>
         this.update(c.id, { column: v }),
       ),
@@ -490,51 +670,112 @@ export class FilterEditor {
       parts.push(input);
     }
 
-    parts.push(
-      this.#button('×', () => this.remove(c.id), 'dc-filter-remove', 'Remove condition'),
-    );
-    return this.#nodeRow(c, level, parts);
+    return this.#nodeRow(c, level, parts, parent, index);
   }
 
+  /**
+   * One row: the connector, then the node's own controls.
+   *
+   * The connector is not decoration. The short horizontal stub joins
+   * the row to its parent's vertical gutter, and from the second
+   * child onwards it carries the parent's operator as a word -- so
+   * the reader sees `and` / `or` BETWEEN the things being combined,
+   * which is where the meaning is, rather than in a dropdown at the
+   * bottom of a flat list.
+   */
   #nodeRow(
     node: DraftNode,
     level: number,
     parts: readonly HTMLElement[],
+    parent: DraftGroup | null,
+    index: number,
   ): HTMLElement {
     const doc = this.#root.ownerDocument;
     const row = doc.createElement('div');
     row.className =
       node.kind === 'group' ? 'dc-filter-row dc-filter-group' : 'dc-filter-row';
     row.dataset['id'] = node.id;
-    // Depth by indentation, with a gutter line, as DataCube does.
     row.style.setProperty('--dc-filter-level', String(level));
+    row.style.setProperty('--dc-f-indent', `${rowIndent(level)}px`);
+    if (node.id === this.#selected) row.classList.add('dc-selected');
+    row.addEventListener('click', (event) => {
+      event.stopPropagation();
+      this.select(node.id);
+    });
+
+    const lead = doc.createElement('div');
+    lead.className = 'dc-filter-lead';
+    if (parent) {
+      const connector = doc.createElement('span');
+      connector.className = 'dc-filter-connector';
+      connector.setAttribute('aria-hidden', 'true');
+      lead.append(connector);
+      if (index > 0) {
+        const word = doc.createElement('span');
+        word.className = 'dc-filter-joinword';
+        word.textContent = parent.join;
+        lead.append(word);
+      }
+    }
+    row.append(lead);
     parts.forEach((p) => row.appendChild(p));
     return row;
   }
 
-  #notToggle(node: DraftNode): HTMLElement {
+  /**
+   * The four-button controller DataCube puts on every node.
+   *
+   * Insert-after, remove, wrap-in-a-group, and NOT. The third is the
+   * one that matters most: without it there is no way to turn a flat
+   * `A AND B AND C` into `A AND (B OR C)` except by deleting and
+   * retyping, which is why a flat list with a join dropdown is not
+   * the same product.
+   */
+  #controller(node: DraftNode): HTMLElement {
     const doc = this.#root.ownerDocument;
-    const b = doc.createElement('button');
-    b.type = 'button';
-    b.className = node.not ? 'dc-filter-not dc-filter-not-on' : 'dc-filter-not';
-    b.textContent = 'NOT';
-    b.setAttribute('aria-pressed', String(node.not));
-    b.setAttribute(
-      'aria-label',
-      node.kind === 'group' ? 'Negate this group' : 'Negate this condition',
+    const bar = doc.createElement('div');
+    bar.className = 'dc-filter-controller';
+    bar.append(
+      this.#button(
+        '+',
+        () => this.insertAfter(node.id),
+        'dc-filter-ctl',
+        'Insert a new column filter, just after this filter',
+      ),
+      this.#button(
+        '\u2212',
+        () => this.remove(node.id),
+        'dc-filter-ctl',
+        'Remove this filter',
+      ),
+      this.#button(
+        '( )',
+        () => this.layer(node.id),
+        'dc-filter-ctl',
+        'Put this filter in its own sub-group',
+      ),
     );
-    b.addEventListener('click', () => this.update(node.id, { not: !node.not }));
-    return b;
+    const not = this.#button(
+      '!',
+      () => this.update(node.id, { not: !node.not }),
+      node.not ? 'dc-filter-ctl dc-filter-not dc-filter-not-on'
+               : 'dc-filter-ctl dc-filter-not',
+      node.not
+        ? 'Turn off the NOT operator on this filter'
+        : 'Turn on the NOT operator on this filter',
+    );
+    not.setAttribute('aria-pressed', String(Boolean(node.not)));
+    bar.append(not);
+    return bar;
   }
 
-  #joinSelect(group: DraftGroup): HTMLSelectElement {
-    return this.#select(
-      ['and', 'or'],
-      group.join,
-      'dc-filter-join',
-      (v) => this.update(group.id, { join: v === 'or' ? 'or' : 'and' }),
-      ['AND', 'OR'],
-    );
+  /** The standing NOT badge, shown beside a negated node. */
+  #notLabel(node: DraftNode): HTMLElement[] {
+    if (!node.not) return [];
+    const el = this.#root.ownerDocument.createElement('span');
+    el.className = 'dc-filter-notlabel';
+    el.textContent = 'NOT';
+    return [el];
   }
 
   #button(
@@ -547,8 +788,14 @@ export class FilterEditor {
     b.type = 'button';
     b.className = className;
     b.textContent = text;
-    if (ariaLabel) b.setAttribute('aria-label', ariaLabel);
-    b.addEventListener('click', onClick);
+    if (ariaLabel) {
+      b.setAttribute('aria-label', ariaLabel);
+      b.title = ariaLabel;
+    }
+    b.addEventListener('click', (event) => {
+      event.stopPropagation();
+      onClick();
+    });
     return b;
   }
 
@@ -569,6 +816,7 @@ export class FilterEditor {
       if (v === selected) o.selected = true;
       el.appendChild(o);
     });
+    el.addEventListener('click', (event) => event.stopPropagation());
     el.addEventListener('change', () => onChange(el.value));
     return el;
   }
