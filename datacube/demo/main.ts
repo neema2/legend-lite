@@ -72,6 +72,7 @@ async function boot(): Promise<void> {
        ${sqlPick(DESKS, '(i // 3) % 5')}       AS desk,
        (2021 + ((i // 15) % 5))                AS year,
        ('Q' || (1 + ((i // 75) % 4)))          AS qtr,
+       ('Book ' || (1 + ((i // 300) % 4)))     AS book,
        ((i * 7919) % 1000000) / 100.0  AS notional,
        ((i * 104729) % 200000) / 100.0 - 1000.0 AS pnl,
        ((i * 31) % 97) + 1             AS qty
@@ -86,6 +87,7 @@ async function boot(): Promise<void> {
     columns: [
       { name: 'region', type: 'String' },
       { name: 'desk', type: 'String' },
+      { name: 'book', type: 'String' },
       { name: 'year', type: 'Integer' },
       { name: 'qtr', type: 'String' },
       { name: 'notional', type: 'Float' },
@@ -93,7 +95,7 @@ async function boot(): Promise<void> {
       { name: 'qty', type: 'Integer' },
     ],
     derived: [],
-    rows: ['region', 'desk'],
+    rows: ['region', 'desk', 'book'],
     pivotOn: ['year'],
     measures: [{ name: 'notional', column: 'notional', fn: 'sum' }],
     sorts: [],
@@ -133,7 +135,7 @@ async function boot(): Promise<void> {
       const row = treeRows[abs];
       if (!row) return { level: 1, key: String(abs) };
       return {
-        level: Math.max(1, row.level),
+        level: row.depth,
         key: pathKey(row.path),
         ...(row.isGroup ? { expanded: row.expanded } : {}),
         ...(row.isTotal || row.level === 0 ? { isTotal: true } : {}),

@@ -20,19 +20,17 @@
 export type RowPath = readonly string[];
 
 /**
- * Stable key for a path.
+ * The path separator.
  *
- * NUL joins, because it cannot occur in a SQL identifier or in a value
+ * NUL, because it cannot occur in a SQL identifier or in a value
  * DuckDB would return as text, so no dimension value can forge a
- * different group's key. A comma or a slash can.
- */
-/**
- * The separator, written as an escape rather than as a literal
- * control character: an invisible byte in source survives no
- * reformat, no copy-paste and no code review.
+ * different group's key -- a comma or a slash can. Written as an
+ * escape rather than as a literal control character, since an
+ * invisible byte in source survives no reformat and no code review.
  */
 const PATH_SEP = '\u0000';
 
+/** Stable key for a path. */
 export function pathKey(path: RowPath): string {
   return path.join(PATH_SEP);
 }
@@ -48,8 +46,17 @@ export function parsePathKey(key: string): RowPath {
 
 export interface TreeRow {
   readonly path: RowPath;
-  /** 1-based depth. The grand total is level 0. */
+  /** Logical depth: the number of path segments. 0 is the grand total. */
   readonly level: number;
+  /**
+   * Presentation depth, 1-based, for aria-level and indentation.
+   *
+   * When totals are shown the grand total is the ROOT, so it takes
+   * depth 1 and everything below shifts down -- otherwise a screen
+   * reader announces the total and its own children as siblings.
+   * aria-level cannot be 0, so clamping level 0 to 1 is not an option.
+   */
+  readonly depth: number;
   /** True when this row can be expanded (it has a level beneath it). */
   readonly isGroup: boolean;
   /** Only meaningful when isGroup. */
@@ -194,6 +201,7 @@ export function flattenTree(
     rows.push({
       path: [],
       level: 0,
+      depth: 1,
       isGroup: false,
       expanded: false,
       isTotal: true,
@@ -209,6 +217,8 @@ export function flattenTree(
       rows.push({
         path: child,
         level: child.length,
+        // Shifted down by one when a root total is present.
+        depth: child.length + (state.showTotals ? 1 : 0),
         isGroup,
         expanded,
         // A group row that is OPEN shows an aggregate of what is

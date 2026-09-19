@@ -161,6 +161,45 @@ describe('flattenTree', () => {
     ]);
   });
 
+  it('makes the grand total the ROOT, shifting everything below it', () => {
+    // aria-level cannot be 0, so clamping the total to 1 would put it
+    // at the same level as its own children and a screen reader would
+    // announce them as siblings. DataCube shifts rowGroupIndex by one
+    // for the same reason.
+    const rows = flattenTree(
+      TreeState.empty().expand(['EMEA']),
+      2,
+      childrenOf,
+    );
+    assert.deepEqual(
+      rows.map((r) => [rowLabel(r), r.level, r.depth]),
+      [
+        ['Total', 0, 1],
+        ['EMEA', 1, 2],
+        ['Rates', 2, 3],
+        ['Credit', 2, 3],
+        ['AMER', 1, 2],
+      ],
+    );
+  });
+
+  it('starts at depth 1 when there is no total to be the root', () => {
+    const rows = flattenTree(
+      TreeState.empty().withTotals(false).expand(['EMEA']),
+      2,
+      childrenOf,
+    );
+    assert.deepEqual(
+      rows.map((r) => [rowLabel(r), r.depth]),
+      [
+        ['EMEA', 1],
+        ['Rates', 2],
+        ['Credit', 2],
+        ['AMER', 1],
+      ],
+    );
+  });
+
   it('marks an open group as a subtotal and a leaf as neither', () => {
     const rows = flattenTree(TreeState.empty().expand(['EMEA']), 2, childrenOf);
     const emea = rows.find((r) => rowLabel(r) === 'EMEA');
