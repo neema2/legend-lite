@@ -88,11 +88,13 @@
     DuckDB-WASM runs.
   </p>
 
-  <p class="warn" id="plannernote" hidden>
-    legend-lite is not running on :8080, so this page is using a
-    <strong>demo-only SQL shim</strong> instead of the real planner.
-    Start the server to exercise the actual
-    <code>/engine/plan</code> path.
+  <p class="warn" id="plannermissing" hidden
+     style="background: color-mix(in srgb, crimson 10%, #fff);
+            border-color: color-mix(in srgb, crimson 45%, transparent);">
+    <strong>legend-lite is not running.</strong> This page has no
+    fallback planner and will not show you numbers it made up: start
+    the engine with <code>npm run engine</code> and reload. There is
+    one planner, and it is the real one.
   </p>
 
   <div class="bar">

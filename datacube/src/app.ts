@@ -92,6 +92,14 @@ export interface CubeAppOptions {
   readonly download?: (name: string, mime: string, text: string) => void;
   /** Show the column drag zone. Off matches DataCube exactly. */
   readonly showColumnZone?: boolean;
+  /**
+   * Where a snap materialises, when the source is a model relation.
+   *
+   * While snapped the query is still planned as Pure, so the frozen
+   * relation has to be one the model declares -- a generated
+   * `dc_snap_1` is a SQL identifier and means nothing to a compiler.
+   */
+  readonly snapTarget?: { readonly table: string; readonly expression: string };
 }
 
 const VIEW_KEY = 'datacube.savedView';
@@ -225,6 +233,7 @@ export class CubeApp {
     });
 
     this.#controller = new CubeController(options.engine, options.planner, {
+      ...(options.snapTarget ? { snapTarget: options.snapTarget } : {}),
       onView: (view) => this.#onView(view),
       onError: (e) =>
         this.#status(

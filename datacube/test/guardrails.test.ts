@@ -74,6 +74,65 @@ describe('source guardrails', () => {
   });
 });
 
+describe('there is exactly one planner, and no way to fall back to another', () => {
+  // A shim planner cost three real bugs: snap building SQL by hand,
+  // the snapped plane never redirecting, and the SQL panel showing
+  // Pure. Every one was invisible because the demo silently ran on a
+  // fake whose source was a bare SQL identifier, so the broken paths
+  // happened to work.
+  //
+  // The rule is NOT "no fake may exist" -- a test injecting a stub is
+  // fine, because that choice is static and never ships. The rule is
+  // that shipped code must not be able to CHOOSE a planner at
+  // runtime.
+  const shipped = [...sources('src'), ...sources('demo')];
+
+  it('scans both shipped trees', () => {
+    assert.ok(shipped.length > 10, `${shipped.length} files`);
+  });
+
+  it('implements Planner in exactly one shipped file', () => {
+    const impls = shipped.filter((f) =>
+      /implements\s+Planner\b/.test(readFileSync(f, 'utf8')),
+    );
+    assert.deepEqual(
+      impls,
+      [join('src', 'planner.ts')],
+      `a second planner is a second thing that must agree with the ` +
+        `first about null ordering, coercion and aggregates: ${impls.join(', ')}`,
+    );
+  });
+
+  it('never recovers from an unreachable planner by substituting one', () => {
+    // The specific shape that was here: a health probe, a catch, and
+    // a fake returned from it.
+    const bad: string[] = [];
+    for (const file of shipped) {
+      const text = readFileSync(file, 'utf8');
+      // A `catch` block that constructs or returns a planner.
+      if (/catch\s*(\([^)]*\))?\s*\{[^}]*\bnew\s+\w*Planner\b/s.test(text)) {
+        bad.push(file);
+      }
+    }
+    assert.deepEqual(bad, [], `fallback planner in: ${bad.join(', ')}`);
+  });
+
+  it('the demo REFUSES to run without the engine', () => {
+    // Not "warns and carries on": constructs nothing, so there is no
+    // grid of invented numbers to mistake for real ones.
+    const demo = readFileSync(join('demo', 'main.ts'), 'utf8');
+    assert.ok(
+      /throw new Error\([^)]*legend-lite is not answering/s.test(demo),
+      'the demo must throw when the engine is absent',
+    );
+    assert.equal(
+      /DemoOnlyPlanner/.test(demo),
+      false,
+      'the shim must be gone, not merely unreferenced',
+    );
+  });
+});
+
 describe('nothing is built and left unreachable', () => {
   // The audit that prompted the editor found most of this codebase
   // built, tested and unreachable: the context menu, the heatmap,

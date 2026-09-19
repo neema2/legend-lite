@@ -4,7 +4,6 @@ import { describe, it } from 'node:test';
 import {
   LegendLitePlanner,
   PlanError,
-  SnapRewritingPlanner,
 } from '../src/planner.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 
@@ -104,43 +103,3 @@ describe('LegendLitePlanner', () => {
   });
 });
 
-describe('SnapRewritingPlanner', () => {
-  const inner = {
-    plan: async (_g: string) =>
-      'SELECT t0.FIRST_NAME AS name FROM PERSON AS t0 ORDER BY t0.FIRST_NAME NULLS LAST',
-  };
-
-  it('leaves SQL alone when live', async () => {
-    const p = new SnapRewritingPlanner(inner, 'PERSON', () => null);
-    assert.match(await p.plan('g', SNAPSHOT), /FROM PERSON AS t0/);
-  });
-
-  it('swaps only the base table when snapped', async () => {
-    const p = new SnapRewritingPlanner(inner, 'PERSON', () => 'dc_snap_1');
-    const sql = await p.plan('g', SNAPSHOT);
-    assert.match(sql, /FROM "dc_snap_1" AS t0/);
-    // The same query otherwise: snapped and live differ only in source.
-    assert.match(sql, /ORDER BY t0\.FIRST_NAME NULLS LAST/);
-  });
-
-  it('does not rewrite the name inside a column or literal', async () => {
-    const chatty = {
-      plan: async () =>
-        "SELECT PERSON_ID, 'PERSON' AS label FROM PERSON WHERE x = 1",
-    };
-    const p = new SnapRewritingPlanner(chatty, 'PERSON', () => 'snap1');
-    const sql = await p.plan('g', SNAPSHOT);
-    assert.match(sql, /SELECT PERSON_ID/, 'column name untouched');
-    assert.match(sql, /'PERSON' AS label/, 'string literal untouched');
-    assert.match(sql, /FROM "snap1" WHERE/, 'only the FROM target swapped');
-  });
-
-  it('rewrites a JOIN target too', async () => {
-    const joined = {
-      plan: async () => 'SELECT * FROM A JOIN PERSON ON A.id = PERSON.id',
-    };
-    const p = new SnapRewritingPlanner(joined, 'PERSON', () => 'snap2');
-    const sql = await p.plan('g', SNAPSHOT);
-    assert.match(sql, /JOIN "snap2" ON/);
-  });
-});

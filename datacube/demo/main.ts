@@ -19,9 +19,7 @@ import { CubeController, type Planner } from '../src/cube.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import type { ColumnFormat } from '../src/format.ts';
 import { LegendLitePlanner } from '../src/planner.ts';
-import { NULL_GROUP, type LevelScope } from '../src/serialize.ts';
-import type { CubeSnapshot, FilterNode } from '../src/snapshot.ts';
-import { referencedColumns, totalOrderSorts } from '../src/snapshot.ts';
+import type { CubeSnapshot } from '../src/snapshot.ts';
 
 const ROWS = 200_000;
 const LEGEND_LITE = 'http://localhost:8080';
@@ -81,7 +79,7 @@ async function boot(): Promise<void> {
 
   // -- the cube ------------------------------------------------------
 
-  const { planner, source, real, snapTarget } = await choosePlanner(status);
+  const { planner, source, snapTarget } = await requireEngine(status);
 
   const snapshot: CubeSnapshot = {
     source: { expression: source },
@@ -132,13 +130,13 @@ async function boot(): Promise<void> {
     },
   };
 
-  if (real) must('plannerreal').hidden = false;
+  must('plannerreal').hidden = false;
 
   const app = new CubeApp(must('app'), snapshot, {
     engine,
     planner,
     configuration,
-    ...(snapTarget ? { snapTarget } : {}),
+    snapTarget,
     storage: window.localStorage,
     showColumnZone: true,
     dimensions: [
@@ -195,219 +193,61 @@ function renderPlaneBadge(controller: CubeController): void {
 }
 
 /**
- * The planner, and the source expression that goes with it.
+ * The planner. There is exactly one, and it is the real one.
  *
- * These travel together because they are two halves of one choice.
- * The real planner resolves a table through a MODEL --
- * `#>{trades::DB.TRADES}#` names the Database and the table in it --
- * where the shim only ever knew a bare SQL identifier. Returning
- * the planner alone was how the page ended up asking legend-lite to
- * compile `trades`, which is not a relation it has heard of.
+ * This used to CHOOSE between legend-lite and a demo-only shim
+ * depending on whether the server answered a health check, and that
+ * one line of convenience hid three real bugs for the whole life of
+ * the project: snap building SQL by hand, the snapped plane never
+ * redirecting, and the "Generated SQL" panel showing Pure. Every one
+ * of them was invisible because the shim's source was a bare SQL
+ * identifier and the broken path happened to work against it.
+ *
+ * So there is no fallback. A test may INJECT a stub planner -- that
+ * choice is static, in code that never ships -- but the product
+ * cannot select one at runtime. If legend-lite is not running, this
+ * throws and the page says so; it does not quietly show fake numbers
+ * that look exactly like real ones.
  */
-interface PlannerChoice {
+async function requireEngine(status: HTMLElement): Promise<{
   readonly planner: Planner;
   readonly source: string;
-  readonly real: boolean;
-  /** Where a snap goes, when the source is a model relation. */
-  readonly snapTarget?: { readonly table: string; readonly expression: string };
-}
-
-async function choosePlanner(status: HTMLElement): Promise<PlannerChoice> {
+  readonly snapTarget: { readonly table: string; readonly expression: string };
+}> {
+  let reachable = false;
   try {
     const health = await fetch(`${LEGEND_LITE}/health`, {
-      signal: AbortSignal.timeout(700),
+      signal: AbortSignal.timeout(1500),
     });
-    if (health.ok) {
-      // The model is fetched rather than inlined so the SAME text is
-      // what the server compiles and what a reader opens -- one copy,
-      // in demo/trades.pure.
-      const model = await (await fetch('./trades.pure')).text();
-      status.textContent = 'planner: legend-lite';
-      return {
-        planner: new LegendLitePlanner({
-          baseUrl: LEGEND_LITE,
-          model,
-          runtime: 'trades::RT',
-        }),
-        source: '#>{trades::DB.TRADES}#',
-        real: true,
-        snapTarget: {
-          table: 'TRADES_SNAP',
-          expression: '#>{trades::DB.TRADES_SNAP}#',
-        },
-      };
-    }
+    reachable = health.ok;
   } catch {
-    // Not running; fall through to the shim.
+    reachable = false;
   }
-  const note = must('plannernote');
-  note.hidden = false;
-  return { planner: new DemoOnlyPlanner(), source: 'trades', real: false };
-}
-
-/**
- * DEMO ONLY. Emits SQL straight from the snapshot so the page runs with
- * no server. It is not the product's planner and must never move into
- * src/ -- legend-lite is the single planner, and this exists purely so
- * the grid and snap mode can be seen without a JVM.
- */
-/**
- * FilterNode to SQL, for the demo shim only.
- *
- * Mirrors src/serialize.ts's filterExpression, which renders the same
- * tree to Pure. Two renderers of one tree is exactly the duplication
- * the single-planner rule exists to prevent -- which is why this one
- * lives in demo/ and is never imported by the product.
- */
-function filterToSql(node: FilterNode, q: (n: string) => string): string {
-  const lit = (v: unknown): string =>
-    typeof v === 'number' || typeof v === 'boolean'
-      ? String(v)
-      : `'${String(v).replace(/'/g, "''")}'`;
-
-  switch (node.kind) {
-    case 'and':
-    case 'or': {
-      if (node.children.length === 0) return node.kind === 'and' ? 'TRUE' : 'FALSE';
-      const op = node.kind === 'and' ? ' AND ' : ' OR ';
-      return `(${node.children.map((c) => filterToSql(c, q)).join(op)})`;
-    }
-    case 'not':
-      return `NOT (${filterToSql(node.child, q)})`;
-    case 'condition': {
-      const col = q(node.column);
-      const lower = `lower(${col})`;
-      const one = () => lit(node.value);
-      const many = () =>
-        ((node.value as unknown[]) ?? []).map(lit).join(', ');
-      const lowerMany = () =>
-        ((node.value as unknown[]) ?? [])
-          .map((v) => lit(String(v).toLowerCase()))
-          .join(', ');
-      const right = node.rightColumn ? q(node.rightColumn) : col;
-
-      switch (node.operator) {
-        case 'equal': return `${col} = ${one()}`;
-        case 'notEqual': return `${col} <> ${one()}`;
-        case 'lessThan': return `${col} < ${one()}`;
-        case 'lessThanEqual': return `${col} <= ${one()}`;
-        case 'greaterThan': return `${col} > ${one()}`;
-        case 'greaterThanEqual': return `${col} >= ${one()}`;
-        case 'isEmpty': return `${col} IS NULL`;
-        case 'isNotEmpty': return `${col} IS NOT NULL`;
-        case 'in': return `${col} IN (${many()})`;
-        case 'notIn': return `${col} NOT IN (${many()})`;
-        case 'contains': return `${col} LIKE ${lit('%' + String(node.value) + '%')}`;
-        case 'notContains': return `${col} NOT LIKE ${lit('%' + String(node.value) + '%')}`;
-        case 'startsWith': return `${col} LIKE ${lit(String(node.value) + '%')}`;
-        case 'notStartsWith': return `${col} NOT LIKE ${lit(String(node.value) + '%')}`;
-        case 'endsWith': return `${col} LIKE ${lit('%' + String(node.value))}`;
-        case 'notEndsWith': return `${col} NOT LIKE ${lit('%' + String(node.value))}`;
-        case 'equalCaseInsensitive':
-          return `${lower} = ${lit(String(node.value).toLowerCase())}`;
-        case 'notEqualCaseInsensitive':
-          return `${lower} <> ${lit(String(node.value).toLowerCase())}`;
-        case 'containsCaseInsensitive':
-          return `${lower} LIKE ${lit('%' + String(node.value).toLowerCase() + '%')}`;
-        case 'startsWithCaseInsensitive':
-          return `${lower} LIKE ${lit(String(node.value).toLowerCase() + '%')}`;
-        case 'endsWithCaseInsensitive':
-          return `${lower} LIKE ${lit('%' + String(node.value).toLowerCase())}`;
-        case 'inCaseInsensitive': return `${lower} IN (${lowerMany()})`;
-        case 'notInCaseInsensitive': return `${lower} NOT IN (${lowerMany()})`;
-        case 'equalColumn': return `${col} = ${right}`;
-        case 'notEqualColumn': return `${col} <> ${right}`;
-        case 'lessThanColumn': return `${col} < ${right}`;
-        case 'lessThanEqualColumn': return `${col} <= ${right}`;
-        case 'greaterThanColumn': return `${col} > ${right}`;
-        case 'greaterThanEqualColumn': return `${col} >= ${right}`;
-        case 'equalCaseInsensitiveColumn':
-          return `${lower} = lower(${right})`;
-        case 'notEqualCaseInsensitiveColumn':
-          return `${lower} <> lower(${right})`;
-        default: return 'TRUE';
-      }
-    }
+  if (!reachable) {
+    must('plannermissing').hidden = false;
+    throw new Error(
+      `legend-lite is not answering on ${LEGEND_LITE}. ` +
+        'Start it with `npm run engine` and reload.',
+    );
   }
-}
 
-class DemoOnlyPlanner implements Planner {
-  async plan(
-    _grammar: string,
-    s: CubeSnapshot,
-    scope?: LevelScope,
-  ): Promise<string> {
-    const q = (n: string) => `"${n.replace(/"/g, '""')}"`;
-    const lit = (v: string) => `'${v.replace(/'/g, "''")}'`;
-    // Which dimensions group at THIS level, and which branch is pinned.
-    const dims = scope ? s.rows.slice(0, scope.level) : s.rows;
-    const where = [
-      // The cube's own filter comes first, then the branch pins.
-      ...(s.filter ? [filterToSql(s.filter, q)] : []),
-      ...(scope?.parent ?? [])
-        .map((v, i) => {
-          const col = s.rows[i];
-          if (col === undefined) return null;
-          return v === NULL_GROUP
-            ? `${q(col)} IS NULL`
-            : `${q(col)} = ${lit(v)}`;
-        })
-        .filter((c): c is string => c !== null),
-    ];
-    const filter = where.length > 0 ? ` WHERE ${where.join(' AND ')}` : '';
-    const agg = s.measures
-      .map((m) =>
-        m.fn === 'count'
-          ? `count(*) AS ${q(m.name)}`
-          : `${m.fn === 'average' ? 'avg' : m.fn}(${q(m.column)}) AS ${q(m.name)}`,
-      )
-      .join(', ');
-    const by = dims.map(q).join(', ');
-    const order = totalOrderSorts(s, dims)
-      .map((x) => `${q(x.column)} ${x.direction === 'asc' ? 'ASC' : 'DESC'}`)
-      .join(', ');
-    const cols = referencedColumns(s, dims).map(q).join(', ');
-    // A COMPOSITE key, built the way legend-lite does, rather than
-    // DuckDB's native multi-column PIVOT: it names columns the same
-    // way and, because the key only takes values that occur, it does
-    // not emit the cross product of every dimension's values.
-    const key = '__pivotkey';
-    const keyExpr = s.pivotOn
-      .map((c) => `CAST(${q(c)} AS VARCHAR)`)
-      .join(" || '__|__' || ");
-    const src =
-      s.pivotOn.length > 0
-        ? `(SELECT * EXCLUDE (${s.pivotOn.map(q).join(', ')}), ` +
-          `${keyExpr} AS ${q(key)} ` +
-          `FROM (SELECT ${cols} FROM ${s.source.expression}${filter}))`
-        : `(SELECT ${cols} FROM ${s.source.expression}${filter})`;
-    const orderBy = order ? ` ORDER BY ${order}` : '';
-
-    if (s.pivotOn.length === 0) {
-      return dims.length === 0
-        ? `SELECT ${agg} FROM ${src}`
-        : `SELECT ${by}, ${agg} FROM ${src} GROUP BY ${by}${orderBy}`;
-    }
-    const on = q(key);
-    // DuckDB joins the pivot value to the alias with a single '_', so
-    // the alias is pre-compensated to land on the canonical five-
-    // character separator -- exactly what legend-lite emits.
-    const alias = (n: string) => q(`_|__${n}`);
-    const using = s.measures
-      .map((m) =>
-        m.fn === 'count'
-          ? `count(*) AS ${alias(m.name)}`
-          : `${m.fn === 'average' ? 'avg' : m.fn}(${q(m.column)}) ` +
-            `AS ${alias(m.name)}`,
-      )
-      .join(', ');
-    // With no grouping columns the pivot is the grand total: one row,
-    // no GROUP BY and nothing to order.
-    return dims.length === 0
-      ? `SELECT * FROM (PIVOT ${src} ON ${on} USING ${using})`
-      : `SELECT * FROM (PIVOT ${src} ON ${on} USING ${using} ` +
-        `GROUP BY ${by})${orderBy}`;
-  }
+  // The model is fetched rather than inlined so the SAME text is what
+  // the server compiles and what a reader opens -- one copy, in
+  // demo/trades.pure.
+  const model = await (await fetch('./trades.pure')).text();
+  status.textContent = 'planner: legend-lite';
+  return {
+    planner: new LegendLitePlanner({
+      baseUrl: LEGEND_LITE,
+      model,
+      runtime: 'trades::RT',
+    }),
+    source: '#>{trades::DB.TRADES}#',
+    snapTarget: {
+      table: 'TRADES_SNAP',
+      expression: '#>{trades::DB.TRADES_SNAP}#',
+    },
+  };
 }
 
 /**

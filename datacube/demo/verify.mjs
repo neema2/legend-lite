@@ -107,6 +107,25 @@ const check = (name, ok, detail = '') => {
 };
 
 try {
+  // The engine is a PRECONDITION, not a nice-to-have: the page has no
+  // fallback planner, so without it there is nothing to verify. Say
+  // so immediately rather than timing out on a grid that will never
+  // appear.
+  try {
+    const health = await fetch('http://localhost:8080/health', {
+      signal: AbortSignal.timeout(2000),
+    });
+    if (!health.ok) throw new Error(`health returned ${health.status}`);
+  } catch (e) {
+    check(
+      'legend-lite is running on :8080',
+      false,
+      `${e instanceof Error ? e.message : String(e)} -- start it with \`npm run engine\``,
+    );
+    throw new Error('engine unavailable');
+  }
+  check('legend-lite is running on :8080', true);
+
   await page.goto(`http://localhost:${PORT}/demo/index.html`, {
     waitUntil: 'domcontentloaded',
   });
@@ -118,24 +137,20 @@ try {
   const status = await page.textContent('#status');
   check('boots and renders', true, status?.trim());
 
-  // WHICH PLANNER ran. Without this the whole run passes just as
-  // happily on the demo shim, and "verified end to end against
-  // legend-lite" becomes a claim nothing can refute.
-  const real = await page.locator('#plannerreal').isVisible();
-  console.log(
-    real
-      ? '      planner: legend-lite on :8080 (real)'
-      : '      planner: demo shim (start legend-lite for the real path)',
+  // There is one planner and it is the real one. If the engine is
+  // absent the page refuses to render at all, so reaching this far
+  // already proves the path -- but say it, and check the SQL has
+  // legend-lite's shape rather than something locally invented.
+  check(
+    'planning through legend-lite, with no fallback available',
+    await page.locator('#plannerreal').isVisible(),
   );
-  if (real) {
-    // legend-lite's own shape: aliased relations and DuckDB PIVOT.
-    const sql = (await page.textContent('#sql')) ?? '';
-    check(
-      'the SQL came from legend-lite, not the shim',
-      /AS t\d+/.test(sql) && /PIVOT \(/.test(sql),
-      sql.split('\n')[0],
-    );
-  }
+  const sql = (await page.textContent('#sql')) ?? '';
+  check(
+    "the SQL has legend-lite's shape",
+    /AS t\d+/.test(sql) && /PIVOT \(/.test(sql),
+    sql.split('\n')[0],
+  );
 
   const rows = await page.locator('.dc-row').count();
   check('renders a window, not every row', rows > 0 && rows < 60, `${rows} rows`);
