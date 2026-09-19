@@ -260,7 +260,14 @@ public class LegendHttpServer {
                 response.put("sql", plan.sql());
                 response.put("shape", String.valueOf(plan.shape()));
                 sendResponse(exchange, 200, Json.toCompact(response));
-            } catch (Exception e) {
+            } catch (com.legend.error.LegendCompileException
+                    | com.legend.error.NotImplementedException
+                    | com.legend.sql.dialect.DialectCapability e) {
+                // The three honest outcomes of a plan-only call: the
+                // model or query does not compile, the construct is not
+                // implemented, or the dialect cannot express it. Anything
+                // else is a bug and propagates rather than being dressed
+                // up as a user-facing error message.
                 sendResponse(exchange, 500,
                         "{\"error\":\"" + Json.escape(String.valueOf(e.getMessage()))
                         + "\"}");

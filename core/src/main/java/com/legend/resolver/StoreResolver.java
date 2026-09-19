@@ -39,6 +39,7 @@ import com.legend.compiler.spec.typed.TypedMilestonedAccess;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedNavigate;
 import com.legend.compiler.spec.typed.TypedNewInstance;
+import com.legend.compiler.spec.typed.TypedPivot;
 import com.legend.compiler.spec.typed.TypedProject;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
 import com.legend.compiler.spec.typed.TypedRename;
@@ -506,6 +507,10 @@ public final class StoreResolver {
                     structural(pa, context);
             case TypedFilter f when anchored(f.source()) ->
                     structural(f, context);
+            // PIVOT above a resolved class chain — a relation-space
+            // wrapper like the rest (research/PIVOT-GAP-STORERESOLVER.md).
+            case TypedPivot pv when anchored(pv.source()) ->
+                    structural(pv, context);
             case TypedSpec js when com.legend.compiler.spec.typed.TypedJsonAccess.isJsonNode(js) -> structural(js, context);
             case TypedProject p when anchored(p.source()) ->
                     structural(p, context);
