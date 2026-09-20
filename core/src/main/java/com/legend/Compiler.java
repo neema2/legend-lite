@@ -661,18 +661,16 @@ public final class Compiler {
         return h2d;
     }
 
-    /** The driver's ONE metadata read (dialect resolution), seam-
-     * translated: java.sql stops here like at every other boundary. */
+    /** The driver's ONE metadata read, delegated to the JDBC boundary.
+     *
+     * The body lives in {@link com.legend.exec.JdbcMetadata} for a
+     * reason worth keeping: the verifier resolves CATCH CLAUSE types at
+     * link time, so a {@code catch (java.sql.SQLException)} here made
+     * this whole class -- the plan surface included -- unloadable
+     * without the java.sql module. */
     private static String metadata(java.sql.Connection connection,
             boolean product) {
-        try {
-            return product
-                    ? connection.getMetaData().getDatabaseProductName()
-                    : connection.getMetaData().getDatabaseProductVersion();
-        } catch (java.sql.SQLException e) {
-            throw new com.legend.error.DataError(
-                    String.valueOf(e.getMessage()), e);
-        }
+        return com.legend.exec.JdbcMetadata.read(connection, product);
     }
 
     static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,

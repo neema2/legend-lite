@@ -90,6 +90,17 @@ class JdbcSurfaceCensusTest {
             // RETIRED: moved to compiler/spec/CatalogGrids — pure
             // SQL-text composition.)
             "core/src/main/java/com/legend/exec/GridProbe.java",
+            // THE DIALECT'S METADATA READ, moved out of Compiler on
+            // 2026-09-20. It was already the declared boundary ("java.sql
+            // stops here like at every other boundary") but living in
+            // Compiler had a cost nobody had measured: the JVM verifier
+            // resolves CATCH CLAUSE types at link time, so one
+            // `catch (java.sql.SQLException)` made the whole class --
+            // the PLAN surface included -- unloadable without the
+            // java.sql module. Moving it is what lets the planner run on
+            // java.base ALONE (proved: parse/type/resolve/lower/render
+            // under --limit-modules java.base, 1.4ms warm).
+            "core/src/main/java/com/legend/exec/JdbcMetadata.java",
             // (PureAsserts + TdsCompare rows RETIRED 2026-08-21, the
             // D-arc dividend: PureDateLiteral is THE wire temporal
             // carrier, so the comparison layer's java.sql value arms
@@ -137,6 +148,11 @@ class JdbcSurfaceCensusTest {
 
     private static final Set<String> TEST_REGISTER = new TreeSet<>(List.of(
             "core/src/test/java/com/legend/ArchitectureTest.java",
+            // 2026-09-20: the guard that the PLANNER needs java.base
+            // alone. It names java.sql only to FORBID it — the patterns
+            // it matches with — so the census counting it is the census
+            // working, not a leak.
+            "core/src/test/java/com/legend/PlannerNeedsOnlyJavaBaseTest.java",
             // 2026-09-09, the connection lease: the CONNECTION LIFECYCLE is
             // the thing under test, so java.sql.Connection is the subject and
             // not an execution shortcut. It asserts isClosed() on a resolved

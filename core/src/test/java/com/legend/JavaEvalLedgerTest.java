@@ -923,6 +923,14 @@ class JavaEvalLedgerTest {
                     "Column.java", "CsvSeed.java",
                     "Ddl.java", "DynamicPivot.java",
                     "ExecutionResult.java", "Executor.java",
+                    // THE DIALECT'S METADATA READ (2026-09-20), moved
+                    // out of Compiler: no evaluation, one getMetaData
+                    // call whose SQLException is translated at this
+                    // boundary. It exists as its own class because a
+                    // catch clause is resolved by the VERIFIER, so
+                    // keeping it in Compiler made the plan surface
+                    // require the java.sql module.
+                    "JdbcMetadata.java",
                     // THE SYSTEM DATABASE (user ruling 2026-09-02): the
                     // graph's metamodel rows in a database of their own,
                     // separate from every user connection — opened once
