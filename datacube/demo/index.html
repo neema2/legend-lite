@@ -74,6 +74,16 @@
     border: 1px solid color-mix(in srgb, orange 40%, transparent);
   }
 </style>
+<style>
+  .dc-uploadbar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 10px; font: 12px/1.4 Roboto, system-ui, sans-serif;
+    border-top: 1px solid rgba(128,128,128,.25);
+  }
+  .dc-uploadbar label { font-weight: 500; }
+  #uploadnote { color: #777; }
+  #uploadnote.bad { color: #b00020; }
+</style>
 </head>
 <body>
   <h1>DataCube</h1>
@@ -119,6 +129,11 @@
     <pre id="sql"></pre>
   </details>
 
+  <div id="uploadbar" class="dc-uploadbar" hidden>
+    <label for="uploadfile">Open a file</label>
+    <input id="uploadfile" type="file" accept=".csv,.parquet,text/csv">
+    <span id="uploadnote">CSV or Parquet. It stays in this tab.</span>
+  </div>
   <script type="module" src="./bundle.js"></script>
 </body>
 </html>

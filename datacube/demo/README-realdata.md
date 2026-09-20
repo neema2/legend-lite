@@ -22,7 +22,27 @@ rebuilding.
 
 Add `--open` to launch a browser, `--port N` to move it.
 
-## Your own file
+## Just open a file in the page
+
+Easiest of all: start it, then use the **Open a file** control at the
+bottom. Pick a CSV or Parquet and the cube rebuilds around it.
+
+There is no model to write. DuckDB sniffs the schema, a Pure
+`Database` / `Connection` / `Runtime` is generated from what it
+found, and the planner compiles against that like any other model —
+so the SQL panel, the tree and the snap plane keep working with no
+second code path. The file never leaves the tab.
+
+Numeric columns become measures, except the key-like ones — `year`,
+`*_id`, `zip`, `*_code` — which stay dimensions and keep their digits
+unseparated, because `2,019` reads as a bug in the data.
+
+Only the in-browser entry offers this. `index-server.html` plans
+against a fixed model on a running legend-lite, where an uploaded
+file would have nowhere to live, so the control is absent there
+rather than present and broken.
+
+## Your own file, from the command line
 
 ```bash
 npm start -- --data ~/trades.parquet

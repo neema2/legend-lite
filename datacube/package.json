@@ -20,7 +20,8 @@
     "verify:realdata": "node demo/verify-real-data.mjs",
     "start": "node demo/serve.mjs",
     "planner:core": "cd .. && mvn -q -pl core -am -DskipTests install",
-    "dist": "node demo/make-dist.mjs"
+    "dist": "node demo/make-dist.mjs",
+    "verify:upload": "node demo/verify-upload.mjs"
   },
   "keywords": [],
   "author": "",

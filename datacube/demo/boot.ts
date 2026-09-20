@@ -18,6 +18,7 @@ import {
 import { CubeController, type Planner } from '../src/cube.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { mountRemote } from '../src/remote.ts';
+import { ingestFile } from '../src/upload.ts';
 import type { ColumnFormat } from '../src/format.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 
@@ -29,6 +30,16 @@ export interface Engine {
   readonly planner: Planner;
   readonly source: string;
   readonly snapTarget: { readonly table: string; readonly expression: string };
+  /**
+   * Repoint the planner at a model inferred from an opened file.
+   *
+   * OPTIONAL, and absent is meaningful: the server entry plans
+   * against a fixed model on a running legend-lite, where an
+   * uploaded file would have nowhere to live, so it supplies
+   * nothing and the upload control never appears. The capability
+   * and the affordance are the same fact.
+   */
+  readonly setModel?: (model: string, runtime: string) => void;
   /**
    * What the status line should say about this planner.
    *
@@ -174,7 +185,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
 
   performance.mark('dc:data-ready');
   status.textContent = 'starting planner…';
-  const { planner, source, snapTarget, label } = await engineReady;
+  const { planner, source, snapTarget, label, setModel } = await engineReady;
   status.textContent = label;
 
   const snapshot: CubeSnapshot = {
@@ -228,45 +239,142 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
 
   must('plannerreal').hidden = false;
 
-  const app = new CubeApp(must('app'), snapshot, {
-    engine,
-    planner,
-    configuration,
-    snapTarget,
-    storage: window.localStorage,
-    showColumnZone: true,
-    dimensions: [
-      { name: 'Geography', columns: ['region', 'desk', 'book'] },
-      { name: 'Calendar', columns: ['year', 'qtr'] },
-    ],
-    writeClipboard: (text) => navigator.clipboard?.writeText(text),
-    download: (name, mime, text) => {
-      const url = URL.createObjectURL(new Blob([text], { type: mime }));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = name;
-      a.click();
-      URL.revokeObjectURL(url);
-    },
-    onStatus: (text, kind) => {
-      status.textContent = text;
-      status.classList.toggle('bad', kind === 'error');
-      status.classList.toggle('warn-text', kind === 'warn');
-    },
-    onView: (view) => {
-      // The Pure this product emitted, and the SQL the planner made
-      // of it. Both, because they answer different questions -- and
-      // because the SQL panel showed Pure until the real planner
-      // started returning SQL worth reading.
-      must('pure').textContent = view.pure;
-      must('sql').textContent =
-        view.sql || '(the demo shim plans per level; expand a row)';
-    },
-    onPlane: () => renderPlaneBadge(app.controller),
-  });
+  // The cube, built so it can be built AGAIN.
+  //
+  // Opening a file replaces the model, and therefore the columns and
+  // the source relation, so the app is recreated rather than mutated
+  // -- a cube whose snapshot no longer matches its model is not a
+  // state worth supporting. Everything the construction needs is a
+  // parameter so there is only one copy of it.
+  const host = must('app');
+  const DEMO_DIMENSIONS = [
+    { name: 'Geography', columns: ['region', 'desk', 'book'] },
+    { name: 'Calendar', columns: ['year', 'qtr'] },
+  ];
+
+  function makeApp(
+    snap: CubeSnapshot,
+    config: CubeConfiguration,
+    dims: { name: string; columns: string[] }[],
+  ): CubeApp {
+    host.replaceChildren();
+    const created: CubeApp = new CubeApp(host, snap, {
+      engine,
+      planner,
+      configuration: config,
+      snapTarget,
+      storage: window.localStorage,
+      showColumnZone: true,
+      dimensions: dims,
+      writeClipboard: (text) => navigator.clipboard?.writeText(text),
+      download: (name, mime, text) => {
+        const url = URL.createObjectURL(new Blob([text], { type: mime }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        a.click();
+        URL.revokeObjectURL(url);
+      },
+      onStatus: (text, kind) => {
+        status.textContent = text;
+        status.classList.toggle('bad', kind === 'error');
+        status.classList.toggle('warn-text', kind === 'warn');
+      },
+      onView: (view) => {
+        // The Pure this product emitted, and the SQL the planner made
+        // of it. Both, because they answer different questions -- and
+        // because the SQL panel showed Pure until the real planner
+        // started returning SQL worth reading.
+        must('pure').textContent = view.pure;
+        must('sql').textContent =
+          view.sql || '(the demo shim plans per level; expand a row)';
+      },
+      onPlane: () => renderPlaneBadge(created.controller),
+    });
+    return created;
+  }
+
+  let app = makeApp(snapshot, configuration, DEMO_DIMENSIONS);
 
   await app.open();
   renderPlaneBadge(app.controller);
+
+  // OPENING A FILE.
+  //
+  // DuckDB reads it and sniffs the schema, `inferModel` writes a Pure
+  // model around what it found, and the cube is rebuilt against that.
+  // Nothing downstream learns the data was uploaded: the planner
+  // compiles an ordinary model over an ordinary table, which is why
+  // the SQL panel, the tree and the snap plane all keep working
+  // without a second code path.
+  if (setModel) {
+    const bar = must('uploadbar');
+    const note = must('uploadnote');
+    const input = must('uploadfile') as HTMLInputElement;
+    bar.hidden = false;
+    input.addEventListener('change', () => {
+      const file = input.files?.[0];
+      if (!file) return;
+      note.classList.remove('bad');
+      note.textContent = `reading ${file.name}…`;
+      void (async () => {
+        try {
+          const opened = await ingestFile(engine, db, file);
+          setModel(opened.model, opened.runtime);
+          // A freshly opened file groups by nothing: show the rows as
+          // they are and let the user build the cube up. Guessing at
+          // dimensions and measures would be wrong more often than
+          // the guess is worth.
+          app = makeApp(
+            {
+              source: { expression: opened.source },
+              columns: opened.columns,
+              derived: [],
+              rows: [],
+              pivotOn: [],
+              measures: [],
+              sorts: [],
+              epoch: 1,
+            },
+            {
+              ...DEFAULT_CONFIGURATION,
+              reportTitle: opened.fileName,
+              // A numeric column the inference judged key-like -- a
+              // year, an id, a postcode -- must not get thousands
+              // separators. "2,019" is the kind of wrong that reads
+              // as a bug in the data rather than in the formatting.
+              columns: Object.fromEntries(
+                opened.columns
+                  .filter((c) => c.kind === 'dimension'
+                    && (c.type === 'Integer' || c.type === 'Float'))
+                  .map((c) => [c.name, {
+                    format: {
+                      kind: 'number' as const,
+                      displayCommas: false,
+                      maximumFractionDigits: 0,
+                    },
+                  }]),
+              ),
+            },
+            [],
+          );
+          // open() is what runs the first query; without it the
+          // chrome renders and the grid stays empty.
+          await app.open();
+          renderPlaneBadge(app.controller);
+          note.textContent = `${opened.fileName}: `
+            + `${opened.rowCount.toLocaleString()} rows, `
+            + `${opened.columns.length} columns`;
+        } catch (e) {
+          // Say what failed and about which file. An uploaded file is
+          // the one input the user can actually fix.
+          note.classList.add('bad');
+          note.textContent = `could not open ${file.name}: `
+            + (e instanceof Error ? e.message : String(e));
+        }
+      })();
+    });
+  }
 }
 
 /** Rule 1 of snap mode: what you are looking at is never inferable. */

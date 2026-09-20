@@ -99,7 +99,7 @@ export class PlannerUnavailableError extends Error {
 }
 
 export class WasmPlanner implements Planner {
-  readonly #options: WasmPlannerOptions;
+  #options: WasmPlannerOptions;
   readonly #cache = new Map<string, string>();
   #module: Promise<TeavmModule> | undefined;
   #worker: Worker | undefined;
@@ -357,6 +357,26 @@ export class WasmPlanner implements Planner {
       `the planner module returned an unrecognised answer: ${
         JSON.stringify(answer.slice(0, 120))}`,
     );
+  }
+
+  /**
+   * Point the planner at a DIFFERENT model, e.g. one inferred from an
+   * uploaded file.
+   *
+   * The plan cache is keyed by grammar text alone, which is only
+   * sound while the model is fixed: the same
+   * `#>{local::DB.t}#->select(~[a])` lowers to different SQL against
+   * a different table. So the cache is dropped here -- a stale entry
+   * would be wrong SQL, not merely a slow query.
+   *
+   * The module is NOT reloaded. Its boot layer is content-addressed
+   * by the Pure prelude, which has not changed, so switching models
+   * costs one graph build rather than another 4 MB download and
+   * ~600ms of boot.
+   */
+  useModel(model: string, runtime: string): void {
+    this.#options = { ...this.#options, model, runtime };
+    this.#cache.clear();
   }
 
   /** Cached plan count, for tests and diagnostics. */

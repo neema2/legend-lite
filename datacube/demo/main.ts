@@ -48,6 +48,10 @@ async function inBrowserPlanner(_status: HTMLElement): Promise<Engine> {
     source: SOURCE,
     snapTarget: SNAP_TARGET,
     label: 'planner: legend-lite (wasm, no server)',
+    // Only this entry can take an uploaded file: the data lands in
+    // the tab's own DuckDB, and the planner it feeds is in the tab
+    // too, so the model can change without anything being deployed.
+    setModel: (model, runtime) => planner.useModel(model, runtime),
   };
 }
 
