@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <!-- DELIBERATELY NOT a module of the root reactor: this is a research
+       spike, not shipped code. It depends on the INSTALLED core jar, so
+       run `mvn -pl core -DskipTests install` from the repo root first. -->
+  <groupId>research</groupId>
+  <artifactId>legend-lite-wasm-spike</artifactId>
+  <version>1.0</version>
+  <packaging>jar</packaging>
+
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <teavm.version>0.15.0</teavm.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.legend</groupId>
+      <artifactId>legend-lite-core</artifactId>
+      <version>1.0.0-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+      <groupId>org.teavm</groupId>
+      <artifactId>teavm-classlib</artifactId>
+      <version>${teavm.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- ResourceSupplier: the build-time SPI that embeds prelude.pure. -->
+    <dependency>
+      <groupId>org.teavm</groupId>
+      <artifactId>teavm-core</artifactId>
+      <version>${teavm.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- @JSExport, so JS can call plan() rather than only main(). -->
+    <dependency>
+      <groupId>org.teavm</groupId>
+      <artifactId>teavm-jso</artifactId>
+      <version>${teavm.version}</version>
+      <scope>provided</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.teavm</groupId>
+        <artifactId>teavm-maven-plugin</artifactId>
+        <version>${teavm.version}</version>
+        <executions>
+          <execution>
+            <id>wasm-gc</id>
+            <phase>package</phase>
+            <goals><goal>compile</goal></goals>
+            <configuration>
+              <mainClass>planner.Wasm</mainClass>
+              <targetType>WEBASSEMBLY_GC</targetType>
+              <targetDirectory>${project.build.directory}/wasm</targetDirectory>
+              <optimizationLevel>ADVANCED</optimizationLevel>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+
+      <!-- The wasm-gc backend emits a BARE module: no JS glue at all. Its
+           host runtime (teavmJso, teavmMemory, teavmConsole, the
+           wasm:js-string builtins) ships as a resource inside teavm-core,
+           so unpack it for the .mjs harnesses to import. It lands under
+           its jar path, target/wasm-runtime/org/teavm/backend/wasm/ —
+           the harnesses import it from there rather than have a second
+           plugin move it, which keeps this buildable offline. -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>3.6.1</version>
+        <executions>
+          <execution>
+            <id>wasm-gc-runtime-js</id>
+            <phase>package</phase>
+            <goals><goal>unpack</goal></goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>org.teavm</groupId>
+                  <artifactId>teavm-core</artifactId>
+                  <version>${teavm.version}</version>
+                  <includes>org/teavm/backend/wasm/wasm-gc-module-runtime.js</includes>
+                  <outputDirectory>${project.build.directory}/wasm-runtime</outputDirectory>
+                </artifactItem>
+              </artifactItems>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

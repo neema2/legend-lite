@@ -1334,14 +1334,12 @@ final class TemporalFrame {
                 System.err.println("[stamp] BYSTRAT BARE-VAR date $"
                         + bv.name() + " cls=" + classFqn + " letEnv="
                         + letEnv.keySet());
-                Thread.dumpStack();
             }
             if (d0 instanceof TypedPropertyAccess p0
                     && p0.source() instanceof
                             com.legend.compiler.spec.typed.TypedVariable v0) {
                 System.err.println("[stamp] BYSTRAT OUTER-READ date $"
                         + v0.name() + "." + p0.property() + " cls=" + classFqn);
-                Thread.dumpStack();
             } else if (d0 instanceof TypedPropertyAccess p0
                     && unwrapToOne(p0.source())
                             instanceof TypedPropertyAccess p1
@@ -1350,7 +1348,6 @@ final class TemporalFrame {
                 System.err.println("[stamp] BYSTRAT NAV-READ date $"
                         + v1.name() + "." + p1.property() + "."
                         + p0.property() + " cls=" + classFqn);
-                Thread.dumpStack();
             }
         }
         // HYBRID union (across-tables milestoning): each member filters by

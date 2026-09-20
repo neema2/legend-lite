@@ -1,8 +1,6 @@
 package com.legend.cache;
 
 import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Objects;
 
@@ -42,16 +40,20 @@ public record Hash(String hex) {
         }
     }
 
-    /** Hashes raw content bytes. */
+    /**
+     * Hashes raw content bytes.
+     *
+     * Uses {@link Sha256} rather than {@code MessageDigest}: the
+     * algorithm and therefore every hash is identical (pinned by
+     * {@code Sha256Test} against the platform), but it needs no crypto
+     * provider, so content addressing — and with it the boot-layer
+     * cache and the whole compile path — works on a runtime that has
+     * no {@code java.security}. That was the last thing keeping the
+     * planner off WebAssembly.
+     */
     public static Hash of(byte[] content) {
         Objects.requireNonNull(content, "content");
-        try {
-            MessageDigest md = MessageDigest.getInstance("SHA-256");
-            return new Hash(HexFormat.of().formatHex(md.digest(content)));
-        } catch (NoSuchAlgorithmException e) {
-            // SHA-256 is mandated by the JLS-referenced standard algorithms; absence is fatal.
-            throw new IllegalStateException("SHA-256 unavailable", e);
-        }
+        return new Hash(Sha256.hex(Sha256.digest(content)));
     }
 
     /** Hashes the UTF-8 bytes of {@code content}. The argument is content, never a name. */

@@ -128,7 +128,8 @@ final class FunctionCompiler {
             "meta::pure::tds::extensions");
 
     private static final java.util.Set<String> SUPPRESSED_ONCE =
-            java.util.concurrent.ConcurrentHashMap.newKeySet();
+            java.util.Collections.newSetFromMap(
+                    new java.util.concurrent.ConcurrentHashMap<>());
 
     /** Pure existence check — symbol-table lookup only, no compilation. */
     boolean exists(String fqn) {

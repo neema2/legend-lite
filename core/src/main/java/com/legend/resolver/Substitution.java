@@ -1447,7 +1447,6 @@ final class Substitution {
                                 : diag.targetBindings().get(path.get(1)))
                         + " slotPrefixes=" + (diag == null ? "-" : diag.targetSlotPrefixes())
                         + " slotAliases=" + (diag == null ? "-" : diag.targetSlotAliases()));
-                Thread.dumpStack();
             }
             throw new NotImplementedException("multi-hop navigation "
                     + String.join(".", path) + " through an embedded/slot head"

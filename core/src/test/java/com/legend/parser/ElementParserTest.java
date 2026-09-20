@@ -3484,4 +3484,34 @@ final class ElementParserTest {
         assertEquals("model::Person", first.className());
         assertEquals("model::Firm", second.className());
     }
+
+    /**
+     * {@code ElementParser.linesOf} must be {@code String.lines()}.
+     *
+     * <p>It exists only because the file cannot use either of the two
+     * obvious spellings: {@code split("\\n")} is a regex, and this
+     * file's regex-site count is frozen at zero by
+     * {@code DropInSurfaceTextRuleTest}; {@code String.lines()} itself
+     * is absent from TeaVM's class library, and the planner has to
+     * survive an ahead-of-time compile to WebAssembly. A hand-rolled
+     * replacement for a JDK method is only safe if something pins it
+     * to the original, so this compares the two directly over the
+     * shapes that break line splitters.
+     */
+    @Test
+    void linesOfIsStringLines() {
+        String[] cases = {
+            "", "\n", "\r", "\r\n", "a", "a\n", "a\r\n", "a\r",
+            "a\nb", "a\r\nb", "a\rb", "a\n\nb", "a\r\n\r\nb",
+            "a\nb\n", "a\nb\n\n", "\na", "\r\na", "\n\na",
+            "x,y\r\n1,2\r\n3,4\r\n", "x,y\n1,2\n3,4",
+            "trailing spaces  \n  leading", "\u00e9\n\u00fc",
+            "a\n\rb", "a\r\rb", "no terminator at all",
+        };
+        for (String c : cases) {
+            assertEquals(c.lines().toList(), ElementParser.linesOf(c),
+                    () -> "linesOf drifted from String.lines() for "
+                            + java.util.Arrays.toString(c.chars().toArray()));
+        }
+    }
 }

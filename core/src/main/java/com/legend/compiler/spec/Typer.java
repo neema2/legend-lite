@@ -301,7 +301,6 @@ final class Typer {
                 }
                 if (System.getenv("LL_TMP_DEBUG") != null) {
                     System.err.println("[bare-lambda] " + lf);
-                    Thread.dumpStack();
                 }
                 throw new TypeInferenceException(
                         "a bare lambda has no type outside a call position"
