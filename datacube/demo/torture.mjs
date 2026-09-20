@@ -270,6 +270,103 @@ for (const n of [1, 10, 40]) {
   check(`${n} measures under a pivot`, Boolean(sql), error ?? `${sql?.length} chars of SQL`);
 }
 
+// -- SCALE: a cube far past anything a person would build by hand
+//
+// The interesting failures at scale are not slowness, they are
+// quadratic blowups and silent truncation. A header builder that
+// merges runs by comparing prefixes is the obvious place for the
+// first, so it is timed rather than merely run.
+console.log('\n--- scale ---');
+{
+  const manyMeasures = Array.from({ length: 60 }, (_, i) => sum(`m${i}`, 'n_float'));
+  const cases = [
+    ['6 row dimensions deep', {
+      ...base,
+      rows: ['plain', 'nulls', 'n_int', 'flag', 'n_neg', 'n_float'],
+      measures: [sum('m', 'n_float')],
+    }],
+    ['3 pivot dimensions', {
+      ...base,
+      rows: ['plain'],
+      pivotOn: ['flag', 'nulls', 'n_int'],
+      measures: [sum('m', 'n_float')],
+    }],
+    ['60 measures', { ...base, rows: ['plain'], measures: manyMeasures }],
+    ['60 measures under 2 pivots', {
+      ...base,
+      rows: ['plain'],
+      pivotOn: ['flag', 'nulls'],
+      measures: manyMeasures,
+    }],
+    // Each derived column is AGGREGATED, or the serialiser prunes it
+    // as unreferenced and the case proves nothing -- the first draft
+    // of this one "passed" with 110 characters of SQL.
+    ['60 derived columns, all aggregated', {
+      ...base,
+      rows: ['plain'],
+      derived: Array.from({ length: 60 }, (_, i) => ({
+        name: `d${i}`,
+        expression: `$x.n_float * ${i + 1}`,
+      })),
+      measures: Array.from({ length: 60 }, (_, i) => sum(`dm${i}`, `d${i}`)),
+    }],
+  ];
+  for (const [name, snap] of cases) {
+    const t0 = process.hrtime.bigint();
+    let pure;
+    try {
+      pure = serialize(snap, {
+        level: Math.max(1, snap.rows.length),
+        parent: [],
+        limit: 50,
+      });
+    } catch (e) {
+      check(name, e instanceof CubeRefusal, `refused: ${e.message}`);
+      continue;
+    }
+    const { sql, error } = await plan(pure);
+    const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+    check(name, Boolean(sql), error ?? `${sql.length} chars in ${ms.toFixed(0)}ms`);
+  }
+}
+
+// -- the header builder, at a width no human would produce
+{
+  const measures = ['alpha', 'beta', 'gamma'];
+  const names = [];
+  for (let v = 0; v < 800; v++) {
+    for (const m of measures) {
+      names.push(`value${v}__|__${m}`);
+    }
+  }
+  const table = {
+    columns: names.map((name) => ({ name, type: 'Float', values: [null] })),
+    rowCount: 1,
+    epoch: 1,
+    elapsedMs: 0,
+  };
+  const t0 = process.hrtime.bigint();
+  const model = buildColumnModel(table, [], measures, {}, 1);
+  const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+  check(
+    `${names.length} pivot columns build a header`,
+    model.leaves.length === names.length,
+    `${model.leaves.length} leaves, depth ${model.depth}, ${ms.toFixed(0)}ms`,
+  );
+  // Quadratic merging is the failure this width is here to expose. A
+  // linear pass over 2400 columns is single-digit milliseconds; a
+  // second or more means the prefix comparison is rescanning.
+  check('and builds it without going quadratic', ms < 1000, `${ms.toFixed(0)}ms`);
+  // Every value must get its own header cell over exactly its three
+  // measures -- the merge must not fuse neighbouring values.
+  const top = model.headerRows[0] ?? [];
+  check(
+    'and gives each value one cell spanning its measures',
+    top.length === 800 && top.every((c) => c.colSpan === measures.length),
+    `${top.length} cells, spans ${[...new Set(top.map((c) => c.colSpan))].join('/')}`,
+  );
+}
+
 // -- the column model must survive whatever names come back
 console.log('\n--- column model on hostile names ---');
 {
