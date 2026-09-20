@@ -2895,8 +2895,8 @@ final class Typer {
     /** Surrounding double quotes are SPELLING, not identity, for the
      * quote-fallback column match (both sides normalize). */
     private static String stripColQuotes(String n) {
-        return n.length() >= 2 && n.startsWith("\"") && n.endsWith("\"")
-                ? n.substring(1, n.length() - 1) : n;
+        // One owner: ColumnNames (this was a third, escape-blind copy).
+        return com.legend.values.ColumnNames.bare(n);
     }
 
     /** The {@code .values} read over a schema-viewed source — split

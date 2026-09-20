@@ -265,7 +265,14 @@ export async function runStress(): Promise<Outcome[]> {
     // -- derived --------------------------------------------------------
     if (nums[0]) {
       await attempt(out, { engine, planner }, entry.name, 'derived:arith',
-        snap({ derived: [{ name: 'dbl', expression: `$x.${nums[0]} * 2` }] }));
+        snap({ derived: [{ name: 'dbl',
+          // Quote it the way the serialiser would. Writing
+          // `$x.${name}` raw emitted `$x.مبلغ * 2`, which is not
+          // valid Pure -- a harness bug that looked like a product
+          // one until the message was read.
+          expression: `$x.${/^[A-Za-z_][A-Za-z0-9_]*$/.test(nums[0])
+            ? nums[0] : `'${nums[0].replace(/\\/g, '\\\\')
+              .replace(/'/g, "\\'")}'`} * 2` }] }));
     }
 
     // -- tree levels -----------------------------------------------------
