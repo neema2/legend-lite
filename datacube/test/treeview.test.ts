@@ -78,7 +78,7 @@ describe('assemble', () => {
 
   it('puts every row in display order with its own value', () => {
     const levels = fixture();
-    const state = TreeState.empty().expand(['EMEA']);
+    const state = TreeState.empty(true).expand(['EMEA']);
     const rows = flattenTree(state, 2, childrenOf(levels) as never);
     const t = assemble(SNAPSHOT, rows, levels);
 
@@ -93,7 +93,7 @@ describe('assemble', () => {
     // however deep the cube goes.
     const levels = fixture();
     const rows = flattenTree(
-      TreeState.empty().expand(['EMEA']),
+      TreeState.empty(true).expand(['EMEA']),
       2,
       childrenOf(levels) as never,
     );
@@ -127,7 +127,7 @@ describe('assemble', () => {
       paths: [[NULL_GROUP], ['EMEA']],
       truncated: false,
     });
-    const rows = flattenTree(TreeState.empty(), 2, childrenOf(levels) as never);
+    const rows = flattenTree(TreeState.empty(true), 2, childrenOf(levels) as never);
     const tree = assemble(SNAPSHOT, rows, levels).columns.find(
       (c) => c.name === TREE_COLUMN,
     );
@@ -138,7 +138,7 @@ describe('assemble', () => {
   it('labels each row only in its own level column, per-dimension', () => {
     const levels = fixture();
     const rows = flattenTree(
-      TreeState.empty().expand(['EMEA']),
+      TreeState.empty(true).expand(['EMEA']),
       2,
       childrenOf(levels) as never,
     );
@@ -171,7 +171,7 @@ describe('assemble', () => {
       truncated: false,
     });
     const rows = flattenTree(
-      TreeState.empty().expand(['EMEA']),
+      TreeState.empty(true).expand(['EMEA']),
       2,
       childrenOf(levels) as never,
     );
@@ -187,7 +187,7 @@ describe('assemble', () => {
   it('keeps engine order and never re-sorts', () => {
     const levels = fixture();
     const rows = flattenTree(
-      TreeState.empty().expand(['EMEA']),
+      TreeState.empty(true).expand(['EMEA']),
       2,
       childrenOf(levels) as never,
     );
@@ -200,7 +200,7 @@ describe('assemble', () => {
 
   it('sums elapsed time across the levels it fetched', () => {
     const levels = fixture();
-    const rows = flattenTree(TreeState.empty(), 2, childrenOf(levels) as never);
+    const rows = flattenTree(TreeState.empty(true), 2, childrenOf(levels) as never);
     assert.equal(assemble(SNAPSHOT, rows, levels).elapsedMs, 3);
   });
 });

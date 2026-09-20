@@ -481,3 +481,74 @@ describe('ident and literal', () => {
     assert.equal(literal(new Date('2024-03-01T12:00:00Z')), '%2024-03-01');
   });
 });
+
+describe('the DETAIL cube: no grouping, no pivot, no measures', () => {
+  // The plainest thing this product can show, and the least tested.
+  // It referenced no columns, so nothing was projected; and it had
+  // no grouping columns, so a guard meant for the grand total threw
+  // away its sort and its row cap as well. The simplest grid was the
+  // one that honoured neither.
+  const DETAIL: CubeSnapshot = {
+    source: { expression: 't' },
+    columns: [
+      { name: 'region', type: 'String' },
+      { name: 'notional', type: 'Float' },
+    ],
+    derived: [],
+    rows: [],
+    pivotOn: [],
+    measures: [],
+    sorts: [],
+    epoch: 1,
+  };
+
+  it('projects the columns the cube declares', () => {
+    assert.equal(serialize(DETAIL), 't->select(~[region, notional])');
+  });
+
+  it('includes derived columns in the projection', () => {
+    const withDerived: CubeSnapshot = {
+      ...DETAIL,
+      derived: [{ name: 'net', expression: '$x.notional * 2' }],
+    };
+    assert.match(serialize(withDerived), /select\(~\[region, notional, net\]\)/);
+  });
+
+  it('HONOURS its sort', () => {
+    const sorted: CubeSnapshot = {
+      ...DETAIL,
+      sorts: [{ column: 'region', direction: 'asc' }],
+    };
+    assert.match(serialize(sorted), /->sort\(\[~region->ascending\(\)\]\)$/);
+  });
+
+  it('HONOURS its row cap', () => {
+    const pure = serialize(DETAIL, { level: 0, parent: [], limit: 100 });
+    assert.match(pure, /->limit\(100\)$/);
+  });
+
+  it('caps AFTER sorting, so the first page is the first page', () => {
+    const sorted: CubeSnapshot = {
+      ...DETAIL,
+      sorts: [{ column: 'notional', direction: 'desc' }],
+    };
+    const pure = serialize(sorted, { level: 0, parent: [], limit: 10 });
+    assert.ok(
+      pure.indexOf('->sort(') < pure.indexOf('->limit('),
+      pure,
+    );
+  });
+
+  it('still leaves the GRAND TOTAL unsorted and uncapped', () => {
+    // One row: sorting and limiting it is noise. This is the case
+    // the old guard was written for, and it must keep working.
+    const total: CubeSnapshot = {
+      ...DETAIL,
+      measures: [{ name: 'n', column: 'notional', fn: 'sum' }],
+      sorts: [{ column: 'region', direction: 'asc' }],
+    };
+    const pure = serialize(total, { level: 0, parent: [], limit: 100 });
+    assert.equal(pure.includes('->sort('), false, pure);
+    assert.equal(pure.includes('->limit('), false, pure);
+  });
+});

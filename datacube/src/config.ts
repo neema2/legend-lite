@@ -154,7 +154,15 @@ export const DEFAULT_MAX_ROWS = 1000;
  * configuration and is a point smaller than the chrome around it.
  */
 export const DEFAULT_CONFIGURATION: CubeConfiguration = {
-  showRootAggregation: true,
+  /*
+   * OFF, as theirs is (DataCubeConfiguration.showRootAggregation =
+   * false). This was set to true here by assumption rather than by
+   * reading their source -- the same mistake caught for
+   * alternateRows, made twice. A grand total is a query of its own
+   * at every refresh, and a cube that opens with one has decided
+   * for the user that they wanted it.
+   */
+  showRootAggregation: false,
   showLeafCount: false,
   treeColumnSort: 'asc',
   maxRows: DEFAULT_MAX_ROWS,

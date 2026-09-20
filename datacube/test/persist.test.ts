@@ -23,7 +23,7 @@ const SNAPSHOT: CubeSnapshot = {
   epoch: 42,
 };
 
-const TREE = TreeState.empty().expand(['EMEA', 'Rates']);
+const TREE = TreeState.empty(true).expand(['EMEA', 'Rates']);
 const NOW = new Date('2026-03-01T09:00:00Z');
 
 describe('save', () => {
@@ -60,7 +60,7 @@ describe('round trip', () => {
   it('survives a group label containing a comma or a space', () => {
     // The path separator is why this works; a comma-joined key would
     // split 'Rates, Credit' into two phantom groups.
-    const tricky = TreeState.empty().expand(['A B', 'Rates, Credit']);
+    const tricky = TreeState.empty(true).expand(['A B', 'Rates, Credit']);
     const back = load(
       toJson(save({ name: 'x', snapshot: SNAPSHOT, tree: tricky, now: NOW })),
     );

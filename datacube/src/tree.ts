@@ -92,11 +92,18 @@ export class TreeState {
     this.#showTotals = showTotals;
   }
 
-  static empty(showTotals = true): TreeState {
+  /**
+   * A fresh tree, with NO grand total.
+   *
+   * Matches their showRootAggregation default. The total is an
+   * extra level-0 query on every refresh, and it changes what the
+   * top of the grid means, so it is the user's to switch on.
+   */
+  static empty(showTotals = false): TreeState {
     return new TreeState(new Set(), showTotals);
   }
 
-  static fromPaths(paths: readonly RowPath[], showTotals = true): TreeState {
+  static fromPaths(paths: readonly RowPath[], showTotals = false): TreeState {
     return new TreeState(new Set(paths.map(pathKey)), showTotals);
   }
 

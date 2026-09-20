@@ -172,16 +172,40 @@ try {
     .filter(Boolean);
   check('row dimensions are populated', dimLabels.length > 0, dimLabels.join(', '));
 
+  const setRootAggregation = async (on) => {
+    await fromMenu('Properties...');
+    await page
+      .locator('.dc-editor-tab', { hasText: 'General Properties' })
+      .click();
+    const box = page.locator('.dc-check', {
+      hasText: 'Show root aggregation',
+    }).locator('input');
+    if ((await box.isChecked()) !== on) await box.click();
+    await page.locator('.dc-editor-footer button', { hasText: 'OK' }).click();
+  };
+
   const rowCount = await page.locator('.dc-row').count();
   check(
-    'collapsed tree shows the total plus the top level only',
-    rowCount === 4,
-    `${rowCount} rows (1 total + 3 regions)`,
+    'opens with NO grand total, as DataCube does',
+    rowCount === 3,
+    `${rowCount} rows (3 regions, no total)`,
+  );
+  check(
+    'and no row is marked as a total',
+    (await page.locator('.dc-row.dc-total').count()) === 0,
   );
 
+  // Turn it on the way a user would -- it is a SETTING, not a menu
+  // action -- and only then does the total exist to be checked.
+  await setRootAggregation(true);
+  await page.waitForFunction(
+    () => document.querySelectorAll('.dc-row').length === 4,
+    { timeout: 60_000 },
+  );
   check(
-    'the grand total row is marked as one',
+    'switching it on adds the total as the root',
     (await page.locator('.dc-row.dc-total').count()) >= 1,
+    '4 rows (1 total + 3 regions)',
   );
 
   // The property the whole design rests on, read off the screen.
@@ -374,22 +398,8 @@ try {
   check('editor tabs are h-6 = 24px', tab?.height === 24, `${tab?.height}px`);
   await page.locator('.dc-editor-footer button', { hasText: 'Cancel' }).click();
 
-  // No grand total. In DataCube this is a SETTING -- "Show root
-  // aggregation" in General Properties -- not a menu action, so it
-  // is driven the way a user would drive it. The level-0 query
-  // should not be issued, and the top level should be promoted
-  // rather than leaving a gap where the root used to be.
-  const setRootAggregation = async (on) => {
-    await fromMenu('Properties...');
-    await page
-      .locator('.dc-editor-tab', { hasText: 'General Properties' })
-      .click();
-    const box = page.locator('.dc-check', {
-      hasText: 'Show root aggregation',
-    }).locator('input');
-    if ((await box.isChecked()) !== on) await box.click();
-    await page.locator('.dc-editor-footer button', { hasText: 'OK' }).click();
-  };
+  // Turning it back OFF must not leave a gap where the root was:
+  // the top level is promoted to level 1.
   await setRootAggregation(false);
   await page.waitForFunction(
     () => document.querySelectorAll('.dc-row').length === 3,
@@ -409,12 +419,7 @@ try {
     'no total row remains',
     (await page.locator('.dc-row.dc-total').count()) === 0,
   );
-  await setRootAggregation(true);
-  await page.waitForFunction(
-    () => document.querySelectorAll('.dc-row').length === 4,
-    { timeout: 60_000 },
-  );
-  check('the total comes back as the root', true, '4 rows');
+  check('and the cube is back to its three regions', true, '3 rows');
 
   // Expanding a group fetches its children and inlines them.
   await page.locator('.dc-row').nth(1).locator('.dc-cell').first().click();
@@ -424,14 +429,14 @@ try {
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('ArrowRight');
   await page.waitForFunction(
-    () => document.querySelectorAll('.dc-row').length > 4,
+    () => document.querySelectorAll('.dc-row').length > 3,
     { timeout: 60_000 },
   );
   const expanded = await page.locator('.dc-row').count();
   check(
     'ArrowRight expands a group and inlines its children',
-    expanded === 9,
-    `${expanded} rows (1 total + 3 regions + 5 desks)`,
+    expanded === 8,
+    `${expanded} rows (3 regions + 5 desks, no total)`,
   );
   check(
     'the expanded group reports aria-expanded',
@@ -440,10 +445,10 @@ try {
 
   await page.keyboard.press('ArrowLeft');
   await page.waitForFunction(
-    () => document.querySelectorAll('.dc-row').length === 4,
+    () => document.querySelectorAll('.dc-row').length === 3,
     { timeout: 60_000 },
   );
-  check('ArrowLeft collapses it again', true, '4 rows');
+  check('ArrowLeft collapses it again', true, '3 rows');
 
   // Keyboard: focus the grid and move.
   await page.locator('[role="treegrid"]').focus();

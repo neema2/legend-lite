@@ -131,6 +131,31 @@ describe('projections', () => {
   });
 });
 
+describe('the defaults are DataCube\'s, not assumptions', () => {
+  // Two were wrong here because they were assumed rather than read
+  // off DataCubeConfiguration: alternateRows and showRootAggregation
+  // were both set to true when theirs are false. A default nobody
+  // chose is still a decision made for the user.
+  it('opens with no grand total', () => {
+    assert.equal(DEFAULT_CONFIGURATION.showRootAggregation, false);
+  });
+
+  it('but the setting still works when asked for', () => {
+    const on = { ...DEFAULT_CONFIGURATION, showRootAggregation: true };
+    assert.equal(on.showRootAggregation, true);
+  });
+
+  it('matches their grid-line and colour defaults', () => {
+    const a = DEFAULT_CONFIGURATION.appearance;
+    assert.equal(a.showHorizontalGridLines, false);
+    assert.equal(a.showVerticalGridLines, true);
+    assert.equal(a.gridLineColor, '#d4d4d4', 'neutral-300');
+    assert.equal(a.negativeForeground, '#ef4444', 'red-500');
+    assert.equal(a.zeroForeground, '#a3a3a3', 'neutral-400');
+    assert.equal(a.fontSize, 11, 'their DEFAULT_FONT_SIZE');
+  });
+});
+
 describe('the snapshot boundary', () => {
   it('carries only the settings that change the SQL', () => {
     let config = withColumn(DEFAULT_CONFIGURATION, 'year', {

@@ -20,6 +20,25 @@
  * group by a notional, and the resulting query fails somewhere far
  * from the mistake.
  */
+/**
+ * A cube this product refuses to run, and why.
+ *
+ * Distinct from any other error on purpose. These are DELIBERATE
+ * walls -- a weighted average with no weight, a pivot with nothing
+ * to aggregate -- where producing a query anyway would mean quietly
+ * answering a different question. Typing them separates "your cube
+ * is not a question" from "we have a bug", which matters twice: a
+ * host can show the first to a user and report the second, and a
+ * fuzzer can assert that a random cube only ever produces the
+ * first.
+ */
+export class CubeRefusal extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'CubeRefusal';
+  }
+}
+
 export type ColumnKind = 'dimension' | 'measure';
 
 /** A column available from the source, with the type the engine reports. */
@@ -331,11 +350,25 @@ export function totalOrderSorts(
   // Only this level's grouping columns exist in its result, so a
   // deeper dimension must not be named in the ORDER BY.
   const present = new Set(groupCols);
-  const out: SortSpec[] = s.sorts.filter(
+  const applicable = s.sorts.filter(
     (x) => present.has(x.column) || !s.rows.includes(x.column),
   );
+
+  // FIRST WINS, and each column appears once. A column sorted twice
+  // put the same key in the ORDER BY twice: the second is dead, and
+  // more importantly it means the sort list was never normalised --
+  // so "ascending then descending on the same column" silently
+  // resolved to whichever the engine read first.
+  const out: SortSpec[] = [];
+  const seen = new Set<string>();
+  for (const x of applicable) {
+    if (seen.has(x.column)) continue;
+    seen.add(x.column);
+    out.push(x);
+  }
   for (const r of groupCols) {
-    if (!out.some((x) => x.column === r)) {
+    if (!seen.has(r)) {
+      seen.add(r);
       out.push({ column: r, direction: treeDirection ?? 'asc' });
     }
   }

@@ -20,6 +20,7 @@
 // group-by argument to get wrong.
 
 import {
+  CubeRefusal,
   type AggregateFn,
   type CubeSnapshot,
   type FilterNode,
@@ -66,7 +67,7 @@ function aggregateLambdas(m: Measure): { map: string; reduce: string } {
       return { map: 'x|1', reduce: 'y|$y->count()' };
     case 'wavg': {
       if (!m.weight) {
-        throw new Error(
+        throw new CubeRefusal(
           `measure '${m.name}' uses wavg but has no weight column`,
         );
       }
@@ -148,7 +149,7 @@ export function filterExpression(node: FilterNode, param = 'x'): string {
       const colCmp = COLUMN_COMPARISON[node.operator];
       if (colCmp) {
         if (!node.rightColumn) {
-          throw new Error(
+          throw new CubeRefusal(
             `operator '${node.operator}' on '${node.column}' needs a rightColumn`,
           );
         }
@@ -287,6 +288,35 @@ function parentConditions(
  * stage is omitted entirely when it would be a no-op, so a simple cube
  * produces simple text that a human can read in a bug report.
  */
+/** No grouping, no pivot, no measures: rows straight through. */
+function isDetail(s: CubeSnapshot): boolean {
+  return (
+    s.rows.length === 0 && s.pivotOn.length === 0 && s.measures.length === 0
+  );
+}
+
+/** Every column a detail cube projects: its own, plus derived. */
+function detailColumns(s: CubeSnapshot): string[] {
+  return [
+    ...s.columns.map((c) => c.name),
+    ...s.derived.map((d) => d.name),
+    ...(s.groupDerived ?? []).map((d) => d.name),
+  ];
+}
+
+/**
+ * Whether this query can only ever return ONE row.
+ *
+ * True for an aggregate with nothing to group by -- the grand total.
+ * False for a detail query, which also has no grouping but returns
+ * every row, and therefore very much wants a sort and a cap.
+ */
+function isSingleRow(s: CubeSnapshot, groupCols: readonly string[]): boolean {
+  return (
+    groupCols.length === 0 && (s.measures.length > 0 || s.pivotOn.length > 0)
+  );
+}
+
 export function serialize(
   snapshot: CubeSnapshot,
   scope?: LevelScope,
@@ -320,6 +350,14 @@ export function serialize(
   const needed = referencedColumns(snapshot, groupCols);
   if (needed.length > 0) {
     parts.push(`select(~[${needed.map(ident).join(', ')}])`);
+  } else if (isDetail(snapshot)) {
+    // A DETAIL cube -- no grouping, no pivot, no measures -- is the
+    // plainest thing this product can show, and it referenced no
+    // columns at all, so nothing was projected and the bare relation
+    // came back. Naming them makes the query say what the CUBE
+    // declares rather than whatever the source happens to hold.
+    const all = detailColumns(snapshot);
+    if (all.length > 0) parts.push(`select(~[${all.map(ident).join(', ')}])`);
   }
 
   const aggs = snapshot.measures.map(aggregateSpec).join(', ');
@@ -330,6 +368,17 @@ export function serialize(
   const pivotOn = snapshot.pivotOn.filter((c) => !excludedFromPivot.has(c));
 
   if (pivotOn.length > 0) {
+    // A pivot needs something to aggregate. With no measures this
+    // emitted `pivot(~[year], ~[])`, which is not a query -- the
+    // compiler rejects it far from the cause, and a UI that let you
+    // drag a column into the column zone before choosing a measure
+    // could produce it. Refuse here, where the reason is known.
+    if (snapshot.measures.length === 0) {
+      throw new CubeRefusal(
+        `cannot pivot on ${pivotOn.join(', ')} with no measures: ` +
+          'a pivot aggregates, so it needs at least one',
+      );
+    }
     const on = pivotOn.map(ident).join(', ');
     if (snapshot.pivotValues && snapshot.pivotValues.length > 0) {
       // Pinning values also PRE-FILTERS the source, dropping groups
@@ -356,8 +405,12 @@ export function serialize(
   }
 
   // A grand total is a single row; sorting and limiting it is noise
-  // that only makes the generated text harder to read in a bug report.
-  if (groupCols.length > 0) {
+  // that only makes the generated text harder to read in a bug
+  // report. But "no grouping columns" is NOT the same as "one row":
+  // a detail cube has no grouping either and returns everything, so
+  // this guard silently dropped its sort AND its row cap. The
+  // plainest possible grid was the one that honoured neither.
+  if (!isSingleRow(snapshot, groupCols)) {
     const sorts = totalOrderSorts(snapshot, groupCols);
     if (sorts.length > 0) parts.push(sortClause(sorts));
 
