@@ -161,6 +161,49 @@ public final class Wasm {
     }
 
     /**
+     * Time the boot layer's own SHA-256, alone.
+     *
+     * <p>{@code Compiler.bootLayer} content-addresses its cache by
+     * hashing ~500 KB of Pure source, and it does so on EVERY call,
+     * cache hit included. The digest is {@code com.legend.cache.Sha256},
+     * hand-rolled in Java because TeaVM has no {@code java.security} —
+     * so unlike on a JVM there is no native implementation underneath
+     * it. Worth knowing what that costs before assuming the time is
+     * all in the normalizer.
+     *
+     * @return the hex digest's length, so nothing is optimised away
+     */
+    @org.teavm.jso.JSExport
+    public static int hashBootSource() {
+        String source = com.legend.builtin.SystemMetamodel.source() + "\n"
+                + com.legend.builtin.Prelude.source();
+        return com.legend.cache.Hash.ofUtf8(source).hex().length();
+    }
+
+    /**
+     * Resolve the boot layer's names, WITHOUT normalizing.
+     *
+     * <p>Splits {@code bootLayer}'s ~570ms into its two halves. A
+     * persisted cache of the normalizer's output would have to
+     * reproduce whichever of them dominates, so the split decides
+     * whether such a cache is worth building at all.
+     */
+    @org.teavm.jso.JSExport
+    public static int resolveBootLayer() {
+        com.legend.model.ParsedModel pre =
+                com.legend.builtin.SystemMetamodel.withoutSystemShadows(
+                        com.legend.builtin.Prelude.parsedModel());
+        java.util.List<com.legend.model.PackageableElement> elements =
+                new java.util.ArrayList<>(
+                        com.legend.builtin.SystemMetamodel.elements());
+        elements.addAll(pre.elements());
+        com.legend.model.ParsedModel boot = new com.legend.model.ParsedModel(
+                elements, com.legend.model.ImportScope.empty(), null,
+                pre.elementOffsets(), pre.elementImports(), pre.elementSources());
+        return com.legend.compiler.NameResolver.resolve(boot).elements().size();
+    }
+
+    /**
      * The one {@code ZoneId.of} on the planner's path
      * ({@code LiteralSpelling.inZone}, the engine's dbTimeZone literal
      * rule). A timezone database is a RESOURCE, not code, so whether it

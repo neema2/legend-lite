@@ -51,6 +51,16 @@ const tm0 = now();
 const sysElements = teavm.exports.touchSystemMetamodel();
 const tm1 = now();
 
+// --- the boot cache key: SHA-256 over ~500 KB, hand-rolled in Java ---
+const th0 = now();
+teavm.exports.hashBootSource();
+const th1 = now();
+
+// --- resolve the boot layer's names, WITHOUT normalizing -------------
+const tr0 = now();
+teavm.exports.resolveBootLayer();
+const tr1 = now();
+
 // --- the boot layer: resolve + normalize both, index a graph ---------
 const tb0 = now();
 teavm.exports.warmModel(corpus.model);
@@ -76,6 +86,8 @@ const rows = [
   ['TeaVM load + instantiate', ms(t3, t4)],
   [`parse prelude.pure (${elements} elements)`, ms(t5, t6)],
   [`system metamodel (${sysElements} elements)`, ms(tm0, tm1)],
+  ['  of which: SHA-256 of the boot source', ms(th0, th1)],
+  ['  of which: NameResolver.resolve', ms(tr0, tr1)],
   ['boot layer: resolve + normalize + index', ms(tb0, tb1)],
   ['first plan, everything above warm', ms(t7, t8)],
   ['warm plan p50', warm[Math.floor(warm.length / 2)]],
