@@ -153,13 +153,24 @@ public final class FromProtocol {
                 lookupOrder.add(s);
             }
         }
+        List<DatabaseDefinition.TableDefinition> flatTabFns =
+                new java.util.ArrayList<>();
         for (com.legend.protocol.Protocol.PDbSchema s : lookupOrder) {
             List<DatabaseDefinition.TableDefinition> st = new java.util.ArrayList<>();
             List<DatabaseDefinition.ViewDefinition> sv = new java.util.ArrayList<>();
+            List<DatabaseDefinition.TableDefinition> sf = new java.util.ArrayList<>();
             for (com.legend.protocol.Protocol.PDbTable tb : s.tables()) {
                 DatabaseDefinition.TableDefinition d = table(tb);
                 st.add(d);
                 flatTables.add(d);
+            }
+            // A TabularFunction is carried on the wire as a table -- same
+            // name, same declared columns -- and kept in its OWN list
+            // here, so a lookup for a table can never find a function.
+            for (com.legend.protocol.Protocol.PDbTable tf : s.tabularFunctions()) {
+                DatabaseDefinition.TableDefinition d = table(tf);
+                sf.add(d);
+                flatTabFns.add(d);
             }
             for (com.legend.protocol.Protocol.PDbView vw : s.views()) {
                 DatabaseDefinition.ViewDefinition d = view(vw, db.qualifiedName());
@@ -171,7 +182,8 @@ public final class FromProtocol {
             // legacy model records a SchemaDefinition only when the source
             // WROTE one. The protocol cannot tell the two apart.
             if (!"default".equals(s.name())) {
-                schemas.add(new DatabaseDefinition.SchemaDefinition(s.name(), st, sv));
+                schemas.add(new DatabaseDefinition.SchemaDefinition(
+                        s.name(), st, sv, sf));
             }
         }
         List<DatabaseDefinition.JoinDefinition> joins = new java.util.ArrayList<>();
@@ -196,7 +208,7 @@ public final class FromProtocol {
             }
         }
         return new DatabaseDefinition(db.qualifiedName(), includes, schemas,
-                flatTables, flatViews, joins, filters, multiGrain);
+                flatTables, flatViews, joins, filters, multiGrain, flatTabFns);
     }
 
     private static DatabaseDefinition.TableDefinition table(

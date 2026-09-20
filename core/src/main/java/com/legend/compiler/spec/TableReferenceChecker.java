@@ -78,6 +78,7 @@ final class TableReferenceChecker {
                 .orElseThrow(() -> new TypeInferenceException(
                         "unknown table '" + resolvedName + "' in database '" + dbRef.fullPath() + "'"));
         String carried = strictDefault ? tableName.value() : resolvedName;
+        boolean tabular = t.model().isTabularFunction(dbRef.fullPath(), resolvedName);
         return new TypedTableReference(dbRef.fullPath(), carried,
                 // the literal IS the store accessor (upstream: RelationStoreAccessor<T>
                 // extends Relation<T>) — every Relation<T> formal admits it through the
@@ -85,7 +86,7 @@ final class TableReferenceChecker {
                 new ExprType(new Type.GenericType(
                         com.legend.compiler.element.type.PlatformTypes.RELATION_STORE_ACCESSOR,
                         java.util.List.of(schema)), sig.output().multiplicity()),
-                n == 2);
+                n == 2, tabular);
     }
 
     /**

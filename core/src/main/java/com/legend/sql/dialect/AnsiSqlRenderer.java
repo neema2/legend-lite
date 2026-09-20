@@ -265,6 +265,25 @@ public class AnsiSqlRenderer implements SqlDialect {
                     sb.append(" AS ").append(aliasIdent(t.alias()));
                 }
             }
+            // A TabularFunction: the name is a FUNCTION, so it is
+            // called rather than referenced. Upstream's DuckDB
+            // processor spells it the same way -- `schema.fn(params)`
+            // -- while Snowflake wraps it in `table(...)`, which is
+            // why the spelling lives in the renderer and not in the
+            // lowering.
+            case SqlSource.TableFunction f -> {
+                sb.append(tableName(f.name())).append("(");
+                for (int i = 0; i < f.arguments().size(); i++) {
+                    if (i > 0) {
+                        sb.append(", ");
+                    }
+                    sb.append(expr(f.arguments().get(i), 0));
+                }
+                sb.append(")");
+                if (f.alias() != null) {
+                    sb.append(" AS ").append(aliasIdent(f.alias()));
+                }
+            }
             case SqlSource.Subselect sub -> subselectSource(sb, sub, depth);
             // cross-store plan variable: freemarker splice at execution
             // (engine VarSetPlaceHolder — plan text only; a DuckDB

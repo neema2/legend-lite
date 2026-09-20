@@ -41,7 +41,33 @@ public record DatabaseDefinition(
         List<ViewDefinition> views,
         List<JoinDefinition> joins,
         List<FilterDefinition> filters,
-        List<FilterDefinition> multiGrainFilters) implements PackageableElement {
+        List<FilterDefinition> multiGrainFilters,
+        /**
+         * {@code TabularFunction NAME (cols)} — a named relation that is
+         * a FUNCTION CALL rather than a stored table.
+         *
+         * Carried as a TableDefinition because at this layer the two are
+         * the same thing: a name and declared columns. The difference is
+         * only how the source renders -- {@code NAME()} rather than
+         * {@code NAME} -- so it is a separate LIST rather than a flag,
+         * which keeps a function from ever being found by a lookup that
+         * wanted a table.
+         */
+        List<TableDefinition> tabularFunctions) implements PackageableElement {
+
+    /** The arity before tabular functions existed. */
+    public DatabaseDefinition(
+            String qualifiedName,
+            List<String> includes,
+            List<SchemaDefinition> schemas,
+            List<TableDefinition> tables,
+            List<ViewDefinition> views,
+            List<JoinDefinition> joins,
+            List<FilterDefinition> filters,
+            List<FilterDefinition> multiGrainFilters) {
+        this(qualifiedName, includes, schemas, tables, views, joins, filters,
+                multiGrainFilters, List.of());
+    }
 
     public DatabaseDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
@@ -52,17 +78,27 @@ public record DatabaseDefinition(
         joins             = joins             == null ? List.of() : List.copyOf(joins);
         filters           = filters           == null ? List.of() : List.copyOf(filters);
         multiGrainFilters = multiGrainFilters == null ? List.of() : List.copyOf(multiGrainFilters);
+        tabularFunctions  = tabularFunctions  == null ? List.of() : List.copyOf(tabularFunctions);
     }
 
     /** A named schema containing tables and views. */
     public record SchemaDefinition(
             String name,
             List<TableDefinition> tables,
-            List<ViewDefinition> views) {
+            List<ViewDefinition> views,
+            List<TableDefinition> tabularFunctions) {
+        /** The arity before tabular functions existed. */
+        public SchemaDefinition(String name, List<TableDefinition> tables,
+                List<ViewDefinition> views) {
+            this(name, tables, views, List.of());
+        }
+
         public SchemaDefinition {
             Objects.requireNonNull(name, "Schema name cannot be null");
             tables = tables == null ? List.of() : List.copyOf(tables);
             views  = views  == null ? List.of() : List.copyOf(views);
+            tabularFunctions =
+                    tabularFunctions == null ? List.of() : List.copyOf(tabularFunctions);
         }
     }
 

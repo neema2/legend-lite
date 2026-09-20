@@ -121,6 +121,7 @@ final class SubselectPrune {
             case SqlSource.Dual d -> {
             }
             case SqlSource.Table t -> r.starred().add(t.alias());
+            case SqlSource.TableFunction f -> r.starred().add(f.alias());
             case SqlSource.VarSetPlaceholder vp -> r.starred().add(vp.alias());
             case SqlSource.SourceUrl u -> r.starred().add(u.alias());
             case SqlSource.Subselect sub -> r.starred().add(sub.alias());
@@ -139,6 +140,9 @@ final class SubselectPrune {
             case SqlSource.Dual d -> {
             }
             case SqlSource.Table t -> {
+            }
+            // A leaf, like a table: nothing inside it to collect.
+            case SqlSource.TableFunction f -> {
             }
             case SqlSource.SourceUrl u -> {
             }
@@ -310,6 +314,7 @@ final class SubselectPrune {
         return switch (src) {
             case SqlSource.Dual d -> d;
             case SqlSource.Table t -> t;
+            case SqlSource.TableFunction fn -> fn;   // a leaf, like a table
             case SqlSource.SourceUrl u -> u;
             case SqlSource.VarSetPlaceholder vp -> vp;
             case SqlSource.RawSql raw -> raw;   // carried text: a leaf

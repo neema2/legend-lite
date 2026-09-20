@@ -1227,13 +1227,21 @@ public final class NameResolver {
                 && joins == db.joins() && filters == db.filters() && multiGrain == db.multiGrainFilters()) {
             return db;
         }
+        // tabularFunctions carried explicitly. The convenience
+        // constructor that preserves the old arity DEFAULTS this to
+        // empty, so every rebuild site silently drops it -- which is
+        // exactly what happened here and why a declared TabularFunction
+        // still reported "unknown table".
         return new DatabaseDefinition(db.qualifiedName(), includes, schemas,
-                tables, views, joins, filters, multiGrain);
+                tables, views, joins, filters, multiGrain,
+                db.tabularFunctions());
     }
 
     private static SchemaDefinition resolveSchema(SchemaDefinition s, Scope scope) {
         List<ViewDefinition> views = resolveViews(s.views(), scope);
-        return views == s.views() ? s : new SchemaDefinition(s.name(), s.tables(), views);
+        return views == s.views() ? s
+                : new SchemaDefinition(s.name(), s.tables(), views,
+                        s.tabularFunctions());
     }
 
     private static List<SchemaDefinition> resolveSchemas(

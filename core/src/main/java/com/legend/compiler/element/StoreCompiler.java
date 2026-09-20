@@ -33,11 +33,75 @@ final class StoreCompiler {
         if (table.isPresent()) {
             return table;
         }
+        // A TabularFunction resolves like a table -- it is a named
+        // relation with declared columns -- and differs only in how the
+        // SOURCE renders. Before this it parsed, round-tripped through
+        // the protocol, and then failed at reference with "unknown
+        // table", which is the worst of both: the grammar accepted
+        // something the compiler denied existed.
+        Optional<Type.RelationType> fn =
+                findTabularFunctionDef(db, name).map(StoreCompiler::tableSchema);
+        if (fn.isPresent()) {
+            return fn;
+        }
         // #>{db.View}# — views resolve like tables, schema derived from
         // each projected column's underlying physical column; a view with
         // a non-column-ref projection stays unresolved (same outcome as
         // an unknown name, never a wrong schema)
         return findViewDef(db, name).flatMap(v -> viewSchema(db, v));
+    }
+
+    /**
+     * A tabular function by name, with the same schema-qualification
+     * rules as a table.
+     *
+     * Deliberately a SEPARATE lookup rather than a flag on the table
+     * search: the two render differently, so a caller that wanted a
+     * table must never silently receive a function.
+     */
+    static Optional<DatabaseDefinition.TableDefinition> findTabularFunctionDef(
+            DatabaseDefinition db, String name) {
+        int dot = name.indexOf('.');
+        if (dot > 0) {
+            String schemaName = name.substring(0, dot);
+            String fnName = name.substring(dot + 1);
+            if (schemaName.equals("default")) {
+                for (var t : db.tabularFunctions()) {
+                    if (t.name().equals(fnName)) {
+                        return Optional.of(t);
+                    }
+                }
+            }
+            for (var sch : db.schemas()) {
+                if (!sch.name().equals(schemaName)) {
+                    continue;
+                }
+                for (var t : sch.tabularFunctions()) {
+                    if (t.name().equals(fnName)) {
+                        return Optional.of(t);
+                    }
+                }
+            }
+            return Optional.empty();
+        }
+        for (var t : db.tabularFunctions()) {
+            if (t.name().equals(name)) {
+                return Optional.of(t);
+            }
+        }
+        for (var sch : db.schemas()) {
+            for (var t : sch.tabularFunctions()) {
+                if (t.name().equals(name)) {
+                    return Optional.of(t);
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** Whether {@code name} names a tabular function in {@code db}. */
+    static boolean isTabularFunction(DatabaseDefinition db, String name) {
+        return findTabularFunctionDef(db, name).isPresent();
     }
 
     static Optional<DatabaseDefinition.ViewDefinition> findViewDef(

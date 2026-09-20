@@ -19,7 +19,14 @@ import java.util.List;
  * @param info  the relation type ({@link com.legend.compiler.element.type.Type.RelationType}) at {@code [1]}
  */
 public record TypedTableReference(String store, String table, ExprType info,
-                                  boolean accessor) implements TypedSpec {
+                                  boolean accessor,
+                                  boolean tabularFunction) implements TypedSpec {
+
+    /** The arity before TabularFunction was executable. */
+    public TypedTableReference(String store, String table, ExprType info,
+            boolean accessor) {
+        this(store, table, info, accessor, false);
+    }
     /** {@code accessor}: the {@code #>{db.TABLE}#} relation-accessor
      * spelling (engine: columns typed as precisePrimitives from the
      * DDL) versus {@code tableReference(db, schema, table)} (the Table
@@ -40,6 +47,12 @@ public record TypedTableReference(String store, String table, ExprType info,
     }
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedTableReference(store, table, info, accessor);
+        // tabularFunction carried explicitly. The convenience
+        // constructor defaults it to false, so any rebuild that forgets
+        // it silently turns a function back into a table -- which is
+        // what happened here, and the query planned as `FROM FN`
+        // instead of `FROM FN()`.
+        return new TypedTableReference(store, table, info, accessor,
+                tabularFunction);
     }
 }

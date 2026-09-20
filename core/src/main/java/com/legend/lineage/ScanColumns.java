@@ -149,6 +149,7 @@ public final class ScanColumns {
         switch (src) {
             case SqlSource.Join j -> rootSpine(j.left(), out);
             case SqlSource.Table t -> out.add(t.alias());
+            case SqlSource.TableFunction f -> out.add(f.alias());
             case SqlSource.VarSetPlaceholder vp -> out.add(vp.alias());
             case SqlSource.RawSql raw -> out.add(raw.alias());
             case SqlSource.Subselect s -> out.add(s.alias());
@@ -200,6 +201,13 @@ public final class ScanColumns {
             case SqlSource.Table t -> {
                 env.put(t.alias(), (col, ctx, o) ->
                         o.add(new Entry(t.name(), col, ctx)));
+            }
+            // Lineage treats a tabular function as its own extent: the
+            // function NAME is where the columns came from, exactly as
+            // a table name is.
+            case SqlSource.TableFunction f -> {
+                env.put(f.alias(), (col, ctx, o) ->
+                        o.add(new Entry(f.name(), col, ctx)));
             }
             case SqlSource.Join j -> {
                 collectEnv(j.left(), outer, env, out);

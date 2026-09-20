@@ -77,11 +77,19 @@ class ErrorShapeGuardrailTest {
             // probe, implicitLeaves' child-source probe — each falls back
             // to the next resolution route, never swallows a verdict
             Map.entry("GraphEmission.java", 4),
-            // 5 = the HTTP request boundary (reviewed): each handler's
+            // 6 = the HTTP request boundary (reviewed): each handler's
             // catch converts ANY failure into a JSON error response and
             // keeps the server alive — LSP handler, execute, executeSql,
-            // diagram (whose response-write fallback is the 5th)
-            Map.entry("LegendHttpServer.java", 5),
+            // diagram (whose response-write fallback is the 5th), and
+            // the PLAN handler's internal-error catch (6th, added
+            // 2026-09-19 and reviewed): before it, a RuntimeException in
+            // lowering DROPPED THE TCP CONNECTION and the caller saw a
+            // socket error with no message at all — which is how the
+            // quoted-identifier resolver bug stayed invisible. It logs
+            // the stack server-side and returns the type and message
+            // flagged `internal`, so a crash is never mistaken for a
+            // rejected query.
+            Map.entry("LegendHttpServer.java", 6),
             // 2 = the LSP protocol boundary (reviewed): dispatch converts
             // failures to JSON-RPC error responses; rebuild converts a
             // compile crash into published diagnostics

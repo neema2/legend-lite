@@ -241,6 +241,16 @@ public final class SqlPostProcessors {
                 yield nn.equals(t.name()) ? t
                         : new SqlSource.Table(nn, t.alias(), t.outputs());
             }
+            // The name mapper applies to a function name too -- it is
+            // the same kind of identifier, and a rename that skipped
+            // functions would silently leave one pointing at the old
+            // name.
+            case SqlSource.TableFunction f -> {
+                String nn = m.apply(f.name());
+                yield nn.equals(f.name()) ? f
+                        : new SqlSource.TableFunction(nn, f.arguments(),
+                                f.alias(), f.outputs());
+            }
             case SqlSource.Join j -> new SqlSource.Join(source(j.left(), m),
                     source(j.right(), m), j.kind(),
                     j.on() == null ? null : expr(j.on(), m));

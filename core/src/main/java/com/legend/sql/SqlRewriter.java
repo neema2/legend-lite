@@ -91,6 +91,7 @@ public abstract class SqlRewriter {
         SqlSource out = switch (s) {
             case SqlSource.Dual d -> d;
             case SqlSource.Table t -> t;
+            case SqlSource.TableFunction fn -> fn;   // a leaf, like a table
             case SqlSource.SourceUrl u -> u;
             case SqlSource.VarSetPlaceholder vp -> vp;
             case SqlSource.RawSql r -> r;   // carried text: a leaf

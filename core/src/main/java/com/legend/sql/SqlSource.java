@@ -54,6 +54,27 @@ public sealed interface SqlSource {
     record Table(String name, String alias, List<OutputCol> outputs) implements SqlSource {
     }
 
+    /**
+     * A TabularFunction source — {@code NAME(args)} rather than
+     * {@code NAME}.
+     *
+     * A SIBLING of {@link Table}, not a {@link RawSql}, and the
+     * difference matters twice. RawSql holds a STRING, so lowering
+     * would have to pick the dialect's spelling before rendering --
+     * defeating the point of a tree that renders per dialect. And
+     * RawSql resolves columns by TRUSTING THE NAME, deferring unknown
+     * names to the database; a tabular function DECLARES its columns,
+     * so it resolves as strictly as a table and a typo is caught at
+     * compile time rather than by the warehouse.
+     *
+     * {@code arguments} stay structured for the same reason: rendering
+     * them here would mean substituting text into SQL, which is how
+     * escaping bugs are born.
+     */
+    record TableFunction(String name, List<SqlExpr> arguments, String alias,
+                         List<OutputCol> outputs) implements SqlSource {
+    }
+
     /** The engine's cross-store VarSetPlaceHolder: a PLAN VARIABLE
      * standing in for another execution node's result set — spelled
      * {@code (${varName}) as "alias"} in plan SQL (freemarker splice at

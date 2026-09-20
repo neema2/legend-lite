@@ -512,6 +512,15 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public boolean isTabularFunction(String dbFqn, String name) {
+        Objects.requireNonNull(dbFqn, "dbFqn");
+        Objects.requireNonNull(name, "name");
+        return model.findDatabase(dbFqn)
+                .map(db -> StoreCompiler.isTabularFunction(db, name))
+                .orElse(false);
+    }
+
+    @Override
     public Optional<com.legend.model.DatabaseDefinition.TableDefinition.Milestoning>
             findTableMilestoning(String dbFqn, String name) {
         return model.findDatabase(dbFqn)

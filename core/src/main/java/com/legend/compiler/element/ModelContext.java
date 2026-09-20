@@ -224,6 +224,19 @@ public interface ModelContext {
      */
     Optional<Type.RelationType> findTable(String dbFqn, String name);
 
+    /**
+     * Whether {@code name} is a TabularFunction rather than a table.
+     *
+     * Both resolve through {@link #findTable}, because both are named
+     * relations with declared columns and the TYPE is identical. Only
+     * the rendered source differs -- {@code NAME()} against {@code
+     * NAME} -- so the distinction is carried separately rather than
+     * splitting the type lookup in two.
+     */
+    default boolean isTabularFunction(String dbFqn, String name) {
+        return false;
+    }
+
     /** Every USER function FQN in the model (natives excluded) — the
      * eager-G compileAll mode enumerates over this. */
     default java.util.Set<String> functionFqns() {

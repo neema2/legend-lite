@@ -530,8 +530,10 @@ public final class Lowerer {
         return switch (spec) {
             case TypedSourceUrl su -> SqlSelect.starOf(
                     new SqlSource.SourceUrl(su.url(), nextAlias(), outputsOf(su.info(), OutputCol.Origin.PHYSICAL)));
-            case TypedTableReference t -> SqlSelect.starOf(
-                    new SqlSource.Table(t.table(), nextAlias(), outputsOf(t.info(), OutputCol.Origin.PHYSICAL)));
+            // A TabularFunction is CALLED; zero args, as upstream's grammar.
+            case TypedTableReference t -> SqlSelect.starOf(t.tabularFunction()
+                    ? new SqlSource.TableFunction(t.table(), java.util.List.of(), nextAlias(), outputsOf(t.info(), OutputCol.Origin.PHYSICAL))
+                    : new SqlSource.Table(t.table(), nextAlias(), outputsOf(t.info(), OutputCol.Origin.PHYSICAL)));
 
             case TypedTds tds -> tdsLiteral(tds);
 
