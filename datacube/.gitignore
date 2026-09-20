@@ -3,7 +3,7 @@ node_modules/
 *.duckdb.wal
 demo/vendor/
 demo/bundle.js
-demo/bundle-wasm.js
+demo/bundle-server.js
 demo/screenshot.png
 demo/remote-bundle.js
 *.parquet

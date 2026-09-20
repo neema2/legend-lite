@@ -7,7 +7,7 @@
 // no server, and only a browser can show that.
 //
 // Serves datacube/ over http (a file: origin cannot instantiate WASM
-// from fetch), loads demo/index-wasm.html, and waits for the
+// from fetch), loads demo/index.html (the default entry), and waits for
 // grid to have real rows. Nothing answers on the legend-lite port; if
 // the page renders, the planning happened in the tab.
 //
@@ -51,7 +51,7 @@ const server = createServer(async (req, res) => {
 
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const { port } = server.address();
-const url = `http://127.0.0.1:${port}/demo/index-wasm.html`;
+const url = `http://127.0.0.1:${port}/demo/index.html`;
 console.log(`serving datacube/ on ${port}\nno legend-lite server is running\n`);
 
 const browser = await chromium.launch();

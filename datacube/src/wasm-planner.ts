@@ -170,10 +170,19 @@ export class WasmPlanner implements Planner {
         // is confidently wrong whenever the real reason is anything
         // else — a missing file, a bad path — which sends the reader
         // hunting for a browser bug that is not there.
+        // Name the likeliest FIX, not just the failure. The two
+        // causes need different actions and the message has to point
+        // at the right one: an un-vendored checkout 404s here, while
+        // a browser without WebAssembly GC rejects a module that
+        // downloaded perfectly.
+        const detail = cause instanceof Error ? cause.message : String(cause);
+        const looksMissing = /404|not ok|not found|ENOENT|status code/i
+          .test(detail);
         throw new PlannerUnavailableError(
-          `could not instantiate the planner module at ${wasmUrl}: `
-            + `${cause instanceof Error ? cause.message : String(cause)}`
-            + ' (a runtime without WebAssembly GC fails here too)',
+          `could not instantiate the planner module at ${wasmUrl}: ${detail}`
+            + (looksMissing
+              ? ' — run `npm run planner:vendor` to put it there'
+              : ' — this runtime may lack WebAssembly GC'),
           { cause },
         );
       }

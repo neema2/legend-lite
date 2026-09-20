@@ -174,19 +174,45 @@ describe('there is exactly one planner, and no way to fall back to another', () 
     assert.deepEqual(bad, [], `fallback planner in: ${bad.join(', ')}`);
   });
 
-  it('the demo REFUSES to run without the engine', () => {
+  it('the server entry REFUSES to run without the engine', () => {
     // Not "warns and carries on": constructs nothing, so there is no
     // grid of invented numbers to mistake for real ones.
-    const demo = readFileSync(join('demo', 'main.ts'), 'utf8');
+    const demo = readFileSync(join('demo', 'main-server.ts'), 'utf8');
     assert.ok(
       /throw new Error\([^)]*legend-lite is not answering/s.test(demo),
-      'the demo must throw when the engine is absent',
+      'the server entry must throw when the engine is absent',
     );
-    assert.equal(
-      /DemoOnlyPlanner/.test(demo),
-      false,
-      'the shim must be gone, not merely unreferenced',
+  });
+
+  it('the default entry REFUSES to run without its planner module', () => {
+    // Same rule, different absence. main.ts plans in the tab, so
+    // there is no server to be down -- but the 4 MB module can be
+    // missing, and the failure has to land BEFORE the grid exists.
+    // `warmUp()` is what forces that: it loads and instantiates, so
+    // an unavailable module rejects startup instead of surfacing as
+    // a half-rendered grid on the user's first interaction.
+    const demo = readFileSync(join('demo', 'main.ts'), 'utf8');
+    assert.ok(
+      /await\s+planner\.warmUp\(\)/.test(demo),
+      'main.ts must await warmUp() before handing the planner to boot,'
+        + ' so a missing module fails startup rather than the first query',
     );
+    const warm = demo.indexOf('warmUp()');
+    const handed = demo.search(/return\s*\{\s*planner/);
+    assert.ok(
+      warm >= 0 && handed > warm,
+      'warmUp() must come BEFORE the planner is handed to boot',
+    );
+  });
+
+  it('keeps the shim gone from every entry point', () => {
+    for (const f of ['main.ts', 'main-server.ts', 'boot.ts']) {
+      assert.equal(
+        /DemoOnlyPlanner/.test(readFileSync(join('demo', f), 'utf8')),
+        false,
+        `the shim must be gone, not merely unreferenced (${f})`,
+      );
+    }
   });
 });
 
