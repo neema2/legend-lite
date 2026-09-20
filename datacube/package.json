@@ -16,7 +16,8 @@
     "planner:vendor": "mkdir -p demo/vendor && cp ../research/wasm/target/wasm/classes.wasm demo/vendor/ && cp ../research/wasm/target/wasm-runtime/org/teavm/backend/wasm/wasm-gc-module-runtime.js demo/vendor/",
     "verify:wasm": "node --experimental-strip-types --experimental-wasm-exnref demo/verify-wasm-planner.ts",
     "verify:browser": "node demo/verify-wasm-browser.mjs",
-    "measure:startup": "node demo/measure-startup.mjs"
+    "measure:startup": "node demo/measure-startup.mjs",
+    "verify:realdata": "node demo/verify-real-data.mjs"
   },
   "keywords": [],
   "author": "",
