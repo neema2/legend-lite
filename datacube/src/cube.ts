@@ -386,29 +386,61 @@ export class CubeController {
    * next undo would return to where you just came from and the stack
    * would never advance past two entries -- undo that toggles.
    */
-  async #applyHistory(state: CubeState): Promise<CubeView | Stale> {
+  /** Put the cube into a state without re-querying. */
+  #install(state: CubeState): void {
     this.#snapshot = state.snapshot;
     this.#tree = state.tree;
     // BEFORE the refresh, not after: the host folds its configuration
     // into the snapshot on refresh, so restoring it afterwards would
     // let the stale config overwrite the state just restored.
     if (state.host !== undefined) this.#options.restoreHost?.(state.host);
+  }
+
+  /**
+   * Move to a state from the history, ALL OR NOTHING.
+   *
+   * Undo mutates the cube and then re-queries, and that query can
+   * fail -- the engine is down, the planner refuses it. Without a
+   * rollback the cube had already moved, the step was already spent,
+   * and the screen still showed the old view: the model and the
+   * display disagreeing, with no way back and a redo pointing at a
+   * state that was never rendered.
+   *
+   * A SUPERSEDED refresh is not a failure and is not rolled back: the
+   * user did something else while this was in flight, and the newer
+   * interaction legitimately owns the cube from here.
+   */
+  async #applyHistory(
+    state: CubeState,
+    rollback: (current: CubeState) => void,
+  ): Promise<CubeView | Stale> {
+    const current = this.#state();
+    this.#install(state);
     this.#announceHistory();
-    return this.refresh();
+    try {
+      return await this.refresh();
+    } catch (error) {
+      this.#install(current);
+      rollback(current);
+      this.#announceHistory();
+      throw error;
+    }
   }
 
   async undo(): Promise<CubeView | Stale | null> {
     if (!this.#snapshot) return null;
     const previous = this.#history.undo(this.#state());
     if (!previous) return null;
-    return this.#applyHistory(previous);
+    return this.#applyHistory(previous, () =>
+      this.#history.rollbackUndo(previous),
+    );
   }
 
   async redo(): Promise<CubeView | Stale | null> {
     if (!this.#snapshot) return null;
     const next = this.#history.redo(this.#state());
     if (!next) return null;
-    return this.#applyHistory(next);
+    return this.#applyHistory(next, () => this.#history.rollbackRedo(next));
   }
 
   /** Drop the history, e.g. when a wholly different cube is opened. */

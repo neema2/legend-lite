@@ -133,6 +133,26 @@ export class History {
     return next;
   }
 
+  /**
+   * Put back an undo that could not be applied.
+   *
+   * A step is only spent when the cube actually moved. If the refresh
+   * that follows an undo fails, the stacks have to look exactly as
+   * they did before it was attempted, or the user loses a step they
+   * never got the benefit of -- and gains a redo pointing at a state
+   * that was never on screen.
+   */
+  rollbackUndo(previous: CubeState): void {
+    this.#future.pop();
+    this.#past.push(previous);
+  }
+
+  /** The same, for a redo that could not be applied. */
+  rollbackRedo(next: CubeState): void {
+    this.#past.pop();
+    this.#future.push(next);
+  }
+
   clear(): void {
     this.#past = [];
     this.#future = [];

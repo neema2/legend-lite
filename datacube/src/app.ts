@@ -1055,7 +1055,25 @@ export class CubeApp {
     burger.setAttribute('aria-label', 'Menu');
     burger.textContent = '\u2261';
     burger.addEventListener('click', (event) => {
-      const items: MenuItem[] = [{ id: 'view.properties', label: 'Properties...' }];
+      // Undo and Redo are DISABLED rather than hidden when there is
+      // nothing to go back to -- the same choice the grid's own menu
+      // makes everywhere else, and the reason the entries exist at
+      // all: a keyboard shortcut that silently does nothing gives a
+      // person no way to tell "there is no undo here" from "undo is
+      // broken". A disabled entry answers that before they press it.
+      const items: MenuItem[] = [
+        {
+          id: 'view.undo',
+          label: 'Undo',
+          ...(this.#controller.canUndo ? {} : { disabled: true }),
+        },
+        {
+          id: 'view.redo',
+          label: 'Redo',
+          ...(this.#controller.canRedo ? {} : { disabled: true }),
+        },
+        { id: 'view.properties', label: 'Properties...' },
+      ];
       if (this.#options.storage) {
         items.push(
           { id: 'view.save', label: 'Save View' },
@@ -1090,20 +1108,64 @@ export class CubeApp {
 
       if (key === 'z' && !event.shiftKey) {
         event.preventDefault();
-        void this.#controller.undo();
+        void this.#undo();
         return;
       }
       // Both spellings: Cmd-Shift-Z on macOS, Ctrl-Y on Windows.
       if ((key === 'z' && event.shiftKey) || key === 'y') {
         event.preventDefault();
-        void this.#controller.redo();
+        void this.#redo();
       }
     });
+  }
+
+  /**
+   * Undo, with an answer either way.
+   *
+   * Three outcomes a person can tell apart: it worked, there was
+   * nothing to undo, or it could not be applied. The last one matters
+   * most -- the controller puts the cube back exactly as it was and
+   * keeps the step, so the honest message is that nothing moved and
+   * it can be tried again, not a stack trace.
+   *
+   * The rejection is caught HERE rather than left to `void`, which
+   * does not catch and would surface an engine outage as an unhandled
+   * promise rejection in the console.
+   */
+  async #undo(): Promise<void> {
+    if (!this.#controller.canUndo) {
+      this.#status('Nothing to undo', 'warn');
+      return;
+    }
+    try {
+      await this.#controller.undo();
+    } catch {
+      // refresh() already reported the cause through onError.
+      this.#status('Could not undo — the cube is unchanged', 'error');
+    }
+  }
+
+  async #redo(): Promise<void> {
+    if (!this.#controller.canRedo) {
+      this.#status('Nothing to redo', 'warn');
+      return;
+    }
+    try {
+      await this.#controller.redo();
+    } catch {
+      this.#status('Could not redo — the cube is unchanged', 'error');
+    }
   }
 
   /** Entries the title bar menu adds on top of the grid's own. */
   #onHostAction(item: MenuItem): boolean {
     switch (item.id as string) {
+      case 'view.undo':
+        void this.#undo();
+        return true;
+      case 'view.redo':
+        void this.#redo();
+        return true;
       case 'view.save':
         this.saveView(this.#config.reportTitle ?? 'view');
         return true;

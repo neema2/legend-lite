@@ -125,7 +125,9 @@ export type MenuActionId =
   // application the same way.
   | 'view.save'
   | 'view.load'
-  | 'view.dimension';
+  | 'view.dimension'
+  | 'view.undo'
+  | 'view.redo';
 
 export interface MenuItem {
   /** Absent on a pure submenu parent, which does nothing itself. */

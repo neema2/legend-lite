@@ -138,6 +138,47 @@ describe('undo over the configuration, not just the query', () => {
     );
   });
 
+  it('offers Undo DISABLED when there is nothing to undo', async () => {
+    // The point of the entry existing at all. A keyboard shortcut
+    // that silently does nothing leaves a person unable to tell
+    // "there is no undo here" from "undo is broken"; a greyed-out
+    // entry answers that before they press it.
+    const burger = dom.window.document.querySelector('.dc-titlebar-menu');
+    assert.ok(burger, 'the title bar menu button exists');
+    (burger as HTMLElement).dispatchEvent(
+      new dom.window.MouseEvent('click', { bubbles: true }),
+    );
+
+    const labels = [
+      ...dom.window.document.querySelectorAll('.dc-menu .dc-menu-label'),
+    ].map((e) => e.textContent);
+    assert.ok(labels.includes('Undo'), `menu had: ${labels.join(', ')}`);
+
+    const undoItem = [
+      ...dom.window.document.querySelectorAll('.dc-menu .dc-menu-item'),
+    ].find((el) => el.textContent?.includes('Undo'));
+    assert.ok(undoItem, 'the Undo entry is present');
+    assert.equal(
+      undoItem.getAttribute('aria-disabled'),
+      'true',
+      'and it is disabled with an empty history',
+    );
+  });
+
+  it('enables Undo once there is a step to take back', async () => {
+    await app.applyConfiguration({ columns: { region: { pinned: 'left' } } });
+
+    const burger = dom.window.document.querySelector('.dc-titlebar-menu');
+    (burger as HTMLElement).dispatchEvent(
+      new dom.window.MouseEvent('click', { bubbles: true }),
+    );
+    const undoItem = [
+      ...dom.window.document.querySelectorAll('.dc-menu .dc-menu-item'),
+    ].find((el) => el.textContent?.includes('Undo'));
+    assert.ok(undoItem);
+    assert.notEqual(undoItem.getAttribute('aria-disabled'), 'true');
+  });
+
   it('redoes a configuration change', async () => {
     await app.applyConfiguration({ columns: { region: { pinned: 'left' } } });
 
