@@ -17,7 +17,10 @@
     "verify:wasm": "node --experimental-strip-types --experimental-wasm-exnref demo/verify-wasm-planner.ts",
     "verify:browser": "node demo/verify-wasm-browser.mjs",
     "measure:startup": "node demo/measure-startup.mjs",
-    "verify:realdata": "node demo/verify-real-data.mjs"
+    "verify:realdata": "node demo/verify-real-data.mjs",
+    "start": "node demo/serve.mjs",
+    "planner:core": "cd .. && mvn -q -pl core -am -DskipTests install",
+    "dist": "node demo/make-dist.mjs"
   },
   "keywords": [],
   "author": "",

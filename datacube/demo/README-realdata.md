@@ -1,35 +1,40 @@
 # Running DataCube on your own data
 
-No legend-lite process, no API: the planner and DuckDB both run in
-the tab.
+No legend-lite process, no API, no backend at all: the planner and
+DuckDB both run in the tab.
 
-## Once
-
-From the repo root:
+## Just run it
 
 ```bash
-mvn -pl core -am -DskipTests install      # -am installs the parent pom too
-cd datacube
-npm install
-npm run demo:vendor                       # duckdb-wasm binaries
-npm run planner:build                     # compiles the planner to wasm
-npm run planner:vendor                    # copies it into demo/vendor
-npm run build:demo
+cd datacube && npm install
+npm start
 ```
 
-## Point it at a file
+That is the whole thing. It builds whatever is missing — the
+duckdb-wasm binaries, the planner module, the bundles — prints a URL,
+and serves it. The first run compiles the planner to WebAssembly and
+takes about a minute; after that it is instant because nothing needs
+rebuilding.
 
-Serve the repo (the page links `../src/*.css`, so serve `datacube/`,
-not `datacube/demo/`):
+```
+  http://localhost:8000/demo/index.html
+```
+
+Add `--open` to launch a browser, `--port N` to move it.
+
+## Your own file
 
 ```bash
-cd datacube && python3 -m http.server 8000
+npm start -- --data ~/trades.parquet
 ```
 
-then open
+It serves the file alongside the page and prints a URL that already
+points at it. `.parquet` and `.csv` are recognised by extension.
+
+Or point at a URL yourself, if the data is already hosted:
 
 ```
-http://localhost:8000/demo/index.html?remote=http://localhost:8000/trades.parquet&format=parquet
+http://localhost:8000/demo/index.html?remote=https://host/trades.parquet&format=parquet
 ```
 
 `format` is `parquet`, `csv` or `iceberg`, and is inferred from the
@@ -70,6 +75,24 @@ and the planner never learns the data is remote. That is also why the
 columns have to match. For a different shape, edit `trades.pure` AND
 the `columns` list in `demo/boot.ts` — the latter is what tells the
 cube each field's type and which ones are dimensions.
+
+## Putting it on a real website
+
+There is no server to deploy, so a deployment is a directory:
+
+```bash
+npm run dist          # -> datacube/dist/
+npx serve dist        # or copy dist/ anywhere that serves files
+```
+
+`dist/` is self-contained — the page with its CSS inlined, the
+bundles, the model, and the two WebAssembly runtimes. It was checked
+under a plain `python3 -m http.server` with no configuration. About
+81 MB, of which 36 MB is duckdb-wasm and 4.2 MB the planner; both
+compress heavily, so enable gzip or brotli on whatever serves it.
+
+S3, GitHub Pages, nginx, a CDN — anything that serves files will do,
+and the URL is the product.
 
 ## Check it end to end
 
