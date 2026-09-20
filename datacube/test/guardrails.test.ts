@@ -3,7 +3,7 @@
 // bans actually happened here.
 
 import assert from 'node:assert/strict';
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, it } from 'node:test';
 
@@ -91,16 +91,73 @@ describe('there is exactly one planner, and no way to fall back to another', () 
     assert.ok(shipped.length > 10, `${shipped.length} files`);
   });
 
-  it('implements Planner in exactly one shipped file', () => {
+  // The two shipped implementations, and why two is not a betrayal of
+  // "one planner".
+  //
+  // The rule bans a second IMPLEMENTATION -- a thing that must AGREE
+  // with legend-lite about null ordering, coercion and aggregates,
+  // and will therefore eventually disagree. It does not ban a second
+  // TRANSPORT to the same implementation. `LegendLitePlanner` POSTs
+  // to /engine/plan, whose handler calls Compiler.plan;
+  // `WasmPlanner` calls that same Compiler.plan compiled to
+  // WebAssembly. There is one planner and two ways to reach it.
+  //
+  // That argument is only worth anything if something checks it, so
+  // the next test requires the differentials that do.
+  const PLANNERS = [join('src', 'planner.ts'), join('src', 'wasm-planner.ts')];
+
+  it('implements Planner in exactly the two blessed shipped files', () => {
     const impls = shipped.filter((f) =>
       /implements\s+Planner\b/.test(readFileSync(f, 'utf8')),
     );
     assert.deepEqual(
-      impls,
-      [join('src', 'planner.ts')],
+      impls.sort(),
+      [...PLANNERS].sort(),
       `a second planner is a second thing that must agree with the ` +
-        `first about null ordering, coercion and aggregates: ${impls.join(', ')}`,
+        `first about null ordering, coercion and aggregates. A new ` +
+        `transport to legend-lite's own Compiler.plan may join this ` +
+        `list; a planner that COMPUTES SQL itself may not: ${impls.join(', ')}`,
     );
+  });
+
+  it('keeps a differential behind the second transport', () => {
+    // The allowance above rests entirely on the two transports being
+    // checked against each other. If these harnesses go, the
+    // allowance is unearned and the second file has to go with them.
+    for (const f of ['demo/verify-wasm-planner.ts',
+      '../research/wasm/differential.mjs']) {
+      assert.ok(existsSync(f), `the wasm planner's differential is gone (${f})`
+        + ' — either restore it or drop src/wasm-planner.ts');
+    }
+  });
+
+  it('never lets a bundle pick its planner at runtime', () => {
+    // A URL parameter or env lookup feeding planner construction is
+    // the same defect as a catch-block fallback: nobody can tell from
+    // the screen which planner produced the SQL, so a divergence
+    // hides. The demo picks by ENTRY POINT instead -- main.ts wires
+    // the server, main-wasm.ts wires the browser build -- which is a
+    // build-time decision, visible in the bundle.
+    const bad: string[] = [];
+    for (const file of shipped) {
+      const text = readFileSync(file, 'utf8');
+      if (!/\bnew\s+\w*Planner\b/.test(text)) continue;
+      const code = text.split('\n').filter((l) => !isComment(l)).join('\n');
+      if (/URLSearchParams|process\.env|location\.search/.test(code)
+          && /\bnew\s+\w*Planner\b/.test(code)) {
+        // Only flag when the two are in the same FUNCTION-ish span;
+        // main.ts legitimately reads ?remote= for the data source.
+        const spans = code.split(/\n(?=(?:export )?(?:async )?function )/);
+        for (const span of spans) {
+          if (/\bnew\s+\w*Planner\b/.test(span)
+              && /URLSearchParams|process\.env|location\.search/.test(span)) {
+            bad.push(file);
+            break;
+          }
+        }
+      }
+    }
+    assert.deepEqual(bad, [], `runtime planner choice in: ${bad.join(', ')}`);
   });
 
   it('never recovers from an unreachable planner by substituting one', () => {

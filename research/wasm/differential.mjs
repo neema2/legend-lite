@@ -42,7 +42,7 @@ execFileSync(
   JAVA,
   ['-cp', `${CORE}:${CLASSES}`, 'planner.JvmMain',
     HERE + 'target/corpus-model.txt', HERE + 'target/corpus-queries.tsv',
-    HERE + 'target/jvm-out.txt'],
+    corpus.runtime, HERE + 'target/jvm-out.txt'],
   { encoding: 'utf8', stdio: ['ignore', 'inherit', 'inherit'] },
 );
 
@@ -67,14 +67,14 @@ const teavm = await load(HERE + 'target/wasm/classes.wasm', {
 
 // The first plan pays for class init plus parsing the 300 KB prelude.
 const tb0 = process.hrtime.bigint();
-teavm.exports.planOrError(corpus.model, corpus.queries[names[0]]);
+teavm.exports.planOrError(corpus.model, corpus.queries[names[0]], corpus.runtime);
 const bootMs = Number(process.hrtime.bigint() - tb0) / 1e6;
 
 const wasm = new Map();
 for (const n of names) {
   let v;
   try {
-    v = teavm.exports.planOrError(corpus.model, corpus.queries[n]);
+    v = teavm.exports.planOrError(corpus.model, corpus.queries[n], corpus.runtime);
   } catch (e) {
     // planOrError folds Java failures into its return value, so reaching
     // here means the module itself broke — worth seeing, not swallowing.
@@ -87,7 +87,7 @@ const warmQ = corpus.queries.pipeline ?? corpus.queries[names[0]];
 const s = [];
 for (let i = 0; i < 500; i++) {
   const a = process.hrtime.bigint();
-  teavm.exports.planOrError(corpus.model, warmQ);
+  teavm.exports.planOrError(corpus.model, warmQ, corpus.runtime);
   s.push(Number(process.hrtime.bigint() - a) / 1e6);
 }
 s.sort((x, y) => x - y);

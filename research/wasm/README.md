@@ -1,12 +1,17 @@
 # legend-lite's planner, compiled to WebAssembly
 
-A research spike, **not shipped code** and deliberately not a module of
-the root reactor. It answers one question with measurements instead of
-argument: *can the planner run in a browser, and does it still give the
-same answers?*
+Started as a research spike — *can the planner run in a browser, and
+does it still give the same answers?* **It can, and it does:** 69/69
+queries byte-identical to the JVM, refusals included.
 
-**It can, and it does.** 69/69 queries byte-identical to the JVM,
-refusals included.
+It is no longer only a spike. `datacube/src/wasm-planner.ts` is
+product code built on the module this directory produces, and the
+DataCube demo renders from it with no server running (see **Wired
+into DataCube** below). What stays true is that this is not a module
+of the root reactor and nothing in `core/` knows it exists: it
+depends on the *installed* core jar, and the guardrails scan
+`src/main/java` relative to their own module, so it is invisible to
+them.
 
 ## Run it
 
@@ -84,6 +89,41 @@ file instead. This lives here rather than in `core/` because nothing
 about the planner changes — only how its one data file is delivered.
 It costs ~300 KB of module.
 
+## Wired into DataCube
+
+`datacube/src/wasm-planner.ts` implements DataCube's `Planner`
+interface on top of this module, so the cached-client plane needs no
+server at all: snapshot -> Pure -> SQL -> DuckDB-WASM, in the tab.
+
+```bash
+cd ../../datacube
+npm run planner:build     # mvn package in research/wasm
+npm run planner:vendor    # copy classes.wasm + runtime js into demo/vendor
+npm run build:demo        # builds BOTH bundles
+npm run verify:wasm       # 16 cube shapes, DataCube's grammar, vs the JVM
+npm run verify:browser    # the demo in headless Chromium, no server running
+```
+
+Two things about that wiring are deliberate.
+
+**The planner is chosen at BUILD time, by entry point.** `main.ts`
+wires the server planner, `main-wasm.ts` wires this one, and each
+bundle can reach only its own. A `?planner=` URL switch was written
+first and correctly rejected by `datacube/test/guardrails.test.ts`:
+the rule there is that shipped code must not be able to CHOOSE a
+planner at runtime, because then nobody can tell from the screen
+which one produced the SQL and a divergence hides. A build-time
+choice is static and visible, which is the same standard that test
+already applies to stubs injected by tests.
+
+**Two `implements Planner` files is not two planners.** The guardrail
+bans a second IMPLEMENTATION — something that must agree with
+legend-lite about null ordering, coercion and aggregates and will
+eventually fail to. `WasmPlanner` is a second TRANSPORT to the same
+`Compiler.plan`. That distinction is only worth anything because it
+is checked, so the guardrail also requires the differentials to
+exist: delete them and the second file must go too.
+
 ## What stops this from rotting
 
 Nothing here runs in CI — building a WASM module on every push is not
@@ -120,10 +160,14 @@ payload.
 
 ## Gotchas worth keeping
 
-- `target/` is wiped by `mvn clean`, and the harnesses read
-  `target/wasm/wasm-gc-module-runtime.js` — the POM unpacks it from
-  `teavm-core` on every `package`, so always run `package` before a
-  harness.
+- `target/` is wiped by `mvn clean`, and the harnesses import
+  `target/wasm-runtime/org/teavm/backend/wasm/wasm-gc-module-runtime.js`
+  — the POM unpacks it from `teavm-core` on every `package`, so always
+  run `package` before a harness.
+- TeaVM's loader wants a URL in a browser and a FILESYSTEM PATH under
+  Node. Handing Node a `file:` URL fails with an ENOENT that surfaces
+  as "could not instantiate" and reads like a missing WASM-GC feature;
+  `WasmPlanner` converts, and says so.
 - The WASM build sees whatever core jar is **installed**, not what is
   in `core/src`. Re-install core before re-measuring, or the spike will
   cheerfully prove something about last week's code.

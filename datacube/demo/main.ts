@@ -25,12 +25,44 @@ import type { CubeSnapshot } from '../src/snapshot.ts';
 const ROWS = 200_000;
 const LEGEND_LITE = 'http://localhost:8080';
 
+/** What an entry point must hand `boot`. */
+export interface Engine {
+  readonly planner: Planner;
+  readonly source: string;
+  readonly snapTarget: { readonly table: string; readonly expression: string };
+}
+
+/**
+ * How a bundle supplies its planner.
+ *
+ * Passed in rather than chosen here, because "shipped code must not be
+ * able to CHOOSE a planner at runtime" (test/guardrails.test.ts) and a
+ * URL parameter is exactly that choice. Each entry point wires one
+ * planner and cannot reach the other: `main.ts` the server, and
+ * `main-wasm.ts` the in-browser build. The decision is made by which
+ * bundle you load, which is static and visible in the build.
+ */
+export type MakePlanner = (status: HTMLElement) => Promise<Engine>;
+
+/** Where the demo's shared model and tables live. */
+export const SOURCE = '#>{trades::DB.TRADES}#';
+export const SNAP_TARGET = {
+  table: 'TRADES_SNAP',
+  expression: '#>{trades::DB.TRADES_SNAP}#',
+} as const;
+export const RUNTIME = 'trades::RT';
+
+/** One copy of the model text, fetched so the file is the source. */
+export async function loadModel(): Promise<string> {
+  return (await fetch('./trades.pure')).text();
+}
+
 // -- sample data ----------------------------------------------------
 
 const REGIONS = ['EMEA', 'AMER', 'APAC'];
 const DESKS = ['Rates', 'Credit', 'FX', 'Equity', 'Commodities'];
 
-async function boot(): Promise<void> {
+export async function boot(makePlanner: MakePlanner): Promise<void> {
   const status = must('status');
   status.textContent = 'starting DuckDB…';
 
@@ -113,7 +145,7 @@ async function boot(): Promise<void> {
 
   // -- the cube ------------------------------------------------------
 
-  const { planner, source, snapTarget } = await requireEngine(status);
+  const { planner, source, snapTarget } = await makePlanner(status);
 
   const snapshot: CubeSnapshot = {
     source: { expression: source },
@@ -243,11 +275,12 @@ function renderPlaneBadge(controller: CubeController): void {
  * throws and the page says so; it does not quietly show fake numbers
  * that look exactly like real ones.
  */
-async function requireEngine(status: HTMLElement): Promise<{
-  readonly planner: Planner;
-  readonly source: string;
-  readonly snapTarget: { readonly table: string; readonly expression: string };
-}> {
+export async function requireEngine(status: HTMLElement): Promise<Engine> {
+  // The model is fetched rather than inlined so the SAME text is what
+  // the planner compiles and what a reader opens -- one copy, in
+  // demo/trades.pure.
+  const model = await loadModel();
+
   let reachable = false;
   try {
     const health = await fetch(`${LEGEND_LITE}/health`, {
@@ -261,26 +294,21 @@ async function requireEngine(status: HTMLElement): Promise<{
     must('plannermissing').hidden = false;
     throw new Error(
       `legend-lite is not answering on ${LEGEND_LITE}. ` +
-        'Start it with `npm run engine` and reload.',
+        'Start it with `npm run engine` and reload, or open' +
+        ' index-wasm.html to run the planner in the browser' +
+        ' (needs `npm run planner:vendor && npm run build:demo`).',
     );
   }
 
-  // The model is fetched rather than inlined so the SAME text is what
-  // the server compiles and what a reader opens -- one copy, in
-  // demo/trades.pure.
-  const model = await (await fetch('./trades.pure')).text();
-  status.textContent = 'planner: legend-lite';
+  status.textContent = 'planner: legend-lite (server)';
   return {
     planner: new LegendLitePlanner({
       baseUrl: LEGEND_LITE,
       model,
-      runtime: 'trades::RT',
+      runtime: RUNTIME,
     }),
-    source: '#>{trades::DB.TRADES}#',
-    snapTarget: {
-      table: 'TRADES_SNAP',
-      expression: '#>{trades::DB.TRADES_SNAP}#',
-    },
+    source: SOURCE,
+    snapTarget: SNAP_TARGET,
   };
 }
 
@@ -304,7 +332,7 @@ function must(id: string): HTMLElement {
   return el;
 }
 
-void boot().catch((e) => {
+void boot(requireEngine).catch((e) => {
   const s = document.getElementById('status');
   if (s) {
     s.textContent = `failed to start: ${e instanceof Error ? e.message : e}`;

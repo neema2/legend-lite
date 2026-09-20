@@ -1,20 +1,5 @@
 package planner;
 
-import com.legend.compiler.NameResolver;
-import com.legend.compiler.element.ClassLayouts;
-import com.legend.compiler.element.ModelContext;
-import com.legend.compiler.spec.SpecCompiler;
-import com.legend.compiler.spec.UserCallInliner;
-import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.lowering.Lowerer;
-import com.legend.parser.Dialect;
-import com.legend.parser.ElementParser;
-import com.legend.parser.SpecParser;
-import com.legend.resolver.StoreResolver;
-import com.legend.sql.dialect.DuckDb;
-
-import java.util.List;
-
 /**
  * legend-lite's PLANNER, compiled to WebAssembly.
  *
@@ -28,45 +13,84 @@ import java.util.List;
  * compiles it to WASM, and {@code JvmMain} calls it on the JVM — so the
  * differential test compares two builds of the same source rather than
  * two hand-kept copies that could drift apart silently.
+ *
+ * <h2>Why this calls {@code Compiler.plan} and nothing else</h2>
+ *
+ * <p>The first version of this class hand-assembled the pipeline —
+ * parse, type, inline, resolve, lower, {@code new DuckDb().render} —
+ * which was fine for asking "does a planner survive the compile" but
+ * is exactly wrong for shipping. {@code POST /engine/plan} calls
+ * {@link com.legend.Compiler#plan(String, String, String)}, so
+ * anything else here would be a SECOND planner that has to agree with
+ * the first about dialect selection, null ordering and aggregate
+ * semantics — the divergence class this project exists to avoid.
+ *
+ * <p>Going through {@code Compiler} also pulls the runtime in, which
+ * the hand-rolled version silently skipped: the dialect comes from the
+ * Pure {@code Connection} ELEMENT that the named {@code Runtime}
+ * resolves to, not from a hardcoded {@code new DuckDb()}.
+ *
+ * <p>That makes this class a live test of a subtle property.
+ * {@code Compiler} keeps {@code java.sql.Connection} in six method
+ * DESCRIPTORS (its execute overloads) while carrying no
+ * {@code java.sql} catch clause — the distinction
+ * {@code PlannerNeedsOnlyJavaBaseTest} pins, because the JVM verifier
+ * resolves handler types at link time and descriptors lazily. An
+ * ahead-of-time compiler does its own whole-program analysis and need
+ * not honour that distinction at all. If this module builds, it does.
  */
 public final class Wasm {
 
     private Wasm() {
     }
 
+    /** The demo model, verbatim from {@code datacube/demo/trades.pure}. */
     private static final String MODEL = """
             ###Relational
-            Database demo::DB
+            Database trades::DB
             (
-              Table TRADES
-              (
-                region VARCHAR(64), desk VARCHAR(64),
-                notional DOUBLE, qty INTEGER
-              )
+                Table TRADES
+                (
+                    region VARCHAR(32), desk VARCHAR(32), book VARCHAR(32),
+                    year INTEGER, qtr VARCHAR(8),
+                    notional DOUBLE, pnl DOUBLE, qty INTEGER
+                )
             )
+
+            ###Connection
+            RelationalDatabaseConnection trades::Conn
+            {
+                type: DuckDB;
+                specification: DuckDB { };
+                auth: Test;
+            }
+
+            ###Runtime
+            Runtime trades::RT
+            {
+                mappings: [];
+                connections:
+                [
+                    trades::DB: [ c1: trades::Conn ]
+                ];
+            }
             """;
 
-    private static final String QUERY = "#>{demo::DB.TRADES}#"
+    private static final String RUNTIME = "trades::RT";
+
+    private static final String QUERY = "#>{trades::DB.TRADES}#"
             + "->filter(x|$x.region == 'EMEA')"
             + "->select(~[region, desk, notional])"
             + "->groupBy(~[region, desk], ~[total:x|$x.notional:y|$y->sum()])"
             + "->sort([~region->ascending()])->limit(10)";
 
-    /** The planner, end to end: Pure text in, dialect SQL out. */
+    /**
+     * The planner, end to end — the SAME call {@code POST /engine/plan}
+     * makes, so the browser plane and the server plane cannot drift.
+     */
     @org.teavm.jso.JSExport
-    public static String plan(String model, String query) {
-        var parsed = ElementParser.parse(model, Dialect.LEGEND_LITE);
-        ModelContext ctx = com.legend.Compiler.buildModel(parsed);
-        SpecCompiler specs = new SpecCompiler(ctx);
-        List<TypedSpec> body = specs.typeQueryBody(NameResolver.resolveQuery(
-                SpecParser.parse(query, Dialect.LEGEND_LITE)));
-        body = new UserCallInliner(specs).inlineBody(body);
-        body = new StoreResolver(ctx, specs).resolve(body, null);
-        Lowerer lw = new Lowerer(
-                t -> ClassLayouts.layoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent())
-                .withEngineExistsJoinForm();
-        return new DuckDb().render(lw.lower(body));
+    public static String plan(String model, String query, String runtime) {
+        return com.legend.Compiler.plan(model, query, runtime).sql();
     }
 
     /**
@@ -79,9 +103,9 @@ public final class Wasm {
      * bridges Java throwables into JS.
      */
     @org.teavm.jso.JSExport
-    public static String planOrError(String model, String query) {
+    public static String planOrError(String model, String query, String runtime) {
         try {
-            return "OK\n" + plan(model, query);
+            return "OK\n" + plan(model, query, runtime);
         } catch (RuntimeException | StackOverflowError e) {
             String name = e.getClass().getName();
             return "ERR\n" + name + "\n" + (e.getMessage() == null ? "" : e.getMessage());
@@ -105,6 +129,6 @@ public final class Wasm {
     }
 
     public static void main(String[] args) {
-        System.out.println(plan(MODEL, QUERY));
+        System.out.println(plan(MODEL, QUERY, RUNTIME));
     }
 }
