@@ -53,9 +53,15 @@ rather than about code:
 
 ```bash
 node --experimental-wasm-exnref zoneprobe.mjs > target/zone-wasm.txt
-java -cp "$LEGEND_CORE_JAR:target/classes" planner.ZoneMain > target/zone-jvm.txt
+java -cp "${LEGEND_CORE_JAR}:target/classes" planner.ZoneMain > target/zone-jvm.txt
 diff target/zone-jvm.txt target/zone-wasm.txt
 ```
+
+The braces are load-bearing on **zsh**, which is the macOS default:
+bare `"$LEGEND_CORE_JAR:target/classes"` parses `:t` as zsh's
+tail-modifier, silently yielding
+`legend-lite-core-1.0.0-SNAPSHOT.jararget/classes` and a
+`ClassNotFoundException` that looks like a build problem.
 
 ## Why it is shaped this way
 
