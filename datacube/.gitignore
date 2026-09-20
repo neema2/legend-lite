@@ -9,3 +9,5 @@ demo/remote-bundle.js
 *.parquet
 demo/planner-worker.js
 dist/
+demo/stress.js
+demo/stress-results.json

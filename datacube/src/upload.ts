@@ -5,7 +5,13 @@
 // pure text-in text-out and is therefore the half worth unit testing.
 
 import type { QueryEngine } from './engine.ts';
-import { inferModel, type DescribedColumn, type InferredModel } from './infer.ts';
+import type { ResultTable, Scalar } from './result.ts';
+import {
+  expressibleName,
+  inferModel,
+  type DescribedColumn,
+  type InferredModel,
+} from './infer.ts';
 
 /**
  * The duckdb-wasm surface used here.
@@ -24,6 +30,8 @@ export interface UploadResult extends InferredModel {
   readonly table: string;
   readonly rowCount: number;
   readonly fileName: string;
+  /** Columns the Database grammar could not name, and what they became. */
+  readonly renamed: readonly { readonly from: string; readonly to: string }[];
 }
 
 /** Guess by extension; the picker allows only these two. */
@@ -82,21 +90,47 @@ export async function ingestFile(
     // impose the narrower rule.
     : `read_csv('${virtualName}', AUTO_DETECT=TRUE, HEADER=TRUE)`;
 
+  // Describe the READER first, so the table can be built with names
+  // the model will be able to express. Creating it from `SELECT *`
+  // and repairing afterwards would leave the table and the model
+  // disagreeing about what a column is called.
+  const raw = await engine.execute(`DESCRIBE SELECT * FROM ${reader}`, 0);
+  const rawNames = columnOf(raw, 'column_name').map(String);
+
+  const renamed: { from: string; to: string }[] = [];
+  const taken = new Set<string>();
+  const finalNames = rawNames.map((from) => {
+    let to = expressibleName(from);
+    if (taken.has(to.toLowerCase())) {
+      let n = 2;
+      while (taken.has(`${to}_${n}`.toLowerCase())) n++;
+      to = `${to}_${n}`;
+    }
+    taken.add(to.toLowerCase());
+    if (to !== from) renamed.push({ from, to });
+    return to;
+  });
+
+  // DuckDB's own identifier escaping is the DOUBLED quote, which is
+  // why the original can be referenced here even though the Pure
+  // grammar cannot name it.
+  const dq = (n: string) => `"${n.replace(/"/g, '""')}"`;
+  const projection = rawNames
+    .map((from, i) => `${dq(from)} AS ${dq(finalNames[i]!)}`)
+    .join(', ');
+
   await engine.execute(
-    `CREATE OR REPLACE TABLE ${table} AS SELECT * FROM ${reader}`, 0);
+    `CREATE OR REPLACE TABLE ${table} AS SELECT ${projection} FROM ${reader}`,
+    0);
 
   // A ResultTable is COLUMNAR, so DESCRIBE's answer is read by
   // picking the two columns out and zipping them, not row by row.
   const describe = await engine.execute(`DESCRIBE ${table}`, 0);
-  const names = describe.columns.find((c) => c.name === 'column_name');
-  const types = describe.columns.find((c) => c.name === 'column_type');
-  if (!names || !types) {
-    throw new Error("DESCRIBE did not return column_name/column_type — "
-      + `got ${describe.columns.map((c) => c.name).join(', ')}`);
-  }
-  const described: DescribedColumn[] = names.values.map((n, i) => ({
+  const names = columnOf(describe, 'column_name');
+  const types = columnOf(describe, 'column_type');
+  const described: DescribedColumn[] = names.map((n, i) => ({
     name: String(n),
-    type: String(types.values[i] ?? 'VARCHAR'),
+    type: String(types[i] ?? 'VARCHAR'),
   }));
 
   const counted = await engine.execute(
@@ -108,5 +142,16 @@ export async function ingestFile(
     table,
     rowCount,
     fileName: file.name,
+    renamed,
   };
+}
+
+/** One column of a DESCRIBE result, by name. */
+function columnOf(t: ResultTable, name: string): readonly Scalar[] {
+  const col = t.columns.find((c) => c.name === name);
+  if (!col) {
+    throw new Error(`DESCRIBE did not return ${name} — got `
+      + t.columns.map((c) => c.name).join(', '));
+  }
+  return col.values;
 }

@@ -22,7 +22,9 @@
     "planner:core": "cd .. && mvn -q -pl core -am -DskipTests install",
     "dist": "node demo/make-dist.mjs",
     "verify:upload": "node demo/verify-upload.mjs",
-    "sample": "node --experimental-strip-types demo/make-sample.mjs"
+    "sample": "node --experimental-strip-types demo/make-sample.mjs",
+    "build:stress": "esbuild demo/stress.ts --bundle --format=esm --outfile=demo/stress.js --target=es2022",
+    "stress": "npm run build:stress && node demo/run-stress.mjs"
   },
   "keywords": [],
   "author": "",

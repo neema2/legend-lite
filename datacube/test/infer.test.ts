@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { inferModel, pureTypeOf, quoteIdent, sqlTypeOf } from '../src/infer.ts';
+import {
+  expressibleName,
+  inferModel,
+  pureTypeOf,
+  quoteIdent,
+  sqlTypeOf,
+} from '../src/infer.ts';
 import { formatOf, tableNameOf } from '../src/upload.ts';
 
 describe('sqlTypeOf', () => {
@@ -60,16 +66,19 @@ describe('quoteIdent', () => {
     assert.equal(quoteIdent('a-b'), '"a-b"');
   });
 
-  it('doubles an embedded quote, so a header cannot become grammar', () => {
-    // A CSV header arrives from outside. Without this, a column named
-    //   a" VARCHAR(1)) Table Evil (b
-    // stops being a name and starts being a Database declaration.
-    assert.equal(quoteIdent('a"b'), '"a""b"');
-    const hostile = 'a" VARCHAR(1)) Table Evil (b';
-    const q = quoteIdent(hostile);
-    assert.equal(q, '"a"" VARCHAR(1)) Table Evil (b"');
-    // Every quote in the result is either the delimiter or doubled.
-    assert.equal((q.slice(1, -1).match(/"/g) ?? []).length % 2, 0);
+  it('leaves a SQL keyword bare, because the PURE grammar allows it', () => {
+    // `select` is a valid Pure identifier; the lowerer is what quotes
+    // it for SQL, emitting t0."select". Quoting it here as well would
+    // make the wire name literally '"select"', since a quoted
+    // relational identifier keeps its quotes. Measured: a file with
+    // select/from headers planned 38 operations successfully.
+    assert.equal(quoteIdent('select'), 'select');
+    assert.equal(quoteIdent('from'), 'from');
+  });
+
+  it('quotes the headers that need it, which the grammar accepts', () => {
+    assert.equal(quoteIdent('x,y'), '"x,y"');
+    assert.equal(quoteIdent('  padded  '), '"  padded  "');
   });
 });
 
@@ -147,14 +156,25 @@ describe('inferModel', () => {
     assert.equal(kind('qty'), 'measure');
   });
 
-  it('quotes a hostile header instead of emitting it raw', () => {
-    const m = inferModel(
-      [{ name: 'a" VARCHAR(1)) Table Evil (b', type: 'VARCHAR' }],
-      { table: 'trades' },
-    );
-    assert.ok(!/Table Evil \(b VARCHAR/.test(m.model),
-      'the header must not close the declaration and open another');
-    assert.match(m.model, /"a"" VARCHAR\(1\)\) Table Evil \(b" VARCHAR\(4096\)/);
+  it('renames a header the grammar cannot express', () => {
+    // A quoted identifier keeps its quotes as the wire name and the
+    // lexer ends the token at the first `"`, so `a"b` has no
+    // spelling at all. One such header broke the whole Database
+    // declaration and made every one of 51 operations on that file
+    // refuse -- measured, not theorised.
+    assert.equal(expressibleName('a"b'), "a'b");
+    const renamed = expressibleName('a" VARCHAR(1)) Table Evil (b');
+    assert.ok(!renamed.includes('"'), 'no quote may survive');
+    const m = inferModel([{ name: renamed, type: 'VARCHAR' }],
+      { table: 'trades' });
+    // Exactly two quotes on the column line: the delimiters.
+    const line = m.model.split('\n').find((l) => l.includes('Table Evil'))!;
+    assert.equal((line.match(/"/g) ?? []).length, 2, line);
+  });
+
+  it('gives an empty header a name', () => {
+    assert.equal(expressibleName(''), 'column');
+    assert.equal(expressibleName('   '), 'column');
   });
 
   it('quotes a table name that needs it', () => {
