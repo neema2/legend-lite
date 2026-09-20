@@ -131,6 +131,19 @@ try {
     failed = true;
   }
 
+  // A date column must render as a DATE. It arrives as epoch
+  // milliseconds and the formatter only date-formats a Date
+  // instance, so the failure mode is "1,612,828,800,000" -- and
+  // then, once converted at UTC midnight and shown in a western
+  // zone, the day before the one in the file.
+  const bad = rows[0]?.filter((c) => /^[\d,]{10,}$/.test(c)
+    || /Invalid Date/.test(c)) ?? [];
+  if (bad.length) {
+    console.log(`FAIL: a temporal column did not render as a date: `
+      + JSON.stringify(bad));
+    failed = true;
+  }
+
   if (EXPECT_ROWS) {
     const m = /([\d,]+) rows/.exec(note);
     const got = m ? Number(m[1].replace(/,/g, '')) : -1;

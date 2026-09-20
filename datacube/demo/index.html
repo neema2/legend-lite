@@ -82,6 +82,12 @@
   }
   .dc-uploadbar label { font-weight: 500; }
   #uploadnote { color: #777; }
+  #samplecsv {
+    font: inherit; cursor: pointer; padding: 2px 8px;
+    border: 1px solid rgba(128,128,128,.4); border-radius: 3px;
+    background: transparent; color: inherit;
+  }
+  #samplecsv:hover { border-color: rgba(128,128,128,.8); }
   #uploadnote.bad { color: #b00020; }
 </style>
 </head>
@@ -132,6 +138,7 @@
   <div id="uploadbar" class="dc-uploadbar" hidden>
     <label for="uploadfile">Open a file</label>
     <input id="uploadfile" type="file" accept=".csv,.parquet,text/csv">
+    <button id="samplecsv" type="button">Need a file? Get a sample CSV</button>
     <span id="uploadnote">CSV or Parquet. It stays in this tab.</span>
   </div>
   <script type="module" src="./bundle.js"></script>

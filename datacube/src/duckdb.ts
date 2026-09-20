@@ -151,7 +151,49 @@ function converterFor(type: unknown): (v: unknown) => Scalar {
     const scale = (type as { scale: number }).scale;
     return (v) => (v === null || v === undefined ? null : decimalToScalar(v, scale));
   }
+  const temporal = temporalKindOf(type);
+  if (temporal) {
+    return (v) => (v === null || v === undefined ? null
+      : v instanceof Date ? v
+      : temporal === 'date' ? dateOnly(Number(v)) : new Date(Number(v)));
+  }
   return toScalar;
+}
+
+/**
+ * Whether an Arrow type is temporal, and whether it is DATE-ONLY.
+ *
+ * Note what this deliberately does NOT do: read the unit. Arrow JS
+ * normalises both date and timestamp vectors to EPOCH MILLISECONDS
+ * on `get()`, so `Date32<DAY>` and `Timestamp<MICROSECOND>` both
+ * hand over milliseconds and the declared unit describes storage,
+ * not what arrives here. An earlier version scaled by the unit and
+ * produced "Invalid Date" for dates and "Jan 19, 1970" for
+ * microsecond timestamps -- both measured in a browser, which is the
+ * only place this could have been settled.
+ */
+export function temporalKindOf(type: unknown): 'date' | 'timestamp' | undefined {
+  const name = String(type ?? '');
+  if (/^Date\d*</.test(name)) return 'date';
+  if (/^Timestamp</.test(name)) return 'timestamp';
+  return undefined;
+}
+
+/**
+ * A date-only value, at LOCAL midnight.
+ *
+ * A DATE has no instant in it -- 2021-02-09 is a calendar day, not a
+ * moment -- but it arrives as UTC midnight, and the formatter renders
+ * in the viewer's zone. West of Greenwich that is the previous
+ * evening, so the grid showed "Feb 08, 2021" for a row whose CSV
+ * says 2021-02-09. Rebuilding the same year/month/day locally keeps
+ * the calendar date the user typed, which is the only reading of a
+ * date column that is ever right.
+ */
+function dateOnly(epochMs: number): Date {
+  const utc = new Date(epochMs);
+  return new Date(
+    utc.getUTCFullYear(), utc.getUTCMonth(), utc.getUTCDate());
 }
 
 /** Arrow's type object stringifies to a usable name; keep it simple. */

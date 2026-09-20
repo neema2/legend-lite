@@ -19,6 +19,7 @@ import { CubeController, type Planner } from '../src/cube.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { mountRemote } from '../src/remote.ts';
 import { ingestFile } from '../src/upload.ts';
+import { sampleCsv } from '../src/sample.ts';
 import type { ColumnFormat } from '../src/format.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 
@@ -312,6 +313,25 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     const note = must('uploadnote');
     const input = must('uploadfile') as HTMLInputElement;
     bar.hidden = false;
+
+    // Something to open. The sample's columns are deliberately not
+    // the demo's: it carries a date, a boolean, a key-like integer
+    // and a book name with a comma and a quote in it, so opening it
+    // exercises the schema inference rather than just proving a file
+    // can be read.
+    must('samplecsv').addEventListener('click', () => {
+      const text = sampleCsv({ rows: 5000 });
+      const url = URL.createObjectURL(
+        new Blob([text], { type: 'text/csv' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'sample-trades.csv';
+      a.click();
+      URL.revokeObjectURL(url);
+      note.classList.remove('bad');
+      note.textContent = 'sample-trades.csv saved — now open it above';
+    });
+
     input.addEventListener('change', () => {
       const file = input.files?.[0];
       if (!file) return;

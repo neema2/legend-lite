@@ -22,6 +22,23 @@ rebuilding.
 
 Add `--open` to launch a browser, `--port N` to move it.
 
+## No file handy?
+
+Click **Need a file? Get a sample CSV** next to the upload control,
+or from the command line:
+
+```bash
+npm run sample                                  # sample-trades.csv, 5000 rows
+npm run sample -- --rows 100000 --out /tmp/big.csv
+```
+
+The sample is deliberately not the demo's own columns. It carries a
+DATE, a TIMESTAMP, a BOOLEAN, a key-like integer (`trade_id`,
+`year`), a measure integer, a negative-going float, and a book name
+containing a comma and a quoted phrase — so opening it exercises the
+schema inference and the CSV reader rather than just proving a file
+can be read. It is seeded, so regenerating gives the same file.
+
 ## Just open a file in the page
 
 Easiest of all: start it, then use the **Open a file** control at the

@@ -9,7 +9,12 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
-import { DuckDbEngine, decimalToScalar, toScalar } from '../src/duckdb.ts';
+import {
+  DuckDbEngine,
+  decimalToScalar,
+  temporalKindOf,
+  toScalar,
+} from '../src/duckdb.ts';
 import type { ArrowishConnection } from '../src/duckdb.ts';
 import { EpochGuard, STALE } from '../src/epoch.ts';
 import { columnIndex } from '../src/result.ts';
@@ -211,5 +216,30 @@ describe('toScalar', () => {
       toScalar({ a: 1n, b: 'x' }),
       '{"a":"1","b":"x"}',
     );
+  });
+});
+
+describe('temporalKindOf', () => {
+  // Arrow JS normalises BOTH date and timestamp vectors to epoch
+  // milliseconds on get(), so the declared unit describes storage,
+  // not what reaches this code. Scaling by it produced "Invalid
+  // Date" for dates and "Jan 19, 1970" for microsecond timestamps.
+  it('recognises a date, whatever unit it declares', () => {
+    assert.equal(temporalKindOf('Date32<DAY>'), 'date');
+    assert.equal(temporalKindOf('Date64<MILLISECOND>'), 'date');
+  });
+
+  it('recognises a timestamp, zoned or not', () => {
+    assert.equal(temporalKindOf('Timestamp<MICROSECOND>'), 'timestamp');
+    assert.equal(temporalKindOf('Timestamp<NANOSECOND>'), 'timestamp');
+    assert.equal(temporalKindOf('Timestamp<MICROSECOND, UTC>'), 'timestamp');
+  });
+
+  it('leaves every non-temporal type alone', () => {
+    // A multiplier here would turn a plain number into a Date.
+    for (const t of ['Int64', 'Float64', 'Utf8', 'Bool',
+      'Decimal<18,2>', 'Null', '']) {
+      assert.equal(temporalKindOf(t), undefined, t);
+    }
   });
 });

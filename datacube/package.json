@@ -21,7 +21,8 @@
     "start": "node demo/serve.mjs",
     "planner:core": "cd .. && mvn -q -pl core -am -DskipTests install",
     "dist": "node demo/make-dist.mjs",
-    "verify:upload": "node demo/verify-upload.mjs"
+    "verify:upload": "node demo/verify-upload.mjs",
+    "sample": "node --experimental-strip-types demo/make-sample.mjs"
   },
   "keywords": [],
   "author": "",
