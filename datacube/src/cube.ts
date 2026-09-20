@@ -25,6 +25,7 @@ import {
   type TreeRow,
 } from './tree.ts';
 import { fetchTree } from './treeview.ts';
+import { History, type CubeState } from './history.ts';
 
 /**
  * Turns a snapshot into SQL.
@@ -51,6 +52,7 @@ export interface Planner {
     pureGrammar: string,
     snapshot: CubeSnapshot,
     scope?: LevelScope,
+    signal?: AbortSignal,
   ): Promise<string>;
 }
 
@@ -94,6 +96,13 @@ export interface CubeControllerOptions {
    * relation the SAME model declares -- so the host names it.
    */
   readonly snapTarget?: { readonly table: string; readonly expression: string };
+  /** How many undo steps to keep. */
+  readonly historyLimit?: number;
+  /** Fired whenever undo/redo availability changes, for the UI. */
+  readonly onHistory?: (state: {
+    readonly canUndo: boolean;
+    readonly canRedo: boolean;
+  }) => void;
 }
 
 export class CubeController {
@@ -105,6 +114,7 @@ export class CubeController {
   #snapshot: CubeSnapshot | null = null;
   #view: CubeView | null = null;
   #tree = TreeState.empty();
+  readonly #history: History;
 
   constructor(
     engine: QueryEngine,
@@ -115,6 +125,11 @@ export class CubeController {
     this.#planner = planner;
     this.#options = options;
     this.#snaps = new SnapManager(engine);
+    this.#history = new History(
+      options.historyLimit !== undefined
+        ? { limit: options.historyLimit }
+        : {},
+    );
   }
 
   get snaps(): SnapManager {
@@ -142,11 +157,13 @@ export class CubeController {
    * correctness concern.
    */
   async toggle(path: RowPath): Promise<void> {
+    this.#remember();
     this.#tree = this.#tree.toggle(path);
     await this.refresh();
   }
 
   async setTree(state: TreeState): Promise<void> {
+    this.#remember();
     this.#tree = state;
     await this.refresh();
   }
@@ -159,6 +176,7 @@ export class CubeController {
    * next snapshot from the current one and hands it over whole.
    */
   async update(next: CubeSnapshot): Promise<CubeView | Stale> {
+    this.#remember();
     this.#snapshot = next;
     return this.refresh();
   }
@@ -170,7 +188,7 @@ export class CubeController {
 
     this.#options.onBusy?.(true);
     try {
-      const out = await this.#guard.issue(async (epoch) => {
+      const out = await this.#guard.issue(async (epoch, signal) => {
         // The snapshot's own epoch is advisory; the guard's is
         // authoritative, so a stale answer cannot win a race.
         // The PLANE decides what a query reads from. Without this
@@ -192,6 +210,7 @@ export class CubeController {
             engine: this.#engine,
             guard: this.#guard,
             epoch,
+            signal,
           });
           return {
             snapshot: withEpoch,
@@ -215,8 +234,13 @@ export class CubeController {
         }
 
         const grammar = serialize(withEpoch);
-        const sql = await this.#planner.plan(grammar, withEpoch);
-        const rows = await this.#engine.execute(sql, epoch);
+        const sql = await this.#planner.plan(
+          grammar,
+          withEpoch,
+          undefined,
+          signal,
+        );
+        const rows = await this.#engine.execute(sql, epoch, signal);
         const columns = buildColumnModel(
           rows,
           withEpoch.rows,
@@ -280,6 +304,83 @@ export class CubeController {
   async release(): Promise<void> {
     await this.#snaps.release();
     await this.refresh();
+  }
+
+  // -- undo / redo ----------------------------------------------------
+
+  get canUndo(): boolean {
+    return this.#history.canUndo;
+  }
+
+  get canRedo(): boolean {
+    return this.#history.canRedo;
+  }
+
+  /** Steps available each way. Diagnostics and tests. */
+  get historyDepth(): { readonly past: number; readonly future: number } {
+    return this.#history.depth;
+  }
+
+  /**
+   * Push the state about to be replaced onto the undo stack.
+   *
+   * Called by the mutators rather than by refresh(), and the
+   * distinction is the whole design: refresh re-runs the CURRENT cube
+   * (after a snap, on a retry, when the plane changes) and is not a
+   * step a user would ever want to undo. Recording there would fill
+   * the stack with entries that all undo to the same screen.
+   */
+  #remember(): void {
+    if (!this.#snapshot) return;
+    this.#history.record({ snapshot: this.#snapshot, tree: this.#tree });
+    this.#announceHistory();
+  }
+
+  #announceHistory(): void {
+    this.#options.onHistory?.({
+      canUndo: this.#history.canUndo,
+      canRedo: this.#history.canRedo,
+    });
+  }
+
+  /**
+   * Apply a state from the history WITHOUT recording it as a new step.
+   *
+   * Going through update() here would record the undo itself, so the
+   * next undo would return to where you just came from and the stack
+   * would never advance past two entries -- undo that toggles.
+   */
+  async #applyHistory(state: CubeState): Promise<CubeView | Stale> {
+    this.#snapshot = state.snapshot;
+    this.#tree = state.tree;
+    this.#announceHistory();
+    return this.refresh();
+  }
+
+  async undo(): Promise<CubeView | Stale | null> {
+    if (!this.#snapshot) return null;
+    const previous = this.#history.undo({
+      snapshot: this.#snapshot,
+      tree: this.#tree,
+    });
+    if (!previous) return null;
+    return this.#applyHistory(previous);
+  }
+
+  async redo(): Promise<CubeView | Stale | null> {
+    if (!this.#snapshot) return null;
+    const next = this.#history.redo({
+      snapshot: this.#snapshot,
+      tree: this.#tree,
+    });
+    if (!next) return null;
+    return this.#applyHistory(next);
+  }
+
+  /** Drop the history, e.g. when a wholly different cube is opened. */
+  clearHistory(): void {
+    this.#history.clear();
+    this.#announceHistory();
   }
 
   #fail(error: unknown): Stale {

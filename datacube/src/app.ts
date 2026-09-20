@@ -1031,9 +1031,30 @@ export class CubeApp {
     bar.append(burger);
 
     this.#doc.addEventListener('keydown', (event) => {
-      if ((event.ctrlKey || event.metaKey) && event.key === 'e') {
+      if (!(event.ctrlKey || event.metaKey)) return;
+      const key = event.key.toLowerCase();
+
+      if (key === 'e') {
         event.preventDefault();
         this.openEditor();
+        return;
+      }
+
+      // NEVER take undo away from a text field. Inside a filter value
+      // or the editor, Cmd-Z means "undo my typing", and stealing it
+      // to roll back the whole cube would be the single most
+      // destructive misfire in the product.
+      if (isTextEntry(event.target)) return;
+
+      if (key === 'z' && !event.shiftKey) {
+        event.preventDefault();
+        void this.#controller.undo();
+        return;
+      }
+      // Both spellings: Cmd-Shift-Z on macOS, Ctrl-Y on Windows.
+      if ((key === 'z' && event.shiftKey) || key === 'y') {
+        event.preventDefault();
+        void this.#controller.redo();
       }
     });
   }
@@ -1059,6 +1080,28 @@ export class CubeApp {
     }
   }
 
+}
+
+/**
+ * Whether the event landed in something the user types into.
+ *
+ * contenteditable counts: it is a text field that simply is not an
+ * input element, and a check that only looked at tag names would
+ * hand the cube's undo to someone mid-word.
+ */
+function isTextEntry(target: EventTarget | null): boolean {
+  if (!target || typeof (target as Element).closest !== 'function') {
+    return false;
+  }
+  const el = target as HTMLElement;
+  const tag = el.tagName;
+  return (
+    tag === 'INPUT'
+    || tag === 'TEXTAREA'
+    || tag === 'SELECT'
+    || el.isContentEditable === true
+    || el.closest('[contenteditable="true"]') !== null
+  );
 }
 
 function fmt(n: number): string {

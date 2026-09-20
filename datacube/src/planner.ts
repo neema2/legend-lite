@@ -15,6 +15,7 @@
 // with no database touched, because Compiler.plan needs no Connection.
 
 import type { Planner } from './cube.ts';
+import type { LevelScope } from './serialize.ts';
 import type { CubeSnapshot } from './snapshot.ts';
 
 export interface LegendLitePlannerOptions {
@@ -60,7 +61,12 @@ export class LegendLitePlanner implements Planner {
     this.#fetch = options.fetch ?? globalThis.fetch.bind(globalThis);
   }
 
-  async plan(pureGrammar: string, _snapshot: CubeSnapshot): Promise<string> {
+  async plan(
+    pureGrammar: string,
+    _snapshot: CubeSnapshot,
+    _scope?: LevelScope,
+    signal?: AbortSignal,
+  ): Promise<string> {
     const useCache = this.#options.cache !== false;
     if (useCache) {
       const hit = this.#cache.get(pureGrammar);
@@ -77,8 +83,14 @@ export class LegendLitePlanner implements Planner {
           code: `${this.#options.model}\n${pureGrammar}`,
           runtime: this.#options.runtime,
         }),
+        ...(signal ? { signal } : {}),
       });
     } catch (cause) {
+      // An ABORT is not a failure to reach anything -- it is this
+      // client hanging up because the answer stopped mattering. Report
+      // it as what it is, or telemetry reads a responsive grid as a
+      // planner outage.
+      if (signal?.aborted) throw signal.reason ?? cause;
       throw new PlanError(
         `could not reach the planner at ${url}: ${String(cause)}`,
         pureGrammar,

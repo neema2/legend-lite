@@ -21,8 +21,15 @@ export interface QueryEngine {
    * Run SQL and return it columnar. `epoch` is carried through onto the
    * result so a caller can tell which snapshot it answers; the engine
    * itself does no staleness checking -- that is EpochGuard's job.
+   *
+   * `signal` aborts work a newer interaction has replaced. How much an
+   * engine can honour it is its own business and differs sharply: an
+   * HTTP executor stops at once, while DuckDB-WASM cannot interrupt a
+   * query already inside its C++ call and can only decline to start
+   * one. An engine that cannot cancel must still not PRETEND to --
+   * check the signal before starting, and say so in its own doc.
    */
-  execute(sql: string, epoch: number): Promise<ResultTable>;
+  execute(sql: string, epoch: number, signal?: AbortSignal): Promise<ResultTable>;
   close(): Promise<void>;
 }
 

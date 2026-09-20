@@ -118,6 +118,12 @@ export async function fetchTree(
     readonly epoch: number;
     readonly assemble?: AssembleOptions;
     readonly maxRows?: number;
+    /**
+     * Abort for work a newer interaction replaced. Levels are fetched
+     * in SEQUENCE, so a burst that is already obsolete stops at the
+     * next level rather than grinding through the whole tree.
+     */
+    readonly signal?: AbortSignal;
   },
 ): Promise<TreeView> {
   // The snapshot wins, so a saved view keeps its own cap; the deps
@@ -142,8 +148,8 @@ export async function fetchTree(
       // data, which is cheaper than a second counting query.
       const scoped = { ...request, limit: maxRows + 1 };
       const grammar = serialize(snapshot, scoped);
-      const sql = await deps.planner.plan(grammar, snapshot, scoped);
-      const full = await deps.engine.execute(sql, deps.epoch);
+      const sql = await deps.planner.plan(grammar, snapshot, scoped, deps.signal);
+      const full = await deps.engine.execute(sql, deps.epoch, deps.signal);
       const truncated = full.rowCount > maxRows;
       const table = truncated ? takeRows(full, maxRows) : full;
       levels.set(requestKey(request), {

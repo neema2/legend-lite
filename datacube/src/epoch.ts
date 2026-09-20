@@ -2,13 +2,22 @@
 // and a grid that shows the wrong numbers.
 //
 // A user scrolling, sorting or re-pivoting issues queries faster than
-// they complete, so answers arrive out of order. In the browser we
-// cannot cancel the loser: DuckDB-WASM's `connection.query()` runs to
-// completion inside a single C++ call and has no cancellation path at
-// all. `send()`/`cancelSent()` can cancel, but only while a query is
-// still pending and has produced no result. So discarding stale answers
-// is not a fallback for cancellation -- it IS the mechanism, and it has
-// to be airtight.
+// they complete, so answers arrive out of order. Discarding the stale
+// ones has to be airtight, because it is what keeps the numbers right
+// no matter what else fails.
+//
+// CANCELLATION IS A SEPARATE CONCERN, and for a long time this file
+// claimed it was impossible. That was true of the API in use and not
+// of the engine: DuckDB-WASM's `connection.query()` runs to completion
+// inside one C++ call with no interrupt, but `send()` streams batches
+// and `cancelSent()` stops a query that is still pending. The engine
+// now takes that path, so a superseded query is genuinely abandoned
+// rather than merely ignored on arrival.
+//
+// The two remain different jobs and both are needed. Discarding keeps
+// the grid CORRECT -- it must hold even for work nothing can stop, such
+// as an HTTP response already on the wire. Cancelling keeps it FAST, by
+// not spending the machine on answers nobody is waiting for.
 //
 // Two behaviours here are less obvious than they look:
 //
@@ -30,6 +39,26 @@ export function isStale<T>(v: T | Stale): v is Stale {
   return v === STALE;
 }
 
+/**
+ * The abort reason for work a newer interaction replaced.
+ *
+ * A distinct type because the two ways a request can end early read
+ * identically at the catch site otherwise: the planner being
+ * unreachable is worth reporting, and a request we deliberately
+ * cancelled is not. Telemetry that cannot tell them apart reports a
+ * fast, correctly-behaving grid as a stream of network failures.
+ */
+export class Superseded extends Error {
+  constructor(epoch: number) {
+    super(`superseded: epoch ${epoch} was replaced before it finished`);
+    this.name = 'Superseded';
+  }
+}
+
+export function isSuperseded(error: unknown): error is Superseded {
+  return error instanceof Superseded;
+}
+
 export interface EpochGuardOptions {
   /**
    * Called when a superseded task throws. Defaults to swallowing it,
@@ -42,6 +71,7 @@ export interface EpochGuardOptions {
 export class EpochGuard {
   #current = 0;
   #inflight = 0;
+  #controller = new AbortController();
   readonly #onDiscardedError: (error: unknown, epoch: number) => void;
 
   constructor(options: EpochGuardOptions = {}) {
@@ -59,10 +89,34 @@ export class EpochGuard {
   }
 
   /**
+   * The current epoch's cancellation signal.
+   *
+   * Hand this to anything that can stop early. Discarding a stale
+   * ANSWER keeps the grid correct; aborting the stale REQUEST is what
+   * keeps it fast, and the two are not the same thing -- for the whole
+   * life of this class the loser's work ran to completion and its
+   * result was thrown away on arrival.
+   */
+  get signal(): AbortSignal {
+    return this.#controller.signal;
+  }
+
+  /**
    * Supersede everything outstanding and return the new epoch. Call
    * this once per user interaction, before issuing its query.
+   *
+   * This ABORTS the previous epoch as well as superseding it. What can
+   * actually stop varies by executor, and the difference is worth
+   * being honest about: an HTTP planning round trip stops at once and
+   * frees the connection; a streamed DuckDB query is cancelled between
+   * batches; a query already deep inside one long operation stops when
+   * it next yields. In every case the queries BEHIND it -- levels are
+   * fetched in sequence -- never start at all, which during a burst is
+   * most of the saving.
    */
   advance(): number {
+    this.#controller.abort(new Superseded(this.#current));
+    this.#controller = new AbortController();
     this.#current += 1;
     return this.#current;
   }
@@ -105,9 +159,17 @@ export class EpochGuard {
   /**
    * Issue work for a fresh epoch in one step -- the common case, and
    * the one that cannot forget to advance first.
+   *
+   * The signal is passed alongside the epoch so a task cannot pick up
+   * the wrong one: reading `guard.signal` inside a task is a race, as
+   * a later interaction may already have replaced the controller by
+   * the time the line runs.
    */
-  async issue<T>(task: (epoch: number) => Promise<T>): Promise<T | Stale> {
+  async issue<T>(
+    task: (epoch: number, signal: AbortSignal) => Promise<T>,
+  ): Promise<T | Stale> {
     const epoch = this.advance();
-    return this.run(epoch, () => task(epoch));
+    const { signal } = this;
+    return this.run(epoch, () => task(epoch, signal));
   }
 }
