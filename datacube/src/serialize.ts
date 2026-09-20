@@ -35,8 +35,26 @@ import type { RowPath } from './tree.ts';
 /** Identifiers that are not plain alphanumerics need quoting. */
 const PLAIN_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
+/**
+ * Escape the inside of a single-quoted Pure string.
+ *
+ * THE BACKSLASH GOES FIRST, and the order is the whole point. Escaping
+ * quotes alone turns a trailing backslash into an escape for the
+ * CLOSING quote: `C:\` became `'C:\'`, an unterminated literal, and
+ * `back\'` became `'back\''`, where the user's text stops being a
+ * value and starts being grammar. The first is a crash from a path
+ * somebody pasted; the second is injection, and a filter travels
+ * inside a saved view that one person can hand to another.
+ *
+ * Escaping the backslash first makes the quote escape unambiguous,
+ * because by then every backslash in the text is already doubled.
+ */
+function escapePure(s: string): string {
+  return s.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+}
+
 export function ident(name: string): string {
-  return PLAIN_IDENT.test(name) ? name : `'${name.replace(/'/g, "\\'")}'`;
+  return PLAIN_IDENT.test(name) ? name : `'${escapePure(name)}'`;
 }
 
 /** A column reference on the lambda parameter, e.g. `$x.'odd name'`. */
@@ -45,7 +63,7 @@ function colRef(param: string, name: string): string {
 }
 
 export function literal(v: FilterValue): string {
-  if (typeof v === 'string') return `'${v.replace(/'/g, "\\'")}'`;
+  if (typeof v === 'string') return `'${escapePure(v)}'`;
   if (typeof v === 'boolean') return v ? 'true' : 'false';
   if (v instanceof Date) return `%${v.toISOString().slice(0, 10)}`;
   if (Number.isInteger(v)) return String(v);
