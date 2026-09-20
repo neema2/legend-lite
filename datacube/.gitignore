@@ -7,3 +7,4 @@ demo/bundle-server.js
 demo/screenshot.png
 demo/remote-bundle.js
 *.parquet
+demo/planner-worker.js

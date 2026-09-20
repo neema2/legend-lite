@@ -24,18 +24,31 @@ import { boot, loadModel, RUNTIME, SNAP_TARGET, SOURCE } from './boot.ts';
 import type { Engine } from './boot.ts';
 import { WasmPlanner } from '../src/wasm-planner.ts';
 
-async function inBrowserPlanner(status: HTMLElement): Promise<Engine> {
+async function inBrowserPlanner(_status: HTMLElement): Promise<Engine> {
   const model = await loadModel();
-  const planner = new WasmPlanner({ model, runtime: RUNTIME });
+  const planner = new WasmPlanner({
+    model,
+    runtime: RUNTIME,
+    // Off the main thread: building the boot layer is ~600ms of
+    // synchronous WebAssembly, which on the main thread froze the
+    // page and starved DuckDB's startup.
+    workerUrl: new URL('./planner-worker.js', import.meta.url).href,
+  });
 
-  // Pay the cold cost against an empty grid rather than on the user's
-  // first interaction: the first plan is ~550ms (class initialisation
-  // plus parsing the Pure prelude) against ~10ms warm.
-  status.textContent = 'planner: legend-lite (wasm, loading)';
+  // Pay the cold cost here rather than on the user's first
+  // interaction. It is ~1.3s, almost all of it boot-layer
+  // construction -- parsing the 300 KB Pure prelude, the system
+  // metamodel, then resolving and normalizing both -- against ~10ms
+  // warm. `boot` starts this concurrently with DuckDB, so most of it
+  // lands inside a wait the page was making anyway.
   await planner.warmUp();
-  status.textContent = 'planner: legend-lite (wasm, no server)';
 
-  return { planner, source: SOURCE, snapTarget: SNAP_TARGET };
+  return {
+    planner,
+    source: SOURCE,
+    snapTarget: SNAP_TARGET,
+    label: 'planner: legend-lite (wasm, no server)',
+  };
 }
 
 void boot(inBrowserPlanner).catch((e) => {

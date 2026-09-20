@@ -29,6 +29,16 @@ export interface Engine {
   readonly planner: Planner;
   readonly source: string;
   readonly snapTarget: { readonly table: string; readonly expression: string };
+  /**
+   * What the status line should say about this planner.
+   *
+   * Returned rather than written, because `boot` starts the planner
+   * CONCURRENTLY with DuckDB: two writers racing on one status line
+   * produce flicker and, worse, a final message that depends on
+   * which finished last. `boot` owns the line and writes this when
+   * both are ready.
+   */
+  readonly label: string;
 }
 
 /**
@@ -63,6 +73,23 @@ const DESKS = ['Rates', 'Credit', 'FX', 'Equity', 'Commodities'];
 
 export async function boot(makePlanner: MakePlanner): Promise<void> {
   const status = must('status');
+
+  // Start the planner NOW, and await it further down where it is
+  // first needed.
+  //
+  // It needs nothing from DuckDB and DuckDB needs nothing from it,
+  // but boot used to run them in series, so ~1.3s of boot-layer
+  // construction (prelude parse, system metamodel, resolve and
+  // normalize) waited for a 36 MB WASM instantiate that had already
+  // finished nothing useful for it. Overlapped, the slower of the
+  // two sets the floor instead of their sum.
+  performance.mark('dc:boot-start');
+  const engineReady = makePlanner(status);
+  void engineReady.then(() => performance.mark('dc:planner-ready'));
+  // Await happens below; this only stops an early rejection being
+  // reported as unhandled in the window before that.
+  engineReady.catch(() => {});
+
   status.textContent = 'starting DuckDB…';
 
   // Bundles are served from OUR origin, copied out of node_modules by
@@ -92,6 +119,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
   const conn = await db.connect();
   const engine = new DuckDbEngine(conn as unknown as ArrowishConnection);
+  performance.mark('dc:duckdb-ready');
 
   // A REMOTE SOURCE, when one is named.
   //
@@ -144,7 +172,10 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
 
   // -- the cube ------------------------------------------------------
 
-  const { planner, source, snapTarget } = await makePlanner(status);
+  performance.mark('dc:data-ready');
+  status.textContent = 'starting planner…';
+  const { planner, source, snapTarget, label } = await engineReady;
+  status.textContent = label;
 
   const snapshot: CubeSnapshot = {
     source: { expression: source },

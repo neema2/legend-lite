@@ -10,6 +10,12 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
+<!-- Start the planner's 4.2 MB module downloading with the HTML
+     parse. Without this the fetch does not begin until bundle.js has
+     been fetched, parsed and executed, so the download sits behind
+     work it does not depend on. -->
+<link rel="preload" as="fetch" type="application/wasm"
+      href="./vendor/classes.wasm" crossorigin>
 <link rel="stylesheet" href="../src/theme.css">
 <link rel="stylesheet" href="../src/grid/grid.css">
 <link rel="stylesheet" href="../src/app.css">

@@ -37,7 +37,7 @@ import { LegendLitePlanner } from '../src/planner.ts';
  * throws and the page says so; it does not quietly show fake numbers
  * that look exactly like real ones.
  */
-export async function requireEngine(status: HTMLElement): Promise<Engine> {
+export async function requireEngine(_status: HTMLElement): Promise<Engine> {
   // The model is fetched rather than inlined so the SAME text is what
   // the planner compiles and what a reader opens -- one copy, in
   // demo/trades.pure.
@@ -62,7 +62,6 @@ export async function requireEngine(status: HTMLElement): Promise<Engine> {
     );
   }
 
-  status.textContent = 'planner: legend-lite (server)';
   return {
     planner: new LegendLitePlanner({
       baseUrl: LEGEND_LITE,
@@ -71,6 +70,7 @@ export async function requireEngine(status: HTMLElement): Promise<Engine> {
     }),
     source: SOURCE,
     snapTarget: SNAP_TARGET,
+    label: 'planner: legend-lite (server)',
   };
 }
 

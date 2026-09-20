@@ -31,6 +31,7 @@ const SNAPSHOT = {
 function fakeRuntime(
   answer: (model: string, query: string, runtime: string) => string,
   onLoad?: () => void,
+  onWarm?: (model: string) => void,
 ) {
   return async () => ({
     async load() {
@@ -38,6 +39,7 @@ function fakeRuntime(
       return {
         exports: {
           planOrError: (m: string, q: string, r: string) => answer(m, q, r),
+          warmModel: (m: string) => { onWarm?.(m); return 1; },
         },
       };
     },
@@ -46,13 +48,17 @@ function fakeRuntime(
 
 function planner(
   answer: (model: string, query: string, runtime: string) => string,
-  extra: { cache?: boolean; onLoad?: () => void } = {},
+  extra: {
+    cache?: boolean;
+    onLoad?: () => void;
+    onWarm?: (model: string) => void;
+  } = {},
 ) {
   return new WasmPlanner({
     model: '###Relational\nDatabase trades::DB ( Table T ( a VARCHAR(1) ) )',
     runtime: 'trades::RT',
     ...(extra.cache === undefined ? {} : { cache: extra.cache }),
-    loadRuntime: fakeRuntime(answer, extra.onLoad),
+    loadRuntime: fakeRuntime(answer, extra.onLoad, extra.onWarm),
   });
 }
 
@@ -177,6 +183,22 @@ describe('WasmPlanner', () => {
     assert.equal(loads, 1, 'warmUp must satisfy the later load');
   });
 
+  it('warmUp BUILDS THE BOOT LAYER, not just the module', async () => {
+    // The first version only loaded the module, and browser timings
+    // showed why that is useless: instantiate is ~45ms and the ~1.1s
+    // that makes a first plan slow is boot-layer construction, which
+    // stayed on the critical path. warmUp must force that work, with
+    // the real model, or it warms nothing.
+    const warmed: string[] = [];
+    const p = planner(() => 'OK\nSELECT 1',
+      { onWarm: (m) => { warmed.push(m); } });
+    await p.warmUp();
+    assert.equal(warmed.length, 1, 'warmUp must call warmModel');
+    assert.match(warmed[0]!, /Database trades::DB/,
+      'warmModel must get the REAL model, so the graph it builds is'
+      + ' the one the first plan wants');
+  });
+
   it('honours an abort raised before the call', async () => {
     const ctl = new AbortController();
     const reason = new Error('superseded');
@@ -236,7 +258,12 @@ describe('WasmPlanner', () => {
         if (attempt === 1) throw new Error('network blip');
         return {
           async load() {
-            return { exports: { planOrError: () => 'OK\nSELECT 1' } };
+            return {
+              exports: {
+                planOrError: () => 'OK\nSELECT 1',
+                warmModel: () => 1,
+              },
+            };
           },
         };
       },

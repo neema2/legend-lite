@@ -113,6 +113,54 @@ public final class Wasm {
     }
 
     /**
+     * Force {@code Prelude}'s static initialiser and nothing else.
+     *
+     * <p>Cold start is ~550ms against ~10ms warm, and "the first plan
+     * is slow" is not an actionable statement. Parsing
+     * {@code prelude.pure} — 300 KB, 7,009 lines — happens in a
+     * static initialiser, so timing a call that touches ONLY that
+     * class separates it from the rest of the first plan. Whether
+     * pre-baking the boot layer is worth building depends entirely on
+     * which side of that split the milliseconds are on.
+     *
+     * @return the element count, so the call cannot be optimised away
+     */
+    @org.teavm.jso.JSExport
+    public static int touchPrelude() {
+        return com.legend.builtin.Prelude.elementFqns().size();
+    }
+
+    /** {@link #touchPrelude}'s twin for the system metamodel. */
+    @org.teavm.jso.JSExport
+    public static int touchSystemMetamodel() {
+        return com.legend.builtin.SystemMetamodel.elements().size();
+    }
+
+    /**
+     * Build everything a first plan would build, and throw it away.
+     *
+     * <p>Not a probe — the browser calls this. Loading the module is
+     * NOT warming it: instantiate costs ~44ms, while the work that
+     * actually makes a first plan slow happens in static initialisers
+     * and a content-addressed cache that a plan touches on its way
+     * past. Measured from the page, that is parsing the 300 KB Pure
+     * prelude, the system metamodel, then resolving and normalizing
+     * both into the boot layer — together ~1.1s of the ~1.3s.
+     *
+     * <p>`WasmPlanner.warmUp` calls this while DuckDB is still
+     * starting, so the cost lands inside a wait the page was making
+     * anyway instead of after it. {@code compileModel} is the public
+     * door to all of it, and takes the real model so the graph it
+     * builds is the one the first plan wants.
+     *
+     * @return 1, so the call cannot be optimised away
+     */
+    @org.teavm.jso.JSExport
+    public static int warmModel(String model) {
+        return com.legend.Compiler.compileModel(model) == null ? 0 : 1;
+    }
+
+    /**
      * The one {@code ZoneId.of} on the planner's path
      * ({@code LiteralSpelling.inZone}, the engine's dbTimeZone literal
      * rule). A timezone database is a RESOURCE, not code, so whether it

@@ -205,6 +205,22 @@ describe('there is exactly one planner, and no way to fall back to another', () 
     );
   });
 
+  it('runs the in-browser planner OFF the main thread', () => {
+    // Measured, not theoretical. Building the boot layer is ~600ms of
+    // synchronous WebAssembly with no yield point. On the main thread
+    // it froze the page AND starved DuckDB: its startup slipped from
+    // 409ms to 1038ms, and time-to-first-row got WORSE (1009 -> 1175)
+    // when the planner was started earlier to "overlap" it. On a
+    // worker the two genuinely run at once: 828ms.
+    const demo = readFileSync(join('demo', 'main.ts'), 'utf8');
+    assert.ok(
+      /workerUrl\s*:/.test(demo),
+      'demo/main.ts must give WasmPlanner a workerUrl — without it the'
+        + ' boot layer blocks the main thread and startup gets slower,'
+        + ' not faster',
+    );
+  });
+
   it('keeps the shim gone from every entry point', () => {
     for (const f of ['main.ts', 'main-server.ts', 'boot.ts']) {
       assert.equal(
