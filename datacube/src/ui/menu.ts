@@ -72,6 +72,16 @@ export interface MenuContext {
    */
   readonly canGroup?: boolean;
   /**
+   * Whether the host can send mail.
+   *
+   * A browser cannot attach a file to a mailto: link, so emailing an
+   * export is something only the embedding application can do. The
+   * entries are shown DISABLED when it cannot, rather than hidden:
+   * "this build cannot email" is information, and a menu that
+   * silently lacks an action a colleague's build has is confusing.
+   */
+  readonly canEmail?: boolean;
+  /**
    * The value in the cell that was right-clicked, if any.
    *
    * This is what turns the Filter submenu from a door to a dialog
@@ -116,7 +126,14 @@ export type MenuActionId =
   | 'export.csv'
   | 'export.excel'
   | 'export.html'
+  | 'export.text'
+  | 'export.pdf'
   | 'export.specification'
+  | 'email.html'
+  | 'email.excel'
+  | 'email.csv'
+  | 'email.text'
+  | 'email.pdf'
   | 'heatmap.add'
   | 'heatmap.remove'
   | 'view.properties'
@@ -265,8 +282,23 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         { id: 'export.html', label: 'HTML' },
         { id: 'export.excel', label: 'Excel (Grid)' },
         { id: 'export.csv', label: 'CSV (Grid)' },
+        { id: 'export.text', label: 'Plain Text' },
+        { id: 'export.pdf', label: 'PDF' },
         { id: 'export.specification', label: 'DataCube Specification' },
       ],
+    },
+    {
+      label: 'Email',
+      submenu: [
+        { id: 'email.html', label: 'HTML' },
+        { id: 'email.excel', label: 'Excel (Grid)' },
+        { id: 'email.csv', label: 'CSV (Grid)' },
+        { id: 'email.text', label: 'Plain Text' },
+        { id: 'email.pdf', label: 'PDF' },
+      ].map((i) => ({
+        ...i,
+        ...(ctx.canEmail ? {} : { disabled: true }),
+      })) as MenuItem[],
     },
     {
       label: 'Copy',

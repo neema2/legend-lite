@@ -88,10 +88,38 @@ describe('buildMenu', () => {
     const withSub = top.filter((i) => i.submenu);
     assert.deepEqual(
       withSub.map((i) => i.label),
-      ['Export', 'Copy', 'Sort', 'Filter', 'Pivot', 'Resize', 'Pin', 'Heatmap'],
+      ['Export', 'Email', 'Copy', 'Sort', 'Filter', 'Pivot', 'Resize', 'Pin',
+        'Heatmap'],
     );
     // A submenu parent does nothing itself.
     assert.ok(withSub.every((i) => i.id === undefined));
+  });
+
+  it('disables Email when the host cannot send it', () => {
+    // A browser cannot attach a file to a mailto:, so emailing is
+    // the host's to provide. Disabled rather than hidden: "this
+    // build cannot email" is information, and a menu that silently
+    // lacks an entry a colleague's build has is confusing.
+    const email = buildMenu({ snapshot: CUBE, column: 'desk' })
+      .flatMap((g) => g.items)
+      .find((i) => i.label === 'Email');
+    assert.ok(email?.submenu);
+    assert.ok(
+      email.submenu.every((i) => i.disabled === true),
+      'every entry disabled with no host handler',
+    );
+  });
+
+  it('enables Email when the host can send it', () => {
+    const email = buildMenu({ snapshot: CUBE, column: 'desk', canEmail: true })
+      .flatMap((g) => g.items)
+      .find((i) => i.label === 'Email');
+    assert.ok(email?.submenu);
+    assert.ok(email.submenu.every((i) => i.disabled !== true));
+    assert.deepEqual(
+      email.submenu.map((i) => i.id),
+      ['email.html', 'email.excel', 'email.csv', 'email.text', 'email.pdf'],
+    );
   });
 
   it('offers the clicked VALUE as a one-click filter', () => {

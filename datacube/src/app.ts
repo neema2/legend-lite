@@ -36,6 +36,7 @@ import { drillQuery } from './drill.ts';
 import type { QueryEngine } from './engine.ts';
 import { toCsv } from './export.ts';
 import { toHtml, toSpreadsheetML } from './export-rich.ts';
+import { toPdf, toPlainText } from './export-doc.ts';
 import { FormatterCache, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
 import {
@@ -92,6 +93,23 @@ export interface CubeAppOptions {
    * because a test must not depend on a browser writing to disk.
    */
   readonly download?: (name: string, mime: string, text: string) => void;
+  /**
+   * Hand a message with an attachment to the host's mail client.
+   *
+   * A host concern, and unavoidably so: a browser cannot attach a
+   * file to a mailto: link, so there is no in-page implementation to
+   * fall back to. Absent means the Email entries are DISABLED rather
+   * than missing -- the capability is legible either way.
+   */
+  readonly email?: (message: {
+    readonly subject: string;
+    readonly body: string;
+    readonly attachment: {
+      readonly name: string;
+      readonly mime: string;
+      readonly content: string;
+    };
+  }) => void | Promise<void>;
   /** Show the column drag zone. Off matches DataCube exactly. */
   readonly showColumnZone?: boolean;
   /**
@@ -600,6 +618,7 @@ export class CubeApp {
         hasHeatmap:
           column !== undefined && this.#heatmapFor(column) !== undefined,
         canGroup: column === undefined || this.#isDimension(column),
+        canEmail: this.#options.email !== undefined,
         ...(value !== undefined ? { value } : {}),
         ...(columnType !== undefined ? { columnType } : {}),
       });
@@ -665,8 +684,29 @@ export class CubeApp {
       case 'export.excel':
         this.#export('excel');
         return;
+      case 'export.text':
+        this.#export('text');
+        return;
+      case 'export.pdf':
+        this.#export('pdf');
+        return;
       case 'export.specification':
         this.#export('specification');
+        return;
+      case 'email.html':
+        this.#email('html');
+        return;
+      case 'email.excel':
+        this.#email('excel');
+        return;
+      case 'email.csv':
+        this.#email('csv');
+        return;
+      case 'email.text':
+        this.#email('text');
+        return;
+      case 'email.pdf':
+        this.#email('pdf');
         return;
       case 'filter.column':
         this.openFilters();
@@ -814,7 +854,103 @@ export class CubeApp {
 
   // -- export -----------------------------------------------------------
 
-  #export(kind: 'csv' | 'excel' | 'html' | 'specification'): void {
+  /**
+   * Header text per column, where the user renamed one.
+   *
+   * The document exports are READ by people, so they must say what
+   * the screen says -- an export whose headings are the raw generated
+   * names is a different document from the one on screen.
+   */
+  #labels(): Record<string, string> {
+    const out: Record<string, string> = {};
+    for (const c of this.#view?.rows.columns ?? []) {
+      const label = labelFor(this.#config, c.name);
+      if (label !== c.name) out[c.name] = label;
+    }
+    return out;
+  }
+
+  /** One rendering, shared by download and email. */
+  #render(kind: 'csv' | 'excel' | 'html' | 'text' | 'pdf'): {
+    name: string;
+    mime: string;
+    content: string;
+  } | null {
+    const view = this.#view;
+    if (!view) return null;
+    const title = this.#config.reportTitle ?? 'cube';
+    const doc = {
+      title,
+      formatters: this.#formatters,
+      formats: this.#formats,
+      labels: this.#labels(),
+    };
+    switch (kind) {
+      case 'csv':
+        return {
+          name: `${title}.csv`,
+          mime: 'text/csv',
+          content: toCsv(view.rows),
+        };
+      case 'excel':
+        return {
+          name: `${title}.xls`,
+          mime: 'application/vnd.ms-excel',
+          content: toSpreadsheetML(view.rows, { title }),
+        };
+      case 'html':
+        return {
+          name: `${title}.html`,
+          mime: 'text/html',
+          content: toHtml(view.rows, { title }),
+        };
+      case 'text':
+        return {
+          name: `${title}.txt`,
+          mime: 'text/plain',
+          content: toPlainText(view.rows, doc),
+        };
+      case 'pdf':
+        return {
+          name: `${title}.pdf`,
+          mime: 'application/pdf',
+          content: toPdf(view.rows, doc),
+        };
+    }
+  }
+
+  /**
+   * Email the current view as an attachment.
+   *
+   * Refuses out loud when the host cannot send mail, rather than
+   * doing nothing -- the menu already disables the entry, and this
+   * is the second line of defence for a keyboard or scripted path
+   * that skips the menu.
+   */
+  async #email(kind: 'csv' | 'excel' | 'html' | 'text' | 'pdf'): Promise<void> {
+    const send = this.#options.email;
+    if (!send) {
+      this.#status('this build cannot send email', 'warn');
+      return;
+    }
+    const rendered = this.#render(kind);
+    if (!rendered) return;
+    const title = this.#config.reportTitle ?? 'cube';
+    try {
+      await send({
+        subject: title,
+        body: `${title} — ${this.#view?.rows.rowCount ?? 0} rows`,
+        attachment: rendered,
+      });
+      this.#status(`emailed ${rendered.name}`, 'ok');
+    } catch (e) {
+      this.#status(e instanceof Error ? e.message : String(e), 'error');
+    }
+  }
+
+  #export(
+    kind: 'csv' | 'excel' | 'html' | 'text' | 'pdf' | 'specification',
+  ): void {
     const view = this.#view;
     if (!view) return;
     const title = this.#config.reportTitle ?? 'cube';
@@ -839,6 +975,34 @@ export class CubeApp {
         return;
       case 'html':
         download(`${title}.html`, 'text/html', toHtml(view.rows, { title }));
+        return;
+      case 'text':
+        // Formatted, not raw: plain text exists to be READ -- pasted
+        // into a message or a ticket -- so it should say what the
+        // screen says. CSV is the one that stays raw so it can be
+        // computed on again.
+        download(
+          `${title}.txt`,
+          'text/plain',
+          toPlainText(view.rows, {
+            title,
+            formatters: this.#formatters,
+            formats: this.#formats,
+            labels: this.#labels(),
+          }),
+        );
+        return;
+      case 'pdf':
+        download(
+          `${title}.pdf`,
+          'application/pdf',
+          toPdf(view.rows, {
+            title,
+            formatters: this.#formatters,
+            formats: this.#formats,
+            labels: this.#labels(),
+          }),
+        );
         return;
       case 'specification':
         download(
