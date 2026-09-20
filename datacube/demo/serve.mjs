@@ -32,6 +32,19 @@ const flag = (name) => {
 const dataPath = flag('data') ? resolve(flag('data')) : undefined;
 const wantOpen = args.includes('--open');
 const port = Number(flag('port') ?? 8000);
+// LOOPBACK BY DEFAULT.
+//
+// `listen(port)` with no host binds every interface, which put this
+// on the Wi-Fi: anyone on the network could browse the served
+// directory, and with --data could read the file it points at,
+// through a process running as whoever started it. That is a lot to
+// hand out for a convenience server.
+//
+// Loopback still serves every LOGIN ACCOUNT on this machine --
+// 127.0.0.1 belongs to the kernel, not to a session, so another
+// user's browser reaches it fine. Only other machines are excluded,
+// and `--host 0.0.0.0` says so out loud when that is the intent.
+const host = flag('host') || '127.0.0.1';
 
 // ---- build what is missing -----------------------------------------
 function run(label, script) {
@@ -126,7 +139,7 @@ const server = createServer(async (req, res) => {
   }
 });
 
-server.listen(port, () => {
+server.listen(port, host, () => {
   const base = `http://localhost:${port}`;
   let url = `${base}/demo/index.html`;
   if (DATA_ROUTE) {
@@ -139,6 +152,14 @@ server.listen(port, () => {
     console.log('(point it at your own with: npm start -- --data FILE)\n');
   }
   console.log(`  ${url}\n`);
+  if (host === '127.0.0.1' || host === 'localhost') {
+    console.log('  (loopback only: every account on this Mac can reach it,'
+      + ' other machines cannot.\n   --host 0.0.0.0 to expose it on the'
+      + ' network.)\n');
+  } else {
+    console.log(`  EXPOSED on ${host}: any machine that can route here can`
+      + ' read what is served.\n');
+  }
   if (wantOpen) {
     const opener = process.platform === 'darwin' ? 'open'
       : process.platform === 'win32' ? 'start' : 'xdg-open';
