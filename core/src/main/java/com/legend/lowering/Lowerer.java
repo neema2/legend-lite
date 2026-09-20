@@ -128,8 +128,7 @@ public final class Lowerer {
      * when no model rides along (unit tests over pure-relational queries);
      * class values then keep hitting the loud walls.
      */
-    private final Function<Type,
-            Optional<List<Type.Column>>> classLayout;
+    private final Function<Type, Optional<List<Type.Column>>> classLayout;
 
     /** Whether a class FQN exists in the driving model (layoutless-LUB detection). */
     private final Predicate<String> classExists;

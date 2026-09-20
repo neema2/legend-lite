@@ -526,12 +526,11 @@ public final class InferenceKernel {
      * quoted store declaration) and its stripped text are the SAME
      * column; the quotes are rendering metadata. */
     static boolean sameColumn(String a, String b) {
-        return stripColQ(a).equals(stripColQ(b));
-    }
-
-    private static String stripColQ(String n) {
-        return n.length() > 1 && n.startsWith("\"") && n.endsWith("\"")
-                ? n.substring(1, n.length() - 1) : n;
+        // One owner of this rule: com.legend.values.ColumnNames. This
+        // used to strip quotes here while Fold compared with equals,
+        // and the two drifting is exactly what broke sort and groupBy
+        // on any column whose name needs quoting.
+        return com.legend.values.ColumnNames.same(a, b);
     }
 
     /** The distinguished unknown column type of a not-yet-solved colspec value ({@code ~col}). */

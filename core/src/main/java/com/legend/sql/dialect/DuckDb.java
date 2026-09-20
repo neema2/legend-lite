@@ -159,9 +159,21 @@ public final class DuckDb extends AnsiSqlRenderer {
         // ON columns quote UNCONDITIONALLY (the corpus pins "year" — the
         // usual pivot keys are date-part words DuckDB half-reserves).
         // args arrive pre-unqualified (the UnqualifyPivotArgs pass)
+        // Still unconditional — but a name may already ARRIVE quoted (a
+        // relational identifier keeps its quotes as the wire name), and
+        // wrapping that again gave `ON ""製品""`, a zero-length
+        // delimited identifier DuckDB rejects. An already-quoted name
+        // goes through ident(), which passes a clean one straight back
+        // and re-spells a backslash-escaped one; everything else keeps
+        // the unconditional wrap the corpus pins.
         sb.append(" ON ").append(p.on().stream()
                 .map(e -> e instanceof SqlExpr.Column c
-                        ? quoteChar() + c.name() + quoteChar()
+                        ? (c.name().length() > 1
+                                && c.name().charAt(0) == quoteChar()
+                                && c.name().charAt(c.name().length() - 1)
+                                        == quoteChar()
+                                ? ident(c.name())
+                                : quoteChar() + c.name() + quoteChar())
                         : expr(e, 0))
                 .collect(Collectors.joining(", ")));
         if (!p.in().isEmpty()) {

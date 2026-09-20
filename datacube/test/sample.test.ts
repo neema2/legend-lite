@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { csvCell, SAMPLE_COLUMNS, sampleCsv } from '../src/sample.ts';
+import { csvCell, SAMPLE_COLUMNS, sampleCsv } from '../src/samples.ts';
 import { inferModel } from '../src/infer.ts';
 
 describe('csvCell', () => {

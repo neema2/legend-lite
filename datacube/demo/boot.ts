@@ -19,7 +19,7 @@ import { CubeController, type Planner } from '../src/cube.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { mountRemote } from '../src/remote.ts';
 import { ingestFile } from '../src/upload.ts';
-import { sampleCsv } from '../src/sample.ts';
+import { SAMPLES, sampleById } from '../src/samples.ts';
 import type { ColumnFormat } from '../src/format.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 
@@ -314,22 +314,53 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     const input = must('uploadfile') as HTMLInputElement;
     bar.hidden = false;
 
-    // Something to open. The sample's columns are deliberately not
-    // the demo's: it carries a date, a boolean, a key-like integer
-    // and a book name with a comma and a quote in it, so opening it
-    // exercises the schema inference rather than just proving a file
-    // can be read.
-    must('samplecsv').addEventListener('click', () => {
-      const text = sampleCsv({ rows: 5000 });
-      const url = URL.createObjectURL(
-        new Blob([text], { type: 'text/csv' }));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'sample-trades.csv';
-      a.click();
-      URL.revokeObjectURL(url);
+    // Something to open, and a choice of awkwardness.
+    //
+    // These are the same generators `npm run stress` runs every cube
+    // operation against, so an option that stopped working fails the
+    // suite rather than disappointing whoever picked it. Each one is
+    // hard in a different way: a quote inside a header, 60 columns,
+    // 250 pivot values, hostile values, numbers at the int64 edges.
+    const pick = must('samplepick') as HTMLSelectElement;
+    const rowsInput = must('samplerows') as HTMLInputElement;
+    for (const s of SAMPLES) {
+      const opt = document.createElement('option');
+      opt.value = s.id;
+      opt.textContent = s.label;
+      opt.title = s.about;
+      pick.append(opt);
+    }
+    const showPick = () => {
+      const s = sampleById(pick.value);
+      if (!s) return;
+      rowsInput.value = String(s.defaultRows);
       note.classList.remove('bad');
-      note.textContent = 'sample-trades.csv saved — now open it above';
+      note.textContent = s.about;
+    };
+    pick.addEventListener('change', showPick);
+    showPick();
+
+    must('samplecsv').addEventListener('click', () => {
+      const s = sampleById(pick.value);
+      if (!s) return;
+      const rows = Math.max(1, Math.min(2_000_000,
+        Number(rowsInput.value) || s.defaultRows));
+      const name = `sample-${s.id}.csv`;
+      // Generating 200k rows is a second of synchronous string
+      // building; say so before starting rather than looking hung.
+      note.classList.remove('bad');
+      note.textContent = `building ${name}…`;
+      setTimeout(() => {
+        const url = URL.createObjectURL(
+          new Blob([s.build(rows)], { type: 'text/csv' }));
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = name;
+        a.click();
+        URL.revokeObjectURL(url);
+        note.textContent = `${name} saved (${rows.toLocaleString()} rows)`
+          + ' — now open it above';
+      }, 0);
     });
 
     input.addEventListener('change', () => {

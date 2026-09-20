@@ -652,6 +652,16 @@ final class Fold {
                 return c;
             }
         }
+        // Same quoted-wire-name miss {@link #denotes} exists for: a
+        // groupBy key on `"total pnl"` resolved its column and then
+        // failed HERE instead, because the contract list carries the
+        // quoted spelling and the key does not. Exact still wins, so
+        // this only runs when nothing matched outright.
+        for (com.legend.sql.OutputCol c : outs) {
+            if (denotes(c.name(), name)) {
+                return c;
+            }
+        }
         throw new IllegalStateException("declared output '" + name
                 + "' missing from the contract list "
                 + outs.stream().map(com.legend.sql.OutputCol::name).toList());
@@ -1060,8 +1070,28 @@ final class Fold {
                     "source has no stamped output schema — cannot resolve column '"
                             + column + "' (stamp outputs at construction)");
         }
-        return outputs.stream().anyMatch(c -> c.name().equals(column));
+        return outputs.stream().anyMatch(c -> denotes(c.name(), column));
     }
+
+    /**
+     * Whether a stamped output name denotes {@code column}.
+     *
+     * <p>Delegates to {@link com.legend.values.ColumnNames}, the one
+     * owner of the rule. {@code InferenceKernel.sameColumn} already
+     * normalized quoted names, which is why {@code select} and
+     * {@code filter} always worked; this layer compared with
+     * {@code equals}, so a SORT KEY or GROUPBY KEY on the same
+     * column failed to resolve. Two copies of the rule is what let
+     * them disagree.
+     *
+     * <p>An EXACT match still wins at the call sites, so a column
+     * genuinely carrying quotes in its name is never shadowed by a
+     * bare one — the same precedence the pivot-identity retry keeps.
+     */
+    private static boolean denotes(String outputName, String column) {
+        return com.legend.values.ColumnNames.same(outputName, column);
+    }
+
 
     /** The claimed column as a STAMPED reference, or null (name not
      * claimed). Routes through {@link #claims} — ONE owner of the
@@ -1072,8 +1102,13 @@ final class Fold {
             return null;
         }
         String want = column;
+        // Exact first, so a column whose name really does carry quotes
+        // is never shadowed by the bare spelling of another.
         return outputs.stream().filter(c -> c.name().equals(want))
-                .findFirst().map(oc -> SqlExpr.Column.of(alias, oc))
+                .findFirst()
+                .or(() -> outputs.stream()
+                        .filter(c -> denotes(c.name(), want)).findFirst())
+                .map(oc -> SqlExpr.Column.of(alias, oc))
                 .orElse(null);
     }
 

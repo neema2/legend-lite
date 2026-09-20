@@ -283,8 +283,17 @@ export async function runStress(): Promise<Outcome[]> {
 }
 
 declare global {
-  interface Window { __stress?: Outcome[]; __stressDone?: boolean }
+  interface Window {
+    __stress?: Outcome[];
+    __stressDone?: boolean;
+    /** The names the PICKER offers, so the runner can hold them to a
+     *  higher bar than the known-broken shapes beside them. */
+    __stressOffered?: string[];
+  }
 }
+
+window.__stressOffered = CORPUS.filter((c) => !c.knownBroken)
+  .map((c) => c.name);
 
 void runStress().then((r) => {
   window.__stress = r;

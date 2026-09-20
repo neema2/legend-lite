@@ -85,44 +85,20 @@ export function pureTypeOf(sqlType: string): string {
 /**
  * Quote an identifier for a Pure Database declaration.
  *
- * A CSV header is arbitrary text -- spaces, punctuation, a comma, a
- * SQL keyword, a leading digit -- and it arrives from outside.
- * Anything that is not a plain identifier is quoted, which the
- * grammar handles: `"total pnl"`, `"select"` and `"x,y"` all lower
- * correctly.
- *
- * There is no escaping here, because the grammar has none: a quoted
- * identifier keeps its quotes as the wire name and the lexer ends
- * the token at the first `"`. A name containing a quote is therefore
- * inexpressible, and is RENAMED before it reaches this function --
- * see {@link expressibleName}.
+ * A CSV header is arbitrary text -- spaces, a comma, a SQL keyword,
+ * a leading digit, a quote character -- and it arrives from outside.
+ * Anything that is not a plain identifier is quoted and escaped so
+ * that the header stays a NAME and cannot become grammar.
  */
 export function quoteIdent(name: string): string {
-  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name)
-    ? name
-    : `"${name}"`;
-}
-
-/**
- * A header the Database grammar can express, or a renamed one.
- *
- * A relational identifier may be quoted, and a quoted one KEEPS its
- * quotes as the wire name -- the parser does no unescaping at all,
- * and the lexer ends the token at the first `"`. So a column called
- * `a"b` has NO spelling: `"a""b"` lexes as `"a"` then `"b"`, and the
- * model fails to parse at the type that follows. Measured: one such
- * header made every one of 51 operations on that file refuse,
- * because the whole Database declaration was broken, not just the
- * column.
- *
- * Renaming is the honest repair. `ingestFile` projects the column
- * under this name when it builds the table, so the table and the
- * model still agree, and the caller is told what was renamed rather
- * than left to notice.
- */
-export function expressibleName(name: string): string {
-  const cleaned = name.replace(/"/g, "'");
-  return cleaned.trim() === '' ? 'column' : cleaned;
+  if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(name)) return name;
+  // BACKSLASH, not a doubled quote. The lexer's escape inside a
+  // quoted identifier is the backslash, and it terminates the token
+  // at the first unescaped `"` -- so `"a""b"` lexes as `"a"` then
+  // `"b"` and breaks the whole Database declaration. Escape the
+  // backslash first, or a name ending in one would escape the
+  // closing quote.
+  return `"${name.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`;
 }
 
 /**

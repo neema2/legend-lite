@@ -10,7 +10,7 @@
 import { writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-import { sampleCsv, SAMPLE_COLUMNS } from '../src/sample.ts';
+import { sampleCsv, SAMPLE_COLUMNS } from '../src/samples.ts';
 
 const args = process.argv.slice(2);
 const flag = (name, fallback) => {

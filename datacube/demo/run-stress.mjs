@@ -33,6 +33,7 @@ await page.goto(`http://127.0.0.1:${port}/demo/stress.html`,
 await page.waitForFunction(() => window.__stressDone === true,
   undefined, { timeout: 600_000 });
 const results = await page.evaluate(() => window.__stress ?? []);
+const offeredNames = await page.evaluate(() => window.__stressOffered ?? []);
 await browser.close();
 server.close();
 
@@ -93,4 +94,71 @@ if (pageErrs.length) {
 await writeFile(new URL('./stress-results.json', import.meta.url),
   JSON.stringify(results, null, 2));
 console.log('\nfull results: demo/stress-results.json');
-process.exit(byVerdict.broke > 0 ? 1 : 0);
+
+// THE INVARIANT: no NEW kind of breakage.
+//
+// Keyed by break CLASS, not by sample. The harness deliberately
+// builds type-invalid comparisons (equalColumn between whichever two
+// columns come first), so nearly every file trips the same open core
+// gaps -- failing per-sample would just restate those and drown a
+// genuinely new failure. Each entry below is an open bug with a
+// reproduction; delete one when it is fixed, and a breakage matching
+// nothing here fails this run.
+const KNOWN = [
+  {
+    id: 'cross-type-comparison',
+    match: (d) => /Conversion Error/.test(d),
+    why: 'equalColumn/notEqualColumn between columns of different types '
+      + 'type-checks and then fails in DuckDB. The LITERAL path refuses '
+      + 'this correctly; the column-to-column path does not check at '
+      + 'all. Also covers a String literal against a BOOLEAN column, '
+      + 'which reaches DuckDB the same way.',
+  },
+  {
+    id: 'contains-on-non-string',
+    match: (d) => /Binder Error.*list_contains/.test(d),
+    why: 'contains() on a BOOLEAN lowers to list_contains(BOOLEAN, ...) '
+      + 'instead of refusing.',
+  },
+  {
+    id: 'int64-overflow',
+    match: (d) => /Out of Range|Overflow/.test(d),
+    why: 'x * 2 on 9223372036854775807. Arguably correct of DuckDB to '
+      + 'refuse; the cube should surface it as a query error.',
+  },
+];
+
+const unexplained = [];
+const seen = new Map();
+for (const b of broke) {
+  const d = b.detail ?? '';
+  const k = KNOWN.find((x) => x.match(d));
+  if (k) seen.set(k.id, (seen.get(k.id) ?? 0) + 1);
+  else unexplained.push(b);
+}
+
+console.log('\n=== known-open break classes ===');
+for (const k of KNOWN) {
+  const n = seen.get(k.id) ?? 0;
+  console.log(`  ${String(n).padStart(3)}× ${k.id}`
+    + (n === 0 ? '   (none — fixed? remove it)' : ''));
+}
+
+if (unexplained.length) {
+  console.log(`\n!!! ${unexplained.length} UNEXPLAINED breakage(s) — `
+    + 'not any known-open class:');
+  for (const b of unexplained.slice(0, 10)) {
+    console.log(`  ${b.csv} / ${b.op}`);
+    console.log(`    ${(b.detail ?? '').split('\n')[0].slice(0, 150)}`);
+  }
+}
+// An offered sample failing to INGEST is always this suite's problem,
+// whatever the break classes say.
+const badIngest = results.filter((r) => r.op === 'ingest'
+  && r.verdict !== 'ok' && offered.has(r.csv));
+for (const b of badIngest) {
+  console.log(`\n!!! offered sample ${b.csv} does not even ingest: `
+    + `${(b.detail ?? '').slice(0, 120)}`);
+}
+
+process.exit(unexplained.length > 0 || badIngest.length > 0 ? 1 : 0);

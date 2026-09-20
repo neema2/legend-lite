@@ -1174,7 +1174,18 @@ public class AnsiSqlRenderer implements SqlDialect {
      * case-sensitive session (PCT witness: EXCEPT ("country") vs bare
      * _tds0.country in one SELECT). */
     protected String starExceptName(String name) {
-        return quoteChar() + name + quoteChar();
+        // Unconditional, as the corpus pins — but an already-quoted
+        // name passes through ident() rather than being wrapped
+        // twice. This is the same latent defect the pivot ON clause
+        // had: a relational identifier keeps its quotes as the wire
+        // name, and `"" + "\"x\"" + ""` yields a zero-length
+        // delimited identifier. Found by censusing the sites that
+        // wrap a name WITHOUT ident(), not by hitting it — there are
+        // exactly two, and this is the other one.
+        return name.length() > 1 && name.charAt(0) == quoteChar()
+                && name.charAt(name.length() - 1) == quoteChar()
+                ? ident(name)
+                : quoteChar() + name + quoteChar();
     }
 
     /** ALIAS/label positions ({@code AS x}, VALUES column lists) —
@@ -1204,7 +1215,45 @@ public class AnsiSqlRenderer implements SqlDialect {
                         .contains(String.valueOf(q))) {
             return name;
         }
+        // A quote-bearing identity whose interior escapes its quotes with
+        // BACKSLASHES is the PURE spelling of a name that genuinely holds
+        // a quote (`"a\"b"` — the lexer's own escape). It is still its own
+        // identity, just in the other convention: decode it and re-quote
+        // the dialect's way, rather than treating the whole token as a
+        // name and emitting `"""a\""b"""`, which no database accepts.
+        String body = backslashDecoded(name, q);
+        if (body != null) {
+            return q + body.replace(String.valueOf(q), String.valueOf(q) + q) + q;
+        }
         return q + name.replace(String.valueOf(q), String.valueOf(q) + q) + q;
+    }
+
+    /** The decoded interior of a backslash-escaped quoted identity, or
+     *  null when {@code name} is not one. Local to this layer on
+     *  purpose: com.legend.sql depends only on itself and the JDK
+     *  (Invariant 6a), so the decode cannot be shared with the
+     *  compiler's copy — it is four lines, and the alternative was
+     *  leaking the rule across a pinned boundary. */
+    private static @com.legend.Nullable String backslashDecoded(
+            String name, char q) {
+        if (name.length() < 2 || name.charAt(0) != q
+                || name.charAt(name.length() - 1) != q) {
+            return null;
+        }
+        String inner = name.substring(1, name.length() - 1);
+        if (inner.indexOf('\\') < 0) {
+            return null;
+        }
+        StringBuilder out = new StringBuilder(inner.length());
+        for (int i = 0; i < inner.length(); i++) {
+            char c = inner.charAt(i);
+            if (c == '\\' && i + 1 < inner.length()) {
+                out.append(inner.charAt(++i));
+            } else {
+                out.append(c);
+            }
+        }
+        return out.toString();
     }
 
     protected StringBuilder nl(StringBuilder sb, int depth) {

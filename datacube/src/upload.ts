@@ -6,12 +6,8 @@
 
 import type { QueryEngine } from './engine.ts';
 import type { ResultTable, Scalar } from './result.ts';
-import {
-  expressibleName,
-  inferModel,
-  type DescribedColumn,
-  type InferredModel,
-} from './infer.ts';
+import { inferModel, type DescribedColumn, type InferredModel }
+  from './infer.ts';
 
 /**
  * The duckdb-wasm surface used here.
@@ -30,8 +26,6 @@ export interface UploadResult extends InferredModel {
   readonly table: string;
   readonly rowCount: number;
   readonly fileName: string;
-  /** Columns the Database grammar could not name, and what they became. */
-  readonly renamed: readonly { readonly from: string; readonly to: string }[];
 }
 
 /** Guess by extension; the picker allows only these two. */
@@ -90,42 +84,25 @@ export async function ingestFile(
     // impose the narrower rule.
     : `read_csv('${virtualName}', AUTO_DETECT=TRUE, HEADER=TRUE)`;
 
-  // Describe the READER first, so the table can be built with names
-  // the model will be able to express. Creating it from `SELECT *`
-  // and repairing afterwards would leave the table and the model
-  // disagreeing about what a column is called.
-  const raw = await engine.execute(`DESCRIBE SELECT * FROM ${reader}`, 0);
-  const rawNames = columnOf(raw, 'column_name').map(String);
-
-  const renamed: { from: string; to: string }[] = [];
-  const taken = new Set<string>();
-  const finalNames = rawNames.map((from) => {
-    let to = expressibleName(from);
-    if (taken.has(to.toLowerCase())) {
-      let n = 2;
-      while (taken.has(`${to}_${n}`.toLowerCase())) n++;
-      to = `${to}_${n}`;
-    }
-    taken.add(to.toLowerCase());
-    if (to !== from) renamed.push({ from, to });
-    return to;
-  });
-
-  // DuckDB's own identifier escaping is the DOUBLED quote, which is
-  // why the original can be referenced here even though the Pure
-  // grammar cannot name it.
-  const dq = (n: string) => `"${n.replace(/"/g, '""')}"`;
-  const projection = rawNames
-    .map((from, i) => `${dq(from)} AS ${dq(finalNames[i]!)}`)
-    .join(', ');
-
+  // The user's own column names, unchanged. An earlier version
+  // renamed anything that was not a plain identifier, because a
+  // quote in a header broke the model and a space broke groupBy and
+  // sort. Both were core defects -- the lexer's escape is a
+  // backslash, and name resolution compared a quoted wire name
+  // against a bare reference -- and both are fixed there now, so
+  // mangling the user's headers to route around them would be
+  // keeping a workaround that has outlived its bug.
+  // Quote the table name: it comes from a FILENAME, and `pivot.csv`
+  // produced `CREATE OR REPLACE TABLE pivot AS …`, which is a syntax
+  // error because pivot is reserved in DuckDB. tableNameOf already
+  // strips it to [A-Za-z0-9_], so quoting is all that is left.
+  const qt = `"${table.replace(/"/g, '""')}"`;
   await engine.execute(
-    `CREATE OR REPLACE TABLE ${table} AS SELECT ${projection} FROM ${reader}`,
-    0);
+    `CREATE OR REPLACE TABLE ${qt} AS SELECT * FROM ${reader}`, 0);
 
   // A ResultTable is COLUMNAR, so DESCRIBE's answer is read by
   // picking the two columns out and zipping them, not row by row.
-  const describe = await engine.execute(`DESCRIBE ${table}`, 0);
+  const describe = await engine.execute(`DESCRIBE ${qt}`, 0);
   const names = columnOf(describe, 'column_name');
   const types = columnOf(describe, 'column_type');
   const described: DescribedColumn[] = names.map((n, i) => ({
@@ -134,7 +111,7 @@ export async function ingestFile(
   }));
 
   const counted = await engine.execute(
-    `SELECT count(*) AS n FROM ${table}`, 0);
+    `SELECT count(*) AS n FROM ${qt}`, 0);
   const rowCount = Number(counted.columns[0]?.values[0] ?? 0);
 
   return {
@@ -142,7 +119,6 @@ export async function ingestFile(
     table,
     rowCount,
     fileName: file.name,
-    renamed,
   };
 }
 

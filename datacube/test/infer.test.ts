@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
-  expressibleName,
   inferModel,
   pureTypeOf,
   quoteIdent,
@@ -156,25 +155,31 @@ describe('inferModel', () => {
     assert.equal(kind('qty'), 'measure');
   });
 
-  it('renames a header the grammar cannot express', () => {
-    // A quoted identifier keeps its quotes as the wire name and the
-    // lexer ends the token at the first `"`, so `a"b` has no
-    // spelling at all. One such header broke the whole Database
-    // declaration and made every one of 51 operations on that file
-    // refuse -- measured, not theorised.
-    assert.equal(expressibleName('a"b'), "a'b");
-    const renamed = expressibleName('a" VARCHAR(1)) Table Evil (b');
-    assert.ok(!renamed.includes('"'), 'no quote may survive');
-    const m = inferModel([{ name: renamed, type: 'VARCHAR' }],
-      { table: 'trades' });
-    // Exactly two quotes on the column line: the delimiters.
-    const line = m.model.split('\n').find((l) => l.includes('Table Evil'))!;
-    assert.equal((line.match(/"/g) ?? []).length, 2, line);
+  it('escapes a quote in a header with a BACKSLASH', () => {
+    // The lexer's escape inside a quoted identifier is the backslash,
+    // and it ends the token at the first unescaped `"`. Doubling
+    // instead -- `"a""b"` -- lexes as `"a"` then `"b"` and broke the
+    // whole Database declaration: one such header made all 51
+    // operations on that file refuse. Core now decodes this
+    // spelling (Fold.bareIdent), so the header survives intact
+    // rather than being renamed.
+    assert.equal(quoteIdent('a"b'), '"a\\"b"');
+    assert.equal(quoteIdent('back\\slash'), '"back\\\\slash"');
+    // Backslash first: a name ending in one must not escape the
+    // closing quote.
+    assert.equal(quoteIdent('ends\\'), '"ends\\\\"');
   });
 
-  it('gives an empty header a name', () => {
-    assert.equal(expressibleName(''), 'column');
-    assert.equal(expressibleName('   '), 'column');
+  it('keeps a hostile header a NAME, not grammar', () => {
+    const m = inferModel(
+      [{ name: 'a" VARCHAR(1)) Table Evil (b', type: 'VARCHAR' }],
+      { table: 'trades' },
+    );
+    // Every quote inside the declaration is escaped, so nothing can
+    // close the column list early.
+    const line = m.model.split('\n').find((l) => l.includes('Table Evil'))!;
+    assert.match(line, /\\"/);
+    assert.ok(!/[^\\]" VARCHAR\(1\)\)/.test(line), line);
   });
 
   it('quotes a table name that needs it', () => {
