@@ -95,8 +95,30 @@ try {
   console.log(`rendered rows: ${rows}`);
   console.log(`first row: ${JSON.stringify(firstCells.slice(0, 6))}`);
 
-  if (rows === 0) {
-    console.log('FAIL: the grid rendered no rows');
+  // Pin the CONTENT, not just "something rendered".
+  //
+  // This check used to assert rows > 0, and a deliberately tampered
+  // module -- one wrapping every plan in `SELECT * FROM (...) LIMIT 1`
+  // -- sailed through it while the grid showed one row instead of
+  // three. "The page is not blank" is not evidence that the planner
+  // produced the right SQL, which is the only thing this run exists
+  // to establish.
+  //
+  // Three top-level regions (AMER, APAC, EMEA) at the root of the
+  // tree, and the first must be AMER with five pivoted year columns
+  // of formatted currency.
+  if (rows !== 3) {
+    console.log(`FAIL: expected 3 root rows, got ${rows}`);
+    failed = true;
+  }
+  if (!/AMER/.test(firstCells[0] ?? '')) {
+    console.log(`FAIL: first row is not AMER: ${JSON.stringify(firstCells[0])}`);
+    failed = true;
+  }
+  const money = firstCells.slice(1, 6);
+  if (money.length !== 5 || !money.every((c) => /^\$[\d,]+$/.test(c))) {
+    console.log(`FAIL: expected 5 pivoted currency cells, got `
+      + JSON.stringify(money));
     failed = true;
   }
   if (!/wasm/.test(status ?? '')) {
