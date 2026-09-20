@@ -1,0 +1,47 @@
+// A table designed to break things.
+//
+// Every column here exists because some layer might mishandle it:
+// a name with a space or an apostrophe must be quoted in Pure and
+// in SQL; a reserved word must survive both parsers; a unicode name
+// must round-trip byte for byte; a column of NULLs must group as a
+// value rather than vanish; a boolean and a date must be usable as
+// pivot keys, where the generated COLUMN NAMES come from the data.
+
+###Relational
+Database torture::DB
+(
+    Table WEIRD
+    (
+        plain VARCHAR(64),
+        "with space" VARCHAR(64),
+        "quo'te" VARCHAR(64),
+        "Ünïcødé" VARCHAR(64),
+        "select" VARCHAR(64),
+        nulls VARCHAR(64),
+        n_int INTEGER,
+        n_float DOUBLE,
+        n_neg DOUBLE,
+        "when" DATE,
+        // BIT, not BOOLEAN: legend-lite's Database grammar spells
+        // the boolean type BIT and rejects BOOLEAN outright.
+        flag BIT
+    )
+)
+
+###Connection
+RelationalDatabaseConnection torture::Conn
+{
+    type: DuckDB;
+    specification: DuckDB { };
+    auth: Test;
+}
+
+###Runtime
+Runtime torture::RT
+{
+    mappings: [];
+    connections:
+    [
+        torture::DB: [ c1: torture::Conn ]
+    ];
+}

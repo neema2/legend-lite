@@ -264,12 +264,29 @@ public class LegendHttpServer {
                     | com.legend.error.NotImplementedException
                     | com.legend.sql.dialect.DialectCapability e) {
                 // The three honest outcomes of a plan-only call: the
-                // model or query does not compile, the construct is not
-                // implemented, or the dialect cannot express it. Anything
-                // else is a bug and propagates rather than being dressed
-                // up as a user-facing error message.
+                // model or query does not compile, the construct is
+                // not implemented, or the dialect cannot express it.
                 sendResponse(exchange, 500,
                         "{\"error\":\"" + Json.escape(String.valueOf(e.getMessage()))
+                        + "\"}");
+            } catch (RuntimeException | StackOverflowError e) {
+                // Anything else IS a bug -- but letting it propagate
+                // does not surface the bug, it drops the HTTP
+                // connection, and the caller sees a socket error with
+                // no message at all. Found by a torture run: grouping
+                // by a QUOTED column name threw here and the client
+                // got UND_ERR_SOCKET with nothing to go on.
+                //
+                // So report it loudly on BOTH sides -- the stack to
+                // the server log, the type and message to the caller,
+                // flagged internal so nobody mistakes a crash for a
+                // rejected query.
+                System.err.println("[plan] internal error");
+                e.printStackTrace();
+                sendResponse(exchange, 500,
+                        "{\"internal\":true,\"error\":\""
+                        + Json.escape(e.getClass().getSimpleName() + ": "
+                                + e.getMessage())
                         + "\"}");
             }
         }

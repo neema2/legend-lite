@@ -63,7 +63,14 @@ describe('serialize', () => {
     assert.equal(s.includes('notional'), false);
   });
 
-  it('carries the weight column through wavg', () => {
+  it('pairs value with weight in the MAP, where the row is in scope', () => {
+    // This test previously asserted `y|$y->wavg($y.qty)` and passed,
+    // while the engine rejected that query outright: the reduce sees a
+    // collection of mapped NUMBERS, so `$y.qty` is an access on Float.
+    // A green assertion on a string the engine will not accept is not
+    // verification -- the string was well-formed and wrong. The torture
+    // run against a real engine is what caught it, which is the whole
+    // argument for having one.
     const s = serialize(
       snap({
         measures: [
@@ -71,7 +78,10 @@ describe('serialize', () => {
         ],
       }),
     );
-    assert.match(s, /w:x\|\$x\.notional:y\|\$y->wavg\(\$y\.qty\)/);
+    assert.match(
+      s,
+      /w:x\|\$x\.notional->wavgRowMapper\(\$x\.qty\):y\|\$y->wavg\(\)/,
+    );
     assert.match(s, /select\(~\[region, country, year, notional, qty\]\)/);
   });
 

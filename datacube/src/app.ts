@@ -340,6 +340,7 @@ export class CubeApp {
       view.snapshot.rows,
       view.snapshot.measures.map((m) => m.name),
       toColumnLayout(this.#config) as ColumnLayout,
+      view.snapshot.pivotOn.length,
     );
     // Refreshed AFTER the view lands, because the pivot's leaf names
     // are only known once the engine has answered.

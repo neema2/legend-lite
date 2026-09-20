@@ -80,6 +80,38 @@ export interface ColumnModel {
 }
 
 /**
+ * Force a parsed value path to the arity the cube actually pivoted on.
+ *
+ * The separator is OUR delimiter appearing in THEIR data, so counting
+ * separators is not a reliable way to count dimensions: a product code
+ * containing '__|__' parses as two values, and an empty cell parses as
+ * none. Both produce a column whose header is a different DEPTH from
+ * its neighbours, which is precisely what leaves a pivot header
+ * misaligned -- with correct numbers underneath it, so nothing looks
+ * broken.
+ *
+ * The cube knows how many dimensions it pivoted on, so the count is a
+ * fact rather than an inference. Too few segments pad; too many fold
+ * back into the FIRST, on the grounds that a value carrying a
+ * separator is still one value.
+ *
+ * Which value absorbed the separator is genuinely ambiguous without
+ * escaping the data, so a rare header can name the wrong split point.
+ * It can no longer be the wrong DEPTH, which is the failure that
+ * misaligns a grid rather than mislabelling one cell.
+ */
+function toArity(parts: readonly string[], arity: number): string[] {
+  if (parts.length === arity) {
+    return [...parts];
+  }
+  if (parts.length < arity) {
+    return [...parts, ...Array<string>(arity - parts.length).fill('')];
+  }
+  const fold = parts.length - arity + 1;
+  return [parts.slice(0, fold).join(PIVOT_SEPARATOR), ...parts.slice(fold)];
+}
+
+/**
  * Split a generated column name into its header path.
  *
  * `measures` are the measure names the snapshot asked for. When a name
@@ -87,10 +119,16 @@ export interface ColumnModel {
  * prefix (minus any trailing separator character) is the pivot value
  * path. The longest matching measure wins, so 'pnl' cannot shadow
  * 'pnl_net'.
+ *
+ * `pivotArity` is how many columns the cube pivoted on. Pass it and
+ * the value path is forced to that many segments; omit it and the
+ * separator count decides, which is only safe when the data cannot
+ * contain the separator.
  */
 export function splitPath(
   name: string,
   measures: readonly string[] = [],
+  pivotArity?: number,
 ): string[] {
   const matched = measures
     .filter((m) => name === m || name.endsWith(m))
@@ -103,9 +141,12 @@ export function splitPath(
     const cleaned = prefix.endsWith(PIVOT_SEPARATOR)
       ? prefix.slice(0, -PIVOT_SEPARATOR.length)
       : prefix.replace(/[_\-.|]+$/, '');
-    return cleaned.length > 0
-      ? [...cleaned.split(PIVOT_SEPARATOR), matched]
-      : [matched];
+    const parts = cleaned.length > 0 ? cleaned.split(PIVOT_SEPARATOR) : [];
+    return pivotArity === undefined
+      ? parts.length > 0
+        ? [...parts, matched]
+        : [matched]
+      : [...toArity(parts, pivotArity), matched];
   }
 
   return name.split(PIVOT_SEPARATOR);
@@ -153,6 +194,12 @@ export function buildColumnModel(
   dimensions: readonly string[] = [],
   measures: readonly string[] = [],
   layout: ColumnLayout = {},
+  /**
+   * How many columns the cube pivoted on. Given, the header depth is
+   * a fact about the CUBE; omitted, it is inferred from the generated
+   * names, which the data can distort.
+   */
+  pivotArity?: number,
 ): ColumnModel {
   const leaves: LeafColumn[] = table.columns.map((c, index) => {
     // The tree column's header is deliberately blank: it holds a
@@ -165,7 +212,7 @@ export function buildColumnModel(
         ? [display]
         : dimensions.includes(c.name)
           ? [c.name]
-          : splitPath(c.name, measures);
+          : splitPath(c.name, measures, pivotArity);
     return {
       index,
       name: c.name,

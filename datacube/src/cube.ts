@@ -200,6 +200,7 @@ export class CubeController {
               withEpoch.rows,
               measureNames,
               this.#options.layout ?? {},
+              withEpoch.pivotOn.length,
             ),
             rows: view.table,
             treeRows: view.rows,
@@ -221,6 +222,7 @@ export class CubeController {
           withEpoch.rows,
           measureNames,
           this.#options.layout ?? {},
+          withEpoch.pivotOn.length,
         );
         return {
           snapshot: withEpoch,

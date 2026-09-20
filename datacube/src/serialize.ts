@@ -71,9 +71,20 @@ function aggregateLambdas(m: Measure): { map: string; reduce: string } {
           `measure '${m.name}' uses wavg but has no weight column`,
         );
       }
+      // The weight has to be captured in the MAP, where the row is
+      // still in scope. Reducing over the value alone and reaching
+      // for the weight in the reduce -- which is what this did --
+      // cannot work: by then `$y` is a collection of the mapped
+      // NUMBERS and the weight column is long gone. The engine says
+      // so in as many words ("cannot access 'w' on Float"), and it
+      // said it the first time this ran against a real engine rather
+      // than a stub.
+      //
+      // wavgRowMapper pairs each value with its weight as the map
+      // result, so the reduce is a plain wavg() over the pairs.
       return {
-        map: `x|${colRef('x', m.column)}`,
-        reduce: `y|$y->wavg(${colRef('y', m.weight)})`,
+        map: `x|${colRef('x', m.column)}->wavgRowMapper(${colRef('x', m.weight)})`,
+        reduce: `y|$y->wavg()`,
       };
     }
     case 'joinStrings':
