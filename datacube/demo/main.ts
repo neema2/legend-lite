@@ -17,6 +17,7 @@ import {
 } from '../src/config.ts';
 import { CubeController, type Planner } from '../src/cube.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
+import { mountRemote } from '../src/remote.ts';
 import type { ColumnFormat } from '../src/format.ts';
 import { LegendLitePlanner } from '../src/planner.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
@@ -61,6 +62,38 @@ async function boot(): Promise<void> {
   const conn = await db.connect();
   const engine = new DuckDbEngine(conn as unknown as ArrowishConnection);
 
+  // A REMOTE SOURCE, when one is named.
+  //
+  //   ?remote=https://host/trades.parquet
+  //   ?remote=s3://bucket/table&format=iceberg
+  //
+  // The data stays where it is: DuckDB reads it over HTTP range
+  // requests, so the cube pulls the bytes a query needs rather than
+  // the file. Everything downstream is unchanged, because the remote
+  // file is mounted as a VIEW called `trades` -- the same name the
+  // generated table would have had, and the name the model already
+  // refers to.
+  const params = new URLSearchParams(location.search);
+  const remote = params.get('remote');
+  if (remote) {
+    status.textContent = `mounting ${remote}…`;
+    const format = params.get('format');
+    await mountRemote(engine, {
+      sources: [{
+        name: 'trades',
+        url: remote,
+        ...(format === 'parquet' || format === 'csv' || format === 'iceberg'
+          ? { format }
+          : {}),
+      }],
+      // Credentials come from the host, never from the URL bar: a
+      // query string lands in history, logs and shoulder-surfing
+      // range. A bucket that needs them is configured by the
+      // embedding application.
+    });
+    status.textContent = `reading ${remote}`;
+  } else {
+
   status.textContent = `generating ${ROWS.toLocaleString()} rows…`;
   await engine.execute(
     `CREATE OR REPLACE TABLE trades AS
@@ -76,6 +109,7 @@ async function boot(): Promise<void> {
      FROM range(${ROWS}) t(i)`,
     0,
   );
+  }
 
   // -- the cube ------------------------------------------------------
 

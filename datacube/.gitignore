@@ -4,3 +4,5 @@ node_modules/
 demo/vendor/
 demo/bundle.js
 demo/screenshot.png
+demo/remote-bundle.js
+*.parquet
