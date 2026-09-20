@@ -26,7 +26,9 @@ import {
   toColumnLayout,
   toFormats,
   withColumn,
+  withSettings,
   type CubeConfiguration,
+  type Patch,
 } from './config.ts';
 import type { Dimension } from './dimensions.ts';
 import { availableDimensions, useDimension } from './dimensions.ts';
@@ -240,6 +242,17 @@ export class CubeApp {
           e instanceof Error ? e.message : String(e),
           'error',
         ),
+      // The configuration is the host's half of the undoable state.
+      // Without this pair, undo reverts the query and leaves the
+      // pins, widths, colours and row cap where they were -- and for
+      // a setting that shapes the query, the stale config is folded
+      // back in on the next refresh, undoing the undo.
+      captureHost: () => this.#config,
+      restoreHost: (host) => {
+        this.#config = host as CubeConfiguration;
+        this.#refreshFormats();
+        this.#refreshToolPanel();
+      },
     });
 
     this.#wireContextMenu();
@@ -683,8 +696,37 @@ export class CubeApp {
   ): void {
     const next = withColumn(this.#config, column, patch);
     if (next === this.#config) return;
+    void this.#setConfiguration(next);
+  }
+
+  /**
+   * Change the configuration and re-run, as one step.
+   *
+   * The single funnel for presentation changes, so every one of them
+   * lands on the undo stack. Config used to be assigned in four
+   * places, each followed by its own refresh, which is how half of
+   * them ended up outside the history.
+   */
+  async applyConfiguration(
+    patch: Patch<CubeConfiguration>,
+  ): Promise<void> {
+    // `columns` is split out rather than passed through: withSettings
+    // prunes undefined keys, so handing it `columns: undefined` does
+    // not mean "leave columns alone", it DELETES the column map.
+    const { columns, ...settings } = patch;
+    let next = Object.keys(settings).length > 0
+      ? withSettings(this.#config, settings)
+      : this.#config;
+    for (const [name, cfg] of Object.entries(columns ?? {})) {
+      next = withColumn(next, name, cfg);
+    }
+    await this.#setConfiguration(next);
+  }
+
+  async #setConfiguration(next: CubeConfiguration): Promise<void> {
+    if (next === this.#config) return;
     this.#config = next;
-    void this.#refresh();
+    await this.#refresh();
   }
 
   // -- selection -------------------------------------------------------

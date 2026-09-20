@@ -131,7 +131,38 @@ describe('DuckDB streaming and cancellation', () => {
     assert.deepEqual(out.columns.map((c) => c.name), ['region', 'm']);
   });
 
-  it('falls back to query() when the connection cannot stream', async () => {
+  it('streams even when no signal is passed', async () => {
+    // The branch is on CAPABILITY, not on a signal being supplied.
+    // Gating it on the signal left snapshotting and drill-through --
+    // neither of which passes one -- on a second, divergent
+    // materialisation path for no reason but a missing argument.
+    let usedQuery = false;
+    let streamed = false;
+    const engine = new DuckDbEngine({
+      query: () => {
+        usedQuery = true;
+        return batch(['EMEA'], [1]);
+      },
+      async send() {
+        streamed = true;
+        return {
+          async *[Symbol.asyncIterator]() {
+            yield batch(['EMEA'], [1]);
+          },
+        };
+      },
+      async cancelSent() {
+        return false;
+      },
+    });
+
+    const out = await engine.execute('SELECT 1', 1); // no signal
+    assert.equal(streamed, true, 'a streaming connection always streams');
+    assert.equal(usedQuery, false, 'and never takes the other path');
+    assert.equal(out.rowCount, 1);
+  });
+
+  it('only uses query() for a connection that genuinely cannot stream', async () => {
     let usedQuery = false;
     const engine = new DuckDbEngine({
       query: () => {

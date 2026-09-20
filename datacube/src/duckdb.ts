@@ -32,10 +32,11 @@ export interface ArrowishConnection {
    * interrupted; `send()` hands back batches as they are produced, so
    * a superseded query can be stopped between them via `cancelSent()`.
    *
-   * Optional because the interface is structural and the tests' fake
-   * connections do not implement it -- the engine falls back to
-   * `query()` when it is absent, and says so rather than pretending
-   * the work was cancelled.
+   * Optional only because the interface is structural and some test
+   * fakes implement `query()` alone. Both real duckdb-wasm builds
+   * provide it, so in the product this is THE path -- `query()` is
+   * not a fallback anyone falls back to, and a guardrail test pins
+   * that so it cannot quietly become one.
    */
   send?(sql: string): Promise<AsyncIterable<ArrowishTable>>;
   /** Cancel a query started with `send()`. True if it was still pending. */
@@ -249,6 +250,8 @@ class BatchAccumulator {
 export class DuckDbEngine implements QueryEngine {
   readonly name = 'duckdb';
   readonly #conn: ArrowishConnection;
+  /** Tail of the queue of queries on this connection. See #serialised. */
+  #chain: Promise<void> = Promise.resolve();
 
   constructor(connection: ArrowishConnection) {
     this.#conn = connection;
@@ -273,6 +276,16 @@ export class DuckDbEngine implements QueryEngine {
    * "cancelled" while a worker is still pegged is worse than one that
    * admits it is busy -- the next interaction is then slow for no
    * reason the user can see.
+   *
+   * THE BRANCH IS ON CAPABILITY, NOT ON THE SIGNAL, and that took a
+   * correction. Streaming was first gated on a signal being passed,
+   * which quietly left two live paths in the product: snapshotting and
+   * drill-through pass no signal, so they took the non-streaming route
+   * for no better reason than that nobody had threaded an argument to
+   * them. Two materialisation paths that can drift apart is exactly
+   * the shape this codebase refuses elsewhere. A connection that can
+   * stream now always streams; the signal only decides whether the
+   * stream can be cut short.
    */
   async execute(
     sql: string,
@@ -280,12 +293,55 @@ export class DuckDbEngine implements QueryEngine {
     signal?: AbortSignal,
   ): Promise<ResultTable> {
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
-    const started = performance.now();
+    return this.#serialised(async () => {
+      // Checked AGAIN after waiting for the connection. This is where
+      // the promise of "queries behind the one in flight never start"
+      // is actually kept: by the time the connection frees up, a
+      // superseded query simply never runs.
+      if (signal?.aborted) throw signal.reason ?? new Error('aborted');
+      const started = performance.now();
+      if (typeof this.#conn.send === 'function') {
+        return this.#stream(sql, epoch, signal, started);
+      }
+      return this.#whole(sql, epoch, signal, started);
+    });
+  }
 
-    if (signal && typeof this.#conn.send === 'function') {
-      return this.#stream(sql, epoch, signal, started);
+  /**
+   * One query on the connection at a time.
+   *
+   * A DuckDB connection holds ONE pending query. Overlapping them
+   * corrupts both -- a live-engine test caught the winner coming back
+   * with zero rows when a second query was sent while the first was
+   * still streaming.
+   *
+   * It also makes cancellation safe, which matters more. `cancelSent()`
+   * cancels whatever is pending on the CONNECTION, not a particular
+   * query, so cancelling a superseded query after the next one had
+   * started would have killed the query the user is actually waiting
+   * for. Serialising means the only cancellable query is ours.
+   */
+  async #serialised<T>(run: () => Promise<T>): Promise<T> {
+    const previous = this.#chain;
+    let release!: () => void;
+    this.#chain = new Promise<void>((r) => {
+      release = r;
+    });
+    // Never inherit a failure from the query ahead of us in the queue.
+    await previous.catch(() => {});
+    try {
+      return await run();
+    } finally {
+      release();
     }
+  }
 
+  async #whole(
+    sql: string,
+    epoch: number,
+    signal: AbortSignal | undefined,
+    started: number,
+  ): Promise<ResultTable> {
     let table: ArrowishTable;
     try {
       table = await this.#conn.query(sql);
@@ -300,11 +356,16 @@ export class DuckDbEngine implements QueryEngine {
     return toResultTable(table, epoch, performance.now() - started);
   }
 
-  /** The cancellable path: consume batches, stop when nobody is waiting. */
+  /**
+   * The streaming path -- the ONLY path for a connection that can
+   * stream. `signal` is optional: without one the batches are simply
+   * consumed to the end, which is what a snap or a drill-through
+   * wants, and the result is identical either way.
+   */
   async #stream(
     sql: string,
     epoch: number,
-    signal: AbortSignal,
+    signal: AbortSignal | undefined,
     started: number,
   ): Promise<ResultTable> {
     const send = this.#conn.send;
@@ -325,7 +386,7 @@ export class DuckDbEngine implements QueryEngine {
     try {
       batches = await send.call(this.#conn, sql);
     } catch (cause) {
-      if (signal.aborted) throw signal.reason ?? cause;
+      if (signal?.aborted) throw signal.reason ?? cause;
       throw new QueryError(
         cause instanceof Error ? cause.message : String(cause),
         sql,
@@ -336,14 +397,14 @@ export class DuckDbEngine implements QueryEngine {
     const acc = new BatchAccumulator();
     try {
       for await (const batch of batches) {
-        if (signal.aborted) {
+        if (signal?.aborted) {
           await cancel();
           throw signal.reason ?? new Error('aborted');
         }
         acc.add(batch);
       }
     } catch (cause) {
-      if (signal.aborted) {
+      if (signal?.aborted) {
         await cancel();
         throw signal.reason ?? cause;
       }
@@ -354,7 +415,7 @@ export class DuckDbEngine implements QueryEngine {
       );
     }
 
-    if (signal.aborted) throw signal.reason ?? new Error('aborted');
+    if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     return acc.build(epoch, performance.now() - started);
   }
 

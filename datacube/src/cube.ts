@@ -103,6 +103,17 @@ export interface CubeControllerOptions {
     readonly canUndo: boolean;
     readonly canRedo: boolean;
   }) => void;
+  /**
+   * Capture and restore the host's half of the undoable state.
+   *
+   * The controller owns the query; the host owns presentation. Undo
+   * has to cover both or it reverts itself -- see CubeState.host.
+   * Whatever `captureHost` returns is handed back to `restoreHost`
+   * unchanged, so an immutable configuration object is exactly the
+   * right thing to pass.
+   */
+  readonly captureHost?: () => unknown;
+  readonly restoreHost?: (host: unknown) => void;
 }
 
 export class CubeController {
@@ -115,6 +126,8 @@ export class CubeController {
   #view: CubeView | null = null;
   #tree = TreeState.empty();
   readonly #history: History;
+  /** The last state that reached the screen. See #remember. */
+  #lastState: CubeState | null = null;
 
   constructor(
     engine: QueryEngine,
@@ -261,6 +274,9 @@ export class CubeController {
 
       if (isStale(out)) return out;
       this.#view = out;
+      // Snapshot the state that just landed, so the NEXT change has
+      // something truthful to record as its "before".
+      this.#lastState = this.#state();
       this.#options.onView?.(out);
       return out;
     } catch (error) {
@@ -330,10 +346,30 @@ export class CubeController {
    * step a user would ever want to undo. Recording there would fill
    * the stack with entries that all undo to the same screen.
    */
+  /**
+   * Push the last RENDERED state onto the undo stack.
+   *
+   * Not the state as it is right now. By the time a mutator runs, the
+   * host may already have changed its half -- a pin is applied to the
+   * configuration and only then does the refresh begin -- so
+   * capturing at this moment would record the new configuration as
+   * though it were the old one, and undo would restore the very thing
+   * it was meant to remove. The last state that actually reached the
+   * screen is the one a person means by "back".
+   */
   #remember(): void {
-    if (!this.#snapshot) return;
-    this.#history.record({ snapshot: this.#snapshot, tree: this.#tree });
+    if (!this.#lastState) return;
+    this.#history.record(this.#lastState);
     this.#announceHistory();
+  }
+
+  #state(): CubeState {
+    const host = this.#options.captureHost?.();
+    return {
+      snapshot: this.#snapshot as CubeSnapshot,
+      tree: this.#tree,
+      ...(host !== undefined ? { host } : {}),
+    };
   }
 
   #announceHistory(): void {
@@ -353,26 +389,24 @@ export class CubeController {
   async #applyHistory(state: CubeState): Promise<CubeView | Stale> {
     this.#snapshot = state.snapshot;
     this.#tree = state.tree;
+    // BEFORE the refresh, not after: the host folds its configuration
+    // into the snapshot on refresh, so restoring it afterwards would
+    // let the stale config overwrite the state just restored.
+    if (state.host !== undefined) this.#options.restoreHost?.(state.host);
     this.#announceHistory();
     return this.refresh();
   }
 
   async undo(): Promise<CubeView | Stale | null> {
     if (!this.#snapshot) return null;
-    const previous = this.#history.undo({
-      snapshot: this.#snapshot,
-      tree: this.#tree,
-    });
+    const previous = this.#history.undo(this.#state());
     if (!previous) return null;
     return this.#applyHistory(previous);
   }
 
   async redo(): Promise<CubeView | Stale | null> {
     if (!this.#snapshot) return null;
-    const next = this.#history.redo({
-      snapshot: this.#snapshot,
-      tree: this.#tree,
-    });
+    const next = this.#history.redo(this.#state());
     if (!next) return null;
     return this.#applyHistory(next);
   }

@@ -28,6 +28,24 @@ import type { TreeState } from './tree.ts';
 export interface CubeState {
   readonly snapshot: CubeSnapshot;
   readonly tree: TreeState;
+  /**
+   * The HOST's half of the state, opaque here.
+   *
+   * A cube is not only its query. Pinned columns, widths, colours,
+   * number formats and the row cap live on the host, and a person
+   * changing one has no idea they have crossed an internal boundary
+   * -- so an undo that covered only the snapshot was broken in two
+   * ways at once. A cosmetic change undid to an identical snapshot
+   * and looked like nothing happened; a setting that also shapes the
+   * query (the row cap, the grand total) rolled the snapshot back
+   * while the host kept the new value, and the next refresh folded it
+   * straight back in. An undo that reverts itself is worse than none.
+   *
+   * Kept opaque because presentation is genuinely not this layer's
+   * business: the host captures and restores it, and history only has
+   * to store it and compare it.
+   */
+  readonly host?: unknown;
 }
 
 /**
@@ -45,6 +63,7 @@ export function stateKey(state: CubeState): string {
     snapshot: rest,
     open: [...state.tree.openPaths].sort(),
     totals: state.tree.showTotals,
+    host: state.host ?? null,
   });
 }
 
