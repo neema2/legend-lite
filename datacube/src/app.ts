@@ -37,6 +37,7 @@ import type { QueryEngine } from './engine.ts';
 import { toCsv } from './export.ts';
 import { toHtml, toSpreadsheetML } from './export-rich.ts';
 import { toPdf, toPlainText } from './export-doc.ts';
+import { toBarChart, toTreemap } from './chart.ts';
 import { FormatterCache, type ColumnFormat } from './format.ts';
 import { DataGrid } from './grid/grid.ts';
 import {
@@ -708,6 +709,12 @@ export class CubeApp {
       case 'email.pdf':
         this.#email('pdf');
         return;
+      case 'chart.plot':
+        this.#chart('plot');
+        return;
+      case 'chart.treemap':
+        this.#chart('treemap');
+        return;
       case 'filter.column':
         this.openFilters();
         return;
@@ -868,6 +875,30 @@ export class CubeApp {
       if (label !== c.name) out[c.name] = label;
     }
     return out;
+  }
+
+  /**
+   * Show the current view as a picture.
+   *
+   * Drawn from the ROWS ON SCREEN rather than from a fresh query, so
+   * the chart cannot disagree with the grid behind it -- every
+   * filter, pivot and sort is already baked into what it is given.
+   */
+  #chart(kind: 'plot' | 'treemap'): void {
+    const view = this.#view;
+    if (!view) return;
+    const title = this.#config.reportTitle ?? 'cube';
+    const svg = kind === 'plot'
+      ? toBarChart(view.rows, { title })
+      : toTreemap(view.rows, { title });
+    this.#showOverlay(kind === 'plot' ? 'Plot' : 'Treemap', (host) => {
+      const box = this.#doc.createElement('div');
+      box.className = 'dc-chart';
+      // The SVG is composed here, from values this code escaped, so
+      // there is no untrusted markup in it.
+      box.innerHTML = svg;
+      host.append(box);
+    });
   }
 
   /** One rendering, shared by download and email. */

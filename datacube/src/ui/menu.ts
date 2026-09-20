@@ -136,6 +136,8 @@ export type MenuActionId =
   | 'email.pdf'
   | 'heatmap.add'
   | 'heatmap.remove'
+  | 'chart.plot'
+  | 'chart.treemap'
   | 'view.properties'
   // Host-level entries, which live in the title bar's menu rather
   // than the grid's. DataCube reserves that menu for the embedding
@@ -496,6 +498,14 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         },
       ],
     },
+  ]);
+
+  // Plot and treemap sit beside Properties, as theirs do: they are
+  // views OF the cube rather than operations ON a column, so they do
+  // not belong in the column-scoped groups above.
+  push('', [
+    { id: 'chart.plot', label: 'Plot' },
+    { id: 'chart.treemap', label: 'Treemap' },
   ]);
 
   push('', [{ id: 'view.properties', label: 'Properties...' }]);

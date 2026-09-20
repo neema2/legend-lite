@@ -533,11 +533,56 @@ try {
       sub: el.querySelectorAll(':scope > .dc-submenu > [role="menuitem"]').length,
     })),
   );
+  // Nine now: Email joined the original eight when the export
+  // formats were completed. The count is asserted rather than a
+  // lower bound, so a verb silently losing its submenu still fails.
   check(
     'the menu nests, with a submenu per verb',
-    tops.filter((t) => t.sub > 0).length === 8,
+    tops.filter((t) => t.sub > 0).length === 9,
     tops.map((t) => `${t.label}${t.sub ? `(${t.sub})` : ''}`).join(' '),
   );
+
+  // Plot and treemap are views OF the cube, so they sit beside
+  // Properties rather than inside a column-scoped verb.
+  check(
+    'the menu offers plot and treemap',
+    tops.some((t) => t.label === 'Plot')
+      && tops.some((t) => t.label === 'Treemap'),
+    tops.map((t) => t.label).join(' '),
+  );
+
+  // The chart actually DRAWS. A menu entry that opens an empty
+  // dialog is the "built but unreachable" failure wearing a
+  // different hat, so this asserts real geometry reached the DOM.
+  await page.keyboard.press('Escape');
+  await fromMenu('Plot');
+  await page.waitForSelector('.dc-chart svg', { timeout: 10_000 });
+  const plotted = await page.evaluate(() => ({
+    bars: document.querySelectorAll('.dc-chart svg rect').length,
+    labelled: document.querySelector('.dc-chart svg')?.getAttribute('role'),
+  }));
+  check(
+    'Plot draws bars from the rows on screen',
+    plotted.bars > 0 && plotted.labelled === 'img',
+    `${plotted.bars} bars`,
+  );
+  await page.locator('.dc-overlay-close').click();
+
+  await fromMenu('Treemap');
+  await page.waitForSelector('.dc-chart svg', { timeout: 10_000 });
+  const tiled = await page.evaluate(() =>
+    [...document.querySelectorAll('.dc-chart svg rect')].map((r) => ({
+      w: Number(r.getAttribute('width')),
+      h: Number(r.getAttribute('height')),
+    })),
+  );
+  check(
+    'Treemap tiles the area with real rectangles',
+    tiled.length > 0 && tiled.every((r) => r.w > 0 && r.h > 0),
+    `${tiled.length} tiles`,
+  );
+  await page.locator('.dc-overlay-close').click();
+  await rightClick();
 
   // A submenu opens on hover, and is clipped by nothing.
   const filterTop = page
