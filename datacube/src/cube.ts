@@ -175,6 +175,27 @@ export class CubeController {
     await this.refresh();
   }
 
+  /**
+   * Take a tree WITHOUT re-querying; the caller refreshes.
+   *
+   * `setTree` refreshes, and a refresh pushes a view at the host --
+   * which is how loading a saved view silently restored nothing.
+   * `loadView` set the app's snapshot, then called `setTree`, whose
+   * refresh ran the CONTROLLER's snapshot (still the old one) and
+   * handed that view back; the host's `onView` assigns
+   * `this.#snapshot = view.snapshot`, so the freshly loaded snapshot
+   * was overwritten by the stale one, and the refresh that followed
+   * queried the shape the user had just replaced. The status line
+   * said `loaded "..."` either way.
+   *
+   * So a caller that is about to refresh anyway adopts the tree
+   * quietly and gets ONE query with both halves in place, instead of
+   * two where the first clobbers the second.
+   */
+  adoptTree(state: TreeState): void {
+    this.#tree = state;
+  }
+
   async setTree(state: TreeState): Promise<void> {
     this.#remember();
     this.#tree = state;

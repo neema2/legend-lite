@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   TREE_COLUMN,
   buildColumnModel,
+  type ColumnModel,
   splitPath,
   valueColumns,
 } from '../src/grid/columns.ts';
@@ -152,10 +153,10 @@ describe('buildColumnModel', () => {
   // `data-column` said `region`, so sorting it sorted region and
   // dragging it grouped by region. The layout stayed perfect --
   // `colStart` uses the position -- so nothing looked wrong.
-  const identities = (m) =>
+  const identities = (m: ColumnModel): (string | undefined)[][] =>
     m.headerRows[m.headerRows.length - 1]
       ?.filter((h) => h.leafIndex !== undefined)
-      .map((h) => [h.label, m.leaves[h.leafIndex]?.name]) ?? [];
+      .map((h) => [h.label, m.leaves[h.leafIndex as number]?.name]) ?? [];
 
   it('maps every header cell to its OWN leaf', () => {
     const m = buildColumnModel(table(['a', 'b', 'c', 'd']));

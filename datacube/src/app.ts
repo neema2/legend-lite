@@ -1174,7 +1174,13 @@ export class CubeApp {
       const view = load(raw);
       this.#snapshot = view.snapshot;
       this.#config = fromSnapshot(view.snapshot, this.#config);
-      await this.#controller.setTree(treeOf(view));
+      // ADOPT, do not set: `setTree` refreshes, and that refresh runs
+      // the controller's own snapshot -- the one being replaced --
+      // then pushes it back through `onView`, which reassigns
+      // `this.#snapshot`. The load reported success and restored
+      // nothing, because the query that followed used the shape the
+      // user had just abandoned. One refresh, both halves in place.
+      this.#controller.adoptTree(treeOf(view));
       await this.#refresh();
       this.#status(`loaded "${view.name}"`, 'ok');
     } catch (e) {

@@ -832,6 +832,211 @@ try {
     return `${n} tabs, all populated`;
   });
 
+  // ---- the columns selector ----------------------------------------------
+  //
+  // Add, remove and REORDER, through the editor's Columns tab. This
+  // was the one part of the product no harness had ever driven, and
+  // it is the sibling trigger of the header-identity fault: `leafIndex`
+  // held a source index, so reordering shifted every header's claimed
+  // column exactly as hiding did. Both paths are checked here, and
+  // the invariants that run after every check are what would catch it
+  // again.
+
+  /** Open Properties and select a tab by name. */
+  async function editorTab(name) {
+    await menu(['Properties...']);
+    const tab = page.locator('.dc-editor-tab', { hasText: name });
+    if (!(await tab.count())) {
+      const seen = await page.locator('.dc-editor-tab').allTextContents();
+      throw new Error(`no ${name} tab; the editor offers ${seen.join(', ')}`);
+    }
+    await tab.first().click();
+    await page.waitForTimeout(250);
+  }
+
+  async function applyEditor() {
+    const before = await statusNow();
+    await page.locator('button', { hasText: 'Apply' }).first().click();
+    await settle(before);
+  }
+
+  const gridColumns = () => page.evaluate(() =>
+    [...document.querySelectorAll('.dc-th[data-column]')]
+      .map((e) => e.dataset.column));
+
+  let removed = null;
+
+  await check('the columns selector removes a column', async () => {
+    const before = await gridColumns();
+    await editorTab('Columns');
+    const rows = page.locator('.dc-pane-selected .dc-selector-row');
+    if ((await rows.count()) < 3) {
+      throw new Error(`the selected pane holds ${await rows.count()} columns`);
+    }
+    removed = await rows.nth(2).getAttribute('data-column');
+    await rows.nth(2).click();
+    // '‹' -- the second of the two move buttons.
+    await page.locator('.dc-selector-move').nth(1).click();
+    await page.waitForTimeout(200);
+    await applyEditor();
+    const after = await gridColumns();
+    if (after.includes(removed)) {
+      throw new Error(`${removed} is still in the grid`);
+    }
+    if (after.length !== before.length - 1) {
+      throw new Error(`${before.length} -> ${after.length} columns, expected`
+        + ` one fewer`);
+    }
+    return `${removed} gone, ${after.length} left`;
+  });
+
+  await check('the columns selector adds it back', async () => {
+    await editorTab('Columns');
+    const avail = page.locator('.dc-pane-available .dc-selector-row');
+    if (!(await avail.count())) {
+      throw new Error('the available pane is empty, so nothing can be added');
+    }
+    const back = avail.filter({ hasText: removed ?? '' });
+    await ((await back.count()) ? back.first() : avail.first()).click();
+    await page.locator('.dc-selector-move').nth(0).click();
+    await page.waitForTimeout(200);
+    await applyEditor();
+    const after = await gridColumns();
+    if (!after.includes(removed)) {
+      throw new Error(`${removed} did not come back; grid has`
+        + ` ${after.join(',')}`);
+    }
+    // It returns at the END: the selected pane's order IS the grid's
+    // order, so a re-added column joins the back of the list rather
+    // than resuming its old seat. That is what the selector means.
+    return `${removed} back at position ${after.indexOf(removed) + 1}`;
+  });
+
+  await check('the columns selector reorders by dragging', async () => {
+    const before = await gridColumns();
+    await editorTab('Columns');
+    const rows = page.locator('.dc-pane-selected .dc-selector-row');
+    const n = await rows.count();
+    if (n < 3) throw new Error(`only ${n} columns to reorder`);
+    await rows.nth(n - 1).dragTo(rows.nth(0));
+    await page.waitForTimeout(300);
+    await applyEditor();
+    const after = await gridColumns();
+    if (after.join(',') === before.join(',')) {
+      throw new Error(`the order did not change: ${after.join(',')}`);
+    }
+    if (after.length !== before.length) {
+      throw new Error(`reordering changed the COUNT: ${before.length} ->`
+        + ` ${after.length}`);
+    }
+    if ([...after].sort().join(',') !== [...before].sort().join(',')) {
+      throw new Error('reordering changed which columns are shown');
+    }
+    return `${before[before.length - 1]} moved to the front`;
+  });
+
+  // ---- round trips -------------------------------------------------------
+  //
+  // Do a thing, undo it, and the cube must be EXACTLY as it was.
+  //
+  // This is a property rather than a feature, and it catches a class
+  // the per-feature checks cannot: an undo that restores half the
+  // state. Undo records the snapshot and the tree, while the
+  // configuration -- pins, widths, colours, hidden columns, the row
+  // cap -- lives beside it, and a person changing one has no idea
+  // they crossed an internal boundary. Two faults of exactly that
+  // shape have already been found here: a cosmetic change recorded a
+  // step whose snapshot was identical so undo appeared to do nothing,
+  // and a query-shaping setting undid the snapshot while the config
+  // kept its new value and put it straight back on the next refresh.
+  //
+  // Comparing the WHOLE observable state, not a count, is the point:
+  // "twelve columns again" was true in both of those cases.
+
+  /** Everything observable, with the query timing stripped out. */
+  const fullState = () => page.evaluate(() => ({
+    pure: document.getElementById('pure')?.textContent ?? '',
+    sql: document.getElementById('sql')?.textContent ?? '',
+    // Pinned and coloured cells, because pinning and heatmaps change
+    // no text, no query and no number -- a state without them
+    // reported "the operation changed nothing" about a pin that had
+    // worked perfectly.
+    pinned: document.querySelectorAll('.dc-pin-left, .dc-pin-right').length,
+    // Label AND identity: a header can keep its label and claim a
+    // different column, which is how sorting one column sorted its
+    // neighbour.
+    head: [...document.querySelectorAll('.dc-th')].map((e) =>
+      `${(e.textContent ?? '').trim()}=${e.dataset.column ?? '-'}`).join('|'),
+    rows: [...document.querySelectorAll('.dc-row')].slice(0, 4).map((r) =>
+      [...r.querySelectorAll('.dc-cell')].map(
+        (c) => c.textContent?.trim() ?? '').join(',')).join(' // '),
+    colour: [...document.querySelectorAll('.dc-cell')]
+      .filter((c) => c.style.backgroundColor).length,
+  }));
+
+  const firstDifference = (a, b) => {
+    for (const key of Object.keys(a)) {
+      if (a[key] !== b[key]) {
+        return `${key}:\n      was ${JSON.stringify(String(a[key]))
+          .slice(0, 150)}\n      now ${JSON.stringify(String(b[key]))
+          .slice(0, 150)}`;
+      }
+    }
+    return null;
+  };
+
+  for (const [what, path, opts] of [
+    ['sorting', ['Sort', 'Ascending'], {}],
+    ['a filter', ['Filter', /^Add Filter: \S+ = /], {}],
+    ['a row group', ['Pivot', /^Vertical Pivot on/], { col: 3 }],
+    ['hiding a column', [/^Hide /], {}],
+    ['pinning a column', ['Pin', 'Pin Left'], {}],
+    ['a heatmap', ['Heatmap', /^Add Heatmap/], { col: heatCol }],
+  ]) {
+    await check(`undo restores everything after ${what}`, async () => {
+      const before = await fullState();
+      await menu(path, opts);
+      const changed = await fullState();
+      if (firstDifference(before, changed) === null) {
+        throw new Error('the operation changed nothing at all');
+      }
+      await burger('Undo');
+      const after = await fullState();
+      const diff = firstDifference(before, after);
+      if (diff) throw new Error(`undo left ${diff}`);
+      return 'restored exactly';
+    });
+  }
+
+  // ---- saving and loading a view -----------------------------------------
+
+  await check('a saved view is restored when loaded', async () => {
+    // The unit test covers the restore; this covers the WIRING -- the
+    // two title-bar entries, the storage the host supplies, and the
+    // dialog-free path between them. The old test asserted that
+    // something was written to storage and then clicked Load with no
+    // assertion, so loading restored nothing for as long as anyone
+    // had been looking.
+    await menu(['Pivot', /^Vertical Pivot on/], { col: GROUP_COL });
+    const wanted = await fullState();
+    if (!/groupBy\(~\[/.test(wanted.pure)) {
+      throw new Error('could not set up: the cube did not group');
+    }
+    await burger('Save View');
+
+    await menu(['Pivot', 'Clear All Vertical Pivots']);
+    const cleared = await fullState();
+    if (firstDifference(wanted, cleared) === null) {
+      throw new Error('could not set up: clearing changed nothing');
+    }
+
+    await burger('Load View');
+    const back = await fullState();
+    const diff = firstDifference(wanted, back);
+    if (diff) throw new Error(`loading did not restore ${diff}`);
+    return 'the grouped cube came back';
+  });
+
   // ---- the chrome ---------------------------------------------------------
 
   await check('the sidebar collapses and gives the width to the grid', async () => {
@@ -888,7 +1093,13 @@ try {
   });
 
   await check('keyboard: arrow keys move the focused cell', async () => {
-    await page.click('.dc-row .dc-cell');
+    // On a FLAT cube, and not the first cell. A grouped cube's first
+    // cell is the tree cell, where a click lands on the chevron and
+    // expands a group instead of focusing anything -- and this check
+    // runs last, so it inherits whatever shape the checks above left
+    // behind.
+    await menu(['Pivot', 'Clear All Vertical Pivots']).catch(() => {});
+    await page.locator('.dc-row').first().locator('.dc-cell').nth(1).click();
     const focused = () => page.evaluate(() =>
       document.querySelector('.dc-cell.dc-focus')?.textContent ?? '');
     const before = await focused();

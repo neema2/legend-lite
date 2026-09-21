@@ -296,6 +296,41 @@ describe('the app', () => {
     pick('Load View');
   });
 
+  it('LOADING A VIEW RESTORES THE QUERY, not just the status line', async () => {
+    // The test above asserted that something was stored and then
+    // clicked Load with no assertion at all, so it passed while
+    // loading restored NOTHING. The status line said `loaded "..."`
+    // either way, which is the only thing anyone checked.
+    //
+    // The cause: `loadView` set the app's snapshot and then called
+    // `setTree`, which refreshes -- and that refresh ran the
+    // CONTROLLER's snapshot, the one being replaced, then handed the
+    // resulting view back through `onView`, which assigns
+    // `this.#snapshot = view.snapshot`. The freshly loaded snapshot
+    // was overwritten by the stale one before the real refresh ran.
+    await app.applyConfiguration({ maxRows: 123 });
+    const saved = { ...app.controller.snapshot };
+    app.saveView('a view worth keeping');
+
+    // Move AWAY from the saved shape, so restoring has work to do.
+    const now = app.controller.snapshot;
+    assert.ok(now);
+    await app.controller.update({ ...now, rows: [], epoch: now.epoch + 1 });
+    assert.deepEqual(app.controller.snapshot?.rows, [],
+      'could not set up: the cube is still grouped');
+
+    await app.loadView();
+
+    assert.equal(statuses.at(-1)?.[1], 'ok', 'it reported success');
+    assert.deepEqual(
+      app.controller.snapshot?.rows,
+      saved.rows,
+      'the row dimensions came back',
+    );
+    assert.equal(app.controller.snapshot?.maxRows, 123,
+      'and the configuration the view was saved with');
+  });
+
   it('reports a bad saved view rather than throwing past the user', async () => {
     storage.setItem('datacube.savedView', '{ not json');
     await app.loadView();
