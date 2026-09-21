@@ -842,6 +842,75 @@ try {
       + ` ${shown.length} columns`;
   });
 
+  await check('a column pivot keeps the cube\'s column order', async () => {
+    // BY POSITION, not by DOM order. The header is a CSS grid placed
+    // with `grid-column`, and the DOM groups cells by header ROW --
+    // so every level-0 cell precedes every level-1 cell in document
+    // order whatever the screen shows. Reading the DOM order made a
+    // correct layout look broken, and then made a fix look like it
+    // had not worked.
+    const byPosition = () => page.evaluate(() =>
+      [...document.querySelectorAll('.dc-th[data-column]')]
+        .map((e) => ({
+          name: e.dataset.column,
+          x: Math.round(e.getBoundingClientRect().left),
+        }))
+        .sort((a, b) => a.x - b.x)
+        .map((c) => c.name));
+
+    await menu(['Pivot', 'Clear All Vertical Pivots']).catch(() => {});
+    await menu(['Pivot', 'Clear All Horizontal Pivots']).catch(() => {});
+    // GROUPED first. A pivot with no row groups has nothing to group
+    // by afterwards, so there is no outer groupBy and the carried
+    // columns genuinely do not exist -- the baseline has to be the
+    // shape the question is about.
+    const dims0 = await dimensionNames();
+    const groupBy = ['region', 'desk', 'book'].find(
+      (n) => dims0.includes(n));
+    if (!groupBy) throw new Error(`nothing to group by in ${dims0}`);
+    await menu(['Pivot', /^Vertical Pivot on/],
+      { col: await needCol(groupBy) });
+    const flat = await byPosition();
+    const measure = ['notional', 'pnl'].filter((n) => flat.includes(n));
+    const trailing = flat.slice(flat.indexOf(measure[0]) + measure.length);
+    if (!measure.length || !trailing.length) {
+      throw new Error(`need a measure with columns after it, have`
+        + ` ${flat.join(',')}`);
+    }
+
+    const dims = await dimensionNames();
+    const across = ['year', 'quarter'].find(
+      (n) => dims.includes(n) && n !== groupBy);
+    await menu(['Pivot', /^Horizontal Pivot on/],
+      { col: await needCol(across) });
+    await page.waitForTimeout(1200);
+
+    const after = await byPosition();
+    // The plain columns keep their order relative to one another...
+    const plain = after.filter((n) => !n.includes('__|__'));
+    const wanted = flat.filter((n) => plain.includes(n));
+    if (plain.join(',') !== wanted.join(',')) {
+      throw new Error(`the plain columns were reordered: ${plain.join(',')}`
+        + ` (was ${wanted.join(',')})`);
+    }
+    // ...and the pivot blocks sit WHERE THE MEASURES WERE, so a
+    // column that followed them still follows.
+    const firstBlock = after.findIndex((n) => n.includes('__|__'));
+    const stillTrailing = trailing.filter((n) => after.includes(n));
+    for (const name of stillTrailing) {
+      if (after.indexOf(name) < firstBlock) {
+        throw new Error(`${name} came BEFORE the pivot blocks; it followed`
+          + ` the measures in the flat cube: ${after.join(',')}`);
+      }
+    }
+    if (!stillTrailing.length) {
+      throw new Error('no column survived after the measures, so nothing'
+        + ' here was tested');
+    }
+    return `blocks between ${after[firstBlock - 1]} and`
+      + ` ${stillTrailing.join(',')}`;
+  });
+
   await check('clear all horizontal pivots', async () => {
     if (!/pivot\(/.test((await state()).pure)) {
       throw new Error('could not set up: nothing is pivoted');

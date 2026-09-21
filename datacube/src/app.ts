@@ -472,7 +472,26 @@ export class CubeApp {
       view.rows,
       view.snapshot.rows,
       view.snapshot.measures.map((m) => m.name),
-      toColumnLayout(this.#config) as ColumnLayout,
+      {
+        ...(toColumnLayout(this.#config) as ColumnLayout),
+        // THE CUBE'S ORDER, not the answer's.
+        //
+        // Leaves were ordered by their position in the RESULT, and a
+        // pivoted cube's result puts the pivot's own columns before
+        // the ones it carried through -- upstream's `_groupByAggCols`
+        // emits them in that order too. So pivoting threw the
+        // columns into a new order: every year block first, then
+        // trade_id, quarter and the rest behind them.
+        //
+        // DataCube does not have the problem because its grid never
+        // takes order from the query: `columnDefs:
+        // generateColumnDefs(snapshot, configuration)` builds them in
+        // CONFIGURATION order, and the result's column order is
+        // nobody's business but the engine's. So the declared order
+        // is the default here, and an explicit reorder still wins.
+        order: this.#config.columnOrder
+          ?? view.snapshot.columns.map((c) => c.name),
+      },
       view.snapshot.pivotOn.length,
     );
     // Refreshed AFTER the view lands, because the pivot's leaf names

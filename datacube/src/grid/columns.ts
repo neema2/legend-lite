@@ -272,46 +272,89 @@ export function buildColumnModel(
   // silently vanish from a saved view that predates it.
   const order = layout.order;
   /**
-   * What a leaf is ORDERED BY.
+   * WHERE A LEAF SITS, given the order the cube declares.
    *
-   * Its own name when it is a plain column, and its MEASURE when it
-   * is pivoted: `2021__|__notional` is a value crossed with a
-   * measure, and the order a configuration holds is a list of source
-   * columns. Matching on the full leaf name found nothing for a
-   * pivoted cube, so its columns could not be reordered at all.
+   * Three parts, because a pivoted cube has two kinds of column and
+   * the answer's own order must not decide either.
+   *
+   * ITS MEASURE, not its name. `2021__|__notional` is a value
+   * crossed with a measure, and the order a configuration holds is a
+   * list of source columns; matching the whole leaf name found
+   * nothing and fell back to the result's order.
+   *
+   * THE BLOCKS GO WHERE THE MEASURES WERE. Every pivoted leaf shares
+   * one position -- the earliest measure the pivot replaced -- so the
+   * spread measures occupy the seat `notional` and `pnl` used to
+   * have, and a column that came after them still comes after. Put
+   * plainly: a cube ending `..., quarter, notional, pnl, quantity,
+   * settled` pivots to `..., quarter, <the year blocks>, quantity,
+   * settled`, not to `..., quantity, settled, <the year blocks>`.
+   *
+   * AND EACH VALUE BLOCK STAYS WHOLE, in the order the values came
+   * back in. Value-major, not measure-major: ordering primarily by
+   * measure would give notional for every year and then pnl for
+   * every year, which is a different table from the one a pivot is
+   * for.
+   *
+   * The blocks are numbered among the pivoted leaves, though nothing
+   * rests on that -- `block` is only consulted for pivoted leaves,
+   * so numbering across all of them would shift every index by the
+   * same one. What DID rest on appearance order was an earlier
+   * version that used the block as the PRIMARY key for every leaf:
+   * the plain columns' position then depended on where the engine
+   * happened to put the pivot's output, which is the fault this
+   * whole comparator exists to remove.
    */
-  const rankOf = (l: LeafColumn): string =>
-    l.path[l.path.length - 1] ?? l.name;
+  const pivoted = (l: LeafColumn): boolean => l.path.length > 1;
+  const measureRank = (l: LeafColumn): number =>
+    order ? order.indexOf(l.path[l.path.length - 1] ?? l.name) : -1;
 
-  /**
-   * Which pivot VALUE block a leaf belongs to, by first appearance.
-   *
-   * Reordering the measures must happen INSIDE each block. A single
-   * ordering across every leaf would interleave the blocks --
-   * 2021's notional, 2022's notional, 2021's pnl -- which is not a
-   * pivot table any more.
-   */
+  let home = -1;
+  for (const l of visible) {
+    if (!pivoted(l)) continue;
+    const r = measureRank(l);
+    if (r !== -1 && (home === -1 || r < home)) home = r;
+  }
+
+  const blockKey = (l: LeafColumn): string =>
+    l.path.slice(0, -1).join('\u0000');
   const blocks = new Map<string, number>();
-  const blockOf = (l: LeafColumn): number => {
-    const key = l.path.slice(0, -1).join('\u0000');
-    const known = blocks.get(key);
-    if (known !== undefined) return known;
-    blocks.set(key, blocks.size);
-    return blocks.size - 1;
-  };
-  for (const l of visible) blockOf(l);
+  for (const l of visible) {
+    if (!pivoted(l)) continue;
+    const key = blockKey(l);
+    if (!blocks.has(key)) blocks.set(key, blocks.size);
+  }
+
+  const seat = (l: LeafColumn): number =>
+    pivoted(l) ? home : measureRank(l);
+  const block = (l: LeafColumn): number =>
+    pivoted(l) ? (blocks.get(blockKey(l)) ?? 0) : -1;
 
   const ordered = order
     ? [...visible].sort((a, b) => {
-        const ba = blockOf(a);
-        const bb = blockOf(b);
+        // The tree column is the row dimensions and belongs at the
+        // left, whatever the order says -- it names none of the
+        // source columns, so a rank lookup would send it to the end.
+        if (a.name === TREE_COLUMN) return b.name === TREE_COLUMN ? 0 : -1;
+        if (b.name === TREE_COLUMN) return 1;
+        const sa = seat(a);
+        const sb = seat(b);
+        // A column the order does not mention keeps engine order,
+        // behind everything it does mention: adding a measure must
+        // not make it vanish from a saved view that predates it.
+        if (sa === -1 && sb === -1) return a.index - b.index;
+        if (sa === -1) return 1;
+        if (sb === -1) return -1;
+        if (sa !== sb) return sa - sb;
+        const ba = block(a);
+        const bb = block(b);
         if (ba !== bb) return ba - bb;
-        const ia = order.indexOf(rankOf(a));
-        const ib = order.indexOf(rankOf(b));
-        if (ia === -1 && ib === -1) return a.index - b.index;
-        if (ia === -1) return 1;
-        if (ib === -1) return -1;
-        return ia - ib;
+        const ma = measureRank(a);
+        const mb = measureRank(b);
+        if (ma === mb) return a.index - b.index;
+        if (ma === -1) return 1;
+        if (mb === -1) return -1;
+        return ma - mb;
       })
     : visible;
 

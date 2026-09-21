@@ -250,6 +250,85 @@ describe('buildColumnModel', () => {
     );
   });
 
+  it('orders columns by the CUBE, not by the answer', () => {
+    // A pivoted result puts the pivot's own columns before the ones
+    // it carried through -- upstream's `_groupByAggCols` emits them
+    // in that order too -- so ordering leaves by their position in
+    // the result threw the columns into a new order the moment you
+    // pivoted: every value block first, the plain columns behind.
+    //
+    // DataCube never takes display order from the query
+    // (`columnDefs: generateColumnDefs(snapshot, configuration)`), so
+    // the declared order decides here as well.
+    const model = buildColumnModel(
+      // Result order: tree, then the pivot's output, then the rest.
+      table([
+        TREE_COLUMN,
+        '2021__|__notional', '2021__|__pnl',
+        '2022__|__notional', '2022__|__pnl',
+        'trade_id', 'quarter',
+      ]),
+      ['region'],
+      ['notional', 'pnl'],
+      { order: ['trade_id', 'quarter', 'notional', 'pnl'] },
+      1,
+    );
+    assert.deepEqual(model.leaves.map((l) => l.name), [
+      TREE_COLUMN,
+      'trade_id', 'quarter',
+      '2021__|__notional', '2021__|__pnl',
+      '2022__|__notional', '2022__|__pnl',
+    ]);
+  });
+
+  it('puts the value blocks where the MEASURES were', () => {
+    // The case that was still wrong: `quantity` and `settled` came
+    // after `notional` and `pnl` in the cube, so they must still
+    // come after the blocks that replaced them -- not before, with
+    // the blocks pushed to the end.
+    const model = buildColumnModel(
+      table([
+        TREE_COLUMN, 'quarter', 'quantity', 'settled',
+        '2021__|__notional', '2021__|__pnl',
+        '2022__|__notional', '2022__|__pnl',
+      ]),
+      ['region'],
+      ['notional', 'pnl'],
+      { order: ['quarter', 'notional', 'pnl', 'quantity', 'settled'] },
+      1,
+    );
+    assert.deepEqual(model.leaves.map((l) => l.name), [
+      TREE_COLUMN,
+      'quarter',
+      '2021__|__notional', '2021__|__pnl',
+      '2022__|__notional', '2022__|__pnl',
+      'quantity', 'settled',
+    ]);
+  });
+
+  it('keeps each pivot VALUE block whole, after the plain columns', () => {
+    // Value-major, not measure-major: a pivot exists to put the
+    // values across the top with the measures beneath each one.
+    // Ordering primarily by measure would give notional for every
+    // year and then pnl for every year, which is a different table.
+    const model = buildColumnModel(
+      table([
+        '2021__|__notional', '2022__|__notional',
+        '2021__|__pnl', '2022__|__pnl', 'quarter',
+      ]),
+      [],
+      ['notional', 'pnl'],
+      { order: ['quarter', 'notional', 'pnl'] },
+      1,
+    );
+    const names = model.leaves.map((l) => l.name);
+    assert.equal(names[0], 'quarter', 'the plain column comes first');
+    assert.deepEqual(names.slice(1), [
+      '2021__|__notional', '2021__|__pnl',
+      '2022__|__notional', '2022__|__pnl',
+    ]);
+  });
+
   it('builds a nested header from engine-style names', () => {
     const m = buildColumnModel(
       table(['region', '2021_notional', '2022_notional']),
