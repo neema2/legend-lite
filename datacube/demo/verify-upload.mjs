@@ -161,6 +161,76 @@ try {
       + ' — collapsed and clipped');
   }
 
+  // THE HEADER MUST FOLLOW THE COLUMNS SIDEWAYS.
+  //
+  // The header is a SIBLING of the horizontal scroller, so scrolling
+  // the body cannot move it on its own -- the labels sat still while
+  // their columns slid away underneath. What is asserted is
+  // ALIGNMENT, not movement: the last column's header and the last
+  // column's cell must share an x position before and after a
+  // horizontal scroll. "The header moved" would also pass if it moved
+  // by the wrong amount, which is the same bug one pixel smaller.
+  //
+  // The viewport is narrowed first so the grid certainly overflows,
+  // and the overflow is asserted -- a check that silently finds
+  // nothing to scroll proves nothing.
+  await page.setViewportSize({ width: 620, height: 720 });
+  await page.waitForTimeout(150);
+
+  const hProbe = () => page.evaluate(() => {
+    const sc = document.querySelector('.dc-scroller');
+    const ths = [...document.querySelectorAll('.dc-th[data-column]')];
+    const tds = [...document.querySelectorAll('.dc-row')][0]
+      ?.querySelectorAll('.dc-cell') ?? [];
+    const i = Math.min(ths.length, tds.length) - 1;
+    if (!sc || i < 0) return { range: -1, i };
+    return {
+      range: Math.round(sc.scrollWidth - sc.clientWidth),
+      left: Math.round(sc.scrollLeft),
+      i,
+      thX: Math.round(ths[i].getBoundingClientRect().left),
+      tdX: Math.round(tds[i].getBoundingClientRect().left),
+    };
+  });
+
+  const hBefore = await hProbe();
+  if (hBefore.range < 100) {
+    bad(`the grid has only ${hBefore.range}px of horizontal overflow at a`
+      + ' 620px viewport, so the scroll check proves nothing');
+  } else {
+    const shift = Math.min(300, hBefore.range);
+    await page.evaluate((d) => {
+      document.querySelector('.dc-scroller').scrollLeft = d;
+    }, shift);
+    // Two frames: the sync runs in a requestAnimationFrame.
+    await page.evaluate(() => new Promise((r) =>
+      requestAnimationFrame(() => requestAnimationFrame(r))));
+    const hAfter = await hProbe();
+    console.log(`h-scroll: column ${hAfter.i} header x=${hAfter.thX}`
+      + ` cell x=${hAfter.tdX} after scrolling ${hAfter.left}px`
+      + ` of ${hAfter.range}px`);
+    if (Math.abs(hBefore.thX - hBefore.tdX) > 2) {
+      bad(`header and body are misaligned hBefore scrolling:`
+        + ` ${hBefore.thX} vs ${hBefore.tdX}`);
+    }
+    if (hAfter.tdX >= hBefore.tdX - 10) {
+      bad(`the body did not scroll: cell x went ${hBefore.tdX} ->`
+        + ` ${hAfter.tdX}`);
+    }
+    if (Math.abs(hAfter.thX - hAfter.tdX) > 2) {
+      bad(`the header did not follow the columns: after scrolling`
+        + ` ${hAfter.left}px the header cell is at ${hAfter.thX} and its`
+        + ` column is at ${hAfter.tdX}`);
+    }
+  }
+
+  // Widen it again so the drag below fails only for reasons to do
+  // with dragging -- but leave the grid SCROLLED SIDEWAYS. Replacing
+  // the column model is the second place the header can fall out of
+  // step with the body, and it is checked after the drag.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.waitForTimeout(150);
+
   // A date column must render as a DATE. It arrives as epoch
   // milliseconds and the formatter only date-formats a Date
   // instance, so the failure mode is "1,612,828,800,000" -- and
@@ -206,6 +276,29 @@ try {
     if (!/GROUP BY/i.test(grouped.sql)) {
       bad(`no GROUP BY in the SQL: ${grouped.sql.slice(0, 120)}`);
     }
+    // AND THE HEADER IS STILL WITH ITS COLUMNS.
+    //
+    // Grouping replaces the column model, which replaces the header's
+    // children -- and that resets the header viewport's own scroll
+    // offset while the body stays where the user left it. The offsets
+    // must match; the grid is still scrolled sideways from the check
+    // above, so 0 === 0 would not be what is being asserted here.
+    const offs = await page.evaluate(() => {
+      const h = document.querySelector('.dc-head');
+      const sc = document.querySelector('.dc-scroller');
+      return { head: Math.round(h.scrollLeft), body: Math.round(sc.scrollLeft) };
+    });
+    console.log(`after rebuild: header offset ${offs.head},`
+      + ` body offset ${offs.body}`);
+    if (offs.body === 0) {
+      bad('the body lost its horizontal scroll across the rebuild, so'
+        + ' the header-offset check below proves nothing');
+    }
+    if (offs.head !== offs.body) {
+      bad(`rebuilding the header snapped it back: header at ${offs.head},`
+        + ` body at ${offs.body}`);
+    }
+
     const distinct = new Set(grouped.rows).size;
     if (grouped.rows.length !== distinct) {
       bad(`grouped rows repeat: ${grouped.rows.length} rows but only `

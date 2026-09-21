@@ -64,6 +64,10 @@
   flex: 0 0 auto;
   background: var(--dc-head-bg);
   border-bottom: 1px solid var(--dc-border);
+  /* The header's VIEWPORT. Hidden rather than auto because the header
+     must not carry a scrollbar of its own -- but hidden is still a
+     scroll container, so `scrollLeft` moves it, which is how it
+     follows the body sideways. */
   overflow: hidden;
   color: var(--dc-header-fg, #000);
 }
@@ -71,8 +75,13 @@
 /* The header is one grid; every cell is placed explicitly, which is
    the only way a ragged header (dimensions spanning several levels)
    lands under the right columns. Widths come from the same leaf list
-   the body uses, so the two cannot drift apart. */
-.dc-head {
+   the body uses, so the two cannot drift apart.
+
+   It sits INSIDE .dc-head rather than being it. `width: max-content`
+   makes an element exactly as wide as its content, so such an element
+   has no scroll range and cannot be slid to follow the body; the
+   width belongs on the content, the clip on a container. */
+.dc-head-grid {
   display: grid;
   width: max-content;
   min-width: 100%;

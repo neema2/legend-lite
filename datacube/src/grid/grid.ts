@@ -122,6 +122,7 @@ interface Focus {
 export class DataGrid {
   readonly #root: HTMLElement;
   readonly #head: HTMLElement;
+  readonly #headGrid: HTMLElement;
   readonly #body: HTMLElement;
   readonly #spacer: HTMLElement;
   readonly #scroller: HTMLElement;
@@ -158,9 +159,22 @@ export class DataGrid {
     this.#root.setAttribute('role', 'treegrid');
     this.#root.tabIndex = 0;
 
+    // The header is TWO elements, and it has to be. It must clip at
+    // the grid's width while its own content is as wide as every
+    // column, because that is the only way it can be scrolled to
+    // follow the body: a single `width: max-content` element is
+    // exactly as wide as its content and so has no scroll range at
+    // all. The outer element is the viewport, the inner one the grid.
     this.#head = doc.createElement('div');
     this.#head.className = 'dc-head';
-    this.#head.setAttribute('role', 'rowgroup');
+    // Presentational, so the rowgroup inside it is still owned by the
+    // treegrid -- the same shape `#spacer` uses around `#body`.
+    this.#head.setAttribute('role', 'presentation');
+
+    this.#headGrid = doc.createElement('div');
+    this.#headGrid.className = 'dc-head-grid';
+    this.#headGrid.setAttribute('role', 'rowgroup');
+    this.#head.appendChild(this.#headGrid);
 
     this.#scroller = doc.createElement('div');
     this.#scroller.className = 'dc-scroller';
@@ -260,18 +274,18 @@ export class DataGrid {
     const model = this.#model;
     if (!model) return;
     const doc = this.#root.ownerDocument;
-    this.#head.replaceChildren();
+    this.#headGrid.replaceChildren();
 
     // One CSS grid for the whole header, with every cell placed
     // explicitly. Flexbox cannot express a cell spanning two rows, so
     // a ragged header laid out in document order puts the lower row's
     // cells under the dimension columns instead of under their values.
-    this.#head.style.gridTemplateColumns = this.#templateColumns(model);
+    this.#headGrid.style.gridTemplateColumns = this.#templateColumns(model);
     // Header rows are 24px where body rows are 20px -- their
     // --ag-header-height and --ag-row-height differ, and laying the
     // header out on the body's height makes every header cell 4px
     // short of the real thing.
-    this.#head.style.gridTemplateRows =
+    this.#headGrid.style.gridTemplateRows =
       `repeat(${this.#headerLevels()}, var(--dc-head-height))`;
 
     let pivotGroup = 0;
@@ -324,9 +338,35 @@ export class DataGrid {
         }
         row.appendChild(el);
       }
-      this.#head.appendChild(row);
+      this.#headGrid.appendChild(row);
     });
 
+  }
+
+  /**
+   * Slide the header to wherever the body is scrolled horizontally.
+   *
+   * The header cannot simply live inside the scroller: it is
+   * `position: sticky` against the grid, and a sticky element inside
+   * the same box that scrolls horizontally sticks in BOTH axes, so
+   * the labels would stay put while their columns moved. So it is a
+   * sibling with its own overflow, driven from here -- which is what
+   * ag-grid does, for the same reason.
+   *
+   * ONE call site, in the scroll handler. Rebuilding the header's
+   * children does not need its own sync: replacing them inside one
+   * frame keeps the viewport's offset, and a column model narrow
+   * enough to clamp the body's offset fires a scroll event that
+   * lands here anyway. Both were checked by removing this call and
+   * watching verify:upload stay green across a regroup.
+   *
+   * `scrollLeft` rather than a transform: `overflow: hidden` still
+   * makes a scroll container, it just refuses the user's gestures,
+   * and scrolling it keeps the sticky positioning working instead of
+   * establishing a containing block that would break it.
+   */
+  #syncHeaderOffset(): void {
+    this.#head.scrollLeft = this.#scroller.scrollLeft;
   }
 
   /**
@@ -403,6 +443,10 @@ export class DataGrid {
     if (this.#frame) return;
     this.#frame = requestAnimationFrame(() => {
       this.#frame = 0;
+      // Before the render, and OUTSIDE it: `#render` returns early
+      // when the row window has not moved, which is exactly what a
+      // purely horizontal scroll does.
+      this.#syncHeaderOffset();
       this.#render();
     });
   };
