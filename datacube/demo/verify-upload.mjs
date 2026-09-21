@@ -18,6 +18,12 @@ import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
 
 const ROOT = new URL('..', import.meta.url).pathname;
+
+// A function declaration, not a const: this is used above its
+// definition and a const there is a temporal-dead-zone error
+// that masks the very failure it was added to report.
+function bad(m) { console.log(`FAIL: ${m}`); failed = true; }
+let failed = false;
 const DATA = process.env.DATA;
 const EXPECT_ROWS = Number(process.env.EXPECT_ROWS ?? 0);
 const EXPECT_COLS = Number(process.env.EXPECT_COLS ?? 0);
@@ -53,7 +59,6 @@ if (process.env.DEBUG) {
   page.on('console', (m) => console.log(`  [page ${m.type()}] ${m.text()}`));
 }
 
-let failed = false;
 try {
   await page.goto(`http://127.0.0.1:${port}/demo/index.html`,
     { waitUntil: 'load', timeout: 120_000 });
@@ -131,17 +136,41 @@ try {
     failed = true;
   }
 
+  // HEADERS MUST BE VISIBLE, not merely present.
+  //
+  // They were in the DOM with the right labels while the user saw
+  // none: .dc-head is a flex item and defaulted to flex-shrink:1, so
+  // a tall result crushed it to 0.015625px and `overflow:hidden`
+  // clipped every 24px cell. Counting header cells would have passed.
+  // The demo cube has three rows and never overflows, which is why
+  // only an uploaded file showed it.
+  const head = await page.evaluate(() => {
+    const h = document.querySelector('.dc-head');
+    const c = document.querySelector('.dc-th');
+    return {
+      headH: h ? Math.round(h.getBoundingClientRect().height) : -1,
+      cellH: c ? Math.round(c.getBoundingClientRect().height) : -1,
+      labels: [...document.querySelectorAll('[role=columnheader]')]
+        .map((e) => e.textContent?.trim() ?? '').filter(Boolean).length,
+    };
+  });
+  console.log(`header: ${head.headH}px tall, ${head.labels} labels`);
+  if (head.labels === 0) bad('no column headers at all');
+  if (head.headH < head.cellH) {
+    bad(`the header is ${head.headH}px but its cells are ${head.cellH}px`
+      + ' — collapsed and clipped');
+  }
+
   // A date column must render as a DATE. It arrives as epoch
   // milliseconds and the formatter only date-formats a Date
   // instance, so the failure mode is "1,612,828,800,000" -- and
   // then, once converted at UTC midnight and shown in a western
   // zone, the day before the one in the file.
-  const bad = rows[0]?.filter((c) => /^[\d,]{10,}$/.test(c)
+  const badCells = rows[0]?.filter((c) => /^[\d,]{10,}$/.test(c)
     || /Invalid Date/.test(c)) ?? [];
-  if (bad.length) {
-    console.log(`FAIL: a temporal column did not render as a date: `
-      + JSON.stringify(bad));
-    failed = true;
+  if (badCells.length) {
+    bad(`a temporal column did not render as a date: `
+      + JSON.stringify(badCells));
   }
 
   if (EXPECT_ROWS) {

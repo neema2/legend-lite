@@ -53,6 +53,15 @@
   position: sticky;
   top: 0;
   z-index: 2;
+  /* NEVER shrink. The header is a flex item beside the scroller, and
+     a flex item defaults to flex-shrink:1 -- so once the body's
+     content is tall enough, the shrink distribution crushes the
+     header to nothing. Measured at 0.015625px against a 25,000-row
+     result, with its grid still reporting a 24px row: the cells were
+     laid out correctly and then clipped by `overflow:hidden` on a
+     container of no height. It never showed on the demo cube, which
+     has three rows and so never overflows. */
+  flex: 0 0 auto;
   background: var(--dc-head-bg);
   border-bottom: 1px solid var(--dc-border);
   overflow: hidden;
