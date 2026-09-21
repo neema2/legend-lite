@@ -161,13 +161,17 @@ export class PivotPanel {
       prompt.textContent = PROMPTS[zone];
       el.append(prompt);
     } else {
+      const down = this.#options.orientation === 'list';
       columns.forEach((column, i) => {
-        if (i > 0) {
+        // The arrow is not decoration: it says the order is a
+        // hierarchy, outermost first, rather than a set. A LIST says
+        // that by running downwards, so it needs no arrows -- and
+        // rendering them to hide them in CSS leaves a row of marks
+        // for a screen reader to read out.
+        if (i > 0 && !down) {
           const arrow = doc.createElement('span');
           arrow.className = 'dc-zone-arrow';
           arrow.setAttribute('aria-hidden', 'true');
-          // The arrow is not decoration: it says the order is a
-          // hierarchy, outermost first, rather than a set.
           arrow.textContent = '›';
           el.append(arrow);
         }
@@ -177,14 +181,30 @@ export class PivotPanel {
 
     el.addEventListener('dragover', (event) => {
       const drag = currentHeaderDrag();
-      if (!drag || !this.#options.canGroup(drag.column)) return;
+      if (!drag) return;
+      // A MEASURE IS REFUSED, AND SAYS SO. Grouping by a notional
+      // means one group per amount -- upstream does not offer it
+      // either (`enableRowGroup: kind === DIMENSION`) -- but the
+      // refusal was silent: the drag simply did nothing, and the
+      // measures are the first thing anyone drags. A marked zone and
+      // a no-drop cursor answer before the drop.
+      if (!this.#options.canGroup(drag.column)) {
+        el.classList.add('dc-refuse');
+        el.classList.remove('dc-drop-target');
+        return;
+      }
       event.preventDefault();
       if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
       el.classList.add('dc-drop-target');
+      // Set by a refused drag a moment ago; `dragleave` is not
+      // guaranteed to have arrived, and a zone marked both ways at
+      // once says nothing.
+      el.classList.remove('dc-refuse');
     });
-    el.addEventListener('dragleave', () => el.classList.remove('dc-drop-target'));
+    el.addEventListener('dragleave', () =>
+      el.classList.remove('dc-drop-target', 'dc-refuse'));
     el.addEventListener('drop', (event) => {
-      el.classList.remove('dc-drop-target');
+      el.classList.remove('dc-drop-target', 'dc-refuse');
       const drag = currentHeaderDrag();
       if (!drag) return;
       event.preventDefault();

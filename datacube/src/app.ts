@@ -65,7 +65,11 @@ import { FilterEditor } from './ui/filter-editor.ts';
 import { applyMenuAction, buildMenu, type MenuItem } from './ui/menu.ts';
 import { MenuView } from './ui/menu-view.ts';
 import { makeWindow, type WindowSpec } from './ui/window.ts';
-import { PivotPanel, type Zone } from './ui/pivot-panel.ts';
+import {
+  PivotPanel,
+  currentHeaderDrag,
+  type Zone,
+} from './ui/pivot-panel.ts';
 import {
   ColumnsToolPanel,
   type ColumnsPanelChild,
@@ -437,11 +441,21 @@ export class CubeApp {
     // own root, so a header drag from the grid and a chip drag from
     // the bar are the same event to this.
     root.addEventListener('dragstart', () => {
+      // WHETHER IT CAN LAND AT ALL, for the length of the drag. A
+      // measure cannot be grouped by, and the zones used to refuse
+      // it in silence -- so dragging notional into Row Groups looked
+      // like a product that does not support dragging.
+      const drag = currentHeaderDrag();
+      root.classList.toggle(
+        'dc-drag-nogroup',
+        drag !== null && !this.#isDimension(drag.column),
+      );
       if (this.#config.showDragZones) return;
       this.#zonePeek = true;
       this.#applyChrome();
     });
     const unpeek = (): void => {
+      root.classList.remove('dc-drag-nogroup');
       if (!this.#zonePeek) return;
       this.#zonePeek = false;
       this.#applyChrome();

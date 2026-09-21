@@ -307,6 +307,15 @@ export class ColumnsToolPanel {
     row.classList.toggle('dc-measure', !column.groupable);
 
     const children = column.children ?? [];
+    if (children.length === 0) {
+      // THE DISCLOSURE'S SLOT, KEPT EMPTY. Without it a measure the
+      // pivot has spread sits 12px to the right of every other row,
+      // and the three sections stop reading as one list.
+      const spacer = doc.createElement('span');
+      spacer.className = 'dc-tool-panel-twist dc-tool-panel-spacer';
+      spacer.setAttribute('aria-hidden', 'true');
+      row.append(spacer);
+    }
     if (children.length > 0) {
       // The disclosure, first, where every tree puts it.
       const twist = doc.createElement('button');

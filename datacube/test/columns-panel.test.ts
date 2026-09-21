@@ -318,6 +318,31 @@ describe('the panel as three sections of one surface', () => {
     assert.deepEqual(removed, []);
   });
 
+  it('keeps one left gutter for every row, children or not', () => {
+    // The three sections are meant to read as one list, and a row
+    // whose measure a pivot has spread carries a disclosure the
+    // others do not -- so without an empty slot in its place, every
+    // other label sits 12px to the left of it.
+    panel.setColumns(PIVOTED);
+    const rows = [...root.querySelectorAll('.dc-tool-panel-row')]
+      .filter((r) => !r.classList.contains('dc-tool-panel-child'));
+    for (const row of rows) {
+      const slots = row.querySelectorAll('.dc-tool-panel-twist');
+      assert.equal(slots.length, 1,
+        `${(row as HTMLElement).dataset['column']} has ${slots.length}`
+        + ' slots where the disclosure goes');
+    }
+    // The one with children has a real control; the other an inert
+    // spacer.
+    const parent = root.querySelector(
+      '.dc-tool-panel-row[data-column="notional"] .dc-tool-panel-twist');
+    const plain = root.querySelector(
+      '.dc-tool-panel-row[data-column="region"] .dc-tool-panel-twist');
+    assert.equal(parent?.tagName, 'BUTTON');
+    assert.equal(plain?.tagName, 'SPAN');
+    assert.equal(plain?.classList.contains('dc-tool-panel-spacer'), true);
+  });
+
   it('FOLDS a pivoted measure that made too many columns', () => {
     // A pivot on one key makes five of a measure; on two it makes
     // twenty, and the list became a wall of `Q3 . 2024`.

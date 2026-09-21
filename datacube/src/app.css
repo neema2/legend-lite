@@ -144,7 +144,11 @@
   flex-direction: column;
   align-items: stretch;
   gap: 4px;
-  padding: 0 var(--dc-pad-2) var(--dc-pad-1);
+  /* NO HORIZONTAL PADDING. The rows carry their own, the same as the
+     column list's below, so every label in every section starts at
+     the same x -- which is most of what "the sections look the same"
+     means. */
+  padding: 0 0 var(--dc-pad-1);
 }
 
 /* SPECIFICITY, not order: `.dc-pivot-panel > .dc-zone` sets
@@ -160,6 +164,106 @@
   align-content: flex-start;
   min-height: calc(var(--dc-control-height) * 1.6);
   padding: var(--dc-pad-1) var(--dc-pad-2);
+}
+
+/* ONE SHAPE FOR ALL THREE SECTIONS.
+   Row groups, column labels and the columns themselves are the same
+   kind of thing -- a list of columns you drag between -- so they
+   read as one surface in three parts rather than two pill bars above
+   a list. It also makes the zones a target you can hit: a chip bar
+   30px tall is a hard thing to drop into by hand, which is most of
+   why dragging between the sections felt like it did not work. */
+.dc-pivot-panel.dc-pivot-panel-list .dc-chip {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  height: var(--dc-row-control-height);
+  padding: 0 var(--dc-pad-2);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: grab;
+}
+
+.dc-pivot-panel.dc-pivot-panel-list .dc-chip:hover {
+  background: var(--dc-row-hover);
+}
+
+/* A GRIP, in the slot the list's tick box occupies, so every row in
+   every section starts its label at the same place -- and so an axis
+   row says it can be dragged, which a bare word does not. */
+.dc-pivot-panel.dc-pivot-panel-list .dc-chip::before {
+  content: '\22ee\22ee';
+  /* As wide as the list's disclosure and tick box together, so an
+     axis row's label starts exactly where a column row's does. */
+  flex: 0 0 24px;
+  margin-right: 4px;
+  color: var(--tw-neutral-400);
+  font-size: 9px;
+  letter-spacing: -2px;
+}
+
+/* The label takes the room, so the remove button sits at the right
+   edge where the list shows a column's type. */
+.dc-pivot-panel.dc-pivot-panel-list .dc-chip-label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Each zone is a plain block of rows, like the list below it. */
+.dc-pivot-panel.dc-pivot-panel-list > .dc-zone {
+  display: block;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  min-height: var(--dc-row-control-height);
+}
+
+/* Empty, it is one row saying what to drop here -- dashed, because
+   an empty target has to look like a target. */
+.dc-pivot-panel.dc-pivot-panel-list .dc-zone-prompt {
+  display: block;
+  margin: 0 var(--dc-pad-2);
+  padding: 0 var(--dc-pad-1);
+  border: 1px dashed var(--tw-neutral-300);
+  border-radius: var(--dc-radius-sm);
+  line-height: var(--dc-row-control-height);
+  color: var(--tw-neutral-500);
+  font-size: var(--dc-text-sm-size);
+}
+
+/* Where a drop will land, and where it cannot. */
+.dc-pivot-panel.dc-pivot-panel-list > .dc-zone.dc-drop-target {
+  background: color-mix(in srgb, var(--tw-sky-500, #0ea5e9) 10%,
+    transparent);
+  outline: 1px dashed var(--tw-sky-500, #0ea5e9);
+  outline-offset: -1px;
+}
+
+/* A MEASURE CANNOT BE GROUPED BY, and now says so rather than
+   ignoring the drag: grouping by a notional means one group per
+   amount, and upstream does not offer it either. */
+.dc-zone.dc-refuse {
+  outline: 1px dashed var(--tw-neutral-400);
+  outline-offset: -1px;
+  cursor: not-allowed;
+}
+
+/* For the whole length of such a drag, both zones stand back. */
+.dc-app.dc-drag-nogroup .dc-zone {
+  opacity: 0.45;
+}
+
+.dc-app.dc-drag-nogroup .dc-zone-title::after {
+  content: ' — dimensions only';
+  text-transform: none;
+  letter-spacing: 0;
 }
 
 /* The title goes ABOVE its chips here, not beside them: a zone one
@@ -1334,6 +1438,12 @@
 
 .dc-tool-panel-twist:hover {
   color: var(--tw-black);
+}
+
+/* The empty slot: the same width, no hit area, nothing to see. */
+.dc-tool-panel-twist.dc-tool-panel-spacer {
+  cursor: default;
+  pointer-events: none;
 }
 
 /* The tick box: what upstream's columns tool panel is mostly for. */

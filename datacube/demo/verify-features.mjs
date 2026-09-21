@@ -2004,6 +2004,194 @@ try {
       return `${column} went list -> rows -> columns -> list`;
     });
 
+  await check('the three sections read as ONE list', async () => {
+    // Row groups, column labels and the columns themselves are the
+    // same kind of thing -- a list of columns you drag between -- so
+    // they are laid out the same: one row per column, the same
+    // height, every label starting at the same x. Two pill bars
+    // above a list is three different things on one surface.
+    await flatten();
+    const dims = await dimensionNames();
+    const group = ['region', 'desk', 'book'].find((n) => dims.includes(n));
+    const key = ['year', 'quarter', 'qtr'].find((n) => dims.includes(n));
+    if (!group || !key) throw new Error(`need two dimensions in ${dims}`);
+    await menu(['Pivot', /^Vertical Pivot on/], { col: await needCol(group) });
+    await menu(['Pivot', /^Horizontal Pivot on/], { col: await needCol(key) });
+    await settle();
+
+    const rows = await page.evaluate(() => {
+      const read = (sel, labelSel) =>
+        [...document.querySelectorAll(sel)].map((r) => {
+          const label = r.querySelector(labelSel);
+          return {
+            column: r.dataset.column,
+            x: Math.round(label.getBoundingClientRect().left),
+            h: Math.round(r.getBoundingClientRect().height),
+          };
+        });
+      return {
+        axis: [
+          ...read('.dc-tool-panel-zones .dc-zone-rows .dc-chip',
+            '.dc-chip-label'),
+          ...read('.dc-tool-panel-zones .dc-zone-columns .dc-chip',
+            '.dc-chip-label'),
+        ],
+        list: read('.dc-tool-panel-list .dc-tool-panel-row'
+          + ':not(.dc-tool-panel-child)', '.dc-tool-panel-label'),
+      };
+    });
+    if (rows.axis.length === 0 || rows.list.length === 0) {
+      throw new Error(`nothing to compare: ${rows.axis.length} axis rows,`
+        + ` ${rows.list.length} listed`);
+    }
+    const all = [...rows.axis, ...rows.list];
+    const xs = [...new Set(all.map((r) => r.x))];
+    if (xs.length !== 1) {
+      throw new Error(`labels start at ${xs.join(', ')}px: `
+        + all.map((r) => `${r.column}@${r.x}`).join(', '));
+    }
+    const hs = [...new Set(all.map((r) => r.h))];
+    if (hs.length !== 1) {
+      throw new Error(`row heights differ: ${hs.join(', ')}px`);
+    }
+    // And a chip is a ROW, not a pill: as wide as the section.
+    const wide = await page.evaluate(() => {
+      const chip = document.querySelector(
+        '.dc-tool-panel-zones .dc-chip');
+      const zone = chip?.closest('.dc-zone');
+      if (!chip || !zone) return null;
+      return Math.round(chip.getBoundingClientRect().width)
+        / Math.round(zone.getBoundingClientRect().width);
+    });
+    if (wide === null || wide < 0.9) {
+      throw new Error(`a chip fills ${wide === null ? 'no' : Math.round(
+        wide * 100) + '% of'} its section`);
+    }
+    return `${all.length} rows, all ${hs[0]}px tall, labels at ${xs[0]}px`;
+  });
+
+  await check('every direction between the three sections', async () => {
+    // SIX DIRECTIONS, not three. The sections are one surface: a
+    // column goes from the list to either axis, from either axis to
+    // the other, and from either axis back to the list. Each one is
+    // checked, because "dragging works" was true of some of them
+    // while a person trying the others found nothing happened.
+    await flatten();
+    const side = '.dc-tool-panel-zones';
+    const chips = (zone) => page.evaluate((sel) =>
+      [...document.querySelectorAll(sel)].map((c) => c.dataset.column),
+    `${side} .dc-zone-${zone} .dc-chip`);
+    const listed = () => page.evaluate(() =>
+      [...document.querySelectorAll('.dc-tool-panel-row')]
+        .filter((r) => !r.classList.contains('dc-tool-panel-child'))
+        .map((r) => r.dataset.column));
+    const dims = await dimensionNames();
+    const col = ['quarter', 'qtr', 'book'].find((n) => dims.includes(n));
+    if (!col) throw new Error(`no spare dimension in ${dims}`);
+
+    const drag = async (from, to, what) => {
+      const stamp = await statusNow();
+      await page.locator(from).dragTo(page.locator(to), { timeout: 10_000 });
+      await settle(stamp);
+      return what;
+    };
+    const rowChip = `${side} .dc-zone-rows .dc-chip[data-column="${col}"]`;
+    const colChip = `${side} .dc-zone-columns .dc-chip[data-column="${col}"]`;
+    const listRow = `.dc-tool-panel-row[data-column="${col}"]`;
+    const went = [];
+
+    await drag(listRow, `${side} .dc-zone-rows`);
+    if (!(await chips('rows')).includes(col)) {
+      throw new Error('list -> rows did nothing');
+    }
+    went.push('list->rows');
+
+    await drag(rowChip, `${side} .dc-zone-columns`);
+    if (!(await chips('columns')).includes(col)) {
+      throw new Error('rows -> columns did nothing');
+    }
+    if ((await chips('rows')).includes(col)) {
+      throw new Error(`${col} is on both axes at once`);
+    }
+    went.push('rows->columns');
+
+    await drag(colChip, `${side} .dc-zone-rows`);
+    if (!(await chips('rows')).includes(col)) {
+      throw new Error('columns -> rows did nothing');
+    }
+    went.push('columns->rows');
+
+    await drag(rowChip, '.dc-tool-panel-list');
+    if ((await chips('rows')).includes(col)) {
+      throw new Error('rows -> list did nothing');
+    }
+    if (!(await listed()).includes(col)) {
+      throw new Error(`${col} came off the axis and vanished`);
+    }
+    went.push('rows->list');
+
+    await drag(listRow, `${side} .dc-zone-columns`);
+    if (!(await chips('columns')).includes(col)) {
+      throw new Error('list -> columns did nothing');
+    }
+    went.push('list->columns');
+
+    await drag(colChip, '.dc-tool-panel-list');
+    if ((await chips('columns')).includes(col)) {
+      throw new Error('columns -> list did nothing');
+    }
+    went.push('columns->list');
+
+    return `${col}: ${went.join(', ')}`;
+  });
+
+  await check('a measure dragged at a zone is REFUSED VISIBLY',
+    async () => {
+      // It was refused in silence, and the measures are the first
+      // thing anyone drags -- so "you can only drag within each
+      // section" is exactly what that looks like. Grouping by a
+      // notional means one group per amount; upstream does not offer
+      // it either. The answer has to be visible before the drop.
+      await flatten();
+      const measure = await page.locator('.dc-tool-panel-row.dc-measure')
+        .first().evaluate((e) => e.dataset.column);
+      const marks = await page.evaluate((name) => {
+        const row = document.querySelector(
+          `.dc-tool-panel-row[data-column="${name}"]`);
+        row.dispatchEvent(new Event('dragstart', { bubbles: true }));
+        const zone = document.querySelector(
+          '.dc-tool-panel-zones .dc-zone-rows');
+        const dimmed = getComputedStyle(zone).opacity;
+        zone.dispatchEvent(new MouseEvent('dragover', {
+          bubbles: true, cancelable: true }));
+        const refused = zone.classList.contains('dc-refuse');
+        const cursor = getComputedStyle(zone).cursor;
+        row.dispatchEvent(new Event('dragend', { bubbles: true }));
+        return {
+          dimmed,
+          refused,
+          cursor,
+          cleared: !document.querySelector('.dc-app')
+            .classList.contains('dc-drag-nogroup'),
+        };
+      }, measure);
+      if (Number(marks.dimmed) >= 1) {
+        throw new Error(`the zones did not stand back (opacity`
+          + ` ${marks.dimmed}) while ${measure} was dragged`);
+      }
+      if (!marks.refused) {
+        throw new Error(`the zone did not mark ${measure} as refused`);
+      }
+      if (marks.cursor !== 'not-allowed') {
+        throw new Error(`the cursor over the zone was ${marks.cursor}`);
+      }
+      if (!marks.cleared) {
+        throw new Error('the drag ended and the zones stayed dimmed');
+      }
+      return `${measure}: zones dimmed to ${marks.dimmed},`
+        + ` refused, cursor ${marks.cursor}`;
+    });
+
   await check('the columns can be reordered IN the panel', async () => {
     // Dragging a header reorders what is on screen; this reorders
     // the list, which is where a person looks for a column -- and is

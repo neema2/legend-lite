@@ -170,7 +170,10 @@ describe('the same zones, down a list', () => {
     changes = [];
     const panel = new PivotPanel(root, {
       onChange: (zone, cols) => changes.push([zone, [...cols]]),
-      canGroup: () => true,
+      // A MEASURE IS NOT GROUPABLE, as in the product: grouping by a
+      // notional means one group per amount. A fixture that says
+      // everything can be grouped cannot test the refusal.
+      canGroup: (c) => c !== 'notional',
       showColumnZone: true,
       orientation: 'list',
     });
@@ -181,6 +184,47 @@ describe('the same zones, down a list', () => {
 
   it('says which layout it is in, so the CSS can lay it out', () => {
     assert.equal(root.classList.contains('dc-pivot-panel-list'), true);
+  });
+
+  it('renders no chain arrows, because the list IS the order', () => {
+    // The bar reads "region > desk > book", and the arrow says the
+    // order is a hierarchy rather than a set. A list says that by
+    // running downwards, so arrows there are marks a screen reader
+    // reads out for nothing.
+    assert.equal(root.querySelectorAll('.dc-zone-arrow').length, 0);
+    assert.equal(root.querySelectorAll('.dc-chip').length, 2);
+  });
+
+  it('MARKS a drag it cannot take, rather than ignoring it', () => {
+    // Grouping by a notional means one group per amount, so a
+    // measure is refused -- upstream does not offer it either. The
+    // refusal was silent, and the measures are the first thing
+    // anyone drags: dropping one in a zone did nothing at all, which
+    // reads as a product that does not support dragging.
+    const zone = root.querySelector('.dc-zone-rows') as HTMLElement;
+    setHeaderDrag({ column: 'notional', from: 'panel' });
+    zone.dispatchEvent(new dom.window.MouseEvent('dragover', {
+      bubbles: true, cancelable: true,
+    }));
+    assert.equal(zone.classList.contains('dc-refuse'), true);
+    assert.equal(zone.classList.contains('dc-drop-target'), false);
+    // A dimension over the same zone clears the mark rather than
+    // carrying both: `dragleave` is not guaranteed to have arrived,
+    // and a zone marked two ways says nothing. Checked BEFORE any
+    // drop -- a drop clears both marks, which masked this entirely.
+    setHeaderDrag({ column: 'year', from: 'panel' });
+    zone.dispatchEvent(new dom.window.MouseEvent('dragover', {
+      bubbles: true, cancelable: true,
+    }));
+    assert.equal(zone.classList.contains('dc-refuse'), false);
+    assert.equal(zone.classList.contains('dc-drop-target'), true);
+
+    // And the refused one lands nothing.
+    setHeaderDrag({ column: 'notional', from: 'panel' });
+    zone.dispatchEvent(new dom.window.MouseEvent('drop', {
+      bubbles: true, cancelable: true,
+    }));
+    assert.deepEqual(changes, []);
   });
 
   it('finds the drop index DOWN the zone, not across it', () => {
