@@ -86,20 +86,16 @@ export interface CubeAppOptions {
   /** Called whenever the snap state changes, for a plane badge. */
   readonly onPlane?: () => void;
   /**
-   * Show the cube glyph and report title at the left of the bar.
+   * The host's own readout, at the right of the STATUS bar.
    *
-   * On by default, as DataCube has it. A host that owns the page
-   * furniture already -- and wants every pixel for the grid -- turns
-   * it off.
+   * It used to sit in the title bar, which put a host's progress
+   * text and a moving row count in the one strip that should say
+   * what you are looking at. The status bar is where a readout
+   * belongs, so that is where the slot is. Called on every render
+   * with the element to append to -- the bar is rebuilt each time,
+   * so the host appends the same node again and it moves.
    */
-  readonly showBrand?: boolean;
-  /**
-   * The host's own controls, in the bar beside the plane toggle.
-   *
-   * The slot DataCube's design reserves for exactly this. Called
-   * once, with the element to append to.
-   */
-  readonly hostSlot?: (slot: HTMLElement) => void;
+  readonly hostStatus?: (slot: HTMLElement) => void;
   /**
    * The host's own entries, at the foot of the title bar menu.
    *
@@ -182,6 +178,19 @@ const AUTO_SIZE_MIN = 48;
 /** One long free-text column must not push the rest off screen. */
 const AUTO_SIZE_MAX = 480;
 
+/**
+ * What the result is and what it cost, in one line.
+ *
+ * Shared by the status bar and by `onStatus`, so the figure a host
+ * reports and the figure on screen cannot drift apart.
+ */
+function timingText(view: CubeView, cols: number): string {
+  return (
+    `${view.rows.rowCount.toLocaleString()} rows × ` +
+    `${cols} cols in ${view.rows.elapsedMs.toFixed(0)}ms`
+  );
+}
+
 export class CubeApp {
   readonly #doc: Document;
   readonly #options: CubeAppOptions;
@@ -227,6 +236,8 @@ export class CubeApp {
   #selection: CellRange | null = null;
   /** Where selection statistics are written, inside the status bar. */
   #statsSlot: HTMLElement | null = null;
+  /** Repaints the plane toggle, which is now the only plane badge. */
+  #paintSnap: (() => void) | null = null;
 
   constructor(
     root: HTMLElement,
@@ -346,6 +357,11 @@ export class CubeApp {
 
     this.#wireContextMenu();
     this.#buildToolbar();
+    // ADOPT THE HOST'S READOUT NOW, not on the first render: a cube
+    // whose first query FAILS never renders a status bar, and that
+    // is exactly when the host has something to say. The bar is
+    // rebuilt per render and re-adopts it there.
+    this.#adoptHostStatus();
   }
 
   get controller(): CubeController {
@@ -558,11 +574,12 @@ export class CubeApp {
     this.#grid.setRows(view.rows, 0, view.rows.rowCount);
 
     this.#syncPivotCast(model);
-    this.#renderStatusBar(view);
+    this.#renderStatusBar(view, model.leaves.length);
+    // The snapshot's row count is in the toggle's tooltip, and a
+    // fresh snap changes it.
+    this.#paintSnap?.();
 
-    const base =
-      `${view.rows.rowCount.toLocaleString()} rows × ` +
-      `${model.leaves.length} cols in ${view.rows.elapsedMs.toFixed(0)}ms`;
+    const base = timingText(view, model.leaves.length);
     if (view.truncated.length > 0 && this.#config.showTruncationWarning) {
       // Saying WHICH level was cut matters: "some rows are missing"
       // sends someone hunting through the whole cube.
@@ -585,7 +602,7 @@ export class CubeApp {
    * does. The separators are theirs too -- a 1px by 12px neutral
    * rule between groups rather than padding alone.
    */
-  #renderStatusBar(view: CubeView): void {
+  #renderStatusBar(view: CubeView, cols: number): void {
     const doc = this.#doc;
     const bar = this.#els.stats;
     bar.replaceChildren();
@@ -615,9 +632,21 @@ export class CubeApp {
     filter.addEventListener('click', () => this.openFilters());
     bar.append(filter, this.#statusSeparator());
 
+    // THE RESULT, AND WHAT IT COST, in the one bar that is already
+    // about the result.
+    //
+    // This said "Rows: 29" while the same figure -- plus the column
+    // count and the elapsed time -- went to the host through
+    // `onStatus` and was rendered ABOVE the grid, in the strip that
+    // should say what you are looking at. Two readouts of one fact,
+    // the fuller one in the wrong place. The cube states it here
+    // itself, so a host gets a timing readout without wiring one,
+    // and `onStatus` still fires for hosts that want their own.
     const rows = doc.createElement('div');
-    rows.className = 'dc-status-rows';
-    rows.textContent = `Rows: ${view.rows.rowCount.toLocaleString()}`;
+    rows.className = 'dc-status-rows dc-status-timing';
+    rows.textContent = timingText(view, cols);
+    rows.title = 'Rows and columns in the result, and how long the '
+      + 'query took.';
     bar.append(rows);
 
     if (view.truncated.length > 0 && this.#config.showTruncationWarning) {
@@ -635,6 +664,30 @@ export class CubeApp {
     bar.append(this.#statusSeparator(), stats);
     this.#statsSlot = stats;
     this.#renderSelectionStats();
+
+    // The host's own readout, last.
+    this.#adoptHostStatus();
+  }
+
+  /**
+   * Give the host its slot at the end of the status bar.
+   *
+   * Called on every render because the bar is rebuilt on every
+   * render: the host appends the same node again, which MOVES it
+   * rather than cloning it, so whatever wrote to that node keeps
+   * writing to the one on screen.
+   */
+  #adoptHostStatus(): void {
+    const fill = this.#options.hostStatus;
+    if (!fill) return;
+    const slot = this.#doc.createElement('div');
+    slot.className = 'dc-status-host';
+    // No leading separator on an otherwise empty bar.
+    if (this.#els.stats.childElementCount > 0) {
+      this.#els.stats.append(this.#statusSeparator());
+    }
+    this.#els.stats.append(slot);
+    fill(slot);
   }
 
   #statusSeparator(): HTMLElement {
@@ -1478,34 +1531,56 @@ export class CubeApp {
     const bar = this.#els.toolbar;
     const doc = this.#doc;
 
-    if (this.#options.showBrand !== false) {
-      const brand = this.#div(bar, 'dc-titlebar-brand');
-      const glyph = doc.createElement('span');
-      glyph.className = 'dc-titlebar-glyph';
-      glyph.setAttribute('aria-hidden', 'true');
-      glyph.textContent = '\u25a3';
+    // THE REPORT'S NAME, and nothing else on the left.
+    //
+    // This was a cube glyph and the word "DataCube" -- a brand on a
+    // bar 28px tall, above a grid that wanted every pixel -- with the
+    // report title as an optional replacement. It is the other way
+    // round now: the bar carries the name of the thing you are
+    // looking at, and when the cube has no name it carries nothing.
+    // Naming the product here says nothing a person did not know
+    // from opening it.
+    const reportTitle = this.#config.reportTitle;
+    if (reportTitle !== undefined && reportTitle !== '') {
       const title = doc.createElement('span');
       title.className = 'dc-titlebar-title';
-      title.textContent = this.#config.reportTitle ?? 'DataCube';
-      brand.append(glyph, title);
+      title.textContent = reportTitle;
+      bar.append(title);
     }
 
-    // The host slot. Snap is legend-lite's own idea rather than
-    // DataCube's, and this is the place their design reserves for a
-    // host's controls -- so it goes here rather than being smuggled
-    // into their menu.
+    // Snap is legend-lite's own idea rather than DataCube's, but it
+    // is a MODE, and a mode belongs in the bar rather than two
+    // levels down a menu.
     const host = this.#div(bar, 'dc-titlebar-host');
     const snap = doc.createElement('button');
     snap.type = 'button';
     snap.className = 'dc-titlebar-toggle';
+    // THE ONLY PLANE INDICATOR, so it carries the whole truth.
+    //
+    // A banner over the grid said "trades - frozen at 14:02:11 - 29
+    // rows" while the button beside it said "Snapped": two controls
+    // for one fact, one of them costing a full row of the viewport.
+    // The banner is gone and its detail moved into the tooltip --
+    // rule 1 of snap mode is that what you are looking at is never
+    // inferable, and WHEN it was frozen and HOW MANY rows it holds
+    // is the part a label cannot carry.
     const paint = (): void => {
-      const snapped = this.#controller.snaps.isSnapped;
+      const state = this.#controller.snaps.state;
+      const snapped = state.mode === 'snapped';
       snap.textContent = snapped ? 'Snapped' : 'Live';
       snap.classList.toggle('dc-on', snapped);
-      snap.title = snapped
-        ? 'Frozen against a local snapshot. Click to go live.'
-        : 'Live data, which may move while you work. Click to snap.';
+      if (state.mode === 'snapped') {
+        const taken = state.snap.takenAt.toLocaleTimeString();
+        snap.title =
+          `${state.snap.label} — frozen at ${taken}, ` +
+          `${state.snap.rowCount.toLocaleString()} rows. ` +
+          `Click to go live.`;
+      } else {
+        snap.title = 'Live data, which may move while you work. '
+          + 'Click to snap.';
+      }
     };
+    this.#paintSnap = paint;
     snap.addEventListener('click', () => {
       snap.disabled = true;
       const done = (): void => {
@@ -1523,7 +1598,6 @@ export class CubeApp {
     });
     paint();
     host.append(snap);
-    this.#options.hostSlot?.(host);
 
     // The hamburger. Theirs carries host-level entries -- View
     // Source, Settings, About -- so ours carries the equivalents:

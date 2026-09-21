@@ -114,7 +114,7 @@ try {
     els.map((el) => [...el.querySelectorAll('.dc-cell')]
       .map((c) => c.textContent?.trim() ?? '')));
 
-  console.log(`status: ${await page.textContent('#status')}`);
+  console.log(`status: ${await page.textContent('.dc-status-timing')}`);
   console.log(`HTTP requests for the data (range reads): ${ranges}`);
   console.log('grid:');
   for (const r of rows) console.log(`  ${JSON.stringify(r.slice(0, 6))}`);

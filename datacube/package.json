@@ -26,7 +26,7 @@
     "build:stress": "esbuild demo/stress.ts --bundle --format=esm --outfile=demo/stress.js --target=es2022",
     "stress": "npm run build:stress && node demo/run-stress.mjs",
     "verify:picker": "node demo/verify-picker.mjs",
-    "verify:features": "node demo/verify-features.mjs",
+    "verify:features": "node --experimental-strip-types demo/verify-features.mjs",
     "verify:smoke": "node --experimental-strip-types demo/verify-smoke.mjs"
   },
   "keywords": [],

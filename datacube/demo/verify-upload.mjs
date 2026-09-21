@@ -112,7 +112,8 @@ try {
     ).catch(() => { console.log('FAIL: the cube never re-queried'); failed = true; });
   }
 
-  console.log(`status after opening: ${await page.textContent('#status')}`);
+  console.log('status after opening: '
+    + `${await page.textContent('.dc-status-timing')}`);
   console.log(`#app children: ${await page.$$eval('#app > *',
     (els) => els.map((e) => e.className || e.tagName).join(', '))}`);
   const rows = await page.$$eval('.dc-row', (els) =>

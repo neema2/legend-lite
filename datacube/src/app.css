@@ -33,9 +33,11 @@
 
 /* -- the title bar ------------------------------------------------- */
 
-/* Their h-7 bar in neutral-100: a cube glyph, the report title in
-   text-lg medium, a slot for the host, and a hamburger. There is no
-   toolbar, because everything else is in the right-click menu. */
+/* Their h-7 bar in neutral-100: the report's name in text-lg
+   medium, the plane toggle, and a hamburger. There is no toolbar,
+   because everything else is in the right-click menu -- and no
+   brand, because naming the product over the grid tells a person
+   nothing they did not know from opening it. */
 .dc-titlebar {
   display: flex;
   align-items: center;
@@ -43,29 +45,18 @@
   background: var(--tw-neutral-100);
 }
 
-.dc-titlebar-brand {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.dc-titlebar-title {
   max-width: 320px;
   padding: 0 var(--dc-pad-2) 0 var(--dc-pad-1);
   font-size: var(--dc-text-lg-size);
   line-height: var(--dc-text-lg-line);
   font-weight: 500;
-}
-
-.dc-titlebar-glyph {
-  font-size: var(--dc-text-lg-size);
-}
-
-.dc-titlebar-title {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* The host slot. Snap is legend-lite's, not DataCube's, and this is
-   where their design puts an embedder's own controls. */
+/* Where the plane toggle sits. */
 .dc-titlebar-host {
   display: flex;
   align-items: center;
@@ -145,16 +136,33 @@
 
 /* -- the drag zones ------------------------------------------------ */
 
+/* ONE BAR, SPLIT ROWS | COLUMNS, rather than two stacked strips.
+   Two bars cost 66px of a 900px viewport to hold, most days, four
+   chips and two prompts -- and the grid is what the page is for.
+   Side by side they cost one control height, and both are still
+   visible drop targets, which is the whole reason they are not in
+   the menu: you cannot drag a column into a menu. */
 .dc-pivot-panel {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: stretch;
   gap: 2px;
+}
+
+/* Equal halves, and each half scrolls its own chips rather than
+   growing the bar: a cube grouped six deep must not push the grid
+   down the page. */
+.dc-pivot-panel > .dc-zone {
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .dc-zone {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
   gap: 4px;
   min-height: var(--dc-control-height);
   padding: 2px var(--dc-pad-2);
@@ -172,6 +180,15 @@
 }
 
 .dc-zone-title {
+  /* Stays put while the chips scroll under it: a zone whose own
+     name has scrolled out of sight is a strip of unlabelled chips,
+     and the label is how you know which half you are dropping
+     into. */
+  flex: 0 0 auto;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--tw-neutral-100);
   font-size: var(--dc-text-sm-size);
   line-height: var(--dc-text-sm-line);
   text-transform: uppercase;
@@ -191,6 +208,7 @@
 }
 
 .dc-chip {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   gap: 2px;
@@ -247,6 +265,18 @@
 
 /* Monospaced, because the count changes as the tree expands and a
    proportional figure jitters its neighbours every time it does. */
+/* The host's own readout, at the far right of the bar. */
+.dc-status-host {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 var(--dc-pad-2);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .dc-status-rows {
   font-family: var(--dc-font-mono);
   font-size: var(--dc-text-sm-size);

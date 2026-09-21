@@ -119,14 +119,17 @@ try {
     await page.waitForSelector('.dc-row', { timeout: 90_000 });
     await page.setInputFiles('input[type=file]', file);
     await page.waitForFunction(
-      () => /rows|could not|error/i.test(
-        document.getElementById('status')?.textContent ?? ''),
+      () => /rows/.test(
+        document.querySelector('.dc-status-timing')?.textContent ?? '')
+        || /could not|error/i.test(
+          document.getElementById('status')?.textContent ?? ''),
       undefined, { timeout: 90_000 },
     ).catch(() => {});
     await page.waitForTimeout(400);
 
     const loaded = await page.evaluate(() => ({
-      status: document.getElementById('status')?.textContent ?? '',
+      status: `${document.querySelector('.dc-status-timing')?.textContent ?? ''}`
+        + ` | ${document.getElementById('status')?.textContent ?? ''}`,
       rows: document.querySelectorAll('.dc-row').length,
       headers: [...document.querySelectorAll('.dc-th[data-column]')]
         .map((e) => e.dataset.column),

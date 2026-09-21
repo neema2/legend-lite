@@ -15,7 +15,7 @@ import {
   DEFAULT_CONFIGURATION,
   type CubeConfiguration,
 } from '../src/config.ts';
-import { CubeController, type Planner } from '../src/cube.ts';
+import type { Planner } from '../src/cube.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { mountRemote } from '../src/remote.ts';
 import { ingestFile } from '../src/upload.ts';
@@ -268,19 +268,16 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     config: CubeConfiguration,
     dims: { name: string; columns: string[] }[],
   ): CubeApp {
-    // PARK THE HOST'S OWN NODES FIRST.
+    // PARK THE STATUS TEXT FIRST.
     //
-    // The plane badge and the status text are MOVED into the cube's
-    // title bar, and rebuilding the cube -- which opening a file does
-    // -- clears the host element and would take them with it. The
-    // next `renderPlaneBadge` then failed with "missing #plane" and
-    // the upload reported itself as broken. So they go home before
-    // the clear and are adopted again by `hostSlot`.
-    const offstage = must('offstage');
-    for (const id of ['status', 'plane']) {
-      const node = document.getElementById(id);
-      if (node) offstage.append(node);
-    }
+    // It is MOVED into the cube's status bar, and rebuilding the cube
+    // -- which opening a file does -- clears the host element and
+    // would take it with it. So it goes home before the clear and is
+    // adopted again by `hostStatus`. (The node itself survives either
+    // way, since `status` is a reference rather than a lookup, but a
+    // detached node shows nothing, and boot messages arrive before
+    // the new cube's first render.)
+    must('offstage').append(status);
     host.replaceChildren();
     const created: CubeApp = new CubeApp(host, snap, {
       engine,
@@ -289,18 +286,20 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       snapTarget,
       storage: window.localStorage,
       showColumnZone: true,
-      // NO BRAND. The host owns the page and wants the pixels: the
-      // bar carries controls only.
-      showBrand: false,
-      // The plane badge, the planner picker and the status text, in
-      // the slot DataCube's design reserves for a host. The badge is
-      // MOVED rather than copied -- `renderPlaneBadge` keeps writing
-      // to the same element, wherever it now lives.
-      hostSlot: (slot) => {
-        slot.append(must('plane'), must('status'));
-      },
+      // THE HOST'S TEXT, IN THE STATUS BAR. Planner progress during
+      // boot and errors afterwards -- the cube states its own row,
+      // column and timing figures there itself now, so this no
+      // longer echoes them. MOVED rather than copied: `status` is
+      // the same node the planner writes to.
+      hostStatus: (slot) => slot.append(status),
       hostMenu: () => [
-        { id: 'host.data', label: 'Data\u2026' },
+        // ONLY IF THE PAGE CAN OPEN FILES. Without `setModel` the
+        // bar's controls are inert -- this page's planner compiles a
+        // fixed model -- and an entry that opens a panel of dead
+        // controls is the dead-button fault one layer up.
+        ...(setModel
+          ? [{ id: 'host.data' as const, label: 'Data\u2026' }]
+          : []),
         { id: 'host.query', label: 'Generated Pure & SQL\u2026' },
         // The plane, as entries rather than a control: the bar is for
         // what you watch, the menu for what you do occasionally. The
@@ -344,9 +343,14 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         URL.revokeObjectURL(url);
       },
       onStatus: (text, kind) => {
+        // ERRORS ONLY. The cube's own status bar carries the result
+        // and the timing; a host that echoed the same line beside it
+        // said one fact twice in a 20px strip. What a host is for is
+        // saying what the cube cannot -- a planner that failed.
+        if (kind !== 'error') return;
         status.textContent = text;
-        status.classList.toggle('bad', kind === 'error');
-        status.classList.toggle('warn-text', kind === 'warn');
+        status.classList.add('bad');
+        status.classList.remove('warn-text');
       },
       onView: (view) => {
         // The Pure this product emitted, and the SQL the planner made
@@ -357,7 +361,6 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         must('sql').textContent =
           view.sql || '(the demo shim plans per level; expand a row)';
       },
-      onPlane: () => renderPlaneBadge(created.controller),
     });
     return created;
   }
@@ -365,7 +368,6 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
   let app = makeApp(snapshot, configuration, DEMO_DIMENSIONS);
 
   await app.open();
-  renderPlaneBadge(app.controller);
 
   // OPENING A FILE.
   //
@@ -375,6 +377,8 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
   // compiles an ordinary model over an ordinary table, which is why
   // the SQL panel, the tree and the snap plane all keep working
   // without a second code path.
+  const uploadBar = document.getElementById('uploadbar');
+  if (uploadBar) uploadBar.hidden = true;
   if (setModel) {
     const bar = must('uploadbar');
     const note = must('uploadnote');
@@ -479,7 +483,6 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
           // open() is what runs the first query; without it the
           // chrome renders and the grid stays empty.
           await app.open();
-          renderPlaneBadge(app.controller);
           note.textContent = `${opened.fileName}: `
             + `${opened.rowCount.toLocaleString()} rows, `
             + `${opened.columns.length} columns`;
@@ -525,25 +528,6 @@ function toggleHostWindow(id: string): void {
 /** Which entry point is loaded, and therefore which planner. */
 function onServerPage(): boolean {
   return location.pathname.includes('index-server');
-}
-
-/** Rule 1 of snap mode: what you are looking at is never inferable. */
-function renderPlaneBadge(controller: CubeController): void {
-  // The BADGE says which plane you are on; the snap button lives on
-  // the app's own toolbar now. A mode indicator that is only a
-  // button label is a mode indicator people miss.
-  const badge = must('plane');
-  const state = controller.snaps.state;
-  if (state.mode === 'snapped') {
-    const t = state.snap.takenAt.toLocaleTimeString();
-    badge.textContent =
-      `${state.snap.label} · frozen at ${t} · ` +
-      `${state.snap.rowCount.toLocaleString()} rows`;
-    badge.className = 'plane snapped';
-  } else {
-    badge.textContent = 'Live — data may move while you work';
-    badge.className = 'plane live';
-  }
 }
 
 /**

@@ -48,6 +48,32 @@ class StubEngine implements QueryEngine {
   async close(): Promise<void> {}
 }
 
+/**
+ * A stub that answers the snap's preflight COUNT with a real number.
+ *
+ * `StubEngine` returns the grid fixture for every query, so a
+ * preflight reads 'EMEA' as its row count and the snapshot ends up
+ * NaN rows big -- which would let a tooltip that dropped the row
+ * count pass.
+ */
+class CountingEngine implements QueryEngine {
+  readonly name = 'counting';
+  readonly sql: string[] = [];
+  async execute(sql: string, epoch: number): Promise<ResultTable> {
+    this.sql.push(sql);
+    if (/count\(\*\)/i.test(sql)) {
+      return {
+        columns: [{ name: 'n', type: 'Integer', values: [29] }],
+        rowCount: 1,
+        epoch,
+        elapsedMs: 0,
+      };
+    }
+    return result(epoch);
+  }
+  async close(): Promise<void> {}
+}
+
 class StubPlanner implements Planner {
   readonly pure: string[] = [];
   async plan(pureGrammar: string): Promise<string> {
@@ -144,9 +170,14 @@ describe('the app', () => {
     // over the grid: everything lives in the right-click menu.
     assert.notEqual(root.querySelector('.dc-titlebar'), null);
     assert.equal(root.querySelector('.dc-app-toolbar'), null);
+    // NO BRAND. An unnamed cube gets no title element at all --
+    // "DataCube" over the grid tells a person nothing they did not
+    // know from opening it, and cost a third of a 28px bar.
+    assert.equal(root.querySelector('.dc-titlebar-title'), null);
     assert.equal(
-      root.querySelector('.dc-titlebar-title')?.textContent,
-      'DataCube',
+      /DataCube/.test(root.querySelector('.dc-titlebar')?.textContent ?? ''),
+      false,
+      root.querySelector('.dc-titlebar')?.textContent ?? '',
     );
     assert.notEqual(root.querySelector('.dc-zone-rows'), null);
     assert.notEqual(root.querySelector('.dc-grid'), null);
@@ -479,5 +510,132 @@ describe('the app', () => {
       ) as HTMLButtonElement
     ).click();
     assert.equal(app.snapshot.maxRows, 42);
+  });
+});
+
+describe('the bar says what you are looking at, and nothing else', () => {
+  let dom: JSDOM;
+  let root: HTMLElement;
+
+  beforeEach(() => {
+    dom = new JSDOM('<!doctype html><body><div id="r"></div></body>');
+    (globalThis as { requestAnimationFrame?: unknown }).requestAnimationFrame =
+      (fn: () => void) => {
+        fn();
+        return 0;
+      };
+    root = dom.window.document.getElementById('r') as HTMLElement;
+  });
+
+  /** Let the toggle's async click handler finish. */
+  const flush = async (): Promise<void> => {
+    for (let i = 0; i < 5; i += 1) {
+      await new Promise((done) => setTimeout(done, 0));
+    }
+  };
+
+  it('names the REPORT in the title bar', async () => {
+    const app = new CubeApp(root, SNAPSHOT, {
+      engine: new StubEngine(),
+      planner: new StubPlanner(),
+      configuration: { ...DEFAULT_CONFIGURATION, reportTitle: 'Trades' },
+    });
+    await app.open();
+    assert.equal(
+      root.querySelector('.dc-titlebar-title')?.textContent,
+      'Trades',
+    );
+  });
+
+  it('states the result and its cost in the STATUS bar', async () => {
+    // The row count, the column count and the elapsed time went to
+    // the host through `onStatus` and were rendered above the grid,
+    // while the status bar said "Rows: 2" -- two readouts of one
+    // fact, the fuller one in the wrong place.
+    const statuses: string[] = [];
+    const app = new CubeApp(root, SNAPSHOT, {
+      engine: new StubEngine(),
+      planner: new StubPlanner(),
+      onStatus: (text) => statuses.push(text),
+    });
+    await app.open();
+    const timing = root.querySelector('.dc-status-timing')?.textContent ?? '';
+    assert.match(timing, /^2 rows × \d+ cols in \d+ms$/);
+    // The same line, so a host's figure and the screen's cannot
+    // drift apart.
+    assert.equal(statuses.at(-1), timing);
+    assert.equal(
+      root.querySelector('.dc-app-stats')?.textContent?.includes('Rows:'),
+      false,
+    );
+  });
+
+  it("MOVES the host's readout into the status bar, once", async () => {
+    const marker = dom.window.document.createElement('span');
+    marker.id = 'hoststatus';
+    marker.textContent = 'planning…';
+    const app = new CubeApp(root, SNAPSHOT, {
+      engine: new StubEngine(),
+      planner: new StubPlanner(),
+      hostStatus: (slot) => slot.append(marker),
+    });
+    // BEFORE the first render: a cube whose first query fails never
+    // renders a status bar, and that is exactly when the host has
+    // something to say.
+    assert.equal(
+      root.querySelector('.dc-app-stats #hoststatus'),
+      marker,
+      'the host slot was not filled at build time',
+    );
+    await app.open();
+    // Still the SAME node, and only one of it: the host keeps
+    // writing to whichever node is on screen.
+    assert.equal(root.querySelector('.dc-app-stats #hoststatus'), marker);
+    assert.equal(root.querySelectorAll('#hoststatus').length, 1);
+    assert.equal(marker.textContent, 'planning…');
+  });
+
+  it('puts the row and column zones in ONE bar, side by side', async () => {
+    const app = new CubeApp(root, SNAPSHOT, {
+      engine: new StubEngine(),
+      planner: new StubPlanner(),
+      showColumnZone: true,
+    });
+    await app.open();
+    // Both halves of one strip rather than two stacked strips: the
+    // zones must stay visible drop targets (you cannot drag a column
+    // into a menu), and two bars cost 66px of the viewport.
+    const panel = root.querySelector('.dc-pivot-panel');
+    assert.notEqual(panel, null);
+    const zones = [...(panel?.children ?? [])].filter((c) =>
+      c.classList.contains('dc-zone'),
+    );
+    assert.deepEqual(
+      zones.map((z) => (z as HTMLElement).dataset['zone']),
+      ['rows', 'columns'],
+    );
+  });
+
+  it('says WHEN the snapshot was taken and how big it is', async () => {
+    // The banner that said "trades — frozen at 14:02:11 — 29 rows"
+    // is gone, and the toggle beside it said only "Snapped". Rule 1
+    // of snap mode is that what you are looking at is never
+    // inferable, so the detail moved into the toggle's tooltip.
+    const app = new CubeApp(root, SNAPSHOT, {
+      engine: new CountingEngine(),
+      planner: new StubPlanner(),
+    });
+    await app.open();
+    const toggle = root.querySelector('.dc-titlebar-toggle') as HTMLButtonElement;
+    assert.equal(toggle.textContent, 'Live');
+    assert.match(toggle.title, /Live data/);
+
+    toggle.click();
+    await flush();
+
+    assert.equal(toggle.textContent, 'Snapped');
+    assert.match(toggle.title, /frozen at \d/);
+    assert.match(toggle.title, /29 rows/);
+    assert.match(toggle.title, /Click to go live/);
   });
 });

@@ -53,18 +53,6 @@
     background: Canvas; color: CanvasText; cursor: pointer;
   }
   button:hover { background: color-mix(in srgb, currentColor 8%, Canvas); }
-  .plane {
-    padding: 4px 10px; border-radius: 999px; font-size: 12px;
-    border: 1px solid transparent;
-  }
-  .plane.live {
-    background: color-mix(in srgb, orange 18%, Canvas);
-    border-color: color-mix(in srgb, orange 45%, transparent);
-  }
-  .plane.snapped {
-    background: color-mix(in srgb, mediumseagreen 18%, Canvas);
-    border-color: color-mix(in srgb, mediumseagreen 45%, transparent);
-  }
   /* NO FIXED HEIGHT. This pinned the grid to 420px, which was right
      when the page was a document with text above and below it. The
      page is the viewport now, so the grid takes whatever the title
@@ -119,14 +107,13 @@
     font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
   }
 
-  /* In the title bar now, so it has to be small and quiet. Scoped to
-     the bar: the same element is offstage until `boot` moves it, and
-     an offstage width cap would be nonsense. */
-  .dc-titlebar-host #status {
+  /* In the cube's STATUS bar now, so it has to be small and quiet.
+     Scoped to the bar: the same element is offstage until `boot`
+     moves it, and an offstage width cap would be nonsense. */
+  .dc-status-host #status {
     opacity: .75; white-space: nowrap; overflow: hidden;
-    text-overflow: ellipsis; max-width: 40vw;
+    text-overflow: ellipsis; max-width: 40vw; margin: 0;
   }
-  #plane { font-size: 11px; }
 
   .dc-uploadbar {
     /* WRAPS. Without this the bar's controls -- a file input, a
@@ -163,18 +150,18 @@
 <body>
   <!-- NOTHING BUT THE GRID. Every banner, pane and control strip that
        used to sit around it is reachable from the cube's own title bar
-       now: the plane badge and the status text live in its host slot,
-       and the data and query panels open as floating windows from the
-       hamburger. The cube fills the viewport. -->
+       now: the status text sits in its status bar, the plane is the
+       Live/Snapped toggle in its title bar, and the data and query
+       panels open as floating windows from the hamburger. The cube
+       fills the viewport. -->
   <div id="app"></div>
 
-  <!-- OFFSTAGE. These carry state the demo still needs and the title
-       bar surfaces; `boot` moves the two it shows into the bar. Kept
-       in the markup rather than built in script so the page remains
-       readable as a page. -->
+  <!-- OFFSTAGE. These carry state the demo still needs; `boot` moves
+       the one it shows into the cube's status bar. Kept in the markup
+       rather than built in script so the page remains readable as a
+       page. -->
   <div id="offstage" hidden>
     <span id="status">loading&hellip;</span>
-    <span id="plane" class="plane live"></span>
     <span id="busy"></span>
     <span id="plannerreal"></span>
     <span id="plannermissing"></span>

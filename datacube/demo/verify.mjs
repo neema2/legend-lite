@@ -134,7 +134,7 @@ try {
   // has come back, so waiting for a cell waits for the whole stack.
   await page.waitForSelector('.dc-row .dc-cell', { timeout: 120_000 });
 
-  const status = await page.textContent('#status');
+  const status = await page.textContent('.dc-status-timing');
   check('boots and renders', true, status?.trim());
 
   // There is one planner and it is the real one. If the engine is
@@ -457,21 +457,32 @@ try {
   const focused = await page.locator('.dc-cell.dc-focus').count();
   check('keyboard moves a single focus cell', focused === 1, `${focused} focused`);
 
-  // Snap mode.
-  await page.locator('.dc-titlebar-toggle').click();
+  // SNAP MODE, read off the toggle, which is the only plane badge
+  // now: the banner that used to carry "frozen at ... rows" is gone
+  // and its detail moved into the toggle's tooltip. Rule 1 of snap
+  // mode is that what you are looking at is never inferable, so the
+  // check is that the toggle SAYS WHEN and HOW MANY -- not merely
+  // that its label flipped.
+  const toggle = page.locator('.dc-titlebar-toggle');
+  await toggle.click();
   await page.waitForFunction(
-    () => document.getElementById('plane')?.className.includes('snapped'),
+    () => document.querySelector('.dc-titlebar-toggle')?.textContent
+      === 'Snapped',
     { timeout: 120_000 },
   );
-  const badge = await page.textContent('#plane');
-  check('snap freezes and labels the plane', /frozen at/.test(badge ?? ''), badge?.trim());
+  const tip = (await toggle.getAttribute('title')) ?? '';
+  check(
+    'snap freezes, and the toggle says when and how big',
+    /frozen at \d/.test(tip) && /[\d,]+ rows/.test(tip),
+    tip.trim(),
+  );
 
-  await page.locator('.dc-titlebar-toggle').click();
+  await toggle.click();
   await page.waitForFunction(
-    () => document.getElementById('plane')?.className.includes('live'),
+    () => document.querySelector('.dc-titlebar-toggle')?.textContent === 'Live',
     { timeout: 120_000 },
   );
-  check('returns to live', true, (await page.textContent('#plane'))?.trim());
+  check('returns to live', true, (await toggle.getAttribute('title')) ?? '');
 
   // -- the product surface -------------------------------------------
   // Everything below was built, unit-tested and unreachable before
@@ -760,7 +771,7 @@ try {
   check(
     'removing every chip flattens the cube completely',
     (await page.locator('.dc-zone-rows .dc-chip').count()) === 0,
-    (await page.textContent('#status'))?.trim(),
+    (await page.textContent('.dc-status-timing'))?.trim(),
   );
 
   check(
@@ -855,8 +866,16 @@ try {
 
   await page.locator('.dc-overlay-close').click();
 
-  const afterAll = await page.textContent('#status');
-  check('no error after all of that', !/error/i.test(afterAll ?? ''), afterAll?.trim());
+  // BOTH LINES. The cube states its own result in the status bar;
+  // the host's element beside it carries errors only, which is
+  // exactly what this asks about -- so read the pair, or a red host
+  // line goes unread because the cube's line looks fine.
+  const afterAll = await page.evaluate(() => {
+    const timing = document.querySelector('.dc-status-timing');
+    const host = document.getElementById('status');
+    return `${timing?.textContent ?? ''} | ${host?.textContent ?? ''}`;
+  });
+  check('no error after all of that', !/error/i.test(afterAll), afterAll.trim());
 
   await page.screenshot({ path: 'demo/screenshot.png', fullPage: true });
   check('screenshot written', true, 'demo/screenshot.png');

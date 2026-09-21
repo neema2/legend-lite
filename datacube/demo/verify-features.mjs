@@ -11,18 +11,43 @@
 // rows, the labels, the generated Pure and SQL, the file that came
 // down -- never that a handler ran or an element exists.
 //
-//   npm run verify:features            (the built-in sample data)
+//   npm run verify:features            (generates its own sample)
 //   DATA=/abs/file.csv npm run verify:features
 
 import { createServer } from 'node:http';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
 
 import { gridInvariants } from './grid-invariants.mjs';
+import { sampleCsv } from '../src/samples.ts';
 
 const ROOT = new URL('..', import.meta.url).pathname;
-const DATA = process.env.DATA;
+
+/**
+ * THE SWEEP OPENS A FILE, ALWAYS.
+ *
+ * With no DATA it used to run against the page's built-in cube --
+ * which arrives grouped by region, desk and book and pivoted on year
+ * -- while these checks are written against a FLAT cube: they
+ * right-click `region` to group by it, and `region` is not on screen
+ * when it is already a row dimension. So `npm run verify:features`
+ * reported 24 features broken and every one of them worked. A
+ * harness that fails differently depending on an environment
+ * variable nobody set is worse than no harness: it teaches you to
+ * disbelieve it.
+ *
+ * So the default run generates the same sample the page's own button
+ * offers, from the same generator, and opens that.
+ */
+async function sampleOnDisk() {
+  const path = join(tmpdir(), 'datacube-verify-features.csv');
+  await writeFile(path, sampleCsv({ rows: 5000, seed: 20260920 }), 'utf8');
+  return path;
+}
+
+const DATA = process.env.DATA ?? (await sampleOnDisk());
 const ONLY = process.env.ONLY;
 /**
  * How long to wait for a query to land.
@@ -211,7 +236,8 @@ async function check(name, fn) {
 const state = () => page.evaluate(() => ({
   pure: document.getElementById('pure')?.textContent ?? '',
   sql: document.getElementById('sql')?.textContent ?? '',
-  status: document.getElementById('status')?.textContent ?? '',
+  status: `${document.querySelector('.dc-status-timing')?.textContent ?? ''}`
+    + ` | ${document.getElementById('status')?.textContent ?? ''}`,
   headers: [...document.querySelectorAll('[role=columnheader]')]
     .map((e) => e.textContent?.trim() ?? '').filter(Boolean),
   rows: [...document.querySelectorAll('.dc-row')].map((r) =>
@@ -245,7 +271,8 @@ async function settle(before) {
   // took twenty minutes; almost all of it was this function.
   if (before !== undefined) {
     await page.waitForFunction(
-      (was) => (document.getElementById('status')?.textContent ?? '') !== was,
+      (was) =>
+        (document.querySelector('.dc-status-timing')?.textContent ?? '') !== was,
       before, { timeout: STATUS_WAIT_MS },
     ).catch(() => {});
   }
@@ -268,9 +295,16 @@ const resultRows = async () => {
   return Number(m[1].replace(/,/g, ''));
 };
 
-/** The status line, which changes once per completed query. */
+/**
+ * The cube's own result line, which changes once per completed query.
+ *
+ * The HOST's element is not it: that used to echo this same line
+ * above the grid and now carries errors only, so it does not move
+ * when a query lands -- and a settle that waited on it would wait
+ * the full timeout every single time.
+ */
 const statusNow = () => page.evaluate(() =>
-  document.getElementById('status')?.textContent ?? '');
+  document.querySelector('.dc-status-timing')?.textContent ?? '');
 
 /**
  * Right-click a body cell and walk the menu by LABEL.
@@ -421,7 +455,10 @@ try {
   if (DATA) {
     await page.setInputFiles('input[type=file]', DATA);
     await page.waitForFunction(
-      () => /rows/.test(document.getElementById('status')?.textContent ?? ''),
+      () => /rows/.test(
+        document.querySelector('.dc-status-timing')?.textContent ?? '')
+        || /could not|error/i.test(
+          document.getElementById('status')?.textContent ?? ''),
       undefined, { timeout: 90_000 },
     );
     await settle();

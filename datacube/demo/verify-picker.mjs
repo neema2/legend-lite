@@ -123,6 +123,52 @@ try {
   await page.keyboard.press('Escape');
   await page.waitForTimeout(150);
 
+  // THE PAGE THE MENU SENDS YOU TO MUST BE A PAGE.
+  //
+  // `boot` is shared between the two entry points, and the server
+  // one was left on the old document layout while boot moved on: it
+  // threw `missing #offstage` before drawing a row, so the menu
+  // entry led to a blank screen. Nothing noticed, because every
+  // harness loads index.html.
+  //
+  // With no engine on :8080 this page is SUPPOSED to refuse -- there
+  // is one planner and it is the real one -- so what is checked is
+  // that it refuses in words, on a page that rendered.
+  {
+    const other = await ctx.newPage();
+    const errors = [];
+    other.on('pageerror', (e) => errors.push(e.message.split('\n')[0]));
+    await other.goto(URL_.replace('index.html', 'index-server.html'),
+      { waitUntil: 'load', timeout: 120_000 });
+    // Either it plans (an engine is up and rows arrive) or it says
+    // why not. A blank page is the failure.
+    await other.waitForFunction(
+      () => document.querySelectorAll('.dc-row').length > 0
+        || document.getElementById('plannermissing')?.hidden === false,
+      undefined, { timeout: 60_000 },
+    ).catch(() => {});
+    const state = await other.evaluate(() => ({
+      rows: document.querySelectorAll('.dc-row').length,
+      refusal: document.getElementById('plannermissing')?.hidden === false
+        ? (document.getElementById('plannermissing')?.textContent ?? '')
+          .replace(/\s+/g, ' ').trim().slice(0, 60)
+        : '',
+      offstage: document.getElementById('offstage') !== null,
+    }));
+    console.log(`server page: ${state.rows} rows, `
+      + `refusal="${state.refusal}"`);
+    if (!state.offstage) {
+      bad('the server page is missing #offstage, which `boot` requires');
+    }
+    if (state.rows === 0 && !state.refusal) {
+      bad(`the server page neither planned nor said why: `
+        + `${errors.join(' | ') || 'nothing said at all'}`);
+    }
+    const missed = errors.filter((e) => /missing #/.test(e));
+    if (missed.length) bad(`the server page asked for: ${missed.join(' | ')}`);
+    await other.close();
+  }
+
   // Readability: every control needs real contrast, since a page
   // that only half-declares its colours renders dark-on-dark under a
   // forced theme.
