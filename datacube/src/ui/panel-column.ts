@@ -75,6 +75,9 @@ export const AGGREGATES: readonly { value: AggregateFn; label: string }[] = [
   { value: 'varianceSample', label: 'variance (sample)' },
   { value: 'joinStrings', label: 'join strings' },
   { value: 'wavg', label: 'weighted average' },
+  // DataCube's default for every non-numeric column: the value when
+  // the group has exactly one, otherwise blank.
+  { value: 'unique', label: 'unique value' },
 ];
 
 /** Fails to compile when an aggregate is added and not offered above. */
@@ -90,6 +93,7 @@ const _EVERY_AGGREGATE: Record<AggregateFn, true> = {
   variancePopulation: true,
   varianceSample: true,
   joinStrings: true,
+  unique: true,
   wavg: true,
 };
 void _EVERY_AGGREGATE;

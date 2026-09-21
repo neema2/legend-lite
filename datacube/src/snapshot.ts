@@ -106,7 +106,17 @@ export type AggregateFn =
   | 'varianceSample'
   | 'variancePopulation'
   | 'joinStrings'
-  | 'wavg';
+  | 'wavg'
+  /**
+   * The value when a group has exactly one, otherwise null.
+   *
+   * DataCube's default aggregate for every non-numeric column
+   * (DataCubeConfigurationBuilder: numbers default to SUM, everything
+   * else to UNIQUE), and the reason grouping there keeps all the
+   * columns instead of dropping them. Lowers to
+   * `CASE WHEN COUNT(DISTINCT x) = 1 THEN MAX(x) ELSE NULL END`.
+   */
+  | 'unique';
 
 /** One value column in the cube: an aggregate over a source column. */
 export interface Measure {

@@ -110,6 +110,11 @@ function aggregateLambdas(m: Measure): { map: string; reduce: string } {
         map: `x|${colRef('x', m.column)}`,
         reduce: `y|$y->joinStrings(', ')`,
       };
+    case 'unique':
+      return {
+        map: `x|${colRef('x', m.column)}`,
+        reduce: `y|$y->uniqueValueOnly()`,
+      };
     default: {
       const fn: AggregateFn = m.fn;
       return {
@@ -376,7 +381,15 @@ export function serialize(
   // implicit grouping, so this stage is load-bearing, not tidying.
   // Dropping a row dimension here is precisely what turns the detail
   // query into its subtotal.
-  const needed = referencedColumns(snapshot, groupCols);
+  // With row groups but NO measures, `referencedColumns` narrows to
+  // the keys alone -- and grouping then drops every other column,
+  // which is what made them vanish from the grid. DataCube keeps
+  // them: `_groupByAggCols` aggregates every SELECTED column that is
+  // not a group key. So the projection has to carry them.
+  const grouping = groupCols.length > 0 && snapshot.pivotOn.length === 0;
+  const needed = grouping && snapshot.measures.length === 0
+    ? detailColumns(snapshot)
+    : referencedColumns(snapshot, groupCols);
   if (needed.length > 0) {
     parts.push(`select(~[${needed.map(ident).join(', ')}])`);
   } else if (isDetail(snapshot)) {
@@ -390,6 +403,54 @@ export function serialize(
   }
 
   const aggs = snapshot.measures.map(aggregateSpec).join(', ');
+
+  /**
+   * Every column that is not a group key, aggregated.
+   *
+   * This is what DataCube does, and the reason grouping there does
+   * not make the other columns vanish: `_groupByAggCols` takes every
+   * SELECTED column that is not a group-by column and builds an
+   * aggregate for it from that column's own operator, defaulting to
+   * SUM for Integer/Decimal/Float and UNIQUE for everything else
+   * (DataCubeConfigurationBuilder). A configured measure wins; the
+   * rest fall back to those defaults rather than being dropped.
+   *
+   * It also never emits an empty aggregate list -- `_fixEmptyAggCols`
+   * substitutes a filler count -- so neither does this.
+   */
+  function groupedAggs(
+    keys: readonly string[],
+    projected: readonly string[],
+  ): string {
+    const isKey = new Set(keys);
+    const byMeasure = new Map(snapshot.measures.map((m) => [m.column, m]));
+    const specOf = new Map(snapshot.columns.map((c) => [c.name, c]));
+    const specs: string[] = [];
+    // Only what the SELECT kept: aggregating a column that was
+    // projected away is not a wider answer, it is an unresolvable one.
+    for (const name of projected) {
+      if (isKey.has(name)) continue;
+      const configured = byMeasure.get(name);
+      const spec = specOf.get(name);
+      // DataCube defaults purely on TYPE -- numbers sum, everything
+      // else takes its unique value. That sums a year and an id,
+      // which is nonsense, and the kind inference already knows
+      // better: a numeric column it judged key-like is a dimension.
+      // An explicit kind wins over the type it is carried in.
+      const numeric = spec?.type === 'Integer' || spec?.type === 'Float';
+      const measures = spec?.kind === 'measure'
+        || (numeric && spec?.kind === undefined);
+      specs.push(aggregateSpec(configured ?? {
+        name,
+        column: name,
+        fn: measures ? 'sum' : 'unique',
+      }));
+    }
+    return specs.length > 0
+      ? specs.join(', ')
+      // Upstream's filler: a groupBy has to aggregate something.
+      : `count:x|${colRef('x', keys[0] ?? '')}:y|$y->count()`;
+  }
 
   const excludedFromPivot = new Set(
     snapshot.columns.filter((c) => c.excludedFromPivot).map((c) => c.name),
@@ -432,7 +493,7 @@ export function serialize(
     // to show beside it, and `groupBy(~[region], ~[])` lowers to
     // exactly `GROUP BY t0.region`.
     const by = groupCols.map(ident).join(', ');
-    parts.push(`groupBy(~[${by}], ~[${aggs}])`);
+    parts.push(`groupBy(~[${by}], ~[${groupedAggs(groupCols, needed)}])`);
   }
 
   // Post-aggregation columns come AFTER the pivot or groupBy, which

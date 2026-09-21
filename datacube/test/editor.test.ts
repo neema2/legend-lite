@@ -57,8 +57,11 @@ describe('the aggregate list', () => {
     // A measure the query supports and the UI cannot reach is the
     // failure worth catching; the compile-time check in the panel
     // catches the other direction.
-    assert.equal(AGGREGATES.length, 12);
-    assert.equal(new Set(AGGREGATES.map((a) => a.value)).size, 12);
+    // 13 since `unique` joined them: DataCube's default aggregate
+    // for every non-numeric column, and what lets grouping keep the
+    // text columns instead of dropping them.
+    assert.equal(AGGREGATES.length, 13);
+    assert.equal(new Set(AGGREGATES.map((a) => a.value)).size, 13);
   });
 });
 

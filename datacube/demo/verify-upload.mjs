@@ -211,10 +211,20 @@ try {
       bad(`grouped rows repeat: ${grouped.rows.length} rows but only `
         + `${distinct} distinct — it did not group`);
     }
-    // The tree column is blank by design when other columns sit
-    // beside it; alone, a wholly empty header row reads as broken.
-    if (grouped.labels.length === 0) {
-      bad('the grouped grid has no column header at all');
+    // GROUPING MUST NOT DROP COLUMNS. DataCube aggregates every
+    // selected column that is not a group key (_groupByAggCols) --
+    // sum for measures, uniqueValueOnly for the rest -- rather than
+    // projecting them away. An earlier fix grouped correctly and
+    // left a single blank column, which is not the same product.
+    if (grouped.labels.length < 8) {
+      bad(`grouping kept only ${grouped.labels.length} columns: `
+        + JSON.stringify(grouped.labels));
+    }
+    if (!/SUM\(/i.test(grouped.sql)) {
+      bad('no measure was aggregated after grouping');
+    }
+    if (!/COUNT\(DISTINCT/i.test(grouped.sql)) {
+      bad('no text column took its unique value after grouping');
     }
   }
 
