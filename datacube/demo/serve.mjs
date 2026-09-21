@@ -139,14 +139,27 @@ async function sendFile(res, path, range) {
 const DATA_ROUTE = dataPath ? `/data${extname(dataPath) || '.parquet'}` : undefined;
 
 const server = createServer(async (req, res) => {
-  const path = (req.url ?? '/').split('?')[0];
+  const [path, query = ''] = (req.url ?? '/').split('?');
   try {
     if (DATA_ROUTE && path === DATA_ROUTE) {
       await sendFile(res, dataPath, req.headers.range);
       return;
     }
-    const rel = normalize(path === '/' ? '/demo/index.html' : path)
-      .replace(/^(\.\.[/])+/, '');
+    // REDIRECT, never serve the page under a different path. Serving
+    // demo/index.html at `/` looks like it works -- the HTML arrives
+    // and the shell renders -- but every relative URL in it then
+    // resolves against `/`, so ./bundle.js 404s and NO script runs.
+    // The result is a page that looks right and does nothing: an
+    // empty dropdown, a status stuck on its initial "loading…", and
+    // controls that ignore clicks. Reported exactly that way.
+    if (path === '/' || path === '/demo' || path === '/demo/') {
+      res.writeHead(302, {
+        Location: `/demo/index.html${query ? `?${query}` : ''}`,
+      });
+      res.end();
+      return;
+    }
+    const rel = normalize(path).replace(/^(\.\.[/])+/, '');
     await sendFile(res, join(ROOT, rel), req.headers.range);
   } catch {
     res.writeHead(404, { 'Content-Type': 'text/plain' }).end('not found');

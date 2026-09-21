@@ -121,20 +121,14 @@
   <p class="warn" id="plannerreal" hidden
      style="background: color-mix(in srgb, mediumseagreen 14%, #fff);
             border-color: color-mix(in srgb, mediumseagreen 40%, transparent);">
-    Planning through <strong>legend-lite</strong> on :8080 &mdash; the Pure
-    below is compiled by the real engine against
-    <code>demo/trades.pure</code>, and the SQL it returns is what
-    DuckDB-WASM runs.
+    Planning <strong>in this tab</strong> &mdash; nothing is running on
+    :8080 and nothing needs to be. legend-lite's planner is compiled to
+    WebAssembly and runs on a worker here, so the Pure below is
+    compiled by the real planner and the SQL it returns is what
+    DuckDB-WASM runs. Open <code>index-server.html</code> to route the
+    same queries through a legend-lite server instead.
   </p>
 
-  <p class="warn" id="plannermissing" hidden
-     style="background: color-mix(in srgb, crimson 10%, #fff);
-            border-color: color-mix(in srgb, crimson 45%, transparent);">
-    <strong>legend-lite is not running.</strong> This page has no
-    fallback planner and will not show you numbers it made up: start
-    the engine with <code>npm run engine</code> and reload. There is
-    one planner, and it is the real one.
-  </p>
 
   <div class="bar">
     <span id="plane" class="plane live">Live</span>

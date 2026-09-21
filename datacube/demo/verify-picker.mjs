@@ -27,6 +27,21 @@ let failed = false;
 const bad = (m) => { console.log(`FAIL: ${m}`); failed = true; };
 
 try {
+  // The BARE origin too. Serving the page at `/` instead of
+  // redirecting broke every relative URL in it, so the shell
+  // rendered with no script at all -- a page that looks right and
+  // does nothing. Checking only the full path missed it entirely.
+  for (const entry of ['http://localhost:8000', 'http://localhost:8000/demo']) {
+    const probe = await ctx.newPage();
+    await probe.goto(entry, { waitUntil: 'load', timeout: 60_000 });
+    await probe.waitForFunction(
+      () => document.querySelectorAll('#samplepick option').length > 0,
+      undefined, { timeout: 60_000 },
+    ).catch(() => bad(`${entry} renders a shell with no working script`));
+    await probe.close();
+  }
+  console.log('bare origin and /demo both reach a working page');
+
   await page.goto(URL_, { waitUntil: 'load', timeout: 120_000 });
   await page.waitForFunction(
     () => document.querySelectorAll('.dc-row').length > 0, { timeout: 120_000 });
@@ -58,6 +73,22 @@ try {
   ]);
   console.log(`downloaded: ${dl.suggestedFilename()}`);
   if (!/\.csv$/.test(dl.suggestedFilename())) bad('not a csv');
+
+  // The banner must not describe a transport this page does not use.
+  // It claimed "Planning through legend-lite on :8080" long after the
+  // default page stopped needing a server — the page telling the user
+  // something untrue about itself.
+  const banner = (await page.textContent('#plannerreal')) ?? '';
+  if (/:8080/.test(banner) && !/nothing is running on/.test(banner)) {
+    bad(`banner still claims :8080: "${banner.trim().slice(0, 80)}"`);
+  }
+  if (!/in this tab/.test(banner)) {
+    bad(`banner does not say where planning happens: "${
+      banner.trim().slice(0, 80)}"`);
+  }
+  if (await page.locator('#plannerreal').isHidden()) {
+    bad('the banner is hidden');
+  }
 
   // Readability: every control needs real contrast, since a page
   // that only half-declares its colours renders dark-on-dark under a
