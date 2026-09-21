@@ -170,6 +170,8 @@ export interface ColumnLayout {
   readonly order?: readonly string[];
   /** Hidden from the grid. Still queried, so totals stay correct. */
   readonly hidden?: readonly string[];
+  /** Keep a row dimension as a data column as well as in the tree. */
+  readonly keepGrouped?: boolean;
   /** Pixel widths by column name. */
   readonly widths?: Readonly<Record<string, number>>;
   /** Lower and upper bounds, applied to the width above. */
@@ -257,7 +259,9 @@ export function buildColumnModel(
   // actually present, though: without it these columns are all a
   // flat cube has.
   const treeShown = table.columns.some((c) => c.name === TREE_COLUMN);
-  const inTree = new Set(treeShown ? dimensions : []);
+  const inTree = new Set(
+    treeShown && layout.keepGrouped !== true ? dimensions : [],
+  );
   const visible = leaves.filter(
     (l) => l.name === TREE_COLUMN
       || (!hidden.has(l.name) && !inTree.has(l.name)),

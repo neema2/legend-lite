@@ -218,6 +218,24 @@ describe('buildColumnModel', () => {
     );
   });
 
+  it('keeps them when the configuration asks to', () => {
+    // An ag-grid OPTION rather than a law
+    // (`suppressRowGroupHidesColumns`), which upstream leaves at its
+    // default and exposes no setting for. The default here matches
+    // theirs; the choice exists because a person who has just
+    // watched three columns vanish should be able to put them back.
+    const kept = buildColumnModel(
+      table([TREE_COLUMN, 'desk', 'book', 'notional']),
+      ['region', 'desk', 'book'],
+      [],
+      { keepGrouped: true },
+    );
+    assert.deepEqual(
+      kept.leaves.map((l) => l.name),
+      [TREE_COLUMN, 'desk', 'book', 'notional'],
+    );
+  });
+
   it('keeps those columns when there is NO tree', () => {
     // Without a tree they are all a flat cube has, so hiding them
     // would empty the grid -- which is the fault this replaced, in

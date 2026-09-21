@@ -241,6 +241,15 @@ export const generalPropertiesPanel: PanelBuilder = (ctx) => {
       checkbox(doc, 'Show leaf count', c.showLeafCount, (v) =>
         setConfig({ showLeafCount: v }),
       ),
+      // OFF by default, which is what DataCube shows: it leaves
+      // ag-grid's `suppressRowGroupHidesColumns` alone, so grouping a
+      // column hides it -- its values are the tree's now. Upstream
+      // exposes no setting for it; this one exists because a person
+      // who has just watched three columns vanish should be able to
+      // put them back.
+      checkbox(doc, 'Keep grouped columns in the grid',
+        c.showGroupedColumns, (v) => setConfig({ showGroupedColumns: v }),
+      ),
       // Honest marker: a leaf count needs a count aggregate added to
       // every level query, which is a query change rather than a
       // display one, and this build does not make it.

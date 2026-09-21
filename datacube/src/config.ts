@@ -94,6 +94,20 @@ export interface CubeConfiguration {
 
   // --- tree column ---
   readonly showRootAggregation: boolean;
+  /**
+   * Keep a row dimension as a DATA COLUMN as well as in the tree.
+   *
+   * OFF, which is what DataCube shows: it sets `groupDisplayType:
+   * 'singleColumn'` and leaves ag-grid's `suppressRowGroupHidesColumns`
+   * alone, so grouping a column hides it -- its values are the tree's
+   * now. The query still returns it, because every column that is
+   * not the group key of the level being fetched gets aggregated.
+   *
+   * It is an ag-grid OPTION rather than a law, and upstream exposes
+   * no setting for it, so this is a small deliberate divergence: the
+   * default matches theirs and the choice is available.
+   */
+  readonly showGroupedColumns: boolean;
   readonly showLeafCount: boolean;
   readonly treeColumnSort: SortDirection;
   /**
@@ -163,6 +177,7 @@ export const DEFAULT_CONFIGURATION: CubeConfiguration = {
    * for the user that they wanted it.
    */
   showRootAggregation: false,
+  showGroupedColumns: false,
   showLeafCount: false,
   treeColumnSort: 'asc',
   maxRows: DEFAULT_MAX_ROWS,
@@ -311,6 +326,8 @@ export interface ColumnLayoutProjection {
   pinned?: Record<string, PinPlacement>;
   displayNames?: Record<string, string>;
   blurred?: readonly string[];
+  /** Keep a row dimension as a data column as well as in the tree. */
+  keepGrouped?: boolean;
 }
 
 /** The `ColumnLayout` the grid's column model wants. */
@@ -324,6 +341,7 @@ export function toColumnLayout(
   const maxWidths: Record<string, number> = {};
   const pinned: Record<string, PinPlacement> = {};
   const displayNames: Record<string, string> = {};
+  const keepGrouped = config.showGroupedColumns;
 
   for (const [name, c] of Object.entries(config.columns)) {
     if (c.hidden) hidden.push(name);
@@ -337,6 +355,7 @@ export function toColumnLayout(
   }
 
   const out: ColumnLayoutProjection = {};
+  if (keepGrouped) out.keepGrouped = true;
   if (config.columnOrder) out.order = config.columnOrder;
   if (hidden.length) out.hidden = hidden;
   if (blurred.length) out.blurred = blurred;
