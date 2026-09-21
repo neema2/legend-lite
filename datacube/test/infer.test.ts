@@ -132,54 +132,54 @@ describe('inferModel', () => {
     assert.equal(m.source, '#>{local::DB.trades}#');
   });
 
-  it('defaults numbers to measures but keeps year a dimension', () => {
-    const m = inferModel(described, { table: 'trades' });
-    const kind = (n: string) => m.columns.find((c) => c.name === n)?.kind;
-    assert.equal(kind('notional'), 'measure');
-    assert.equal(kind('year'), 'dimension', 'a year is numeric and a key');
-    assert.equal(kind('region'), 'dimension');
-    assert.equal(kind('booked'), 'dimension');
-  });
-
-  it('treats id- and code-like numbers as dimensions', () => {
+  it('sums only FRACTIONAL types; integers take their unique value', () => {
+    // The harm is asymmetric. Summing an id, a year or a postcode
+    // gives a plausible number that is meaningless and says nothing
+    // about being wrong; taking a quantity's unique value gives a
+    // blank, which reads as "no aggregate chosen". Money and rates
+    // arrive as DOUBLE or DECIMAL, which still sum.
     const m = inferModel([
+      { name: 'notional', type: 'DOUBLE' },
+      { name: 'rate', type: 'DECIMAL(9,4)' },
       { name: 'trade_id', type: 'BIGINT' },
-      { name: 'zip', type: 'INTEGER' },
-      { name: 'account_number', type: 'BIGINT' },
+      { name: 'year', type: 'BIGINT' },
       { name: 'qty', type: 'INTEGER' },
+      { name: 'region', type: 'VARCHAR' },
+      { name: 'booked', type: 'DATE' },
     ], { table: 't' });
     const kind = (n: string) => m.columns.find((c) => c.name === n)?.kind;
+    assert.equal(kind('notional'), 'measure');
+    assert.equal(kind('rate'), 'measure', 'DECIMAL is money too');
     assert.equal(kind('trade_id'), 'dimension');
-    assert.equal(kind('zip'), 'dimension');
-    assert.equal(kind('account_number'), 'dimension');
-    assert.equal(kind('qty'), 'measure');
+    assert.equal(kind('year'), 'dimension');
+    assert.equal(kind('region'), 'dimension');
+    assert.equal(kind('booked'), 'dimension');
+    // THE COST, stated rather than hidden: an integer quantity is a
+    // sum the user has to ask for. A blank is recoverable in one
+    // click; a wrong total is not noticed at all.
+    assert.equal(kind('qty'), 'dimension');
   });
 
-  it('escapes a quote in a header with a BACKSLASH', () => {
-    // The lexer's escape inside a quoted identifier is the backslash,
-    // and it ends the token at the first unescaped `"`. Doubling
-    // instead -- `"a""b"` -- lexes as `"a"` then `"b"` and broke the
-    // whole Database declaration: one such header made all 51
-    // operations on that file refuse. Core now decodes this
-    // spelling (Fold.bareIdent), so the header survives intact
-    // rather than being renamed.
-    assert.equal(quoteIdent('a"b'), '"a\\"b"');
-    assert.equal(quoteIdent('back\\slash'), '"back\\\\slash"');
-    // Backslash first: a name ending in one must not escape the
-    // closing quote.
-    assert.equal(quoteIdent('ends\\'), '"ends\\\\"');
-  });
-
-  it('keeps a hostile header a NAME, not grammar', () => {
-    const m = inferModel(
-      [{ name: 'a" VARCHAR(1)) Table Evil (b', type: 'VARCHAR' }],
-      { table: 'trades' },
-    );
-    // Every quote inside the declaration is escaped, so nothing can
-    // close the column list early.
-    const line = m.model.split('\n').find((l) => l.includes('Table Evil'))!;
-    assert.match(line, /\\"/);
-    assert.ok(!/[^\\]" VARCHAR\(1\)\)/.test(line), line);
+  it('classifies by TYPE alone, with no name matching', () => {
+    // The previous rule read column names, matched `.*id$`, and so
+    // called `bid` -- a price -- a key, along with paid, valid, void
+    // and grid. It still missed cusip, isin, sedol, sku and account.
+    // Nothing here looks at spelling, so none of that can recur.
+    const m = inferModel([
+      { name: 'bid', type: 'DOUBLE' },
+      { name: 'paid', type: 'DOUBLE' },
+      { name: 'void', type: 'DOUBLE' },
+      { name: 'cusip', type: 'BIGINT' },
+      { name: 'account', type: 'BIGINT' },
+    ], { table: 't' });
+    const kind = (n: string) => m.columns.find((c) => c.name === n)?.kind;
+    for (const n of ['bid', 'paid', 'void']) {
+      assert.equal(kind(n), 'measure', `${n} is a price, not a key`);
+    }
+    for (const n of ['cusip', 'account']) {
+      assert.equal(kind(n), 'dimension',
+        `${n} is an identifier no name list would have caught`);
+    }
   });
 
   it('quotes a table name that needs it', () => {

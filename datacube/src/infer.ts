@@ -104,18 +104,36 @@ export function quoteIdent(name: string): string {
 /**
  * Columns that should be MEASURES rather than dimensions.
  *
- * Numeric defaults to measure, which is right far more often than
- * not -- but a year, an id or a code is numeric and is almost always
- * something you group by. Names decide those, because types cannot.
+ * ONLY A FRACTIONAL TYPE SUMS. Double and decimal are what money,
+ * rates and weights arrive as, and summing them is what the user
+ * wants. An INTEGER defaults to its unique value instead.
+ *
+ * <h2>Why integers do not sum</h2>
+ *
+ * The harm is asymmetric. Summing an id, a year, a postcode or a
+ * version produces a plausible-looking number that is meaningless,
+ * and nothing about the grid says so. Taking the unique value of a
+ * quantity produces a blank, which reads as "no aggregate chosen" --
+ * unhelpful, never misleading. Either is one click to change.
+ *
+ * Integers are also far more often keys than sums: ids, years,
+ * quarters, codes, flags, postcodes. `quantity` is the honest cost
+ * of this rule, and it is a blank rather than a wrong total.
+ *
+ * This replaces a name heuristic that tried to spot keys by
+ * spelling. It matched `.*id$`, so in a trading dataset it
+ * classified `bid` -- a price -- as a key, along with `paid`,
+ * `valid`, `void` and `grid`; and it still missed `cusip`, `isin`,
+ * `sedol`, `sku` and `account`. A rule that is wrong in both
+ * directions and needs a per-upload DISTINCT query to prop it up is
+ * worse than one line of type dispatch.
+ *
+ * DataCube sums every numeric (DataCubeConfigurationBuilder), so
+ * this is a deliberate divergence -- on the side that cannot
+ * produce a confident wrong number.
  */
-function kindOf(name: string, pureType: string): 'dimension' | 'measure' {
-  const numeric = pureType === 'Integer' || pureType === 'Float';
-  if (!numeric) return 'dimension';
-  const n = name.toLowerCase();
-  const looksLikeAKey = /^(id|.*_id|.*id)$/.test(n)
-    || /^(year|yr|month|mth|day|quarter|qtr|week|wk)$/.test(n)
-    || /(code|number|num|no|key|zip|postcode|version)$/.test(n);
-  return looksLikeAKey ? 'dimension' : 'measure';
+function kindOf(pureType: string): 'dimension' | 'measure' {
+  return pureType === 'Float' ? 'measure' : 'dimension';
 }
 
 export interface InferOptions {
@@ -159,7 +177,7 @@ export function inferModel(
   const cols = described.map((c) => {
     const sql = sqlTypeOf(c.type);
     const pure = pureTypeOf(sql);
-    return { name: c.name, sql, pure, kind: kindOf(c.name, pure) };
+    return { name: c.name, sql, pure, kind: kindOf(pure) };
   });
 
   const columnLines = cols

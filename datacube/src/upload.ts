@@ -28,6 +28,11 @@ export interface UploadResult extends InferredModel {
   readonly fileName: string;
 }
 
+/** DuckDB's identifier quoting: the doubled quote, not a backslash. */
+function dq(name: string): string {
+  return `"${name.replace(/"/g, '""')}"`;
+}
+
 /** Guess by extension; the picker allows only these two. */
 export function formatOf(fileName: string): UploadFormat {
   return /\.parquet$/i.test(fileName) ? 'parquet' : 'csv';
@@ -96,7 +101,7 @@ export async function ingestFile(
   // produced `CREATE OR REPLACE TABLE pivot AS …`, which is a syntax
   // error because pivot is reserved in DuckDB. tableNameOf already
   // strips it to [A-Za-z0-9_], so quoting is all that is left.
-  const qt = `"${table.replace(/"/g, '""')}"`;
+  const qt = dq(table);
   await engine.execute(
     `CREATE OR REPLACE TABLE ${qt} AS SELECT * FROM ${reader}`, 0);
 

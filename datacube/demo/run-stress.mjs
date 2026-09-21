@@ -121,6 +121,16 @@ const KNOWN = [
       + 'instead of refusing.',
   },
   {
+    id: 'pivot-quoted-column-not-in-from',
+    match: (d) => /Referenced column .* not found in FROM clause/.test(d),
+    why: 'OPEN: pivoting on two columns whose names need quoting loses '
+      + 'one of them between the inner projection and the pivot -- '
+      + '"Referenced column \u0645\u0628\u0644\u063a not found in FROM '
+      + 'clause". Same family as the two quoted-name pivot faults already '
+      + 'fixed (the ON clause double-quoting, and name resolution), but a '
+      + 'third site. Reproduce: unicode.csv, op pivot:two.',
+  },
+  {
     id: 'int64-overflow',
     match: (d) => /Out of Range|Overflow/.test(d),
     why: 'x * 2 on 9223372036854775807. Arguably correct of DuckDB to '
