@@ -63,6 +63,7 @@ import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
 import { FilterEditor } from './ui/filter-editor.ts';
 import { applyMenuAction, buildMenu, type MenuItem } from './ui/menu.ts';
 import { MenuView } from './ui/menu-view.ts';
+import { makeWindow, type WindowSpec } from './ui/window.ts';
 import { PivotPanel, type Zone } from './ui/pivot-panel.ts';
 import { ColumnsToolPanel } from './ui/columns-panel.ts';
 
@@ -181,10 +182,19 @@ export class CubeApp {
   readonly #columnsPanel: ColumnsToolPanel;
   readonly #els: {
     toolbar: HTMLElement;
+    root: HTMLElement;
     grid: HTMLElement;
     overlay: HTMLElement;
     stats: HTMLElement;
   };
+  /**
+   * Where each dialog was last left, by title.
+   *
+   * Reopening one should find it where you put it; a window that
+   * jumps back to the middle every time is one you have to move
+   * again every time.
+   */
+  readonly #windows = new Map<string, WindowSpec>();
   #snapshot: CubeSnapshot;
   #config: CubeConfiguration = DEFAULT_CONFIGURATION;
   #view: CubeView | null = null;
@@ -209,6 +219,10 @@ export class CubeApp {
 
     root.classList.add('dc-app');
     this.#els = {
+      // The window container: a dialog is positioned inside the app,
+      // not inside the document, so it cannot wander off over the
+      // host's own page furniture.
+      root,
       toolbar: this.#div(root, 'dc-titlebar'),
       grid: this.#doc.createElement('div'),
       overlay: this.#doc.createElement('div'),
@@ -448,8 +462,25 @@ export class CubeApp {
   #refreshToolPanel(): void {
     const rows = new Set(this.#snapshot.rows);
     const cols = new Set(this.#snapshot.pivotOn);
+    // IN THE GRID'S ORDER. The panel listed the cube's declared
+    // columns, so dragging a header to reorder moved the column on
+    // screen and left the panel beside it saying something else --
+    // and the panel is the list people read to find a column. Same
+    // rule the grid uses: what the order names comes first, in that
+    // order, and anything it does not keeps declared order behind.
+    const order = this.#config.columnOrder;
+    const listed = order
+      ? [...this.#snapshot.columns].sort((a, b) => {
+          const ia = order.indexOf(a.name);
+          const ib = order.indexOf(b.name);
+          if (ia === -1 && ib === -1) return 0;
+          if (ia === -1) return 1;
+          if (ib === -1) return -1;
+          return ia - ib;
+        })
+      : this.#snapshot.columns;
     this.#columnsPanel.setColumns(
-      this.#snapshot.columns.map((c) => ({
+      listed.map((c) => ({
         name: c.name,
         type: c.type,
         groupable: this.#isDimension(c.name),
@@ -1355,6 +1386,8 @@ export class CubeApp {
     const overlay = this.#els.overlay;
     overlay.hidden = false;
     overlay.replaceChildren();
+    overlay.removeAttribute('style');
+    overlay.classList.remove('dc-window');
     const head = this.#div(overlay, 'dc-overlay-head');
     const h = this.#doc.createElement('span');
     h.textContent = title;
@@ -1366,6 +1399,27 @@ export class CubeApp {
     close.addEventListener('click', () => this.#closeOverlay());
     head.append(h, close);
     build(this.#div(overlay, 'dc-overlay-body'));
+
+    // A WINDOW, not a block at the bottom of the page.
+    //
+    // The overlay was appended after the grid, so opening a dialog
+    // pushed the page down and showed it below the data it was about
+    // -- which makes a filter or a column's properties impossible to
+    // consult against the rows they change. DataCube's are floating
+    // windows (DataCubeLayout): dragged by the header, resizable from
+    // any edge, and each remembering where it was put.
+    //
+    // Remembered BY TITLE: reopening Properties should find it where
+    // you left it, while the filter window keeps its own place.
+    this.#windows.set(
+      title,
+      makeWindow(overlay, head, this.#els.root, {
+        ...(this.#windows.get(title)
+          ? { spec: this.#windows.get(title) }
+          : {}),
+        onChange: (spec) => this.#windows.set(title, spec),
+      }),
+    );
     // Escape closes, because a modal a keyboard user cannot dismiss
     // is a trap, and the panels below already stop their own Escape
     // from reaching here.
@@ -1375,8 +1429,11 @@ export class CubeApp {
   }
 
   #closeOverlay(): void {
-    this.#els.overlay.hidden = true;
-    this.#els.overlay.replaceChildren();
+    const overlay = this.#els.overlay;
+    overlay.hidden = true;
+    overlay.classList.remove('dc-window');
+    overlay.removeAttribute('style');
+    overlay.replaceChildren();
   }
 
   // -- the toolbar ------------------------------------------------------------

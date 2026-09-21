@@ -135,6 +135,7 @@ export class DataGrid {
   readonly #root: HTMLElement;
   readonly #head: HTMLElement;
   readonly #headGrid: HTMLElement;
+  #resize: ResizeObserver | null = null;
   readonly #body: HTMLElement;
   readonly #spacer: HTMLElement;
   readonly #scroller: HTMLElement;
@@ -207,6 +208,36 @@ export class DataGrid {
     this.#root.appendChild(this.#scroller);
 
     this.#scroller.addEventListener('scroll', this.#onScroll);
+    // A RESIZE MOVES THE BODY WITHOUT A SCROLL EVENT.
+    //
+    // Widening the grid -- collapsing the sidebar does it -- shrinks
+    // the scroll range, so the browser clamps `scrollLeft` down to
+    // fit. The header is a separate scroller driven from the scroll
+    // handler, and no scroll event need fire for that clamp, so it
+    // kept its old offset: every column's header sat exactly the
+    // clamped distance to the left of its own cells. Measured at
+    // 100px after one sidebar collapse.
+    //
+    // Guarded because jsdom has no ResizeObserver, and a grid that
+    // cannot observe its own size still has to build.
+    const Observer = (this.#root.ownerDocument.defaultView as
+      { ResizeObserver?: typeof ResizeObserver } | null)?.ResizeObserver;
+    if (Observer) {
+      // ONLY ON AN ACTUAL WIDTH CHANGE. A callback that touches the
+      // DOM every time it runs keeps the page in motion, and
+      // Playwright -- like a person -- waits for an element to stop
+      // moving before clicking it; several checks timed out waiting
+      // for a grid that never settled. The vertical axis cannot
+      // affect a horizontal offset, so height changes are ignored.
+      let seen = -1;
+      this.#resize = new Observer(() => {
+        const width = Math.round(this.#scroller.clientWidth);
+        if (width === seen) return;
+        seen = width;
+        this.#syncHeaderOffset();
+      });
+      this.#resize.observe(this.#scroller);
+    }
     this.#root.addEventListener('keydown', this.#onKeyDown);
     this.#body.addEventListener('click', this.#onClick);
   }
@@ -273,6 +304,8 @@ export class DataGrid {
   }
 
   destroy(): void {
+    this.#resize?.disconnect();
+    this.#resize = null;
     this.#scroller.removeEventListener('scroll', this.#onScroll);
     this.#root.removeEventListener('keydown', this.#onKeyDown);
     this.#body.removeEventListener('click', this.#onClick);

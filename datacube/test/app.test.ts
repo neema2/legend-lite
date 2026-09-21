@@ -331,6 +331,26 @@ describe('the app', () => {
       'and the configuration the view was saved with');
   });
 
+  it('the columns PANEL follows the grid order, not the declared one', async () => {
+    // The panel listed the cube's declared columns, so reordering a
+    // header moved the column on screen and left the panel beside it
+    // saying something else -- and the panel is the list people read
+    // to find a column. Tested here rather than through a browser
+    // drag: the drag is covered by the grid's own DOM tests, and what
+    // broke was this hand-off.
+    const named = () => [...root.querySelectorAll('.dc-tool-panel-row')]
+      .map((e) => (e as HTMLElement).dataset['column']);
+    const before = named();
+    assert.ok(before.length >= 3, `only ${before.length} columns listed`);
+
+    const moved = [before[before.length - 1], ...before.slice(0, -1)]
+      .filter((n): n is string => n !== undefined);
+    await app.applyConfiguration({ columnOrder: moved });
+
+    assert.deepEqual(named(), moved,
+      'the panel must read in the order the grid does');
+  });
+
   it('reports a bad saved view rather than throwing past the user', async () => {
     storage.setItem('datacube.savedView', '{ not json');
     await app.loadView();

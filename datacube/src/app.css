@@ -341,6 +341,71 @@
   overflow: hidden;
 }
 
+/* -- the window ------------------------------------------------------- */
+
+/* The app is the window's frame of reference, so a dialog cannot
+   wander off across the host's own page. */
+.dc-app {
+  position: relative;
+}
+
+/* A dialog was a block appended after the grid: opening one pushed
+   the page down and showed it BELOW the data it was about. This is
+   the floating window DataCube has. */
+.dc-app-overlay.dc-window {
+  position: absolute;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  /* Lifted off the grid, or a white panel over white rows reads as
+     part of the page rather than as something on top of it. */
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+}
+
+.dc-app-overlay.dc-window .dc-overlay-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* The title bar is the handle, so it says so. `grab` while resting
+   and the browser's own `grabbing` once the pointer is down. */
+.dc-window-handle {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.dc-window-handle:active {
+  cursor: grabbing;
+}
+
+/* EIGHT grips, as upstream has: the four edges and the four corners,
+   each with the cursor that says which way it goes. 6px is the
+   smallest that can be hit reliably without swallowing clicks meant
+   for the content beneath. */
+.dc-window-grip {
+  position: absolute;
+  touch-action: none;
+}
+
+.dc-window-n, .dc-window-s { left: 6px; right: 6px; height: 6px; }
+.dc-window-e, .dc-window-w { top: 6px; bottom: 6px; width: 6px; }
+.dc-window-n { top: -1px; cursor: ns-resize; }
+.dc-window-s { bottom: -1px; cursor: ns-resize; }
+.dc-window-e { right: -1px; cursor: ew-resize; }
+.dc-window-w { left: -1px; cursor: ew-resize; }
+
+.dc-window-ne, .dc-window-nw, .dc-window-se, .dc-window-sw {
+  width: 12px;
+  height: 12px;
+}
+
+.dc-window-ne { top: -1px; right: -1px; cursor: nesw-resize; }
+.dc-window-nw { top: -1px; left: -1px; cursor: nwse-resize; }
+.dc-window-se { bottom: -1px; right: -1px; cursor: nwse-resize; }
+.dc-window-sw { bottom: -1px; left: -1px; cursor: nesw-resize; }
+
 .dc-overlay-head {
   display: flex;
   justify-content: space-between;

@@ -97,6 +97,15 @@ function record(name, ok, detail) {
  * cascade of identical timeouts is a harness fault, not 23 bugs.
  */
 async function reset() {
+  // THE CLOSE BUTTON, not just Escape. A dialog is a floating window
+  // now, so one left open covers the grid and every later right-click
+  // waits thirty seconds for a cell it cannot reach -- and Escape
+  // reaches the overlay only while focus is still inside it.
+  const shut = page.locator('.dc-app-overlay:not([hidden]) .dc-overlay-close');
+  if (await shut.count()) {
+    await shut.first().click().catch(() => {});
+    await page.waitForTimeout(150);
+  }
   for (let i = 0; i < 3; i += 1) {
     const open = await page.locator('.dc-menu, .dc-app-overlay:not([hidden])')
       .count();
@@ -163,7 +172,32 @@ async function check(name, fn) {
     await invariants(name);
   } catch (e) {
     timings.push([name, Date.now() - started]);
-    record(name, false, String(e.message ?? e).split('\n')[0]);
+    // WHAT THE PAGE LOOKED LIKE. A bare "took longer than 30s" sends
+    // you guessing; a dialog left open now covers the grid, so the
+    // most common cause of a hang is a window nobody closed.
+    const where = await page.evaluate(() => {
+      const w = document.querySelector('.dc-app-overlay');
+      const shown = w && !w.hidden;
+      const b = shown ? w.getBoundingClientRect() : null;
+      return {
+        overlay: shown ? `open ${Math.round(b.width)}x${Math.round(b.height)}`
+          + ` at ${Math.round(b.left)},${Math.round(b.top)}` : 'closed',
+        menus: document.querySelectorAll('.dc-menu').length,
+        rows: document.querySelectorAll('.dc-row').length,
+      };
+    }).catch(() => null);
+    // Playwright's CALL LOG, not just its first line: the reason
+    // ("not visible", "outside of the viewport", "intercepts pointer
+    // events") is in the lines after it, and the first line alone is
+    // just the word "Timeout".
+    const why = String(e.message ?? e).split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l && !/^Call log:$/.test(l))
+      .slice(0, 8)
+      .join(' | ');
+    record(name, false, `${why}`
+      + (where ? ` [overlay ${where.overlay}, ${where.menus} menu(s),`
+        + ` ${where.rows} rows]` : ''));
     if (process.env.SHOTS) {
       const file = `${process.env.SHOTS}/${name.replace(/\W+/g, '-')}.png`;
       await page.screenshot({ path: file, fullPage: true }).catch(() => {});
@@ -263,8 +297,22 @@ const openMenu = () => page.evaluate(() =>
 async function menu(path, { row = 0, col = 0, requery = true } = {}) {
   await reset();
   const before = requery ? await statusNow() : undefined;
+  // BACK TO THE LEFT FIRST. The row-dimension column is sticky, so a
+  // cell that has been scrolled under it cannot be clicked -- the
+  // sticky cell takes the pointer. A person right-clicks a cell they
+  // can see; this puts the grid where they would be looking.
+  await page.evaluate(() => {
+    const sc = document.querySelector('.dc-scroller');
+    if (sc) sc.scrollLeft = 0;
+  });
+  await page.waitForTimeout(80);
   const cell = page.locator('.dc-row').nth(row).locator('.dc-cell').nth(col);
-  await cell.click({ button: 'right' });
+  // A TIMEOUT SHORTER THAN THE CHECK DEADLINE, so Playwright's own
+  // explanation ("not stable", "intercepts pointer events", "outside
+  // the viewport") reaches the report. Left at its 30s default the
+  // deadline fired first and replaced every one of them with "took
+  // longer than 30s", which says nothing about the cause.
+  await cell.click({ button: 'right', timeout: 8000 });
   await page.waitForSelector('.dc-menu', { timeout: 5000 });
   for (let i = 0; i < path.length; i += 1) {
     const label = path[i];
@@ -1520,6 +1568,150 @@ try {
     await page.waitForTimeout(200);
     return 'opens the editor';
   });
+
+  // ---- the dialogs are windows -------------------------------------------
+
+  await check('a dialog FLOATS over the grid, and does not grow the page',
+    async () => {
+      // They were a block appended after the grid: opening one pushed
+      // the page down and showed it below the data it was about.
+      const pageBefore = await page.evaluate(() =>
+        document.documentElement.scrollHeight);
+      await menu(['Properties...'], { requery: false });
+      const g = await page.evaluate(() => {
+        const w = document.querySelector('.dc-app-overlay');
+        const grid = document.querySelector('.dc-app-grid');
+        const r = (el) => {
+          const b = el.getBoundingClientRect();
+          return { y: Math.round(b.top), h: Math.round(b.height),
+            x: Math.round(b.left), w: Math.round(b.width) };
+        };
+        return {
+          position: getComputedStyle(w).position,
+          grips: w.querySelectorAll('.dc-window-grip').length,
+          win: r(w), grid: r(grid),
+          doc: document.documentElement.scrollHeight,
+        };
+      });
+      if (g.position !== 'absolute') {
+        throw new Error(`the dialog is ${g.position}, not a floating window`);
+      }
+      if (g.grips !== 8) {
+        throw new Error(`${g.grips} resize grips, expected 8 (every edge and`
+          + ' corner, as upstream has)');
+      }
+      const over = g.win.y < g.grid.y + g.grid.h
+        && g.win.y + g.win.h > g.grid.y;
+      if (!over) {
+        throw new Error(`the dialog sits at y=${g.win.y} and the grid spans`
+          + ` ${g.grid.y}..${g.grid.y + g.grid.h}: it is beside the data,`
+          + ' not over it');
+      }
+      // A window that floats cannot make the document taller. It did:
+      // measuring the container while the dialog was still IN FLOW
+      // centred it against a container half again too tall, and its
+      // bottom grips ended up below the fold and unreachable.
+      if (g.doc > pageBefore) {
+        throw new Error(`opening it grew the page ${pageBefore} -> ${g.doc},`
+          + ' so it is not floating clear');
+      }
+      return `${g.win.w}x${g.win.h} at ${g.win.x},${g.win.y}`;
+    });
+
+  // The drag check below needs it open, and `reset` shuts it before
+  // every check, so it is reopened there rather than left standing
+  // here -- a window left open covers the grid.
+
+  await check('a CLOSED dialog is really gone', async () => {
+    // `.dc-window` sets `display: flex`, which outranks what the
+    // `hidden` attribute means -- so a dialog that had been opened
+    // and closed stayed on screen, floating over the grid and
+    // swallowing every click, while `element.hidden` still reported
+    // true. Nothing looked wrong; cells simply could not be
+    // right-clicked, and ten checks timed out.
+    await menu(['Properties...'], { requery: false });
+    await page.locator('.dc-overlay-close').first().click();
+    await page.waitForTimeout(250);
+
+    const state = await page.evaluate(() => {
+      const w = document.querySelector('.dc-app-overlay');
+      const b = w.getBoundingClientRect();
+      return {
+        hidden: w.hidden,
+        display: getComputedStyle(w).display,
+        area: Math.round(b.width) * Math.round(b.height),
+      };
+    });
+    if (!state.hidden) throw new Error('the overlay is still marked open');
+    if (state.display !== 'none') {
+      throw new Error(`a closed dialog computes display: ${state.display},`
+        + ' so it is still on the page');
+    }
+    if (state.area !== 0) {
+      throw new Error(`a closed dialog still occupies ${state.area}px²`);
+    }
+
+    // And the grid is usable again, which is the thing that broke.
+    await menu(['Sort', 'Clear All Sorts']).catch(() => {});
+    return 'gone, and the grid takes clicks again';
+  });
+
+  await check('a dialog can be dragged and resized, and stays put',
+    async () => {
+      // `reset` shut whatever the previous check left open, so open
+      // it here.
+      await menu(['Properties...'], { requery: false });
+      const box = () => page.evaluate(() => {
+        const b = document.querySelector('.dc-app-overlay')
+          .getBoundingClientRect();
+        return { x: Math.round(b.left), y: Math.round(b.top),
+          w: Math.round(b.width), h: Math.round(b.height) };
+      });
+      const start = await box();
+
+      const head = await page.locator('.dc-overlay-head').first()
+        .boundingBox();
+      await page.mouse.move(head.x + head.width / 2, head.y + head.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(head.x + head.width / 2 - 90,
+        head.y + head.height / 2 + 40, { steps: 6 });
+      await page.mouse.up();
+      await page.waitForTimeout(200);
+      const moved = await box();
+      if (moved.x === start.x && moved.y === start.y) {
+        throw new Error(`dragging the title bar moved nothing:`
+          + ` still ${start.x},${start.y}`);
+      }
+
+      const grip = await page.locator('.dc-window-se').first().boundingBox();
+      if (!grip) throw new Error('no south-east grip to grab');
+      await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(grip.x + 100, grip.y + 70, { steps: 6 });
+      await page.mouse.up();
+      await page.waitForTimeout(200);
+      const sized = await box();
+      if (sized.w <= moved.w || sized.h <= moved.h) {
+        throw new Error(`the south-east grip did not resize:`
+          + ` ${moved.w}x${moved.h} -> ${sized.w}x${sized.h}`);
+      }
+
+      // Closed and reopened, it comes back where it was left.
+      await page.locator('.dc-overlay-close').first().click();
+      await page.waitForTimeout(200);
+      await menu(['Properties...'], { requery: false });
+      const again = await box();
+      if (again.x !== sized.x || again.y !== sized.y
+        || again.w !== sized.w || again.h !== sized.h) {
+        throw new Error(`it jumped on reopening: ${sized.w}x${sized.h} at`
+          + ` ${sized.x},${sized.y} became ${again.w}x${again.h} at`
+          + ` ${again.x},${again.y}`);
+      }
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(200);
+      return `moved to ${moved.x},${moved.y} and resized to`
+        + ` ${sized.w}x${sized.h}`;
+    });
 
   // ---- the chrome ---------------------------------------------------------
 
