@@ -93,6 +93,16 @@ export interface MenuContext {
   readonly value?: FilterValue | null;
   /** The type of the column that value belongs to. */
   readonly columnType?: string;
+  /**
+   * Which bars are hidden, so the entries can offer the way back.
+   *
+   * THIS MENU IS THE SAFETY NET. The title bar's hamburger is the
+   * other place these toggles live, and it is in the bar one of them
+   * hides -- so without them here, hiding the title bar would be a
+   * one-way door for anyone who did not find the lip it leaves.
+   */
+  readonly zonesHidden?: boolean;
+  readonly titleBarHidden?: boolean;
 }
 
 export type MenuActionId =
@@ -150,6 +160,11 @@ export type MenuActionId =
   | 'chart.plot'
   | 'chart.treemap'
   | 'view.properties'
+  // The chrome, toggled from either menu. Not a snapshot change and
+  // not a column operation: what is on SCREEN, which is why these
+  // sit beside Properties rather than in any column group.
+  | 'layout.zones'
+  | 'layout.titleBar'
   // Host-level entries, which live in the title bar's menu rather
   // than the grid's. DataCube reserves that menu for the embedding
   // application the same way.
@@ -519,7 +534,22 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
     { id: 'chart.treemap', label: 'Treemap' },
   ]);
 
-  push('', [{ id: 'view.properties', label: 'Properties...' }]);
+  push('', [
+    {
+      label: 'Layout',
+      submenu: [
+        {
+          id: 'layout.zones',
+          label: ctx.zonesHidden ? 'Show Drag Zones' : 'Hide Drag Zones',
+        },
+        {
+          id: 'layout.titleBar',
+          label: ctx.titleBarHidden ? 'Show Title Bar' : 'Hide Title Bar',
+        },
+      ],
+    },
+    { id: 'view.properties', label: 'Properties...' },
+  ]);
 
   return groups;
 }

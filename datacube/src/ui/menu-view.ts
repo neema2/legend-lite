@@ -62,6 +62,9 @@ export class MenuView {
     this.#returnFocus = this.#doc.activeElement;
     const menu = this.#doc.createElement('div');
     menu.className = 'dc-menu';
+    // Focusable, but not in the tab order: focus is put here
+    // deliberately when the menu opens.
+    menu.tabIndex = -1;
     menu.setAttribute('role', 'menu');
     menu.tabIndex = -1;
 
@@ -97,7 +100,18 @@ export class MenuView {
     this.#doc.body.appendChild(menu);
     this.#el = menu;
     this.#place(x, y);
-    this.items[0]?.focus();
+    // THE MENU, NOT ITS FIRST ITEM.
+    //
+    // CSS opens a submenu on hover AND on focus-within, so focusing
+    // the first entry flew its submenu open the moment the menu
+    // appeared: every right-click on the grid arrived with the whole
+    // Export list already unfurled beside it, and hovering anything
+    // else left TWO submenus on screen, because one was held open by
+    // focus and the other by the pointer. Focus lands on the menu
+    // instead -- the keyboard still works, since ArrowDown from
+    // nowhere goes to the first entry -- and a submenu now opens
+    // only when someone asks for it.
+    menu.focus();
   }
 
   /**

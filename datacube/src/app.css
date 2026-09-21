@@ -136,6 +136,79 @@
 
 /* -- the drag zones ------------------------------------------------ */
 
+/* The strip: the zones, and the control that folds them away. */
+.dc-zone-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dc-zone-bar[hidden] { display: none !important; }
+
+/* Peeking, because a drag is in flight and needs somewhere to land.
+   Marked so it reads as temporary rather than as a bar the user
+   unfolded and now has to fold again. */
+.dc-zone-bar.dc-peeking .dc-zone {
+  border-style: solid;
+  border-color: var(--tw-sky-500, #0ea5e9);
+}
+
+.dc-zone-bar > .dc-pivot-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The folds: a chevron, quiet until you want it. Same glyph and
+   same behaviour as the columns panel's, which is the one a person
+   has already learned here. */
+.dc-zone-fold,
+.dc-titlebar-fold,
+.dc-titlebar-zones {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--tw-neutral-500);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  padding: 0 var(--dc-pad-2);
+}
+
+.dc-zone-fold:hover,
+.dc-titlebar-fold:hover,
+.dc-titlebar-zones:hover {
+  color: var(--tw-black);
+  background: var(--tw-neutral-200);
+}
+
+/* FOLDED, THE TITLE BAR IS A LIP -- 12px carrying one control. The
+   hamburger lives in that bar, so a bar that vanished outright would
+   take the menu with it. */
+.dc-titlebar.dc-collapsed {
+  height: 12px;
+  justify-content: flex-start;
+  border-bottom: 1px solid var(--tw-neutral-200);
+}
+
+.dc-titlebar-lip {
+  width: 100%;
+  height: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--tw-neutral-500);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  line-height: 12px;
+  padding: 0;
+}
+
+.dc-titlebar-lip:hover {
+  color: var(--tw-black);
+  background: var(--tw-neutral-200);
+}
+
 /* ONE BAR, SPLIT ROWS | COLUMNS, rather than two stacked strips.
    Two bars cost 66px of a 900px viewport to hold, most days, four
    chips and two prompts -- and the grid is what the page is for.

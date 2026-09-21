@@ -718,8 +718,12 @@ try {
     //
     // The row zone is where the dimensions are, and expandability is
     // what having two of them buys you.
+    // THE ROWS HALF, BY NAME. `[class*=zone]` collected chips from
+    // both halves, so "two row dimensions" would also have been
+    // satisfied by one row chip and one column chip -- which is the
+    // other shape entirely.
     const zone = await page.evaluate(() =>
-      [...document.querySelectorAll('[class*=zone] [data-column]')]
+      [...document.querySelectorAll('.dc-zone-rows [data-column]')]
         .map((e) => e.dataset.column));
     if (zone.length < 2) {
       throw new Error(`the row zone holds ${JSON.stringify(zone)}`);
@@ -1805,6 +1809,149 @@ try {
       throw new Error(`header at ${p1.th}, its column at ${p1.td}`);
     }
     return `aligned at ${p1.th}px after scrolling`;
+  });
+
+  await check('the menu opens with NO submenu already unfurled', async () => {
+    // A right-click arrived with the whole Export list open beside
+    // the menu, and hovering anything else left two submenus on
+    // screen -- one held open by the focus the menu put on its first
+    // entry, one by the pointer. Counting VISIBLE submenus is the
+    // check; the focus that caused it is a detail underneath.
+    await page.locator('.dc-cell').first().click({ button: 'right' });
+    await page.waitForSelector('.dc-menu', { timeout: 10_000 });
+    const showing = () => page.evaluate(() =>
+      [...document.querySelectorAll('.dc-submenu')]
+        .filter((e) => e.getBoundingClientRect().height > 0)
+        .map((e) => e.parentElement?.querySelector('.dc-menu-label')
+          ?.textContent?.trim() ?? '?'));
+    const onOpen = await showing();
+    if (onOpen.length > 0) {
+      throw new Error(`opened with ${onOpen.join(', ')} already unfurled`);
+    }
+    // And ONE opens when asked, so the fix did not simply break them.
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Layout"))')
+      .hover();
+    await page.waitForTimeout(250);
+    const hovered = await showing();
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(150);
+    if (hovered.length !== 1 || hovered[0] !== 'Layout') {
+      throw new Error(`hovering Layout showed ${hovered.length}:`
+        + ` ${hovered.join(', ')}`);
+    }
+    return 'none on open, exactly one on hover';
+  });
+
+  // -- folding the chrome away ---------------------------------------
+  //
+  // The grid is what the page is for, so both bars fold. Each check
+  // measures the GRID, because "the bar is hidden" is not the point
+  // -- the point is that the space went to the rows.
+
+  await check('folding the drag zones gives the space to the grid', async () => {
+    const heights = () => page.evaluate(() => ({
+      grid: Math.round(
+        document.querySelector('.dc-app-middle').getBoundingClientRect().height),
+      bar: document.querySelector('.dc-zone-bar')?.hidden === false
+        ? Math.round(document.querySelector('.dc-zone-bar')
+          .getBoundingClientRect().height)
+        : 0,
+    }));
+    const before = await heights();
+    if (before.bar < 10) throw new Error('the zone bar is not on screen to fold');
+    await page.click('.dc-zone-fold');
+    await page.waitForTimeout(200);
+    const after = await heights();
+    if (after.bar !== 0) throw new Error('the zone bar is still on screen');
+    if (after.grid <= before.grid) {
+      throw new Error(`the grid did not grow: ${before.grid} ->`
+        + ` ${after.grid}px`);
+    }
+    // NEVER NOTHING TO CLICK.
+    if (!(await page.locator('.dc-titlebar-zones').count())) {
+      throw new Error('nothing in the title bar brings the zones back');
+    }
+    await page.click('.dc-titlebar-zones');
+    await page.waitForTimeout(200);
+    const back = await heights();
+    if (back.bar < 10) throw new Error('the zones did not come back');
+    return `grid ${before.grid} -> ${after.grid}px, and back to ${back.grid}`;
+  });
+
+  await check('folding the title bar leaves a lip that restores it', async () => {
+    const grid = () => page.evaluate(() => Math.round(
+      document.querySelector('.dc-app-middle').getBoundingClientRect().height));
+    const before = await grid();
+    await page.click('.dc-titlebar-fold');
+    await page.waitForTimeout(200);
+    if (await page.locator('.dc-titlebar-menu').count()) {
+      throw new Error('the hamburger survived a folded title bar');
+    }
+    const lip = page.locator('.dc-titlebar-lip');
+    if (!(await lip.count())) {
+      throw new Error('the title bar folded to NOTHING, taking the menu'
+        + ' with it');
+    }
+    const after = await grid();
+    if (after <= before) {
+      throw new Error(`the grid did not grow: ${before} -> ${after}px`);
+    }
+    // Measured while it is still folded, or the figure reported is
+    // the restored bar's and the line says something untrue.
+    const lipHeight = Math.round(await page.locator('.dc-titlebar')
+      .evaluate((e) => e.getBoundingClientRect().height));
+    await lip.click();
+    await page.waitForTimeout(200);
+    if (!(await page.locator('.dc-titlebar-menu').count())) {
+      throw new Error('the lip did not bring the title bar back');
+    }
+    return `grid ${before} -> ${after}px, lip ${lipHeight}px`;
+  });
+
+  await check("the grid's menu restores a bar the hamburger went with",
+    async () => {
+      // THE SAFETY NET. The hamburger lives in the title bar, so
+      // hiding that bar from the hamburger would be a one-way door
+      // if the grid's own menu did not carry the same toggle.
+      await page.click('.dc-titlebar-fold');
+      await page.waitForTimeout(200);
+      if (await page.locator('.dc-titlebar-menu').count()) {
+        throw new Error('the title bar did not fold');
+      }
+      await menu(['Layout', 'Show Title Bar']);
+      await page.waitForTimeout(300);
+      if (!(await page.locator('.dc-titlebar-menu').count())) {
+        throw new Error('the grid menu could not restore the title bar');
+      }
+      return 'restored from the grid, with no title bar to click';
+    });
+
+  await check('a column drag brings the folded zones back', async () => {
+    // Folding them must take nothing away: a drag needs somewhere to
+    // land, so the bar returns for the length of one and folds
+    // itself again afterwards.
+    await page.click('.dc-zone-fold');
+    await page.waitForTimeout(200);
+    const shown = () => page.evaluate(() =>
+      document.querySelector('.dc-zone-bar')?.hidden === false);
+    if (await shown()) throw new Error('the zones did not fold');
+    const head = page.locator('.dc-th[data-column]').first();
+    await head.dispatchEvent('dragstart', { dataTransfer: null });
+    await page.waitForTimeout(150);
+    const during = await shown();
+    const peeking = await page.evaluate(() =>
+      document.querySelector('.dc-zone-bar')?.classList
+        .contains('dc-peeking') ?? false);
+    await head.dispatchEvent('dragend', { dataTransfer: null });
+    await page.waitForTimeout(150);
+    const afterwards = await shown();
+    await page.click('.dc-titlebar-zones');
+    await page.waitForTimeout(200);
+    if (!during) throw new Error('a dragged column had nowhere to land');
+    if (!peeking) throw new Error('the bar came back unmarked, so it reads'
+      + ' as unfolded rather than as a peek');
+    if (afterwards) throw new Error('the peek did not fold itself back');
+    return 'shown for the drag, folded again after it';
   });
 
   await check('keyboard: arrow keys move the focused cell', async () => {

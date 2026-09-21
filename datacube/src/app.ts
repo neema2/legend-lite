@@ -217,10 +217,22 @@ export class CubeApp {
   readonly #els: {
     toolbar: HTMLElement;
     root: HTMLElement;
+    /** The strip holding the zones and the control that folds it. */
+    zoneBar: HTMLElement;
     grid: HTMLElement;
     overlay: HTMLElement;
     stats: HTMLElement;
   };
+  /**
+   * The zones, shown for the length of a drag that needs them.
+   *
+   * Folded away they are not merely invisible, they are not there --
+   * so a person who folds them and then drags a column header has
+   * nowhere to drop it. The bar comes back while the drag is in
+   * flight and folds itself again afterwards, which means folding it
+   * takes nothing away.
+   */
+  #zonePeek = false;
   /**
    * Where each dialog was last left, by title.
    *
@@ -260,6 +272,9 @@ export class CubeApp {
       // host's own page furniture.
       root,
       toolbar: this.#div(root, 'dc-titlebar'),
+      // Replaced immediately below, once the toolbar exists to sit
+      // above it. Declared here so the map has one shape.
+      zoneBar: this.#doc.createElement('div'),
       grid: this.#doc.createElement('div'),
       overlay: this.#doc.createElement('div'),
       stats: this.#doc.createElement('div'),
@@ -272,7 +287,15 @@ export class CubeApp {
     // puts them, so a column dragged upward has somewhere obvious to
     // land. The tool panel sits to the right of the grid, where
     // DataCube's sidebar is.
-    const zones = this.#div(root, 'dc-pivot-panel');
+    // A STRIP, holding the zones and the one control that folds
+    // them. The zones themselves belong to PivotPanel, which
+    // replaces its children on every render, so the control cannot
+    // live inside it -- and should not: what is on screen is the
+    // app's business, what is in a zone is the panel's.
+    const zoneBar = this.#div(root, 'dc-zone-bar');
+    const zones = this.#div(zoneBar, 'dc-pivot-panel');
+    this.#els.zoneBar = zoneBar;
+    zoneBar.append(this.#zoneFold());
     const middle = this.#div(root, 'dc-app-middle');
     middle.append(this.#els.grid);
     const side = this.#doc.createElement('div');
@@ -357,6 +380,22 @@ export class CubeApp {
 
     this.#wireContextMenu();
     this.#buildToolbar();
+    this.#applyChrome();
+    // A DRAG BRINGS THE ZONES BACK. Both listeners are on the app's
+    // own root, so a header drag from the grid and a chip drag from
+    // the bar are the same event to this.
+    root.addEventListener('dragstart', () => {
+      if (this.#config.showDragZones) return;
+      this.#zonePeek = true;
+      this.#applyChrome();
+    });
+    const unpeek = (): void => {
+      if (!this.#zonePeek) return;
+      this.#zonePeek = false;
+      this.#applyChrome();
+    };
+    root.addEventListener('dragend', unpeek);
+    root.addEventListener('drop', unpeek);
     // ADOPT THE HOST'S READOUT NOW, not on the first render: a cube
     // whose first query FAILS never renders a status bar, and that
     // is exactly when the host has something to say. The bar is
@@ -690,6 +729,69 @@ export class CubeApp {
     fill(slot);
   }
 
+  /**
+   * Put the chrome flags on screen.
+   *
+   * Called after every change to them, and after a rebuild of the
+   * title bar -- which is how the bar comes back as a LIP rather
+   * than as nothing.
+   */
+  #applyChrome(): void {
+    const zones = this.#config.showDragZones || this.#zonePeek;
+    this.#els.zoneBar.hidden = !zones;
+    this.#els.zoneBar.classList.toggle('dc-peeking', !this.#config
+      .showDragZones && this.#zonePeek);
+    this.#els.toolbar.classList.toggle(
+      'dc-collapsed',
+      !this.#config.showTitleBar,
+    );
+  }
+
+  /** Fold the zones away, or bring them back. */
+  #setChrome(patch: {
+    readonly showDragZones?: boolean;
+    readonly showTitleBar?: boolean;
+  }): void {
+    this.#config = { ...this.#config, ...patch };
+    this.#renderChrome();
+  }
+
+  /**
+   * Put the configuration's chrome on screen, whatever set it.
+   *
+   * Every path that replaces the whole configuration -- the
+   * properties editor, a loaded view -- has to come through here, or
+   * the flags and the DOM drift apart: the bar stays folded while
+   * the configuration says it is shown, and the toggle that should
+   * unfold it folds it instead.
+   */
+  #renderChrome(): void {
+    this.#buildToolbar();
+    this.#applyChrome();
+  }
+
+  /**
+   * The control that folds the zone bar.
+   *
+   * The same shape as the columns panel's: one button, in the bar it
+   * folds, and when the bar is gone the title bar carries the twin
+   * that brings it back. Never nothing to click -- a bar that
+   * vanishes without leaving a way back is a bar the user has lost.
+   */
+  #zoneFold(): HTMLElement {
+    const button = this.#doc.createElement('button');
+    button.type = 'button';
+    button.className = 'dc-zone-fold';
+    button.textContent = '\u2303';
+    button.title = 'Hide the drag zones';
+    button.setAttribute('aria-label', 'Hide the drag zones');
+    button.setAttribute('aria-expanded', 'true');
+    button.addEventListener('click', () => {
+      this.#setChrome({ showDragZones: false });
+    });
+    return button;
+  }
+
   #statusSeparator(): HTMLElement {
     const sep = this.#doc.createElement('div');
     sep.className = 'dc-status-sep';
@@ -877,6 +979,8 @@ export class CubeApp {
           column !== undefined && this.#heatmapFor(column) !== undefined,
         canGroup: column === undefined || this.#isDimension(column),
         canEmail: this.#options.email !== undefined,
+        zonesHidden: !this.#config.showDragZones,
+        titleBarHidden: !this.#config.showTitleBar,
         ...(value !== undefined ? { value } : {}),
         ...(columnType !== undefined ? { columnType } : {}),
       });
@@ -934,6 +1038,12 @@ export class CubeApp {
         return;
       case 'view.properties':
         this.openEditor();
+        return;
+      case 'layout.zones':
+        this.#setChrome({ showDragZones: !this.#config.showDragZones });
+        return;
+      case 'layout.titleBar':
+        this.#setChrome({ showTitleBar: !this.#config.showTitleBar });
         return;
       case 'heatmap.add':
         if (column) this.#setHeatmap(column, true);
@@ -1396,6 +1506,7 @@ export class CubeApp {
       const view = load(raw);
       this.#snapshot = view.snapshot;
       this.#config = fromSnapshot(view.snapshot, this.#config);
+      this.#renderChrome();
       // ADOPT, do not set: `setTree` refreshes, and that refresh runs
       // the controller's own snapshot -- the one being replaced --
       // then pushes it back through `onView`, which reassigns
@@ -1447,6 +1558,7 @@ export class CubeApp {
     const wasRoot = this.#config.showRootAggregation;
     this.#snapshot = draft.snapshot;
     this.#config = draft.config;
+    this.#renderChrome();
     // "Show root aggregation" is a SETTING in their General
     // Properties, and it decides whether the level-0 query is issued
     // at all. It was never connected to the tree, so the checkbox
@@ -1530,6 +1642,27 @@ export class CubeApp {
   #buildToolbar(): void {
     const bar = this.#els.toolbar;
     const doc = this.#doc;
+    bar.replaceChildren();
+
+    // FOLDED, THE BAR IS A LIP, not nothing. The hamburger lives
+    // here, so a bar that vanished outright would take the menu with
+    // it and leave a person no way back except a reload. The lip is
+    // 12px and carries one control; the grid's right-click menu
+    // carries the same toggle, so there are always two ways back.
+    if (!this.#config.showTitleBar) {
+      const open = doc.createElement('button');
+      open.type = 'button';
+      open.className = 'dc-titlebar-lip';
+      open.textContent = '\u2304';
+      open.title = 'Show the title bar';
+      open.setAttribute('aria-label', 'Show the title bar');
+      open.setAttribute('aria-expanded', 'false');
+      open.addEventListener('click', () => {
+        this.#setChrome({ showTitleBar: true });
+      });
+      bar.append(open);
+      return;
+    }
 
     // THE REPORT'S NAME, and nothing else on the left.
     //
@@ -1599,6 +1732,37 @@ export class CubeApp {
     paint();
     host.append(snap);
 
+    // THE ZONES' WAY BACK, in the bar that is still on screen. Shown
+    // only when they are folded: a control that is always there but
+    // does nothing half the time is worse than one that appears when
+    // it has something to do.
+    if (!this.#config.showDragZones) {
+      const show = doc.createElement('button');
+      show.type = 'button';
+      show.className = 'dc-titlebar-zones';
+      show.textContent = '\u2304 Zones';
+      show.title = 'Show the drag zones';
+      show.setAttribute('aria-label', 'Show the drag zones');
+      show.setAttribute('aria-expanded', 'false');
+      show.addEventListener('click', () => {
+        this.#setChrome({ showDragZones: true });
+      });
+      host.append(show);
+    }
+
+    // AND THE BAR FOLDS ITSELF, beside the menu it carries.
+    const fold = doc.createElement('button');
+    fold.type = 'button';
+    fold.className = 'dc-titlebar-fold';
+    fold.textContent = '\u2303';
+    fold.title = 'Hide the title bar';
+    fold.setAttribute('aria-label', 'Hide the title bar');
+    fold.setAttribute('aria-expanded', 'true');
+    fold.addEventListener('click', () => {
+      this.#setChrome({ showTitleBar: false });
+    });
+    bar.append(fold);
+
     // The hamburger. Theirs carries host-level entries -- View
     // Source, Settings, About -- so ours carries the equivalents:
     // the saved view, and the named hierarchies this cube was given.
@@ -1630,6 +1794,13 @@ export class CubeApp {
           ...(this.#controller.canRedo ? {} : { disabled: true }),
         },
         { id: 'view.properties', label: 'Properties...' },
+        {
+          id: 'layout.zones',
+          label: this.#config.showDragZones
+            ? 'Hide Drag Zones'
+            : 'Show Drag Zones',
+        },
+        { id: 'layout.titleBar', label: 'Hide Title Bar' },
       ];
       if (this.#options.storage) {
         items.push(

@@ -108,6 +108,27 @@ export interface CubeConfiguration {
    * default matches theirs and the choice is available.
    */
   readonly showGroupedColumns: boolean;
+  /**
+   * Whether the row/column drag bar is on screen.
+   *
+   * ON, because a drop target you cannot see is a feature you cannot
+   * find -- upstream always shows it. Off is for the person who has
+   * finished arranging the cube and wants the rows: the bar is 34px
+   * of a 900px viewport, and grouping stays reachable from the
+   * right-click menu, from the columns panel, and from the bar
+   * itself, which comes back for the length of a column drag.
+   */
+  readonly showDragZones: boolean;
+  /**
+   * Whether the title bar is on screen.
+   *
+   * ON. Off leaves a lip carrying the one control that brings it
+   * back -- never nothing, because the hamburger lives in that bar
+   * and a person who hid it would otherwise have lost the menu. The
+   * grid's own right-click menu carries the same toggle, so there
+   * are always two ways back.
+   */
+  readonly showTitleBar: boolean;
   readonly showLeafCount: boolean;
   readonly treeColumnSort: SortDirection;
   /**
@@ -178,6 +199,8 @@ export const DEFAULT_CONFIGURATION: CubeConfiguration = {
    */
   showRootAggregation: false,
   showGroupedColumns: false,
+  showDragZones: true,
+  showTitleBar: true,
   showLeafCount: false,
   treeColumnSort: 'asc',
   maxRows: DEFAULT_MAX_ROWS,

@@ -264,7 +264,12 @@ try {
   // grid looked populated either way.
   const region = page.locator('.dc-th.dc-draggable', { hasText: 'region' });
   if (await region.count()) {
-    await region.first().dragTo(page.locator('[class*=zone]').first());
+    // THE ROWS HALF, BY NAME. This dropped on `[class*=zone]` first
+    // -- which matched the bar's wrapper once the two zones became
+    // two halves of one bar, so the drop landed at the boundary and
+    // region was PIVOTED rather than grouped. The check reported
+    // three failures in the product and the product was right.
+    await region.first().dragTo(page.locator('.dc-zone-rows'));
     await page.waitForFunction(
       () => /groupBy|could not/.test(
         document.getElementById('pure')?.textContent ?? ''),

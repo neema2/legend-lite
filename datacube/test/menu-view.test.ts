@@ -51,13 +51,26 @@ describe('MenuView', () => {
     assert.equal(view.open, false);
   });
 
-  it('focuses the first item so the keyboard works immediately', () => {
+  it('focuses the MENU, so no submenu opens by itself', () => {
+    // CSS opens a submenu on hover and on focus-within. Focusing the
+    // first entry therefore flew its submenu open the instant the
+    // menu appeared -- every right-click on the grid arrived with the
+    // whole Export list unfurled beside it -- and hovering any other
+    // entry left TWO submenus on screen at once, one held by focus
+    // and one by the pointer. The keyboard still works: ArrowDown
+    // from the menu itself goes to the first entry.
     view.show(GROUPS, 10, 10);
+    const menu = doc.querySelector('.dc-menu');
+    assert.equal(doc.activeElement, menu);
+    assert.equal(view.items.includes(doc.activeElement as HTMLElement), false);
+    press('ArrowDown');
     assert.equal(doc.activeElement, view.items[0]);
   });
 
   it('moves with the arrow keys and wraps', () => {
     view.show(GROUPS, 10, 10);
+    press('ArrowDown');
+    assert.equal(doc.activeElement, view.items[0]);
     press('ArrowDown');
     assert.equal(doc.activeElement, view.items[1]);
     press('ArrowUp');
@@ -78,6 +91,7 @@ describe('MenuView', () => {
 
   it('selects with Enter and closes', () => {
     view.show(GROUPS, 10, 10);
+    press('ArrowDown');
     press('ArrowDown');
     press('Enter');
     assert.deepEqual(chosen.map((i) => i.id), ['sort.desc']);

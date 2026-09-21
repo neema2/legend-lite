@@ -184,6 +184,136 @@ describe('the app', () => {
     assert.notEqual(root.querySelector('.dc-app-stats'), null);
   });
 
+  // -- folding the chrome away ---------------------------------------
+  //
+  // Both bars fold, the way the columns panel does, because the
+  // grid is what the page is for. The rule they all follow: a bar
+  // that vanishes leaves something to click, and the grid's own
+  // right-click menu can restore either one -- which matters most
+  // for the title bar, because the hamburger is IN it.
+
+  const zoneBar = (): HTMLElement =>
+    root.querySelector('.dc-zone-bar') as HTMLElement;
+  const press = (selector: string): void => {
+    const el = root.querySelector(selector);
+    if (!el) throw new Error(`no ${selector} to press`);
+    (el as HTMLButtonElement).click();
+  };
+
+  it('starts with both bars on screen', () => {
+    // A drop target you cannot see is a feature you cannot find, so
+    // the default is what upstream shows: everything visible.
+    assert.equal(zoneBar().hidden, false);
+    assert.equal(
+      root.querySelector('.dc-titlebar')?.classList.contains('dc-collapsed'),
+      false,
+    );
+    assert.equal(app.configuration.showDragZones, true);
+    assert.equal(app.configuration.showTitleBar, true);
+  });
+
+  it('folds the drag zones, leaving the way back in the title bar', () => {
+    press('.dc-zone-fold');
+    assert.equal(zoneBar().hidden, true);
+    // NEVER NOTHING TO CLICK. The bar is gone, so the bar that is
+    // still there carries the twin that brings it back.
+    assert.notEqual(root.querySelector('.dc-titlebar-zones'), null);
+    press('.dc-titlebar-zones');
+    assert.equal(zoneBar().hidden, false);
+    // And the control goes away again, rather than sitting there
+    // doing nothing.
+    assert.equal(root.querySelector('.dc-titlebar-zones'), null);
+  });
+
+  it('brings the folded zones back FOR THE LENGTH OF A DRAG', () => {
+    // Folding them must not take anything away: a person who folds
+    // the zones and then drags a column header has nowhere to drop
+    // it, and a drag that can never land is worse than no drag.
+    press('.dc-zone-fold');
+    assert.equal(zoneBar().hidden, true);
+    root.dispatchEvent(new dom.window.Event('dragstart', { bubbles: true }));
+    assert.equal(zoneBar().hidden, false, 'nowhere to drop the column');
+    assert.equal(zoneBar().classList.contains('dc-peeking'), true);
+    root.dispatchEvent(new dom.window.Event('dragend', { bubbles: true }));
+    assert.equal(zoneBar().hidden, true, 'the peek did not fold itself back');
+    // The fold is still what the configuration says, so the peek
+    // did not quietly become the setting.
+    assert.equal(app.configuration.showDragZones, false);
+  });
+
+  it('folds the title bar to a LIP, which is the way back', () => {
+    press('.dc-titlebar-fold');
+    const bar = root.querySelector('.dc-titlebar') as HTMLElement;
+    assert.equal(bar.classList.contains('dc-collapsed'), true);
+    // The hamburger went with it. That is precisely why there is a
+    // lip: without one, hiding this bar would be a one-way door.
+    assert.equal(root.querySelector('.dc-titlebar-menu'), null);
+    press('.dc-titlebar-lip');
+    assert.equal(root.querySelector('.dc-titlebar-lip'), null);
+    assert.notEqual(root.querySelector('.dc-titlebar-menu'), null);
+  });
+
+  it("restores either bar from the GRID's menu, with both folded", () => {
+    press('.dc-zone-fold');
+    press('.dc-titlebar-fold');
+    // No title bar, therefore no hamburger. The grid's own menu is
+    // the second way back, and the entries say what they will do
+    // rather than what state they are in.
+    rightClick();
+    pick('Show Drag Zones');
+    assert.equal(zoneBar().hidden, false);
+    rightClick();
+    pick('Show Title Bar');
+    assert.notEqual(root.querySelector('.dc-titlebar-menu'), null);
+    assert.equal(
+      root.querySelector('.dc-titlebar')?.classList.contains('dc-collapsed'),
+      false,
+    );
+  });
+
+  it('folds from the PROPERTIES editor, not only from the bars', () => {
+    // The setting lives in General Properties, beside the rest of
+    // "what is on screen" -- the chevrons are the in-passing way to
+    // reach it. Applying the editor replaces the whole
+    // configuration, so this is also the check that the flags and
+    // the DOM cannot drift apart: a bar left on screen while the
+    // configuration says it is folded gives a toggle that folds when
+    // it should unfold.
+    hamburger();
+    pick('Properties...');
+    const overlay = root.querySelector('.dc-app-overlay') as HTMLElement;
+    [...overlay.querySelectorAll('.dc-editor-tab')]
+      .find((b) => b.textContent === 'General Properties')
+      ?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    // BY ITS OWN LABEL. A `.dc-field` holds several inputs, so
+    // taking the first one in the row has twice now toggled a
+    // different setting than the one under test.
+    const box = [...overlay.querySelectorAll('.dc-check')]
+      .find((l) => l.querySelector('.dc-check-label')?.textContent
+        === 'Show drag zones')
+      ?.querySelector('input') as HTMLInputElement;
+    assert.equal(box.checked, true);
+    box.checked = false;
+    box.dispatchEvent(new dom.window.Event('change'));
+    (
+      [...overlay.querySelectorAll('.dc-editor-footer button')].find(
+        (b) => b.textContent === 'Apply',
+      ) as HTMLButtonElement
+    ).click();
+    assert.equal(app.configuration.showDragZones, false);
+    assert.equal(zoneBar().hidden, true, 'the DOM and the flag disagree');
+    // And the way back is on screen, as it is for every other fold.
+    assert.notEqual(root.querySelector('.dc-titlebar-zones'), null);
+  });
+
+  it('offers the folds in the hamburger as well', () => {
+    hamburger();
+    const labels = menuItems().map((i) =>
+      i.querySelector('.dc-menu-label')?.textContent ?? '');
+    assert.ok(labels.includes('Hide Drag Zones'), labels.join(', '));
+    assert.ok(labels.includes('Hide Title Bar'), labels.join(', '));
+  });
+
   it('shows the row grouping already in force as chips', () => {
     const chips = [...root.querySelectorAll('.dc-zone-rows .dc-chip')].map(
       (c) => (c as HTMLElement).dataset['column'],
