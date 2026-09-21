@@ -139,6 +139,65 @@ describe('buildColumnModel', () => {
     assert.deepEqual(splitPath('notional', ['notional']), ['notional']);
   });
 
+  // A HEADER CELL MUST RESOLVE TO THE COLUMN IT IS LABELLED WITH.
+  //
+  // `leafIndex` is read as `model.leaves[cell.leafIndex]`, so it has
+  // to be a POSITION in that list. It held the column's original
+  // source index, which is the same number only when nothing is
+  // hidden and nothing reordered -- so every test passed and the
+  // product shipped a header whose label and identity disagreed.
+  //
+  // Hiding one column made every header to its right claim its
+  // right-hand NEIGHBOUR: the cell read `booked_at` and its
+  // `data-column` said `region`, so sorting it sorted region and
+  // dragging it grouped by region. The layout stayed perfect --
+  // `colStart` uses the position -- so nothing looked wrong.
+  const identities = (m) =>
+    m.headerRows[m.headerRows.length - 1]
+      ?.filter((h) => h.leafIndex !== undefined)
+      .map((h) => [h.label, m.leaves[h.leafIndex]?.name]) ?? [];
+
+  it('maps every header cell to its OWN leaf', () => {
+    const m = buildColumnModel(table(['a', 'b', 'c', 'd']));
+    for (const [label, name] of identities(m)) {
+      assert.equal(name, label, `header ${label} resolved to ${name}`);
+    }
+  });
+
+  it('still maps correctly when a column is HIDDEN', () => {
+    const m = buildColumnModel(
+      table(['a', 'b', 'c', 'd']), [], [], { hidden: ['b'] },
+    );
+    assert.deepEqual(m.leaves.map((l) => l.name), ['a', 'c', 'd']);
+    assert.deepEqual(identities(m), [['a', 'a'], ['c', 'c'], ['d', 'd']]);
+  });
+
+  it('still maps correctly when a column is REORDERED', () => {
+    // The same fault by the other route: a custom order moves a
+    // column without changing its source index.
+    const m = buildColumnModel(
+      table(['a', 'b', 'c']), [], [], { order: ['c', 'a', 'b'] },
+    );
+    assert.deepEqual(m.leaves.map((l) => l.name), ['c', 'a', 'b']);
+    assert.deepEqual(identities(m), [['c', 'c'], ['a', 'a'], ['b', 'b']]);
+  });
+
+  it('leaves no header cell pointing past the end of the list', () => {
+    // The last header resolved to `undefined` and so carried no
+    // column at all, which disabled its entire column menu.
+    const m = buildColumnModel(
+      table(['a', 'b', 'c', 'd', 'e']), [], [], { hidden: ['a', 'c'] },
+    );
+    for (const row of m.headerRows) {
+      for (const h of row) {
+        if (h.leafIndex === undefined) continue;
+        assert.ok(m.leaves[h.leafIndex] !== undefined,
+          `header ${h.label} points at leaf ${h.leafIndex} of`
+          + ` ${m.leaves.length}`);
+      }
+    }
+  });
+
   it('builds a nested header from engine-style names', () => {
     const m = buildColumnModel(
       table(['region', '2021_notional', '2022_notional']),

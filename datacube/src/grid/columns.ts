@@ -328,7 +328,24 @@ export function buildColumnModel(
         // A short path spans the remaining header levels, so a row
         // dimension's header fills the header block.
         rowSpan: isLeafHere ? depth - level : 1,
-        ...(isLeafHere && j - i === 1 ? { leafIndex: leaf.index } : {}),
+        // THE POSITION IN `leaves`, not the column's original index.
+        //
+        // Its one consumer does `model.leaves[cell.leafIndex]`, and
+        // `leaves` here is the list AFTER hiding and reordering --
+        // whereas `leaf.index` is where the column sat in the source.
+        // They agree only for a cube with nothing hidden and no
+        // custom order, which is why this survived.
+        //
+        // Hide one column and every header to its right claimed the
+        // identity of its right-hand NEIGHBOUR: the label read
+        // `booked_at` and its `data-column` said `region`, so sorting
+        // that header sorted region, dragging it grouped by region,
+        // and hiding it hid region. The last header resolved to
+        // nothing at all, leaving its whole column menu disabled.
+        // Nothing looked wrong -- `colStart` uses the position, so
+        // the layout stayed perfect while every action went one
+        // column across.
+        ...(isLeafHere && j - i === 1 ? { leafIndex: i } : {}),
       });
       i = j;
     }

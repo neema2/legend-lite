@@ -330,6 +330,21 @@ export class DataGrid {
           cell.leafIndex !== undefined ? model.leaves[cell.leafIndex] : undefined;
         if (leaf) {
           el.dataset['column'] = leaf.name;
+          // A STICKY COLUMN'S HEADER HAS TO BE STICKY TOO.
+          //
+          // Only the body cells carried these, so a pinned column --
+          // and the row-dimension tree column, which is pinned by the
+          // same rule -- kept its data in place while its header slid
+          // away with the scroll. Measured on the 60-column sample:
+          // the tree cells sat at x=21 and their header at x=-5163.
+          //
+          // It is the fault the user reported, mirrored: there the
+          // header failed to move with its column, here it moves when
+          // its column does not. Both are the same property -- a
+          // header belongs over its column -- which is why one
+          // invariant now covers them.
+          if (leaf.isDimension) el.classList.add('dc-dim');
+          if (leaf.pinned) el.classList.add(`dc-pin-${leaf.pinned}`);
           makeHeaderDraggable(
             el,
             leaf.name,

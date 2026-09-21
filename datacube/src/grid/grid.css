@@ -488,6 +488,28 @@
   background: var(--tw-white);
 }
 
+/* The header of a sticky column, sticky in the same axis.
+   `.dc-head` is the scroll container the header is slid inside, so
+   these stay put while the rest of the header moves -- which is the
+   only way a pinned column's label stays over the column. Above its
+   siblings, or the cells scrolling past would draw over it; the
+   header's own background, not the body's, or it reads as a body
+   cell that wandered up. */
+.dc-th.dc-pin-left,
+.dc-th.dc-dim {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--dc-head-bg);
+}
+
+.dc-th.dc-pin-right {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  background: var(--dc-head-bg);
+}
+
 /* Obscured rather than hidden: the row still lines up, and the value
    is one hover away for whoever is entitled to it. */
 .dc-cell.dc-blur {

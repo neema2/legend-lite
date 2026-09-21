@@ -19,6 +19,8 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
 
+import { gridInvariants } from './grid-invariants.mjs';
+
 const ROOT = new URL('..', import.meta.url).pathname;
 const DATA = process.env.DATA;
 const ONLY = process.env.ONLY;
@@ -109,6 +111,15 @@ async function gap(name, why, fn) {
   }
 }
 
+/** Run the invariants and attribute any break to `where`. */
+async function invariants(where) {
+  const broken = await page.evaluate(gridInvariants);
+  for (const b of broken) {
+    record(`INVARIANT after ${where}`, false, b);
+  }
+  return broken.length === 0;
+}
+
 async function check(name, fn) {
   if (ONLY && !name.toLowerCase().includes(ONLY.toLowerCase())) return;
   await reset();
@@ -120,6 +131,7 @@ async function check(name, fn) {
       return;
     }
     record(name, true, detail ?? '');
+    await invariants(name);
   } catch (e) {
     record(name, false, String(e.message ?? e).split('\n')[0]);
     if (process.env.SHOTS) {
@@ -314,6 +326,7 @@ try {
   console.log(`\nloaded ${loaded}: ${start.rows.length} rows,`
     + ` ${start.headers.length} headers\n`);
   if (!start.rows.length) throw new Error('nothing rendered at all');
+  await invariants('loading the data');
 
   // ---- reading the data ---------------------------------------------
 
