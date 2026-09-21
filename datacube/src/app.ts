@@ -85,6 +85,31 @@ export interface CubeAppOptions {
   readonly onView?: (view: CubeView) => void;
   /** Called whenever the snap state changes, for a plane badge. */
   readonly onPlane?: () => void;
+  /**
+   * Show the cube glyph and report title at the left of the bar.
+   *
+   * On by default, as DataCube has it. A host that owns the page
+   * furniture already -- and wants every pixel for the grid -- turns
+   * it off.
+   */
+  readonly showBrand?: boolean;
+  /**
+   * The host's own controls, in the bar beside the plane toggle.
+   *
+   * The slot DataCube's design reserves for exactly this. Called
+   * once, with the element to append to.
+   */
+  readonly hostSlot?: (slot: HTMLElement) => void;
+  /**
+   * The host's own entries, at the foot of the title bar menu.
+   *
+   * Built on each open, so a label can reflect state. Their ids are
+   * the host's to choose, and `onHostMenu` receives whichever was
+   * picked -- anything the cube does not recognise is routed there
+   * rather than silently ignored.
+   */
+  readonly hostMenu?: () => readonly MenuItem[];
+  readonly onHostMenu?: (item: MenuItem) => void;
   /** Where saved views live. Absent means they are not offered. */
   readonly storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
   readonly writeClipboard?: (text: string) => void | Promise<void>;
@@ -1453,15 +1478,17 @@ export class CubeApp {
     const bar = this.#els.toolbar;
     const doc = this.#doc;
 
-    const brand = this.#div(bar, 'dc-titlebar-brand');
-    const glyph = doc.createElement('span');
-    glyph.className = 'dc-titlebar-glyph';
-    glyph.setAttribute('aria-hidden', 'true');
-    glyph.textContent = '\u25a3';
-    const title = doc.createElement('span');
-    title.className = 'dc-titlebar-title';
-    title.textContent = this.#config.reportTitle ?? 'DataCube';
-    brand.append(glyph, title);
+    if (this.#options.showBrand !== false) {
+      const brand = this.#div(bar, 'dc-titlebar-brand');
+      const glyph = doc.createElement('span');
+      glyph.className = 'dc-titlebar-glyph';
+      glyph.setAttribute('aria-hidden', 'true');
+      glyph.textContent = '\u25a3';
+      const title = doc.createElement('span');
+      title.className = 'dc-titlebar-title';
+      title.textContent = this.#config.reportTitle ?? 'DataCube';
+      brand.append(glyph, title);
+    }
 
     // The host slot. Snap is legend-lite's own idea rather than
     // DataCube's, and this is the place their design reserves for a
@@ -1496,6 +1523,7 @@ export class CubeApp {
     });
     paint();
     host.append(snap);
+    this.#options.hostSlot?.(host);
 
     // The hamburger. Theirs carries host-level entries -- View
     // Source, Settings, About -- so ours carries the equivalents:
@@ -1540,6 +1568,11 @@ export class CubeApp {
         this.#options.dimensions ?? [],
       )) {
         items.push({ id: 'view.dimension', label: d.name, column: d.name });
+      }
+      // The HOST's own entries last, so its additions never push the
+      // cube's own actions around as they come and go.
+      for (const item of this.#options.hostMenu?.() ?? []) {
+        items.push(item);
       }
       // A second press on the hamburger SHUTS it. Without this the
       // outside-press dismissal closes the menu and the click that
@@ -1639,8 +1672,20 @@ export class CubeApp {
         if (found) this.useDimension(found);
         return true;
       }
-      default:
+      default: {
+        // ANYTHING THE CUBE DOES NOT KNOW belongs to whoever put it
+        // there. Without this a host could add an entry to the menu
+        // and watch it do nothing, which is the dead-button fault
+        // `menu-ids.test.ts` exists to prevent -- one layer up.
+        const host = this.#options.onHostMenu;
+        const mine = this.#options.hostMenu?.() ?? [];
+        if (host && item.id !== undefined
+          && mine.some((m) => m.id === item.id)) {
+          host(item);
+          return true;
+        }
         return false;
+      }
     }
   }
 

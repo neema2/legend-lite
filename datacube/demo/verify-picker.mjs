@@ -46,6 +46,18 @@ try {
   await page.waitForFunction(
     () => document.querySelectorAll('.dc-row').length > 0, { timeout: 120_000 });
 
+  // OPEN THE DATA PANEL. The page is nothing but the grid now, and
+  // the picker lives in a window the title bar menu opens -- so the
+  // first thing a person does to reach it is the first thing this
+  // does too.
+  await page.click('.dc-titlebar-menu');
+  await page.waitForSelector('.dc-menu', { timeout: 10_000 });
+  await page.locator('.dc-menu-item', { hasText: 'Data' }).first().click();
+  await page.waitForTimeout(400);
+  if (await page.evaluate(() => document.getElementById('datawin')?.hidden)) {
+    bad('the Data panel did not open from the title bar menu');
+  }
+
   // The dropdown must have OPTIONS, not merely exist.
   const options = await page.$$eval('#samplepick option',
     (els) => els.map((e) => e.textContent ?? ''));
@@ -74,21 +86,42 @@ try {
   console.log(`downloaded: ${dl.suggestedFilename()}`);
   if (!/\.csv$/.test(dl.suggestedFilename())) bad('not a csv');
 
-  // The banner must not describe a transport this page does not use.
-  // It claimed "Planning through legend-lite on :8080" long after the
-  // default page stopped needing a server — the page telling the user
-  // something untrue about itself.
-  const banner = (await page.textContent('#plannerreal')) ?? '';
-  if (/:8080/.test(banner) && !/nothing is running on/.test(banner)) {
-    bad(`banner still claims :8080: "${banner.trim().slice(0, 80)}"`);
+  // THE PAGE MUST STILL SAY WHERE PLANNING HAPPENS.
+  //
+  // It used to say so in a banner, which once claimed "Planning
+  // through legend-lite on :8080" long after this page stopped
+  // needing a server -- the page telling the user something untrue
+  // about itself. The banner is gone, so the requirement moved to
+  // the control that replaced it: a picker in the title bar that
+  // both states the plane and changes it.
+  // In the title bar MENU: the bar is for what you watch, the menu
+  // for what you do occasionally.
+  await page.click('.dc-titlebar-menu');
+  await page.waitForSelector('.dc-menu', { timeout: 10_000 });
+  const planes = await page.evaluate(() =>
+    [...document.querySelectorAll('.dc-menu-item')]
+      .map((e) => ({
+        label: e.querySelector('.dc-menu-label')?.textContent?.trim() ?? '',
+        off: e.classList.contains('dc-disabled'),
+      }))
+      .filter((m) => /^Plan /.test(m.label)));
+  console.log(`plane entries: ${planes.map((p) =>
+    `${p.label}${p.off ? ' [current]' : ''}`).join(' / ')}`);
+  const here = planes.find((p) => /wasm/i.test(p.label));
+  const server = planes.find((p) => /:8080|server/i.test(p.label));
+  if (!here) bad('the menu does not offer planning in this tab');
+  if (!server) bad('the menu does not offer planning on the server');
+  // THE CURRENT PLANE IS THE ONE THAT IS DISABLED, which is how the
+  // menu still says where planning happens -- the job the banner
+  // used to do, and once did untruthfully.
+  if (here && !here.off) {
+    bad('this page plans in the tab, but the menu does not say so');
   }
-  if (!/in this tab/.test(banner)) {
-    bad(`banner does not say where planning happens: "${
-      banner.trim().slice(0, 80)}"`);
+  if (server && server.off) {
+    bad('the server entry is marked as the current plane on the wasm page');
   }
-  if (await page.locator('#plannerreal').isHidden()) {
-    bad('the banner is hidden');
-  }
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(150);
 
   // Readability: every control needs real contrast, since a page
   // that only half-declares its colours renders dark-on-dark under a

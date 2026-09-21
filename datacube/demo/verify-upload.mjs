@@ -65,6 +65,15 @@ try {
   await page.waitForFunction(
     () => document.querySelectorAll('.dc-row').length > 0, { timeout: 120_000 });
 
+  // OPEN THE DATA PANEL. The page is nothing but the grid now and the
+  // upload control lives in a window the title bar menu opens, so
+  // reaching it is the first thing a person does and the first thing
+  // this does.
+  await page.click('.dc-titlebar-menu');
+  await page.waitForSelector('.dc-menu', { timeout: 10_000 });
+  await page.locator('.dc-menu-item', { hasText: 'Data' }).first().click();
+  await page.waitForTimeout(400);
+
   // The control must be VISIBLE, not merely present: an upload
   // feature nobody can reach is not a feature.
   const visible = await page.isVisible('#uploadbar');

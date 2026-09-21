@@ -19,6 +19,7 @@ import { CubeController, type Planner } from '../src/cube.ts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { mountRemote } from '../src/remote.ts';
 import { ingestFile } from '../src/upload.ts';
+import { makeWindow, type WindowSpec } from '../src/ui/window.ts';
 import { SAMPLES, sampleById } from '../src/samples.ts';
 import type { ColumnFormat } from '../src/format.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
@@ -238,7 +239,16 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     },
   };
 
-  must('plannerreal').hidden = false;
+  // The close button on each host window. Wired once, by delegation,
+  // so a window can be added to the markup without another listener.
+  document.addEventListener('click', (event) => {
+    const target = event.target;
+    if (!(target instanceof HTMLElement)) return;
+    const close = target.closest('.hostwin-close');
+    if (!(close instanceof HTMLElement)) return;
+    const id = close.dataset['win'];
+    if (id) must(id).hidden = true;
+  });
 
   // The cube, built so it can be built AGAIN.
   //
@@ -258,6 +268,19 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
     config: CubeConfiguration,
     dims: { name: string; columns: string[] }[],
   ): CubeApp {
+    // PARK THE HOST'S OWN NODES FIRST.
+    //
+    // The plane badge and the status text are MOVED into the cube's
+    // title bar, and rebuilding the cube -- which opening a file does
+    // -- clears the host element and would take them with it. The
+    // next `renderPlaneBadge` then failed with "missing #plane" and
+    // the upload reported itself as broken. So they go home before
+    // the clear and are adopted again by `hostSlot`.
+    const offstage = must('offstage');
+    for (const id of ['status', 'plane']) {
+      const node = document.getElementById(id);
+      if (node) offstage.append(node);
+    }
     host.replaceChildren();
     const created: CubeApp = new CubeApp(host, snap, {
       engine,
@@ -266,6 +289,50 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       snapTarget,
       storage: window.localStorage,
       showColumnZone: true,
+      // NO BRAND. The host owns the page and wants the pixels: the
+      // bar carries controls only.
+      showBrand: false,
+      // The plane badge, the planner picker and the status text, in
+      // the slot DataCube's design reserves for a host. The badge is
+      // MOVED rather than copied -- `renderPlaneBadge` keeps writing
+      // to the same element, wherever it now lives.
+      hostSlot: (slot) => {
+        slot.append(must('plane'), must('status'));
+      },
+      hostMenu: () => [
+        { id: 'host.data', label: 'Data\u2026' },
+        { id: 'host.query', label: 'Generated Pure & SQL\u2026' },
+        // The plane, as entries rather than a control: the bar is for
+        // what you watch, the menu for what you do occasionally. The
+        // one you are ON is disabled rather than hidden, so the menu
+        // still says where planning happens -- which is the job the
+        // banner used to do.
+        {
+          id: 'host.plane.wasm',
+          label: 'Plan here (wasm)',
+          ...(onServerPage() ? {} : { disabled: true }),
+        },
+        {
+          id: 'host.plane.server',
+          label: 'Plan on :8080 (server)',
+          ...(onServerPage() ? { disabled: true } : {}),
+        },
+      ],
+      onHostMenu: (item) => {
+        if (item.id === 'host.data') toggleHostWindow('datawin');
+        if (item.id === 'host.query') toggleHostWindow('querywin');
+        // A NAVIGATION, not a switch. Each page loads exactly one
+        // planner, statically, and test/guardrails.test.ts holds that
+        // line: shipped code must not be able to CHOOSE a planner at
+        // runtime, because the one time it could -- a health check
+        // falling back to a demo shim -- it hid three real bugs for
+        // the life of the project. The choice is still which bundle
+        // the page loads; this only saves knowing the file names.
+        if (item.id === 'host.plane.wasm') location.href = 'index.html';
+        if (item.id === 'host.plane.server') {
+          location.href = 'index-server.html';
+        }
+      },
       dimensions: dims,
       writeClipboard: (text) => navigator.clipboard?.writeText(text),
       download: (name, mime, text) => {
@@ -426,6 +493,38 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       })();
     });
   }
+}
+
+/**
+ * A host panel, shown as a floating window.
+ *
+ * The same window the cube uses for its own dialogs
+ * (`src/ui/window.ts`), so a panel the host adds behaves like the
+ * ones it did not: dragged by its header, resized from any edge, and
+ * remembering where it was left.
+ */
+const hostWindows = new Map<string, WindowSpec>();
+
+function toggleHostWindow(id: string): void {
+  const el = must(id);
+  if (!el.hidden) {
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  const head = el.querySelector('.hostwin-head');
+  if (!(head instanceof HTMLElement)) return;
+  hostWindows.set(id, makeWindow(el, head, document.body, {
+    width: 720,
+    height: 420,
+    ...(hostWindows.get(id) ? { spec: hostWindows.get(id) } : {}),
+    onChange: (spec) => hostWindows.set(id, spec),
+  }));
+}
+
+/** Which entry point is loaded, and therefore which planner. */
+function onServerPage(): boolean {
+  return location.pathname.includes('index-server');
 }
 
 /** Rule 1 of snap mode: what you are looking at is never inferable. */

@@ -96,6 +96,17 @@ export interface MenuContext {
 }
 
 export type MenuActionId =
+  /**
+   * A HOST's own entry, which must be prefixed.
+   *
+   * The cube's ids stay a closed union, so `applyMenuAction` and the
+   * dispatch in app.ts remain exhaustive over them and
+   * `menu-ids.test.ts` can still tell a dead entry from a live one.
+   * A host adds items to the title bar menu and gets them back
+   * through `onHostMenu`; the prefix is what keeps the two sets from
+   * ever being confused for one another.
+   */
+  | `host.${string}`
   | 'sort.asc'
   | 'sort.desc'
   | 'sort.addAsc'

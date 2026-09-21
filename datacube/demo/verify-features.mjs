@@ -1516,9 +1516,11 @@ try {
     await page.locator('.dc-row .dc-cell').first().click({ button: 'right' });
     await page.waitForSelector('.dc-menu', { timeout: 5000 });
     if (!(await menuOpen())) throw new Error('the menu never opened');
-    // The titlebar is a safe place to press: inert, and nowhere near
-    // the menu.
-    await page.locator('.dc-titlebar-title').click();
+    // An inert place to press, nowhere near the menu. The row count
+    // in the status bar: it is text the cube always renders, where
+    // the title bar's brand -- used here before -- is optional and a
+    // host that wants the pixels turns it off.
+    await page.locator('.dc-status-rows').click();
     await page.waitForTimeout(200);
     const left = await menuOpen();
     if (left) throw new Error(`${left} menu(s) survived a click elsewhere`);

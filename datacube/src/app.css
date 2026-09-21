@@ -283,6 +283,11 @@
   display: flex;
   gap: 4px;
   min-height: 0;
+  /* TAKE WHAT IS LEFT. Where the app has a definite height -- a host
+     that gives it the viewport -- the grid should fill it rather than
+     size to its own content and leave the rest of the screen blank.
+     Measured before this: a 422px grid in a 900px window. */
+  flex: 1 1 auto;
 }
 
 .dc-app-middle .dc-app-grid {
