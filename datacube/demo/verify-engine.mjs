@@ -17,6 +17,7 @@
 
 import { readFile } from 'node:fs/promises';
 
+import { LegendEngineExecutor } from '../src/engine-remote.ts';
 import { serialize } from '../src/serialize.ts';
 
 const ENGINE = (process.env.ENGINE ?? 'http://127.0.0.1:6300')
@@ -296,6 +297,79 @@ for (const { name, snapshot, scope } of CASES) {
   } catch (e) {
     results.push({ name, ok: false, where: 'the engine', pure,
       detail: String(e.message ?? e) });
+  }
+}
+
+// -- SERVER MODE: the engine runs it ---------------------------------
+//
+// Compiling is not answering. This is the other half of the claim:
+// the engine EXECUTES our Pure against a database the browser cannot
+// reach -- the H2 it embeds -- and hands back rows, which is what
+// upstream's uncached path does (`_runQuery` posts to
+// `execution/execute` and renders the TDS).
+//
+// The figures are asserted, not printed. A query that runs and
+// returns the wrong sums is the failure that looks like success.
+if (!ONLY || 'server mode'.includes(ONLY.toLowerCase())) {
+  try {
+    const h2Model = await readFile(
+      new URL('./trades-h2.pure', import.meta.url), 'utf8');
+    const executor = new LegendEngineExecutor({
+      baseUrl: ENGINE,
+      model: h2Model,
+      runtime: 'trades::h2::RT',
+    });
+    const snapshot = {
+      source: { expression: '#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#' },
+      columns: COLUMNS,
+      derived: [],
+      rows: ['region'],
+      pivotOn: [],
+      measures: [{ name: 'notional', column: 'notional', fn: 'sum' }],
+      sorts: [{ column: 'region', direction: 'asc' }],
+      epoch: 3,
+    };
+    const out = await executor.execute(serialize(snapshot), snapshot);
+    const by = Object.fromEntries(out.rows.columns.map((c) => [c.name, c]));
+    const seeded = { AMER: 300, APAC: 400.25, EMEA: 301 };
+    const regions = by['region']?.values ?? [];
+    const notional = by['notional']?.values ?? [];
+    const wrong = regions
+      .map((r, i) => [r, notional[i], seeded[r]])
+      .filter(([, got, want]) => Math.abs(Number(got) - want) > 0.001);
+    if (out.rows.rowCount !== 3) {
+      results.push({ name: 'server mode: the engine executes', ok: false,
+        where: 'the engine', detail: `${out.rows.rowCount} rows, expected 3` });
+    } else if (wrong.length > 0) {
+      results.push({ name: 'server mode: the engine executes', ok: false,
+        where: 'the figures',
+        detail: wrong.map(([r, got, want]) =>
+          `${r}: ${got} not ${want}`).join(', ') });
+    } else if (!/^select /i.test(out.sql)) {
+      // The SQL comes back as an execution ACTIVITY -- reported, not
+      // run here. Without it the SQL pane has nothing true to show.
+      results.push({ name: 'server mode: the engine executes', ok: false,
+        where: 'the activity', detail: `no SQL reported: ${out.sql}` });
+    } else {
+      // AND THE `unique` AGGREGATE MEANS THE SAME THING THERE. The
+      // engine lowers it to `case when count(distinct x) = 1 then
+      // max(x) else null end`, which is exactly what this cube
+      // documents it as -- so a group with two desks reads null and
+      // one with a single desk reads the desk.
+      const desks = Object.fromEntries(
+        regions.map((r, i) => [r, (by['desk']?.values ?? [])[i]]));
+      const agreed = desks['AMER'] === 'Rates' && desks['EMEA'] === null;
+      results.push(agreed
+        ? { name: 'server mode: the engine executes', ok: true,
+            detail: `3 rows, sums agree, unique agrees` }
+        : { name: 'server mode: the engine executes', ok: false,
+            where: 'the unique aggregate',
+            detail: `AMER desk ${JSON.stringify(desks['AMER'])},`
+              + ` EMEA desk ${JSON.stringify(desks['EMEA'])}` });
+    }
+  } catch (e) {
+    results.push({ name: 'server mode: the engine executes', ok: false,
+      where: 'the executor', detail: String(e.message ?? e).slice(0, 220) });
   }
 }
 

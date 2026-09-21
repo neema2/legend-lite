@@ -1,0 +1,61 @@
+// The demo's model for the ENGINE plane, where the engine executes.
+//
+// The other model (trades.pure) describes a DuckDB the BROWSER owns:
+// legend-lite or the wasm planner turns Pure into SQL and DuckDB-WASM
+// runs it. Here the engine runs the query itself, against a database
+// it can reach -- so the connection is H2, which the engine embeds
+// for exactly this purpose, and the table is seeded by the connection
+// rather than by us.
+//
+// `testDataSetupSqls` is how Legend's own tests give H2 something to
+// read; it runs on connection setup, so the data is there before the
+// first query and lives as long as the connection does.
+
+###Relational
+Database trades::h2::DB
+(
+    Schema TRADES_SCHEMA
+    (
+        Table TRADES
+        (
+            region VARCHAR(32),
+            desk VARCHAR(32),
+            book VARCHAR(32),
+            year INTEGER,
+            qtr VARCHAR(8),
+            notional DOUBLE,
+            pnl DOUBLE,
+            qty INTEGER
+        )
+    )
+)
+
+###Connection
+RelationalDatabaseConnection trades::h2::Conn
+{
+    store: trades::h2::DB;
+    type: H2;
+    specification: LocalH2
+    {
+        testDataSetupSqls: [
+            'DROP SCHEMA IF EXISTS TRADES_SCHEMA CASCADE;',
+            'CREATE SCHEMA TRADES_SCHEMA;',
+            'CREATE TABLE TRADES_SCHEMA.TRADES (region VARCHAR(32), desk VARCHAR(32), book VARCHAR(32), year INTEGER, qtr VARCHAR(8), notional DOUBLE, pnl DOUBLE, qty INTEGER);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'EMEA\', \'Rates\', \'Book 1\', 2021, \'Q1\', 100.5, 10.25, 3);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'EMEA\', \'Credit\', \'Book 2\', 2022, \'Q2\', 200.5, -5.75, 7);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'AMER\', \'Rates\', \'Book 1\', 2021, \'Q3\', 300.0, 42.0, 11);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'APAC\', \'FX\', \'Book 3\', 2023, \'Q4\', 400.25, 0.0, 2);'
+        ];
+    };
+    auth: DefaultH2;
+}
+
+###Runtime
+Runtime trades::h2::RT
+{
+    mappings: [];
+    connections:
+    [
+        trades::h2::DB: [ c1: trades::h2::Conn ]
+    ];
+}
