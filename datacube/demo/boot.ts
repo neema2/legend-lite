@@ -51,6 +51,15 @@ export interface Engine {
    * which finished last. `boot` owns the line and writes this when
    * both are ready.
    */
+  /**
+   * WHICH BACKEND ANSWERED, in one word.
+   *
+   * `local` plans in this tab, `remote` on legend-lite over HTTP,
+   * `engine` on the real legend-engine. It sits in a 20px strip
+   * beside the row count, where "planner: legend-lite (wasm, no
+   * server)" was most of the bar -- and three planes want three
+   * words a person can tell apart at a glance, not three sentences.
+   */
   readonly label: string;
 }
 
@@ -308,12 +317,12 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         // banner used to do.
         {
           id: 'host.plane.wasm',
-          label: 'Plan here (wasm)',
+          label: 'Plan local (in this tab)',
           ...(onServerPage() ? {} : { disabled: true }),
         },
         {
           id: 'host.plane.server',
-          label: 'Plan on :8080 (server)',
+          label: 'Plan remote (legend-lite on :8080)',
           ...(onServerPage() ? { disabled: true } : {}),
         },
       ],

@@ -828,6 +828,53 @@ describe('the bar says what you are looking at, and nothing else', () => {
     );
   });
 
+  it('puts what you can DO at one end and what is TRUE at the other',
+    async () => {
+      // DataCube's own bar is `justify-between`: two link buttons at
+      // the left -- Properties, then Filter -- and its readouts at
+      // the right. Ours had one link with every figure crowded after
+      // it, and both editors were reachable only from the grid's
+      // right-click menu, two levels down.
+      const app = new CubeApp(root, SNAPSHOT, {
+        engine: new StubEngine(),
+        planner: new StubPlanner(),
+        hostStatus: (slot) => {
+          slot.textContent = 'local';
+        },
+      });
+      await app.open();
+      const actions = root.querySelector('.dc-app-stats .dc-status-actions');
+      const readout = root.querySelector('.dc-app-stats .dc-status-readout');
+      assert.notEqual(actions, null);
+      assert.notEqual(readout, null);
+      // Properties FIRST, as theirs is.
+      assert.deepEqual(
+        [...(actions?.querySelectorAll('.dc-status-link') ?? [])]
+          .map((b) => b.textContent?.replace(/^\W+\s*/, '')),
+        ['Properties', 'Filter'],
+      );
+      // And every figure on the other side, the backend's word last.
+      assert.notEqual(readout?.querySelector('.dc-status-timing'), null);
+      assert.equal(
+        readout?.querySelector('.dc-status-host')?.textContent,
+        'local',
+      );
+      assert.equal(actions?.querySelector('.dc-status-timing'), null);
+    });
+
+  it('opens the properties editor from the status bar', async () => {
+    const app = new CubeApp(root, SNAPSHOT, {
+      engine: new StubEngine(),
+      planner: new StubPlanner(),
+    });
+    await app.open();
+    assert.equal(root.querySelector('.dc-editor'), null);
+    (root.querySelector('.dc-status-properties') as HTMLButtonElement)
+      .click();
+    assert.notEqual(root.querySelector('.dc-editor'), null,
+      'the Properties link opened nothing');
+  });
+
   it("MOVES the host's readout into the status bar, once", async () => {
     const marker = dom.window.document.createElement('span');
     marker.id = 'hoststatus';

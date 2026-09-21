@@ -76,9 +76,12 @@ let failed = false;
 try {
   await page.goto(url, { waitUntil: 'load', timeout: 60_000 });
 
-  // The status line names the planner that actually ran.
+  // The status line names the plane that actually ran, in a word:
+  // `local` plans in this tab, `remote` on legend-lite over HTTP,
+  // `engine` on legend-engine itself.
   await page.waitForFunction(
-    () => /wasm/.test(document.getElementById('status')?.textContent ?? ''),
+    () => /local|remote|engine/.test(
+      document.getElementById('status')?.textContent ?? ''),
     { timeout: 60_000 },
   );
   const status = await page.textContent('#status');
@@ -121,8 +124,11 @@ try {
       + JSON.stringify(money));
     failed = true;
   }
-  if (!/wasm/.test(status ?? '')) {
-    console.log('FAIL: the status line does not name the wasm planner');
+  // THIS PAGE IS THE LOCAL PLANE, and must say so rather than
+  // naming any of the others: the whole point of this run is that no
+  // server was involved.
+  if ((status ?? '').trim() !== 'local') {
+    console.log(`FAIL: the status line reads "${status}", not "local"`);
     failed = true;
   }
 

@@ -107,8 +107,10 @@ try {
       .filter((m) => /^Plan /.test(m.label)));
   console.log(`plane entries: ${planes.map((p) =>
     `${p.label}${p.off ? ' [current]' : ''}`).join(' / ')}`);
-  const here = planes.find((p) => /wasm/i.test(p.label));
-  const server = planes.find((p) => /:8080|server/i.test(p.label));
+  // BY THE PLANE'S OWN WORD -- local, remote, engine -- which is
+  // what the status bar shows and what the menu entries name.
+  const here = planes.find((p) => /local/i.test(p.label));
+  const server = planes.find((p) => /remote/i.test(p.label));
   if (!here) bad('the menu does not offer planning in this tab');
   if (!server) bad('the menu does not offer planning on the server');
   // THE CURRENT PLANE IS THE ONE THAT IS DISABLED, which is how the
@@ -118,7 +120,7 @@ try {
     bad('this page plans in the tab, but the menu does not say so');
   }
   if (server && server.off) {
-    bad('the server entry is marked as the current plane on the wasm page');
+    bad('the remote entry is marked as current on the local page');
   }
   await page.keyboard.press('Escape');
   await page.waitForTimeout(150);

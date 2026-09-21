@@ -47,7 +47,11 @@ async function inBrowserPlanner(_status: HTMLElement): Promise<Engine> {
     planner,
     source: SOURCE,
     snapTarget: SNAP_TARGET,
-    label: 'planner: legend-lite (wasm, no server)',
+    // ONE WORD. It shares a 20px strip with the row count and the
+    // timing; the sentence it replaced was most of the bar. Which
+    // planner the page loaded is in the title bar menu, where the
+    // planes are chosen.
+    label: 'local',
     // Only this entry can take an uploaded file: the data lands in
     // the tab's own DuckDB, and the planner it feeds is in the tab
     // too, so the model can change without anything being deployed.

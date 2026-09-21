@@ -70,7 +70,7 @@ export async function requireEngine(_status: HTMLElement): Promise<Engine> {
     }),
     source: SOURCE,
     snapTarget: SNAP_TARGET,
-    label: 'planner: legend-lite (server)',
+    label: 'remote',
   };
 }
 

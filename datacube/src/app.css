@@ -509,7 +509,10 @@
 .dc-app-stats {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  /* WHAT YOU CAN DO AT ONE END, WHAT IS TRUE AT THE OTHER -- theirs
+     is `justify-between` for the same reason. Everything used to be
+     crowded against the right edge, links and figures together. */
+  justify-content: space-between;
   height: var(--dc-row-control-height);
   border-top: 1px solid var(--tw-neutral-200);
   background: var(--tw-neutral-100);
@@ -517,6 +520,14 @@
 
 /* Monospaced, because the count changes as the tree expands and a
    proportional figure jitters its neighbours every time it does. */
+/* The two groups: the things you press, and the things you read. */
+.dc-status-actions,
+.dc-status-readout {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
 /* The host's own readout, at the far right of the bar. */
 .dc-status-host {
   display: flex;
@@ -590,7 +601,7 @@
   flex: 0 0 auto;
 }
 
-.dc-status-filter {
+.dc-status-link {
   font: inherit;
   font-size: var(--dc-text-sm-size);
   line-height: 1;
@@ -605,11 +616,11 @@
   cursor: pointer;
 }
 
-.dc-status-filter:hover {
+.dc-status-link:hover {
   color: var(--tw-black);
 }
 
-.dc-status-filter:focus-visible {
+.dc-status-link:focus-visible {
   outline: 1.5px solid var(--dc-active, #0284c7);
   outline-offset: -1px;
 }

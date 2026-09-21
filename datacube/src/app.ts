@@ -800,30 +800,46 @@ export class CubeApp {
     const bar = this.#els.stats;
     bar.replaceChildren();
 
-    // THE FILTER, WHERE IT CAN BE FOUND.
+// WHAT YOU CAN DO ON THE LEFT, WHAT IS TRUE ON THE RIGHT.
     //
-    // The filter editor was reachable only through the grid's
-    // right-click menu, two levels down -- Filter, then "Filters..."
-    // -- and a person looking for it did not find it. DataCube puts
-    // a Filter button in the STATUS BAR for exactly this reason
-    // (DataCubeStatusBar: a filter icon and an underlined "Filter"
-    // that opens the editor), so this does too.
+    // DataCube's own bar is `justify-between` with two link buttons
+    // at the left -- a settings icon and an underlined "Properties",
+    // then a filter icon and an underlined "Filter" -- and its
+    // readouts at the right. Ours had one link and every figure
+    // crowded after it.
     //
-    // It also SAYS whether one is in force. A cube showing a subset
-    // with nothing on screen to indicate it is how someone reads a
-    // filtered total as the whole book.
+    // Both editors were reachable only through the grid's
+    // right-click menu, two levels down, and a person looking for
+    // them did not find them.
+    const left = doc.createElement('div');
+    left.className = 'dc-status-actions';
+    const right = doc.createElement('div');
+    right.className = 'dc-status-readout';
+    bar.append(left, right);
+
+    const properties = doc.createElement('button');
+    properties.type = 'button';
+    properties.className = 'dc-status-link dc-status-properties';
+    properties.textContent = '\u2699 Properties';
+    properties.title = 'The cube\u2019s settings (Ctrl+E)';
+    properties.addEventListener('click', () => this.openEditor());
+    left.append(properties);
+
+    // The filter SAYS whether one is in force. A cube showing a
+    // subset with nothing on screen to indicate it is how someone
+    // reads a filtered total as the whole book.
     const filtered = this.#snapshot.filter !== undefined;
     const filter = doc.createElement('button');
     filter.type = 'button';
     filter.className = filtered
-      ? 'dc-status-filter dc-on'
-      : 'dc-status-filter';
+      ? 'dc-status-link dc-status-filter dc-on'
+      : 'dc-status-link dc-status-filter';
     filter.textContent = filtered ? '⧨ Filter (on)' : '⧨ Filter';
     filter.title = filtered
       ? 'A filter is in force. Click to edit it.'
       : 'Filter the cube';
     filter.addEventListener('click', () => this.openFilters());
-    bar.append(filter, this.#statusSeparator());
+    left.append(filter);
 
     // THE RESULT, AND WHAT IT COST, in the one bar that is already
     // about the result.
@@ -840,21 +856,21 @@ export class CubeApp {
     rows.textContent = timingText(view, cols);
     rows.title = 'Rows and columns in the result, and how long the '
       + 'query took.';
-    bar.append(rows);
+    right.append(rows);
 
     if (view.truncated.length > 0 && this.#config.showTruncationWarning) {
-      bar.append(this.#statusSeparator());
+      right.append(this.#statusSeparator());
       const warn = doc.createElement('div');
       warn.className = 'dc-status-warning';
       warn.textContent =
         `⚠ Results truncated to fit within row limit ` +
         `(${this.#config.maxRows.toLocaleString()})`;
-      bar.append(warn);
+      right.append(warn);
     }
 
     const stats = doc.createElement('div');
     stats.className = 'dc-status-stats';
-    bar.append(this.#statusSeparator(), stats);
+    right.append(this.#statusSeparator(), stats);
     this.#statsSlot = stats;
     this.#renderSelectionStats();
 
@@ -875,11 +891,13 @@ export class CubeApp {
     if (!fill) return;
     const slot = this.#doc.createElement('div');
     slot.className = 'dc-status-host';
-    // No leading separator on an otherwise empty bar.
-    if (this.#els.stats.childElementCount > 0) {
-      this.#els.stats.append(this.#statusSeparator());
-    }
-    this.#els.stats.append(slot);
+    // AT THE FAR RIGHT, among the readouts -- with the figures,
+    // because that is what it is: which backend answered.
+    const readout = this.#els.stats
+      .querySelector<HTMLElement>('.dc-status-readout');
+    const host = readout ?? this.#els.stats;
+    if (host.childElementCount > 0) host.append(this.#statusSeparator());
+    host.append(slot);
     fill(slot);
   }
 

@@ -2094,6 +2094,76 @@ try {
       return `${group} listed in both, and only ever on one axis`;
     });
 
+  await check('the status bar: actions left, readouts right', async () => {
+    // What you can DO at one end, what is TRUE at the other, as
+    // theirs is (`justify-between`, Properties then Filter). Every
+    // figure used to be crowded against the links at the right edge.
+    await flatten();
+    const bar = await page.evaluate(() => {
+      const box = (sel) => {
+        const el = document.querySelector(sel);
+        if (!el) return null;
+        const r = el.getBoundingClientRect();
+        return { x: Math.round(r.left), w: Math.round(r.width) };
+      };
+      return {
+        bar: box('.dc-app-stats'),
+        actions: box('.dc-app-stats .dc-status-actions'),
+        readout: box('.dc-app-stats .dc-status-readout'),
+        links: [...document.querySelectorAll(
+          '.dc-app-stats .dc-status-actions .dc-status-link')]
+          .map((b) => b.textContent.replace(/^\W+\s*/, '')),
+        timingInReadout: Boolean(document.querySelector(
+          '.dc-app-stats .dc-status-readout .dc-status-timing')),
+        backend: document.querySelector(
+          '.dc-app-stats .dc-status-readout .dc-status-host')
+          ?.textContent?.trim() ?? null,
+      };
+    });
+    if (!bar.actions || !bar.readout) {
+      throw new Error('the status bar has no action/readout groups');
+    }
+    // AT THE TWO ENDS, not merely in that order: with everything
+    // crowded against one edge the actions are still left of the
+    // readouts, and the check passed while the bar looked exactly as
+    // it did before.
+    const leftGap = bar.actions.x - bar.bar.x;
+    const rightGap = (bar.bar.x + bar.bar.w)
+      - (bar.readout.x + bar.readout.w);
+    if (leftGap > 8 || rightGap > 8) {
+      throw new Error(`the actions sit ${leftGap}px from the left edge and`
+        + ` the readouts ${rightGap}px from the right`);
+    }
+    if (bar.links.join(', ') !== 'Properties, Filter') {
+      throw new Error(`the links read: ${bar.links.join(', ') || 'none'}`);
+    }
+    if (!bar.timingInReadout) {
+      throw new Error('the timing is not among the readouts');
+    }
+    // AND THE BACKEND IN A WORD. Three planes want three words a
+    // person can tell apart in a 20px strip, not three sentences:
+    // `local` plans in this tab, `remote` on legend-lite over HTTP,
+    // `engine` on legend-engine itself.
+    if (!/^(local|remote|engine)$/.test(bar.backend ?? '')) {
+      throw new Error(`the backend reads "${bar.backend}", which is not`
+        + ` one of local / remote / engine`);
+    }
+    return `actions ${leftGap}px from the left, readouts ${rightGap}px`
+      + ` from the right, backend "${bar.backend}"`;
+  });
+
+  await check('Properties opens from the status bar', async () => {
+    // Both editors were two levels down the grid's right-click menu,
+    // and a person looking for them did not find them.
+    await reset();
+    await page.click('.dc-status-properties');
+    await page.waitForSelector('.dc-editor', { timeout: 10_000 });
+    const tabs = await page.locator('.dc-editor-tab').count();
+    await reset();
+    if (tabs === 0) throw new Error('the editor opened with no tabs');
+    return `the editor opened with ${tabs} tabs`;
+  });
+
   await check('the three sections read as ONE list', async () => {
     // Row groups, column labels and the columns themselves are the
     // same kind of thing -- a list of columns you drag between -- so
