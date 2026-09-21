@@ -91,14 +91,27 @@ const TYPES = {
 
 /** Serve a file, honouring Range so DuckDB can read parts of it. */
 async function sendFile(res, path, range) {
-  const { size } = await stat(path);
+  const st = await stat(path);
+  const size = st.size;
   const type = TYPES[extname(path)] ?? 'application/octet-stream';
+  // REVALIDATE ALWAYS. Without this the browser heuristically caches
+  // bundle.js, and a rebuilt page loads new HTML against old script:
+  // the sample dropdown renders empty, the row count sits at its
+  // min, and the button does nothing, because the code that fills
+  // them in is simply not in the file the browser kept. `no-cache`
+  // is revalidation, not "do not store" -- the 36 MB duckdb binary
+  // still comes back 304 while its mtime is unchanged.
+  const cacheHeaders = {
+    'Cache-Control': 'no-cache',
+    'Last-Modified': st.mtime.toUTCString(),
+  };
   const m = /^bytes=(\d*)-(\d*)$/.exec(range ?? '');
   if (!m) {
     res.writeHead(200, {
       'Content-Type': type,
       'Content-Length': String(size),
       'Accept-Ranges': 'bytes',
+      ...cacheHeaders,
     });
     res.end(await readFile(path));
     return;
@@ -115,6 +128,7 @@ async function sendFile(res, path, range) {
       'Content-Length': String(len),
       'Content-Range': `bytes ${start}-${end}/${size}`,
       'Accept-Ranges': 'bytes',
+      ...cacheHeaders,
     });
     res.end(buf);
   } finally {

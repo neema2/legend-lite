@@ -21,6 +21,13 @@
 <link rel="stylesheet" href="../src/app.css">
 <style>
   :root { color-scheme: light dark; }
+  :root {
+    /* The page paints its own white ground and black text below, so
+       say so. Without this a browser running auto-dark inverts the
+       ground and leaves the hardcoded greys unreadable -- reported
+       as "almost black on black". */
+    color-scheme: light;
+  }
   body {
     margin: 0;
     padding: 20px;
@@ -81,10 +88,17 @@
     border-top: 1px solid rgba(128,128,128,.25);
   }
   .dc-uploadbar label { font-weight: 500; }
-  #uploadnote { color: #777; }
-  .dc-sep { color: #999; }
-  #samplepick { font: inherit; max-width: 22em; }
-  #samplerows { font: inherit; width: 7em; }
+  #uploadnote { color: #555; }
+  .dc-sep { color: #666; }
+  /* Explicit, not inherited: a control with only half its colours set
+     is what renders dark-on-dark under a forced theme. */
+  #samplepick, #samplerows {
+    font: inherit; color: #000; background: #fff;
+    border: 1px solid rgba(0,0,0,.35); border-radius: 3px;
+    padding: 2px 4px;
+  }
+  #samplepick { min-width: 20em; max-width: 30em; }
+  #samplerows { width: 7em; }
   #samplecsv {
     font: inherit; cursor: pointer; padding: 2px 8px;
     border: 1px solid rgba(128,128,128,.4); border-radius: 3px;

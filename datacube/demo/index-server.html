@@ -15,6 +15,13 @@
 <link rel="stylesheet" href="../src/app.css">
 <style>
   :root { color-scheme: light dark; }
+  :root {
+    /* The page paints its own white ground and black text below, so
+       say so. Without this a browser running auto-dark inverts the
+       ground and leaves the hardcoded greys unreadable -- reported
+       as "almost black on black". */
+    color-scheme: light;
+  }
   body {
     margin: 0;
     padding: 20px;
