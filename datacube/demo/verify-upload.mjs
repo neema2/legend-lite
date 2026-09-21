@@ -173,6 +173,51 @@ try {
       + JSON.stringify(badCells));
   }
 
+  // GROUPING MUST ACTUALLY GROUP.
+  //
+  // Dragging a column into the row zone on a cube with no measures
+  // emitted a plain select: the serialiser only wrote a groupBy when
+  // there was something to aggregate. The grid then showed one row
+  // per SOURCE row -- "AMER" repeated down the screen -- with no
+  // GROUP BY in the generated SQL, which is wrong data, not a
+  // cosmetic fault. Checking the row COUNT is what catches it; the
+  // grid looked populated either way.
+  const region = page.locator('.dc-th.dc-draggable', { hasText: 'region' });
+  if (await region.count()) {
+    await region.first().dragTo(page.locator('[class*=zone]').first());
+    await page.waitForFunction(
+      () => /groupBy|could not/.test(
+        document.getElementById('pure')?.textContent ?? ''),
+      undefined, { timeout: 30_000 },
+    ).catch(() => bad('grouping never re-queried'));
+    const grouped = await page.evaluate(() => ({
+      pure: document.getElementById('pure')?.textContent ?? '',
+      sql: document.getElementById('sql')?.textContent ?? '',
+      rows: [...document.querySelectorAll('.dc-row')].map(
+        (r) => r.querySelector('.dc-cell')?.textContent?.trim() ?? ''),
+      labels: [...document.querySelectorAll('[role=columnheader]')]
+        .map((e) => e.textContent?.trim()).filter(Boolean),
+    }));
+    console.log(`grouped: ${grouped.rows.length} rows `
+      + `${JSON.stringify(grouped.rows.slice(0, 4))}`);
+    if (!/groupBy\(~\[/.test(grouped.pure)) {
+      bad(`no groupBy in the Pure: ${grouped.pure.slice(0, 120)}`);
+    }
+    if (!/GROUP BY/i.test(grouped.sql)) {
+      bad(`no GROUP BY in the SQL: ${grouped.sql.slice(0, 120)}`);
+    }
+    const distinct = new Set(grouped.rows).size;
+    if (grouped.rows.length !== distinct) {
+      bad(`grouped rows repeat: ${grouped.rows.length} rows but only `
+        + `${distinct} distinct — it did not group`);
+    }
+    // The tree column is blank by design when other columns sit
+    // beside it; alone, a wholly empty header row reads as broken.
+    if (grouped.labels.length === 0) {
+      bad('the grouped grid has no column header at all');
+    }
+  }
+
   if (EXPECT_ROWS) {
     const m = /([\d,]+) rows/.exec(note);
     const got = m ? Number(m[1].replace(/,/g, '')) : -1;

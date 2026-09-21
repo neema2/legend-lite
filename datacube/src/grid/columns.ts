@@ -201,13 +201,27 @@ export function buildColumnModel(
    */
   pivotArity?: number,
 ): ColumnModel {
+  // The tree column's header is deliberately blank: it holds a
+  // different dimension at every level, so no single name is
+  // truthful, and real DataCube sets headerName: '' for the same
+  // reason (DataCubeGridConfigurationBuilder, autoGroupColumnDef).
+  //
+  // That reads correctly while OTHER columns sit beside it. Alone it
+  // does not: grouping a cube that has no measures leaves the tree
+  // column as the only column, and a grid whose entire header row is
+  // one empty cell is indistinguishable from a broken one -- it was
+  // reported as "all the column headers disappear". So when it would
+  // be the only header, it says what it is grouping by.
+  const treeIsAlone = table.columns.length === 1
+    && table.columns[0]?.name === TREE_COLUMN;
+  const treeLabel = treeIsAlone && dimensions.length > 0
+    ? dimensions.join(' / ')
+    : '';
+
   const leaves: LeafColumn[] = table.columns.map((c, index) => {
-    // The tree column's header is deliberately blank: it holds a
-    // different dimension at every level, so no single name is
-    // truthful. Real DataCube sets headerName: '' for the same reason.
     const display = layout.displayNames?.[c.name];
     const path = c.name === TREE_COLUMN
-      ? ['']
+      ? [treeLabel]
       : display !== undefined
         ? [display]
         : dimensions.includes(c.name)

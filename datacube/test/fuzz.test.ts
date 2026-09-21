@@ -203,13 +203,23 @@ describe('fuzzing the model layer', () => {
       if (pure === null) continue;
       assert.equal(pure.includes('->->'), false, `seed ${seed}: ${pure}`);
       assert.equal(pure.endsWith('->'), false, `seed ${seed}: ${pure}`);
-      // `groupBy(~[], ~[m:...])` is the GRAND TOTAL and legitimate:
-      // grouping by nothing. An empty AGGREGATE list is the broken
-      // one, and that is what this bans.
+      // Both empty LISTS are legitimate, in opposite directions.
+      //
+      // `groupBy(~[], ~[m:...])` is the GRAND TOTAL: grouping by
+      // nothing. `groupBy(~[region], ~[])` is a cube with row groups
+      // and no measures -- what you get by dragging a column into the
+      // row zone before adding any aggregate -- and it lowers to
+      // exactly `GROUP BY t0.region`. Banning the empty aggregate
+      // list is what made that case emit a plain select instead, so
+      // the grid showed one row per SOURCE row with no GROUP BY at
+      // all.
+      //
+      // The broken shape is BOTH empty: a groupBy that neither groups
+      // nor aggregates.
       assert.equal(
-        /,\s*~\[\]\)/.test(pure),
+        /groupBy\(~\[\],\s*~\[\]\)/.test(pure),
         false,
-        `seed ${seed}: empty aggregate list in ${pure}`,
+        `seed ${seed}: groupBy that neither groups nor aggregates in ${pure}`,
       );
     }
   });

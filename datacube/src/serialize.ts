@@ -418,10 +418,19 @@ export function serialize(
     } else {
       parts.push(`pivot(~[${on}], ~[${aggs}])`);
     }
-  } else if (snapshot.measures.length > 0) {
+  } else if (snapshot.measures.length > 0 || groupCols.length > 0) {
     // No column dimension: an ordinary aggregation over the row
-    // dimensions. Needs an explicit groupBy, since there is no pivot to
-    // infer the grouping from.
+    // dimensions. Needs an explicit groupBy, since there is no pivot
+    // to infer the grouping from.
+    //
+    // GROUP COLUMNS ALONE ARE ENOUGH. This used to require a measure,
+    // so dragging a column into the row zone on a cube with no
+    // measures emitted a plain select: the grid then showed one row
+    // per SOURCE row -- "AMER" repeated down the screen -- and the
+    // generated SQL had no GROUP BY in it at all. Grouping is what
+    // the user asked for; an empty aggregate list is a detail of what
+    // to show beside it, and `groupBy(~[region], ~[])` lowers to
+    // exactly `GROUP BY t0.region`.
     const by = groupCols.map(ident).join(', ');
     parts.push(`groupBy(~[${by}], ~[${aggs}])`);
   }
