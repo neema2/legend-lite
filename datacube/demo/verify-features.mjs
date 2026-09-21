@@ -1811,6 +1811,140 @@ try {
     return `aligned at ${p1.th}px after scrolling`;
   });
 
+  await check('clearing the column pivot keeps the other columns',
+    async () => {
+      // Grouped and pivoted, clearing the pivot left ONE data column
+      // on screen -- the measure -- with year, qtr, pnl and qty gone
+      // from a grid whose own columns panel still listed them. The
+      // projection carried the keys and the measure and dropped the
+      // rest, so the answer came back narrower than the question.
+      await menu(['Pivot', 'Clear All Vertical Pivots'], { requery: false })
+        .catch(() => {});
+      await menu(['Pivot', 'Clear All Horizontal Pivots'], { requery: false })
+        .catch(() => {});
+      await settle();
+      const flat = await gridColumns();
+      const dims = await dimensionNames();
+      const row = ['region', 'desk', 'book'].find((n) => dims.includes(n));
+      const col = ['year', 'quarter', 'qtr'].find((n) => dims.includes(n));
+      if (!row || !col) {
+        throw new Error(`need a row and a column dimension, saw ${dims}`);
+      }
+      await menu(['Pivot', /^Vertical Pivot on/], { col: await needCol(row) });
+      await menu(['Pivot', /^Horizontal Pivot on/],
+        { col: await needCol(col) });
+      const pivoted = await gridColumns();
+      await menu(['Pivot', 'Clear All Horizontal Pivots']);
+      const after = await gridColumns();
+      // Every column the flat cube showed is still here, except the
+      // one now in the tree -- and the pivot key, which the cube
+      // carries as a dimension either way.
+      const missing = flat.filter((c) => c !== row && !after.includes(c));
+      if (missing.length > 0) {
+        throw new Error(`clearing the pivot lost ${missing.join(', ')};`
+          + ` left ${after.join(', ')}`);
+      }
+      return `${flat.length} flat, ${pivoted.length} pivoted,`
+        + ` ${after.length} after clearing — none lost`;
+    });
+
+  // -- the columns panel, which is a control and not a legend -------
+
+  await check('the columns panel hides a column with its tick box',
+    async () => {
+      // The panel listed every column and could not turn one off,
+      // while hiding lived in the grid's menu three levels down --
+      // so upstream's `agColumnsToolPanel`, which is mostly a list
+      // of checkboxes, had nothing to click here.
+      await menu(['Pivot', 'Clear All Horizontal Pivots'], { requery: false })
+        .catch(() => {});
+      await settle();
+      const before = await gridColumns();
+      const target = before.find((c) => c !== '__tree');
+      if (!target) throw new Error('no column to hide');
+      const box = `.dc-tool-panel-row[data-column="${target}"]`
+        + ' .dc-tool-panel-show';
+      if (!(await page.locator(box).count())) {
+        throw new Error('the panel offers no tick box at all');
+      }
+      await page.locator(box).click();
+      await settle();
+      const after = await gridColumns();
+      if (after.includes(target)) {
+        throw new Error(`${target} is still in the grid after unticking it`);
+      }
+      // STILL LISTED, struck through: the list is how you find it
+      // again, so a hidden column must not vanish from it.
+      const row = page.locator(
+        `.dc-tool-panel-row[data-column="${target}"]`);
+      if (!(await row.count())) {
+        throw new Error(`${target} vanished from the panel as well`);
+      }
+      if (!(await row.evaluate((e) =>
+        e.classList.contains('dc-hidden-column')))) {
+        throw new Error(`${target} is hidden but the panel does not say so`);
+      }
+      return `${target} left the grid and stayed in the list`;
+    });
+
+  await check('a hidden column drags back into the grid from the panel',
+    async () => {
+      // Upstream turns this on explicitly --
+      // `allowDragFromColumnsToolPanel: true` -- and it is the only
+      // way to say WHERE the column should go. The tick box can only
+      // put it back where it was.
+      const hidden = await page.locator(
+        '.dc-tool-panel-row.dc-hidden-column').first();
+      if (!(await hidden.count())) {
+        throw new Error('nothing is hidden, so this check would prove'
+          + ' nothing');
+      }
+      const name = await hidden.evaluate((e) => e.dataset.column);
+      const onto = (await gridColumns()).filter((c) => c !== '__tree')[1];
+      if (!onto) throw new Error('need a header to drop onto');
+      await hidden.dragTo(page.locator(`.dc-th[data-column="${onto}"]`),
+        { timeout: 10_000 });
+      await settle();
+      const after = (await gridColumns()).filter((c) => c !== '__tree');
+      if (!after.includes(name)) {
+        throw new Error(`${name} did not come back; grid has`
+          + ` ${after.join(', ')}`);
+      }
+      // AT THE POINT IT WAS DROPPED, not merely somewhere.
+      if (after.indexOf(name) !== after.indexOf(onto) - 1) {
+        throw new Error(`${name} landed at ${after.indexOf(name)},`
+          + ` not before ${onto} at ${after.indexOf(onto)}:`
+          + ` ${after.join(', ')}`);
+      }
+      return `${name} dropped in before ${onto}`;
+    });
+
+  await check('a MEASURE can be dragged from the panel into the grid',
+    async () => {
+      // Measures were not draggable at all here, so a measure in
+      // this panel had nothing it could do: the zones refuse it --
+      // grouping by a notional means one group per amount -- and the
+      // grid would not take it either.
+      const measure = page.locator('.dc-tool-panel-row.dc-measure').first();
+      if (!(await measure.count())) throw new Error('no measure listed');
+      if (!(await measure.evaluate((e) => e.draggable))) {
+        throw new Error('a measure row is not draggable');
+      }
+      const name = await measure.evaluate((e) => e.dataset.column);
+      const order = (await gridColumns()).filter((c) => c !== '__tree');
+      const onto = order.find((c) => c !== name);
+      if (!onto) throw new Error('need another column to drop onto');
+      await measure.dragTo(page.locator(`.dc-th[data-column="${onto}"]`),
+        { timeout: 10_000 });
+      await settle();
+      const after = (await gridColumns()).filter((c) => c !== '__tree');
+      if (after.indexOf(name) !== after.indexOf(onto) - 1) {
+        throw new Error(`${name} did not land before ${onto}:`
+          + ` ${after.join(', ')}`);
+      }
+      return `${name} placed before ${onto}`;
+    });
+
   await check('the menu opens with NO submenu already unfurled', async () => {
     // A right-click arrived with the whole Export list open beside
     // the menu, and hovering anything else left two submenus on

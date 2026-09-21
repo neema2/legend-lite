@@ -46,12 +46,49 @@ describe('serialize', () => {
   });
 
   it('uses groupBy when there is no column dimension', () => {
+    // AND KEEPS EVERY COLUMN IT SHOWS. This projected the keys and
+    // the measure alone, so clearing a cube's column pivot left one
+    // data column on screen and the rest gone -- from a grid whose
+    // own columns panel still listed them. DataCube aggregates every
+    // SELECTED column that is not a group key (`_groupByAggCols`),
+    // measures by their function and the rest by `uniq`.
     assert.equal(
       serialize(snap({ pivotOn: [] })),
-      '$trades->select(~[region, country, notional])' +
-        '->groupBy(~[region, country], ~[total:x|$x.notional:y|$y->sum()])' +
+      '$trades->select(~[region, country, year, notional, qty])' +
+        '->groupBy(~[region, country], ~[year:x|$x.year:y|$y->sum(),' +
+        ' total:x|$x.notional:y|$y->sum(), qty:x|$x.qty:y|$y->sum()])' +
         '->sort([~region->ascending(), ~country->ascending()])',
     );
+  });
+
+  it('gives the GRAND TOTAL the same columns as the levels', () => {
+    // A total row blank under a column where every row beneath it
+    // carries a figure reads as "there is no total for this" rather
+    // than as a projection that dropped it. The root query is a
+    // groupBy with no keys, so it took the narrow path of its own.
+    const total = serialize(snap({ rows: [], pivotOn: [] }));
+    assert.match(total, /groupBy\(~\[\]/);
+    assert.match(total, /qty:x\|\$x\.qty:y\|\$y->sum\(\)/, total);
+    assert.match(total, /total:x\|\$x\.notional:y\|\$y->sum\(\)/, total);
+  });
+
+  it('carries a DIMENSION by its unique value rather than summing it', () => {
+    // The reason the rule above is safe. Aggregating everything not
+    // a key would sum a year and an id -- "2021 + 2022 + 2023" is
+    // the kind of wrong that reads as a bug in the data -- so an
+    // explicit kind beats the type the column is carried in, and the
+    // column inference marks a key-like numeric a dimension.
+    const pure = serialize(snap({
+      pivotOn: [],
+      columns: [
+        { name: 'region', type: 'String' },
+        { name: 'country', type: 'String' },
+        { name: 'year', type: 'Integer', kind: 'dimension' },
+        { name: 'notional', type: 'Float' },
+      ],
+    }));
+    assert.match(pure, /year:x\|\$x\.year:y\|\$y->uniqueValueOnly\(\)/);
+    assert.equal(/year[^,\]]*->sum/.test(pure), false, pure);
   });
 
   it('pivots a cube with NO configured measures', () => {

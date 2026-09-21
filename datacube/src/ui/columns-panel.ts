@@ -27,12 +27,25 @@ export interface ColumnsPanelColumn {
   readonly groupable: boolean;
   /** Where it is used now, for the badge. */
   readonly usedAs?: 'rows' | 'columns';
+  /** Whether the grid is showing it. Absent counts as shown. */
+  readonly visible?: boolean;
 }
 
 export interface ColumnsPanelOptions {
   readonly labelFor?: (column: string) => string;
   /** Clicking a groupable column adds it to the row groups. */
   readonly onPick?: (column: string) => void;
+  /**
+   * Show or hide a column in the grid.
+   *
+   * The tick box is what upstream's columns tool panel is mostly
+   * FOR (`agColumnsToolPanel`, with values and pivot mode
+   * suppressed): a list of every column with a checkbox each. Ours
+   * listed them and could not turn one off, so the panel was a
+   * reference card next to a grid that hid columns from a menu
+   * three levels down.
+   */
+  readonly onVisibility?: (column: string, visible: boolean) => void;
   /** Start collapsed. The grid is the point; the panel is a tool. */
   readonly collapsed?: boolean;
 }
@@ -180,6 +193,28 @@ export class ColumnsToolPanel {
     row.dataset['column'] = column.name;
     row.classList.toggle('dc-measure', !column.groupable);
 
+    const visible = column.visible !== false;
+    row.classList.toggle('dc-hidden-column', !visible);
+    if (this.#options.onVisibility) {
+      const box = doc.createElement('input');
+      box.type = 'checkbox';
+      box.className = 'dc-tool-panel-show';
+      box.checked = visible;
+      box.title = visible
+        ? `Hide ${column.name} from the grid`
+        : `Show ${column.name} in the grid`;
+      box.setAttribute('aria-label', box.title);
+      // The row is draggable, and a press on the box must tick it
+      // rather than start a drag of the row underneath.
+      box.draggable = false;
+      box.addEventListener('pointerdown', (e) => e.stopPropagation());
+      box.addEventListener('click', (e) => e.stopPropagation());
+      box.addEventListener('change', () => {
+        this.#options.onVisibility?.(column.name, box.checked);
+      });
+      row.append(box);
+    }
+
     const label = doc.createElement('span');
     label.className = 'dc-tool-panel-label';
     label.textContent = this.#options.labelFor?.(column.name) ?? column.name;
@@ -197,12 +232,13 @@ export class ColumnsToolPanel {
     type.textContent = column.type;
     row.append(type);
 
-    makeHeaderDraggable(row, column.name, column.groupable);
+    makeHeaderDraggable(row, column.name, column.groupable, 'panel');
     if (column.groupable && this.#options.onPick) {
       // Double-click is the keyboard-and-trackpad path to the same
       // thing: a panel that can only be operated by dragging is a
       // panel some people cannot operate.
-      row.title = `[${column.name}]\nDrag into a zone, or double-click to group`;
+      row.title = `[${column.name}]\nDrag into a zone to group by it, or`
+        + ` into the grid to place it. Double-click to group.`;
       row.tabIndex = 0;
       row.addEventListener('dblclick', () =>
         this.#options.onPick?.(column.name),
@@ -214,7 +250,8 @@ export class ColumnsToolPanel {
         }
       });
     } else {
-      row.title = `[${column.name}]\nMeasures cannot be grouped by`;
+      row.title = `[${column.name}]\nDrag into the grid to place it.`
+        + ` Measures cannot be grouped by.`;
     }
     return row;
   }

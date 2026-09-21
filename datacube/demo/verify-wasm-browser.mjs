@@ -125,6 +125,75 @@ try {
     console.log('FAIL: the status line does not name the wasm planner');
     failed = true;
   }
+
+  // CLEARING THE COLUMN PIVOT MUST NOT COST THE OTHER COLUMNS.
+  //
+  // This is the cube that has a HOST-CONFIGURED measure -- the
+  // demo's `measures: [notional]` -- and that is the shape the bug
+  // needed: the projection carried the group keys and the configured
+  // measure and dropped everything else, so clearing the pivot left
+  // a grid of one data column while its own columns panel still
+  // listed year, qtr, pnl and qty. The feature sweep uploads a file,
+  // whose cube has no configured measures, and its own projection
+  // was already wide -- so the sweep could not see this. It belongs
+  // here, against the cube that shows it.
+  const columnsNow = () => page.evaluate(() =>
+    [...document.querySelectorAll('.dc-th[data-column]')]
+      .map((e) => e.dataset.column));
+  const panelNow = () => page.evaluate(() =>
+    [...document.querySelectorAll('.dc-tool-panel-row')]
+      .map((e) => e.dataset.column));
+
+  await page.locator('.dc-cell').first().click({ button: 'right' });
+  await page.waitForSelector('.dc-menu', { timeout: 10_000 });
+  await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Pivot"))')
+    .hover();
+  await page.waitForTimeout(200);
+  await page.locator('.dc-menu-item:has(> .dc-menu-label'
+    + ':text-is("Clear All Horizontal Pivots"))').click();
+  await page.waitForFunction(
+    () => ![...document.querySelectorAll('.dc-th[data-column]')]
+      .some((e) => (e.dataset.column ?? '').includes('__|__')),
+    { timeout: 60_000 },
+  ).catch(() => {});
+  await page.waitForTimeout(500);
+
+  const flat = await columnsNow();
+  const panel = await panelNow();
+  console.log(`after clearing the pivot: ${flat.join(', ')}`);
+  // Every non-grouped column the panel lists is on screen. The row
+  // dimensions are the tree's now, which is what hides them.
+  const grouped = ['region', 'desk', 'book'];
+  const wanted = panel.filter((c) => !grouped.includes(c));
+  const lost = wanted.filter((c) => !flat.includes(c));
+  if (lost.length) {
+    console.log(`FAIL: clearing the pivot lost ${lost.join(', ')}`);
+    failed = true;
+  }
+  // AND THE MEASURES CARRY FIGURES, not blanks: a column that comes
+  // back empty is the same fault one step later. By NAME, because
+  // the dimensions are legitimately blank here -- `uniqueValueOnly`
+  // over a group holding five years has no answer to give -- and a
+  // count of non-empty cells would let a measure hide behind them.
+  const byName = await page.evaluate(() => {
+    const names = [...document.querySelectorAll('.dc-th[data-column]')]
+      .map((e) => e.dataset.column);
+    const cells = [...(document.querySelector('.dc-row')
+      ?.querySelectorAll('.dc-cell') ?? [])]
+      .map((c) => c.textContent?.trim() ?? '');
+    return Object.fromEntries(names.map((n, i) => [n, cells[i] ?? '']));
+  });
+  console.log(`flat grouped row: ${JSON.stringify(byName)}`);
+  for (const measure of ['notional', 'pnl', 'qty']) {
+    if (!(measure in byName)) continue;
+    // A figure, of any sign, including a legitimate zero: AMER's pnl
+    // sums to -0.00 in this generated data, which renders as ($0).
+    if (!/\d/.test(byName[measure])) {
+      console.log(`FAIL: ${measure} came back empty after clearing the`
+        + ` pivot: ${JSON.stringify(byName[measure])}`);
+      failed = true;
+    }
+  }
 } catch (e) {
   console.log(`FAIL: ${e.message}`);
   failed = true;

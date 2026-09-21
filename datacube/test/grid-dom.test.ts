@@ -9,6 +9,7 @@ import { buildColumnModel } from '../src/grid/columns.ts';
 import { DataGrid, type GridRowMeta } from '../src/grid/grid.ts';
 import { FormatterCache } from '../src/format.ts';
 import type { ResultTable } from '../src/result.ts';
+import { setHeaderDrag } from '../src/ui/pivot-panel.ts';
 
 const ROW_HEIGHT = 20;
 const VIEW_HEIGHT = 200;
@@ -588,6 +589,64 @@ describe('dragging a header to REORDER the columns', () => {
       }));
     }
   };
+
+  it('takes a column the grid is NOT showing, from the panel', () => {
+    // Upstream's `allowDragFromColumnsToolPanel: true`: a column
+    // dragged out of the columns panel lands in the grid where it
+    // was dropped. It is not in the column model at all -- it is
+    // hidden -- so the drop has to be accepted on the strength of
+    // the drag saying where it came from, and reported separately so
+    // whoever owns the configuration can unhide it.
+    // ONE grid on this container: `build2` would leave its own
+    // header cells in place and `th()` would find those, so the drop
+    // would report to the wrong callback and the check would pass on
+    // the order alone.
+    let added: string | undefined;
+    ordered = null;
+    grid = new DataGrid(container, new FormatterCache(), {
+      rowHeight: ROW_HEIGHT,
+      onReorder: (order, arrived) => { ordered = order; added = arrived; },
+    });
+    stubLayout(container.querySelector('.dc-scroller') as Element, VIEW_HEIGHT);
+    const table = flat();
+    grid.setColumns(buildColumnModel(table, [], ['total']));
+    grid.setRows(table, 0, table.rowCount);
+
+    const target = th('desk');
+    Object.defineProperty(target, 'getBoundingClientRect', {
+      value: () => ({ left: 100, width: 100, top: 0, height: 24,
+        right: 200, bottom: 24, x: 100, y: 0, toJSON: () => ({}) }),
+      configurable: true,
+    });
+    setHeaderDrag({ column: 'settled', from: 'panel' });
+    for (const type of ['dragover', 'drop']) {
+      target.dispatchEvent(new dom.window.MouseEvent(type, {
+        bubbles: true, cancelable: true, clientX: 120,
+      }));
+    }
+    assert.deepEqual(ordered, ['region', 'settled', 'desk', 'total']);
+    assert.equal(added, 'settled');
+  });
+
+  it('refuses an unknown column from anywhere ELSE', () => {
+    // Every other drag is between things already on screen. Without
+    // the source check, a stale drag or a drag from another cube
+    // would insert a column this grid knows nothing about.
+    build2();
+    const target = th('desk');
+    Object.defineProperty(target, 'getBoundingClientRect', {
+      value: () => ({ left: 100, width: 100, top: 0, height: 24,
+        right: 200, bottom: 24, x: 100, y: 0, toJSON: () => ({}) }),
+      configurable: true,
+    });
+    setHeaderDrag({ column: 'settled' });
+    for (const type of ['dragover', 'drop']) {
+      target.dispatchEvent(new dom.window.MouseEvent(type, {
+        bubbles: true, cancelable: true, clientX: 120,
+      }));
+    }
+    assert.equal(ordered, null);
+  });
 
   it('moves a column BEFORE the one dropped on, from its left half', () => {
     build2();

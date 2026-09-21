@@ -26,8 +26,15 @@ export type Zone = 'rows' | 'columns';
 /** What is being dragged, and where from. */
 export interface HeaderDrag {
   readonly column: string;
-  /** The zone it was dragged out of, if it came from a chip. */
-  readonly from?: Zone;
+  /**
+   * Where the drag started.
+   *
+   * A zone, so a chip moved between zones leaves the first; or the
+   * COLUMNS PANEL, which is not a zone and holds no membership to
+   * leave -- and which may be carrying a column the grid is not
+   * showing at all.
+   */
+  readonly from?: Zone | 'panel';
 }
 
 let dragging: HeaderDrag | null = null;
@@ -229,7 +236,9 @@ export class PivotPanel {
     // Dragging a chip from one zone to the other has to LEAVE the
     // first, or the same column groups rows and labels columns at
     // once, which produces a cube with the dimension on both axes.
-    if (drag.from !== undefined && drag.from !== zone) {
+    // A panel drag has no zone to leave.
+    if ((drag.from === 'rows' || drag.from === 'columns')
+      && drag.from !== zone) {
       const other = drag.from;
       this.#state = {
         ...this.#state,
@@ -259,12 +268,18 @@ export function makeHeaderDraggable(
   el: HTMLElement,
   column: string,
   canGroup: boolean,
+  from?: 'panel',
 ): void {
-  if (!canGroup) return;
+  // A PANEL ROW DRAGS WHETHER OR NOT IT CAN BE GROUPED BY. A measure
+  // has nowhere to land in the zones -- they refuse it -- but it has
+  // somewhere to land in the GRID, which is what upstream's
+  // `allowDragFromColumnsToolPanel` is for. Only the zones care
+  // about `canGroup`, and they check it themselves.
+  if (!canGroup && from !== 'panel') return;
   el.draggable = true;
   el.classList.add('dc-draggable');
   el.addEventListener('dragstart', (event) => {
-    setHeaderDrag({ column });
+    setHeaderDrag(from ? { column, from } : { column });
     if (event.dataTransfer) {
       event.dataTransfer.effectAllowed = 'move';
       event.dataTransfer.setData('text/plain', column);

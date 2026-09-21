@@ -184,6 +184,25 @@ describe('the app', () => {
     assert.notEqual(root.querySelector('.dc-app-stats'), null);
   });
 
+  it("the columns panel's tick box hides the column", () => {
+    // Wiring, which is the part unit tests miss: the panel had a
+    // callback for this and the app never passed one, so the box was
+    // not there at all. Mutating the wiring away leaves every
+    // panel-side unit test green.
+    const box = root.querySelector<HTMLInputElement>(
+      '.dc-tool-panel-row[data-column="desk"] .dc-tool-panel-show',
+    );
+    assert.notEqual(box, null, 'the panel offers no tick box');
+    assert.equal(box?.checked, true);
+    box!.checked = false;
+    box!.dispatchEvent(new dom.window.Event('change'));
+    assert.equal(app.configuration.columns['desk']?.hidden, true);
+    // And the row stays in the list, marked, so it can be found.
+    const row = root.querySelector('.dc-tool-panel-row[data-column="desk"]');
+    assert.notEqual(row, null);
+    assert.equal(row?.classList.contains('dc-hidden-column'), true);
+  });
+
   // -- folding the chrome away ---------------------------------------
   //
   // Both bars fold, the way the columns panel does, because the

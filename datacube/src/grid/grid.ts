@@ -96,7 +96,20 @@ export interface GridOptions {
    * knows the order that is on screen; handing over a pair would
    * make the host reconstruct it.
    */
-  readonly onReorder?: (order: readonly string[]) => void;
+  /**
+   * A new column order, and the column that arrived from outside it.
+   *
+   * `added` is set when the drag came from the columns panel
+   * carrying a column the grid was not showing -- upstream's
+   * `allowDragFromColumnsToolPanel: true`, where a column dragged
+   * out of the panel lands in the grid at the point it was dropped.
+   * The grid cannot unhide it on its own; whoever owns the
+   * configuration does that.
+   */
+  readonly onReorder?: (
+    order: readonly string[],
+    added?: string,
+  ) => void;
   /**
    * A per-cell background, for a heatmap.
    *
@@ -518,7 +531,12 @@ export class DataGrid {
       const moved = model.leaves.find((l) => l.name === drag.column);
       const key = moved ? rank(moved) : drag.column;
       if (key === self) return null;
-      return order.includes(key) ? key : null;
+      if (order.includes(key)) return key;
+      // NOT IN THE GRID AT ALL, which is a drop from the columns
+      // panel carrying a hidden column. Every other drag is between
+      // things already on screen, so anything else unknown here is
+      // refused as it was.
+      return drag.from === 'panel' ? key : null;
     };
 
     el.addEventListener('dragover', (event) => {
@@ -538,11 +556,12 @@ export class DataGrid {
       if (!moved) return;
       event.preventDefault();
       const where = side(event);
+      const arrived = !order.includes(moved);
       const next = order.filter((n) => n !== moved);
       const at = next.indexOf(self) + (where === 'after' ? 1 : 0);
       next.splice(at, 0, moved);
       setHeaderDrag(null);
-      onReorder(next);
+      onReorder(next, arrived ? moved : undefined);
     });
   }
 

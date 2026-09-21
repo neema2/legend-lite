@@ -448,7 +448,13 @@ export function serialize(
   // which is what made them vanish from the grid. DataCube keeps
   // them: `_groupByAggCols` aggregates every SELECTED column that is
   // not a group key. So the projection has to carry them.
-  const grouping = groupCols.length > 0 && snapshot.pivotOn.length === 0;
+  // KEYS OR NONE. The grand total is a groupBy with no keys, and it
+  // has to aggregate the same columns the levels below it do -- or
+  // the total row sits blank under a column where every row beneath
+  // it carries a figure, which reads as "no total for this" rather
+  // than as a projection that dropped it.
+  const grouping = snapshot.pivotOn.length === 0
+    && (groupCols.length > 0 || snapshot.measures.length > 0);
   const pivoting = snapshot.pivotOn.length > 0;
 
   /**
@@ -535,7 +541,7 @@ export function serialize(
         }
         return out;
       })()
-    : grouping && snapshot.measures.length === 0
+    : grouping
       ? detailColumns(snapshot)
       : referencedColumns(snapshot, groupCols);
   if (needed.length > 0) {

@@ -307,6 +307,7 @@ export class CubeApp {
     this.#columnsPanel = new ColumnsToolPanel(side, {
       labelFor: (c) => labelFor(this.#config, c),
       onPick: (c) => this.#onZoneChange('rows', [...this.#snapshot.rows, c]),
+      onVisibility: (c, visible) => this.#patchColumn(c, { hidden: !visible }),
     });
 
     this.#pivots = new PivotPanel(zones, {
@@ -332,7 +333,14 @@ export class CubeApp {
       appearance: this.#config.appearance,
       columnAppearance: toColumnAppearance(this.#config),
       canGroup: (c) => this.#isDimension(c),
-      onReorder: (order) => {
+      onReorder: (order, added) => {
+        // A COLUMN DRAGGED OUT OF THE PANEL INTO THE GRID IS A
+        // REQUEST TO SHOW IT. The grid reports the arrival because
+        // it cannot know the column was hidden -- it was never in
+        // the model -- and unhiding is the configuration's to do.
+        if (added !== undefined) {
+          this.#config = withColumn(this.#config, added, { hidden: false });
+        }
         void this.applyConfiguration({ columnOrder: [...order] });
       },
       cellBackground: (leaf, row, value) => {
@@ -564,6 +572,7 @@ export class CubeApp {
         name: c.name,
         type: c.type,
         groupable: this.#isDimension(c.name),
+        visible: columnConfig(this.#config, c.name).hidden !== true,
         ...(rows.has(c.name)
           ? { usedAs: 'rows' as const }
           : cols.has(c.name)
