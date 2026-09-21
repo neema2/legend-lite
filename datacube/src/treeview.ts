@@ -299,6 +299,33 @@ export function assemble(
     return own === undefined || own === NULL_GROUP ? null : own;
   };
 
+  /**
+   * The row dimensions as columns of their own, beside the tree.
+   *
+   * Built from the row PATHS, because that is the only place the
+   * value exists: the level's query groups by that dimension, so it
+   * comes back as the group key and becomes the tree's label rather
+   * than a column. Un-hiding cannot conjure it -- which is why
+   * turning "keep grouped columns" on restored `desk` and `book`,
+   * whose aggregated versions the query does return, and never
+   * `region`.
+   *
+   * ANCESTORS ARE FILLED: a row under AMER / Equities reads AMER in
+   * `region` and Equities in `desk`, rather than only its own level.
+   * A column that is blank on every row but one says less than the
+   * tree it sits beside.
+   */
+  const keptDims: ResultColumn[] =
+    mode === 'single' && snapshot.keepGroupedColumns === true
+      ? dims.map((name, d) => ({
+          name,
+          type: 'String',
+          values: rows.map((row) => (row.level > d
+            ? (row.path[d] ?? null)
+            : null)),
+        }))
+      : [];
+
   const dimColumns: ResultColumn[] =
     mode === 'single'
       ? [
@@ -327,7 +354,15 @@ export function assemble(
           }),
         }));
 
-  const valueColumns: ResultColumn[] = valueNames.map((name) => ({
+  // A dimension rebuilt from the paths REPLACES the query's own
+  // aggregated copy of it -- at this level that copy is a
+  // uniqueValueOnly over the whole group, which is blank whenever
+  // the group holds more than one value. Two columns of the same
+  // name, one blank, is worse than either alone.
+  const kept = new Set(keptDims.map((c) => c.name));
+  const valueColumns: ResultColumn[] = valueNames
+    .filter((name) => !kept.has(name))
+    .map((name) => ({
     name,
     type: valueTypes.get(name) ?? 'Unknown',
     values: rows.map((_row, i) => {
@@ -345,7 +380,7 @@ export function assemble(
   const epoch = [...levels.values()][0]?.table.epoch ?? 0;
 
   return {
-    columns: [...dimColumns, ...valueColumns],
+    columns: [...dimColumns, ...keptDims, ...valueColumns],
     rowCount: rows.length,
     epoch,
     elapsedMs,

@@ -87,6 +87,107 @@ describe('assemble', () => {
     assert.deepEqual(total?.values, [600, 100, 500, 200, 300]);
   });
 
+  describe('keeping the grouped columns', () => {
+    // Turning the option on restored `desk` and `book` -- whose
+    // aggregated versions the query returns -- and never `region`.
+    // At each level the query groups BY that dimension, so its value
+    // comes back as the group key and becomes the TREE's label; there
+    // is no `region` column to un-hide. It has to be rebuilt from the
+    // row paths, which is what this does.
+    const kept = (): ResultTable => {
+      const levels = fixture();
+      const rows = flattenTree(
+        TreeState.empty(true).expand(['EMEA']),
+        2,
+        childrenOf(levels) as never,
+      );
+      return assemble({ ...SNAPSHOT, keepGroupedColumns: true }, rows, levels);
+    };
+
+    it('rebuilds every row dimension as a column', () => {
+      const t = kept();
+      for (const name of ['region', 'desk']) {
+        assert.ok(t.columns.some((c) => c.name === name),
+          `${name} must be a column of its own`);
+      }
+      // The tree is still there: this is "as well as", not "instead".
+      assert.ok(t.columns.some((c) => c.name === TREE_COLUMN));
+    });
+
+    it('fills ANCESTORS, not just the row\'s own level', () => {
+      // Rows are: total, AMER, EMEA, EMEA/Credit, EMEA/Rates.
+      // A column blank on every row but one says less than the tree
+      // it sits beside, so a desk row under EMEA reads EMEA.
+      const t = kept();
+      const region = t.columns.find((c) => c.name === 'region');
+      const desk = t.columns.find((c) => c.name === 'desk');
+      assert.deepEqual(region?.values,
+        [null, 'AMER', 'EMEA', 'EMEA', 'EMEA']);
+      assert.deepEqual(desk?.values,
+        [null, null, null, 'Credit', 'Rates']);
+    });
+
+    it('does not ALSO carry the query\'s aggregated copy', () => {
+      // At this level that copy is a uniqueValueOnly over the whole
+      // group -- blank whenever the group holds more than one value.
+      // Two columns of the same name, one blank, is worse than either.
+      const t = kept();
+      for (const name of ['region', 'desk']) {
+        assert.equal(
+          t.columns.filter((c) => c.name === name).length, 1,
+          `${name} appears more than once`,
+        );
+      }
+    });
+
+    it('drops the aggregated copy the QUERY returns', () => {
+      // The fixture above slices the group keys off each level, so it
+      // has no duplicate to drop. The real level-1 result does: it
+      // groups by `region` and carries `desk` as a uniqueValueOnly
+      // aggregate, which is blank whenever the region holds more than
+      // one desk. Two columns called `desk`, one of them blank, is
+      // worse than either alone.
+      const levels = new Map<string, LevelData>();
+      levels.set(requestKey({ level: 1, parent: [] }), {
+        request: { level: 1, parent: [] },
+        table: table([
+          { name: 'region', values: ['AMER', 'EMEA'] },
+          { name: 'desk', values: [null, null] },
+          { name: '2023__|__total', values: [100, 500] },
+        ]),
+        paths: [['AMER'], ['EMEA']],
+        truncated: false,
+      });
+      const rows = flattenTree(
+        TreeState.empty(false), 2, childrenOf(levels) as never,
+      );
+      const t = assemble(
+        { ...SNAPSHOT, keepGroupedColumns: true }, rows, levels,
+      );
+      assert.equal(t.columns.filter((c) => c.name === 'desk').length, 1,
+        'the query\'s blank copy must give way to the one built from'
+        + ' the paths');
+      // And the surviving one is the rebuilt one, not the blanks.
+      const desk = t.columns.find((c) => c.name === 'desk');
+      assert.deepEqual(desk?.values, [null, null],
+        'at level one no desk is known, so both are null either way');
+      const region = t.columns.find((c) => c.name === 'region');
+      assert.deepEqual(region?.values, ['AMER', 'EMEA'],
+        'region comes from the paths, where its value actually is');
+    });
+
+    it('is OFF unless asked, which is what DataCube shows', () => {
+      const levels = fixture();
+      const rows = flattenTree(
+        TreeState.empty(true).expand(['EMEA']),
+        2,
+        childrenOf(levels) as never,
+      );
+      const t = assemble(SNAPSHOT, rows, levels);
+      assert.equal(t.columns.some((c) => c.name === 'desk'), false);
+    });
+  });
+
   it('uses ONE tree column by default, as DataCube does', () => {
     // groupDisplayType: 'singleColumn'. One column holds whichever
     // dimension belongs to the row, so the grid stays the same width

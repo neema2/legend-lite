@@ -238,9 +238,6 @@ export const generalPropertiesPanel: PanelBuilder = (ctx) => {
       checkbox(doc, 'Show root aggregation', c.showRootAggregation, (v) =>
         setConfig({ showRootAggregation: v }),
       ),
-      checkbox(doc, 'Show leaf count', c.showLeafCount, (v) =>
-        setConfig({ showLeafCount: v }),
-      ),
       // OFF by default, which is what DataCube shows: it leaves
       // ag-grid's `suppressRowGroupHidesColumns` alone, so grouping a
       // column hides it -- its values are the tree's now. Upstream
@@ -249,6 +246,18 @@ export const generalPropertiesPanel: PanelBuilder = (ctx) => {
       // put them back.
       checkbox(doc, 'Keep grouped columns in the grid',
         c.showGroupedColumns, (v) => setConfig({ showGroupedColumns: v }),
+      ),
+    ),
+    // ITS OWN ROW, so the badge can only be read as belonging to the
+    // leaf count. A marker at the end of a row of several checkboxes
+    // attaches itself to whichever one happens to be last: adding a
+    // working setting in front of it made that setting announce
+    // itself as "Not wired", which is worse than no marker at all.
+    field(
+      doc,
+      '',
+      checkbox(doc, 'Show leaf count', c.showLeafCount, (v) =>
+        setConfig({ showLeafCount: v }),
       ),
       // Honest marker: a leaf count needs a count aggregate added to
       // every level query, which is a query change rather than a

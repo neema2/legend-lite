@@ -288,6 +288,18 @@ export interface CubeSnapshot {
    */
   readonly pivotCast?: readonly { readonly name: string;
     readonly measure: string }[];
+  /**
+   * Keep a row dimension as a column of its own, beside the tree.
+   *
+   * Here rather than in a grid option because the TREE is what has
+   * to produce it: at each level the query groups BY that dimension
+   * and its value never comes back as a column -- it becomes the
+   * tree's label. So "keep the grouped columns" cannot be honoured
+   * by un-hiding anything; the column has to be built from the row
+   * paths, which is `assemble`'s job, and `assemble` is handed the
+   * snapshot. `treeColumnSort` reaches it the same way.
+   */
+  readonly keepGroupedColumns?: boolean;
   readonly measures: readonly Measure[];
   readonly sorts: readonly SortSpec[];
   readonly window?: RowWindow;

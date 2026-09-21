@@ -417,6 +417,7 @@ export function applyToSnapshot(
   });
   return {
     ...snapshot,
+    ...(config.showGroupedColumns ? { keepGroupedColumns: true } : {}),
     columns,
     maxRows: config.maxRows,
     treeColumnSort: config.treeColumnSort,
