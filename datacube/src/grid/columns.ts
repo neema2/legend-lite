@@ -267,10 +267,43 @@ export function buildColumnModel(
   // engine order behind the listed ones, so adding a measure does not
   // silently vanish from a saved view that predates it.
   const order = layout.order;
+  /**
+   * What a leaf is ORDERED BY.
+   *
+   * Its own name when it is a plain column, and its MEASURE when it
+   * is pivoted: `2021__|__notional` is a value crossed with a
+   * measure, and the order a configuration holds is a list of source
+   * columns. Matching on the full leaf name found nothing for a
+   * pivoted cube, so its columns could not be reordered at all.
+   */
+  const rankOf = (l: LeafColumn): string =>
+    l.path[l.path.length - 1] ?? l.name;
+
+  /**
+   * Which pivot VALUE block a leaf belongs to, by first appearance.
+   *
+   * Reordering the measures must happen INSIDE each block. A single
+   * ordering across every leaf would interleave the blocks --
+   * 2021's notional, 2022's notional, 2021's pnl -- which is not a
+   * pivot table any more.
+   */
+  const blocks = new Map<string, number>();
+  const blockOf = (l: LeafColumn): number => {
+    const key = l.path.slice(0, -1).join('\u0000');
+    const known = blocks.get(key);
+    if (known !== undefined) return known;
+    blocks.set(key, blocks.size);
+    return blocks.size - 1;
+  };
+  for (const l of visible) blockOf(l);
+
   const ordered = order
     ? [...visible].sort((a, b) => {
-        const ia = order.indexOf(a.name);
-        const ib = order.indexOf(b.name);
+        const ba = blockOf(a);
+        const bb = blockOf(b);
+        if (ba !== bb) return ba - bb;
+        const ia = order.indexOf(rankOf(a));
+        const ib = order.indexOf(rankOf(b));
         if (ia === -1 && ib === -1) return a.index - b.index;
         if (ia === -1) return 1;
         if (ib === -1) return -1;

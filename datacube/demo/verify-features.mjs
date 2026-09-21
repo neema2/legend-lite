@@ -1384,6 +1384,74 @@ try {
     return 'the grouped cube came back';
   });
 
+  // ---- getting rid of a menu ---------------------------------------------
+  //
+  // Reported for both menus: it opens, and then there is no way to
+  // close it. The menu listened for Escape on ITSELF, which works
+  // only while focus is still inside it -- one click elsewhere ends
+  // that -- and nothing at all watched for a press outside. The
+  // title bar button was worse: pressing it again re-ran `show()`,
+  // which closes and immediately reopens, so it looked inert.
+
+  const menuOpen = () => page.locator('.dc-menu').count();
+
+  await check('a click elsewhere dismisses the grid menu', async () => {
+    await page.locator('.dc-row .dc-cell').first().click({ button: 'right' });
+    await page.waitForSelector('.dc-menu', { timeout: 5000 });
+    if (!(await menuOpen())) throw new Error('the menu never opened');
+    // The titlebar is a safe place to press: inert, and nowhere near
+    // the menu.
+    await page.locator('.dc-titlebar-title').click();
+    await page.waitForTimeout(200);
+    const left = await menuOpen();
+    if (left) throw new Error(`${left} menu(s) survived a click elsewhere`);
+    return 'gone';
+  });
+
+  await check('Escape dismisses the grid menu, focus or no focus', async () => {
+    await page.locator('.dc-row .dc-cell').first().click({ button: 'right' });
+    await page.waitForSelector('.dc-menu', { timeout: 5000 });
+    // Move focus OUT of the menu first: listening on the menu alone
+    // is what made Escape unreliable.
+    await page.locator('.dc-tool-panel-search').focus().catch(() => {});
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+    const left = await menuOpen();
+    if (left) throw new Error(`${left} menu(s) survived Escape`);
+    return 'gone';
+  });
+
+  await check('the title bar button opens AND closes its menu', async () => {
+    await page.click('.dc-titlebar-menu');
+    await page.waitForSelector('.dc-menu', { timeout: 5000 });
+    await page.click('.dc-titlebar-menu');
+    await page.waitForTimeout(250);
+    const left = await menuOpen();
+    if (left) {
+      throw new Error(`${left} menu(s) left: pressing the button again`
+        + ' reopened it rather than closing it');
+    }
+    return 'toggles';
+  });
+
+  await check('the filter editor is reachable from the status bar', async () => {
+    // It was two levels down a right-click menu -- Filter, then
+    // "Filters..." -- and went unfound. DataCube puts a Filter button
+    // in the status bar (DataCubeStatusBar) for this reason.
+    const button = page.locator('.dc-status-filter');
+    if (!(await button.count())) {
+      throw new Error('no Filter control in the status bar');
+    }
+    await button.first().click();
+    await page.waitForTimeout(400);
+    const shown = await page.locator('.dc-filter-empty, .dc-filter-tree')
+      .count();
+    if (!shown) throw new Error('the Filter button opened nothing');
+    await page.keyboard.press('Escape');
+    await page.waitForTimeout(200);
+    return 'opens the editor';
+  });
+
   // ---- the chrome ---------------------------------------------------------
 
   await check('the sidebar collapses and gives the width to the grid', async () => {

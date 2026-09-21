@@ -24,7 +24,11 @@
 
 import { TREE_COLUMN, type ColumnModel, type LeafColumn } from './columns.ts';
 import { computeRowWindow, isCovered, type RowWindow } from './viewport.ts';
-import { makeHeaderDraggable } from '../ui/pivot-panel.ts';
+import {
+  currentHeaderDrag,
+  makeHeaderDraggable,
+  setHeaderDrag,
+} from '../ui/pivot-panel.ts';
 import type { ColumnFormat, FormatterCache } from '../format.ts';
 import { DEFAULT_FORMAT } from '../format.ts';
 import type { ResultTable, Scalar } from '../result.ts';
@@ -85,6 +89,14 @@ export interface GridOptions {
    * can never land is worse than no drag handle at all.
    */
   readonly canGroup?: (column: string) => boolean;
+  /**
+   * A new left-to-right order, from dragging one header onto another.
+   *
+   * The whole order rather than a move, because the grid is what
+   * knows the order that is on screen; handing over a pair would
+   * make the host reconstruct it.
+   */
+  readonly onReorder?: (order: readonly string[]) => void;
   /**
    * A per-cell background, for a heatmap.
    *
@@ -329,6 +341,7 @@ export class DataGrid {
         const leaf =
           cell.leafIndex !== undefined ? model.leaves[cell.leafIndex] : undefined;
         if (leaf) {
+          this.#reorderable(el, leaf, model);
           el.dataset['column'] = leaf.name;
           // A STICKY COLUMN'S HEADER HAS TO BE STICKY TOO.
           //
@@ -404,6 +417,107 @@ export class DataGrid {
     this.#head.style.transform = over === 0
       ? ''
       : `translateX(${-over}px)`;
+  }
+
+  /**
+   * Dragging a header onto another reorders the columns.
+   *
+   * Only leaves that NAME ONE SOURCE COLUMN take part. A pivoted
+   * leaf is `2021__|__notional` -- a value crossed with a measure --
+   * and the order the configuration holds is a list of source
+   * columns, so there is nothing to move a pivot block to. The tree
+   * column is the row dimensions and is not a column of the data at
+   * all.
+   *
+   * Which HALF of the target decides the side, as every column
+   * reorder does: the left half puts the dragged column before it,
+   * the right half after. Without that, dragging rightwards can
+   * never place a column last.
+   */
+  #reorderable(el: HTMLElement, leaf: LeafColumn, model: ColumnModel): void {
+    const onReorder = this.#options.onReorder;
+    if (!onReorder) return;
+    // A PIVOTED LEAF REORDERS ITS MEASURE. `2021__|__notional` is a
+    // value crossed with a measure, and the order a configuration
+    // holds is a list of source columns -- so dragging it moves
+    // `notional` among the measures, in every value block at once.
+    // That is the only outcome the configuration can express, and
+    // refusing the drag instead (which this first did) leaves a
+    // pivoted cube with no way to reorder anything at all.
+    const rank = (l: LeafColumn): string =>
+      l.path[l.path.length - 1] ?? l.name;
+    const order: string[] = [];
+    for (const l of model.leaves) {
+      if (l.name === TREE_COLUMN) continue;
+      const key = rank(l);
+      if (!order.includes(key)) order.push(key);
+    }
+    const self = rank(leaf);
+    if (!order.includes(self)) return;
+
+    // Draggable even when it cannot be GROUPED: a measure is
+    // reorderable, it just has nowhere to be dropped in the zones.
+    el.draggable = true;
+    el.classList.add('dc-reorderable');
+    el.addEventListener('dragstart', (event) => {
+      setHeaderDrag({ column: leaf.name });
+      if (event.dataTransfer) {
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', leaf.name);
+      }
+    });
+    el.addEventListener('dragend', () => {
+      setHeaderDrag(null);
+      this.#clearDropMarks();
+    });
+
+    const side = (event: DragEvent): 'before' | 'after' => {
+      const box = el.getBoundingClientRect();
+      return event.clientX > box.left + box.width / 2 ? 'after' : 'before';
+    };
+    const held = (): string | null => {
+      const drag = currentHeaderDrag();
+      if (!drag) return null;
+      // The MEASURE behind what is being dragged, so a pivoted leaf
+      // is compared with this one on the same footing. Two leaves of
+      // the same measure in different value blocks have nothing to
+      // reorder between them.
+      const moved = model.leaves.find((l) => l.name === drag.column);
+      const key = moved ? rank(moved) : drag.column;
+      if (key === self) return null;
+      return order.includes(key) ? key : null;
+    };
+
+    el.addEventListener('dragover', (event) => {
+      if (!held()) return;
+      // Only a prevented dragover makes an element a drop target.
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'move';
+      this.#clearDropMarks();
+      el.classList.add(`dc-drop-${side(event)}`);
+    });
+    el.addEventListener('dragleave', () => {
+      el.classList.remove('dc-drop-before', 'dc-drop-after');
+    });
+    el.addEventListener('drop', (event) => {
+      const moved = held();
+      this.#clearDropMarks();
+      if (!moved) return;
+      event.preventDefault();
+      const where = side(event);
+      const next = order.filter((n) => n !== moved);
+      const at = next.indexOf(self) + (where === 'after' ? 1 : 0);
+      next.splice(at, 0, moved);
+      setHeaderDrag(null);
+      onReorder(next);
+    });
+  }
+
+  #clearDropMarks(): void {
+    for (const e of this.#head.querySelectorAll('.dc-drop-before,'
+      + ' .dc-drop-after')) {
+      e.classList.remove('dc-drop-before', 'dc-drop-after');
+    }
   }
 
   /**

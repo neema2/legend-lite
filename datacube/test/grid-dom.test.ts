@@ -523,3 +523,204 @@ describe('the header follows a horizontal ELASTIC OVERSCROLL', () => {
     assert.equal(head.scrollLeft, 80);
   });
 });
+
+describe('dragging a header to REORDER the columns', () => {
+  // There was no way to reorder columns in the grid at all: headers
+  // were draggable only into the pivot zones, and the order could
+  // only be changed through the editor's Columns tab.
+  let ordered: readonly string[] | null;
+
+  /**
+   * A FLAT table. `makeTable` is pivoted (`2023__|__total`), and a
+   * pivoted leaf is a value crossed with a measure -- there is no
+   * source column to move it to, so it is deliberately not
+   * reorderable and a fixture made of them tests nothing.
+   */
+  const flat = (): ResultTable => ({
+    columns: [
+      { name: 'region', type: 'String', values: ['a', 'b', 'c'] },
+      { name: 'desk', type: 'String', values: ['x', 'y', 'z'] },
+      { name: 'total', type: 'Float', values: [1, 2, 3] },
+    ],
+    rowCount: 3,
+    epoch: 1,
+    elapsedMs: 0,
+  });
+
+  const build2 = (): void => {
+    ordered = null;
+    const table = flat();
+    grid = new DataGrid(container, new FormatterCache(), {
+      rowHeight: ROW_HEIGHT,
+      onReorder: (order) => { ordered = order; },
+    });
+    stubLayout(container.querySelector('.dc-scroller') as Element, VIEW_HEIGHT);
+    grid.setColumns(buildColumnModel(table, [], ['total']));
+    grid.setRows(table, 0, table.rowCount);
+  };
+
+  /** A header by its column name. */
+  const th = (name: string): HTMLElement => {
+    const el = container.querySelector(`.dc-th[data-column="${name}"]`);
+    assert.ok(el, `no header for ${name}`);
+    return el as unknown as HTMLElement;
+  };
+
+  /**
+   * Drag `from` onto `to`. jsdom has no layout, so the target's box is
+   * stubbed: which HALF the pointer is in is the whole question, and
+   * a zero-width box cannot express it.
+   */
+  const dragOnto = (from: string, to: string, half: 'left' | 'right') => {
+    const target = th(to);
+    Object.defineProperty(target, 'getBoundingClientRect', {
+      value: () => ({ left: 100, width: 100, top: 0, height: 24,
+        right: 200, bottom: 24, x: 100, y: 0, toJSON: () => ({}) }),
+      configurable: true,
+    });
+    th(from).dispatchEvent(new dom.window.Event('dragstart', {
+      bubbles: true,
+    }));
+    const at = half === 'left' ? 120 : 180;
+    for (const type of ['dragover', 'drop']) {
+      target.dispatchEvent(new dom.window.MouseEvent(type, {
+        bubbles: true, cancelable: true, clientX: at,
+      }));
+    }
+  };
+
+  it('moves a column BEFORE the one dropped on, from its left half', () => {
+    build2();
+    dragOnto('total', 'region', 'left');
+    assert.deepEqual(ordered, ['total', 'region', 'desk']);
+  });
+
+  it('moves it AFTER, from the right half', () => {
+    // Without the two halves a column can never be placed last.
+    build2();
+    dragOnto('region', 'desk', 'right');
+    assert.deepEqual(ordered, ['desk', 'region', 'total']);
+  });
+
+  it('marks the edge it will land against while dragging over', () => {
+    build2();
+    const target = th('region');
+    Object.defineProperty(target, 'getBoundingClientRect', {
+      value: () => ({ left: 100, width: 100, top: 0, height: 24,
+        right: 200, bottom: 24, x: 100, y: 0, toJSON: () => ({}) }),
+      configurable: true,
+    });
+    th('desk').dispatchEvent(
+      new dom.window.Event('dragstart', { bubbles: true }));
+    target.dispatchEvent(new dom.window.MouseEvent('dragover', {
+      bubbles: true, cancelable: true, clientX: 190,
+    }));
+    assert.ok(target.classList.contains('dc-drop-after'),
+      'a highlight over the whole target says "here somewhere", which'
+      + ' is not the question');
+    assert.equal(target.classList.contains('dc-drop-before'), false);
+  });
+
+  it('does nothing when a header is dropped on itself', () => {
+    build2();
+    dragOnto('region', 'region', 'right');
+    assert.equal(ordered, null);
+  });
+});
+
+describe('reordering a PIVOTED column', () => {
+  // "You should be able to reorder any column including pivot
+  // columns." The first version refused them: a pivoted leaf is
+  // `2021__|__total`, a value crossed with a measure, and the order
+  // a configuration holds is a list of source columns -- so there
+  // was nothing to move it to and a pivoted cube could not be
+  // reordered at all.
+  //
+  // Dragging one moves its MEASURE, in every value block at once,
+  // which is the only outcome the configuration can express.
+  let ordered: readonly string[] | null;
+
+  const twoMeasures = (): ResultTable => ({
+    columns: [
+      { name: '2023__|__notional', type: 'Float', values: [1] },
+      { name: '2023__|__pnl', type: 'Float', values: [2] },
+      { name: '2024__|__notional', type: 'Float', values: [3] },
+      { name: '2024__|__pnl', type: 'Float', values: [4] },
+    ],
+    rowCount: 1,
+    epoch: 1,
+    elapsedMs: 0,
+  });
+
+  const build3 = (order?: readonly string[]) => {
+    ordered = null;
+    const table = twoMeasures();
+    grid = new DataGrid(container, new FormatterCache(), {
+      rowHeight: ROW_HEIGHT,
+      onReorder: (o) => { ordered = o; },
+    });
+    stubLayout(container.querySelector('.dc-scroller') as Element, VIEW_HEIGHT);
+    grid.setColumns(buildColumnModel(
+      table, [], ['notional', 'pnl'],
+      order ? { order } : {}, 1,
+    ));
+    grid.setRows(table, 0, table.rowCount);
+    return table;
+  };
+
+  const leaves = (): string[] =>
+    [...container.querySelectorAll('.dc-th[data-column]')]
+      .map((e) => (e as HTMLElement).dataset['column'] ?? '');
+
+  it('reports the MEASURE order, not the leaf name', () => {
+    build3();
+    const target = container.querySelector(
+      '.dc-th[data-column="2023__|__notional"]') as HTMLElement;
+    Object.defineProperty(target, 'getBoundingClientRect', {
+      value: () => ({ left: 100, width: 100, top: 0, height: 24,
+        right: 200, bottom: 24, x: 100, y: 0, toJSON: () => ({}) }),
+      configurable: true,
+    });
+    const from = container.querySelector(
+      '.dc-th[data-column="2024__|__pnl"]') as HTMLElement;
+    from.dispatchEvent(new dom.window.Event('dragstart', { bubbles: true }));
+    target.dispatchEvent(new dom.window.MouseEvent('drop', {
+      bubbles: true, cancelable: true, clientX: 120,
+    }));
+    assert.deepEqual(ordered, ['pnl', 'notional'],
+      'dragging a pivoted leaf moves the measure behind it');
+  });
+
+  it('applies that order INSIDE each value block', () => {
+    // A single ordering across every leaf would interleave the
+    // blocks -- 2023 notional, 2024 notional, 2023 pnl -- which is
+    // not a pivot table any more.
+    build3(['pnl', 'notional']);
+    assert.deepEqual(leaves(), [
+      '2023__|__pnl', '2023__|__notional',
+      '2024__|__pnl', '2024__|__notional',
+    ]);
+  });
+
+  it('leaves the blocks in their own order', () => {
+    build3(['pnl', 'notional']);
+    const years = leaves().map((n) => n.split('__|__')[0]);
+    assert.deepEqual(years, ['2023', '2023', '2024', '2024'],
+      '2023 before 2024, whatever the measures do');
+  });
+
+  it('does nothing between two leaves of the same measure', () => {
+    // 2023's notional and 2024's notional are the same measure, so
+    // there is no order to change between them.
+    build3();
+    const target = container.querySelector(
+      '.dc-th[data-column="2024__|__notional"]') as HTMLElement;
+    const from = container.querySelector(
+      '.dc-th[data-column="2023__|__notional"]') as HTMLElement;
+    from.dispatchEvent(new dom.window.Event('dragstart', { bubbles: true }));
+    target.dispatchEvent(new dom.window.MouseEvent('drop', {
+      bubbles: true, cancelable: true, clientX: 120,
+    }));
+    assert.equal(ordered, null);
+  });
+});

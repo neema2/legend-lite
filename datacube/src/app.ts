@@ -259,6 +259,9 @@ export class CubeApp {
       appearance: this.#config.appearance,
       columnAppearance: toColumnAppearance(this.#config),
       canGroup: (c) => this.#isDimension(c),
+      onReorder: (order) => {
+        void this.applyConfiguration({ columnOrder: [...order] });
+      },
       cellBackground: (leaf, row, value) => {
         const heat = this.#heatmaps.get(leaf.index);
         if (!heat) return null;
@@ -511,6 +514,31 @@ export class CubeApp {
     const doc = this.#doc;
     const bar = this.#els.stats;
     bar.replaceChildren();
+
+    // THE FILTER, WHERE IT CAN BE FOUND.
+    //
+    // The filter editor was reachable only through the grid's
+    // right-click menu, two levels down -- Filter, then "Filters..."
+    // -- and a person looking for it did not find it. DataCube puts
+    // a Filter button in the STATUS BAR for exactly this reason
+    // (DataCubeStatusBar: a filter icon and an underlined "Filter"
+    // that opens the editor), so this does too.
+    //
+    // It also SAYS whether one is in force. A cube showing a subset
+    // with nothing on screen to indicate it is how someone reads a
+    // filtered total as the whole book.
+    const filtered = this.#snapshot.filter !== undefined;
+    const filter = doc.createElement('button');
+    filter.type = 'button';
+    filter.className = filtered
+      ? 'dc-status-filter dc-on'
+      : 'dc-status-filter';
+    filter.textContent = filtered ? '⧨ Filter (on)' : '⧨ Filter';
+    filter.title = filtered
+      ? 'A filter is in force. Click to edit it.'
+      : 'Filter the cube';
+    filter.addEventListener('click', () => this.openFilters());
+    bar.append(filter, this.#statusSeparator());
 
     const rows = doc.createElement('div');
     rows.className = 'dc-status-rows';
@@ -1402,6 +1430,10 @@ export class CubeApp {
     burger.setAttribute('aria-label', 'Menu');
     burger.textContent = '\u2261';
     burger.addEventListener('click', (event) => {
+      if (this.#menu.open) {
+        this.#menu.close();
+        return;
+      }
       // Undo and Redo are DISABLED rather than hidden when there is
       // nothing to go back to -- the same choice the grid's own menu
       // makes everywhere else, and the reason the entries exist at
@@ -1433,7 +1465,12 @@ export class CubeApp {
       )) {
         items.push({ id: 'view.dimension', label: d.name, column: d.name });
       }
-      this.#menu.show([{ label: '', items }], event.clientX, event.clientY);
+      // A second press on the hamburger SHUTS it. Without this the
+      // outside-press dismissal closes the menu and the click that
+      // follows reopens it, so the button appears to do nothing and
+      // the menu cannot be dismissed from the control that opened it.
+      this.#menu.show([{ label: '', items }], event.clientX, event.clientY,
+        burger);
     });
     bar.append(burger);
 

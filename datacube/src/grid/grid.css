@@ -115,6 +115,22 @@
   background: var(--dc-head-bg);
 }
 
+/* A header that can be picked up and moved. */
+.dc-th.dc-reorderable {
+  cursor: grab;
+}
+
+/* WHERE IT WILL LAND, on the edge it will land against. A highlight
+   over the whole target says "here somewhere", which is not the
+   question being asked. */
+.dc-th.dc-drop-before {
+  box-shadow: inset 2px 0 0 0 var(--dc-focus);
+}
+
+.dc-th.dc-drop-after {
+  box-shadow: inset -2px 0 0 0 var(--dc-focus);
+}
+
 /* -- body --------------------------------------------------------- */
 
 .dc-scroller {

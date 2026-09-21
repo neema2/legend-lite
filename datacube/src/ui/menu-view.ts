@@ -32,6 +32,9 @@ export class MenuView {
     return this.#el !== null;
   }
 
+  /** What opened the menu; a press on it must not dismiss. */
+  #trigger: HTMLElement | null = null;
+
   /** Items currently rendered, in order. For tests. */
   get items(): HTMLElement[] {
     return this.#el
@@ -39,9 +42,22 @@ export class MenuView {
       : [];
   }
 
-  show(groups: readonly MenuGroup[], x: number, y: number): void {
+  /**
+   * @param trigger the control that opened the menu, if any. A
+   *   pointer press on it does NOT dismiss: that press belongs to
+   *   the click which will toggle the menu shut, and closing here
+   *   first would let it reopen instead -- which is precisely how
+   *   the title bar menu became impossible to get rid of.
+   */
+  show(
+    groups: readonly MenuGroup[],
+    x: number,
+    y: number,
+    trigger?: HTMLElement,
+  ): void {
     this.close();
     if (groups.length === 0) return;
+    this.#trigger = trigger ?? null;
 
     this.#returnFocus = this.#doc.activeElement;
     const menu = this.#doc.createElement('div');
@@ -64,6 +80,20 @@ export class MenuView {
     });
 
     menu.addEventListener('keydown', this.#onKeyDown);
+    // ON THE DOCUMENT, not on the menu.
+    //
+    // The menu had no dismissal at all beyond choosing an entry: a
+    // click anywhere else left it standing, and Escape only worked
+    // while focus was still inside it -- which one click elsewhere
+    // ends. So a person who opened it and then looked away had no
+    // way to close it short of reloading.
+    //
+    // Pointerdown rather than click, so the menu is gone before the
+    // press it was dismissed by can act on whatever is underneath;
+    // and captured, so a handler that stops propagation cannot keep
+    // the menu alive.
+    this.#doc.addEventListener('pointerdown', this.#onOutside, true);
+    this.#doc.addEventListener('keydown', this.#onEscape, true);
     this.#doc.body.appendChild(menu);
     this.#el = menu;
     this.#place(x, y);
@@ -130,8 +160,26 @@ export class MenuView {
     return el;
   }
 
+  #onOutside = (event: Event): void => {
+    const target = event.target;
+    if (!(target && 'nodeType' in (target as object))) return;
+    const node = target as Node;
+    if (this.#el?.contains(node)) return;
+    if (this.#trigger?.contains(node)) return;
+    this.close();
+  };
+
+  #onEscape = (event: KeyboardEvent): void => {
+    if (event.key !== 'Escape' || !this.#el) return;
+    event.preventDefault();
+    this.close();
+  };
+
   close(): void {
     if (!this.#el) return;
+    this.#doc.removeEventListener('pointerdown', this.#onOutside, true);
+    this.#doc.removeEventListener('keydown', this.#onEscape, true);
+    this.#trigger = null;
     this.#el.removeEventListener('keydown', this.#onKeyDown);
     this.#el.remove();
     this.#el = null;

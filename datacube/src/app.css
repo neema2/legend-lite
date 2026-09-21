@@ -303,6 +303,36 @@
   flex: 0 0 auto;
 }
 
+.dc-status-filter {
+  font: inherit;
+  font-size: var(--dc-text-sm-size);
+  line-height: 1;
+  border: 0;
+  padding: 0 var(--dc-pad-1);
+  background: transparent;
+  /* Underlined and in the accent, as theirs is: in a strip of
+     read-only figures, the one thing that is clickable has to look
+     it. */
+  color: var(--dc-active, #0284c7);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.dc-status-filter:hover {
+  color: var(--tw-black);
+}
+
+.dc-status-filter:focus-visible {
+  outline: 1.5px solid var(--dc-active, #0284c7);
+  outline-offset: -1px;
+}
+
+/* A filter in force is state, not decoration: it changes what every
+   number in the cube means. */
+.dc-status-filter.dc-on {
+  font-weight: 500;
+}
+
 /* -- the overlay ------------------------------------------------------ */
 
 .dc-app-overlay {
