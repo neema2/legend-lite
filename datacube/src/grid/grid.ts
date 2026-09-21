@@ -370,6 +370,37 @@ export class DataGrid {
   }
 
   /**
+   * The content width of each column, as currently rendered.
+   *
+   * `scrollWidth` rather than any text measurement: a cell clips with
+   * `overflow: hidden`, and scrollWidth is exactly the width its
+   * content wanted. That also means this measures WHAT IS ON SCREEN
+   * -- the grid is virtualised, so a column whose widest value is
+   * ten thousand rows down does not count. ag-grid's own
+   * auto-size-to-fit-content has the same property, so matching it
+   * is the faithful behaviour rather than a shortcut.
+   *
+   * The header is included: a column auto-sized to its values alone
+   * can end up too narrow to read its own name.
+   */
+  measureColumns(names?: readonly string[]): Record<string, number> {
+    const model = this.#model;
+    if (!model) return {};
+    const want = names ? new Set(names) : null;
+    const out: Record<string, number> = {};
+    for (const leaf of model.leaves) {
+      if (want && !want.has(leaf.name)) continue;
+      let max = 0;
+      const cells = this.#root.querySelectorAll<HTMLElement>(
+        `[data-column="${CSS.escape(leaf.name)}"]`,
+      );
+      for (const cell of cells) max = Math.max(max, cell.scrollWidth);
+      if (max > 0) out[leaf.name] = max;
+    }
+    return out;
+  }
+
+  /**
    * Column widths, shared by the header grid and the body rows.
    *
    * Both must derive from the SAME leaf list, or the header drifts out

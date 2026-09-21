@@ -62,10 +62,43 @@ function colRef(param: string, name: string): string {
   return `$${param}.${ident(name)}`;
 }
 
+/**
+ * A date or a timestamp, in LOCAL terms and to the precision it has.
+ *
+ * Two decisions, and both were wrong before.
+ *
+ * LOCAL, not UTC. Every Date in this product is built in local terms
+ * -- a date column arrives as epoch milliseconds and is rebuilt at
+ * LOCAL midnight, which is what the grid then displays. Reading it
+ * back with `toISOString()` shifts it: local midnight in New York is
+ * 05:00 UTC the same day, but local midnight in Sydney is 13:00 UTC
+ * the day BEFORE, so a filter built from a displayed date would name
+ * a different day than the one on screen. This is the fourth
+ * timezone fault in this area; every one of them came from mixing the
+ * two frames.
+ *
+ * FULL PRECISION when there is any. A date keeps ten characters, but
+ * a timestamp keeps its time, because truncating one made a group key
+ * match its whole DAY -- drilling into a single minute of trading
+ * returned every trade that day. A wrong answer with no error is
+ * worse than an error. Midnight still prints as a plain date, which
+ * compares correctly against a timestamp column anyway, and the core
+ * parses both forms (`SpecParser.parseDateOrDateTime`).
+ */
+export function temporalLiteral(v: Date): string {
+  const p = (n: number): string => String(n).padStart(2, '0');
+  const day = `${v.getFullYear()}-${p(v.getMonth() + 1)}-${p(v.getDate())}`;
+  const midnight =
+    v.getHours() === 0 && v.getMinutes() === 0 && v.getSeconds() === 0;
+  return midnight
+    ? `%${day}`
+    : `%${day}T${p(v.getHours())}:${p(v.getMinutes())}:${p(v.getSeconds())}`;
+}
+
 export function literal(v: FilterValue): string {
   if (typeof v === 'string') return `'${escapePure(v)}'`;
   if (typeof v === 'boolean') return v ? 'true' : 'false';
-  if (v instanceof Date) return `%${v.toISOString().slice(0, 10)}`;
+  if (v instanceof Date) return temporalLiteral(v);
   if (Number.isInteger(v)) return String(v);
   return String(v);
 }
@@ -298,18 +331,46 @@ export const NULL_GROUP = '\u0000null';
  * isEmpty test. Without that, expanding a group whose key is null
  * silently returns no children.
  */
+/** The Pure types whose values are temporal. */
+const TEMPORAL = new Set(['Date', 'StrictDate', 'DateTime']);
+
+/**
+ * A group key, turned back into the value it came from.
+ *
+ * Paths are TEXT -- one string per level -- so a temporal key
+ * arrives here as the ISO form `groupValue` wrote. Comparing that
+ * string against a timestamp column is what produced `Conversion
+ * Error: invalid timestamp field format`, so the declared type of
+ * the dimension decides how to read it back.
+ *
+ * A value that does not parse is left as text rather than turned
+ * into `Invalid Date`: a filter that cannot be built is better than
+ * one that silently matches nothing.
+ */
+function keyValue(type: string | undefined, value: string): FilterValue {
+  if (type === undefined || !TEMPORAL.has(type)) return value;
+  const at = new Date(value);
+  return Number.isNaN(at.getTime()) ? value : at;
+}
+
 function parentConditions(
   snapshot: CubeSnapshot,
   parent: RowPath,
 ): FilterNode[] {
   const out: FilterNode[] = [];
+  const typeOf = new Map(snapshot.columns.map((c) => [c.name, c.type]));
   parent.forEach((value, i) => {
     const column = snapshot.rows[i];
     if (column === undefined) return;
     out.push(
       value === NULL_GROUP
         ? { kind: 'condition', column, operator: 'isEmpty' }
-        : { kind: 'condition', column, operator: 'equal', value },
+        : {
+            kind: 'condition',
+            column,
+            operator: 'equal',
+            value: keyValue(typeOf.get(column), value),
+          },
     );
   });
   return out;
@@ -387,7 +448,12 @@ export function serialize(
   // them: `_groupByAggCols` aggregates every SELECTED column that is
   // not a group key. So the projection has to carry them.
   const grouping = groupCols.length > 0 && snapshot.pivotOn.length === 0;
-  const needed = grouping && snapshot.measures.length === 0
+  // A measureless PIVOT needs the same widening, and for the same
+  // reason: its aggregates are synthesised from the cube's own
+  // columns, and aggregating a column the SELECT dropped is not a
+  // wider answer but an unresolvable one.
+  const pivoting = snapshot.pivotOn.length > 0;
+  const needed = (grouping || pivoting) && snapshot.measures.length === 0
     ? detailColumns(snapshot)
     : referencedColumns(snapshot, groupCols);
   if (needed.length > 0) {
@@ -401,8 +467,6 @@ export function serialize(
     const all = detailColumns(snapshot);
     if (all.length > 0) parts.push(`select(~[${all.map(ident).join(', ')}])`);
   }
-
-  const aggs = snapshot.measures.map(aggregateSpec).join(', ');
 
   /**
    * Every column that is not a group key, aggregated.
@@ -457,18 +521,67 @@ export function serialize(
   );
   const pivotOn = snapshot.pivotOn.filter((c) => !excludedFromPivot.has(c));
 
-  if (pivotOn.length > 0) {
-    // A pivot needs something to aggregate. With no measures this
-    // emitted `pivot(~[year], ~[])`, which is not a query -- the
-    // compiler rejects it far from the cause, and a UI that let you
-    // drag a column into the column zone before choosing a measure
-    // could produce it. Refuse here, where the reason is known.
-    if (snapshot.measures.length === 0) {
-      throw new CubeRefusal(
-        `cannot pivot on ${pivotOn.join(', ')} with no measures: ` +
-          'a pivot aggregates, so it needs at least one',
-      );
+  /**
+   * What a PIVOT aggregates: the measures, and only the measures.
+   *
+   * `_pivotAggCols` takes every selected column whose kind is
+   * MEASURE, minus the pivot columns themselves and anything
+   * excluded from the pivot -- and its comment says why dimensions
+   * are left out where `groupBy` includes them: "pivot aggregation on
+   * dimension columns (e.g. unique values aggregator) are not
+   * helpful". It then passes the list through `_fixEmptyAggCols`, so
+   * a cube with no measures gets the filler count rather than a
+   * refusal.
+   *
+   * This replaced a refusal of mine. Pivoting a cube with no
+   * configured measure threw `CubeRefusal`, which was thrown from
+   * inside a floating refresh -- so the click produced an uncaught
+   * error, the grid kept the old view with no explanation, and
+   * `pivotOn` stayed set, so every later query threw the same thing.
+   * One click wedged the cube until a reload. Meanwhile the same
+   * cube grouped happily, because `groupedAggs` has always
+   * synthesised its aggregates. The inconsistency was mine, not
+   * DataCube's.
+   */
+  function pivotAggs(on: readonly string[], projected: readonly string[]):
+  string {
+    // A CONFIGURED measure is the explicit ask and always aggregates,
+    // whatever the projection holds. It has to come first and it has
+    // to come from `measures` rather than from the projected columns:
+    // a `count` does not need its source column, so that column is
+    // deliberately not selected, and reading the projection instead
+    // dropped the measure and substituted the filler -- which is
+    // exactly what the count test caught.
+    if (snapshot.measures.length > 0) {
+      return snapshot.measures.map(aggregateSpec).join(', ');
     }
+    // None configured: synthesise, which is the part that was
+    // missing. Measures only -- `_pivotAggCols` excludes dimensions
+    // where `groupBy` includes them, because "pivot aggregation on
+    // dimension columns (e.g. unique values aggregator) are not
+    // helpful".
+    const isOn = new Set(on);
+    const specOf = new Map(snapshot.columns.map((c) => [c.name, c]));
+    const specs: string[] = [];
+    for (const name of projected) {
+      if (isOn.has(name) || excludedFromPivot.has(name)) continue;
+      const spec = specOf.get(name);
+      // The same measure test the groupBy path uses: an explicit
+      // kind wins, and a bare number defaults to a measure.
+      const numeric = spec?.type === 'Integer' || spec?.type === 'Float';
+      const isMeasure = spec?.kind === 'measure'
+        || (numeric && spec?.kind === undefined);
+      if (!isMeasure) continue;
+      specs.push(aggregateSpec({ name, column: name, fn: 'sum' }));
+    }
+    return specs.length > 0
+      ? specs.join(', ')
+      // `_fixEmptyAggCols`: a pivot must aggregate something.
+      : `count:x|${colRef('x', on[0] ?? '')}:y|$y->count()`;
+  }
+
+  if (pivotOn.length > 0) {
+    const aggs = pivotAggs(pivotOn, needed);
     const on = pivotOn.map(ident).join(', ');
     if (snapshot.pivotValues && snapshot.pivotValues.length > 0) {
       // Pinning values also PRE-FILTERS the source, dropping groups

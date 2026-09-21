@@ -128,6 +128,13 @@ const VIEW_KEY = 'datacube.savedView';
 /** DataCube's --ag-row-height. Kept beside the CSS token in theme.css. */
 const DATACUBE_ROW_HEIGHT = 20;
 
+/** Room for the cell's own padding and its border. */
+const AUTO_SIZE_PAD = 8;
+/** Narrow enough to be honest, wide enough to still be grabbable. */
+const AUTO_SIZE_MIN = 48;
+/** One long free-text column must not push the rest off screen. */
+const AUTO_SIZE_MAX = 480;
+
 export class CubeApp {
   readonly #doc: Document;
   readonly #options: CubeAppOptions;
@@ -322,6 +329,33 @@ export class CubeApp {
     this.#refreshFormats();
     this.#refreshToolPanel();
     await this.#controller.update({ ...next, epoch: next.epoch + 1 });
+  }
+
+  /**
+   * Refresh, and put a failure where the user can see it.
+   *
+   * `void this.#refresh()` was a FLOATING promise at six call sites,
+   * and the query it starts can legitimately refuse -- a pivot with
+   * nothing to aggregate, a filter the type checker rejects. A
+   * refusal there became an uncaught error in the console: the grid
+   * went on showing the previous answer with no hint that the click
+   * had failed.
+   *
+   * Worse, the snapshot that caused it STAYED. Every later query
+   * carried the same bad shape and threw the same refusal, so a
+   * single click on one menu entry wedged the cube until a reload.
+   * That is why `previous` is not optional at the call sites that
+   * changed the query: rolling back is what keeps one refused action
+   * from ending the session.
+   */
+  #refreshOr(previous: CubeSnapshot | null): void {
+    this.#refresh().catch((error: unknown) => {
+      this.#status(
+        error instanceof Error ? error.message : String(error),
+        'error',
+      );
+      if (previous) this.#snapshot = previous;
+    });
   }
 
   /** Re-fill the format map in place. See `#formats`. */
@@ -541,18 +575,20 @@ export class CubeApp {
   // -- the drag zones -------------------------------------------------
 
   #onZoneChange(zone: Zone, columns: readonly string[]): void {
+    const previous = this.#snapshot;
     this.#snapshot =
       zone === 'rows'
         ? { ...this.#snapshot, rows: [...columns] }
         : { ...this.#snapshot, pivotOn: [...columns] };
-    void this.#refresh();
+    this.#refreshOr(previous);
   }
 
   #setFilter(filter: FilterNode | undefined): void {
+    const previous = this.#snapshot;
     this.#snapshot = filter
       ? { ...this.#snapshot, filter }
       : (({ filter: _drop, ...rest }) => rest)(this.#snapshot);
-    void this.#refresh();
+    this.#refreshOr(previous);
   }
 
   // -- the context menu ------------------------------------------------
@@ -634,14 +670,21 @@ export class CubeApp {
     // clipboard and export, which never touch the query.
     const next = applyMenuAction(this.#snapshot, item);
     if (next !== this.#snapshot) {
+      const previous = this.#snapshot;
       this.#snapshot = next;
-      void this.#refresh();
+      this.#refreshOr(previous);
       return;
     }
     const column = item.column;
     switch (item.id) {
       case 'tree.collapseAll':
         void this.#controller.setTree(this.#controller.tree.collapseAll());
+        return;
+      case 'column.autoSize':
+        if (column) this.#autoSize([column]);
+        return;
+      case 'column.autoSizeAll':
+        this.#autoSize(null);
         return;
       case 'column.hide':
         if (column) this.#patchColumn(column, { hidden: true });
@@ -659,7 +702,7 @@ export class CubeApp {
         for (const name of Object.keys(this.#config.columns)) {
           this.#config = withColumn(this.#config, name, { pinned: undefined });
         }
-        void this.#refresh();
+        this.#refreshOr(null);
         return;
       case 'copy.selection':
         this.#copy(this.#selectionCsv());
@@ -721,6 +764,42 @@ export class CubeApp {
       default:
         return;
     }
+  }
+
+  /**
+   * Fit columns to their content.
+   *
+   * These two entries -- "Auto-size to Fit Content" and "Auto-size
+   * All Columns" -- were on the menu with NO handler behind them. The
+   * dispatch ends in `default: return`, so clicking either did
+   * nothing at all, silently, and a census of emitted-versus-handled
+   * menu ids is what found them rather than anyone using the product.
+   *
+   * A floor and a ceiling because auto-size is a convenience, not a
+   * licence: a column of long free text would otherwise push every
+   * other column off the screen, and an empty one would collapse to
+   * nothing and be impossible to grab again.
+   *
+   * Widths are keyed by COLUMN, and a pivoted leaf is named after the
+   * pivot value it sits under (`2021__|__notional`), so on a pivoted
+   * cube these size the columns they can name and leave the rest.
+   */
+  #autoSize(columns: readonly string[] | null): void {
+    const measured = this.#grid.measureColumns(columns ?? undefined);
+    let config = this.#config;
+    let changed = 0;
+    for (const [name, content] of Object.entries(measured)) {
+      const width = Math.min(AUTO_SIZE_MAX,
+        Math.max(AUTO_SIZE_MIN, content + AUTO_SIZE_PAD));
+      const next = withColumn(config, name, { width });
+      if (next !== config) changed += 1;
+      config = next;
+    }
+    if (changed === 0) {
+      this.#status('nothing to resize', 'warn');
+      return;
+    }
+    void this.#setConfiguration(config);
   }
 
   /**
@@ -1106,8 +1185,9 @@ export class CubeApp {
   // -- dimensions ----------------------------------------------------------
 
   useDimension(dimension: Dimension): void {
+    const previous = this.#snapshot;
     this.#snapshot = useDimension(this.#snapshot, dimension);
-    void this.#refresh();
+    this.#refreshOr(previous);
   }
 
   // -- the dialogs ----------------------------------------------------------
@@ -1149,7 +1229,7 @@ export class CubeApp {
         .then(() => this.#refresh());
       return;
     }
-    void this.#refresh();
+    this.#refreshOr(null);
   }
 
   #showOverlay(title: string, build: (host: HTMLElement) => void): void {

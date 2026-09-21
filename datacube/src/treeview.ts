@@ -78,9 +78,30 @@ export interface TreeView {
   readonly levels: ReadonlyMap<string, LevelData>;
 }
 
-/** A group key rendered as text, with SQL NULL kept distinguishable. */
+/**
+ * A group key rendered as text, with SQL NULL kept distinguishable.
+ *
+ * A temporal key is written as ISO 8601 rather than by `String()`,
+ * and that is not cosmetic: the path segment is fed BACK into the
+ * next level's query as a filter value, so it has to round-trip.
+ * `String(date)` gives the locale form -- "Fri Jan 01 2021 03:58:00
+ * GMT-0500 (Eastern Standard Time)" -- which went into the SQL as a
+ * string and came back as `Conversion Error: invalid timestamp field
+ * format`. Grouping by any date or timestamp column simply failed,
+ * and the grid kept the previous answer.
+ */
 function groupValue(v: Scalar): string {
-  return v === null ? NULL_GROUP : String(v);
+  if (v === null) return NULL_GROUP;
+  // LOCAL components, with no zone suffix, so `new Date(text)` reads
+  // it back as the same instant. `toISOString()` would round-trip
+  // through UTC and land the key on a different day for any zone
+  // behind or ahead far enough -- the same mistake, one layer up.
+  if (v instanceof Date) {
+    const p = (n: number): string => String(n).padStart(2, '0');
+    return `${v.getFullYear()}-${p(v.getMonth() + 1)}-${p(v.getDate())}`
+      + `T${p(v.getHours())}:${p(v.getMinutes())}:${p(v.getSeconds())}`;
+  }
+  return String(v);
 }
 
 /**

@@ -25,7 +25,8 @@
     "sample": "node --experimental-strip-types demo/make-sample.mjs",
     "build:stress": "esbuild demo/stress.ts --bundle --format=esm --outfile=demo/stress.js --target=es2022",
     "stress": "npm run build:stress && node demo/run-stress.mjs",
-    "verify:picker": "node demo/verify-picker.mjs"
+    "verify:picker": "node demo/verify-picker.mjs",
+    "verify:features": "node demo/verify-features.mjs"
   },
   "keywords": [],
   "author": "",

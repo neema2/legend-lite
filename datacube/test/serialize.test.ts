@@ -54,6 +54,44 @@ describe('serialize', () => {
     );
   });
 
+  it('pivots a cube with NO configured measures', () => {
+    // This used to throw `CubeRefusal`. The refusal was thrown from
+    // inside a floating refresh, so clicking "Horizontal Pivot on
+    // region" produced an uncaught error, the grid kept the previous
+    // answer with no explanation, and `pivotOn` stayed set -- so
+    // every later query threw the same thing and one click wedged
+    // the cube until a reload.
+    //
+    // Upstream never refuses: `_pivotAggCols` takes the selected
+    // MEASURE columns and `_fixEmptyAggCols` substitutes a filler
+    // count if there are none. The same cube already grouped happily,
+    // because the groupBy path has always synthesised its aggregates.
+    const s = serialize(snap({ measures: [] }));
+    assert.match(s, /pivot\(~\[year\], ~\[/, 'it pivots at all');
+    // `notional` is a Float, so it is a measure and it sums.
+    assert.match(s, /notional:x\|\$x\.notional:y\|\$y->sum\(\)/);
+    // And the DIMENSIONS are not aggregated: upstream excludes them
+    // from a pivot deliberately, unlike a groupBy.
+    assert.equal(/country:x\|/.test(s), false,
+      'a dimension must not become a pivot aggregate');
+  });
+
+  it('falls back to a count when a pivot has nothing to aggregate', () => {
+    // `_fixEmptyAggCols`: a pivot must aggregate something, so a cube
+    // of nothing but dimensions still produces a query rather than
+    // `pivot(~[year], ~[])`, which the compiler rejects far from the
+    // cause.
+    const s = serialize(snap({
+      measures: [],
+      columns: [
+        { name: 'region', type: 'String' },
+        { name: 'country', type: 'String' },
+        { name: 'year', type: 'Integer', kind: 'dimension' },
+      ],
+    }));
+    assert.match(s, /~\[count:x\|/, 'the filler count is there');
+  });
+
   it('maps count to the constant 1, not to a column', () => {
     const s = serialize(
       snap({ measures: [{ name: 'n', column: 'notional', fn: 'count' }] }),
@@ -488,7 +526,90 @@ describe('ident and literal', () => {
     assert.equal(literal("O'Hara"), "'O\\'Hara'");
     assert.equal(literal(42), '42');
     assert.equal(literal(true), 'true');
-    assert.equal(literal(new Date('2024-03-01T12:00:00Z')), '%2024-03-01');
+    // A TIMESTAMP keeps its time. This asserted `%2024-03-01` for a
+    // Date carrying midday, i.e. every temporal was truncated to ten
+    // characters -- so a group key for one minute of trading matched
+    // the whole day and drilling into it returned every trade in it.
+    // A wrong answer with no error is worse than an error.
+    //
+    // Read in LOCAL terms, because that is the frame these Dates are
+    // built and displayed in; midnight still prints as a plain date.
+    const noon = new Date('2024-03-01T12:00:00Z');
+    const p = (n: number): string => String(n).padStart(2, '0');
+    assert.equal(
+      literal(noon),
+      `%2024-03-01T${p(noon.getHours())}:${p(noon.getMinutes())}:00`,
+    );
+    const midnight = new Date(2024, 2, 1);
+    assert.equal(literal(midnight), '%2024-03-01', 'midnight is a date');
+  });
+});
+
+describe('drilling into a TEMPORAL group', () => {
+  // Grouping by a date or timestamp column produced invalid SQL:
+  //
+  //   Conversion Error: invalid timestamp field format:
+  //   "Fri Jan 01 2021 03:58:00 GMT-0500 (Eastern Standard Time)"
+  //
+  // A row path is TEXT, one string per level, and the key was written
+  // with `String(date)` -- the locale form -- then fed back into the
+  // next level's query as a filter value. So the group appeared and
+  // opening it failed, while the grid kept the previous answer.
+  const TEMPORAL: CubeSnapshot = {
+    source: { expression: 't' },
+    columns: [
+      { name: 'booked_at', type: 'DateTime' },
+      { name: 'trade_date', type: 'StrictDate' },
+      { name: 'notional', type: 'Float' },
+    ],
+    derived: [],
+    rows: ['booked_at'],
+    pivotOn: [],
+    measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
+    sorts: [],
+    epoch: 1,
+  };
+
+  /** The key exactly as the tree writes it: local parts, no zone. */
+  const key = (d: Date): string => {
+    const p = (n: number): string => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+      + `T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  };
+
+  it('filters on a TIMESTAMP literal, not on a locale string', () => {
+    const at = new Date(2021, 0, 1, 3, 58, 0);
+    const out = serialize(TEMPORAL, { level: 2, parent: [key(at)] });
+    assert.match(out, /%2021-01-01T03:58:00/,
+      'the drilldown must carry a datetime literal');
+    // The shape of the old failure: the locale string, quoted.
+    assert.equal(/GMT|Eastern|Standard Time/.test(out), false,
+      'a JS Date toString reached the query');
+    assert.equal(/'2021-01-01T03:58:00'/.test(out), false,
+      'the timestamp went in as a STRING, which the engine refuses');
+  });
+
+  it('keeps a date-only group on its own day', () => {
+    // The fourth timezone fault in this area would be here: a date
+    // built at LOCAL midnight read back through UTC names the day
+    // before in any zone ahead of it.
+    const day = new Date(2021, 0, 1);
+    const out = serialize(
+      { ...TEMPORAL, rows: ['trade_date'] },
+      { level: 2, parent: [key(day)] },
+    );
+    assert.match(out, /%2021-01-01/);
+    assert.equal(out.includes('2020-12-31'), false, 'it slipped a day');
+  });
+
+  it('a non-temporal key is still compared as text', () => {
+    const out = serialize(
+      { ...TEMPORAL,
+        columns: [...TEMPORAL.columns, { name: 'region', type: 'String' }],
+        rows: ['region'] },
+      { level: 2, parent: ['AMER'] },
+    );
+    assert.match(out, /'AMER'/);
   });
 });
 
