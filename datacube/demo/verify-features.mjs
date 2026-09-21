@@ -24,6 +24,25 @@ import { gridInvariants } from './grid-invariants.mjs';
 const ROOT = new URL('..', import.meta.url).pathname;
 const DATA = process.env.DATA;
 const ONLY = process.env.ONLY;
+/**
+ * How long to wait for a query to land.
+ *
+ * Generous against the real figure -- these queries report single-
+ * digit milliseconds on 5,000 rows -- and short enough that the
+ * actions which re-query NOTHING do not each donate a quarter of a
+ * minute to the run. Correctness does not rest on it: every check
+ * asserts its own outcome, so a query that has not landed fails the
+ * assertion rather than passing quietly.
+ */
+const STATUS_WAIT_MS = 4000;
+/**
+ * A check may not exceed this.
+ *
+ * A hang used to be invisible -- it just made the sweep slower, and
+ * "slower" is not a signal anyone acts on. Now it fails, with the
+ * name of the check that did it.
+ */
+const CHECK_DEADLINE_MS = 30_000;
 
 const TYPES = {
   '.html': 'text/html', '.js': 'text/javascript', '.wasm': 'application/wasm',
@@ -61,6 +80,8 @@ if (process.env.DEBUG) {
 
 const results = [];
 const gaps = [];
+const timings = [];
+const STARTED = Date.now();
 function record(name, ok, detail) {
   results.push({ name, ok, detail });
   const tag = ok ? 'ok  ' : 'BAD ';
@@ -123,9 +144,17 @@ async function invariants(where) {
 async function check(name, fn) {
   if (ONLY && !name.toLowerCase().includes(ONLY.toLowerCase())) return;
   await reset();
+  const started = Date.now();
   const before = pageErrors.length;
   try {
-    const detail = await fn();
+    const detail = await Promise.race([
+      fn(),
+      new Promise((_, reject) => setTimeout(
+        () => reject(new Error(`took longer than`
+          + ` ${CHECK_DEADLINE_MS / 1000}s — treated as a hang`)),
+        CHECK_DEADLINE_MS)),
+    ]);
+    timings.push([name, Date.now() - started]);
     if (pageErrors.length > before) {
       record(name, false, `threw: ${pageErrors[before].split('\n')[0]}`);
       return;
@@ -133,6 +162,7 @@ async function check(name, fn) {
     record(name, true, detail ?? '');
     await invariants(name);
   } catch (e) {
+    timings.push([name, Date.now() - started]);
     record(name, false, String(e.message ?? e).split('\n')[0]);
     if (process.env.SHOTS) {
       const file = `${process.env.SHOTS}/${name.replace(/\W+/g, '-')}.png`;
@@ -171,18 +201,38 @@ const state = () => page.evaluate(() => ({
  * all -- so it falls through to a short settle.
  */
 async function settle(before) {
-  await page.waitForFunction(
-    () => !document.querySelector('.dc-app-overlay:not([hidden])'),
-    undefined, { timeout: 20_000 },
-  ).catch(() => {});
+  // NO OVERLAY WAIT. `.dc-app-overlay` is the DIALOG host -- filters,
+  // properties, drill-through, the charts -- not a loading spinner,
+  // and I had it backwards: every settle that ran while a dialog was
+  // deliberately open waited the full 20 seconds for that dialog to
+  // go away. Add the 15 seconds below for a status line that was
+  // never going to change (an export, a clipboard copy, opening a
+  // dialog) and single checks measured 36 to 42 SECONDS. The sweep
+  // took twenty minutes; almost all of it was this function.
   if (before !== undefined) {
     await page.waitForFunction(
       (was) => (document.getElementById('status')?.textContent ?? '') !== was,
-      before, { timeout: 15_000 },
+      before, { timeout: STATUS_WAIT_MS },
     ).catch(() => {});
   }
   await page.waitForTimeout(150);
 }
+
+/**
+ * How many rows the QUERY returned, from the status line.
+ *
+ * NOT `.dc-row` count: the grid is virtualised, so it renders about
+ * a windowful whatever the result holds -- and comparing those made
+ * the compound-filter check report "all-of 29, any-of 29, unfiltered
+ * 29" and pass, having compared nothing at all. The status line
+ * carries the real figure.
+ */
+const resultRows = async () => {
+  const text = await statusNow();
+  const m = /([\d,]+) rows/.exec(text);
+  if (!m) throw new Error(`no row count in the status line: ${text}`);
+  return Number(m[1].replace(/,/g, ''));
+};
 
 /** The status line, which changes once per completed query. */
 const statusNow = () => page.evaluate(() =>
@@ -203,9 +253,16 @@ const openMenu = () => page.evaluate(() =>
     sub: e.classList.contains('dc-has-submenu'),
   })));
 
-async function menu(path, { row = 0, col = 0 } = {}) {
+/**
+ * @param opts.requery false for an action that runs no query -- an
+ *   export, a clipboard copy, opening a dialog -- so the wait for the
+ *   status line to change is skipped rather than paid in full. It is
+ *   only ever a speed hint: each check asserts its own outcome, so
+ *   getting it wrong costs time, never correctness.
+ */
+async function menu(path, { row = 0, col = 0, requery = true } = {}) {
   await reset();
-  const before = await statusNow();
+  const before = requery ? await statusNow() : undefined;
   const cell = page.locator('.dc-row').nth(row).locator('.dc-cell').nth(col);
   await cell.click({ button: 'right' });
   await page.waitForSelector('.dc-menu', { timeout: 5000 });
@@ -412,7 +469,7 @@ try {
   });
 
   await check('the filter dialog opens and lists the filter', async () => {
-    await menu(['Filter', 'Filters...']);
+    await menu(['Filter', 'Filters...'], { requery: false });
     const open = await page.evaluate(() =>
       !document.querySelector('.dc-app-overlay')?.hidden);
     if (!open) throw new Error('the overlay never opened');
@@ -420,6 +477,114 @@ try {
     await page.keyboard.press('Escape');
     await page.waitForTimeout(200);
     return `${(text ?? '').trim().slice(0, 40)}...`;
+  });
+
+  // ---- the filter editor -------------------------------------------------
+  //
+  // Opening the dialog was all that was ever checked. This builds a
+  // COMPOUND filter in it -- two conditions, then the connective
+  // flipped from all-of to any-of -- and the editor applies live
+  // (`openFilters` wires `onChange` straight to `#setFilter`), so
+  // there is no Apply button and each edit re-queries.
+
+  await check('the filter editor builds a compound filter', async () => {
+    await menu(['Filter', 'Clear All Filters']).catch(() => {});
+    const all = await resultRows();
+    await menu(['Filter', 'Filters...'], { requery: false });
+
+    const create = page.locator('button', { hasText: 'Create New Filter' });
+    if (await create.count()) {
+      await create.first().click();
+      await page.waitForTimeout(250);
+    }
+    const columns = page.locator('.dc-filter-column');
+    if (!(await columns.count())) {
+      throw new Error('the editor offered no column to filter on');
+    }
+
+    // Two text dimensions with known values in the sample.
+    const names = await columns.first().evaluate((e) =>
+      [...e.options].map((o) => o.value));
+    const first = ['region', 'desk', 'book'].find((n) => names.includes(n));
+    if (!first) throw new Error(`no text dimension among ${names.join(',')}`);
+    await columns.first().selectOption(first);
+    await page.waitForTimeout(150);
+    const firstValue = await page.evaluate((col) => {
+      const i = [...document.querySelectorAll('.dc-th[data-column]')]
+        .findIndex((e) => e.dataset.column === col);
+      const row = document.querySelector('.dc-row');
+      return row?.querySelectorAll('.dc-cell')[i]?.textContent?.trim() ?? '';
+    }, first);
+    if (!firstValue) throw new Error(`no value to filter ${first} by`);
+    await page.locator('.dc-filter-value').first().fill(firstValue);
+    await page.locator('.dc-filter-value').first().press('Tab');
+    await settle(await statusNow());
+
+    const andRows = await resultRows();
+    const andSql = (await state()).sql;
+    if (!/WHERE/i.test(andSql)) throw new Error('one condition gave no WHERE');
+
+    // A second condition, on a different column, joined with AND.
+    await page.locator('.dc-filter-ctl', { hasText: '+' }).first().click();
+    await page.waitForTimeout(250);
+    if ((await page.locator('.dc-filter-column').count()) < 2) {
+      throw new Error('"+" did not add a second condition');
+    }
+    const second = ['desk', 'book', 'region'].find(
+      (n) => names.includes(n) && n !== first);
+    await page.locator('.dc-filter-column').nth(1).selectOption(second);
+    await page.waitForTimeout(150);
+    const secondValue = await page.evaluate((col) => {
+      const i = [...document.querySelectorAll('.dc-th[data-column]')]
+        .findIndex((e) => e.dataset.column === col);
+      const row = document.querySelector('.dc-row');
+      return row?.querySelectorAll('.dc-cell')[i]?.textContent?.trim() ?? '';
+    }, second);
+    await page.locator('.dc-filter-value').nth(1).fill(secondValue);
+    await page.locator('.dc-filter-value').nth(1).press('Tab');
+    await settle(await statusNow());
+
+    const both = await state();
+    if (!/ AND /i.test(both.sql)) {
+      throw new Error(`no AND in ${both.sql.slice(0, 120)}`);
+    }
+
+    // FLIP THE CONNECTIVE. It is the `.dc-filter-join` select, shown
+    // as "All of"/"Any of" -- not `.dc-filter-joinword`, which is an
+    // aria-hidden decoration.
+    const joinSel = page.locator('.dc-filter-join').first();
+    if (!(await joinSel.count())) {
+      throw new Error('two conditions but no all-of/any-of control');
+    }
+    await joinSel.selectOption('or');
+    await settle(await statusNow());
+
+    const either = await state();
+    if (!/ OR /i.test(either.sql)) {
+      throw new Error(`flipping to any-of gave no OR:`
+        + ` ${either.sql.slice(0, 120)}`);
+    }
+    // THE COUNTS MUST MOVE THE RIGHT WAY. Any-of admits at least as
+    // much as all-of, and both admit no more than the unfiltered
+    // cube; asserting the SQL text alone would pass a filter that
+    // was built correctly and never run.
+    const orRows = await resultRows();
+    if (orRows < andRows) {
+      throw new Error(`any-of returned FEWER rows than all-of:`
+        + ` ${orRows} < ${andRows}`);
+    }
+    if (orRows > all) {
+      throw new Error(`any-of returned more than the whole cube:`
+        + ` ${orRows} > ${all}`);
+    }
+    // And it must actually FILTER: two conditions that exclude
+    // nothing would satisfy every comparison above.
+    if (andRows >= all) {
+      throw new Error(`all-of excluded nothing: ${andRows} of ${all} rows`);
+    }
+    await page.keyboard.press('Escape');
+    await menu(['Filter', 'Clear All Filters']);
+    return `all-of ${andRows} rows, any-of ${orRows}, unfiltered ${all}`;
   });
 
   // ---- grouping and pivots --------------------------------------------
@@ -778,7 +943,7 @@ try {
     ['DataCube Specification', 'json']]) {
     await check(`export ${label}`, async () => {
       const wait = page.waitForEvent('download', { timeout: 15_000 });
-      await menu(['Export', label]);
+      await menu(['Export', label], { requery: false });
       const dl = await wait;
       const path = await dl.path();
       const body = await readFile(path);
@@ -792,7 +957,7 @@ try {
   }
 
   await check('copy a column to the clipboard', async () => {
-    await menu(['Copy', /^Column .* as Plain Text$/]);
+    await menu(['Copy', /^Column .* as Plain Text$/], { requery: false });
     const text = await page.evaluate(() => navigator.clipboard.readText());
     if (!text || !text.trim()) throw new Error('the clipboard is empty');
     return `${text.split('\n').length} lines`;
@@ -801,7 +966,7 @@ try {
   // ---- the editor --------------------------------------------------------
 
   await check('the properties editor opens with its tabs', async () => {
-    await menu(['Properties...']);
+    await menu(['Properties...'], { requery: false });
     const tabs = await page.locator('.dc-app-overlay [role=tab],'
       + ' .dc-tab').allTextContents();
     if (tabs.length < 3) {
@@ -844,7 +1009,7 @@ try {
 
   /** Open Properties and select a tab by name. */
   async function editorTab(name) {
-    await menu(['Properties...']);
+    await menu(['Properties...'], { requery: false });
     const tab = page.locator('.dc-editor-tab', { hasText: name });
     if (!(await tab.count())) {
       const seen = await page.locator('.dc-editor-tab').allTextContents();
@@ -1008,6 +1173,92 @@ try {
     });
   }
 
+  // ---- column properties -------------------------------------------------
+
+  await check("changing a column's KIND changes how it aggregates", async () => {
+    // The kind is not cosmetic: a dimension takes its unique value
+    // when grouped and a measure sums. Only the editor can change it,
+    // and nothing had ever driven that -- so this asserts the
+    // GENERATED AGGREGATE, not the label in the panel.
+    await menu(['Pivot', 'Clear All Vertical Pivots']).catch(() => {});
+    await editorTab('Column Properties');
+    const chooser = page.locator('.dc-field', { hasText: 'Column:' })
+      .first().locator('select').first();
+    if (!(await chooser.count())) throw new Error('no column chooser');
+    const opts = await chooser.evaluate((e) =>
+      [...e.options].map((o) => o.value));
+    const want = ['quantity', 'year', 'trade_id'].find(
+      (n) => opts.includes(n));
+    if (!want) throw new Error(`no integer column among ${opts.join(',')}`);
+    await chooser.selectOption(want);
+    await page.waitForTimeout(250);
+
+    const kind = page.locator('.dc-field', { hasText: 'Column Kind:' })
+      .first().locator('select').first();
+    if ((await kind.inputValue()) !== 'dimension') {
+      throw new Error(`${want} is already a ${await kind.inputValue()}`);
+    }
+    await kind.selectOption('measure');
+    await page.waitForTimeout(200);
+    await applyEditor();
+
+    // The panel is where a person sees it, so check there too -- but
+    // the query is the claim.
+    const isMeasure = await page.evaluate((n) =>
+      document.querySelector(`.dc-tool-panel-row[data-column="${n}"]`)
+        ?.classList.contains('dc-measure') ?? false, want);
+    if (!isMeasure) throw new Error(`the panel still lists ${want} as a`
+      + ' dimension');
+
+    await menu(['Pivot', /^Vertical Pivot on/], { col: GROUP_COL });
+    const sql = (await state()).sql.replace(/\s+/g, ' ');
+    const summed = new RegExp(`SUM\\(t0\\.${want}\\)`, 'i').test(sql);
+    const unique = new RegExp(
+      `CASE WHEN COUNT\\(DISTINCT t0\\.${want}\\)`, 'i').test(sql);
+    if (!summed) {
+      throw new Error(`${want} is a measure but does not sum`
+        + `${unique ? ' — it still takes its unique value' : ''}`);
+    }
+    await menu(['Pivot', 'Clear All Vertical Pivots']);
+    return `${want} now sums`;
+  });
+
+  await check('a display name changes the label, not the identity', async () => {
+    // The header-identity fault made a label and a `data-column`
+    // disagree, so this is the one place they are SUPPOSED to: a
+    // renamed column keeps its identity, which is exactly why the
+    // invariant compares headers by position rather than by text.
+    await editorTab('Column Properties');
+    const chooser = page.locator('.dc-field', { hasText: 'Column:' })
+      .first().locator('select').first();
+    const opts = await chooser.evaluate((e) =>
+      [...e.options].map((o) => o.value));
+    const want = opts[opts.length - 1];
+    await chooser.selectOption(want);
+    await page.waitForTimeout(250);
+    const nameField = page.locator('.dc-field', { hasText: 'Display Name' })
+      .first().locator('input').first();
+    if (!(await nameField.count())) throw new Error('no Display Name field');
+    await nameField.fill('RENAMED');
+    await nameField.press('Tab');
+    await applyEditor();
+
+    const pair = await page.evaluate((n) => {
+      const th = [...document.querySelectorAll('.dc-th')].find(
+        (e) => e.dataset.column === n);
+      return th ? { label: (th.textContent ?? '').trim(), id: th.dataset.column }
+        : null;
+    }, want);
+    if (!pair) throw new Error(`${want} lost its header entirely`);
+    if (pair.label !== 'RENAMED') {
+      throw new Error(`the header still reads ${JSON.stringify(pair.label)}`);
+    }
+    if (pair.id !== want) {
+      throw new Error(`the identity changed to ${pair.id}`);
+    }
+    return `${want} shows as "RENAMED" and is still ${pair.id}`;
+  });
+
   // ---- saving and loading a view -----------------------------------------
 
   await check('a saved view is restored when loaded', async () => {
@@ -1139,6 +1390,13 @@ if (bad.length) {
   console.log(`\nBROKEN (${bad.length}):`);
   for (const r of bad) console.log(`  ${r.name} — ${r.detail}`);
 }
+const slow = [...timings].sort((a, b) => b[1] - a[1]).slice(0, 12);
+console.log(`\nslowest checks of ${timings.length}`
+  + ` (${Math.round((Date.now() - STARTED) / 1000)}s total):`);
+for (const [name, ms] of slow) {
+  console.log(`  ${String(ms).padStart(6)}ms  ${name}`);
+}
+
 console.log(bad.length
   ? `\n!!! ${bad.length} features are broken !!!`
   : '\n*** every feature checked works ***');
