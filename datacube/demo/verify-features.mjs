@@ -247,11 +247,23 @@ async function menu(path, { row = 0, col = 0 } = {}) {
   await settle(before);
 }
 
-/** Where a named column currently sits, or -1. */
+/**
+ * Which BODY cell of a row belongs to a named column.
+ *
+ * Read from the row that gets right-clicked, not from the header.
+ * Once a cube is grouped the row dimensions collapse into one tree
+ * cell, and the header cells carrying `data-column` are not the same
+ * list as a row's cells -- so a header-derived index landed one
+ * column off, and a check meaning to group by `region` grouped by
+ * `booked_at` instead. It then reported a fault in grouping that was
+ * really a fault in the driver.
+ */
 const colIndex = (name) => page.evaluate((n) => {
-  const names = [...document.querySelectorAll('.dc-th[data-column]')]
-    .map((e) => e.dataset.column);
-  return names.indexOf(n);
+  const row = document.querySelector('.dc-row');
+  if (!row) return -1;
+  const cells = [...row.querySelectorAll('.dc-cell')];
+  return cells.findIndex((c) =>
+    (c.dataset.column ?? c.closest('[data-column]')?.dataset.column) === n);
 }, name);
 
 /** Where a named column sits, or a failure that names it. */
@@ -434,16 +446,26 @@ try {
       { col: await needCol(first) });
     await menu(['Pivot', /^Add Vertical Pivot on/],
       { col: await needCol(second) });
-    const s = await state();
-    const by = /groupBy\(~\[([^\]]*)\]/.exec(s.pure)?.[1];
-    if (by === undefined) {
-      throw new Error(`no groupBy at all in ${s.pure.slice(-140)}`);
+    // NOT the Pure pane. A tree issues one query per LEVEL, and the
+    // pane deliberately shows the representative level-1 plan
+    // (`serialize(snapshot, { level: 1, parent: [] })`), which groups
+    // by the FIRST dimension alone. Two keys can never appear in it,
+    // so asserting on it reported a fault in a feature that works --
+    // twice, once blamed on staleness and once on a column index.
+    //
+    // The row zone is where the dimensions are, and expandability is
+    // what having two of them buys you.
+    const zone = await page.evaluate(() =>
+      [...document.querySelectorAll('[class*=zone] [data-column]')]
+        .map((e) => e.dataset.column));
+    if (zone.length < 2) {
+      throw new Error(`the row zone holds ${JSON.stringify(zone)}`);
     }
-    const keys = by.split(',').map((k) => k.trim()).filter(Boolean);
-    if (keys.length < 2) {
-      throw new Error(`only one group key: groupBy(~[${by}])`);
+    const expandable = await page.locator('.dc-row[aria-expanded]').count();
+    if (!expandable) {
+      throw new Error('no row can be expanded, so nothing nests');
     }
-    return `grouped by ${keys.join(' > ')}`;
+    return `${zone.join(' > ')}, ${expandable} expandable rows`;
   });
 
   await check('expanding a group shows its children', async () => {
