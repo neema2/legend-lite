@@ -321,6 +321,76 @@ try {
     }
   }
 
+  // THE SIDEBAR COLLAPSES AND GIVES THE WIDTH TO THE GRID.
+  //
+  // Measured, not asserted by class name: the whole point of
+  // collapsing is the 200px the grid gets back, and a class that
+  // toggles while the layout does not move is the same bug as no
+  // toggle at all. The rail must also be a real, visible target --
+  // a collapsed panel with no way back is one only a reload escapes.
+  const side = () => page.evaluate(() => {
+    const g = document.querySelector('.dc-app-grid');
+    const p = document.querySelector('.dc-app-side');
+    const rail = document.querySelector('.dc-tool-panel-rail');
+    const r = rail?.getBoundingClientRect();
+    const mid = document.querySelector('.dc-app-middle')
+      .getBoundingClientRect();
+    return {
+      grid: Math.round(g.getBoundingClientRect().width),
+      panel: Math.round(p.getBoundingClientRect().width),
+      rows: document.querySelectorAll('.dc-tool-panel-row').length,
+      rail: r ? { w: Math.round(r.width), h: Math.round(r.height) } : null,
+      // The page's own geometry, because a sidebar can collapse
+      // correctly and still wreck everything around it.
+      doc: document.documentElement.scrollHeight,
+      midTop: Math.round(mid.top),
+      midH: Math.round(mid.height),
+    };
+  });
+  const click = () => page.click('.dc-tool-panel-toggle');
+
+  const open = await side();
+  await click();
+  const shut = await side();
+  await click();
+  const again = await side();
+  console.log(`sidebar: ${open.panel}px open -> ${shut.panel}px shut`
+    + ` (grid ${open.grid} -> ${shut.grid}), rail`
+    + ` ${shut.rail ? `${shut.rail.w}x${shut.rail.h}` : 'MISSING'},`
+    + ` page ${open.doc} -> ${shut.doc}px`);
+
+  if (open.rows === 0) bad('the columns panel listed nothing to begin with');
+  if (shut.panel >= open.panel - 100) {
+    bad(`collapsing barely narrowed the panel: ${open.panel} ->`
+      + ` ${shut.panel}`);
+  }
+  if (shut.grid <= open.grid + 100) {
+    bad(`the grid did not get the width back: ${open.grid} ->`
+      + ` ${shut.grid}`);
+  }
+  if (shut.rows !== 0) bad(`${shut.rows} column rows survived the collapse`);
+  if (!shut.rail || shut.rail.w < 12 || shut.rail.h < 60) {
+    bad(`no usable rail to reopen from: ${JSON.stringify(shut.rail)}`);
+  }
+  if (again.panel !== open.panel || again.rows !== open.rows) {
+    bad(`reopening did not restore the panel: ${again.panel}px,`
+      + ` ${again.rows} rows vs ${open.panel}px, ${open.rows}`);
+  }
+  // NOTHING ELSE MAY MOVE. The rail's first version was `height:
+  // 100%`, which resolved against a distant ancestor rather than the
+  // panel: 800px of button stretched the middle row to 802px, shoved
+  // it to y = -1 and grew the document from 888px to 1268px. Every
+  // check above passed -- the panel narrowed, the grid widened, the
+  // rail was tall and clickable. Only the page's own geometry says
+  // that collapsing the sidebar broke the page.
+  if (shut.doc !== open.doc) {
+    bad(`collapsing changed the page height: ${open.doc} -> ${shut.doc}`);
+  }
+  if (shut.midTop !== open.midTop || shut.midH !== open.midH) {
+    bad(`collapsing moved the grid row: top ${open.midTop} -> `
+      + `${shut.midTop}, height ${open.midH} -> ${shut.midH}`);
+  }
+
   if (EXPECT_ROWS) {
     const m = /([\d,]+) rows/.exec(note);
     const got = m ? Number(m[1].replace(/,/g, '')) : -1;

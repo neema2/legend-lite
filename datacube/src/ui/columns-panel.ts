@@ -33,6 +33,8 @@ export interface ColumnsPanelOptions {
   readonly labelFor?: (column: string) => string;
   /** Clicking a groupable column adds it to the row groups. */
   readonly onPick?: (column: string) => void;
+  /** Start collapsed. The grid is the point; the panel is a tool. */
+  readonly collapsed?: boolean;
 }
 
 const BADGES: Readonly<Record<'rows' | 'columns', string>> = {
@@ -46,11 +48,13 @@ export class ColumnsToolPanel {
   readonly #options: ColumnsPanelOptions;
   #columns: readonly ColumnsPanelColumn[] = [];
   #search = '';
+  #collapsed: boolean;
 
   constructor(root: HTMLElement, options: ColumnsPanelOptions = {}) {
     this.#root = root;
     this.#doc = root.ownerDocument;
     this.#options = options;
+    this.#collapsed = options.collapsed ?? false;
     root.classList.add('dc-tool-panel');
     this.render();
   }
@@ -60,11 +64,46 @@ export class ColumnsToolPanel {
     this.render();
   }
 
+  /** Whether the panel is showing its list. */
+  get collapsed(): boolean {
+    return this.#collapsed;
+  }
+
+  /**
+   * Fold the panel away, or bring it back.
+   *
+   * Collapsed it becomes a RAIL, not nothing. A panel that vanishes
+   * without leaving something to click is a panel the user has lost,
+   * and the only way back would be a reload -- so the rail carries
+   * the same button, and the 200px it gives up goes to the grid.
+   * This is the shape ag-grid's side bar has, where clicking the
+   * active tab collapses to the tab strip.
+   */
+  setCollapsed(collapsed: boolean): void {
+    if (collapsed === this.#collapsed) return;
+    this.#collapsed = collapsed;
+    this.render();
+  }
+
   render(): void {
     const doc = this.#doc;
+    this.#root.classList.toggle('dc-collapsed', this.#collapsed);
+
+    if (this.#collapsed) {
+      // The rail, and nothing else. The search box and the list are
+      // not merely hidden: a `display: none` subtree still holds
+      // focusable controls that tab order walks through, so a
+      // collapsed panel would still be reachable by keyboard while
+      // being invisible.
+      this.#root.replaceChildren(this.#toggle());
+      return;
+    }
+
     const head = doc.createElement('div');
     head.className = 'dc-tool-panel-head';
-    head.textContent = 'Columns';
+    const title = doc.createElement('span');
+    title.textContent = 'Columns';
+    head.append(title, this.#toggle());
 
     const search = doc.createElement('input');
     search.type = 'text';
@@ -95,6 +134,42 @@ export class ColumnsToolPanel {
     }
 
     this.#root.replaceChildren(head, search, list);
+  }
+
+  /**
+   * The one control that folds the panel and unfolds it.
+   *
+   * The SAME button in both states, so there is nothing to find:
+   * where it sits changes, what it does does not. Collapsed it is
+   * the whole panel and carries the word "Columns" down its side, so
+   * the rail says what it opens rather than being an anonymous
+   * sliver.
+   */
+  #toggle(): HTMLElement {
+    const button = this.#doc.createElement('button');
+    button.type = 'button';
+    button.className = 'dc-tool-panel-toggle';
+    button.setAttribute('aria-expanded', String(!this.#collapsed));
+    if (this.#collapsed) {
+      button.classList.add('dc-tool-panel-rail');
+      button.textContent = 'Columns';
+      button.title = 'Show the columns panel';
+      button.setAttribute('aria-label', 'Show the columns panel');
+    } else {
+      // A chevron pointing the way the panel will go, which is the
+      // convention every collapsible sidebar uses.
+      button.textContent = '\u203a';
+      button.title = 'Hide the columns panel';
+      button.setAttribute('aria-label', 'Hide the columns panel');
+    }
+    button.addEventListener('click', () => {
+      this.setCollapsed(!this.#collapsed);
+      // Keep the focus on the control the user just pressed: it is
+      // replaced by the re-render, so without this the focus falls
+      // back to the document and a keyboard user loses their place.
+      this.#root.querySelector<HTMLElement>('.dc-tool-panel-toggle')?.focus();
+    });
+    return button;
   }
 
   #row(column: ColumnsPanelColumn): HTMLElement {

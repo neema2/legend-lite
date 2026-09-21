@@ -81,6 +81,73 @@ describe('the columns tool panel', () => {
     assert.deepEqual(picked, []);
   });
 
+  const toggle = (): HTMLButtonElement =>
+    root.querySelector('.dc-tool-panel-toggle') as HTMLButtonElement;
+
+  const click = (el: HTMLElement): void => {
+    el.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+  };
+
+  it('collapses to a rail and comes back', () => {
+    assert.equal(panel.collapsed, false);
+    click(toggle());
+    assert.equal(panel.collapsed, true);
+    click(toggle());
+    assert.equal(panel.collapsed, false);
+    assert.equal(rows().length, 4, 'the list came back with it');
+  });
+
+  it('collapsed, the panel is the rail and NOTHING else', () => {
+    // Not hidden -- removed. A `display: none` subtree still holds
+    // focusable controls that tab order walks through, so a hidden
+    // panel is one a keyboard user can land inside while seeing
+    // nothing. Counting rows is what catches that; checking a class
+    // would not.
+    click(toggle());
+    assert.equal(rows().length, 0);
+    assert.equal(root.querySelector('.dc-tool-panel-search'), null);
+    assert.equal(root.querySelectorAll('button').length, 1);
+    assert.ok(toggle().classList.contains('dc-tool-panel-rail'));
+    assert.match(toggle().textContent ?? '', /Columns/,
+      'the rail must say what it opens');
+  });
+
+  it('the rail is what marks the container collapsed', () => {
+    // The width lives in CSS on this class, so if it is not on the
+    // root the panel still occupies its 200px while showing nothing.
+    click(toggle());
+    assert.ok(root.classList.contains('dc-collapsed'));
+    click(toggle());
+    assert.ok(!root.classList.contains('dc-collapsed'));
+  });
+
+  it('says which state it is in, and keeps the focus', () => {
+    assert.equal(toggle().getAttribute('aria-expanded'), 'true');
+    toggle().focus();
+    click(toggle());
+    assert.equal(toggle().getAttribute('aria-expanded'), 'false');
+    // The re-render replaces the button, so without a deliberate
+    // refocus the keyboard user is dropped back to the document.
+    assert.equal(dom.window.document.activeElement, toggle());
+  });
+
+  it('a collapse survives new columns arriving', () => {
+    // Every snapshot calls setColumns, which re-renders. If the flag
+    // did not live on the instance the panel would spring open on
+    // the next query.
+    click(toggle());
+    panel.setColumns([...COLUMNS].slice(0, 2));
+    assert.equal(panel.collapsed, true);
+    assert.equal(rows().length, 0);
+  });
+
+  it('can start collapsed', () => {
+    const p2 = new ColumnsToolPanel(root, { collapsed: true });
+    p2.setColumns(COLUMNS);
+    assert.equal(p2.collapsed, true);
+    assert.equal(rows().length, 0);
+  });
+
   it('searches', () => {
     const search = root.querySelector(
       '.dc-tool-panel-search',

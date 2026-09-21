@@ -296,6 +296,13 @@
   min-height: 0;
 }
 
+/* Collapsed, the 200px goes to the grid and a rail is left behind.
+   Not `display: none`: a panel with no way back is one a reload is
+   the only escape from. */
+.dc-app-side.dc-collapsed {
+  flex: 0 0 auto;
+}
+
 /* -- the overlay ------------------------------------------------------ */
 
 .dc-app-overlay {
@@ -920,10 +927,70 @@
   color: var(--tw-neutral-500);
   display: flex;
   align-items: center;
+  /* The title takes the room and the toggle sits at the edge it
+     collapses toward. */
+  justify-content: space-between;
   height: var(--dc-control-height);
   padding: 0 var(--dc-pad-2);
   border-bottom: 1px solid var(--tw-neutral-200);
   background: var(--tw-neutral-100);
+}
+
+/* -- collapsing ------------------------------------------------------- */
+
+.dc-tool-panel-toggle {
+  font: inherit;
+  font-size: var(--dc-text-base-size);
+  line-height: 1;
+  border: 0;
+  padding: 0 var(--dc-pad-1);
+  background: transparent;
+  /* Darker than the panel's own heading. neutral-500 on neutral-100
+     is 4.2:1, which is under AA for text this small -- and the rail
+     is the ONLY way back once the panel is shut, so it is the last
+     label in the app that should be hard to read. neutral-600 is
+     7.0:1 and still reads as secondary. */
+  color: var(--tw-neutral-600);
+  cursor: pointer;
+}
+
+.dc-tool-panel-toggle:hover {
+  color: var(--tw-black);
+  background: var(--tw-neutral-200);
+}
+
+.dc-tool-panel-toggle:focus-visible {
+  outline: 1.5px solid var(--dc-active, #0284c7);
+  outline-offset: -1px;
+}
+
+/* The rail IS the collapsed panel, so it has to be tall enough to
+   read as one edge of the grid rather than a stray button. The word
+   runs down it, which is what makes a 24px sliver self-explanatory. */
+.dc-tool-panel-rail {
+  width: 24px;
+  /* NOT `height: 100%`. The panel's own height is indefinite -- it
+     is a flex item in a column flow -- so a percentage height there
+     resolves against a distant ancestor instead: measured at 800px,
+     which stretched the whole middle row to 802px, pushed it to
+     y = -1 and grew the document from 888px to 1268px. Collapsing
+     the sidebar wrecked the page. `flex` grows it where there IS
+     room, and the minimum keeps it a usable target where there is
+     not. */
+  flex: 1 1 auto;
+  min-height: 96px;
+  writing-mode: vertical-rl;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--dc-text-sm-size);
+  padding: var(--dc-pad-2) 0;
+  background: var(--tw-neutral-100);
+}
+
+/* Collapsed, the panel is the rail: no inner padding, no list, and
+   crucially no fixed width of its own fighting the rail's 24px. */
+.dc-tool-panel.dc-collapsed {
+  border: 1px solid var(--tw-neutral-200);
 }
 
 .dc-tool-panel-search {
