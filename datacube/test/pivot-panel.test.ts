@@ -158,3 +158,54 @@ describe('makeHeaderDraggable', () => {
     assert.equal(el.classList.contains('dc-draggable'), true);
   });
 });
+
+describe('the same zones, down a list', () => {
+  let dom: JSDOM;
+  let root: HTMLElement;
+  let changes: [Zone, string[]][];
+
+  beforeEach(() => {
+    dom = new JSDOM('<!doctype html><body><div id="r"></div></body>');
+    root = dom.window.document.getElementById('r') as HTMLElement;
+    changes = [];
+    const panel = new PivotPanel(root, {
+      onChange: (zone, cols) => changes.push([zone, [...cols]]),
+      canGroup: () => true,
+      showColumnZone: true,
+      orientation: 'list',
+    });
+    panel.setColumns(['region', 'desk'], []);
+  });
+
+  afterEach(() => setHeaderDrag(null));
+
+  it('says which layout it is in, so the CSS can lay it out', () => {
+    assert.equal(root.classList.contains('dc-pivot-panel-list'), true);
+  });
+
+  it('finds the drop index DOWN the zone, not across it', () => {
+    // A list laid out downwards but measured across gives every drop
+    // the same index, so a chip dragged anywhere in a vertical zone
+    // landed in the same place. jsdom has no layout, so the chips'
+    // boxes are stubbed: which gap the pointer is in is the whole
+    // question, and zero-height boxes cannot express it.
+    const zone = root.querySelector('.dc-zone-rows') as HTMLElement;
+    const chips = [...zone.querySelectorAll('.dc-chip')] as HTMLElement[];
+    chips.forEach((chip, i) => {
+      Object.defineProperty(chip, 'getBoundingClientRect', {
+        value: () => ({
+          top: i * 20, height: 20, bottom: i * 20 + 20,
+          left: 0, width: 100, right: 100,
+          x: 0, y: i * 20, toJSON: () => ({}),
+        }),
+        configurable: true,
+      });
+    });
+    setHeaderDrag({ column: 'year' });
+    zone.dispatchEvent(new dom.window.MouseEvent('drop', {
+      bubbles: true, cancelable: true, clientY: 5, clientX: 50,
+    }));
+    // Dropped in the top half of the FIRST chip: first place.
+    assert.deepEqual(changes.at(-1), ['rows', ['year', 'region', 'desk']]);
+  });
+});

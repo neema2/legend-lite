@@ -55,6 +55,16 @@ export interface PivotPanelOptions {
   readonly labelFor?: (column: string) => string;
   /** Show the column zone. Off matches DataCube exactly. */
   readonly showColumnZone?: boolean;
+  /**
+   * A bar over the grid, or a list down the sidebar.
+   *
+   * The same zones, the same drops, the same state -- laid out
+   * along the other axis. Two renderings rather than two
+   * implementations, because the second implementation of "drag a
+   * column into the row groups" is where the two would start to
+   * disagree about what a drop means.
+   */
+  readonly orientation?: 'bar' | 'list';
 }
 
 const PROMPTS: Readonly<Record<Zone, string>> = {
@@ -112,6 +122,10 @@ export class PivotPanel {
     this.#doc = root.ownerDocument;
     this.#options = options;
     root.classList.add('dc-pivot-panel');
+    root.classList.toggle(
+      'dc-pivot-panel-list',
+      options.orientation === 'list',
+    );
     this.render();
   }
 
@@ -221,11 +235,23 @@ export class PivotPanel {
     return chip;
   }
 
+  /**
+   * Which gap between chips the pointer is in.
+   *
+   * ALONG THE ZONE'S OWN AXIS. A list laid out downwards but
+   * measured across gives every drop the same index, so dragging a
+   * chip anywhere in a vertical zone sent it to the same place.
+   */
   #indexAt(zone: HTMLElement, event: MouseEvent): number {
+    const down = this.#options.orientation === 'list';
     const chips = [...zone.querySelectorAll('.dc-chip')] as HTMLElement[];
     for (let i = 0; i < chips.length; i++) {
       const box = (chips[i] as HTMLElement).getBoundingClientRect();
-      if (event.clientX < box.left + box.width / 2) return i;
+      const middle = down
+        ? box.top + box.height / 2
+        : box.left + box.width / 2;
+      const at = down ? event.clientY : event.clientX;
+      if (at < middle) return i;
     }
     return chips.length;
   }

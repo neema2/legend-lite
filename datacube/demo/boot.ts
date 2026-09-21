@@ -353,6 +353,20 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         status.classList.remove('warn-text');
       },
       onView: (view) => {
+        // A VIEW LANDED, SO THE LAST ERROR IS OVER.
+        //
+        // The line showed the last error and nothing ever took it
+        // down, so a cube that had recovered still read as broken --
+        // and it recovers routinely: opening a file swaps the
+        // planner's model while the previous cube still has a query
+        // in flight, that query then fails against the new model
+        // with "unknown table 'TRADES'", and the app it belonged to
+        // is thrown away a moment later. A status line says what is
+        // true NOW.
+        if (status.classList.contains('bad')) {
+          status.classList.remove('bad');
+          status.textContent = label;
+        }
         // The Pure this product emitted, and the SQL the planner made
         // of it. Both, because they answer different questions -- and
         // because the SQL panel showed Pure until the real planner

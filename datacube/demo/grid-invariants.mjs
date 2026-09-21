@@ -189,8 +189,14 @@ export function gridInvariants() {
   //    how a wedged cube went unnoticed for a whole session.
   const status = document.getElementById('status');
   if (status?.classList.contains('bad')) {
+    // WITH THE QUERY THAT FAILED. "unknown table 'TRADES'" says
+    // something went to the wrong model; which Pure went with it is
+    // the difference between a five-minute answer and an hour.
+    const pure = (document.getElementById('pure')?.textContent ?? '')
+      .replace(/\s+/g, ' ').slice(0, 90);
     bad.push(`the status line reads:`
-      + ` ${(status.textContent ?? '').slice(0, 70)}`);
+      + ` ${(status.textContent ?? '').slice(0, 70)}`
+      + (pure ? ` (last Pure: ${pure})` : ''));
   }
   return bad;
 }

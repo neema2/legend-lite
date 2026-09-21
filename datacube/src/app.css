@@ -136,6 +136,81 @@
 
 /* -- the drag zones ------------------------------------------------ */
 
+/* THE SAME ZONES, DOWN THE SIDEBAR. One surface in three sections
+   -- row groups, column labels, then the columns themselves -- so
+   the whole shape of the cube can be dragged into place in one
+   place. Only the layout differs from the bar's. */
+.dc-pivot-panel.dc-pivot-panel-list {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding: 0 var(--dc-pad-2) var(--dc-pad-1);
+}
+
+/* SPECIFICITY, not order: `.dc-pivot-panel > .dc-zone` sets
+   `flex: 1 1 0` for the bar further down this file, and at equal
+   weight the later rule wins -- so the list's zones were sized as
+   equal halves of a bar and a wrapped third chip had nowhere to go.
+   Two class names on the element beat one. */
+.dc-pivot-panel.dc-pivot-panel-list > .dc-zone {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  overflow: visible;
+  align-items: flex-start;
+  align-content: flex-start;
+  min-height: calc(var(--dc-control-height) * 1.6);
+  padding: var(--dc-pad-1) var(--dc-pad-2);
+}
+
+/* The title goes ABOVE its chips here, not beside them: a zone one
+   column wide has no room for both, and the sections are what make
+   the sidebar readable as three lists. */
+.dc-pivot-panel.dc-pivot-panel-list .dc-zone-title {
+  position: static;
+  flex: 0 0 100%;
+  margin: 0 0 2px;
+  background: transparent;
+}
+
+.dc-pivot-panel.dc-pivot-panel-list .dc-zone-prompt {
+  flex: 0 0 100%;
+}
+
+/* THE SECTIONS KEEP THEIR HEIGHT; THE LIST IS WHAT SCROLLS.
+   The panel is a flex column, so without this the zones shrank to
+   make room for the list below them -- a third row-group chip wrapped
+   to a second line the zone was 22px too short to show, and the
+   chip simply was not there. A zone must be as tall as its chips. */
+.dc-tool-panel-zones {
+  flex: 0 0 auto;
+}
+
+/* A section heading in the panel, matching the zones' own titles. */
+.dc-tool-panel-section {
+  padding: var(--dc-pad-1) var(--dc-pad-2) 0;
+  font-size: var(--dc-text-sm-size);
+  line-height: var(--dc-text-sm-line);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--tw-neutral-500);
+}
+
+/* The list as a drop target: a chip dragged back out of a zone
+   lands here and leaves that axis. */
+.dc-tool-panel-list.dc-drop-target {
+  outline: 1px dashed var(--tw-sky-500, #0ea5e9);
+  outline-offset: -1px;
+}
+
+/* Where a dragged row will land, on the list's own axis. */
+.dc-tool-panel-row.dc-drop-before {
+  box-shadow: inset 0 2px 0 0 var(--tw-sky-500, #0ea5e9);
+}
+
+.dc-tool-panel-row.dc-drop-after {
+  box-shadow: inset 0 -2px 0 0 var(--tw-sky-500, #0ea5e9);
+}
+
 /* The strip: the zones, and the control that folds them away. */
 .dc-zone-bar {
   display: flex;
@@ -1241,6 +1316,24 @@
    cursor rather than promising nothing. */
 .dc-tool-panel-row.dc-measure {
   color: var(--tw-neutral-500);
+}
+
+/* The disclosure on a pivoted measure: a pivot on two keys makes
+   twenty columns of one measure, and the list was a wall of them. */
+.dc-tool-panel-twist {
+  flex: 0 0 auto;
+  width: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--tw-neutral-500);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+}
+
+.dc-tool-panel-twist:hover {
+  color: var(--tw-black);
 }
 
 /* The tick box: what upstream's columns tool panel is mostly for. */

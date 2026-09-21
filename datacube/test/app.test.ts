@@ -361,11 +361,16 @@ describe('the app', () => {
     assert.ok(labels.includes('Hide Title Bar'), labels.join(', '));
   });
 
-  it('shows the row grouping already in force as chips', () => {
-    const chips = [...root.querySelectorAll('.dc-zone-rows .dc-chip')].map(
-      (c) => (c as HTMLElement).dataset['column'],
-    );
-    assert.deepEqual(chips, ['region']);
+  it('shows the row grouping as chips, in BOTH surfaces', () => {
+    // The bar over the grid and the sidebar's own section are two
+    // renderings of one state, so a grouping shows in both -- and a
+    // test that counted chips across the document would now count
+    // every one of them twice.
+    const chipsIn = (where: string): (string | undefined)[] =>
+      [...root.querySelectorAll(`${where} .dc-zone-rows .dc-chip`)]
+        .map((c) => (c as HTMLElement).dataset['column']);
+    assert.deepEqual(chipsIn('.dc-zone-bar'), ['region']);
+    assert.deepEqual(chipsIn('.dc-tool-panel-zones'), ['region']);
   });
 
   it('a column dropped in the row zone regroups the cube', async () => {
@@ -549,7 +554,11 @@ describe('the app', () => {
     const named = () => [...root.querySelectorAll('.dc-tool-panel-row')]
       .map((e) => (e as HTMLElement).dataset['column']);
     const before = named();
-    assert.ok(before.length >= 3, `only ${before.length} columns listed`);
+    // The row dimensions are in their own section now, so the
+    // columns section lists what the GRID shows.
+    assert.ok(before.length >= 2, `only ${before.length} columns listed`);
+    assert.equal(before.includes('region'), false,
+      'a row group is in the Row Groups section, not the column list');
 
     const moved = [before[before.length - 1], ...before.slice(0, -1)]
       .filter((n): n is string => n !== undefined);
@@ -678,11 +687,15 @@ describe('the app', () => {
       children.map((c) => [c.column, c.label]),
       [['A__|__total', 'A'], ['B__|__total', 'B']],
     );
-    // And the pivot KEY is locked rather than offered: its values
-    // are the headers, so it cannot also be a column, and a tick box
-    // there could only lie.
-    const key = rows.find((r) => r.column === 'desk');
-    assert.equal(key?.locked, true);
+    // And the pivot KEY is not in this list at all: its values ARE
+    // the column headers, so it cannot also be a column. It is in
+    // the sidebar's Column Labels section, which is where it can be
+    // dragged out of.
+    assert.equal(rows.some((r) => r.column === 'desk'), false);
+    const labels = [...host.querySelectorAll(
+      '.dc-tool-panel-zones .dc-zone-columns .dc-chip')]
+      .map((c) => (c as HTMLElement).dataset['column']);
+    assert.deepEqual(labels, ['desk']);
   });
 
   it('hiding a pivoted column does not take it out of the QUERY', async () => {

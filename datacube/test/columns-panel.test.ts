@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { beforeEach, describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
 import { ColumnsToolPanel } from '../src/ui/columns-panel.ts';
@@ -210,5 +210,144 @@ describe('the columns tool panel', () => {
       rows().map((r) => r.dataset['column']),
       ['desk'],
     );
+  });
+});
+
+describe('the panel as three sections of one surface', () => {
+  let dom: JSDOM;
+  let root: HTMLElement;
+  let panel: ColumnsToolPanel;
+  let reordered: string[][];
+  let removed: [string, string][];
+
+  const PIVOTED = [
+    { name: 'region', type: 'String', groupable: true },
+    {
+      name: 'notional',
+      type: 'Float',
+      groupable: false,
+      children: [
+        { name: 'A__|__notional', label: 'A', visible: true },
+        { name: 'B__|__notional', label: 'B', visible: true },
+      ],
+    },
+  ];
+
+  beforeEach(() => {
+    dom = new JSDOM('<!doctype html><body><div id="r"></div></body>');
+    root = dom.window.document.getElementById('r') as HTMLElement;
+    reordered = [];
+    removed = [];
+    panel = new ColumnsToolPanel(root, {
+      onReorder: (order) => reordered.push([...order]),
+      onRemoveFromZone: (zone, column) => removed.push([zone, column]),
+      onVisibility: () => {},
+    });
+    panel.setColumns([
+      { name: 'region', type: 'String', groupable: true },
+      { name: 'desk', type: 'String', groupable: true },
+      { name: 'notional', type: 'Float', groupable: false },
+    ]);
+    setHeaderDrag(null);
+  });
+
+  afterEach(() => setHeaderDrag(null));
+
+  const row = (name: string): HTMLElement =>
+    root.querySelector(`.dc-tool-panel-row[data-column="${name}"]`) as
+      HTMLElement;
+
+  /** Drop `from` on `to`, in whichever half. */
+  const dropOn = (from: string, to: string, half: 'top' | 'bottom'): void => {
+    const target = row(to);
+    Object.defineProperty(target, 'getBoundingClientRect', {
+      value: () => ({ top: 100, height: 20, bottom: 120, left: 0,
+        width: 100, right: 100, x: 0, y: 100, toJSON: () => ({}) }),
+      configurable: true,
+    });
+    setHeaderDrag({ column: from, from: 'panel' });
+    for (const type of ['dragover', 'drop']) {
+      target.dispatchEvent(new dom.window.MouseEvent(type, {
+        bubbles: true, cancelable: true,
+        clientY: half === 'top' ? 105 : 115,
+      }));
+    }
+  };
+
+  it('keeps a stable slot for the zones', () => {
+    // The panel replaces its children on every render, and the zones
+    // mounted in that slot own theirs -- so the slot has to be the
+    // same element each time or whatever is in it is destroyed.
+    const first = panel.zones;
+    panel.setColumns([{ name: 'region', type: 'String', groupable: true }]);
+    assert.equal(panel.zones, first);
+    assert.equal(root.contains(panel.zones), true);
+  });
+
+  it('reorders by dragging one row onto another', () => {
+    // Dragging a HEADER reorders the columns that are on screen;
+    // this reorders the list, which is where a person looks for a
+    // column -- and is the only way to place one the grid is not
+    // showing.
+    dropOn('notional', 'region', 'top');
+    assert.deepEqual(reordered.at(-1), ['notional', 'region', 'desk']);
+    dropOn('region', 'notional', 'bottom');
+    assert.deepEqual(reordered.at(-1), ['desk', 'notional', 'region']);
+  });
+
+  it('takes a column OFF an axis when a chip is dropped on the list', () => {
+    // The counterpart to dropping one into a zone: the two zones and
+    // this list are three sections of one surface, and a drag
+    // between them is how the cube is configured.
+    const list = root.querySelector('.dc-tool-panel-list') as HTMLElement;
+    setHeaderDrag({ column: 'region', from: 'rows' });
+    list.dispatchEvent(new dom.window.MouseEvent('drop', {
+      bubbles: true, cancelable: true,
+    }));
+    assert.deepEqual(removed, [['rows', 'region']]);
+  });
+
+  it('ignores a drop that came from the list itself', () => {
+    // Otherwise a reorder would also be read as a removal: both
+    // handlers are listening on the same drop.
+    const list = root.querySelector('.dc-tool-panel-list') as HTMLElement;
+    setHeaderDrag({ column: 'region', from: 'panel' });
+    list.dispatchEvent(new dom.window.MouseEvent('drop', {
+      bubbles: true, cancelable: true,
+    }));
+    assert.deepEqual(removed, []);
+  });
+
+  it('FOLDS a pivoted measure that made too many columns', () => {
+    // A pivot on one key makes five of a measure; on two it makes
+    // twenty, and the list became a wall of `Q3 . 2024`.
+    const many = (n: number) => [{
+      name: 'notional',
+      type: 'Float',
+      groupable: false,
+      children: Array.from({ length: n }, (_, i) => ({
+        name: `v${i}__|__notional`,
+        label: `v${i}`,
+        visible: true,
+      })),
+    }];
+    panel.setColumns(PIVOTED);
+    assert.equal(root.querySelectorAll('.dc-tool-panel-child').length, 2,
+      'a small block should be open');
+
+    // BY ITS CURRENT SIZE: pivoting on a second key takes five
+    // columns to twenty, and a measure remembered from when it was
+    // small stayed unfolded at twenty.
+    panel.setColumns(many(20));
+    assert.equal(root.querySelectorAll('.dc-tool-panel-child').length, 0);
+    const twist = root.querySelector('.dc-tool-panel-twist') as
+      HTMLButtonElement;
+    assert.notEqual(twist, null);
+    twist.click();
+    assert.equal(root.querySelectorAll('.dc-tool-panel-child').length, 20);
+
+    // And the choice sticks: the next render must not fold it again.
+    panel.setColumns(many(20));
+    assert.equal(root.querySelectorAll('.dc-tool-panel-child').length, 20);
   });
 });

@@ -201,6 +201,8 @@ export class CubeApp {
   readonly #controller: CubeController;
   readonly #grid: DataGrid;
   readonly #pivots: PivotPanel;
+  /** The same zones again, as a list in the sidebar. */
+  readonly #sideZones: PivotPanel;
   readonly #menu: MenuView;
   readonly #formatters = new FormatterCache();
   /**
@@ -252,8 +254,6 @@ export class CubeApp {
   #selection: CellRange | null = null;
   /** Where selection statistics are written, inside the status bar. */
   #statsSlot: HTMLElement | null = null;
-  /** Leaf names the grid is currently showing. See `#onView`. */
-  #shownLeaves = new Set<string>();
   /** Repaints the plane toggle, which is now the only plane badge. */
   #paintSnap: (() => void) | null = null;
 
@@ -314,6 +314,37 @@ export class CubeApp {
       labelFor: (c) => labelFor(this.#config, c),
       onPick: (c) => this.#onZoneChange('rows', [...this.#snapshot.rows, c]),
       onVisibility: (c, visible) => this.#patchColumn(c, { hidden: !visible }),
+      // REORDERING WHERE THE LIST IS, and the same merge the grid's
+      // own header drag goes through: the panel reports the columns
+      // it lists, which is not all of them either.
+      onReorder: (order) => {
+        void this.applyConfiguration({
+          columnOrder: mergeColumnOrder(this.#columnOrder(), order),
+        });
+      },
+      // Dragged out of a zone and back to the list: off that axis.
+      onRemoveFromZone: (zone, column) => {
+        const next = (zone === 'rows'
+          ? this.#snapshot.rows
+          : this.#snapshot.pivotOn).filter((c) => c !== column);
+        this.#onZoneChange(zone, next);
+      },
+    });
+
+    // THE SAME ZONES, DOWN THE SIDEBAR.
+    //
+    // Three sections of one surface -- row groups, column labels and
+    // the columns themselves -- so the whole shape of the cube can
+    // be dragged into place in one place. They are a second
+    // RENDERING of `PivotPanel`, not a second implementation: both
+    // read the same snapshot and both mean the same thing by a drop,
+    // which two copies of this logic would not stay agreed on.
+    this.#sideZones = new PivotPanel(this.#columnsPanel.zones, {
+      canGroup: (c) => this.#isDimension(c),
+      labelFor: (c) => labelFor(this.#config, c),
+      onChange: (zone, columns) => this.#onZoneChange(zone, columns),
+      orientation: 'list',
+      showColumnZone: true,
     });
 
     this.#pivots = new PivotPanel(zones, {
@@ -465,6 +496,7 @@ export class CubeApp {
     const next = applyToSnapshot(this.#snapshot, this.#config);
     this.#snapshot = next;
     this.#pivots.setColumns(next.rows, next.pivotOn);
+    this.#sideZones.setColumns(next.rows, next.pivotOn);
     this.#refreshFormats();
     this.#refreshToolPanel();
     await this.#controller.update({ ...next, epoch: next.epoch + 1 });
@@ -647,41 +679,33 @@ export class CubeApp {
           };
         });
 
-    // What the grid is actually showing, which is what says whether a
-    // tick box can do anything. A column a pivot has spent -- a key,
-    // or a measure it spread across the values -- is locked rather
-    // than offered, which is what upstream does (`lockVisible`).
-    const shown = this.#shownLeaves;
-    const pivoting = this.#snapshot.pivotOn.length > 0;
-
+    // THE COLUMNS SECTION IS THE GRID'S COLUMNS, and the axes have
+    // sections of their own now.
+    //
+    // A pivot key's values ARE the column headers, so it cannot also
+    // be a column; a row dimension's values are the tree's. Listing
+    // them here meant a tick box that could only lie -- it was
+    // disabled and labelled with the reason, which is a worse answer
+    // than putting the column where it actually lives. A row group
+    // KEPT as a column is a real column, so it appears in both,
+    // which is exactly what the setting means.
+    const keptGrouped = this.#config.showGroupedColumns;
     this.#columnsPanel.setColumns(
-      listed.map((c) => {
-        const children = childrenOf(c.name);
-        const hidden = columnConfig(this.#config, c.name).hidden === true;
-        const locked = children.length === 0
-          && pivoting
-          && !shown.has(c.name)
-          && !hidden
-          && !rows.has(c.name)
-          ? cols.has(c.name)
-            ? 'A pivot key. Its values are the column headers, so it'
-              + ' cannot also be a column.'
-            : 'Spent by the pivot, so there is nothing to show or hide.'
-          : undefined;
-        return {
-          name: c.name,
-          type: c.type,
-          groupable: this.#isDimension(c.name),
-          visible: !hidden,
-          ...(children.length > 0 ? { children } : {}),
-          ...(locked !== undefined ? { locked } : {}),
-          ...(rows.has(c.name)
-            ? { usedAs: 'rows' as const }
-            : cols.has(c.name)
-              ? { usedAs: 'columns' as const }
-              : {}),
-        };
-      }),
+      listed
+        .filter((c) => !cols.has(c.name))
+        .filter((c) => keptGrouped || !rows.has(c.name))
+        .map((c) => {
+          const children = childrenOf(c.name);
+          const hidden = columnConfig(this.#config, c.name).hidden === true;
+          return {
+            name: c.name,
+            type: c.type,
+            groupable: this.#isDimension(c.name),
+            visible: !hidden,
+            ...(children.length > 0 ? { children } : {}),
+            ...(rows.has(c.name) ? { usedAs: 'rows' as const } : {}),
+          };
+        }),
     );
   }
 
@@ -725,12 +749,9 @@ export class CubeApp {
     this.#grid.setRows(view.rows, 0, view.rows.rowCount);
 
     this.#syncPivotCast(model);
-    // WHAT THE GRID IS SHOWING, from the model just built -- the
-    // panel asks, to decide whether a tick box can do anything, and
-    // it used to ask the PREVIOUS view: on the first render there
-    // was none, so every column looked absent and the panel locked
-    // the lot.
-    this.#shownLeaves = new Set(model.leaves.map((l) => l.name));
+    // The panel is refreshed from the view, not only from a
+    // configuration change: a pivot's own column names are only
+    // known once a result has come back, and the panel lists them.
     this.#refreshToolPanel();
     this.#renderStatusBar(view, model.leaves.length);
     // The snapshot's row count is in the toggle's tooltip, and a

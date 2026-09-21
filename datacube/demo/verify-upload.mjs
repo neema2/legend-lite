@@ -269,7 +269,10 @@ try {
     // two halves of one bar, so the drop landed at the boundary and
     // region was PIVOTED rather than grouped. The check reported
     // three failures in the product and the product was right.
-    await region.first().dragTo(page.locator('.dc-zone-rows'));
+    // THE BAR'S zone, said explicitly: the sidebar has one of its
+    // own now, so a bare `.dc-zone-rows` matches two elements and
+    // Playwright refuses to guess.
+    await region.first().dragTo(page.locator('.dc-zone-bar .dc-zone-rows'));
     await page.waitForFunction(
       () => /groupBy|could not/.test(
         document.getElementById('pure')?.textContent ?? ''),

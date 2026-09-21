@@ -491,10 +491,12 @@ try {
 
   check(
     'the row-group zone is on screen with its chips',
-    (await page.locator('.dc-zone-rows .dc-chip').allTextContents())
+    (await page.locator('.dc-zone-bar .dc-zone-rows .dc-chip')
+      .allTextContents())
       .join(',')
       .includes('region'),
-    (await page.locator('.dc-zone-rows').textContent())?.trim(),
+    (await page.locator('.dc-zone-bar .dc-zone-rows').textContent())
+      ?.trim(),
   );
 
   // The filter boxes over the grid are GONE. DataCube has none --
@@ -756,7 +758,8 @@ try {
   // cube is grouped, the only non-pivot column on screen is the tree
   // column, and a tree column holds a different dimension at every
   // level, so no single box could filter it.
-  for (const zone of ['.dc-zone-columns', '.dc-zone-rows']) {
+  for (const zone of ['.dc-zone-bar .dc-zone-columns',
+    '.dc-zone-bar .dc-zone-rows']) {
     while ((await page.locator(`${zone} .dc-chip-remove`).count()) > 0) {
       const n = await page.locator(`${zone} .dc-chip`).count();
       await page.locator(`${zone} .dc-chip-remove`).last().click();
@@ -770,7 +773,8 @@ try {
   await page.waitForTimeout(2500);
   check(
     'removing every chip flattens the cube completely',
-    (await page.locator('.dc-zone-rows .dc-chip').count()) === 0,
+    (await page.locator('.dc-zone-bar .dc-zone-rows .dc-chip')
+      .count()) === 0,
     (await page.textContent('.dc-status-timing'))?.trim(),
   );
 

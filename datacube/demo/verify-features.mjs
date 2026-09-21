@@ -448,22 +448,32 @@ let loaded = 'the built-in demo cube';
 let heatCol = 1;
 // `region` in the sample; column 3 of the demo cube is a dimension too.
 const GROUP_COL = 3;
-try {
+/**
+ * A cube in a known state: the page loaded, the file opened.
+ *
+ * The preamble's own work, as a function, so a check that must not
+ * inherit fifty other checks' configuration can ask for a clean one.
+ * Used sparingly -- the point of one long run is that each feature
+ * meets the state the others leave.
+ */
+async function freshCube() {
   await page.goto(`${URL_BASE}/demo/index.html`);
   await page.waitForSelector('.dc-row', { timeout: 90_000 });
+  if (!DATA) return;
+  await page.setInputFiles('input[type=file]', DATA);
+  await page.waitForFunction(
+    () => /rows/.test(
+      document.querySelector('.dc-status-timing')?.textContent ?? '')
+      || /could not|error/i.test(
+        document.getElementById('status')?.textContent ?? ''),
+    undefined, { timeout: 90_000 },
+  );
+  await settle();
+}
 
-  if (DATA) {
-    await page.setInputFiles('input[type=file]', DATA);
-    await page.waitForFunction(
-      () => /rows/.test(
-        document.querySelector('.dc-status-timing')?.textContent ?? '')
-        || /could not|error/i.test(
-          document.getElementById('status')?.textContent ?? ''),
-      undefined, { timeout: 90_000 },
-    );
-    await settle();
-    loaded = DATA.split('/').pop();
-  }
+try {
+  await freshCube();
+  if (DATA) loaded = DATA.split('/').pop();
   const start = await state();
   console.log(`\nloaded ${loaded}: ${start.rows.length} rows,`
     + ` ${start.headers.length} headers\n`);
@@ -723,7 +733,8 @@ try {
     // satisfied by one row chip and one column chip -- which is the
     // other shape entirely.
     const zone = await page.evaluate(() =>
-      [...document.querySelectorAll('.dc-zone-rows [data-column]')]
+      [...document.querySelectorAll('.dc-zone-bar .dc-zone-rows'
+        + ' [data-column]')]
         .map((e) => e.dataset.column));
     if (zone.length < 2) {
       throw new Error(`the row zone holds ${JSON.stringify(zone)}`);
@@ -1302,9 +1313,25 @@ try {
       .filter((r) => !r.classList.contains('dc-tool-panel-child'))
       .map((r) => r.dataset.column));
 
+  /**
+   * The grid's columns, LEFT TO RIGHT.
+   *
+   * By x position, not document order. Header cells sit in the DOM
+   * grouped by header ROW, so a pivoted cube lists the top row
+   * (qtr, 2021..2025, pnl) before the leaf row (notional x5), and a
+   * pinned column is in a container of its own -- either way the
+   * document order is not the order on screen. Read the wrong way,
+   * this reports the grid inconsistent with the panel when both are
+   * right, which it did twice.
+   */
   const gridColumns = () => page.evaluate(() =>
     [...document.querySelectorAll('.dc-th[data-column]')]
-      .map((e) => e.dataset.column));
+      .map((e) => ({
+        name: e.dataset.column,
+        x: Math.round(e.getBoundingClientRect().left),
+      }))
+      .sort((a, b) => a.x - b.x)
+      .map((c) => c.name));
 
   let removed = null;
 
@@ -1369,7 +1396,8 @@ try {
     }
     if (after.length !== before.length) {
       throw new Error(`reordering changed the COUNT: ${before.length} ->`
-        + ` ${after.length}`);
+        + ` ${after.length}; before=[${before.join(', ')}]`
+        + ` after=[${after.join(', ')}]`);
     }
     if ([...after].sort().join(',') !== [...before].sort().join(',')) {
       throw new Error('reordering changed which columns are shown');
@@ -1873,6 +1901,161 @@ try {
 
   // -- the columns panel, which is a control and not a legend -------
 
+  await gap('a panel reorder still reaches the grid after a long run',
+    'the panel and the configuration take the new order and the grid'
+    + ' keeps the old one, but only after the checks above have run --'
+    + ' the same reorder works on a freshly loaded cube, in Node'
+    + ' against a stub engine, and in every subset of this suite I'
+    + ' have tried. The projection keeps the old order too, so the'
+    + ' write does not reach the query; the status line is clean, so'
+    + ' nothing failed. It is not pinning and not a lost update (a'
+    + ' second drag changes nothing). Hard to see further because the'
+    + ' cube cannot report its own configuration: the specification'
+    + ' export carries the snapshot and the per-column settings but'
+    + ' not `columnOrder`, so there is nothing to read back.',
+    async () => {
+      const listed = () => page.evaluate(() =>
+        [...document.querySelectorAll('.dc-tool-panel-row')]
+          .filter((r) => !r.classList.contains('dc-tool-panel-child'))
+          .map((r) => r.dataset.column));
+      await flatten();
+      const before = await listed();
+      if (before.length < 3) throw new Error('not enough columns listed');
+      const last = before[before.length - 1];
+      const stamp = await statusNow();
+      await page.locator(`.dc-tool-panel-row[data-column="${last}"]`)
+        .dragTo(page.locator(
+          `.dc-tool-panel-row[data-column="${before[0]}"]`),
+        { timeout: 10_000, targetPosition: { x: 40, y: 2 } });
+      await settle(stamp);
+      const grid = (await gridColumns()).filter((c) => c !== '__tree');
+      const panel = (await listed()).filter((c) => grid.includes(c));
+      const shown = grid.filter((c) => panel.includes(c));
+      if (panel.join(',') !== shown.join(',')) {
+        throw new Error(`the panel reads ${panel.join(', ')} and the grid`
+          + ` reads ${shown.join(', ')}`);
+      }
+      return `${last} moved and the grid followed`;
+    });
+
+  await check('the sidebar configures the cube: list -> rows -> columns',
+    async () => {
+      // THREE SECTIONS OF ONE SURFACE. Row groups, column labels and
+      // the columns themselves, so the whole shape of the cube can
+      // be dragged into place in one place -- and a column dropped
+      // back on the list comes off whichever axis it was on.
+      await flatten();
+      const side = '.dc-tool-panel-zones';
+      const chips = (zone) => page.evaluate((sel) =>
+        [...document.querySelectorAll(`${sel} .dc-chip`)]
+          .map((c) => c.dataset.column), `${side} .dc-zone-${zone}`);
+      const listed = () => page.evaluate(() =>
+        [...document.querySelectorAll('.dc-tool-panel-row')]
+          .filter((r) => !r.classList.contains('dc-tool-panel-child'))
+          .map((r) => r.dataset.column));
+
+      const dims = await dimensionNames();
+      const column = ['region', 'desk', 'book', 'quarter']
+        .find((n) => dims.includes(n));
+      if (!column) throw new Error(`no dimension available in ${dims}`);
+
+      // 1. The list into Row Groups: the cube groups by it.
+      let stamp = await statusNow();
+      await page.locator(`.dc-tool-panel-row[data-column="${column}"]`)
+        .dragTo(page.locator(`${side} .dc-zone-rows`), { timeout: 10_000 });
+      await settle(stamp);
+      if (!(await chips('rows')).includes(column)) {
+        throw new Error(`${column} did not land in Row Groups:`
+          + ` ${(await chips('rows')).join(', ')}`);
+      }
+      if ((await listed()).includes(column)) {
+        throw new Error(`${column} is a row group and still in the column`
+          + ` list`);
+      }
+      stamp = await statusNow();
+
+      // 2. Row Groups into Column Labels: it changes axis, and does
+      //    not sit on both -- a dimension on both axes is a cube
+      //    nobody meant.
+      await page.locator(`${side} .dc-zone-rows`
+        + ` .dc-chip[data-column="${column}"]`)
+        .dragTo(page.locator(`${side} .dc-zone-columns`), { timeout: 10_000 });
+      await settle(stamp);
+      if (!(await chips('columns')).includes(column)) {
+        throw new Error(`${column} did not reach Column Labels`);
+      }
+      if ((await chips('rows')).includes(column)) {
+        throw new Error(`${column} is on BOTH axes at once`);
+      }
+      stamp = await statusNow();
+
+      // 3. And back to the list, which takes it off the axis.
+      await page.locator(`${side} .dc-zone-columns`
+        + ` .dc-chip[data-column="${column}"]`)
+        .dragTo(page.locator('.dc-tool-panel-list'), { timeout: 10_000 });
+      await settle(stamp);
+      if ((await chips('columns')).includes(column)) {
+        throw new Error(`${column} stayed on the column axis`);
+      }
+      if (!(await listed()).includes(column)) {
+        throw new Error(`${column} came off the axis and vanished from`
+          + ` the list: ${(await listed()).join(', ')}`);
+      }
+      return `${column} went list -> rows -> columns -> list`;
+    });
+
+  await check('the columns can be reordered IN the panel', async () => {
+    // Dragging a header reorders what is on screen; this reorders
+    // the list, which is where a person looks for a column -- and is
+    // the only way to place one the grid is not showing.
+    //
+    // FROM A FRESH CUBE. This passes on a cube that has just been
+    // loaded and fails after a long run, which is the gap declared
+    // below: something in the accumulated state stops a
+    // configuration write reaching the grid, and I have not isolated
+    // it. The feature is checked here; the anomaly is checked there,
+    // so neither hides the other.
+    await freshCube();
+    const listed = () => page.evaluate(() =>
+      [...document.querySelectorAll('.dc-tool-panel-row')]
+        .filter((r) => !r.classList.contains('dc-tool-panel-child'))
+        .map((r) => r.dataset.column));
+    const before = await listed();
+    if (before.length < 3) throw new Error('not enough columns listed');
+    const last = before[before.length - 1];
+    // STAMP FIRST. `settle()` with no baseline waits 150ms flat --
+    // enough on an idle page, not enough on a busy one, and the
+    // check then read the grid before the reorder's query landed and
+    // reported the product inconsistent with itself.
+    const stamp = await statusNow();
+    await page.locator(`.dc-tool-panel-row[data-column="${last}"]`)
+      .dragTo(page.locator(
+        `.dc-tool-panel-row[data-column="${before[0]}"]`),
+      { timeout: 10_000, targetPosition: { x: 40, y: 2 } });
+    await settle(stamp);
+    const after = await listed();
+    if (after[0] !== last) {
+      throw new Error(`${last} did not move to the front:`
+        + ` ${after.join(', ')}`);
+    }
+    // AND THE GRID FOLLOWED. A panel that reorders only itself is a
+    // panel that lies about the grid -- compared as the RELATIVE
+    // order of the columns the grid shows, because the panel also
+    // lists the hidden ones and they have no place on screen.
+    const grid = (await gridColumns()).filter((c) => c !== '__tree');
+    // Compared as the RELATIVE order of the columns the grid shows:
+    // the panel also lists the hidden ones, which have no place on
+    // screen.
+    const expected = after.filter((c) => grid.includes(c));
+    const actual = grid.filter((c) => expected.includes(c));
+    if (expected.join(',') !== actual.join(',')) {
+      throw new Error(`the panel reads ${expected.join(', ')} and the grid`
+        + ` reads ${actual.join(', ')}`);
+    }
+    return `${last} moved to the front; the grid follows`
+      + ` (${actual.join(', ')})`;
+  });
+
   await check('a reorder leaves the GROUPED columns where they were',
     async () => {
       // The grid can only report the columns it is showing, and
@@ -1887,11 +2070,18 @@ try {
       if (!group) throw new Error(`no dimension to group by in ${dims}`);
       await menu(['Pivot', /^Vertical Pivot on/],
         { col: await needCol(group) });
-      const panelBefore = await panelOrder();
-      const at = panelBefore.indexOf(group);
+      // IN ITS OWN SECTION. A row group is a chip in Row Groups,
+      // not a row in the column list -- its values are the tree's.
+      // What must not move is the order of everything else.
+      const chipAt = async () => (await page.evaluate(() =>
+        [...document.querySelectorAll(
+          '.dc-tool-panel-zones .dc-zone-rows .dc-chip')]
+          .map((c) => c.dataset.column))).indexOf(group);
+      const at = await chipAt();
       if (at === -1) {
-        throw new Error(`${group} is not in the panel at all`);
+        throw new Error(`${group} is not in the Row Groups section`);
       }
+      const panelBefore = await panelOrder();
       // Now move two columns the grid IS showing, and the grouped
       // one must not budge.
       const shown = (await gridColumns()).filter((c) => c !== '__tree');
@@ -1901,16 +2091,23 @@ try {
           { timeout: 10_000 });
       await settle();
       const panelAfter = await panelOrder();
-      if (panelAfter.indexOf(group) !== at) {
+      if ((await chipAt()) !== at) {
         throw new Error(`${group} moved from ${at} to`
-          + ` ${panelAfter.indexOf(group)}: ${panelAfter.join(', ')}`);
+          + ` ${await chipAt()} in Row Groups`);
       }
       // And the two that moved did move, or this proves nothing.
       if (panelAfter.indexOf(shown[1]) > panelAfter.indexOf(shown[0])) {
         throw new Error(`${shown[1]} did not move ahead of ${shown[0]}:`
           + ` ${panelAfter.join(', ')}`);
       }
-      return `${group} held position ${at} through a reorder`;
+      // Nothing that was listed fell out of the list either, which is
+      // how the whole order used to get scrambled.
+      const lost = panelBefore.filter((c) => !panelAfter.includes(c));
+      if (lost.length > 0) {
+        throw new Error(`the reorder dropped ${lost.join(', ')} from the`
+          + ` list`);
+      }
+      return `${group} held its place in Row Groups through a reorder`;
     });
 
   await check('the panel lists a pivoted measure as its pivot columns',
@@ -1956,15 +2153,23 @@ try {
         throw new Error(`a child is labelled with its generated name:`
           + ` ${noisy[0].label}`);
       }
-      // AND THE PIVOT KEY IS LOCKED: its values are the headers now.
-      const locked = await page.evaluate((k) => {
-        const box = document.querySelector(
-          `.dc-tool-panel-row[data-column="${k}"] .dc-tool-panel-show`);
-        return box ? box.disabled : null;
-      }, key);
-      if (locked !== true) {
-        throw new Error(`${key} is a pivot key but its tick box is`
-          + ` ${locked === null ? 'missing' : 'live'}`);
+      // AND THE PIVOT KEY IS IN ITS OWN SECTION: its values ARE the
+      // column headers, so it cannot also be a column. It used to be
+      // listed with a disabled tick box and the reason in a tooltip,
+      // which is a worse answer than putting it where it lives.
+      const onAxis = await page.evaluate(() =>
+        [...document.querySelectorAll(
+          '.dc-tool-panel-zones .dc-zone-columns .dc-chip')]
+          .map((c) => c.dataset.column));
+      if (!onAxis.includes(key)) {
+        throw new Error(`${key} is a pivot key but the Column Labels`
+          + ` section holds ${onAxis.join(', ') || 'nothing'}`);
+      }
+      const stillListed = await page.locator(
+        `.dc-tool-panel-row[data-column="${key}"]`).count();
+      if (stillListed > 0) {
+        throw new Error(`${key} is a pivot key and still in the column`
+          + ` list`);
       }
       return `${children.length} pivot columns listed under their measure`;
     });
@@ -2268,15 +2473,34 @@ try {
     // behind.
     await menu(['Pivot', 'Clear All Vertical Pivots']).catch(() => {});
     await page.locator('.dc-row').first().locator('.dc-cell').nth(1).click();
-    const focused = () => page.evaluate(() =>
-      document.querySelector('.dc-cell.dc-focus')?.textContent ?? '');
+    // WHERE the focus is, not what it says. This compared the focused
+    // cell's TEXT, and a boolean column reads "true" in row after
+    // row -- so a focus that moved perfectly reported that it had
+    // not, as soon as a reorder put `settled` first.
+    const focused = () => page.evaluate(() => {
+      const cell = document.querySelector('.dc-cell.dc-focus');
+      if (!cell) return null;
+      const row = cell.closest('.dc-row');
+      const cells = [...(row?.querySelectorAll('.dc-cell') ?? [])];
+      return {
+        row: row?.getAttribute('aria-rowindex') ?? '?',
+        col: cells.indexOf(cell),
+        text: cell.textContent ?? '',
+      };
+    });
     const before = await focused();
     await page.keyboard.press('ArrowDown');
     await page.waitForTimeout(200);
     const after = await focused();
     if (!before && !after) throw new Error('no cell ever shows focus');
-    if (before === after) throw new Error(`focus did not move from ${before}`);
-    return `${before} -> ${after}`;
+    if (!before || !after) {
+      throw new Error(`focus ${before ? 'vanished' : 'never appeared'}`);
+    }
+    if (before.row === after.row && before.col === after.col) {
+      throw new Error(`focus did not move from row ${before.row},`
+        + ` column ${before.col}`);
+    }
+    return `row ${before.row} -> ${after.row} (${after.text})`;
   });
 } catch (e) {
   record('the run itself', false, String(e.message ?? e).split('\n')[0]);
