@@ -73,6 +73,18 @@ export interface HeaderCell {
 
 export interface ColumnModel {
   readonly leaves: readonly LeafColumn[];
+  /**
+   * EVERY column the result carried, hidden ones included.
+   *
+   * What the grid shows and what the engine returned are different
+   * questions, and one caller needs the second: the pivot's cast
+   * describes the shape of the ANSWER. Reading it off the visible
+   * leaves meant that unticking `2022__|__notional` in the columns
+   * panel narrowed the next query's `cast(...)`, so the column left
+   * the data as well as the screen -- and nothing could bring it
+   * back, because the panel lists the cast.
+   */
+  readonly all: readonly LeafColumn[];
   /** One row of header cells per level, top to bottom. */
   readonly headerRows: readonly (readonly HeaderCell[])[];
   /** Number of header levels. At least 1. */
@@ -450,7 +462,7 @@ export function buildColumnModel(
     headerRows.push(row);
   }
 
-  return { leaves: sized, headerRows, depth };
+  return { leaves: sized, all: leaves, headerRows, depth };
 }
 
 function samePrefix(

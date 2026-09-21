@@ -29,6 +29,36 @@ export interface ColumnsPanelColumn {
   readonly usedAs?: 'rows' | 'columns';
   /** Whether the grid is showing it. Absent counts as shown. */
   readonly visible?: boolean;
+  /**
+   * The columns a pivot made of this one.
+   *
+   * A pivoted measure is not one column in the grid, it is one per
+   * value of the pivot key -- `2021__|__notional` through
+   * `2025__|__notional` -- and the panel said "notional" once. So it
+   * lists them, under the measure they came from, which is how
+   * ag-grid's own tool panel shows a pivot (upstream generates a
+   * column group per value and the panel nests the leaves inside
+   * it).
+   */
+  readonly children?: readonly ColumnsPanelChild[];
+  /**
+   * Why this column cannot be shown or hidden right now.
+   *
+   * Set for a column a pivot has spent -- a pivot key, or a measure
+   * the pivot spread across its values -- where a tick box could
+   * only lie. Upstream locks the same columns while pivoting
+   * (`lockVisible`), rather than offering a control with no effect.
+   */
+  readonly locked?: string;
+}
+
+/** One column a pivot produced, under the measure it came from. */
+export interface ColumnsPanelChild {
+  /** The generated name, e.g. `2021__|__notional`. */
+  readonly name: string;
+  /** What to call it here: the pivot values, e.g. `2021`. */
+  readonly label: string;
+  readonly visible: boolean;
 }
 
 export interface ColumnsPanelOptions {
@@ -144,6 +174,10 @@ export class ColumnsToolPanel {
     for (const column of this.#columns) {
       if (q !== '' && !column.name.toLowerCase().includes(q)) continue;
       list.append(this.#row(column));
+      // The pivot's own columns, under the measure they came from.
+      for (const child of column.children ?? []) {
+        list.append(this.#child(column, child));
+      }
     }
 
     this.#root.replaceChildren(head, search, list);
@@ -193,16 +227,26 @@ export class ColumnsToolPanel {
     row.dataset['column'] = column.name;
     row.classList.toggle('dc-measure', !column.groupable);
 
-    const visible = column.visible !== false;
+    const children = column.children ?? [];
+    // A pivoted measure is shown by ITS PARTS: the parent is ticked
+    // when any of them is, and toggling it moves all of them, which
+    // is the only thing "hide notional" can mean once the pivot has
+    // made five of it.
+    const visible = children.length > 0
+      ? children.some((c) => c.visible)
+      : column.visible !== false;
     row.classList.toggle('dc-hidden-column', !visible);
     if (this.#options.onVisibility) {
       const box = doc.createElement('input');
       box.type = 'checkbox';
       box.className = 'dc-tool-panel-show';
       box.checked = visible;
-      box.title = visible
-        ? `Hide ${column.name} from the grid`
-        : `Show ${column.name} in the grid`;
+      box.disabled = column.locked !== undefined;
+      box.title = column.locked !== undefined
+        ? column.locked
+        : visible
+          ? `Hide ${column.name} from the grid`
+          : `Show ${column.name} in the grid`;
       box.setAttribute('aria-label', box.title);
       // The row is draggable, and a press on the box must tick it
       // rather than start a drag of the row underneath.
@@ -210,6 +254,12 @@ export class ColumnsToolPanel {
       box.addEventListener('pointerdown', (e) => e.stopPropagation());
       box.addEventListener('click', (e) => e.stopPropagation());
       box.addEventListener('change', () => {
+        if (children.length > 0) {
+          for (const child of children) {
+            this.#options.onVisibility?.(child.name, box.checked);
+          }
+          return;
+        }
         this.#options.onVisibility?.(column.name, box.checked);
       });
       row.append(box);
@@ -233,6 +283,12 @@ export class ColumnsToolPanel {
     row.append(type);
 
     makeHeaderDraggable(row, column.name, column.groupable, 'panel');
+    if (column.locked !== undefined) {
+      // Nothing to drag it to: the grid is not showing it and cannot
+      // be made to while the pivot stands.
+      row.draggable = false;
+      row.classList.remove('dc-draggable');
+    }
     if (column.groupable && this.#options.onPick) {
       // Double-click is the keyboard-and-trackpad path to the same
       // thing: a panel that can only be operated by dragging is a
@@ -253,6 +309,60 @@ export class ColumnsToolPanel {
       row.title = `[${column.name}]\nDrag into the grid to place it.`
         + ` Measures cannot be grouped by.`;
     }
+    if (column.locked !== undefined) row.title = `[${column.name}]\n${column.locked}`;
+    return row;
+  }
+
+  /**
+   * One column a pivot produced.
+   *
+   * Indented under its measure and labelled by the pivot values
+   * alone -- under "notional", the rows read 2021, 2022, 2023 --
+   * because the measure is already named by the row above and
+   * `2021__|__notional` says it twice.
+   */
+  #child(parent: ColumnsPanelColumn, child: ColumnsPanelChild): HTMLElement {
+    const doc = this.#doc;
+    const row = doc.createElement('div');
+    row.className = 'dc-tool-panel-row dc-tool-panel-child';
+    row.setAttribute('role', 'listitem');
+    row.dataset['column'] = child.name;
+    row.classList.toggle('dc-hidden-column', !child.visible);
+
+    if (this.#options.onVisibility) {
+      const box = doc.createElement('input');
+      box.type = 'checkbox';
+      box.className = 'dc-tool-panel-show';
+      box.checked = child.visible;
+      box.title = child.visible
+        ? `Hide ${child.label} ${parent.name} from the grid`
+        : `Show ${child.label} ${parent.name} in the grid`;
+      box.setAttribute('aria-label', box.title);
+      box.draggable = false;
+      box.addEventListener('pointerdown', (e) => e.stopPropagation());
+      box.addEventListener('click', (e) => e.stopPropagation());
+      box.addEventListener('change', () => {
+        this.#options.onVisibility?.(child.name, box.checked);
+      });
+      row.append(box);
+    }
+
+    const label = doc.createElement('span');
+    label.className = 'dc-tool-panel-label';
+    label.textContent = child.label;
+    row.append(label);
+
+    const type = doc.createElement('span');
+    type.className = 'dc-tool-panel-type';
+    type.textContent = parent.type;
+    row.append(type);
+
+    // Draggable like any other column: a pivoted leaf reorders its
+    // MEASURE, in every value block at once, which is the only
+    // outcome the configuration can express.
+    makeHeaderDraggable(row, child.name, false, 'panel');
+    row.title = `[${child.name}]\nDrag into the grid to place`
+      + ` ${parent.name}.`;
     return row;
   }
 }

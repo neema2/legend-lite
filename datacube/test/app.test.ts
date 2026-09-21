@@ -82,6 +82,34 @@ class StubPlanner implements Planner {
   }
 }
 
+/** A cube pivoted on desk, grouped by region. */
+const PIVOTED: CubeSnapshot = {
+  ...SNAPSHOT,
+  rows: ['region'],
+  pivotOn: ['desk'],
+  measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
+};
+
+/** An engine that answers in the shape a pivot produces. */
+class PivotEngine implements QueryEngine {
+  readonly name = 'pivot';
+  readonly sql: string[] = [];
+  async execute(sql: string, epoch: number): Promise<ResultTable> {
+    this.sql.push(sql);
+    return {
+      columns: [
+        { name: 'region', type: 'String', values: ['EMEA', 'AMER'] },
+        { name: 'A__|__total', type: 'Float', values: [1, 2] },
+        { name: 'B__|__total', type: 'Float', values: [3, 4] },
+      ],
+      rowCount: 2,
+      epoch,
+      elapsedMs: 1,
+    };
+  }
+  async close(): Promise<void> {}
+}
+
 class MemoryStorage {
   readonly map = new Map<string, string>();
   getItem(k: string): string | null {
@@ -615,6 +643,74 @@ describe('the app', () => {
       (c) => (c as HTMLElement).style.backgroundColor !== '',
     );
     assert.ok(painted.length > 0, 'no cell was painted');
+  });
+
+  it('lists a pivoted measure as the columns the pivot MADE of it', async () => {
+    // The panel said "notional" once while the grid showed five of
+    // it. ag-grid's own tool panel nests the pivot result columns
+    // under a group per value; this lists them under the measure
+    // they came from, labelled by the values alone, because the
+    // measure is named by the row above.
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const pivoted = new CubeApp(host, PIVOTED, {
+      engine: new PivotEngine(),
+      planner: new StubPlanner(),
+    });
+    await pivoted.open();
+    // The cast is only known once a result has come back, and
+    // learning it starts a SECOND query -- `#syncPivotCast` does not
+    // await it, so the first `open()` resolves before the pivot's
+    // own column names exist.
+    for (let i = 0; i < 5; i += 1) {
+      await new Promise((done) => setTimeout(done, 0));
+    }
+    const rows = [...host.querySelectorAll('.dc-tool-panel-row')]
+      .map((r) => ({
+        column: (r as HTMLElement).dataset['column'],
+        label: r.querySelector('.dc-tool-panel-label')?.textContent,
+        child: r.classList.contains('dc-tool-panel-child'),
+        locked: r.querySelector<HTMLInputElement>('.dc-tool-panel-show')
+          ?.disabled,
+      }));
+    const children = rows.filter((r) => r.child);
+    assert.deepEqual(
+      children.map((c) => [c.column, c.label]),
+      [['A__|__total', 'A'], ['B__|__total', 'B']],
+    );
+    // And the pivot KEY is locked rather than offered: its values
+    // are the headers, so it cannot also be a column, and a tick box
+    // there could only lie.
+    const key = rows.find((r) => r.column === 'desk');
+    assert.equal(key?.locked, true);
+  });
+
+  it('hiding a pivoted column does not take it out of the QUERY', async () => {
+    // Unticking `A__|__total` narrowed the next query's `cast(...)`,
+    // because the cast was read off the leaves the grid was SHOWING
+    // -- so the column left the data as well as the screen, and
+    // nothing could bring it back: the panel lists the cast.
+    const host = dom.window.document.createElement('div');
+    dom.window.document.body.append(host);
+    const pivoted = new CubeApp(host, PIVOTED, {
+      engine: new PivotEngine(),
+      planner: new StubPlanner(),
+      configuration: {
+        ...DEFAULT_CONFIGURATION,
+        columns: { 'A__|__total': { hidden: true } },
+      },
+    });
+    await pivoted.open();
+    assert.deepEqual(
+      (pivoted.snapshot.pivotCast ?? []).map((c) => c.name),
+      ['A__|__total', 'B__|__total'],
+      'the hidden column fell out of the cast',
+    );
+    // Hidden on screen, all the same.
+    const shown = [...host.querySelectorAll('.dc-th[data-column]')]
+      .map((e) => (e as HTMLElement).dataset['column']);
+    assert.equal(shown.includes('A__|__total'), false);
+    assert.equal(shown.includes('B__|__total'), true);
   });
 
   it('the grid header carries the column name, so the menu knows what was clicked', () => {

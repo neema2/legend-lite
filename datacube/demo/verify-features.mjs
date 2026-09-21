@@ -1279,6 +1279,29 @@ try {
     await settle(before);
   }
 
+  /**
+   * Back to a FLAT cube.
+   *
+   * A check that right-clicks a column header needs that column to
+   * be a header, and a grouped one is the tree's instead -- so a
+   * check inheriting someone else's grouping fails with "region is
+   * not on screen to right-click" and blames the product. Each of
+   * the checks below makes its own shape from flat.
+   */
+  const flatten = async () => {
+    await menu(['Pivot', 'Clear All Horizontal Pivots'], { requery: false })
+      .catch(() => {});
+    await menu(['Pivot', 'Clear All Vertical Pivots'], { requery: false })
+      .catch(() => {});
+    await settle();
+  };
+
+  /** The panel's rows, source columns only, in the order listed. */
+  const panelOrder = () => page.evaluate(() =>
+    [...document.querySelectorAll('.dc-tool-panel-row')]
+      .filter((r) => !r.classList.contains('dc-tool-panel-child'))
+      .map((r) => r.dataset.column));
+
   const gridColumns = () => page.evaluate(() =>
     [...document.querySelectorAll('.dc-th[data-column]')]
       .map((e) => e.dataset.column));
@@ -1849,6 +1872,155 @@ try {
     });
 
   // -- the columns panel, which is a control and not a legend -------
+
+  await check('a reorder leaves the GROUPED columns where they were',
+    async () => {
+      // The grid can only report the columns it is showing, and
+      // writing its report straight into the order dropped every
+      // grouped, pivoted and hidden column out of it -- so the
+      // panel, which sorts by that order and puts anything unlisted
+      // last, threw them to the end of the list. One drag and the
+      // row-group columns jumped.
+      await flatten();
+      const dims = await dimensionNames();
+      const group = ['region', 'desk', 'book'].find((n) => dims.includes(n));
+      if (!group) throw new Error(`no dimension to group by in ${dims}`);
+      await menu(['Pivot', /^Vertical Pivot on/],
+        { col: await needCol(group) });
+      const panelBefore = await panelOrder();
+      const at = panelBefore.indexOf(group);
+      if (at === -1) {
+        throw new Error(`${group} is not in the panel at all`);
+      }
+      // Now move two columns the grid IS showing, and the grouped
+      // one must not budge.
+      const shown = (await gridColumns()).filter((c) => c !== '__tree');
+      if (shown.length < 2) throw new Error('not enough columns to reorder');
+      await page.locator(`.dc-th[data-column="${shown[1]}"]`)
+        .dragTo(page.locator(`.dc-th[data-column="${shown[0]}"]`),
+          { timeout: 10_000 });
+      await settle();
+      const panelAfter = await panelOrder();
+      if (panelAfter.indexOf(group) !== at) {
+        throw new Error(`${group} moved from ${at} to`
+          + ` ${panelAfter.indexOf(group)}: ${panelAfter.join(', ')}`);
+      }
+      // And the two that moved did move, or this proves nothing.
+      if (panelAfter.indexOf(shown[1]) > panelAfter.indexOf(shown[0])) {
+        throw new Error(`${shown[1]} did not move ahead of ${shown[0]}:`
+          + ` ${panelAfter.join(', ')}`);
+      }
+      return `${group} held position ${at} through a reorder`;
+    });
+
+  await check('the panel lists a pivoted measure as its pivot columns',
+    async () => {
+      // The panel said "notional" once while the grid showed one per
+      // value of the pivot key. ag-grid's own tool panel nests the
+      // pivot result columns under a group per value; these are
+      // listed under the measure they came from.
+      // GROUPED FIRST, and set up here rather than inherited: a
+      // pivot with no row groups is a single row and needs no cast,
+      // so it has no result columns to list. Each check makes its
+      // own shape, or running one alone tests something else.
+      await flatten();
+      const dims = await dimensionNames();
+      const group = ['region', 'desk', 'book'].find((n) => dims.includes(n));
+      const key = ['year', 'quarter', 'qtr'].find((n) => dims.includes(n));
+      if (!group || !key) {
+        throw new Error(`need a group and a pivot key in ${dims}`);
+      }
+      await menu(['Pivot', /^Vertical Pivot on/],
+        { col: await needCol(group) });
+      await menu(['Pivot', /^Horizontal Pivot on/],
+        { col: await needCol(key) });
+      await settle();
+      const children = await page.evaluate(() =>
+        [...document.querySelectorAll('.dc-tool-panel-child')].map((r) => ({
+          column: r.dataset.column,
+          label: r.querySelector('.dc-tool-panel-label')?.textContent,
+        })));
+      if (children.length === 0) {
+        throw new Error('the pivot produced no children in the panel');
+      }
+      const leaves = (await gridColumns()).filter((c) => c.includes('|'));
+      if (children.length !== leaves.length) {
+        throw new Error(`${leaves.length} pivoted columns in the grid,`
+          + ` ${children.length} in the panel`);
+      }
+      // Labelled by the VALUES, not by the generated name: the
+      // measure is the row above, and `2021__|__notional` says it
+      // twice.
+      const noisy = children.filter((c) => (c.label ?? '').includes('|'));
+      if (noisy.length > 0) {
+        throw new Error(`a child is labelled with its generated name:`
+          + ` ${noisy[0].label}`);
+      }
+      // AND THE PIVOT KEY IS LOCKED: its values are the headers now.
+      const locked = await page.evaluate((k) => {
+        const box = document.querySelector(
+          `.dc-tool-panel-row[data-column="${k}"] .dc-tool-panel-show`);
+        return box ? box.disabled : null;
+      }, key);
+      if (locked !== true) {
+        throw new Error(`${key} is a pivot key but its tick box is`
+          + ` ${locked === null ? 'missing' : 'live'}`);
+      }
+      return `${children.length} pivot columns listed under their measure`;
+    });
+
+  await check('unticking one pivot column keeps the rest QUERYABLE',
+    async () => {
+      // Hiding read the cast off the leaves the grid was SHOWING, so
+      // unticking one narrowed the next query and the column left
+      // the data as well as the screen -- and nothing could bring it
+      // back, because the panel lists the cast.
+      // Its own shape, like every other check: grouped and pivoted,
+      // because a pivot with no row groups has no result columns.
+      await flatten();
+      const dims = await dimensionNames();
+      const group = ['region', 'desk', 'book'].find((n) => dims.includes(n));
+      const key = ['year', 'quarter', 'qtr'].find((n) => dims.includes(n));
+      if (!group || !key) {
+        throw new Error(`need a group and a pivot key in ${dims}`);
+      }
+      await menu(['Pivot', /^Vertical Pivot on/],
+        { col: await needCol(group) });
+      await menu(['Pivot', /^Horizontal Pivot on/],
+        { col: await needCol(key) });
+      await settle();
+      const children = await page.evaluate(() =>
+        [...document.querySelectorAll('.dc-tool-panel-child')]
+          .map((r) => r.dataset.column));
+      if (children.length < 2) {
+        throw new Error(`only ${children.length} pivot columns to untick`);
+      }
+      const victim = children[0];
+      await page.locator(
+        `.dc-tool-panel-row[data-column="${victim}"] .dc-tool-panel-show`)
+        .click();
+      await settle();
+      const shown = await gridColumns();
+      if (shown.includes(victim)) throw new Error(`${victim} is still shown`);
+      const stillListed = await page.evaluate(() =>
+        [...document.querySelectorAll('.dc-tool-panel-child')]
+          .map((r) => r.dataset.column));
+      if (stillListed.length !== children.length) {
+        throw new Error(`the panel lost ${children.length
+          - stillListed.length} pivot column(s) when one was hidden:`
+          + ` ${stillListed.join(', ')}`);
+      }
+      // And back, which is the part that was impossible.
+      await page.locator(
+        `.dc-tool-panel-row[data-column="${victim}"] .dc-tool-panel-show`)
+        .click();
+      await settle();
+      if (!(await gridColumns()).includes(victim)) {
+        throw new Error(`${victim} could not be brought back`);
+      }
+      return `${victim} hidden and restored, ${children.length} still listed`;
+    });
+
 
   await check('the columns panel hides a column with its tick box',
     async () => {

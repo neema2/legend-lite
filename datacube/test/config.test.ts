@@ -7,6 +7,7 @@ import {
   columnConfig,
   fromSnapshot,
   labelFor,
+  mergeColumnOrder,
   resolvedWidths,
   toColumnAppearance,
   toColumnLayout,
@@ -206,5 +207,60 @@ describe('the snapshot boundary', () => {
     const config = { ...fromSnapshot(CUBE), maxRows: 77 } as CubeConfiguration;
     const back = fromSnapshot(applyToSnapshot(CUBE, config));
     assert.equal(back.maxRows, 77);
+  });
+});
+
+describe('folding a reorder into the order of every column', () => {
+  it('keeps the columns the grid never reported', () => {
+    // The grid can only report what it is showing, and a cube hides
+    // plenty: the row dimensions are the tree's, a pivot key is
+    // spent on the header, an unticked column is off. Writing the
+    // report straight in dropped all of them out of the order, and
+    // the columns panel -- which sorts by it and puts anything
+    // unlisted last -- threw them to the end of the list. One drag
+    // and the grouped columns jumped.
+    assert.deepEqual(
+      mergeColumnOrder(
+        ['region', 'desk', 'qtr', 'notional', 'pnl'],
+        ['pnl', 'notional', 'qtr'],
+      ),
+      // region and desk keep their places; the three that moved take
+      // the three slots they already had, in their new order.
+      ['region', 'desk', 'pnl', 'notional', 'qtr'],
+    );
+  });
+
+  it('is identity when nothing actually moved', () => {
+    assert.deepEqual(
+      mergeColumnOrder(['a', 'b', 'c', 'd'], ['b', 'd']),
+      ['a', 'b', 'c', 'd'],
+    );
+  });
+
+  it('places an ARRIVING column beside its new neighbour', () => {
+    // A column dragged in from the panel is in the report and not in
+    // the order, so it has no slot to take: its neighbours in the
+    // new order say where it belongs.
+    assert.deepEqual(
+      mergeColumnOrder(['a', 'b', 'c'], ['a', 'x', 'b']),
+      ['a', 'x', 'b', 'c'],
+    );
+    // Nothing before it: the column after it decides.
+    assert.deepEqual(
+      mergeColumnOrder(['a', 'b'], ['x', 'a']),
+      ['x', 'a', 'b'],
+    );
+    // Nothing either side that the order knows: the end.
+    assert.deepEqual(
+      mergeColumnOrder(['a', 'b'], ['x']),
+      ['a', 'b', 'x'],
+    );
+  });
+
+  it('never drops or duplicates a column', () => {
+    const full = ['a', 'b', 'c', 'd', 'e'];
+    const out = mergeColumnOrder(full, ['e', 'c', 'a']);
+    assert.deepEqual([...out].sort(), [...full].sort());
+    assert.equal(new Set(out).size, out.length);
   });
 });

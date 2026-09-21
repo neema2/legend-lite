@@ -159,6 +159,47 @@ export interface CubeConfiguration {
   readonly columnOrder?: readonly string[];
 }
 
+/**
+ * Fold a reordering of SOME columns into the order of all of them.
+ *
+ * The grid can only report the columns it is showing, and a cube
+ * hides plenty: the row dimensions are the tree's, a pivot key is
+ * spent on the header, an unticked column is off. Writing the grid's
+ * report straight into `columnOrder` therefore dropped every one of
+ * them out of the order -- and the columns panel, which sorts by
+ * that order and puts anything unlisted last, sent them to the end
+ * of the list. One drag and the grouped columns jumped.
+ *
+ * So the moved columns take the SLOTS they already occupy, in their
+ * new relative order, and every other column keeps its place. A
+ * column that is not in the order at all -- one dragged in from the
+ * panel -- is placed beside whichever of its new neighbours is.
+ */
+export function mergeColumnOrder(
+  full: readonly string[],
+  moved: readonly string[],
+): string[] {
+  const base = [...full];
+  for (const [i, name] of moved.entries()) {
+    if (base.includes(name)) continue;
+    // Its neighbours in the NEW order say where it belongs: after the
+    // nearest one before it, or before the nearest one after.
+    const before = moved.slice(0, i).reverse()
+      .find((n) => base.includes(n));
+    const after = moved.slice(i + 1).find((n) => base.includes(n));
+    const at = before !== undefined
+      ? base.indexOf(before) + 1
+      : after !== undefined
+        ? base.indexOf(after)
+        : base.length;
+    base.splice(at, 0, name);
+  }
+  const slots = new Set(moved);
+  const queue = moved.filter((n) => base.includes(n));
+  let next = 0;
+  return base.map((n) => (slots.has(n) ? (queue[next++] ?? n) : n));
+}
+
 /** DataCube's own default row cap. */
 export const DEFAULT_MAX_ROWS = 1000;
 

@@ -20,6 +20,7 @@ import {
   DEFAULT_CONFIGURATION,
   applyToSnapshot,
   columnConfig,
+  mergeColumnOrder,
   fromSnapshot,
   labelFor,
   toColumnAppearance,
@@ -65,7 +66,10 @@ import { applyMenuAction, buildMenu, type MenuItem } from './ui/menu.ts';
 import { MenuView } from './ui/menu-view.ts';
 import { makeWindow, type WindowSpec } from './ui/window.ts';
 import { PivotPanel, type Zone } from './ui/pivot-panel.ts';
-import { ColumnsToolPanel } from './ui/columns-panel.ts';
+import {
+  ColumnsToolPanel,
+  type ColumnsPanelChild,
+} from './ui/columns-panel.ts';
 
 export interface CubeAppOptions {
   readonly engine: QueryEngine;
@@ -248,6 +252,8 @@ export class CubeApp {
   #selection: CellRange | null = null;
   /** Where selection statistics are written, inside the status bar. */
   #statsSlot: HTMLElement | null = null;
+  /** Leaf names the grid is currently showing. See `#onView`. */
+  #shownLeaves = new Set<string>();
   /** Repaints the plane toggle, which is now the only plane badge. */
   #paintSnap: (() => void) | null = null;
 
@@ -341,7 +347,14 @@ export class CubeApp {
         if (added !== undefined) {
           this.#config = withColumn(this.#config, added, { hidden: false });
         }
-        void this.applyConfiguration({ columnOrder: [...order] });
+        // MERGED, not written over. The grid reports only what it is
+        // showing, so writing its report straight in dropped every
+        // grouped, pivoted and hidden column out of the order -- and
+        // the panel, which sorts by it, threw them to the end of the
+        // list. One drag and the grouped columns jumped.
+        void this.applyConfiguration({
+          columnOrder: mergeColumnOrder(this.#columnOrder(), order),
+        });
       },
       cellBackground: (leaf, row, value) => {
         const heat = this.#heatmaps.get(leaf.index);
@@ -507,7 +520,11 @@ export class CubeApp {
   #syncPivotCast(model: ColumnModel): void {
     const snapshot = this.#snapshot;
     if (snapshot.pivotOn.length === 0 || snapshot.rows.length === 0) return;
-    const cast = model.leaves
+    // EVERY leaf the result carried, not the visible ones: the cast
+    // describes the shape of the ANSWER, and reading it off the grid
+    // made hiding a pivot column narrow the next query -- which took
+    // the column out of the data, where nothing could get it back.
+    const cast = model.all
       .filter((l) => !l.isDimension && l.path.length > 1)
       .map((l) => ({
         name: l.name,
@@ -547,6 +564,22 @@ export class CubeApp {
     }
   }
 
+  /**
+   * The order of EVERY column, not just the ones on screen.
+   *
+   * The configured order where there is one, and the cube's declared
+   * order behind it, so a column the order predates still has a
+   * place rather than being treated as unlisted.
+   */
+  #columnOrder(): string[] {
+    const declared = this.#snapshot.columns.map((c) => c.name);
+    const configured = this.#config.columnOrder ?? [];
+    return [
+      ...configured.filter((n) => declared.includes(n)),
+      ...declared.filter((n) => !configured.includes(n)),
+    ];
+  }
+
   #refreshToolPanel(): void {
     const rows = new Set(this.#snapshot.rows);
     const cols = new Set(this.#snapshot.pivotOn);
@@ -567,18 +600,88 @@ export class CubeApp {
           return ia - ib;
         })
       : this.#snapshot.columns;
+    // THE PIVOT'S OWN COLUMNS, under the measure they came from.
+    //
+    // A pivoted measure is not one column in the grid: it is one per
+    // value of the pivot key, and the panel said "notional" once
+    // while the grid showed five of it. `pivotCast` is the list, and
+    // each entry already carries its measure, so nothing here has to
+    // know how a pivot name is spelled.
+    const cast = this.#snapshot.pivotCast ?? [];
+    // THE MEASURE'S SOURCE COLUMN, not the measure's name. A measure
+    // is `{ name: 'total', column: 'notional' }` as often as it is
+    // `notional` twice over, and the cast carries the NAME -- so
+    // matching the panel's source columns against it found nothing
+    // whenever a cube named its measures.
+    const sourceOf = (measure: string): string =>
+      this.#snapshot.measures.find((m) => m.name === measure)?.column
+        ?? measure;
+    // Several measures can come off one column -- a sum and an
+    // average of notional -- and then the values alone name two
+    // children the same. Their measure tells them apart.
+    const perColumn = new Map<string, number>();
+    for (const m of new Set(cast.map((c) => c.measure))) {
+      const column = sourceOf(m);
+      perColumn.set(column, (perColumn.get(column) ?? 0) + 1);
+    }
+    const childrenOf = (column: string): ColumnsPanelChild[] =>
+      cast
+        .filter((c) => sourceOf(c.measure) === column)
+        .map((c) => {
+          const suffix = `${PIVOT_SEPARATOR}${c.measure}`;
+          const values = c.name.endsWith(suffix)
+            ? c.name
+              .slice(0, -suffix.length)
+              .split(PIVOT_SEPARATOR)
+              .join(' \u203a ')
+            : c.name;
+          return {
+            name: c.name,
+            // The values alone where the measure is the row above,
+            // and the measure too where the row above covers more
+            // than one.
+            label: (perColumn.get(column) ?? 1) > 1
+              ? `${values} \u00b7 ${c.measure}`
+              : values,
+            visible: columnConfig(this.#config, c.name).hidden !== true,
+          };
+        });
+
+    // What the grid is actually showing, which is what says whether a
+    // tick box can do anything. A column a pivot has spent -- a key,
+    // or a measure it spread across the values -- is locked rather
+    // than offered, which is what upstream does (`lockVisible`).
+    const shown = this.#shownLeaves;
+    const pivoting = this.#snapshot.pivotOn.length > 0;
+
     this.#columnsPanel.setColumns(
-      listed.map((c) => ({
-        name: c.name,
-        type: c.type,
-        groupable: this.#isDimension(c.name),
-        visible: columnConfig(this.#config, c.name).hidden !== true,
-        ...(rows.has(c.name)
-          ? { usedAs: 'rows' as const }
-          : cols.has(c.name)
-            ? { usedAs: 'columns' as const }
-            : {}),
-      })),
+      listed.map((c) => {
+        const children = childrenOf(c.name);
+        const hidden = columnConfig(this.#config, c.name).hidden === true;
+        const locked = children.length === 0
+          && pivoting
+          && !shown.has(c.name)
+          && !hidden
+          && !rows.has(c.name)
+          ? cols.has(c.name)
+            ? 'A pivot key. Its values are the column headers, so it'
+              + ' cannot also be a column.'
+            : 'Spent by the pivot, so there is nothing to show or hide.'
+          : undefined;
+        return {
+          name: c.name,
+          type: c.type,
+          groupable: this.#isDimension(c.name),
+          visible: !hidden,
+          ...(children.length > 0 ? { children } : {}),
+          ...(locked !== undefined ? { locked } : {}),
+          ...(rows.has(c.name)
+            ? { usedAs: 'rows' as const }
+            : cols.has(c.name)
+              ? { usedAs: 'columns' as const }
+              : {}),
+        };
+      }),
     );
   }
 
@@ -622,6 +725,13 @@ export class CubeApp {
     this.#grid.setRows(view.rows, 0, view.rows.rowCount);
 
     this.#syncPivotCast(model);
+    // WHAT THE GRID IS SHOWING, from the model just built -- the
+    // panel asks, to decide whether a tick box can do anything, and
+    // it used to ask the PREVIOUS view: on the first render there
+    // was none, so every column looked absent and the panel locked
+    // the lot.
+    this.#shownLeaves = new Set(model.leaves.map((l) => l.name));
+    this.#refreshToolPanel();
     this.#renderStatusBar(view, model.leaves.length);
     // The snapshot's row count is in the toggle's tooltip, and a
     // fresh snap changes it.

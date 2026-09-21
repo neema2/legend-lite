@@ -1252,6 +1252,25 @@
   cursor: pointer;
 }
 
+/* ONE COLUMN THE PIVOT MADE, under the measure it came from.
+   Indented, and labelled by the pivot values alone: the measure is
+   named by the row above, and `2021__|__notional` says it twice. */
+.dc-tool-panel-row.dc-tool-panel-child {
+  padding-left: calc(var(--dc-pad-2) + 14px);
+}
+
+.dc-tool-panel-row.dc-tool-panel-child .dc-tool-panel-label {
+  color: var(--tw-neutral-600);
+}
+
+/* Locked: a pivot key, or a measure the pivot spread across its
+   values. The box is disabled rather than absent, so the list still
+   reads as one list. */
+.dc-tool-panel-show:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 /* A column the grid is not showing: still listed, because the list
    is how you find it again, and struck through so the list says
    which is which at a glance. */
