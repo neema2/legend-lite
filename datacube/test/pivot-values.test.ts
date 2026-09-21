@@ -34,7 +34,6 @@ import {
   buildColumnModel,
   splitPath,
   PIVOT_SEPARATOR,
-  TREE_COLUMN,
 } from '../src/grid/columns.ts';
 import type { ResultTable } from '../src/result.ts';
 
@@ -243,7 +242,12 @@ describe('a measure name that collides with the data', () => {
     // ends with the measure 'pnl'. Passing the dimension list is what
     // keeps this exact -- without it the header would read
     // 'gross' / 'pnl'.
-    const table = tableOf([TREE_COLUMN, 'grosspnl', pivotName(['2021'], 'pnl')]);
+    // NO tree column here. This is about NAME SPLITTING, and a row
+    // dimension is hidden from the grid once the tree is showing its
+    // values -- so with a tree in the table there would be no
+    // `grosspnl` leaf left to inspect, and the case would go
+    // untested for the wrong reason.
+    const table = tableOf(['grosspnl', pivotName(['2021'], 'pnl')]);
     const model = buildColumnModel(table, ['grosspnl'], ['pnl']);
     const dim = model.leaves.find((l) => l.name === 'grosspnl');
     assert.ok(dim, 'dimension leaf missing');

@@ -746,6 +746,102 @@ try {
     return `${s.headers.length} headers over ${levels} levels`;
   });
 
+  await check('a row grouping SURVIVES a column pivot', async () => {
+    // Reported from the product: grouped by region, desk and book,
+    // then year added as a column label. The measures split across
+    // the years correctly and the three row groups dissolved into a
+    // thousand detail rows, while the row zone still listed all
+    // three. A pivot takes its grouping from whatever else is
+    // SELECTED, and the projection had been widened to every column.
+    await menu(['Pivot', 'Clear All Vertical Pivots']).catch(() => {});
+    await menu(['Pivot', 'Clear All Horizontal Pivots']).catch(() => {});
+    const dims = await dimensionNames();
+    const groups = ['region', 'desk', 'book'].filter((n) => dims.includes(n));
+    if (groups.length < 2) {
+      throw new Error(`need two dimensions to group by, have ${dims}`);
+    }
+    await menu(['Pivot', /^Vertical Pivot on/],
+      { col: await needCol(groups[0]) });
+    for (const name of groups.slice(1)) {
+      await menu(['Pivot', /^Add Vertical Pivot on/],
+        { col: await needCol(name) });
+    }
+    const grouped = await resultRows();
+
+    const across = ['year', 'quarter'].find(
+      (n) => dims.includes(n) && !groups.includes(n));
+    if (!across) throw new Error(`nothing to pivot across in ${dims}`);
+    await menu(['Pivot', /^Horizontal Pivot on/],
+      { col: await needCol(across) });
+
+    const s = await state();
+    // THE GROUPS MUST STILL BE GROUPS. The fault showed as the row
+    // count exploding from a handful to the row cap, so the count is
+    // the assertion; the tree and the header depth confirm the shape.
+    const after = await resultRows();
+    if (after > grouped) {
+      throw new Error(`the grouping dissolved: ${grouped} grouped rows became`
+        + ` ${after} after pivoting ${across} across the top`);
+    }
+    const expandable = await page.locator('.dc-row[aria-expanded]').count();
+    if (!expandable) {
+      throw new Error('no row can be expanded, so the tree is gone');
+    }
+    const levels = await page.locator('.dc-head-row').count();
+    if (levels < 2) {
+      throw new Error(`the header is ${levels} level(s) deep, so the pivot`
+        + ' values are not across the top');
+    }
+    if (!/pivot\(~\[/.test(s.pure)) throw new Error('no pivot in the Pure');
+
+    // THE MECHANISM IS THE SECOND STAGE, not a narrow projection.
+    //
+    // This check first asserted the opposite -- that the deeper row
+    // dimensions stay OUT of the projection -- because that was the
+    // only way to keep the grouping before the outer groupBy
+    // existed, and it cost every other column. Now the projection is
+    // wide, the pivot's intermediate is fine-grained, and the
+    // groupBy collapses it: pivot, cast, groupBy, in that order.
+    const after2 = /->pivot\(/.test(s.pure)
+      ? s.pure.slice(s.pure.indexOf('->pivot('))
+      : '';
+    if (!/->cast\(@Relation</.test(after2)) {
+      throw new Error('no cast after the pivot, so a groupBy naming its'
+        + ` columns would be refused: ${after2.slice(0, 120)}`);
+    }
+    if (!/->groupBy\(~\[/.test(after2)) {
+      throw new Error(`no groupBy after the pivot: ${after2.slice(0, 160)}`);
+    }
+    if (after2.indexOf('->cast(') > after2.indexOf('->groupBy(')) {
+      throw new Error('the cast must come BEFORE the groupBy that needs it');
+    }
+
+    // AND THE OTHER COLUMNS MUST BE BACK. Losing them was the
+    // complaint: "you fixed the groupby but lost all the other
+    // non-measure columns". A row dimension stays in the tree, so
+    // what should return is everything else.
+    // Read inline rather than through `gridColumns`, which is a
+    // `const` declared further down the file: reaching it from here
+    // is a temporal-dead-zone error, and the message it throws
+    // ("Cannot access 'gridColumns' before initialization") replaces
+    // the verdict of the check that was meant to report the bug.
+    const shown = await page.evaluate(() =>
+      [...document.querySelectorAll('.dc-th[data-column]')]
+        .map((e) => e.dataset.column));
+    const missing = ['trade_id', 'quarter', 'settled']
+      .filter((n) => dims.includes(n) && !shown.includes(n));
+    if (missing.length) {
+      throw new Error(`${missing.join(', ')} did not survive the pivot;`
+        + ` the grid shows ${shown.join(',')}`);
+    }
+    if (shown.some((n) => groups.slice(1).includes(n))) {
+      throw new Error('a row dimension is also a data column, so it is'
+        + ' shown twice');
+    }
+    return `${grouped} groups, ${levels} header levels,`
+      + ` ${shown.length} columns`;
+  });
+
   await check('clear all horizontal pivots', async () => {
     if (!/pivot\(/.test((await state()).pure)) {
       throw new Error('could not set up: nothing is pivoted');

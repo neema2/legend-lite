@@ -21,6 +21,7 @@
 
 import {
   CubeRefusal,
+  columnType,
   type AggregateFn,
   type CubeSnapshot,
   type FilterNode,
@@ -448,14 +449,95 @@ export function serialize(
   // them: `_groupByAggCols` aggregates every SELECTED column that is
   // not a group key. So the projection has to carry them.
   const grouping = groupCols.length > 0 && snapshot.pivotOn.length === 0;
-  // A measureless PIVOT needs the same widening, and for the same
-  // reason: its aggregates are synthesised from the cube's own
-  // columns, and aggregating a column the SELECT dropped is not a
-  // wider answer but an unresolvable one.
   const pivoting = snapshot.pivotOn.length > 0;
-  const needed = (grouping || pivoting) && snapshot.measures.length === 0
-    ? detailColumns(snapshot)
-    : referencedColumns(snapshot, groupCols);
+
+  /**
+   * The columns a measureless pivot will aggregate.
+   *
+   * Measure-kind only, which is what `_pivotAggCols` selects, and
+   * never a pivot key.
+   */
+  const measureLike = (): string[] => {
+    const isOn = new Set(snapshot.pivotOn);
+    return snapshot.columns
+      .filter((c) => {
+        if (isOn.has(c.name) || c.excludedFromPivot) return false;
+        const numeric = c.type === 'Integer' || c.type === 'Float';
+        return c.kind === 'measure' || (numeric && c.kind === undefined);
+      })
+      .map((c) => c.name);
+  };
+
+  /**
+   * What to SELECT, which decides what a pivot groups by.
+   *
+   * A PIVOT TAKES ITS GROUPING FROM WHATEVER ELSE IS SELECTED. That
+   * makes this stage load-bearing rather than tidying, and it is
+   * where I broke a cube badly: to let a measureless pivot
+   * synthesise its aggregates I widened the projection to every
+   * column, which silently regrouped the cube BY every column.
+   *
+   * Grouped by region, desk and book, then pivoting year across the
+   * top, the query came out as `pivot(~[year], ~[notional:sum,
+   * pnl:sum])` over a projection of all twelve columns -- so the
+   * implicit grouping was one row per trade. The measures split
+   * across the years correctly and the row groups dissolved into a
+   * thousand detail rows, while the row zone still showed region,
+   * desk and book. The snapshot was right; the projection threw them
+   * away.
+   *
+   * So a measureless pivot projects the row dimensions, the pivot
+   * keys, and the synthesised measures -- and nothing else. A
+   * measureless GROUP BY still projects everything, because there
+   * `_groupByAggCols` aggregates every selected column and keeping
+   * them is the point.
+   */
+  /**
+   * Whether the outer groupBy can be written.
+   *
+   * Only with the pivot's own column names in hand, which arrive
+   * from a result rather than from the snapshot the user built.
+   */
+  const cast = pivoting && groupCols.length > 0
+    ? (snapshot.pivotCast ?? [])
+    : [];
+
+  /** Columns a pivoted cube carries THROUGH to the outer groupBy. */
+  const carried = (): string[] => {
+    const isKey = new Set([...groupCols, ...snapshot.pivotOn]);
+    const isMeasure = new Set(snapshot.measures.length > 0
+      ? snapshot.measures.map((m) => m.column)
+      : measureLike());
+    return detailColumns(snapshot)
+      .filter((n) => !isKey.has(n) && !isMeasure.has(n));
+  };
+
+  const needed = cast.length > 0
+    // BOTH STAGES. The pivot spreads the measures and takes its
+    // grouping from everything else selected -- a fine-grained
+    // intermediate -- and the outer groupBy then collapses that to
+    // the row dimensions, giving every carried column its unique
+    // value. Grouping by a numeric is confined to that intermediate
+    // and never reaches the answer.
+    ? (() => {
+        const out = referencedColumns(snapshot, groupCols);
+        for (const name of [...(snapshot.measures.length === 0
+          ? measureLike() : []), ...carried()]) {
+          if (!out.includes(name)) out.push(name);
+        }
+        return out;
+      })()
+    : snapshot.measures.length === 0 && pivoting
+    ? (() => {
+        const out = referencedColumns(snapshot, groupCols);
+        for (const name of measureLike()) {
+          if (!out.includes(name)) out.push(name);
+        }
+        return out;
+      })()
+    : grouping && snapshot.measures.length === 0
+      ? detailColumns(snapshot)
+      : referencedColumns(snapshot, groupCols);
   if (needed.length > 0) {
     parts.push(`select(~[${needed.map(ident).join(', ')}])`);
   } else if (isDetail(snapshot)) {
@@ -591,6 +673,73 @@ export function serialize(
       parts.push(`pivot(~[${on}], [${vs}], ~[${aggs}])`);
     } else {
       parts.push(`pivot(~[${on}], ~[${aggs}])`);
+    }
+
+    // THE SECOND STAGE, when the pivot's columns are known.
+    //
+    // Without it a pivoted cube could only show the measures: every
+    // other column had to stay out of the projection, because
+    // anything projected becomes part of the pivot's own grouping and
+    // one row per trade is not a grouped cube. With it, the carried
+    // columns come back and take their unique value, which is what
+    // `_groupByAggCols` does for `pivotGroupByColumns` -- "these are
+    // the columns which are available for groupBy but not selected
+    // for groupBy operation, they would be aggregated as well".
+    if (cast.length > 0) {
+      const byMeasure = new Map(snapshot.measures.map((m) => [m.column, m]));
+
+      // THE CAST, which is what makes the groupBy below legal.
+      //
+      // A pivot's output columns do not exist in the relation's
+      // TYPE, only in its data, so naming one in a later stage is
+      // rejected outright: "relation has no column
+      // '2021__|__notional'". DataCubeQueryBuilder emits
+      // `cast(_castCols(pivot.castColumns))` between the two stages
+      // for exactly this reason, and the shape legend-lite parses is
+      // the structural relation annotation `@Relation<(col:Type,
+      // ...)>` (SpecParser: "Type annotations (C.7)").
+      //
+      // It declares the WHOLE post-pivot relation -- what the pivot
+      // preserved as well as what it produced -- because a cast
+      // states the type of the value it is applied to, not a
+      // difference from it. Upstream's `castColumns` likewise holds
+      // both, which is why `_groupByAggCols` can split them apart
+      // into pivot results and `pivotGroupByColumns`.
+      const aggregated = new Set([
+        ...snapshot.pivotOn,
+        ...(snapshot.measures.length > 0
+          ? snapshot.measures.map((m) => m.column)
+          : measureLike()),
+      ]);
+      const typeOf = (name: string): string =>
+        columnType(snapshot, name) ?? 'String';
+      const decls = [
+        ...needed.filter((n) => !aggregated.has(n))
+          .map((n) => `${ident(n)}:${typeOf(n)}`),
+        // A pivot result carries the type of the measure it
+        // aggregates, except a count, which is a number of rows.
+        ...cast.map((c) => `${ident(c.name)}:${
+          byMeasure.get(c.measure)?.fn === 'count'
+            ? 'Integer'
+            : typeOf(c.measure)}`),
+      ];
+      parts.push(`cast(@Relation<(${decls.join(', ')})>)`);
+
+      const outer: string[] = [];
+      for (const c of cast) {
+        const base = byMeasure.get(c.measure);
+        outer.push(aggregateSpec({
+          name: c.name,
+          column: c.name,
+          fn: base?.fn ?? 'sum',
+          ...(base?.weight ? { weight: base.weight } : {}),
+        }));
+      }
+      for (const name of carried()) {
+        outer.push(aggregateSpec({ name, column: name, fn: 'unique' }));
+      }
+      const by = groupCols.map(ident).join(', ');
+      parts.push(`groupBy(~[${by}], ~[${outer.join(', ')}])`);
     }
   } else if (snapshot.measures.length > 0 || groupCols.length > 0) {
     // No column dimension: an ordinary aggregation over the row

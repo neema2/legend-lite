@@ -271,6 +271,23 @@ export interface CubeSnapshot {
    * See research/bench/windowinvariant.py.
    */
   readonly pivotValues?: readonly FilterValue[];
+  /**
+   * The columns a pivot PRODUCED, learnt from a result.
+   *
+   * A pivot spreads each measure across the values it finds, and
+   * those column names (`2021__|__notional`) do not exist until it
+   * has run. An outer `groupBy` has to name every aggregate it
+   * keeps, so a cube that is both grouped and pivoted cannot be
+   * written in one pass: the first query supplies the names and the
+   * second uses them. This is the same device as DataCube's
+   * `pivot.castColumns`.
+   *
+   * Each entry carries the MEASURE it came from, so the aggregate
+   * can be the one that measure is configured with -- and so nothing
+   * here has to know how a pivot name is spelled.
+   */
+  readonly pivotCast?: readonly { readonly name: string;
+    readonly measure: string }[];
   readonly measures: readonly Measure[];
   readonly sorts: readonly SortSpec[];
   readonly window?: RowWindow;

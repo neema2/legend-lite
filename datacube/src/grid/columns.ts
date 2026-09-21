@@ -241,8 +241,26 @@ export function buildColumnModel(
   // The tree column is never hidden: without it a grouped cube has no
   // row labels at all.
   const hidden = new Set(layout.hidden ?? []);
+  // A ROW DIMENSION IS SHOWN IN THE TREE, NOT TWICE.
+  //
+  // The query aggregates every column that is not the group key of
+  // the level being fetched, so a cube grouped by region, desk and
+  // book still returns desk and book at level one -- and they were
+  // rendered as ordinary columns beside the tree. The first row
+  // dimension vanished (its values are the tree's) while the rest
+  // stayed, which is the inconsistency a user sees: "region
+  // disappears but the next ones I group by stay in the grid".
+  //
+  // ag-grid hides a column once it is row-grouped, and DataCube
+  // leans on that (`rowGroup: Boolean(groupByCol)` in
+  // DataCubeGridConfigurationBuilder). Only when the tree is
+  // actually present, though: without it these columns are all a
+  // flat cube has.
+  const treeShown = table.columns.some((c) => c.name === TREE_COLUMN);
+  const inTree = new Set(treeShown ? dimensions : []);
   const visible = leaves.filter(
-    (l) => l.name === TREE_COLUMN || !hidden.has(l.name),
+    (l) => l.name === TREE_COLUMN
+      || (!hidden.has(l.name) && !inTree.has(l.name)),
   );
 
   // Ordering is applied to the VISIBLE leaves; anything unlisted keeps

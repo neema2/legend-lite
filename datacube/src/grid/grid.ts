@@ -381,7 +381,29 @@ export class DataGrid {
    * establishing a containing block that would break it.
    */
   #syncHeaderOffset(): void {
-    this.#head.scrollLeft = this.#scroller.scrollLeft;
+    const x = this.#scroller.scrollLeft;
+    // The IN-RANGE part goes through scrollLeft, as before.
+    const max = Math.max(0, this.#head.scrollWidth - this.#head.clientWidth);
+    const clamped = Math.max(0, Math.min(x, max));
+    this.#head.scrollLeft = clamped;
+
+    // The OVERSHOOT cannot: a scroll container refuses to scroll past
+    // its own range, so during an elastic overscroll the body
+    // rubber-bands and the header stays put, ending up a few pixels
+    // out of line -- which is exactly where a user notices it, since
+    // the bounce draws the eye. macOS reports those out-of-range
+    // offsets rather than hiding them (see viewport.ts, which clamps
+    // a negative scrollTop for the same reason), so the remainder is
+    // known and can be applied as a transform, which has no range.
+    //
+    // At rest the overshoot is zero and no transform is set at all,
+    // so the ordinary case is untouched -- including the sticky
+    // pinned header cells, which a permanent transform on their
+    // container would have put at risk.
+    const over = x - clamped;
+    this.#head.style.transform = over === 0
+      ? ''
+      : `translateX(${-over}px)`;
   }
 
   /**
@@ -487,7 +509,15 @@ export class DataGrid {
     // Coalesce to one render per frame. Scroll fires far more often
     // than the window changes, and this is what bounds the work.
     if (this.#frame) return;
-    this.#frame = requestAnimationFrame(() => {
+    // MARKED PENDING BEFORE the request, not from its return value.
+    // Taking the id back from `requestAnimationFrame` assumes the
+    // callback runs later; where it runs synchronously the callback
+    // clears the flag first and the id is assigned afterwards, so the
+    // flag is left set for ever and every later scroll returns early.
+    // A scroll handler that stops firing after the first event is a
+    // bad thing to have riding on that assumption.
+    this.#frame = 1;
+    requestAnimationFrame(() => {
       this.#frame = 0;
       // Before the render, and OUTSIDE it: `#render` returns early
       // when the row window has not moved, which is exactly what a

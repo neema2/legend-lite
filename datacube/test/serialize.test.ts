@@ -76,6 +76,167 @@ describe('serialize', () => {
       'a dimension must not become a pivot aggregate');
   });
 
+  it('a measureless pivot KEEPS its row groups', () => {
+    // A PIVOT TAKES ITS GROUPING FROM WHATEVER ELSE IS SELECTED, so
+    // the projection decides the row groups. Widening it to every
+    // column -- which is what letting a measureless pivot synthesise
+    // its aggregates first did -- regrouped the cube BY every column.
+    //
+    // Reported from the product: grouped by region, desk and book,
+    // then year across the top. The measures split across the years
+    // correctly and the three row groups dissolved into a thousand
+    // detail rows, while the row zone still listed region, desk and
+    // book. The snapshot was right; the projection threw them away.
+    const s = serialize({
+      source: { expression: 't' },
+      columns: [
+        { name: 'region', type: 'String' },
+        { name: 'desk', type: 'String' },
+        { name: 'book', type: 'String' },
+        { name: 'year', type: 'Integer', kind: 'dimension' },
+        { name: 'notional', type: 'Float' },
+        { name: 'pnl', type: 'Float' },
+      ],
+      derived: [],
+      rows: ['region', 'desk', 'book'],
+      pivotOn: ['year'],
+      measures: [],
+      sorts: [],
+      epoch: 1,
+    }, { level: 1, parent: [] });
+
+    // Level 1 groups by `region` alone, so THAT is what may be
+    // selected beside the pivot key and the measures.
+    const projected = /select\(~\[([^\]]*)\]/.exec(s)?.[1]
+      ?.split(',').map((n) => n.trim()) ?? [];
+    assert.deepEqual(projected, ['region', 'year', 'notional', 'pnl']);
+    // The tell-tale of the fault: a detail column in the projection.
+    assert.equal(projected.includes('desk'), false,
+      'a deeper row dimension in the projection regroups the cube by it');
+    assert.match(s, /pivot\(~\[year\]/);
+    assert.match(s, /notional:x\|\$x\.notional:y\|\$y->sum\(\)/);
+  });
+
+  describe('grouped AND pivoted: the two-stage query', () => {
+    // Measures spread across the pivot values; every other column
+    // takes its unique value; one row per row dimension. Which needs
+    // BOTH stages, in this order -- pivot, cast, groupBy -- because
+    // the groupBy is the only thing that fixes the final row shape.
+    // DataCubeQueryBuilder builds exactly that sequence.
+    const CUBE = {
+      source: { expression: 't' },
+      columns: [
+        { name: 'region', type: 'String' },
+        { name: 'desk', type: 'String' },
+        { name: 'trade_id', type: 'Integer', kind: 'dimension' as const },
+        { name: 'quarter', type: 'String' },
+        { name: 'year', type: 'Integer', kind: 'dimension' as const },
+        { name: 'notional', type: 'Float' },
+        { name: 'pnl', type: 'Float' },
+      ],
+      derived: [],
+      rows: ['region', 'desk'],
+      pivotOn: ['year'],
+      measures: [],
+      sorts: [],
+      epoch: 1,
+    };
+    const CAST = [
+      { name: '2021__|__notional', measure: 'notional' },
+      { name: '2021__|__pnl', measure: 'pnl' },
+      { name: '2022__|__notional', measure: 'notional' },
+      { name: '2022__|__pnl', measure: 'pnl' },
+    ];
+
+    it('CASTS between the stages, or the groupBy is illegal', () => {
+      // A pivot's output columns exist in its data, not in the
+      // relation's type, so naming one later is rejected outright:
+      // "relation has no column '2021__|__notional'". That is what
+      // the engine said when this shipped without a cast.
+      const out = serialize({ ...CUBE, pivotCast: CAST },
+        { level: 1, parent: [] });
+      const cast = /cast\(@Relation<\(([^)]*)\)>\)/.exec(out)?.[1];
+      assert.ok(cast, `no relation cast in ${out.slice(-200)}`);
+      assert.ok(out.indexOf('pivot(') < out.indexOf('cast('));
+      assert.ok(out.indexOf('cast(') < out.indexOf('groupBy('));
+      // It declares the WHOLE post-pivot relation: a cast states the
+      // type of the value it is applied to, not a difference from it.
+      for (const name of ['2021__|__notional', '2022__|__pnl']) {
+        assert.ok(cast.includes(`'${name}':Float`),
+          `${name} must be declared, with its measure's type`);
+      }
+      assert.match(cast, /region:String/);
+      assert.match(cast, /trade_id:Integer/, 'a carried column too');
+      // And NOT what the pivot consumed.
+      assert.equal(/\byear:/.test(cast), false,
+        'the pivot key is gone from the relation it produced');
+      assert.equal(/\bnotional:/.test(cast), false,
+        'the measure survives only as its pivoted columns');
+    });
+
+    it('emits the pivot AND an outer groupBy', () => {
+      const out = serialize({ ...CUBE, pivotCast: CAST },
+        { level: 1, parent: [] });
+      assert.match(out, /->pivot\(~\[year\]/);
+      assert.match(out, /->groupBy\(~\[region\]/,
+        'the outer groupBy is what collapses the intermediate');
+      assert.ok(out.indexOf('pivot(') < out.indexOf('groupBy('),
+        'the groupBy must come LAST: it fixes the final row shape');
+    });
+
+    it('carries every non-measure through as its unique value', () => {
+      const out = serialize({ ...CUBE, pivotCast: CAST },
+        { level: 1, parent: [] });
+      // Projected, so the pivot passes them through...
+      assert.match(out, /select\(~\[[^\]]*trade_id/);
+      assert.match(out, /select\(~\[[^\]]*quarter/);
+      // ...and aggregated by the OUTER groupBy, not by the pivot.
+      const outer = out.slice(out.indexOf('groupBy('));
+      assert.match(outer, /trade_id:x\|\$x\.trade_id:y\|\$y->uniqueValueOnly/);
+      assert.match(outer, /quarter:x\|\$x\.quarter:y\|\$y->uniqueValueOnly/);
+      // The PIVOT CALL alone, not everything before the groupBy: the
+      // cast sits between them and names every post-pivot column,
+      // `trade_id` included, which is its whole job.
+      const inner = out.slice(out.indexOf('pivot('), out.indexOf('cast('));
+      assert.equal(/trade_id/.test(inner), false,
+        'a pivot aggregate on a dimension spreads it per value, which'
+        + ' upstream calls "not helpful"');
+    });
+
+    it('keeps the pivot result columns, with the measure aggregate', () => {
+      const out = serialize({ ...CUBE, pivotCast: CAST },
+        { level: 1, parent: [] });
+      const outer = out.slice(out.indexOf('groupBy('));
+      for (const c of CAST) {
+        assert.ok(outer.includes(`'${c.name}'`),
+          `${c.name} must survive the outer groupBy`);
+      }
+      assert.match(outer, /->sum\(\)/);
+    });
+
+    it('groups by the LEVEL, not by every row dimension', () => {
+      // Level 2 drills into a region, so desk becomes the key and
+      // region is pinned by the parent filter.
+      const out = serialize({ ...CUBE, pivotCast: CAST },
+        { level: 2, parent: ['AMER'] });
+      assert.match(out, /->groupBy\(~\[region, desk\]/);
+      assert.match(out, /filter\(x\|\$x\.region == 'AMER'\)/);
+    });
+
+    it('falls back to the single stage until the cast is known', () => {
+      // The pivot's column names come from a result, so the first
+      // query cannot name them. Losing the carried columns for one
+      // render beats breaking the grouping, which is what the wide
+      // projection alone does.
+      const out = serialize(CUBE, { level: 1, parent: [] });
+      assert.match(out, /->pivot\(~\[year\]/);
+      assert.equal(/->groupBy\(/.test(out), false);
+      const projected = /select\(~\[([^\]]*)\]/.exec(out)?.[1] ?? '';
+      assert.equal(projected.includes('trade_id'), false,
+        'projecting it without an outer groupBy regroups the cube by it');
+    });
+  });
+
   it('falls back to a count when a pivot has nothing to aggregate', () => {
     // `_fixEmptyAggCols`: a pivot must aggregate something, so a cube
     // of nothing but dimensions still produces a query rather than

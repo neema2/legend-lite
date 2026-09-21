@@ -199,6 +199,39 @@ describe('buildColumnModel', () => {
     }
   });
 
+  it('hides a row dimension once the tree is showing it', () => {
+    // The query aggregates every column that is not the group key of
+    // the level being fetched, so a cube grouped by region, desk and
+    // book still returns desk and book at level one. They were then
+    // rendered as ordinary columns beside the tree, so the first row
+    // dimension vanished into the tree while the rest stayed --
+    // "region disappears but the next ones I group by stay in the
+    // grid". ag-grid hides a column once it is row-grouped.
+    const withTree = buildColumnModel(
+      table([TREE_COLUMN, 'desk', 'book', 'notional']),
+      ['region', 'desk', 'book'],
+    );
+    assert.deepEqual(
+      withTree.leaves.map((l) => l.name),
+      [TREE_COLUMN, 'notional'],
+      'desk and book belong to the tree, not to the grid',
+    );
+  });
+
+  it('keeps those columns when there is NO tree', () => {
+    // Without a tree they are all a flat cube has, so hiding them
+    // would empty the grid -- which is the fault this replaced, in
+    // the other direction.
+    const flat = buildColumnModel(
+      table(['desk', 'book', 'notional']),
+      ['region', 'desk', 'book'],
+    );
+    assert.deepEqual(
+      flat.leaves.map((l) => l.name),
+      ['desk', 'book', 'notional'],
+    );
+  });
+
   it('builds a nested header from engine-style names', () => {
     const m = buildColumnModel(
       table(['region', '2021_notional', '2022_notional']),

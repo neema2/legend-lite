@@ -45,6 +45,7 @@ import {
   TREE_COLUMN,
   buildColumnModel,
   type ColumnLayout,
+  type ColumnModel,
 } from './grid/columns.ts';
 import { load, save, toJson, treeOf } from './persist.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
@@ -127,6 +128,26 @@ const VIEW_KEY = 'datacube.savedView';
 
 /** DataCube's --ag-row-height. Kept beside the CSS token in theme.css. */
 const DATACUBE_ROW_HEIGHT = 20;
+
+/**
+ * Drop a pivot cast that belongs to a different pivot.
+ *
+ * The cast names columns a particular pivot produced, so changing
+ * what the cube pivots on invalidates it -- and naming columns the
+ * next pivot will not produce is a query the engine refuses. Keyed on
+ * the pivot columns rather than cleared everywhere, so a change that
+ * leaves the pivot alone (a filter, a sort, a new row dimension)
+ * keeps the cast and does not cost an extra round trip.
+ */
+function forgetStaleCast(
+  from: CubeSnapshot,
+  next: CubeSnapshot,
+): CubeSnapshot {
+  if (next === from || next.pivotCast === undefined) return next;
+  if (next.pivotOn.join('\u0000') === from.pivotOn.join('\u0000')) return next;
+  const { pivotCast: _drop, ...rest } = next;
+  return rest;
+}
 
 /** Room for the cell's own padding and its border. */
 const AUTO_SIZE_PAD = 8;
@@ -358,6 +379,49 @@ export class CubeApp {
     });
   }
 
+  /**
+   * Learn the pivot's own column names, and re-run once with them.
+   *
+   * A cube that is both grouped and pivoted needs two stages --
+   * pivot, then a groupBy naming the pivot's output columns -- and
+   * those names (`2021__|__notional`) do not exist until the pivot
+   * has run. So the first query goes without the outer groupBy and
+   * its RESULT supplies the names; this then re-runs once with them,
+   * and the carried columns appear. DataCube does the same thing
+   * through `pivot.castColumns`.
+   *
+   * The names come from the column MODEL rather than from the raw
+   * result, because the model has already worked out which leaves
+   * are pivoted and which measure each came from -- including for
+   * the engine's own `2021_notional` spelling, where splitting on
+   * the separator would find nothing.
+   *
+   * It cannot loop: the second query's pivot stage is identical, so
+   * it produces the same names and the comparison below stops.
+   */
+  #syncPivotCast(model: ColumnModel): void {
+    const snapshot = this.#snapshot;
+    if (snapshot.pivotOn.length === 0 || snapshot.rows.length === 0) return;
+    const cast = model.leaves
+      .filter((l) => !l.isDimension && l.path.length > 1)
+      .map((l) => ({
+        name: l.name,
+        measure: l.path[l.path.length - 1] ?? l.name,
+      }));
+    if (cast.length === 0) return;
+    const key = (c: readonly { name: string; measure: string }[]): string =>
+      c.map((x) => `${x.name}\u0000${x.measure}`).join('|');
+    if (key(cast) === key(snapshot.pivotCast ?? [])) return;
+
+    // The PREVIOUS snapshot is handed to the refresh so that a query
+    // the engine rejects takes the cast back out with it. Otherwise a
+    // cast that does not match the data -- the pivot column changed,
+    // say -- would be retried on every refresh and the cube would be
+    // stuck reporting the same failure.
+    this.#snapshot = { ...snapshot, pivotCast: cast };
+    this.#refreshOr(snapshot);
+  }
+
   /** Re-fill the format map in place. See `#formats`. */
   #refreshFormats(): void {
     for (const key of Object.keys(this.#formats)) delete this.#formats[key];
@@ -415,6 +479,7 @@ export class CubeApp {
     this.#grid.setColumns(model);
     this.#grid.setRows(view.rows, 0, view.rows.rowCount);
 
+    this.#syncPivotCast(model);
     this.#renderStatusBar(view);
 
     const base =
@@ -576,10 +641,10 @@ export class CubeApp {
 
   #onZoneChange(zone: Zone, columns: readonly string[]): void {
     const previous = this.#snapshot;
-    this.#snapshot =
+    this.#snapshot = forgetStaleCast(this.#snapshot,
       zone === 'rows'
         ? { ...this.#snapshot, rows: [...columns] }
-        : { ...this.#snapshot, pivotOn: [...columns] };
+        : { ...this.#snapshot, pivotOn: [...columns] });
     this.#refreshOr(previous);
   }
 
@@ -668,7 +733,8 @@ export class CubeApp {
     // The query actions go through applyMenuAction, which returns the
     // SAME snapshot when nothing changed; the rest are layout,
     // clipboard and export, which never touch the query.
-    const next = applyMenuAction(this.#snapshot, item);
+    const next = forgetStaleCast(this.#snapshot, applyMenuAction(
+      this.#snapshot, item));
     if (next !== this.#snapshot) {
       const previous = this.#snapshot;
       this.#snapshot = next;

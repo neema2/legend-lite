@@ -456,3 +456,70 @@ describe('DataGrid keyboard', () => {
     assert.equal(focusable.length, 1, 'roving tabindex, per the APG pattern');
   });
 });
+
+describe('the header follows a horizontal ELASTIC OVERSCROLL', () => {
+  // Reported from the product: scrolling sideways gives a bounce at
+  // the end, and the header does not bounce with it, so the two end
+  // up a few pixels apart -- right where the eye is, because the
+  // bounce is what drew it there.
+  //
+  // A scroll container refuses to scroll past its own range, so
+  // `head.scrollLeft = scroller.scrollLeft` can never follow an
+  // overscroll. macOS reports the out-of-range offset rather than
+  // hiding it, which `computeRowWindow` already relies on for the
+  // vertical axis, so the remainder is known and goes on as a
+  // transform -- which has no range.
+  //
+  // jsdom keeps whatever `scrollLeft` it is given, having no layout
+  // to clamp against, which is what makes the arithmetic testable
+  // here. What cannot be tested headlessly is the VISUAL match, since
+  // the bounce is a compositor effect that does not occur.
+  const scrollTo = (x: number): HTMLElement => {
+    const scroller = container.querySelector('.dc-scroller');
+    const head = container.querySelector('.dc-head');
+    assert.ok(scroller && head);
+    // A real header: 600px of columns inside a 400px viewport, so the
+    // in-range part has somewhere to go.
+    Object.defineProperty(head, 'scrollWidth', {
+      value: 600, configurable: true,
+    });
+    Object.defineProperty(head, 'clientWidth', {
+      value: 400, configurable: true,
+    });
+    (scroller as HTMLElement).scrollLeft = x;
+    scroller.dispatchEvent(new dom.window.Event('scroll'));
+    return head as unknown as HTMLElement;
+  };
+
+  it('sits flush with no transform while in range', () => {
+    build(50);
+    const head = scrollTo(120);
+    assert.equal(head.scrollLeft, 120);
+    assert.equal(head.style.transform, '',
+      'a transform at rest would put the sticky pinned headers at risk');
+  });
+
+  it('follows an overscroll to the LEFT, where scrollLeft cannot', () => {
+    build(50);
+    const head = scrollTo(-30);
+    // Clamped to the range, as the browser would.
+    assert.equal(head.scrollLeft, 0);
+    // The body has visually moved 30px to the right; so must this.
+    assert.equal(head.style.transform, 'translateX(30px)');
+  });
+
+  it('follows an overscroll past the RIGHT end', () => {
+    build(50);
+    const head = scrollTo(200 + 45);
+    assert.equal(head.scrollLeft, 200, 'the in-range part still scrolls');
+    assert.equal(head.style.transform, 'translateX(-45px)');
+  });
+
+  it('clears the transform when the bounce settles', () => {
+    build(50);
+    scrollTo(-30);
+    const head = scrollTo(80);
+    assert.equal(head.style.transform, '');
+    assert.equal(head.scrollLeft, 80);
+  });
+});
