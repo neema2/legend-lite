@@ -32,6 +32,10 @@ import {
   totalOrderSorts,
 } from './snapshot.ts';
 import type { RowPath } from './tree.ts';
+import { ROOT_COLUMN } from './grid/columns.ts';
+
+/** What the grand total's synthetic key holds. Upstream's value. */
+const ROOT_VALUE = '[ROOT]';
 
 /** Identifiers that are not plain alphanumerics need quoting. */
 const PLAIN_IDENT = /^[A-Za-z_][A-Za-z0-9_]*$/;
@@ -185,8 +189,38 @@ const COLUMN_COMPARISON: Partial<Record<string, string>> = {
   greaterThanEqualColumn: '>=',
 };
 
-/** Lower-cased literal, for the case-insensitive comparisons. */
+/**
+ * A literal, lower-cased BY PURE rather than by us.
+ *
+ * `toLower('EMEA')` instead of `'emea'`. It reads as the same
+ * comparison on both sides -- column and value through the same
+ * function -- which is how upstream writes it
+ * (DataCubeQueryFilterOperation__EqualCaseInsensitive:
+ * `equal(toLower(toOne($x.col)), toLower(value))`), and it keeps the
+ * lowering rule the ENGINE's rather than JavaScript's. They are not
+ * the same rule: JS lower-cases by Unicode default casing, a
+ * database by its collation.
+ */
 function lowerLiteral(v: FilterValue): string {
+  return typeof v === 'string' ? `toLower(${literal(v)})` : literal(v);
+}
+
+/**
+ * A column, ready for `toLower`.
+ *
+ * A relational column is `[0..1]` -- nullable -- and `toLower` takes
+ * `String[1]`, so the real engine refuses `$x.region->toLower()`
+ * outright: "Can't find a match for function
+ * 'toLower(Varchar(32)[0..1])'". Nine of our filter operators were
+ * unusable upstream for want of this one call. `toOne` is what
+ * upstream inserts, in exactly this position.
+ */
+function lowerRef(ref: string): string {
+  return `${ref}->toOne()->toLower()`;
+}
+
+/** A literal already lower-cased, for the `in` lists. See below. */
+function preLowered(v: FilterValue): string {
   return typeof v === 'string' ? literal(v.toLowerCase()) : literal(v);
 }
 
@@ -207,7 +241,7 @@ export function filterExpression(node: FilterNode, param = 'x'): string {
       return `!(${filterExpression(node.child, param)})`;
     case 'condition': {
       const ref = colRef(param, node.column);
-      const lower = `${ref}->toLower()`;
+      const lower = lowerRef(ref);
       const one = () => literal(node.value as FilterValue);
       const many = () => (node.value as readonly FilterValue[]) ?? [];
 
@@ -228,7 +262,7 @@ export function filterExpression(node: FilterNode, param = 'x'): string {
         const insensitive = node.operator.includes('CaseInsensitive');
         const right = colRef(param, node.rightColumn);
         return insensitive
-          ? `${ref}->toLower() ${colCmp} ${right}->toLower()`
+          ? `${lowerRef(ref)} ${colCmp} ${lowerRef(right)}`
           : `${ref} ${colCmp} ${right}`;
       }
 
@@ -270,10 +304,17 @@ export function filterExpression(node: FilterNode, param = 'x'): string {
           return `${lower}->startsWith(${lowerLiteral(node.value as FilterValue)})`;
         case 'endsWithCaseInsensitive':
           return `${lower}->endsWith(${lowerLiteral(node.value as FilterValue)})`;
+        // IN TAKES LITERALS, and only literals: the engine asserts
+        // "IN is supported only for literal values or negative
+        // numbers", so these two cannot wrap their values in
+        // `toLower` the way every other case-insensitive comparison
+        // does. The values are lowered here instead -- the one place
+        // the rule is JavaScript's rather than the engine's, and the
+        // reason upstream ships no builder for these two at all.
         case 'inCaseInsensitive':
-          return `${lower}->in([${many().map(lowerLiteral).join(', ')}])`;
+          return `${lower}->in([${many().map(preLowered).join(', ')}])`;
         case 'notInCaseInsensitive':
-          return `!${lower}->in([${many().map(lowerLiteral).join(', ')}])`;
+          return `!${lower}->in([${many().map(preLowered).join(', ')}])`;
 
         default: {
           const never: never = node.operator as never;
@@ -760,8 +801,25 @@ export function serialize(
     // the user asked for; an empty aggregate list is a detail of what
     // to show beside it, and `groupBy(~[region], ~[])` lowers to
     // exactly `GROUP BY t0.region`.
-    const by = groupCols.map(ident).join(', ');
-    parts.push(`groupBy(~[${by}], ~[${groupedAggs(groupCols, needed)}])`);
+    // THE GRAND TOTAL IS A GROUP, NOT AN ABSENCE OF ONE.
+    //
+    // `groupBy(~[], ~[...])` is the obvious way to write "one group
+    // over everything" and the real engine crashes on it -- a
+    // NullPointerException out of the plan builder, not a refusal.
+    // Upstream never writes it either: `_extendRootAggregation`
+    // extends a constant column and groups by that, which is one
+    // group by construction. The column is machinery and the grid
+    // never shows it (`ROOT_COLUMN`).
+    if (groupCols.length === 0) {
+      parts.push(`extend(~[${ident(ROOT_COLUMN)}: x|${literal(ROOT_VALUE)}])`);
+      parts.push(
+        `groupBy(~[${ident(ROOT_COLUMN)}], ~[${
+          groupedAggs(groupCols, needed)}])`,
+      );
+    } else {
+      const by = groupCols.map(ident).join(', ');
+      parts.push(`groupBy(~[${by}], ~[${groupedAggs(groupCols, needed)}])`);
+    }
   }
 
   // Post-aggregation columns come AFTER the pivot or groupBy, which

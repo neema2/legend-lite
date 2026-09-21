@@ -31,6 +31,19 @@ export { TREE_COLUMN };
 /** legend-lite's and DataCube's shared pivot path separator. */
 export const PIVOT_SEPARATOR = '__|__';
 
+/**
+ * The grand total's synthetic group key.
+ *
+ * A total is one group over everything, and the obvious way to say
+ * that -- `groupBy(~[], ~[...])` -- crashes the real engine
+ * ("NullPointerException ... because resO is null"). Upstream never
+ * writes it: it extends a constant column and groups by THAT
+ * (`_extendRootAggregation`, value `[ROOT]`), which is one group by
+ * construction. The column is an artefact of saying so, and is never
+ * shown.
+ */
+export const ROOT_COLUMN = '__root__';
+
 export interface LeafColumn {
   /** Index into the result's columns. Survives reordering and hiding. */
   readonly index: number;
@@ -276,7 +289,10 @@ export function buildColumnModel(
   );
   const visible = leaves.filter(
     (l) => l.name === TREE_COLUMN
-      || (!hidden.has(l.name) && !inTree.has(l.name)),
+      // The grand total's synthetic key is machinery, not a column.
+      || (l.name !== ROOT_COLUMN
+        && !hidden.has(l.name)
+        && !inTree.has(l.name)),
   );
 
   // Ordering is applied to the VISIBLE leaves; anything unlisted keeps

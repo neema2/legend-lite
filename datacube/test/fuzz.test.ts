@@ -247,7 +247,20 @@ describe('fuzzing the model layer', () => {
         if (pure === null) continue;
         const m = /groupBy\(~\[([^\]]*)\]/.exec(pure);
         if (m && m[1]) {
-          const n = m[1].split(',').filter((x) => x.trim()).length;
+          // THE SYNTHETIC ROOT KEY IS NOT A CUBE COLUMN. A total is
+          // one group over everything, written as a constant column
+          // grouped by -- `groupBy(~[], ...)` crashes the real engine
+          // -- so at level 0 the key count is 1 while the cube has no
+          // row dimensions at all.
+          const keys = m[1].split(',').map((x) => x.trim())
+            .filter((x) => x !== '');
+          const synthetic = keys.filter((k) => k === '__root__');
+          const n = keys.length - synthetic.length;
+          if (synthetic.length > 0) {
+            assert.equal(keys.length, 1,
+              `seed ${seed} level ${level}: the root key shares a groupBy`
+              + ` with ${keys.join(', ')}`);
+          }
           assert.ok(
             n <= s.rows.length,
             `seed ${seed} level ${level}: grouped ${n} of ${s.rows.length}`,

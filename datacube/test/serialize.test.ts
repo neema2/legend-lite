@@ -67,7 +67,14 @@ describe('serialize', () => {
     // than as a projection that dropped it. The root query is a
     // groupBy with no keys, so it took the narrow path of its own.
     const total = serialize(snap({ rows: [], pivotOn: [] }));
-    assert.match(total, /groupBy\(~\[\]/);
+    // ONE GROUP, SAID AS A GROUP. `groupBy(~[], ~[...])` is the
+    // obvious spelling and it crashes the real engine with a
+    // NullPointerException out of the plan builder; upstream never
+    // writes it either, extending a constant column and grouping by
+    // that instead (`_extendRootAggregation`, value `[ROOT]`).
+    assert.match(total, /extend\(~\[__root__: x\|'\[ROOT\]'\]\)/);
+    assert.match(total, /groupBy\(~\[__root__\]/);
+    assert.equal(/groupBy\(~\[\]/.test(total), false);
     assert.match(total, /qty:x\|\$x\.qty:y\|\$y->sum\(\)/, total);
     assert.match(total, /total:x\|\$x\.notional:y\|\$y->sum\(\)/, total);
   });
@@ -600,21 +607,37 @@ describe('the full filter vocabulary', () => {
   it('lowers BOTH sides for case-insensitive comparisons', () => {
     // Relying on collation would let the same cube answer differently
     // on two backends.
+    //
+    // TWO SHAPES THE REAL ENGINE FORCED. `toOne()` first, because a
+    // relational column is `[0..1]` and `toLower` takes `String[1]`:
+    // upstream legend-engine refuses `$x.region->toLower()` outright
+    // ("Can't find a match for function 'toLower(Varchar(32)[0..1])'")
+    // and nine of these operators were unusable there until this
+    // call went in -- which is exactly where upstream puts it
+    // (DataCubeQueryFilterOperation__EqualCaseInsensitive).
+    //
+    // And `toLower('EMEA')` rather than `'emea'`: the lowering rule
+    // is then the engine's, not JavaScript's, and they are not the
+    // same rule.
     assert.equal(
       cond('equalCaseInsensitive', { value: 'EMEA' }),
-      "$x.region->toLower() == 'emea'",
+      "$x.region->toOne()->toLower() == toLower('EMEA')",
     );
     assert.equal(
       cond('containsCaseInsensitive', { value: 'Em' }),
-      "$x.region->toLower()->contains('em')",
+      "$x.region->toOne()->toLower()->contains(toLower('Em'))",
     );
+    // EXCEPT IN AN `in` LIST, which takes literals and nothing else:
+    // the engine asserts "IN is supported only for literal values or
+    // negative numbers", so these two lower their values here. It is
+    // also why upstream ships no builder for them at all.
     assert.equal(
       cond('inCaseInsensitive', { value: ['EMEA', 'Amer'] }),
-      "$x.region->toLower()->in(['emea', 'amer'])",
+      "$x.region->toOne()->toLower()->in(['emea', 'amer'])",
     );
     assert.equal(
       cond('notInCaseInsensitive', { value: ['EMEA'] }),
-      "!$x.region->toLower()->in(['emea'])",
+      "!$x.region->toOne()->toLower()->in(['emea'])",
     );
   });
 
@@ -630,13 +653,16 @@ describe('the full filter vocabulary', () => {
   });
 
   it('lowers both columns for a case-insensitive column comparison', () => {
+    // Both sides through `toOne()->toLower()`, for the multiplicity
+    // reason above: two nullable columns, one function that takes
+    // neither.
     assert.equal(
       cond('equalCaseInsensitiveColumn', { rightColumn: 'country' }),
-      '$x.region->toLower() == $x.country->toLower()',
+      '$x.region->toOne()->toLower() == $x.country->toOne()->toLower()',
     );
     assert.equal(
       cond('notEqualCaseInsensitiveColumn', { rightColumn: 'country' }),
-      '$x.region->toLower() != $x.country->toLower()',
+      '$x.region->toOne()->toLower() != $x.country->toOne()->toLower()',
     );
   });
 

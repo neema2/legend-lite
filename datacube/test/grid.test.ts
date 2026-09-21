@@ -165,6 +165,17 @@ describe('buildColumnModel', () => {
     }
   });
 
+  it('never shows the grand total\u2019s synthetic key', () => {
+    // A total is one group over everything, written as a constant
+    // column grouped by -- `groupBy(~[], ...)` crashes the real
+    // upstream engine -- so the answer carries a `__root__` column
+    // that is machinery, not data. `all` still has it, because the
+    // result does.
+    const m = buildColumnModel(table(['__root__', 'a', 'b']));
+    assert.deepEqual(m.leaves.map((l) => l.name), ['a', 'b']);
+    assert.equal(m.all.some((l) => l.name === '__root__'), true);
+  });
+
   it('still maps correctly when a column is HIDDEN', () => {
     const m = buildColumnModel(
       table(['a', 'b', 'c', 'd']), [], [], { hidden: ['b'] },

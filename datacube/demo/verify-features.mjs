@@ -1290,6 +1290,31 @@ try {
     await settle(before);
   }
 
+  /** Turn a General Properties checkbox on or off, by its label. */
+  const setGeneralCheck = async (label, on) => {
+    await reset();
+    await page.click('.dc-titlebar-menu');
+    await page.waitForSelector('.dc-menu', { timeout: 10_000 });
+    await page.locator('.dc-menu-item:has(> .dc-menu-label'
+      + ':text-is("Properties..."))').click();
+    await page.waitForTimeout(300);
+    await page.locator('.dc-editor-tab', { hasText: 'General Properties' })
+      .click();
+    await page.waitForTimeout(150);
+    const box = page.locator('.dc-check', { hasText: label })
+      .locator('input');
+    if (on) await box.first().check();
+    else await box.first().uncheck();
+    await page.locator('.dc-editor-footer button', { hasText: 'Apply' })
+      .click();
+    await page.waitForTimeout(400);
+    await reset();
+    await settle();
+  };
+
+  const setRootAggregation = (on) =>
+    setGeneralCheck('Show root aggregation', on);
+
   /** Turn "keep grouped columns in the grid" on or off. */
   const setKeepGrouped = async (on) => {
     await reset();
@@ -2163,6 +2188,48 @@ try {
     if (tabs === 0) throw new Error('the editor opened with no tabs');
     return `the editor opened with ${tabs} tabs`;
   });
+
+  await check('the GRAND TOTAL renders, and shows no machinery',
+    async () => {
+      // A total is one group over everything. The obvious way to say
+      // that -- `groupBy(~[], ...)` -- crashes the real upstream
+      // engine, so it is written as a constant column grouped by,
+      // which is what upstream does too. That synthetic key must
+      // never reach the grid: it is machinery, not a column.
+      await flatten();
+      const dims = await dimensionNames();
+      const group = ['region', 'desk', 'book'].find((n) => dims.includes(n));
+      if (!group) throw new Error(`no dimension to group by in ${dims}`);
+      await menu(['Pivot', /^Vertical Pivot on/],
+        { col: await needCol(group) });
+      await setRootAggregation(true);
+
+      const total = page.locator('.dc-row.dc-total');
+      if (!(await total.count())) {
+        throw new Error('no total row rendered with root aggregation on');
+      }
+      const cells = await total.first().locator('.dc-cell')
+        .allTextContents();
+      const figures = cells.filter((c) => /\d/.test(c));
+      if (figures.length === 0) {
+        throw new Error(`the total row carries no figures:`
+          + ` ${JSON.stringify(cells)}`);
+      }
+      // AND NO SYNTHETIC KEY, in the grid or the panel.
+      const leaked = (await gridColumns()).filter((c) => /__root__/.test(c));
+      const listed = await page.evaluate(() =>
+        [...document.querySelectorAll('.dc-tool-panel-row')]
+          .map((r) => r.dataset.column)
+          .filter((c) => /__root__/.test(c ?? '')));
+      await setRootAggregation(false);
+      if (leaked.length > 0) {
+        throw new Error(`the grid shows ${leaked.join(', ')}`);
+      }
+      if (listed.length > 0) {
+        throw new Error(`the panel lists ${listed.join(', ')}`);
+      }
+      return `total row with ${figures.length} figures, no machinery shown`;
+    });
 
   await check('the three sections read as ONE list', async () => {
     // Row groups, column labels and the columns themselves are the
