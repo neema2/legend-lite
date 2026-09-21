@@ -1290,6 +1290,31 @@ try {
     await settle(before);
   }
 
+  /** Turn "keep grouped columns in the grid" on or off. */
+  const setKeepGrouped = async (on) => {
+    await reset();
+    await page.click('.dc-titlebar-menu');
+    await page.waitForSelector('.dc-menu', { timeout: 10_000 });
+    await page.locator('.dc-menu-item:has(> .dc-menu-label'
+      + ':text-is("Properties..."))').click();
+    await page.waitForTimeout(300);
+    await page.locator('.dc-editor-tab', { hasText: 'General Properties' })
+      .click();
+    await page.waitForTimeout(150);
+    // BY ITS OWN LABEL: a `.dc-field` holds several inputs, and
+    // taking the first has twice now toggled a different setting.
+    const box = page.locator('.dc-check', {
+      hasText: 'Keep grouped columns in the grid',
+    }).locator('input');
+    if (on) await box.first().check();
+    else await box.first().uncheck();
+    await page.locator('.dc-editor-footer button', { hasText: 'Apply' })
+      .click();
+    await page.waitForTimeout(400);
+    await reset();
+    await settle();
+  };
+
   /**
    * Back to a FLAT cube.
    *
@@ -2002,6 +2027,71 @@ try {
           + ` the list: ${(await listed()).join(', ')}`);
       }
       return `${column} went list -> rows -> columns -> list`;
+    });
+
+  await check('KEEPING the grouped columns lists them in both sections',
+    async () => {
+      // A row dimension's values are the tree's, so it leaves the
+      // column list -- unless the cube is set to keep it as a column
+      // too, and then it is a real column and belongs in both. The
+      // setting is in General Properties beside the rest of "what is
+      // on screen".
+      await flatten();
+      const dims = await dimensionNames();
+      const group = ['region', 'desk', 'book'].find((n) => dims.includes(n));
+      if (!group) throw new Error(`no dimension to group by in ${dims}`);
+      await menu(['Pivot', /^Vertical Pivot on/],
+        { col: await needCol(group) });
+      const listed = () => page.evaluate(() =>
+        [...document.querySelectorAll('.dc-tool-panel-row')]
+          .filter((r) => !r.classList.contains('dc-tool-panel-child'))
+          .map((r) => r.dataset.column));
+      if ((await listed()).includes(group)) {
+        throw new Error(`${group} is grouped and still in the column list`);
+      }
+
+      await setKeepGrouped(true);
+      if (!(await listed()).includes(group)) {
+        throw new Error(`${group} is kept as a column but not listed:`
+          + ` ${(await listed()).join(', ')}`);
+      }
+      if (!(await gridColumns()).includes(group)) {
+        throw new Error(`${group} is kept as a column but not in the grid`);
+      }
+      const chips = await page.evaluate(() =>
+        [...document.querySelectorAll(
+          '.dc-tool-panel-zones .dc-zone-rows .dc-chip')]
+          .map((c) => c.dataset.column));
+      if (!chips.includes(group)) {
+        throw new Error(`${group} left the Row Groups section`);
+      }
+
+      // AND ONE AXIS AT A TIME. Dragging that listed copy into
+      // Column Labels used to put it on BOTH axes -- grouped by and
+      // pivoted on in the same query -- because the rule asked where
+      // the drag came from rather than where the column already was.
+      const stamp = await statusNow();
+      await page.locator(`.dc-tool-panel-row[data-column="${group}"]`)
+        .dragTo(page.locator('.dc-tool-panel-zones .dc-zone-columns'),
+          { timeout: 10_000 });
+      await settle(stamp);
+      const axes = await page.evaluate(() => ({
+        rows: [...document.querySelectorAll(
+          '.dc-tool-panel-zones .dc-zone-rows .dc-chip')]
+          .map((c) => c.dataset.column),
+        cols: [...document.querySelectorAll(
+          '.dc-tool-panel-zones .dc-zone-columns .dc-chip')]
+          .map((c) => c.dataset.column),
+      }));
+      if (axes.rows.includes(group) && axes.cols.includes(group)) {
+        throw new Error(`${group} is on BOTH axes: rows`
+          + ` ${axes.rows.join(', ')} and columns ${axes.cols.join(', ')}`);
+      }
+      if (!axes.cols.includes(group)) {
+        throw new Error(`${group} did not reach Column Labels`);
+      }
+      await setKeepGrouped(false);
+      return `${group} listed in both, and only ever on one axis`;
     });
 
   await check('the three sections read as ONE list', async () => {

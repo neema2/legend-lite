@@ -186,6 +186,32 @@ describe('the same zones, down a list', () => {
     assert.equal(root.classList.contains('dc-pivot-panel-list'), true);
   });
 
+  it('leaves the other axis, even for a drag from the PANEL', () => {
+    // A column on both axes groups the rows and labels the columns
+    // in the same query. A chip dragged between zones always left
+    // the first; a column dragged out of the COLUMNS PANEL left
+    // nothing, because the rule asked where the drag came from
+    // rather than where the column already was -- and with "keep
+    // grouped columns in the grid" on, a row dimension is listed in
+    // that panel too.
+    const panel2 = new PivotPanel(root, {
+      onChange: (zone, cols) => changes.push([zone, [...cols]]),
+      canGroup: () => true,
+      showColumnZone: true,
+      orientation: 'list',
+    });
+    panel2.setColumns(['region', 'desk'], ['year']);
+    setHeaderDrag({ column: 'region', from: 'panel' });
+    (root.querySelector('.dc-zone-columns') as HTMLElement)
+      .dispatchEvent(new dom.window.MouseEvent('drop', {
+        bubbles: true, cancelable: true,
+      }));
+    assert.deepEqual(changes, [
+      ['rows', ['desk']],
+      ['columns', ['year', 'region']],
+    ]);
+  });
+
   it('renders no chain arrows, because the list IS the order', () => {
     // The bar reads "region > desk > book", and the arrow says the
     // order is a hierarchy rather than a set. A list says that by

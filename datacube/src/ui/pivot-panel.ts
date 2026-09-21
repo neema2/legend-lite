@@ -279,13 +279,21 @@ export class PivotPanel {
   #drop(zone: Zone, drag: HeaderDrag, index: number): void {
     setHeaderDrag(null);
     if (!this.#options.canGroup(drag.column)) return;
-    // Dragging a chip from one zone to the other has to LEAVE the
-    // first, or the same column groups rows and labels columns at
-    // once, which produces a cube with the dimension on both axes.
-    // A panel drag has no zone to leave.
-    if ((drag.from === 'rows' || drag.from === 'columns')
-      && drag.from !== zone) {
-      const other = drag.from;
+    // A COLUMN IS ON AT MOST ONE AXIS.
+    //
+    // Landing in one zone leaves the other, or the same column
+    // groups the rows and labels the columns at once -- a cube with
+    // the dimension on both axes, which groups by it and pivots on
+    // it in the same query.
+    //
+    // Read off the STATE, not off where the drag started. The old
+    // rule asked `drag.from`, so a chip dragged between zones left
+    // the first and a column dragged out of the COLUMNS PANEL left
+    // nothing: with "keep grouped columns in the grid" on, a row
+    // dimension is listed there too, and dragging that copy into
+    // Column Labels put it on both axes.
+    const other: Zone = zone === 'rows' ? 'columns' : 'rows';
+    if (this.#state[other].includes(drag.column)) {
       this.#state = {
         ...this.#state,
         [other]: placeColumn(this.#state[other], drag.column, null),
