@@ -21,10 +21,6 @@ maven.install(
         "org.duckdb:duckdb_jdbc:1.4.4.0",
         "org.xerial:sqlite-jdbc:3.47.1.0",
         "com.h2database:h2:2.1.214",
-        # build tooling only — never on the runtime classpath
-        "com.google.errorprone:error_prone_core:2.50.0",
-        "com.uber.nullaway:nullaway:0.13.8",
-        "org.jspecify:jspecify:1.0.0",
         # test tooling — the versions core/pom.xml and the root pom manage
         "org.junit.jupiter:junit-jupiter:5.11.3",
         "org.junit.platform:junit-platform-console-standalone:1.11.3",
@@ -44,12 +40,55 @@ maven.install(
         "org.finos.legend.engine:legend-engine-xt-relationalStore-memsql-grammar:" + LEGEND_ENGINE_RELEASE,
         "org.finos.legend.pure:legend-pure-m3-core:" + LEGEND_PURE_RELEASE,
 
+        # pct: the engine's PCT framework, the three function universes it runs,
+        # and the interpreted runtime with their native extensions (pct/pom.xml);
+        # compiled-core and the TDS DSL are also the PAR generator's classpath
+        "org.finos.legend.engine:legend-engine-test-framework:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-pure-code-compiled-core:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-pure-functions-relation-pure:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-pure-functions-standard-pure:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-pure-functions-unclassified-pure:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-relation:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-standard:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-unclassified:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.pure:legend-pure-m4:" + LEGEND_PURE_RELEASE,
+        "org.finos.legend.pure:legend-pure-runtime-java-engine-compiled:" + LEGEND_PURE_RELEASE,
+        "org.finos.legend.pure:legend-pure-runtime-java-engine-interpreted:" + LEGEND_PURE_RELEASE,
+        "org.finos.legend.pure:legend-pure-runtime-java-extension-interpreted-dsl-tds:" + LEGEND_PURE_RELEASE,
+        "org.finos.legend.pure:legend-pure-m2-dsl-tds-pure:" + LEGEND_PURE_RELEASE,
+        "org.eclipse.collections:eclipse-collections:10.2.0",
+        "org.eclipse.collections:eclipse-collections-api:10.2.0",
+
         # INV-5: the third-party versions the ENGINE release's own root pom manages
         # (root pom.xml dependencyManagement says why) — listed so `pinned` holds them
         "com.zaxxer:HikariCP:7.0.2",
         "org.apache.commons:commons-lang3:3.18.0",
         "org.apache.httpcomponents:httpcore:4.4.13",
+        # the engine release's <guava.version>, listed because rules_jvm_external
+        # 7.1's BOM import lets protobuf-java-util's own 32.0.1 through where
+        # Maven's import applies the managed 33.4.6-jre (measured 2026-09-22
+        # against a Maven build importing the same BOM: guava was the ONLY
+        # third-party artifact on which the two disagreed). Still different after
+        # it, and left: error_prone_annotations 2.5.1 / j2objc-annotations 2.8
+        # (Maven: 2.36.0 / 3.0.0) — annotation-only jars the engine does not
+        # manage, which a JVM ignores at runtime.
+        "com.google.guava:guava:33.4.6-jre",
     ],
+    # THE ENGINE RELEASE'S OWN VERSIONS for everything it manages: its root pom is
+    # imported as a BOM, so a third-party artifact on the upstream graph (guava,
+    # slf4j, snakeyaml, the jackson family, ...) resolves at the version the
+    # engine's reactor — the PCT framework included — builds and runs with.
+    # Derived from the release, never chosen here (root pom.xml, INV-5). The BOM
+    # import is a feature of the maven resolver.
+    # JUnit's own BOM comes FIRST so the test tooling stays whole at legend-lite's
+    # version (root pom <junit.version>): the engine manages jupiter 5.11.0, and
+    # 5.11.0 jars beside the 1.11.3 console launcher would put two JUnit
+    # Platforms on one classpath.
+    boms = [
+        "org.junit:junit-bom:5.11.3",
+        "org.finos.legend.engine:legend-engine:" + LEGEND_ENGINE_RELEASE,
+    ],
+    resolver = "maven",
     # ONE version of every artifact, for every package: what the root pom's
     # dependencyManagement and tools/classpath-convergence.sh police by hand, held
     # here by construction. Explicitly listed versions win.
@@ -58,7 +97,19 @@ maven.install(
     lock_file = "//:maven_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
-use_repo(maven, "maven", "unpinned_maven")
+
+# BUILD TOOLING, resolved apart: a compiler plugin's own dependencies (NullAway
+# brings the Checker Framework's dataflow and guava) must never move a version on
+# the classpath the tests run with. Error Prone itself is the one bundled with
+# Bazel's Java toolchain; NullAway runs inside it as a plugin (core/BUILD.bazel).
+maven.install(
+    name = "maven_tools",
+    artifacts = ["com.uber.nullaway:nullaway:0.13.8"],
+    fail_if_repin_required = False,
+    lock_file = "//:maven_tools_install.json",
+    repositories = ["https://repo1.maven.org/maven2"],
+)
+use_repo(maven, "maven", "maven_tools", "unpinned_maven", "unpinned_maven_tools")
 
 # ── THE UPSTREAM SOURCES ────────────────────────────────────────────────────────
 # legend-engine / legend-pure at ONE release, pinned by content. Tests read these

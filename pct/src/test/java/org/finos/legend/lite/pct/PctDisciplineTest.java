@@ -68,7 +68,7 @@ class PctDisciplineTest {
         List<String> bad = new ArrayList<>();
         int javaScanned = 0;
         int pureScanned = 0;
-        try (Stream<Path> files = Files.walk(Path.of("src"))) {
+        try (Stream<Path> files = Files.walk(com.legend.testing.Repo.module("src"))) {
             for (Path f : files
                     .filter(p -> p.toString().endsWith(".java")
                             || p.toString().endsWith(".pure"))

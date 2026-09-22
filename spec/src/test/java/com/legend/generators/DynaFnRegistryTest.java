@@ -57,8 +57,7 @@ class DynaFnRegistryTest {
     }
 
     static Path engineRoot() {
-        return Path.of(System.getProperty("legend.engine.root",
-                System.getProperty("user.home") + "/legend/legend-engine"));
+        return com.legend.testing.Upstream.engine();
     }
 
     static String dialectOf(Path p) {

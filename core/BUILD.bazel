@@ -23,7 +23,7 @@ filegroup(
 # @AutoService(BugChecker.class) registration.
 java_plugin(
     name = "nullaway",
-    deps = ["@maven//:com_uber_nullaway_nullaway"],
+    deps = ["@maven_tools//:com_uber_nullaway_nullaway"],
 )
 
 # The Maven build's flags, minus the three that do not apply under Bazel

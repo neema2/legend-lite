@@ -137,13 +137,11 @@ class PreludeGeneratorTest {
             "legend-pure-core/legend-pure-m3-core/src/main/resources/platform/pure/grammar/m3.pure";
 
     static Path engineRoot() {
-        return Path.of(System.getProperty("legend.engine.root",
-                System.getProperty("user.home") + "/legend/legend-engine"));
+        return com.legend.testing.Upstream.engine();
     }
 
     static Path pureRoot() {
-        return Path.of(System.getProperty("legend.pure.root",
-                System.getProperty("user.home") + "/legend/legend-pure"));
+        return com.legend.testing.Upstream.pure();
     }
 
     static String generate() throws IOException {
@@ -1259,8 +1257,7 @@ class PreludeGeneratorTest {
     @Test
     @DisplayName("m3 reader: every class of m3.pure prints as a declaration (-Dprelude.m3=1 lists them)")
     void m3ReaderPrintsEveryClass() throws IOException {
-        Path pure = Path.of(System.getProperty("legend.pure.root",
-                System.getProperty("user.home") + "/legend/legend-pure"));
+        Path pure = com.legend.testing.Upstream.pure();
         Path m3 = pure.resolve(M3_PURE);
         // never an assumption-skip (SkipCensusTest): the reference checkout is
         // this test class's hard default, exactly as preludeIsCurrent's

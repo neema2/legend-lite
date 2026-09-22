@@ -69,8 +69,7 @@ public class SpecBodyCensusTest {
         // ${user.home} default), and gate 1 passes the resolved roots — so
         // the census RUNS there and its shrink-only pin below is a standing
         // gate; the literal is only the IDE fallback
-        Path pure = Path.of(System.getProperty("legend.pure.root",
-                System.getProperty("user.home") + "/legend/legend-pure"));
+        Path pure = com.legend.testing.Upstream.pure();
         // PRECHECK ALL NINE ROOTS (upstream boundary batch 2): a missing
         // checkout skips (there is nothing to census); a PRESENT checkout
         // missing any one root FAILS, every miss named — a root that moved
@@ -196,8 +195,7 @@ public class SpecBodyCensusTest {
         // the world it runs in (boot + platform packages + its own spec
         // file + the corpus's library files), then bucketed by the spec's
         // marking. A measurement: no arm, no registration.
-        Path engineRoot = Path.of(System.getProperty("legend.engine.root",
-                System.getProperty("user.home") + "/legend/legend-engine"));
+        Path engineRoot = com.legend.testing.Upstream.engine();
         CensusWorlds.Report worlds = CensusWorlds.run(sources, failures,
                 specNativeNames, engineRoot);
 

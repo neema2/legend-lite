@@ -21,13 +21,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ChannelBUnclassifiedTest {
 
     private static Path pureRoot() {
-        return Path.of(System.getProperty("legend.pure.root",
-                System.getProperty("user.home") + "/legend/legend-pure"));
+        return com.legend.testing.Upstream.pure();
     }
 
     private static Path engineRoot() {
-        return Path.of(System.getProperty("legend.engine.root",
-                System.getProperty("user.home") + "/legend/legend-engine"));
+        return com.legend.testing.Upstream.engine();
     }
 
     @Test
@@ -57,9 +55,9 @@ class ChannelBUnclassifiedTest {
         System.out.println("[chB-Unclassified] census=" + census
                 + " total=" + out.size());
         ChannelBDiff.Counts c = ChannelBDiff.report("chB-Unclassified", out,
-                Path.of("src/test/java/org/finos/legend/lite/pct/"
+                com.legend.testing.Repo.module("src/test/java/org/finos/legend/lite/pct/"
                         + "Test_LegendLite_UnclassifiedFunctions_PCT.java"),
-                Path.of("src/test/resources/oracle/"
+                com.legend.testing.Repo.module("src/test/resources/oracle/"
                         + "UnclassifiedFunctions_manifest.duckdb.json"));
         // measured 2026-08-19: PERFECT out of the box — 95/95 PASS,
         // every row corroborated, zero declines, zero wire bugs.

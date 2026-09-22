@@ -22,8 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ChannelBGrammarTest {
 
     private static Path pureRoot() {
-        return Path.of(System.getProperty("legend.pure.root",
-                System.getProperty("user.home") + "/legend/legend-pure"));
+        return com.legend.testing.Upstream.pure();
     }
 
     @Test
@@ -54,9 +53,9 @@ class ChannelBGrammarTest {
         System.out.println("[chB-gram] census=" + census
                 + " total=" + out.size());
         ChannelBDiff.Counts c = ChannelBDiff.report("chB-gram", out,
-                Path.of("src/test/java/org/finos/legend/lite/pct/"
+                com.legend.testing.Repo.module("src/test/java/org/finos/legend/lite/pct/"
                         + "Test_LegendLite_GrammarFunctions_PCT.java"),
-                Path.of("src/test/resources/oracle/"
+                com.legend.testing.Repo.module("src/test/resources/oracle/"
                         + "GrammarFunctions_manifest.duckdb.json"));
         // measured 2026-08-19 UNDER THE CLAUSE-2c REDESIGN (K-arm
         // verdicts; the parked seam-arm numbers are superseded), after

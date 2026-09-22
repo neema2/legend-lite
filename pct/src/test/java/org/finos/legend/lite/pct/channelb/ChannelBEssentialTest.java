@@ -23,8 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ChannelBEssentialTest {
 
     private static Path pureRoot() {
-        return Path.of(System.getProperty("legend.pure.root",
-                System.getProperty("user.home") + "/legend/legend-pure"));
+        return com.legend.testing.Upstream.pure();
     }
 
     @Test
@@ -281,7 +280,7 @@ class ChannelBEssentialTest {
      * stripped to plain FQNs). */
     private static java.util.Set<String> engineDuckDbExclusions()
             throws java.io.IOException {
-        Path manifest = Path.of("src/test/resources/oracle/"
+        Path manifest = com.legend.testing.Repo.module("src/test/resources/oracle/"
                 + "EssentialFunctions_manifest.duckdb.json");
         java.util.Set<String> names = new java.util.HashSet<>();
         var m = java.util.regex.Pattern
@@ -304,7 +303,7 @@ class ChannelBEssentialTest {
      * match channel B's plain FQNs). */
     private static java.util.Set<String> channelAExpectedFailures()
             throws java.io.IOException {
-        Path suite = Path.of("src/test/java/org/finos/legend/lite/pct/"
+        Path suite = com.legend.testing.Repo.module("src/test/java/org/finos/legend/lite/pct/"
                 + "Test_LegendLite_EssentialFunctions_PCT.java");
         java.util.Set<String> names = new java.util.HashSet<>();
         var m = java.util.regex.Pattern.compile("one\\(\"(meta::[a-zA-Z:_0-9]+)_Function")
