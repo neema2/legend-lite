@@ -11,7 +11,7 @@ import java.util.Objects;
  * shape. {@link com.legend.parser.SpecParser} picks the narrowest of the
  * two that holds the parsed value.
  */
-public record CInteger(Number value, @com.legend.Nullable com.legend.protocol.SourceInfo pos)
+public record CInteger(Number value, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
 
     /** Position-free convenience constructor — keeps hand-built test expectations compiling. */

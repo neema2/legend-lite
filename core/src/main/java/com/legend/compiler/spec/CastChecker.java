@@ -69,7 +69,7 @@ final class CastChecker {
      * ->cast(@LambdaFunction<..>)} — the reflection round trip real pure
      * makes of a lambda literal (deactivate wraps it in an InstanceValue
      * whose single value is the lambda): the lambda itself. */
-    private static @com.legend.Nullable TypedSpec deactivatedLambda(
+    private static @com.legend.base.Nullable TypedSpec deactivatedLambda(
             TypedSpec src, com.legend.compiler.element.type.Type target) {
         if (!(target instanceof com.legend.compiler.element.type.Type.GenericType g
                 && InferenceKernel.FUNCTION_CARRIER_FQNS.contains(g.rawFqn()))) {

@@ -285,11 +285,11 @@ public enum DynaFn {
 
     private final String name;
     private final Resolution resolution;
-    private final @com.legend.Nullable String liteFqn;
+    private final @com.legend.base.Nullable String liteFqn;
     private final Inference inference;
     private final EnumSet<Dialect> dialects;
 
-    DynaFn(String name, Resolution resolution, @com.legend.Nullable String liteFqn, Inference inference, Dialect... dialects) {
+    DynaFn(String name, Resolution resolution, @com.legend.base.Nullable String liteFqn, Inference inference, Dialect... dialects) {
         this.name = name;
         this.resolution = resolution;
         this.liteFqn = liteFqn;

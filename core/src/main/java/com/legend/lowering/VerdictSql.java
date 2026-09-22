@@ -86,7 +86,7 @@ public final class VerdictSql {
 
     /** A side folded to its facts row: {@code rows} is the rows CTE's query
      * (null when the facts are spelled inline over the plan). */
-    private record Folded(String name, @com.legend.Nullable SqlQuery rows, SqlQuery facts) {
+    private record Folded(String name, @com.legend.base.Nullable SqlQuery rows, SqlQuery facts) {
     }
 
     private static Folded fold(String name, Side s, boolean keepRows) {
@@ -197,7 +197,7 @@ public final class VerdictSql {
      * store's declared list can exceed what a seeded table carries; a reader
      * that names an absent column fails exactly as it would over the table).
      * Null when the plan is not a fold over a single root TABLE. */
-    public static @com.legend.Nullable SqlSelect classExtentRows(SqlQuery graphPlan) {
+    public static @com.legend.base.Nullable SqlSelect classExtentRows(SqlQuery graphPlan) {
         SqlQuery fold = graphPlan;
         for (int depth = 0; depth < 4 && fold instanceof SqlSelect w
                 && !w.projections().isEmpty()
@@ -767,7 +767,7 @@ public final class VerdictSql {
     private static SqlQuery statement(SqlQuery eRows, SqlQuery aRows,
             boolean eMany, boolean aMany, boolean byCanonText,
             List<SqlExpr.Case.When> moreUnjudged, List<SqlWith.Cte> extraCtes,
-            @com.legend.Nullable SqlQuery eCells, @com.legend.Nullable SqlQuery aCells) {
+            @com.legend.base.Nullable SqlQuery eCells, @com.legend.base.Nullable SqlQuery aCells) {
         return statementOf(new Folded("__e", eRows, sideFacts("__e", eMany, byCanonText)),
                 new Folded("__a", aRows, sideFacts("__a", aMany, byCanonText)),
                 moreUnjudged, extraCtes, eCells, aCells);
@@ -775,7 +775,7 @@ public final class VerdictSql {
 
     private static SqlQuery statementOf(Folded e, Folded a,
             List<SqlExpr.Case.When> moreUnjudged, List<SqlWith.Cte> extraCtes,
-            @com.legend.Nullable SqlQuery eCells, @com.legend.Nullable SqlQuery aCells) {
+            @com.legend.base.Nullable SqlQuery eCells, @com.legend.base.Nullable SqlQuery aCells) {
         SqlQuery eRows = e.rows();
         SqlQuery aRows = a.rows();
         // THE GENERAL SHAPE (lean ladder, 2026-09-20): each side is a rows
@@ -984,7 +984,7 @@ public final class VerdictSql {
      * database-ADJUDICATED, not database-computed — the ledger says
      * which). Null when a value has no literal spelling here (the caller
      * reports it unjudged by kind). */
-    public static @com.legend.Nullable SqlQuery constantPlan(List<Object> values) {
+    public static @com.legend.base.Nullable SqlQuery constantPlan(List<Object> values) {
         List<List<SqlExpr>> rows = new ArrayList<>();
         SqlType type = SqlType.Scalar.VARCHAR;   // the EMPTY constant's column kind
         for (Object v : values) {
@@ -1164,7 +1164,7 @@ public final class VerdictSql {
     /** {@code SELECT canon AS __c, row_number() OVER () AS __rn FROM (wrapped) w}
      * — the side reduced to its deciding canon texts in arrival order. */
     /** The wrap's projection named {@code alias}, or null. */
-    private static SqlSelect.@com.legend.Nullable Projection projectionOf(SqlSelect ws, String alias) {
+    private static SqlSelect.@com.legend.base.Nullable Projection projectionOf(SqlSelect ws, String alias) {
         for (SqlSelect.Projection p : ws.projections()) {
             if (alias.equals(p.alias())) {
                 return p;
@@ -1442,7 +1442,7 @@ public final class VerdictSql {
     }
 
     private static SqlQuery rowsOf(SqlExpr canon, SqlExpr value, SqlQuery source,
-            @com.legend.Nullable SqlExpr where) {
+            @com.legend.base.Nullable SqlExpr where) {
         SqlExpr rn = new SqlExpr.WindowCall(
                 new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
                 List.of(), List.of(), null);
@@ -1560,7 +1560,7 @@ public final class VerdictSql {
 
     /** {@code (SELECT <agg> FROM cte)} as a scalar. */
     private static SqlExpr scalarOver(String cteName, SqlExpr projected,
-            String alias, SqlType type, @com.legend.Nullable Long limit) {
+            String alias, SqlType type, @com.legend.base.Nullable Long limit) {
         OutputCol out = new OutputCol(alias, type, true);
         return new SqlExpr.ScalarSubquery(new SqlSelect(
                 List.of(new SqlSelect.Projection(projected, alias, out)),

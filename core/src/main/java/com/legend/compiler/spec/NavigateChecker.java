@@ -271,7 +271,7 @@ final class NavigateChecker {
     /** The read path of {@code n} off {@code var}: {@code col} or
      * {@code slot.col} (one joined sub-row deep); null when {@code n} is not
      * such a read. */
-    private static @com.legend.Nullable String readPath(TypedSpec n, String var) {
+    private static @com.legend.base.Nullable String readPath(TypedSpec n, String var) {
         if (n instanceof TypedPropertyAccess pa) {
             if (pa.source() instanceof TypedVariable v && v.name().equals(var)) {
                 return pa.property();

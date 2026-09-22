@@ -88,7 +88,7 @@ final class Sorts {
     /** The key's null placement: EXPLICIT (emptyFirst/emptyLast, the NullOrder
      *  argument) wins; else the Pure-language placement when the sort carries
      *  it; else bare (the engine's canonical placement, the renderer's). */
-    static SqlSelect.SortKey.@com.legend.Nullable NullOrder nullsOf(TypedSort.TypedSortKey k,
+    static SqlSelect.SortKey.@com.legend.base.Nullable NullOrder nullsOf(TypedSort.TypedSortKey k,
             boolean pureNullOrder) {
         if (k.nullOrder() != null) {
             return k.nullOrder() == com.legend.compiler.spec.typed.TypedSortInfo.NullOrder.FIRST

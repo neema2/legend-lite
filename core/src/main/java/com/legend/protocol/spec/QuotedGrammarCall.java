@@ -34,7 +34,7 @@ import java.util.Objects;
 public record QuotedGrammarCall(
         AppliedFunction original,
         List<LambdaFunction> functions,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos)
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
 
     public QuotedGrammarCall {

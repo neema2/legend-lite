@@ -30,7 +30,7 @@ final class LiteralFolds {
             "meta::pure::functions::collection::isNotEmpty";
     private static final String NOT_FQN = "meta::pure::functions::boolean::not";
 
-    static @com.legend.Nullable Boolean staticBool(TypedSpec cond) {
+    static @com.legend.base.Nullable Boolean staticBool(TypedSpec cond) {
         return switch (cond) {
             case TypedCBoolean b -> b.value();
             // emptiness of a LITERAL collection is static (the M3
@@ -59,7 +59,7 @@ final class LiteralFolds {
         };
     }
 
-    static @com.legend.Nullable Object literalValue(TypedSpec n) {
+    static @com.legend.base.Nullable Object literalValue(TypedSpec n) {
         return switch (n) {
             case TypedCBoolean b -> b.value();
             case TypedCInteger i -> i.value();

@@ -124,12 +124,12 @@ final class MappingClosures {
      * first ask by the walk it replaced, over surfaces. */
     final class Closure {
         private final String fqn;
-        private @com.legend.Nullable List<LegacyMappingDefinition> mappings;
-        private @com.legend.Nullable LinkedHashMap<String, ClassMapping> sets;
-        private @com.legend.Nullable Map<String, ClassMapping.Union> unions;
-        private @com.legend.Nullable Map<String, ClassMapping.Inheritance> inheritances;
-        private @com.legend.Nullable LinkedHashMap<String, ClassMapping> roots;
-        private @com.legend.Nullable List<EnumerationMapping> enums;
+        private @com.legend.base.Nullable List<LegacyMappingDefinition> mappings;
+        private @com.legend.base.Nullable LinkedHashMap<String, ClassMapping> sets;
+        private @com.legend.base.Nullable Map<String, ClassMapping.Union> unions;
+        private @com.legend.base.Nullable Map<String, ClassMapping.Inheritance> inheritances;
+        private @com.legend.base.Nullable LinkedHashMap<String, ClassMapping> roots;
+        private @com.legend.base.Nullable List<EnumerationMapping> enums;
         private final Map<String, Map<String, List<PropertyMapping.Join>>> pairEntries = new HashMap<>();
 
         private Closure(String fqn) {
@@ -207,7 +207,7 @@ final class MappingClosures {
          * includes in the engine's order (an include's includes first, then
          * its own sets; the LATER include after the earlier), the LAST found
          * — {@code rootClassMappingByClass}'s {@code last()} (R1). */
-        ClassMapping.@com.legend.Nullable Union union(@com.legend.Nullable String classFqn) {
+        ClassMapping.@com.legend.base.Nullable Union union(@com.legend.base.Nullable String classFqn) {
             Map<String, ClassMapping.Union> out = unions;
             if (out == null) {
                 out = new LinkedHashMap<>();
@@ -224,7 +224,7 @@ final class MappingClosures {
 
         /** The Inheritance operation set for {@code classFqn}, the same
          * last-wins rule. */
-        ClassMapping.@com.legend.Nullable Inheritance inheritance(String classFqn) {
+        ClassMapping.@com.legend.base.Nullable Inheritance inheritance(String classFqn) {
             union("");   // builds both
             return java.util.Objects.requireNonNull(inheritances).get(classFqn);
         }

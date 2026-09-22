@@ -60,7 +60,7 @@ final class Repr {
     /** The {@code %r} directive's arm ({@code format('%r', x)}): the
      * NODE-directed spelling — a date literal prints its {@code %}
      * form; strings quote with backslash-escapes. */
-    static SqlExpr of(@com.legend.Nullable TypedSpec typed, SqlExpr e) {
+    static SqlExpr of(@com.legend.base.Nullable TypedSpec typed, SqlExpr e) {
         if (typed != null) {
             SqlExpr dp = Scalars.datePrintOf(typed, e);
             if (dp != null) {

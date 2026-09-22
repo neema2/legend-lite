@@ -43,12 +43,12 @@ public final class Equality {
 
     /** A value with the kind its declaration gave it ({@code null} kind =
      * take the carrier's). */
-    public record Typed(@com.legend.Nullable Object value, @com.legend.Nullable Type kind) {
-        public static Typed of(@com.legend.Nullable Object value) {
+    public record Typed(@com.legend.base.Nullable Object value, @com.legend.base.Nullable Type kind) {
+        public static Typed of(@com.legend.base.Nullable Object value) {
             return new Typed(value, null);
         }
 
-        public static List<Typed> all(List<Object> values, @com.legend.Nullable Type kind) {
+        public static List<Typed> all(List<Object> values, @com.legend.base.Nullable Type kind) {
             List<Typed> out = new ArrayList<>(values.size());
             for (Object v : values) {
                 out.add(new Typed(v, kind));
@@ -89,7 +89,7 @@ public final class Equality {
     // ---- SCALARS ----------------------------------------------------------
 
     /** The kind a carrier has at runtime (the engine's runtime kind). */
-    static @com.legend.Nullable Type carrierKind(@com.legend.Nullable Object v) {
+    static @com.legend.base.Nullable Type carrierKind(@com.legend.base.Nullable Object v) {
         return switch (v) {
             case null -> null;
             case BigDecimal ignored -> Type.Primitive.DECIMAL;
@@ -125,7 +125,7 @@ public final class Equality {
      * to {@code accountTable.id INT} (mapping::tree) delivers the Integer 11 in
      * the engine and in lite alike, and its test asserts {@code [11, 'OrgName3']}
      * against it — a declaration is not a cast. */
-    private static @com.legend.Nullable Type effectiveKind(Typed t) {
+    private static @com.legend.base.Nullable Type effectiveKind(Typed t) {
         Type k = t.kind();
         if (k instanceof Type.PrecisionDecimal) {
             k = Type.Primitive.DECIMAL;
@@ -138,13 +138,13 @@ public final class Equality {
         return carrier;
     }
 
-    private static boolean isNumericKind(@com.legend.Nullable Type k) {
+    private static boolean isNumericKind(@com.legend.base.Nullable Type k) {
         return k == Type.Primitive.FLOAT || k == Type.Primitive.DECIMAL
                 || k == Type.Primitive.INTEGER;
     }
 
     /** Equal, or the first difference. */
-    public static @com.legend.Nullable String scalar(Typed e, Typed a) {
+    public static @com.legend.base.Nullable String scalar(Typed e, Typed a) {
         return same(e, a) ? null
                 : "\nexpected: " + PureAsserts.repr(e.value())
                         + "\nactual:   " + PureAsserts.repr(a.value());
@@ -226,7 +226,7 @@ public final class Equality {
     // ---- COLLECTIONS ------------------------------------------------------
 
     /** Element by element, in order. */
-    public static @com.legend.Nullable String ordered(List<Typed> e, List<Typed> a) {
+    public static @com.legend.base.Nullable String ordered(List<Typed> e, List<Typed> a) {
         if (e.size() != a.size()) {
             return "\nexpected " + e.size() + " element(s), actual " + a.size();
         }
@@ -240,7 +240,7 @@ public final class Equality {
 
     /** The engine's {@code assertSameElements}: sort both sides by the
      * value order, then ordered. */
-    public static @com.legend.Nullable String sameElements(List<Typed> e, List<Typed> a) {
+    public static @com.legend.base.Nullable String sameElements(List<Typed> e, List<Typed> a) {
         return ordered(sorted(e), sorted(a));
     }
 
@@ -326,7 +326,7 @@ public final class Equality {
         return out;
     }
 
-    private static int typeRank(@com.legend.Nullable Object v) {
+    private static int typeRank(@com.legend.base.Nullable Object v) {
         return switch (v) {
             case null -> 0;
             case Number n -> 1;
@@ -339,7 +339,7 @@ public final class Equality {
     }
 
     @SuppressWarnings("unchecked")
-    private static Comparable<Object> withinRank(@com.legend.Nullable Object v) {
+    private static Comparable<Object> withinRank(@com.legend.base.Nullable Object v) {
         return (Comparable<Object>) (Comparable<?>) switch (v) {
             case null -> "";
             case Number n -> new BigDecimal(String.valueOf(n));
@@ -355,15 +355,15 @@ public final class Equality {
     /** The Pure JSON model's equality: structure, keys, and leaves — a
      * JSONNumber's kind is part of its value ({@code 68} ≠ {@code 68.0}),
      * two decimals compare numerically. */
-    public static @com.legend.Nullable String pureJson(@com.legend.Nullable Object expected,
-            @com.legend.Nullable Object actual) {
+    public static @com.legend.base.Nullable String pureJson(@com.legend.base.Nullable Object expected,
+            @com.legend.base.Nullable Object actual) {
         return firstDiff(expected, actual, "$", Equality::pureJsonLeaf);
     }
 
     /** {@link #pureJson} with the ROOT array as a multiset (a result that
      * carries no order). */
-    public static @com.legend.Nullable String pureJsonUnorderedRoot(
-            @com.legend.Nullable Object expected, @com.legend.Nullable Object actual) {
+    public static @com.legend.base.Nullable String pureJsonUnorderedRoot(
+            @com.legend.base.Nullable Object expected, @com.legend.base.Nullable Object actual) {
         if (expected instanceof List<?> el && actual instanceof List<?> al) {
             List<Object> unmatched = new ArrayList<>(al);
             List<Object> missing = new ArrayList<>();
@@ -391,15 +391,15 @@ public final class Equality {
         return pureJson(expected, actual);
     }
 
-    private static boolean pureJsonLeaf(@com.legend.Nullable Object e, @com.legend.Nullable Object a) {
+    private static boolean pureJsonLeaf(@com.legend.base.Nullable Object e, @com.legend.base.Nullable Object a) {
         if (e instanceof BigDecimal be && a instanceof BigDecimal ba) {
             return be.compareTo(ba) == 0;
         }
         return java.util.Objects.equals(e, a);
     }
 
-    static @com.legend.Nullable String firstDiff(@com.legend.Nullable Object e,
-            @com.legend.Nullable Object a, String path,
+    static @com.legend.base.Nullable String firstDiff(@com.legend.base.Nullable Object e,
+            @com.legend.base.Nullable Object a, String path,
             java.util.function.BiPredicate<Object, Object> leaf) {
         if (e instanceof Map<?, ?> em && a instanceof Map<?, ?> am) {
             if (!em.keySet().equals(am.keySet())) {
@@ -430,7 +430,7 @@ public final class Equality {
                         + ", got " + abbreviate(String.valueOf(a));
     }
 
-    static String canonicalText(@com.legend.Nullable Object v) {
+    static String canonicalText(@com.legend.base.Nullable Object v) {
         if (v instanceof Map<?, ?> m) {
             StringBuilder sb = new StringBuilder("{");
             m.keySet().stream().map(String::valueOf).sorted().forEach(k ->
@@ -458,13 +458,13 @@ public final class Equality {
      * union of their keys (null ≡ missing), arrays as multisets, numbers by
      * decimal value (kind-blind) with the referee's 2-ULP policy for the
      * database's C-library doubles, strings and booleans exact. */
-    public static @com.legend.Nullable String serviceJson(@com.legend.Nullable Object expected,
-            @com.legend.Nullable Object actual) {
+    public static @com.legend.base.Nullable String serviceJson(@com.legend.base.Nullable Object expected,
+            @com.legend.base.Nullable Object actual) {
         return serviceDiff(expected, actual, "$");
     }
 
-    private static @com.legend.Nullable String serviceDiff(@com.legend.Nullable Object e,
-            @com.legend.Nullable Object a, String path) {
+    private static @com.legend.base.Nullable String serviceDiff(@com.legend.base.Nullable Object e,
+            @com.legend.base.Nullable Object a, String path) {
         if (e == null && a == null) {
             return null;
         }
@@ -526,7 +526,7 @@ public final class Equality {
         return path + " expected " + jsonKind(e) + " " + show(e) + ", got " + jsonKind(a) + " " + show(a);
     }
 
-    private static @com.legend.Nullable Object nearest(Object expected, List<Object> candidates) {
+    private static @com.legend.base.Nullable Object nearest(Object expected, List<Object> candidates) {
         if (!(expected instanceof Map<?, ?> em) || em.isEmpty()) {
             return null;
         }
@@ -546,7 +546,7 @@ public final class Equality {
                 : o instanceof Boolean ? "boolean" : "null";
     }
 
-    private static String show(@com.legend.Nullable Object o) {
+    private static String show(@com.legend.base.Nullable Object o) {
         if (o == null) {
             return "null";
         }

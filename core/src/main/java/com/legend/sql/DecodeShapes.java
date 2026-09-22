@@ -68,7 +68,7 @@ public final class DecodeShapes {
 
     /** The shared LHS of an equality (or OR-tree of equalities over the
      * SAME lhs); null when the condition is any other shape. */
-    private static @com.legend.Nullable SqlExpr conditionSource(SqlExpr cond) {
+    private static @com.legend.base.Nullable SqlExpr conditionSource(SqlExpr cond) {
         if (cond instanceof SqlExpr.Call c && c.fn() == SqlFn.EQUAL
                 && c.args().size() == 2) {
             return c.args().get(0);

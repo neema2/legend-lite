@@ -506,7 +506,7 @@ class GrammarCoverageCensusTest {
 
     /** Bodies of {@code <keyword> name { ... }} elements, braces balanced. */
     private static List<String> elementBodies(
-            @com.legend.Nullable List<String> fragments, String keyword) {
+            @com.legend.base.Nullable List<String> fragments, String keyword) {
         List<String> out = new ArrayList<>();
         if (fragments == null) {
             return out;
@@ -543,7 +543,7 @@ class GrammarCoverageCensusTest {
     }
 
     private static List<String> modelConnBodies(
-            @com.legend.Nullable List<String> fragments) {
+            @com.legend.base.Nullable List<String> fragments) {
         List<String> out = new ArrayList<>();
         if (fragments == null) {
             return out;
@@ -593,7 +593,7 @@ class GrammarCoverageCensusTest {
 
     /** ###Data embedded blocks: {@code <Format> #{...}#} contents. */
     private static List<String> dataIslands(
-            @com.legend.Nullable List<String> fragments, String format) {
+            @com.legend.base.Nullable List<String> fragments, String format) {
         List<String> out = new ArrayList<>();
         if (fragments == null) {
             return out;

@@ -126,7 +126,7 @@ public final class CsvCensusChecker {
      * static seeds) — the fold discards the rows, never the call. */
     public static TypedSpec literalTestData(String dataCsvString,
             java.util.List<String> sqls, ExprType info,
-            @com.legend.Nullable TypedSpec source) {
+            @com.legend.base.Nullable TypedSpec source) {
         ExprType str = new ExprType(Type.Primitive.STRING,
                 Multiplicity.Bounded.ONE);
         java.util.List<TypedSpec> sqlRows = new java.util.ArrayList<>(sqls.size());

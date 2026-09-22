@@ -37,7 +37,7 @@ final class OverChecker {
      *  relation schema bound into T): upstream's over<T>(cols:ColSpec<(?:?)⊆T>)
      *  binds T through no parameter — the context does. */
     static TypedSpec check(Typer t, AppliedFunction af, Env env,
-            @com.legend.Nullable Type expected) {
+            @com.legend.base.Nullable Type expected) {
         Application a = t.checkGeneric(af, env, expected);
         List<String> partitions = new ArrayList<>();
         List<TypedSort.TypedSortKey> keys = new ArrayList<>();

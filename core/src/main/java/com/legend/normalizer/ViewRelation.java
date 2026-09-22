@@ -444,7 +444,7 @@ final class ViewRelation {
 
     static String inferViewMainTable(DatabaseDefinition.ViewDefinition view,
                                             String viewName, ResolvedMapping md,
-                                            @com.legend.Nullable ModelBuilder model, @com.legend.Nullable String dbFqn) {
+                                            @com.legend.base.Nullable ModelBuilder model, @com.legend.base.Nullable String dbFqn) {
         Set<String> tables = new LinkedHashSet<>();
         for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
             RelationalOperation expr = vc.expression();
@@ -483,7 +483,7 @@ final class ViewRelation {
      * condition tables MINUS the terminal tables the columns read — a
      * single remainder is the root (table or view); null keeps the
      * caller's loud wall. */
-    private static @com.legend.Nullable String joinOnlyViewRoot(DatabaseDefinition.ViewDefinition view,
+    private static @com.legend.base.Nullable String joinOnlyViewRoot(DatabaseDefinition.ViewDefinition view,
             ModelBuilder model, String dbFqn) {
         Set<String> terminals = new LinkedHashSet<>();
         JoinChainElement first = null;

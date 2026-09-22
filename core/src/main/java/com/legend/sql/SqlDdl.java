@@ -43,19 +43,19 @@ public sealed interface SqlDdl
     }
 
     /** {@code CREATE [TEMPORARY] TABLE [schema.]table (columns..., PRIMARY KEY(...))}. */
-    record CreateTable(@com.legend.Nullable String schema, String table,
+    record CreateTable(@com.legend.base.Nullable String schema, String table,
                        List<Column> columns, boolean temporary) implements SqlDdl {
         public CreateTable {
             columns = List.copyOf(columns);
         }
 
-        public CreateTable(@com.legend.Nullable String schema, String table, List<Column> columns) {
+        public CreateTable(@com.legend.base.Nullable String schema, String table, List<Column> columns) {
             this(schema, table, columns, false);
         }
     }
 
     /** {@code DROP TABLE IF EXISTS [schema.]table}. */
-    record DropTable(@com.legend.Nullable String schema, String table) implements SqlDdl {
+    record DropTable(@com.legend.base.Nullable String schema, String table) implements SqlDdl {
     }
 
     /** {@code CREATE SCHEMA IF NOT EXISTS schema}. */

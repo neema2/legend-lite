@@ -36,7 +36,7 @@ final class ClassSorts {
      * direction ({@code $x->compare($y)} ascending, {@code $y->compare($x)}
      * descending). Anything richer has no relation sort shape.
      */
-    static @com.legend.Nullable TypedSortBy classSortOf(TypedSpec n) {
+    static @com.legend.base.Nullable TypedSortBy classSortOf(TypedSpec n) {
         // class-space sortBy(coll, key)/sortByReversed — the 2-arg native
         // spelling of the relation sort (computed keys substitute like any)
         if (n instanceof TypedNativeCall sb && sb.args().size() == 2
@@ -58,7 +58,7 @@ final class ClassSorts {
                 : new TypedSortBy(c.args().get(0), key, ascending, c.info());
     }
 
-    private static @com.legend.Nullable Boolean comparatorDirection(TypedLambda cmp) {
+    private static @com.legend.base.Nullable Boolean comparatorDirection(TypedLambda cmp) {
         if (cmp.parameters().size() != 2 || cmp.body().size() != 1
                 || !(cmp.body().get(0) instanceof TypedNativeCall cc)
                 || !COMPARE_FQN.equals(cc.callee().qualifiedName())

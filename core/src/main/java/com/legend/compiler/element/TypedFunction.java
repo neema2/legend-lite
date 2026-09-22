@@ -57,7 +57,7 @@ public record TypedFunction(
         Multiplicity returnMultiplicity,
         Optional<List<ValueSpecification>> body,
         boolean isNative,
-        com.legend.model.@com.legend.Nullable Function definition) implements TypedElement {
+        com.legend.model.@com.legend.base.Nullable Function definition) implements TypedElement {
 
     /** The stable overload identity (see {@code Function.signatureKey}). */
     public String signatureKey() {
@@ -84,13 +84,13 @@ public record TypedFunction(
     }
 
     public TypedFunction(String qualifiedName,
-                         @com.legend.Nullable List<String> typeParameters,
-                         @com.legend.Nullable List<String> multiplicityParameters,
-                         @com.legend.Nullable List<TypedParameter> parameters,
+                         @com.legend.base.Nullable List<String> typeParameters,
+                         @com.legend.base.Nullable List<String> multiplicityParameters,
+                         @com.legend.base.Nullable List<TypedParameter> parameters,
                          Type returnType, Multiplicity returnMultiplicity,
-                         @com.legend.Nullable Optional<List<ValueSpecification>> body,
+                         @com.legend.base.Nullable Optional<List<ValueSpecification>> body,
                          boolean isNative,
-                         com.legend.model.@com.legend.Nullable Function definition) {
+                         com.legend.model.@com.legend.base.Nullable Function definition) {
         Objects.requireNonNull(qualifiedName, "qualifiedName");
         Objects.requireNonNull(returnType, "returnType");
         Objects.requireNonNull(returnMultiplicity, "returnMultiplicity");

@@ -110,7 +110,7 @@ public record ClassDefinition(
             /** The declared default VALUE ({@code distinct: Boolean[1] = false}) —
              * applied by the new-instance checker to an unspelled property
              * (real pure's constructor semantics); null when none. */
-            com.legend.protocol.spec.@com.legend.Nullable ValueSpecification defaultValue) {
+            com.legend.protocol.spec.@com.legend.base.Nullable ValueSpecification defaultValue) {
         public PropertyDefinition(String name, TypeExpression type,
                 Multiplicity multiplicity,
                 List<StereotypeApplication> stereotypes,

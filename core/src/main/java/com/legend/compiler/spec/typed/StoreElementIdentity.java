@@ -43,7 +43,7 @@ public final class StoreElementIdentity {
 
     /** The table identity {@code n} spells, lets chased by {@code bind};
      * null when {@code n} is not that shape. */
-    public static @com.legend.Nullable TableRef tableRef(TypedSpec n,
+    public static @com.legend.base.Nullable TableRef tableRef(TypedSpec n,
             UnaryOperator<TypedSpec> bind) {
         TypedSpec t = peel(n, bind);
         if (!PlatformTypes.STORE_TABLE_NAV.equals(Calls.calleeOf(t))) {
@@ -58,7 +58,7 @@ public final class StoreElementIdentity {
     }
 
     /** {@code (dbFqn, schema)} of a schema identity; null otherwise. */
-    public static String @com.legend.Nullable [] schemaRef(TypedSpec n,
+    public static String @com.legend.base.Nullable [] schemaRef(TypedSpec n,
             UnaryOperator<TypedSpec> bind) {
         TypedSpec s = peel(n, bind);
         if (!PlatformTypes.STORE_SCHEMA_NAV.equals(Calls.calleeOf(s))) {

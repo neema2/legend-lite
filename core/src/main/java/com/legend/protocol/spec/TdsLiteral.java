@@ -12,7 +12,7 @@ import java.util.Objects;
  * {@link #desugared()} on first touch.
  */
 public record TdsLiteral(String tdsString, AppliedFunction desugared,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos)
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
 
     public TdsLiteral {

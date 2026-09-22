@@ -55,7 +55,7 @@ public final class VerdictBatch {
     }
 
     private record Pending(int ix, String name, boolean wantEqual, SqlQuery query,
-            Connection on, @com.legend.Nullable Appeal appeal) implements Step {
+            Connection on, @com.legend.base.Nullable Appeal appeal) implements Step {
     }
 
     /** A verdict row's APPEAL (block-compiler rung 2a): run at the flush when the
@@ -109,7 +109,7 @@ public final class VerdictBatch {
     private final ExprType oneRow;
     private final Judge judge;
     private final List<Root> roots = new ArrayList<>();
-    private @com.legend.Nullable Root current;
+    private @com.legend.base.Nullable Root current;
     /** The frames the body's asserts read by reference: name → the frame's
      * plan (leg 3.4 step 2), defined once per body. */
     private final Map<String, SqlQuery> frames = new LinkedHashMap<>();
@@ -153,7 +153,7 @@ public final class VerdictBatch {
     }
 
     public void defer(String name, boolean wantEqual, SqlQuery query, Connection on,
-            @com.legend.Nullable Appeal appeal) {
+            @com.legend.base.Nullable Appeal appeal) {
         Root r = java.util.Objects.requireNonNull(current, "verdict batch: no open root");
         int ix = 0;
         for (Root x : roots) {
@@ -224,7 +224,7 @@ public final class VerdictBatch {
     /** Send the deferred statements (one fused statement per session), then
      * report every root in body order; the first failure raises. */
     public void flush(SqlDialect dialect, ExecutionTrace trace,
-            @com.legend.Nullable AssertListener l) {
+            @com.legend.base.Nullable AssertListener l) {
         if (!roots.isEmpty()) {
             Census.inc(Census.Key.VERDICT_FLUSHES);
         }

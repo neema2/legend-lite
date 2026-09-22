@@ -25,7 +25,7 @@ final class EnumSourceValues {
      * ({@code "root".active = 0}) — the engine never compares decoded
      * names. Pure algebra: valid for any literal-decode case shape.
      */
-    static @com.legend.Nullable SqlExpr decodeInvert(
+    static @com.legend.base.Nullable SqlExpr decodeInvert(
             com.legend.compiler.spec.typed.TypedSpec ta,
             com.legend.compiler.spec.typed.TypedSpec tb,
             SqlExpr a, SqlExpr b) {

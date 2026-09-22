@@ -19,7 +19,7 @@ public final class ExecutionTrace {
     /** The comment of the most recent stamped execution on THIS trace
      * (null before any) — per-environment state since batch 137 (Phase
      * 2b), a thread-local before. */
-    private @com.legend.Nullable String last;
+    private @com.legend.base.Nullable String last;
 
     /** The statement text as the database receives it: the trace comment
      * line, then the SQL. Publishes the comment as this trace's last stamp. */
@@ -30,7 +30,7 @@ public final class ExecutionTrace {
         return comment + "\n" + sql;
     }
 
-    private @com.legend.Nullable String reserved;
+    private @com.legend.base.Nullable String reserved;
 
     /** The comment the NEXT stamped statement will carry, minted now: a
      * frame that is not run at its let (one statement per body) registers
@@ -43,7 +43,7 @@ public final class ExecutionTrace {
         return reserved;
     }
 
-    public @com.legend.Nullable String lastComment() {
+    public @com.legend.base.Nullable String lastComment() {
         return last;
     }
 

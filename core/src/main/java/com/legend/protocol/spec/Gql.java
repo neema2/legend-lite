@@ -115,7 +115,7 @@ public final class Gql {
 
     /** One SDL input value ({@code name: Type = default @dirs}). */
     public record InputValueDef(String name, TypeRef type,
-            @com.legend.Nullable Value defaultValue,
+            @com.legend.base.Nullable Value defaultValue,
             List<Directive> directives) {
         public InputValueDef {
             directives = List.copyOf(directives);
@@ -124,8 +124,8 @@ public final class Gql {
 
     /** {@code operationDefinition} — {@code type} is null for a BARE
      *  selection document (the wire omits the field). */
-    public record Operation(@com.legend.Nullable String type,
-            @com.legend.Nullable String name,
+    public record Operation(@com.legend.base.Nullable String type,
+            @com.legend.base.Nullable String name,
             List<VariableDef> variables,
             List<Directive> directives,
             List<Selection> selectionSet) implements Definition {
@@ -179,7 +179,7 @@ public final class Gql {
 
     /** {@code field} — the alias keeps its trailing colon verbatim
      *  ({@code "h:"}), matching the engine's serialization. */
-    public record Field(@com.legend.Nullable String alias, String name,
+    public record Field(@com.legend.base.Nullable String alias, String name,
             List<Argument> arguments, List<Directive> directives,
             List<Selection> selectionSet) implements Selection {
         public Field {
@@ -212,7 +212,7 @@ public final class Gql {
     /** {@code $name: Type = default} — the wire keeps the {@code $} in
      *  the definition's name (uses drop it). */
     public record VariableDef(String dollarName, TypeRef type,
-            @com.legend.Nullable Value defaultValue) {
+            @com.legend.base.Nullable Value defaultValue) {
     }
 
     /** A type reference. */

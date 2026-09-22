@@ -107,7 +107,7 @@ public final class ModelNormalizer {
      * and excluded in one pass instead of throwing on the first.
      */
     public static NormalizedModel normalize(ParsedModel parsed, ModelBuilder model,
-            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
         Objects.requireNonNull(parsed, "parsed");
         Objects.requireNonNull(model, "model");
         // Association QUALIFIED properties were adopted into their owning
@@ -141,7 +141,7 @@ public final class ModelNormalizer {
      * same pipeline-order bug.
      */
     private static void requireQualifiedPropertiesAdopted(ParsedModel parsed,
-            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
         Map<String, ClassDefinition> classes = null;
         for (PackageableElement el : parsed.elements()) {
             if (!(el instanceof AssociationDefinition ad)

@@ -19,7 +19,7 @@ public final class Lets {
     }
 
     /** The let in scope for {@code name}, or null when the prefix does not bind it. */
-    public static @com.legend.Nullable TypedLet binding(List<TypedSpec> prefix, String name) {
+    public static @com.legend.base.Nullable TypedLet binding(List<TypedSpec> prefix, String name) {
         for (int i = prefix.size() - 1; i >= 0; i--) {
             if (prefix.get(i) instanceof TypedLet let && let.name().equals(name)) {
                 return let;

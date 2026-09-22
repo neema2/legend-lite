@@ -11,13 +11,13 @@ import java.util.Objects;
  */
 public record PersistenceDefinition(
         String qualifiedName,
-        @com.legend.Nullable String doc,
-        @com.legend.Nullable String triggerSource,
-        @com.legend.Nullable String service,
-        @com.legend.Nullable String persisterSource,
-        @com.legend.Nullable String serviceOutputTargetsSource,
-        @com.legend.Nullable String notifierSource,
-        @com.legend.Nullable String testsSource) implements PackageableElement {
+        @com.legend.base.Nullable String doc,
+        @com.legend.base.Nullable String triggerSource,
+        @com.legend.base.Nullable String service,
+        @com.legend.base.Nullable String persisterSource,
+        @com.legend.base.Nullable String serviceOutputTargetsSource,
+        @com.legend.base.Nullable String notifierSource,
+        @com.legend.base.Nullable String testsSource) implements PackageableElement {
 
     public PersistenceDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");

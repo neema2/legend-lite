@@ -22,7 +22,7 @@ public final class SetId {
 
     /** The effective id: {@code declared}, else the default derived from
      * {@code fqn}. */
-    public static String of(@com.legend.Nullable String declared, String fqn) {
+    public static String of(@com.legend.base.Nullable String declared, String fqn) {
         return declared != null && !declared.isEmpty() ? declared : defaultFor(fqn);
     }
 

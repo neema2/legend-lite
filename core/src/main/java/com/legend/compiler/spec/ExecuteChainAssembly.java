@@ -47,7 +47,7 @@ public final class ExecuteChainAssembly {
      * sentinel {@code ^Mapping(name='')} — every branch then carries
      * its own {@code ->from()}). */
     public record Prepared(TypedLambda lam,
-            @com.legend.Nullable TypedPackageableRef mref) {
+            @com.legend.base.Nullable TypedPackageableRef mref) {
     }
 
     /** The assembled chain and whether its ROOT is relation-shaped (the
@@ -306,7 +306,7 @@ public final class ExecuteChainAssembly {
      * String scalars (JSON-quoted) are the next leg — each a NAMED wall. */
     public static TypedSpec legendQueryEnvelope(TypedSpec chain,
             com.legend.compiler.element.ModelContext model,
-            @com.legend.Nullable String activitySql) {
+            @com.legend.base.Nullable String activitySql) {
         TypedSpec root = chain;
         while (root instanceof TypedFrom f) {
             root = f.source();
@@ -435,7 +435,7 @@ public final class ExecuteChainAssembly {
      */
     public static Chain chain(Prepared p, TypedNativeCall ec,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            @com.legend.Nullable String runtimeFqn,
+            @com.legend.base.Nullable String runtimeFqn,
             Map<String, TypedSpec> queryLetsSink) {
         List<TypedSpec> qb = new ArrayList<>(letPrefix);
         qb.addAll(p.lam().body());
@@ -494,7 +494,7 @@ public final class ExecuteChainAssembly {
     /** The ExecutionContext argument of an execute call on the engine's
      * exeCtx overload (f, mapping, runtime, exeCtx, extensions); null on
      * the others. Identified by the overload's SIGNATURE, never by shape. */
-    public static @com.legend.Nullable TypedSpec executionContextArg(TypedNativeCall ec) {
+    public static @com.legend.base.Nullable TypedSpec executionContextArg(TypedNativeCall ec) {
         return com.legend.builtin.Pure.ROUTER_EXECUTE__FN_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__EXTENSION_MANY
                 .signatureKey().equals(ec.callee().signatureKey()) && ec.args().size() == 5
                 ? ec.args().get(3) : null;

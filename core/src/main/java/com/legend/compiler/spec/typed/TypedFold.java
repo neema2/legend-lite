@@ -45,7 +45,7 @@ public record TypedFold(TypedSpec source, TypedLambda reducer, TypedSpec init,
      * with a relation-typed source (Phase 1c: the corpus's grid idiom;
      * semantically the per-row map, which is how it lowers). Null
      * otherwise. */
-    public @com.legend.Nullable TypedSpec columnCollectBody() {
+    public @com.legend.base.Nullable TypedSpec columnCollectBody() {
         if (!com.legend.compiler.element.type.Type
                         .relationValued(source.info())
                 || reducer.parameters().size() != 2

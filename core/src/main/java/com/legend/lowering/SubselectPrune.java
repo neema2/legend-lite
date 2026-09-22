@@ -50,7 +50,7 @@ final class SubselectPrune {
             this(new HashMap<>(), new HashSet<>(), new HashSet<>());
         }
 
-        void col(@com.legend.Nullable String table, String name) {
+        void col(@com.legend.base.Nullable String table, String name) {
             if (table == null) {
                 unqualified.add(name);
             } else {
@@ -361,7 +361,7 @@ final class SubselectPrune {
      * a nested set-op / distinct / grouped / having / qualified branch,
      * an arity mismatch, or nothing to drop. At least one position is
      * kept. */
-    private static SqlSource.@com.legend.Nullable Subselect pruneUnion(
+    private static SqlSource.@com.legend.base.Nullable Subselect pruneUnion(
             SqlUnion u, SqlSource.Subselect sub, Refs r) {
         // a USER-projected TDS union keeps its projected columns even
         // when the outer never reads them (engine testUnionWithGroupBy
@@ -496,7 +496,7 @@ final class SubselectPrune {
     }
 
     /** The FROM-tree source bound to {@code alias}, or null. */
-    private static @com.legend.Nullable SqlSource findSource(
+    private static @com.legend.base.Nullable SqlSource findSource(
             SqlSource src, String alias) {
         return switch (src) {
             case SqlSource.Join j -> {

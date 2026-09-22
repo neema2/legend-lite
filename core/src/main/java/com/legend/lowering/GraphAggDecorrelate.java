@@ -64,7 +64,7 @@ final class GraphAggDecorrelate {
         return changed ? e.withChildren(rs) : e;
     }
 
-    private static @com.legend.Nullable SqlExpr tryDecorrelate(SqlSelect s,
+    private static @com.legend.base.Nullable SqlExpr tryDecorrelate(SqlSelect s,
             Set<String> outer, SqlSelect[] fr, Supplier<String> aliasMint) {
         if (s.distinct() || !s.groupBy().isEmpty() || s.having() != null
                 || s.qualify() != null || s.limit() != null
@@ -158,7 +158,7 @@ final class GraphAggDecorrelate {
     /** The grouped select's own slot, DECLARED from the expression's
      * stored fact (§E3: the builder states type and nullability with
      * the same authority) — null when the fact is not in hand. */
-    private static @com.legend.Nullable OutputCol declaredSlot(String name,
+    private static @com.legend.base.Nullable OutputCol declaredSlot(String name,
             SqlExpr e) {
         return e.type() instanceof com.legend.sql.TypeFact.Typed t
                 ? new OutputCol(name, t.type(), t.nullable(), OutputCol.Origin.DERIVED)
@@ -178,7 +178,7 @@ final class GraphAggDecorrelate {
                 OutputCol.Origin.DERIVED);
     }
 
-    private static void flattenAnd(@com.legend.Nullable SqlExpr e,
+    private static void flattenAnd(@com.legend.base.Nullable SqlExpr e,
             List<SqlExpr> out) {
         if (e == null) {
             return;

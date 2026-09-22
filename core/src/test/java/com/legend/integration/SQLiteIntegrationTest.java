@@ -439,7 +439,7 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
                 .findFirst().orElseThrow();
     }
 
-    private static DatabaseDefinition.@com.legend.Nullable TableDefinition table(
+    private static DatabaseDefinition.@com.legend.base.Nullable TableDefinition table(
             DatabaseDefinition db, String name) {
         return db.tables().stream()
                 .filter(t -> t.name().equals(name)).findFirst().orElse(null);

@@ -90,7 +90,7 @@ final class JsonChecker {
     /** {@code X.keyValuePairs->filter(kv|$kv.key.value == key)} — the
      * member access idiom (real jsonExtension.pure:37 getValue's body),
      * typed as the member. Null when the call is not this shape. */
-    static @com.legend.Nullable TypedSpec filter(Typer t, AppliedFunction af,
+    static @com.legend.base.Nullable TypedSpec filter(Typer t, AppliedFunction af,
             Env env) {
         if (af.parameters().size() != 2
                 || !(af.parameters().get(0) instanceof AppliedProperty kvs)
@@ -140,7 +140,7 @@ final class JsonChecker {
      * elements BY EMISSION — {@code toVariant(elements)} cast to the
      * kind (real json.pure:56; the variant lane's array value). Null
      * for any other construction. */
-    static @com.legend.Nullable TypedSpec newInstance(Typer t,
+    static @com.legend.base.Nullable TypedSpec newInstance(Typer t,
             com.legend.protocol.spec.NewInstance ni, Env env) {
         String fqn = t.model().findClass(ni.className())
                 .map(c -> c.qualifiedName()).orElse(ni.className());

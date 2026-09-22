@@ -31,7 +31,7 @@ final class ConstructionCanon {
     private ConstructionCanon() {
     }
 
-    static SqlExpr bind(@com.legend.Nullable Function<Type, @com.legend.Nullable EqualityKeys> keysOf,
+    static SqlExpr bind(@com.legend.base.Nullable Function<Type, @com.legend.base.Nullable EqualityKeys> keysOf,
             IntSupplier fresh, Type t, String classFqn,
             List<SqlExpr.StructLit.Field> fields) {
         String canonName = ClassLayouts.SYNTHETIC_CANON;

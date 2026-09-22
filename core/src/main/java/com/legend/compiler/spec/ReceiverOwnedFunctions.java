@@ -34,7 +34,7 @@ final class ReceiverOwnedFunctions {
      * the receiver's class — null when the receiver is not a plain class
      * instance (a relation, a TDS, a lambda, a collection) or no such
      * function exists. */
-    static @com.legend.Nullable TypedFunction of(Typer t, AppliedFunction af, Env env) {
+    static @com.legend.base.Nullable TypedFunction of(Typer t, AppliedFunction af, Env env) {
         if (af.parameters().isEmpty()) {
             return null;
         }

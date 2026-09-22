@@ -90,7 +90,7 @@ public final class Executor {
     public static ExecutionResult execute(String sql, SqlQuery plan, ExprType rootType,
                                           Connection connection,
                                           com.legend.sql.dialect.SqlDialect dialect,
-                                          @com.legend.Nullable ExecutionTrace trace) {
+                                          @com.legend.base.Nullable ExecutionTrace trace) {
         return execute(sql, plan, rootType, ResultShape.of(rootType), connection, dialect, trace);
     }
 
@@ -103,7 +103,7 @@ public final class Executor {
     public static ExecutionResult execute(String sql, SqlQuery plan, ExprType rootType,
                                           ResultShape shape, Connection connection,
                                           com.legend.sql.dialect.SqlDialect dialect,
-                                          @com.legend.Nullable ExecutionTrace trace) {
+                                          @com.legend.base.Nullable ExecutionTrace trace) {
         return execute(sql, plan, rootType, shape, connection, dialect, null, trace);
     }
 
@@ -114,8 +114,8 @@ public final class Executor {
     public static ExecutionResult execute(String sql, SqlQuery plan, ExprType rootType,
                                           ResultShape shape, Connection connection,
                                           com.legend.sql.dialect.SqlDialect dialect,
-                                          @com.legend.Nullable CanonRider rider,
-                                          @com.legend.Nullable ExecutionTrace trace) {
+                                          @com.legend.base.Nullable CanonRider rider,
+                                          @com.legend.base.Nullable ExecutionTrace trace) {
         // trace (Phase 2b, batch 137): the caller's execution trace — the
         // stamp this execution publishes lands there, not on the thread.
         // TYPED-IR Slice 1: the label-lie census — every executed plan's
@@ -140,8 +140,8 @@ public final class Executor {
     private static ExecutionResult execute0(String sql, SqlQuery plan, ExprType rootType,
                                           ResultShape shape, Connection connection,
                                           com.legend.sql.dialect.SqlDialect dialect,
-                                          @com.legend.Nullable CanonRider rider,
-                                          @com.legend.Nullable ExecutionTrace trace)
+                                          @com.legend.base.Nullable CanonRider rider,
+                                          @com.legend.base.Nullable ExecutionTrace trace)
             throws SQLException {
         // a TDSNull-TYPED root ([^TDSNull(), ^TDSNull()] — the grid
         // convention's null-cell VALUE, whose scalar form IS the SQL NULL):
@@ -278,8 +278,8 @@ public final class Executor {
     private static ExecutionResult executePrepared(Connection connection,
             String sql, ResultShape shape, SqlQuery plan, ExprType rootType,
             com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot,
-            boolean variantRoot, @com.legend.Nullable CanonRider rider,
-            @com.legend.Nullable ExecutionTrace trace)
+            boolean variantRoot, @com.legend.base.Nullable CanonRider rider,
+            @com.legend.base.Nullable ExecutionTrace trace)
             throws SQLException {
         // the engine's execution-trace comment rides the statement the
         // database receives (ExecutionTrace, batch 83); the stamp lands on
@@ -307,7 +307,7 @@ public final class Executor {
     private static ExecutionResult runShape(ResultShape shape, ResultSet rs,
             SqlQuery plan, ExprType rootType,
             com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot,
-            boolean variantRoot, @com.legend.Nullable CanonRider rider)
+            boolean variantRoot, @com.legend.base.Nullable CanonRider rider)
             throws SQLException {
         return switch (shape) {
                 case TABULAR -> tabular(rs, plan, rootType, dialect, rider);
@@ -446,7 +446,7 @@ public final class Executor {
      * implies a non-variant scalar shape, so no value row is ever
      * dropped out of alignment (the COLLECTION null wall). */
     private static void harvestCanon(ResultSet rs,
-            @com.legend.Nullable CanonRider rider) throws SQLException {
+            @com.legend.base.Nullable CanonRider rider) throws SQLException {
         int base;
         int count;
         if (rider == null) {
@@ -475,10 +475,10 @@ public final class Executor {
      * TDSNull slot), while an absent wire cell is an EMPTY. One fetch;
      * the distinction is read off the already-fetched value, never a
      * second accessor (tenet C1.2 ratchet). */
-    record Cell(@com.legend.Nullable Object value, boolean wirePresent) {
+    record Cell(@com.legend.base.Nullable Object value, boolean wirePresent) {
     }
 
-    private static @com.legend.Nullable Object cell(ResultSet rs, SqlQuery plan,
+    private static @com.legend.base.Nullable Object cell(ResultSet rs, SqlQuery plan,
                                com.legend.sql.dialect.SqlDialect dialect, boolean anyRoot,
                                boolean variantRoot)
             throws SQLException {
@@ -548,7 +548,7 @@ public final class Executor {
      * restriction and the wire consumers read (WORLD_MAP §4: the value
      * carries its class as {@code __type}). Scalars pass through
      * {@link #decodeAny} untouched; a Variant ROOT never comes here. */
-    public static @com.legend.Nullable Object structured(@com.legend.Nullable Object v) {
+    public static @com.legend.base.Nullable Object structured(@com.legend.base.Nullable Object v) {
         if (v instanceof String s) {
             String t = s.trim();
             if (t.startsWith("{") || t.startsWith("[")) {
@@ -571,7 +571,7 @@ public final class Executor {
         return out;
     }
 
-    private static @com.legend.Nullable Object decodeAny(@com.legend.Nullable Object v) {
+    private static @com.legend.base.Nullable Object decodeAny(@com.legend.base.Nullable Object v) {
         // Drivers hand JSON cells back as their own node type (DuckDB:
         // org.duckdb.JsonNode) or as text — matched by FULL class name.
         // The REASON is optional-dependency isolation, not guard-dodging
@@ -645,8 +645,8 @@ public final class Executor {
      * wrong). Timestamp stays the carrier where it is faithful (AD years);
      * a BC value keeps its LocalDateTime.
      */
-    private static @com.legend.Nullable Object fetch(ResultSet rs, int i,
-            com.legend.sql.@com.legend.Nullable SqlType type)
+    private static @com.legend.base.Nullable Object fetch(ResultSet rs, int i,
+            com.legend.sql.@com.legend.base.Nullable SqlType type)
             throws SQLException {
         Object o = rs.getObject(i);
         if (o != null) {
@@ -676,8 +676,8 @@ public final class Executor {
         return o;
     }
 
-    private static @com.legend.Nullable Object unwrap(@com.legend.Nullable Object v,
-            com.legend.sql.@com.legend.Nullable SqlType type,
+    private static @com.legend.base.Nullable Object unwrap(@com.legend.base.Nullable Object v,
+            com.legend.sql.@com.legend.base.Nullable SqlType type,
                                  com.legend.sql.dialect.SqlDialect dialect) throws SQLException {
         if (v == null) {
             return null;
@@ -796,7 +796,7 @@ public final class Executor {
         };
     }
 
-    private static boolean isTemporalType(com.legend.sql.@com.legend.Nullable SqlType type) {
+    private static boolean isTemporalType(com.legend.sql.@com.legend.base.Nullable SqlType type) {
         return type == com.legend.sql.SqlType.Scalar.DATE
                 || type == com.legend.sql.SqlType.Scalar.TIMESTAMP
                 || type == com.legend.sql.SqlType.Scalar.TIMESTAMPTZ
@@ -812,7 +812,7 @@ public final class Executor {
      */
     private static ExecutionResult.Tabular tabular(ResultSet rs, SqlQuery plan, ExprType rootType,
                                                     com.legend.sql.dialect.SqlDialect dialect,
-                                                    @com.legend.Nullable CanonRider rider)
+                                                    @com.legend.base.Nullable CanonRider rider)
             throws SQLException {
         final Type.RelationType schema = tabularSchema(rootType);
         // V7 §8 leg 1 — a grid-wrapped rider rode the plan's LAST
@@ -930,7 +930,7 @@ public final class Executor {
         return List.of(new Row(cells));
     }
 
-    private static com.legend.sql.@com.legend.Nullable SqlType sqlTypeOf(SqlQuery plan, int index) {
+    private static com.legend.sql.@com.legend.base.Nullable SqlType sqlTypeOf(SqlQuery plan, int index) {
         return sqlTypeOf(plan, index, false);
     }
 
@@ -939,7 +939,7 @@ public final class Executor {
      * outputs-emptiness proxy): an undemanded raw grid's zero-output
      * star-select has no static SQL type per column, and the wire KIND
      * drives decode. */
-    private static com.legend.sql.@com.legend.Nullable SqlType sqlTypeOf(SqlQuery plan, int index,
+    private static com.legend.sql.@com.legend.base.Nullable SqlType sqlTypeOf(SqlQuery plan, int index,
             boolean lateBound) {
         List<OutputCol> outputs = plan.outputs();
         if (index >= outputs.size()) {
@@ -1005,7 +1005,7 @@ public final class Executor {
     /** The LOOKUP variant — null for an unmapped SQL type (the
      * late-bound grid stamp's fallback-to-Any door; the pivot path
      * keeps the loud variant above). */
-    public static @com.legend.Nullable Type pureOfSqlTypeOrNull(
+    public static @com.legend.base.Nullable Type pureOfSqlTypeOrNull(
             String sqlType) {
         // V1.9 (Phase 8): the parameter suffix strips ONCE
         // ('DECIMAL(38,9)' -> 'DECIMAL'), then the table is EXACT-match

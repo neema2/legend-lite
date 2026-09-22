@@ -65,12 +65,12 @@ public final class ResultEnvelopeSplice {
      * TDS query holds ONE TDS; for a class or scalar root, values IS
      * the collection). */
     public record View(TypedSpec chain, boolean relationRooted,
-            @com.legend.Nullable TypedNativeCall sourceExec,
-            @com.legend.Nullable String cteName,
-            com.legend.sql.@com.legend.Nullable SqlQuery plan,
-            @com.legend.Nullable ExprType plannedInfo) {
+            @com.legend.base.Nullable TypedNativeCall sourceExec,
+            @com.legend.base.Nullable String cteName,
+            com.legend.sql.@com.legend.base.Nullable SqlQuery plan,
+            @com.legend.base.Nullable ExprType plannedInfo) {
         public View(TypedSpec chain, boolean relationRooted,
-                @com.legend.Nullable TypedNativeCall sourceExec) {
+                @com.legend.base.Nullable TypedNativeCall sourceExec) {
             this(chain, relationRooted, sourceExec, null, null, null);
         }
 
@@ -112,7 +112,7 @@ public final class ResultEnvelopeSplice {
 
         /** The frame bound to a let name, or null when the name is not
          * an exec binding. */
-        @com.legend.Nullable View frame(String name);
+        @com.legend.base.Nullable View frame(String name);
 
         /** Build the frame for an INLINE {@code execute(...)} call —
          * eager when nothing downstream consumes the chain (Pure is
@@ -127,13 +127,13 @@ public final class ResultEnvelopeSplice {
          * Null when the frame cannot answer (no retained execute call,
          * or an activity index this platform's single-statement
          * execution does not produce). */
-        @com.legend.Nullable String relationalActivitySql(
+        @com.legend.base.Nullable String relationalActivitySql(
                 String frameName, long activityNumber);
 
 
         /** The same render for an INLINE execute call (a user-call
          * frame's query). */
-        @com.legend.Nullable String relationalActivitySql(TypedNativeCall ec);
+        @com.legend.base.Nullable String relationalActivitySql(TypedNativeCall ec);
 
         /** A {@code toSQLString(...)} / {@code toSQLStringPretty(...)}
          * call's rendered text — the K-native evaluated WHEREVER the
@@ -163,7 +163,7 @@ public final class ResultEnvelopeSplice {
         }
         return new Frames() {
             @Override
-            public @com.legend.Nullable View frame(String name) {
+            public @com.legend.base.Nullable View frame(String name) {
                 return boundVars.contains(name) ? null : frames.frame(name);
             }
 
@@ -173,12 +173,12 @@ public final class ResultEnvelopeSplice {
             }
 
             @Override
-            public @com.legend.Nullable String relationalActivitySql(TypedNativeCall ec) {
+            public @com.legend.base.Nullable String relationalActivitySql(TypedNativeCall ec) {
                 return frames.relationalActivitySql(ec);
             }
 
             @Override
-            public @com.legend.Nullable String relationalActivitySql(
+            public @com.legend.base.Nullable String relationalActivitySql(
                     String frameName, long activityNumber) {
                 return boundVars.contains(frameName) ? null
                         : frames.relationalActivitySql(frameName,
@@ -409,7 +409,7 @@ public final class ResultEnvelopeSplice {
      * the frame (registering the rows) and stands AS WRITTEN — the same
      * instance, the inliner's fixpoint. Null when not an activities read
      * or the frame has no call. */
-    private static @com.legend.Nullable TypedSpec activitiesRowsRead(TypedSpec n,
+    private static @com.legend.base.Nullable TypedSpec activitiesRowsRead(TypedSpec n,
             Frames frames) {
         if (n instanceof TypedFilter tf) {
             TypedSpec src = activitiesRowsRead(tf.source(), frames);
@@ -459,7 +459,7 @@ public final class ResultEnvelopeSplice {
      * rendered SQL (a compile-time fact: the SQL is the compiler's
      * output, retained, not re-derived). Null when not this shape or the
      * frame cannot answer. */
-    private static @com.legend.Nullable TypedSpec relationalSqlRead(
+    private static @com.legend.base.Nullable TypedSpec relationalSqlRead(
             TypedSpec n, Frames frames) {
         if (!(n instanceof TypedPropertyAccess pa)
                 || !pa.property().equals("sql")) {
@@ -526,7 +526,7 @@ public final class ResultEnvelopeSplice {
      * forms, mirroring the verbatim body). The String-typed
      * {@code sqlRemoveFormatting(String)} overload is NOT matched here —
      * it is ordinary string code and evaluates as written. */
-    private static @com.legend.Nullable TypedSpec sqlProducerCall(
+    private static @com.legend.base.Nullable TypedSpec sqlProducerCall(
             TypedSpec n, Frames frames) {
         if (!(n instanceof com.legend.compiler.spec.typed.TypedUserCall uc)) {
             return null;
@@ -608,7 +608,7 @@ public final class ResultEnvelopeSplice {
     private static Frames chainsOnly(Frames frames) {
         return new Frames() {
             @Override
-            public @com.legend.Nullable View frame(String name) {
+            public @com.legend.base.Nullable View frame(String name) {
                 View v = frames.frame(name);
                 return v == null || !v.planned() ? v
                         : new View(v.chain(), v.relationRooted(), v.sourceExec());
@@ -620,19 +620,19 @@ public final class ResultEnvelopeSplice {
             }
 
             @Override
-            public @com.legend.Nullable String relationalActivitySql(String frameName,
+            public @com.legend.base.Nullable String relationalActivitySql(String frameName,
                     long activityNumber) {
                 return frames.relationalActivitySql(frameName, activityNumber);
             }
 
             @Override
-            public @com.legend.Nullable String relationalActivitySql(TypedNativeCall ec) {
+            public @com.legend.base.Nullable String relationalActivitySql(TypedNativeCall ec) {
                 return frames.relationalActivitySql(ec);
             }
         };
     }
 
-    private static @com.legend.Nullable TypedSpec valuesRead(TypedSpec n,
+    private static @com.legend.base.Nullable TypedSpec valuesRead(TypedSpec n,
             Frames frames) {
         if (n instanceof TypedPropertyAccess pa
                 && pa.property().equals("values")) {
@@ -680,7 +680,7 @@ public final class ResultEnvelopeSplice {
      * under filters only — no map, project, graphFetch, sort, cap or milestoning
      * argument — so the chain's values ARE the root class's instances and a frame
      * of its root rows, planned once, stands for every reader. Null otherwise. */
-    public static com.legend.compiler.spec.typed.@com.legend.Nullable TypedGetAll
+    public static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedGetAll
             plainExtentRoot(TypedSpec n) {
         while (n instanceof TypedFilter f) {
             n = f.source();

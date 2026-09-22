@@ -57,19 +57,19 @@ final class XStorePureEnds {
      * (pipeline + column view), a RELATIONAL set converted to its column
      * view, or a PURE set (property space — no pipeline, no column view;
      * {@code localProps} names its {@code +prop} lines). */
-    record XEnd(@com.legend.Nullable ValueSpecification pipeline, 
-            ClassMapping.@com.legend.Nullable RelationFunction colsView, 
+    record XEnd(@com.legend.base.Nullable ValueSpecification pipeline, 
+            ClassMapping.@com.legend.base.Nullable RelationFunction colsView, 
             String setId, boolean pure, Set<String> localProps,
             boolean lossyView, Map<String, TypeExpression> localTypes) {
-        XEnd(@com.legend.Nullable ValueSpecification pipeline,
-                ClassMapping.@com.legend.Nullable RelationFunction colsView,
+        XEnd(@com.legend.base.Nullable ValueSpecification pipeline,
+                ClassMapping.@com.legend.base.Nullable RelationFunction colsView,
                 String setId, boolean pure, Set<String> localProps) {
             this(pipeline, colsView, setId, pure, localProps, false, Map.of());
         }
     }
 
     static XEnd xstoreEndOf(ResolvedMapping md,
-            String classFqn, @com.legend.Nullable String setId, ModelBuilder model) {
+            String classFqn, @com.legend.base.Nullable String setId, ModelBuilder model) {
         // the end sets may live in INCLUDED mappings (modelJoins:
         // XStore lines over include LegalEntityMapping/TradesMapping) —
         // the engine compiles the include closure as one mapping

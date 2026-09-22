@@ -30,7 +30,7 @@ public final class CsvSeed {
      *  decimal arithmetic then answered with the wrong scale (940 stress
      *  rows: {@code notional / riskScore} = 3571428.571, not the declared
      *  type's 3571428.5714285714). */
-    public static List<String> sqls(String csvBlocks, @com.legend.Nullable String dbFqn,
+    public static List<String> sqls(String csvBlocks, @com.legend.base.Nullable String dbFqn,
             ModelContext ctx, com.legend.sql.dialect.SqlDialect dialect) {
         List<String> out = new ArrayList<>();
         // block separators: a line of dashes — '-' (the Alloy '\n-\n'
@@ -51,7 +51,7 @@ public final class CsvSeed {
         return out;
     }
 
-    private static void blockSqls(String csv, @com.legend.Nullable String dbFqn, ModelContext ctx,
+    private static void blockSqls(String csv, @com.legend.base.Nullable String dbFqn, ModelContext ctx,
             com.legend.sql.dialect.SqlDialect dialect, List<String> out) {
         String[] lines = csv.split("\n");
         while (lines.length > 0 && lines[0].isBlank()) {
@@ -174,7 +174,7 @@ public final class CsvSeed {
      * the loadCsvToDbTable arm (batch 85): every value rides as a QUOTED
      * literal and the DATABASE casts it to the column's type (F7.2); an
      * empty or {@code ---null---} cell is NULL. Null when no rows. */
-    public static @com.legend.Nullable String insertStatement(String qualified,
+    public static @com.legend.base.Nullable String insertStatement(String qualified,
             String[] cols, List<String[]> rows) {
         StringBuilder sql = null;
         for (String[] vals : rows) {

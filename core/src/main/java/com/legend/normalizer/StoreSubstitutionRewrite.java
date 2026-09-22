@@ -65,8 +65,8 @@ final class StoreSubstitutionRewrite {
 
     /** The AggregationAware node's views rewrite with the node (each view
      * is a Relational set: same substitution). */
-    private static ClassMapping.@com.legend.Nullable AggregationAware views(
-            ClassMapping.@com.legend.Nullable AggregationAware agg, Map<String, String> m) {
+    private static ClassMapping.@com.legend.base.Nullable AggregationAware views(
+            ClassMapping.@com.legend.base.Nullable AggregationAware agg, Map<String, String> m) {
         if (agg == null) {
             return null;
         }
@@ -77,8 +77,8 @@ final class StoreSubstitutionRewrite {
                 .toList());
     }
 
-    private static @com.legend.Nullable String db(
-            @com.legend.Nullable String database, Map<String, String> m) {
+    private static @com.legend.base.Nullable String db(
+            @com.legend.base.Nullable String database, Map<String, String> m) {
         return database == null ? null : m.getOrDefault(database, database);
     }
 
@@ -325,7 +325,7 @@ final class StoreSubstitutionRewrite {
     /** An include path as a mapping FQN among the mappings present: exact,
      *  else the includer's own package; null when it names none of them
      *  (an unresolvable include is loud at its own emission). */
-    private static @com.legend.Nullable String includeFqn(String includer, String path,
+    private static @com.legend.base.Nullable String includeFqn(String includer, String path,
             java.util.Set<String> present) {
         if (present.contains(path)) {
             return path;

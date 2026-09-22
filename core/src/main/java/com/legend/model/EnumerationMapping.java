@@ -34,7 +34,7 @@ import java.util.Objects;
  */
 public record EnumerationMapping(
         String enumName,
-        @com.legend.Nullable String mappingId,
+        @com.legend.base.Nullable String mappingId,
         List<EnumValueMapping> valueMappings) {
 
     public EnumerationMapping {

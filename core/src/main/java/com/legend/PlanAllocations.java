@@ -35,12 +35,12 @@ final class PlanAllocations {
      * Relational nodes (bare-typed, alias-less select), and CLASS query
      * values as full Class-envelope Relational nodes — the engine's
      * three Allocation value forms. */
-    static @com.legend.Nullable String node(
+    static @com.legend.base.Nullable String node(
             com.legend.compiler.spec.typed.TypedLet let, String mappingFqn,
             com.legend.compiler.spec.SpecCompiler specs, StatementExecutor.ExecEnv env,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam> params,
             java.util.Map<String, String> paramSpells,
-            boolean quote, @com.legend.Nullable String timeZone, @com.legend.Nullable String dbType) {
+            boolean quote, @com.legend.base.Nullable String timeZone, @com.legend.base.Nullable String dbType) {
         String literal = switch (let.value()) {
             case com.legend.compiler.spec.typed.TypedCString cs -> cs.value();
             case com.legend.compiler.spec.typed.TypedCInteger ci ->
@@ -213,7 +213,7 @@ final class PlanAllocations {
      * runs; the same pipeline as toSQLString(query, mapping, H2, ext)).
      * Null when the call's mapping is not a literal reference or the chain
      * does not render (the frame's own walls stand). */
-    static @com.legend.Nullable String activitySql(
+    static @com.legend.base.Nullable String activitySql(
             com.legend.compiler.spec.typed.TypedNativeCall ec,
             com.legend.compiler.spec.typed.TypedSpec chain,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> letPrefix,
@@ -255,7 +255,7 @@ final class PlanAllocations {
     /** The mapping the chain itself carries (an in-query {@code from(m, r)}
      * / {@code withMapping(m)} — the execute's own mapping argument being a
      * placeholder {@code ^Mapping()}), outermost first; null when none. */
-    private static @com.legend.Nullable String chainMapping(com.legend.compiler.spec.typed.TypedSpec chain) {
+    private static @com.legend.base.Nullable String chainMapping(com.legend.compiler.spec.typed.TypedSpec chain) {
         com.legend.compiler.spec.typed.TypedSpec cur = chain;
         while (cur != null) {
             if (cur instanceof com.legend.compiler.spec.typed.TypedFrom f
@@ -276,8 +276,8 @@ final class PlanAllocations {
      * run records none), and no rewritten query is printed from Java
      * (the routed query as rows is its own leg). */
     static void registerActivityRows(com.legend.compiler.spec.typed.TypedNativeCall ec,
-            @com.legend.Nullable String sql, @com.legend.Nullable String rewrittenQuery,
-            @com.legend.Nullable String comment,
+            @com.legend.base.Nullable String sql, @com.legend.base.Nullable String rewrittenQuery,
+            @com.legend.base.Nullable String comment,
             StatementExecutor.ExecEnv env) {
         String scope = com.legend.plan.PlanRows.scopeId(ec);
         if (sql == null || env.planRows().containsKey(scope)) {

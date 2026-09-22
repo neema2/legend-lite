@@ -55,14 +55,14 @@ public final class PureAsserts {
      * (assertEquals.pure:17): {@code assert(equal(e, a), msg)} with the
      * spec's own message — {@code %r} single values, represented-and-
      * joined collections. */
-    public static @com.legend.Nullable String assertEquals(
+    public static @com.legend.base.Nullable String assertEquals(
             List<Object> expected, List<Object> actual) {
         return assertEquals(expected, actual, null, null);
     }
 
     /** The message for typed sides — the verdict's own cells, so the
      * narrative can never disagree with the decision. */
-    public static @com.legend.Nullable String assertEqualsTyped(
+    public static @com.legend.base.Nullable String assertEqualsTyped(
             List<Equality.Typed> expected, List<Equality.Typed> actual) {
         if (Equality.ordered(expected, actual) == null) {
             return null;
@@ -76,10 +76,10 @@ public final class PureAsserts {
 
     /** With each side's STATIC type (the {@code instanceOf Type} half of
      * an instance's representation — the wire map carries no type). */
-    public static @com.legend.Nullable String assertEquals(
+    public static @com.legend.base.Nullable String assertEquals(
             List<Object> expected, List<Object> actual,
-            com.legend.compiler.element.type.@com.legend.Nullable Type expectedType,
-            com.legend.compiler.element.type.@com.legend.Nullable Type actualType) {
+            com.legend.compiler.element.type.@com.legend.base.Nullable Type expectedType,
+            com.legend.compiler.element.type.@com.legend.base.Nullable Type actualType) {
         if (equal(expected, actual)) {
             return null;
         }
@@ -87,8 +87,8 @@ public final class PureAsserts {
                 + "\nactual:   " + reprSide(actual, classFqnOf(actualType));
     }
 
-    private static @com.legend.Nullable String classFqnOf(
-            com.legend.compiler.element.type.@com.legend.Nullable Type t) {
+    private static @com.legend.base.Nullable String classFqnOf(
+            com.legend.compiler.element.type.@com.legend.base.Nullable Type t) {
         return t instanceof com.legend.compiler.element.type.Type.ClassType c
                 ? c.fqn() : null;
     }
@@ -96,7 +96,7 @@ public final class PureAsserts {
     /** {@code assertSameElements(expected, actual)}
      * (assertSameElements.pure:17): {@code assertEquals(e->sort(),
      * a->sort())} — the multiset rule IS sort-then-ordered-equal. */
-    public static @com.legend.Nullable String assertSameElements(
+    public static @com.legend.base.Nullable String assertSameElements(
             List<Object> expected, List<Object> actual) {
         List<Object> es = sorted(expected);
         List<Object> as = sorted(actual);
@@ -107,7 +107,7 @@ public final class PureAsserts {
     }
 
     /** {@code assertSize(collection, size)} (assertSize.pure:17). */
-    public static @com.legend.Nullable String assertSize(
+    public static @com.legend.base.Nullable String assertSize(
             List<Object> collection, long size) {
         if (collection.size() == size) {
             return null;
@@ -124,7 +124,7 @@ public final class PureAsserts {
      * round-trip silently widened the tolerance for high-precision
      * Decimals); a floating side keeps double arithmetic, its values
      * carry no more precision than that. */
-    public static @com.legend.Nullable String assertEqWithinTolerance(
+    public static @com.legend.base.Nullable String assertEqWithinTolerance(
             Number expected, Number actual, Number delta) {
         boolean held;
         if (isExact(expected) && isExact(actual) && isExact(delta)) {
@@ -158,9 +158,9 @@ public final class PureAsserts {
      * cannot observe — LOUD, never a quiet structural answer (P2-5,
      * 2026-08-19 deep audit: the silent conflation risked answering
      * true where pure answers false). */
-    public static @com.legend.Nullable String assertEq(
-            @com.legend.Nullable Object expected,
-            @com.legend.Nullable Object actual) {
+    public static @com.legend.base.Nullable String assertEq(
+            @com.legend.base.Nullable Object expected,
+            @com.legend.base.Nullable Object actual) {
         if (isNonPrimitive(expected) || isNonPrimitive(actual)) {
             // F13 — identity IS observable when both wires carry the
             // synthetic __id (keyless-class instance maps, minted per
@@ -187,7 +187,7 @@ public final class PureAsserts {
                 + "\nactual:   " + repr(actual);
     }
 
-    private static boolean isNonPrimitive(@com.legend.Nullable Object v) {
+    private static boolean isNonPrimitive(@com.legend.base.Nullable Object v) {
         return v != null && !(v instanceof Number || v instanceof String
                 || v instanceof Boolean || isTemporal(v));
     }
@@ -195,8 +195,8 @@ public final class PureAsserts {
     /** The synthetic site identity a keyless-instance wire map carries
      * ({@code __id}, F13), or null when the value has no observable
      * identity. */
-    private static @com.legend.Nullable String wireId(
-            @com.legend.Nullable Object v) {
+    private static @com.legend.base.Nullable String wireId(
+            @com.legend.base.Nullable Object v) {
         return v instanceof java.util.Map<?, ?> m
                 && m.get(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID)
                         instanceof String id ? id : null;
@@ -209,8 +209,8 @@ public final class PureAsserts {
      * temporals {@code <:} Date; everything {@code <:} Any). Null =
      * pass; a failure speaks the spec body's format (elementToPath of a
      * top-level primitive is its name). */
-    public static @com.legend.Nullable String assertInstanceOf(
-            @com.legend.Nullable Object v, String rawType) {
+    public static @com.legend.base.Nullable String assertInstanceOf(
+            @com.legend.base.Nullable Object v, String rawType) {
         // the m3 primitive path (meta::pure::metamodel::type::Integer)
         // and the bare spelling name the same type — compare bare
         String type = rawType.substring(rawType.lastIndexOf(':') + 1);
@@ -227,7 +227,7 @@ public final class PureAsserts {
                 + type + ", actual: " + actual;
     }
 
-    private static String carrierTypeName(@com.legend.Nullable Object v) {
+    private static String carrierTypeName(@com.legend.base.Nullable Object v) {
         return switch (v) {
             case null -> "Nil";
             case Byte ignored -> "Integer";
@@ -270,12 +270,12 @@ public final class PureAsserts {
         return v instanceof com.legend.values.PureDateLiteral;
     }
 
-    public static String repr(@com.legend.Nullable Object v) {
+    public static String repr(@com.legend.base.Nullable Object v) {
         return repr(v, null);
     }
 
-    public static String repr(@com.legend.Nullable Object v,
-            @com.legend.Nullable String instanceClass) {
+    public static String repr(@com.legend.base.Nullable Object v,
+            @com.legend.base.Nullable String instanceClass) {
         if (v instanceof java.util.Map<?, ?> m) {
             String id = wireId(v);
             if (id == null) {
@@ -316,7 +316,7 @@ public final class PureAsserts {
     }
 
     private static String reprSide(List<Object> side,
-            @com.legend.Nullable String instanceClass) {
+            @com.legend.base.Nullable String instanceClass) {
         if (side.size() == 1) {
             return repr(side.get(0), instanceClass);
         }

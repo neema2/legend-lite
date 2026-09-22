@@ -91,7 +91,7 @@ public final class PlanRows {
      * processRuntimeTestConnections' DDL expansion on testDataSetupSqls
      * (owner 'conn' = the connection's own sqls, 'ds' = its
      * LocalH2DatasourceSpecification's). Node ids follow {@link #emit}. */
-    private static void connectionRows(String planId, PlanNode n, @com.legend.Nullable String parentId,
+    private static void connectionRows(String planId, PlanNode n, @com.legend.base.Nullable String parentId,
             int ordinal, List<List<String>> conns, List<List<String>> sqls) {
         String id = planId + "/" + (parentId == null ? "root" : parentId.substring(planId.length() + 1) + "." + ordinal);
         PlanConn c = n.connection();
@@ -119,7 +119,7 @@ public final class PlanRows {
         }
     }
 
-    private static String emit(String planId, PlanNode n, @com.legend.Nullable String parentId,
+    private static String emit(String planId, PlanNode n, @com.legend.base.Nullable String parentId,
             int ordinal, List<List<String>> sink, List<List<String>> params,
             List<List<String>> closure, List<String> ancestors) {
         String id = planId + "/" + (parentId == null ? "root" : parentId.substring(planId.length() + 1) + "." + ordinal);

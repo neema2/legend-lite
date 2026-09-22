@@ -84,7 +84,7 @@ public final class WalledBodies {
     }
 
     /** The wall reason for a body FQN (a lifted derived property / constraint or a function), or null. */
-    public static @com.legend.Nullable String reason(String fqn) {
+    public static @com.legend.base.Nullable String reason(String fqn) {
         return REASONS.get(fqn);
     }
 

@@ -12,8 +12,8 @@ import java.util.Objects;
  * @param children the nested sub-tree, empty for a leaf
  */
 public record TypedGraphTree(String property, List<TypedGraphTree> children,
-        @com.legend.Nullable String alias, List<TypedSpec> args, boolean sweep,
-        @com.legend.Nullable String subTypeFqn,
+        @com.legend.base.Nullable String alias, List<TypedSpec> args, boolean sweep,
+        @com.legend.base.Nullable String subTypeFqn,
         boolean qualified) {
     public TypedGraphTree {
         Objects.requireNonNull(property, "property");
@@ -23,27 +23,27 @@ public record TypedGraphTree(String property, List<TypedGraphTree> children,
 
     /** Historical arity: parenthesized-ness follows the args. */
     public TypedGraphTree(String property, List<TypedGraphTree> children,
-            @com.legend.Nullable String alias, List<TypedSpec> args, boolean sweep,
-            @com.legend.Nullable String subTypeFqn) {
+            @com.legend.base.Nullable String alias, List<TypedSpec> args, boolean sweep,
+            @com.legend.base.Nullable String subTypeFqn) {
         this(property, children, alias, args, sweep, subTypeFqn,
                 args != null && !args.isEmpty());
     }
 
     /** Non-subType node (every pre-subType shape). */
     public TypedGraphTree(String property, List<TypedGraphTree> children,
-            @com.legend.Nullable String alias, List<TypedSpec> args, boolean sweep) {
+            @com.legend.base.Nullable String alias, List<TypedSpec> args, boolean sweep) {
         this(property, children, alias, args, sweep, null);
     }
 
     /** Non-sweep node with alias and call args (the pre-sweep shape). */
     public TypedGraphTree(String property, List<TypedGraphTree> children,
-            @com.legend.Nullable String alias, List<TypedSpec> args) {
+            @com.legend.base.Nullable String alias, List<TypedSpec> args) {
         this(property, children, alias, args, false, null);
     }
 
     /** Aliased node without call args. */
     public TypedGraphTree(String property, List<TypedGraphTree> children,
-            @com.legend.Nullable String alias) {
+            @com.legend.base.Nullable String alias) {
         this(property, children, alias, List.of(), false, null);
     }
 

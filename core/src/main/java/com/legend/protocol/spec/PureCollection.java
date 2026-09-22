@@ -22,7 +22,7 @@ import java.util.Objects;
  */
 public record PureCollection(
         List<ValueSpecification> values,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
 
     public PureCollection {
         Objects.requireNonNull(values, "values");

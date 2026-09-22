@@ -61,7 +61,7 @@ public final class ModelOrchestrator {
     private final ModelIndex index;
     private final Map<String, PackageableElement> cache = new HashMap<>();
     /** Lazily parsed import scope; same memoization invariant as {@link #cache}. */
-    private @com.legend.Nullable ImportScope cachedImports;
+    private @com.legend.base.Nullable ImportScope cachedImports;
 
     /** Build an orchestrator from raw Pure source. Lexes and shallow-scans eagerly. */
     public ModelOrchestrator(String source) {

@@ -12,7 +12,7 @@ import java.util.Objects;
  * @param fn   the type-checked mapping lambda; its body type is the column's type
  */
 public record TypedFuncCol(String name, TypedLambda fn,
-        @com.legend.Nullable String documentation) {
+        @com.legend.base.Nullable String documentation) {
     public TypedFuncCol {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(fn, "fn");

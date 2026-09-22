@@ -28,9 +28,9 @@ final class StatementExecutor {
     }
 
     /** The G½→H→I→J→K back half over a name-RESOLVED query AST. */
-    static @com.legend.Nullable ExecutionResult execute(
+    static @com.legend.base.Nullable ExecutionResult execute(
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.Nullable String runtimeFqn,
+            @com.legend.base.Nullable String runtimeFqn,
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection) {
         return execute(resolved, ctx, runtimeFqn, dialect, connection, null,
@@ -43,26 +43,26 @@ final class StatementExecutor {
      * registered SQL-replay oracle (SQLTEXT charter §2 — same
      * registration seam, same nullable carriage; production passes
      * neither). */
-    static @com.legend.Nullable ExecutionResult execute(
+    static @com.legend.base.Nullable ExecutionResult execute(
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.Nullable String runtimeFqn,
+            @com.legend.base.Nullable String runtimeFqn,
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection,
-            com.legend.exec.@com.legend.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle) {
+            com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
+            com.legend.exec.@com.legend.base.Nullable SqlReplayOracle replayOracle) {
         return execute(resolved, ctx, runtimeFqn, dialect, connection, assertListener,
                 replayOracle, ExecuteOptions.NONE);
     }
 
     /** With the caller's execute OPTIONS (they ride the environment and the
      * result — no static slot). */
-    static @com.legend.Nullable ExecutionResult execute(
+    static @com.legend.base.Nullable ExecutionResult execute(
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.Nullable String runtimeFqn,
+            @com.legend.base.Nullable String runtimeFqn,
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection,
-            com.legend.exec.@com.legend.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle,
+            com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
+            com.legend.exec.@com.legend.base.Nullable SqlReplayOracle replayOracle,
             ExecuteOptions options) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> typedBody = specs.typeQueryBody(resolved);
@@ -103,22 +103,22 @@ final class StatementExecutor {
         }
     }
 
-    record ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
+    record ExecEnv(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
             com.legend.sql.dialect.SqlDialect dialect,
             java.sql.Connection connection,
             java.util.Map<String, TypedSpec> queryLets,
             java.util.Map<String, String> tableReplace,
             com.legend.exec.InstanceIds instanceIds,
-            com.legend.exec.@com.legend.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle,
+            com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
+            com.legend.exec.@com.legend.base.Nullable SqlReplayOracle replayOracle,
             java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>>
                     planRows,
             java.util.List<com.legend.protocol.spec.ValueSpecification> protocolBody,
-            com.legend.compiler.spec.typed.@com.legend.Nullable ExecutionContext frame,
+            com.legend.compiler.spec.typed.@com.legend.base.Nullable ExecutionContext frame,
             ExecuteOptions options,
             com.legend.exec.ExecutionTrace trace,
-            com.legend.exec.@com.legend.Nullable VerdictBatch verdictBatch,
-            com.legend.exec.@com.legend.Nullable EffectSink effectSink) {
+            com.legend.exec.@com.legend.base.Nullable VerdictBatch verdictBatch,
+            com.legend.exec.@com.legend.base.Nullable EffectSink effectSink) {
         /** Leg 3.4: the body's deferred verdicts (database mode). */
         ExecEnv withVerdictBatch(com.legend.exec.VerdictBatch b) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace,
@@ -127,21 +127,21 @@ final class StatementExecutor {
         }
         /** Block-compiler stage 3: the effect natives' sends land in this sink (an
          * effect segment under construction) instead of the connection. */
-        ExecEnv withEffectSink(com.legend.exec.@com.legend.Nullable EffectSink sink) {
+        ExecEnv withEffectSink(com.legend.exec.@com.legend.base.Nullable EffectSink sink) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace,
                     instanceIds, assertListener, replayOracle, planRows, protocolBody, frame,
                     options, trace, verdictBatch, sink);
         }
         /** Without the protocol body (a handle's rows built off the typed
          * tree alone). */
-        ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
+        ExecEnv(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
                 java.util.Map<String, TypedSpec> queryLets,
                 java.util.Map<String, String> tableReplace,
                 com.legend.exec.InstanceIds instanceIds,
-                com.legend.exec.@com.legend.Nullable AssertListener assertListener,
-                com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle,
+                com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
+                com.legend.exec.@com.legend.base.Nullable SqlReplayOracle replayOracle,
                 java.util.Map<String, java.util.Map<String, java.util.List<java.util.List<String>>>>
                         planRows) {
             this(ctx, runtimeFqn, dialect, connection, queryLets,
@@ -165,8 +165,8 @@ final class StatementExecutor {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tr, instanceIds, assertListener, replayOracle,
                     planRows, protocolBody, frame, options, trace, verdictBatch, effectSink);
         }
-        ExecEnv withListeners(com.legend.exec.@com.legend.Nullable AssertListener l,
-                com.legend.exec.@com.legend.Nullable SqlReplayOracle o) {
+        ExecEnv withListeners(com.legend.exec.@com.legend.base.Nullable AssertListener l,
+                com.legend.exec.@com.legend.base.Nullable SqlReplayOracle o) {
             return new ExecEnv(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, instanceIds, l, o, planRows, protocolBody, frame, options, trace, verdictBatch, effectSink);
         }
         com.legend.compiler.spec.typed.ExecutionContext.PostProcessors postProcessors() {
@@ -174,7 +174,7 @@ final class StatementExecutor {
                     : frame.postProcessors();
         }
         /** The frame connection's time zone (every DateTime literal spells in it). */
-        @com.legend.Nullable String timeZone() {
+        @com.legend.base.Nullable String timeZone() {
             return frame == null ? null : frame.timeZone();
         }
         /** The same environment over another session — the system
@@ -196,7 +196,7 @@ final class StatementExecutor {
                     assertListener, replayOracle, planRows, body, frame, options, trace, verdictBatch, effectSink);
         }
 
-        ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
+        ExecEnv(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
                 java.util.Map<String, TypedSpec> queryLets,
@@ -206,7 +206,7 @@ final class StatementExecutor {
                     new java.util.LinkedHashMap<>());
         }
 
-        ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
+        ExecEnv(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
                 java.util.Map<String, TypedSpec> queryLets,
@@ -216,7 +216,7 @@ final class StatementExecutor {
             this(ctx, runtimeFqn, dialect, connection, queryLets, tableReplace, new com.legend.exec.InstanceIds());
         }
 
-        ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
+        ExecEnv(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection,
                     java.util.Map<String, TypedSpec> queryLets) {
@@ -225,7 +225,7 @@ final class StatementExecutor {
                     queryLets, java.util.Map.of());
         }
 
-        ExecEnv(ModelContext ctx, @com.legend.Nullable String runtimeFqn,
+        ExecEnv(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect,
                 java.sql.Connection connection) {
             // run-scoped accumulator of inliner-consumed lets: graph-tree
@@ -246,7 +246,7 @@ final class StatementExecutor {
      * bodies make frames capture-proof — no &alpha;-renaming needed). Value
      * evaluation still ALWAYS lowers to SQL; only the sequencing lives host-side.
      */
-    static @com.legend.Nullable ExecutionResult executeStatements(
+    static @com.legend.base.Nullable ExecutionResult executeStatements(
             java.util.List<TypedSpec> stmts, java.util.List<TypedSpec> letPrefix,
             SpecCompiler specs, ExecEnv env0) {
         // THE BLOCK COMPILER (stages 1–4, 2026-09-22): every body is walked ONCE by the
@@ -278,9 +278,9 @@ final class StatementExecutor {
      * resolved {@code body} decides the run. */
     record PreparedValue(java.util.List<TypedSpec> body, ExecEnv env,
             java.util.List<TypedSpec> lets,
-            @com.legend.Nullable ExecutionResult verdict,
-            com.legend.compiler.spec.typed.@com.legend.Nullable TypedNativeCall contextOwner,
-            com.legend.compiler.spec.typed.@com.legend.Nullable TypedNativeCall forcedFrame) {
+            @com.legend.base.Nullable ExecutionResult verdict,
+            com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall contextOwner,
+            com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNativeCall forcedFrame) {
     }
 
     static PreparedValue prepareValue(TypedSpec stmt, TypedSpec bare,
@@ -364,7 +364,7 @@ final class StatementExecutor {
     }
 
     /** Run a prepared value statement: the run phase only. */
-    static @com.legend.Nullable ExecutionResult runValue(PreparedValue pv, SpecCompiler specs,
+    static @com.legend.base.Nullable ExecutionResult runValue(PreparedValue pv, SpecCompiler specs,
             java.util.Deque<String> frames) {
         ExecutionResult verdict = pv.verdict();
         if (verdict != null) {
@@ -430,7 +430,7 @@ final class StatementExecutor {
      * the engine-style dialect. H2 only — other DatabaseTypes throw until
      * their renderers exist. Never lowers, never touches the connection.
      */
-    private static @com.legend.Nullable ExecutionResult toSqlString(
+    private static @com.legend.base.Nullable ExecutionResult toSqlString(
             com.legend.compiler.spec.NativeDispatch.RoutineCall call,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
@@ -641,13 +641,13 @@ final class StatementExecutor {
                 com.legend.builtin.NativeFn.JavaRoutine.TO_NON_EXECUTABLE_SQL_STRING.fqn(), sqlText);
     }
 
-    private static @com.legend.Nullable ExecutionResult planToString(
+    private static @com.legend.base.Nullable ExecutionResult planToString(
             com.legend.compiler.spec.NativeDispatch.RoutineCall call,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         return planToString(call, java.util.List.of(), specs, env);
     }
 
-    private static @com.legend.Nullable ExecutionResult planToString(
+    private static @com.legend.base.Nullable ExecutionResult planToString(
             com.legend.compiler.spec.NativeDispatch.RoutineCall call,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
@@ -813,12 +813,12 @@ final class StatementExecutor {
      * continues). Type and resultColumns for the terminal resolve over
      * the ORIGINAL (pre-splice) plan — physical typing needs the real
      * from tree; only the SQL TEXT renders the placeholder form. */
-    private static @com.legend.Nullable ExecutionResult crossDbTdsPlan(
+    private static @com.legend.base.Nullable ExecutionResult crossDbTdsPlan(
             com.legend.compiler.spec.typed.TypedLambda lam,
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
-            ExecEnv env, boolean quote, @com.legend.Nullable String tz,
-            @com.legend.Nullable String connName,
-            @com.legend.Nullable String dbType, String rootClass,
+            ExecEnv env, boolean quote, @com.legend.base.Nullable String tz,
+            @com.legend.base.Nullable String connName,
+            @com.legend.base.Nullable String dbType, String rootClass,
             java.util.List<String> chainMaps) {
         TypedSpec term = lam.body().get(lam.body().size() - 1);
         com.legend.compiler.spec.typed.TypedJoin xj = null;
@@ -940,7 +940,7 @@ final class StatementExecutor {
 
     /** Pre-order search for the first {@code TypedFrom} carrying a
      * connection-name hint (instance-runtime from()). */
-    private static @com.legend.Nullable String firstFromConnectionName(
+    private static @com.legend.base.Nullable String firstFromConnectionName(
             com.legend.compiler.spec.typed.TypedSpec t) {
         return com.legend.compiler.spec.typed.ExecutionContext.froms(t).stream()
                 .map(com.legend.compiler.spec.typed.TypedFrom::connectionName)
@@ -958,7 +958,7 @@ final class StatementExecutor {
 
     /** Pre-order search for the first {@code ->from(mapping, …)} in the
      * query tree — the branch-level context of cross-mapping queries. */
-    private static @com.legend.Nullable String firstFromMapping(
+    private static @com.legend.base.Nullable String firstFromMapping(
             com.legend.compiler.spec.typed.TypedSpec t) {
         if (t instanceof com.legend.compiler.spec.typed.TypedFrom fr
                 && fr.mapping().isPresent()) {
@@ -978,11 +978,11 @@ final class StatementExecutor {
      * (literal values = Constant nodes), and the terminal Relational
      * lowers with every open variable as a {@code ${name}} plan-template
      * parameter. */
-    private static @com.legend.Nullable ExecutionResult sequencePlan(
+    private static @com.legend.base.Nullable ExecutionResult sequencePlan(
             com.legend.compiler.spec.typed.TypedLambda lam,
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
-            ExecEnv env, boolean quote, @com.legend.Nullable String timeZone,
-            @com.legend.Nullable String connName, @com.legend.Nullable String dbType) {
+            ExecEnv env, boolean quote, @com.legend.base.Nullable String timeZone,
+            @com.legend.base.Nullable String connName, @com.legend.base.Nullable String dbType) {
         var fnType = lam.functionType();
         java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>
                 params = new java.util.LinkedHashMap<>();
@@ -1077,8 +1077,8 @@ final class StatementExecutor {
      * [0..1] value in pure) and no declared sqls gets setUpDataSQLs
      * text; a LocalH2DatasourceSpecification concatenates the expansion
      * onto its declared sqls. */
-    private static com.legend.plan.@com.legend.Nullable PlanConn planConnOf(
-            com.legend.compiler.spec.typed.@com.legend.Nullable ExecutionContext pc, ExecEnv env) {
+    private static com.legend.plan.@com.legend.base.Nullable PlanConn planConnOf(
+            com.legend.compiler.spec.typed.@com.legend.base.Nullable ExecutionContext pc, ExecEnv env) {
         if (pc == null) {
             return new com.legend.plan.PlanConn(
                     "TestDatabaseConnection", "H2", null,
@@ -1179,8 +1179,8 @@ final class StatementExecutor {
      * the plan goldens pin Composite to the DB2-family spelling
      * (paren-wrapped conjunctions, quoted boolean placeholders). */
     static com.legend.sql.dialect.EngineStyleH2 planDialect(
-            @com.legend.Nullable String dbType, boolean quote,
-            @com.legend.Nullable String tz) {
+            @com.legend.base.Nullable String dbType, boolean quote,
+            @com.legend.base.Nullable String tz) {
         if (dbType == null) {
             return new com.legend.sql.dialect.EngineStyleH2(quote, tz);
         }
@@ -1303,24 +1303,24 @@ final class StatementExecutor {
      * {@code Result.values} for a TDS query holds ONE TDS; for a class or
      * scalar root, values IS the collection), and the eager run's result. */
     record ExecFrame(TypedSpec chain, boolean relationRooted,
-            @com.legend.Nullable ExecutionResult result,
+            @com.legend.base.Nullable ExecutionResult result,
             java.util.Map<String, String> tableReplace,
-            @com.legend.Nullable com.legend.compiler.spec.typed
+            @com.legend.base.Nullable com.legend.compiler.spec.typed
                     .TypedNativeCall sourceExec,
-            com.legend.sql.@com.legend.Nullable SqlQuery plan,
-            com.legend.compiler.element.type.@com.legend.Nullable ExprType plannedInfo,
-            com.legend.sql.@com.legend.Nullable SqlSelect extentRows) {
+            com.legend.sql.@com.legend.base.Nullable SqlQuery plan,
+            com.legend.compiler.element.type.@com.legend.base.Nullable ExprType plannedInfo,
+            com.legend.sql.@com.legend.base.Nullable SqlSelect extentRows) {
         /** Pre-activity-model constructor (alias frames keep it). */
         ExecFrame(TypedSpec chain, boolean relationRooted,
-                @com.legend.Nullable ExecutionResult result,
+                @com.legend.base.Nullable ExecutionResult result,
                 java.util.Map<String, String> tableReplace) {
             this(chain, relationRooted, result, tableReplace, null, null, null, null);
         }
 
         ExecFrame(TypedSpec chain, boolean relationRooted,
-                @com.legend.Nullable ExecutionResult result,
+                @com.legend.base.Nullable ExecutionResult result,
                 java.util.Map<String, String> tableReplace,
-                @com.legend.Nullable com.legend.compiler.spec.typed
+                @com.legend.base.Nullable com.legend.compiler.spec.typed
                         .TypedNativeCall sourceExec) {
             this(chain, relationRooted, result, tableReplace, sourceExec, null, null, null);
         }
@@ -1357,8 +1357,8 @@ final class StatementExecutor {
     /** The activity's execution-trace comment: the run's when the frame ran
      * at its let; under a verdict batch, the comment RESERVED for the body's
      * fused statement — the statement that will run the frame. */
-    private static @com.legend.Nullable String activityComment(
-            @com.legend.Nullable ExecutionResult run, ExecEnv env) {
+    private static @com.legend.base.Nullable String activityComment(
+            @com.legend.base.Nullable ExecutionResult run, ExecEnv env) {
         if (run != null) {
             return env.trace().lastComment();
         }
@@ -1588,7 +1588,7 @@ final class StatementExecutor {
      * statement sequence, not one expression). */
 
     /** The first from() mapping reference in the chain (pre-order), or null. */
-    private static @com.legend.Nullable String firstMappingFqn(TypedSpec n) {
+    private static @com.legend.base.Nullable String firstMappingFqn(TypedSpec n) {
         if (n instanceof com.legend.compiler.spec.typed.TypedFrom fr
                 && fr.mapping().isPresent()) {
             return fr.mapping().get().fullPath();
@@ -1627,7 +1627,7 @@ final class StatementExecutor {
      * is loud — the envelope holds one TDS. Class/scalar roots return null:
      * their at/toOne are REAL selections and the binding is an ordinary let.
      */
-    static @com.legend.Nullable ExecFrame aliasFrame(TypedSpec rhs,
+    static @com.legend.base.Nullable ExecFrame aliasFrame(TypedSpec rhs,
             java.util.Map<String, ExecFrame> execFrames) {
         TypedSpec cur = rhs;
         boolean badIndex = false;
@@ -1681,7 +1681,7 @@ final class StatementExecutor {
                 new com.legend.compiler.spec.ResultEnvelopeSplice.Frames() {
             @Override
             public com.legend.compiler.spec.ResultEnvelopeSplice
-                    .@com.legend.Nullable View frame(String name) {
+                    .@com.legend.base.Nullable View frame(String name) {
                 ExecFrame f = allFrames.get(name);
                 if (f == null) {
                     return null;
@@ -1713,7 +1713,7 @@ final class StatementExecutor {
             }
 
             @Override
-            public @com.legend.Nullable String relationalActivitySql(
+            public @com.legend.base.Nullable String relationalActivitySql(
                     String frameName, long activityNumber) {
                 ExecFrame f = allFrames.get(frameName);
                 if (f == null || f.sourceExec() == null
@@ -1728,7 +1728,7 @@ final class StatementExecutor {
             }
 
             @Override
-            public @com.legend.Nullable String relationalActivitySql(
+            public @com.legend.base.Nullable String relationalActivitySql(
                     com.legend.compiler.spec.typed.TypedNativeCall ec) {
                 ExecFrame f = buildFrame(ec, letPrefix, false, specs, env);
                 return PlanAllocations.activitySql(ec, f.chain(), letPrefix, specs, env);
@@ -2104,15 +2104,15 @@ final class StatementExecutor {
      *  names; the ambient runtime. A runtime contributes its definition and
      *  its bound connections' definitions (a LocalH2 specification carries
      *  the CSV / SQL strings as written). */
-    record SeedSources(java.util.List<From> froms, @com.legend.Nullable String runtimeFqn,
-            @com.legend.Nullable DeclaredSeed runtime) {
+    record SeedSources(java.util.List<From> froms, @com.legend.base.Nullable String runtimeFqn,
+            @com.legend.base.Nullable DeclaredSeed runtime) {
         record From(java.util.List<String> sqlSetups,
                 java.util.List<com.legend.compiler.spec.typed.ExecutionContext.CsvSetup> csvSetups,
-                @com.legend.Nullable DeclaredSeed runtime) {
+                @com.legend.base.Nullable DeclaredSeed runtime) {
         }
 
         record DeclaredSeed(String runtimeFqn,
-                com.legend.model.@com.legend.Nullable RuntimeDefinition definition,
+                com.legend.model.@com.legend.base.Nullable RuntimeDefinition definition,
                 java.util.List<com.legend.model.ConnectionDefinition> connections) {
         }
 
@@ -2265,7 +2265,7 @@ final class StatementExecutor {
         return env.dialect().render(b == null ? plan : com.legend.sql.FrameCtes.attach(plan, b.frames()));
     }
 
-    static @com.legend.Nullable ExecutionResult evalValue(TypedSpec value,
+    static @com.legend.base.Nullable ExecutionResult evalValue(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env) {
         return evalValue(value, letPrefix, specs, env, null, false);
@@ -2273,10 +2273,10 @@ final class StatementExecutor {
 
     /** V11 rider entry: the canon rides the value query itself — one
      * execution serves the host referee AND the byte verdict. */
-    static @com.legend.Nullable ExecutionResult evalValue(TypedSpec value,
+    static @com.legend.base.Nullable ExecutionResult evalValue(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            com.legend.exec.@com.legend.Nullable CanonRider rider) {
+            com.legend.exec.@com.legend.base.Nullable CanonRider rider) {
         return evalValue(value, letPrefix, specs, env, rider, false);
     }
 
@@ -2284,10 +2284,10 @@ final class StatementExecutor {
      * canon rider — assert-CONDITION sides (the value is a boolean; the
      * in-SQL eq/equal arm needs instance identity to compile the
      * engine's equality relation). A rider implies identity. */
-    static @com.legend.Nullable ExecutionResult evalValue(TypedSpec value,
+    static @com.legend.base.Nullable ExecutionResult evalValue(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            com.legend.exec.@com.legend.Nullable CanonRider rider,
+            com.legend.exec.@com.legend.base.Nullable CanonRider rider,
             boolean identity) {
         return evalValue(value, letPrefix, specs, env, rider, identity, null);
     }
@@ -2297,12 +2297,12 @@ final class StatementExecutor {
      * SAME {@code UserCallInliner} hook ordinary statements get, so an
      * assert side reading an execute() frame compiles the spliced
      * chain (never a raw variable read). */
-    static @com.legend.Nullable ExecutionResult evalValue(TypedSpec value,
+    static @com.legend.base.Nullable ExecutionResult evalValue(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            com.legend.exec.@com.legend.Nullable CanonRider rider,
+            com.legend.exec.@com.legend.base.Nullable CanonRider rider,
             boolean identity,
-            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
         // the addDriverTablePkForProject option is part of the EXECUTION
         try (var __o = com.legend.exec.StatementOrigin.enterIfUnmarked(com.legend.exec.StatementOrigin.SIDE)) {
@@ -2318,7 +2318,7 @@ final class StatementExecutor {
     private static java.util.List<TypedSpec> sideBody(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
         java.util.List<TypedSpec> single = new java.util.ArrayList<>(letPrefix);
         single.add(value);
@@ -2341,7 +2341,7 @@ final class StatementExecutor {
 
     static ExecutionResult executeTyped(
             java.util.List<TypedSpec> body, ExecEnv env,
-            com.legend.exec.@com.legend.Nullable CanonRider rider) {
+            com.legend.exec.@com.legend.base.Nullable CanonRider rider) {
         return executeTyped(body, env, rider, false);
     }
 
@@ -2357,10 +2357,10 @@ final class StatementExecutor {
      * root and environment the plan is lowered from. {@link #executeTyped}
      * and {@link #planValue} share it, so a side is planned exactly as it
      * would execute. */
-    record Prelude(@com.legend.Nullable ExecutionResult answered,
-            java.util.List<TypedSpec> body, @com.legend.Nullable TypedSpec root,
-            com.legend.compiler.element.type.@com.legend.Nullable ExprType declaredInfo,
-            @com.legend.Nullable ExecEnv env) {
+    record Prelude(@com.legend.base.Nullable ExecutionResult answered,
+            java.util.List<TypedSpec> body, @com.legend.base.Nullable TypedSpec root,
+            com.legend.compiler.element.type.@com.legend.base.Nullable ExprType declaredInfo,
+            @com.legend.base.Nullable ExecEnv env) {
         static Prelude answered(ExecutionResult r) {
             return new Prelude(r, java.util.List.of(), null, null, null);
         }
@@ -2374,7 +2374,7 @@ final class StatementExecutor {
 
     private static Prelude prelude(
             java.util.List<TypedSpec> body, ExecEnv env,
-            com.legend.exec.@com.legend.Nullable CanonRider rider,
+            com.legend.exec.@com.legend.base.Nullable CanonRider rider,
             boolean identityLane) {
         ModelContext ctx = env.ctx();
         String runtimeFqn = env.runtimeFqn();
@@ -2520,7 +2520,7 @@ final class StatementExecutor {
 
     static ExecutionResult executeTyped(
             java.util.List<TypedSpec> body, ExecEnv env,
-            com.legend.exec.@com.legend.Nullable CanonRider rider,
+            com.legend.exec.@com.legend.base.Nullable CanonRider rider,
             boolean identityLane) {
         ModelContext ctx = env.ctx();
         Prelude p = prelude(body, env, rider, identityLane);
@@ -2568,7 +2568,7 @@ final class StatementExecutor {
     /** ORCHESTRATION-HANDLE arms of {@link #executeTyped} (extracted at
      * the file guard, V11): connection/runtime values never lower.
      * Null = not a handle (the caller continues). */
-    private static @com.legend.Nullable ExecutionResult orchestrationHandleArm(
+    private static @com.legend.base.Nullable ExecutionResult orchestrationHandleArm(
             TypedSpec root, ExecEnv env) {
         if (root instanceof com.legend.compiler.spec.typed.TypedCast castC
                 && castC.source()
@@ -2634,8 +2634,8 @@ final class StatementExecutor {
     /** {@link #planValue}'s outcome: a planned side, or the value the
      * pipeline ANSWERED without a plan (a host constant — database mode
      * binds a primitive one as a literal side). */
-    record PlannedValue(@com.legend.Nullable WrappedSide side,
-            @com.legend.Nullable ExecutionResult answered) {
+    record PlannedValue(@com.legend.base.Nullable WrappedSide side,
+            @com.legend.base.Nullable ExecutionResult answered) {
     }
 
     /** Plan a VALUE the way {@link #evalValue} would execute it, stopping
@@ -2646,7 +2646,7 @@ final class StatementExecutor {
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
             com.legend.exec.CanonRider rider,
-            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
         BarePlan b = planBare(value, letPrefix, specs, env, rider, hook);
         if (b.answered() != null) {
@@ -2660,17 +2660,17 @@ final class StatementExecutor {
     /** A value's plan before the canon wrap: the plan, its root, the
      * collection declaration (when a primitive collection is declared over a
      * relation root), the planned env, and whether it reads no store. */
-    record BarePlan(@com.legend.Nullable ExecutionResult answered,
+    record BarePlan(@com.legend.base.Nullable ExecutionResult answered,
             com.legend.sql.SqlQuery plan, TypedSpec root,
-            com.legend.compiler.element.type.@com.legend.Nullable ExprType declaredInfo,
+            com.legend.compiler.element.type.@com.legend.base.Nullable ExprType declaredInfo,
             ExecEnv env, boolean storeFree) {
     }
 
     private static BarePlan planBare(TypedSpec value,
             java.util.List<TypedSpec> letPrefix,
             com.legend.compiler.spec.SpecCompiler specs, ExecEnv env,
-            com.legend.exec.@com.legend.Nullable CanonRider rider,
-            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+            com.legend.exec.@com.legend.base.Nullable CanonRider rider,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
         java.util.List<TypedSpec> body = sideBody(value, letPrefix, specs, env, hook);
         java.util.Set<String> stores = new java.util.TreeSet<>();
@@ -2716,8 +2716,8 @@ final class StatementExecutor {
     /** The canon wrap of {@link #executePlan}, alone. */
     private static WrappedSide wrapSide(com.legend.sql.SqlQuery plan,
             TypedSpec root,
-            com.legend.compiler.element.type.@com.legend.Nullable ExprType declaredInfo,
-            com.legend.exec.@com.legend.Nullable CanonRider rider, ExecEnv env) {
+            com.legend.compiler.element.type.@com.legend.base.Nullable ExprType declaredInfo,
+            com.legend.exec.@com.legend.base.Nullable CanonRider rider, ExecEnv env) {
         com.legend.compiler.element.type.ExprType shapeInfo =
                 declaredInfo != null ? declaredInfo
                         : com.legend.exec.ResultShape.valueInfo(root.info());
@@ -2767,9 +2767,9 @@ final class StatementExecutor {
 
     private static ExecutionResult executePlan(com.legend.sql.SqlQuery plan,
             TypedSpec root,
-            com.legend.compiler.element.type.@com.legend.Nullable ExprType declaredInfo,
-            com.legend.exec.@com.legend.Nullable CanonRider rider,
-            @com.legend.Nullable ExecutionResult folded, ExecEnv env) {
+            com.legend.compiler.element.type.@com.legend.base.Nullable ExprType declaredInfo,
+            com.legend.exec.@com.legend.base.Nullable CanonRider rider,
+            @com.legend.base.Nullable ExecutionResult folded, ExecEnv env) {
         com.legend.sql.SqlQuery bare = plan;
         WrappedSide ws = wrapSide(plan, root, declaredInfo, rider, env);
         plan = ws.plan();
@@ -2930,7 +2930,7 @@ final class StatementExecutor {
      * DDL; the corpus-authored text of a raw statement), null when the statement was
      * never recorded. Returns whether the statement produced rows (known only when
      * executed now; the sink decides it statically). */
-    static boolean sendEffect(ExecEnv env, String executed, @com.legend.Nullable String recorded,
+    static boolean sendEffect(ExecEnv env, String executed, @com.legend.base.Nullable String recorded,
             com.legend.exec.StatementOrigin origin, boolean generated) {
         com.legend.exec.EffectSink sink = env.effectSink();
         if (sink != null) {

@@ -253,7 +253,7 @@ final class JoinChecker {
      * (Until 2026-09-12 the right keys were renamed to a synthetic __jk_
      * copy and selected away — row-equal, one subselect too many.)
      */
-    private static @com.legend.Nullable TypedSpec sharedKeyLegacyJoin(Typer t, AppliedFunction af, Env env) {
+    private static @com.legend.base.Nullable TypedSpec sharedKeyLegacyJoin(Typer t, AppliedFunction af, Env env) {
         List<ValueSpecification> ps = af.parameters();
         if ((ps.size() != 4 && ps.size() != 5)
                 || !(ps.get(2) instanceof EnumValue kind)
@@ -334,8 +334,8 @@ final class JoinChecker {
     }
 
     /** String or [strings] column-name argument of the legacy TDS join, else null. */
-    private static @com.legend.Nullable List<String> columnNames(
-            @com.legend.Nullable ValueSpecification v) {
+    private static @com.legend.base.Nullable List<String> columnNames(
+            @com.legend.base.Nullable ValueSpecification v) {
         if (v instanceof CString c) {
             return List.of(c.value());
         }

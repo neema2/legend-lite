@@ -173,7 +173,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         return expr(cl.list(), parentPrec);
     }
 
-    private @com.legend.Nullable String joinStringsFlat(SqlExpr.Call c) {
+    private @com.legend.base.Nullable String joinStringsFlat(SqlExpr.Call c) {
         // 4-arg forms: CONCAT(CONCAT(prefix, J), suffix) [list-value arm]
         // or CONCAT(prefix, CONCAT(J, suffix)) [pure-value arm]
         if (c.fn() == com.legend.sql.SqlFn.CONCAT && c.args().size() == 2) {
@@ -209,7 +209,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     /** The COALESCE(ReduceCollection(STRING_AGG, <literal list>, [sep]),
      * '') shape, or null. */
-    private static SqlExpr.@com.legend.Nullable ReduceCollection
+    private static SqlExpr.@com.legend.base.Nullable ReduceCollection
             joinedReduction(SqlExpr e) {
         if (e instanceof SqlExpr.Call c
                 && c.fn() == com.legend.sql.SqlFn.COALESCE
@@ -225,7 +225,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     /** The underlying literal element list (unwraps the element-text
      * LIST_TRANSFORM), or null for runtime collections. */
-    private static java.util.@com.legend.Nullable List<SqlExpr>
+    private static java.util.@com.legend.base.Nullable List<SqlExpr>
             literalElements(SqlExpr coll) {
         if (coll instanceof SqlExpr.ArrayLit al) {
             return al.elements();
@@ -291,7 +291,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     /** The connection's timeZone — a non-default zone wraps DATETIME
      * placeholders in the engine's {@code GMTtoTZ} template
      * (relationalPlanSupportFunctions gate). Null = default. */
-    private final @com.legend.Nullable String timeZone;
+    private final @com.legend.base.Nullable String timeZone;
 
     public EngineStyleH2() {
         this(false);
@@ -301,7 +301,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
         this(quoteIdentifiers, null);
     }
 
-    public EngineStyleH2(boolean quoteIdentifiers, @com.legend.Nullable String timeZone) {
+    public EngineStyleH2(boolean quoteIdentifiers, @com.legend.base.Nullable String timeZone) {
         super(Lexicon.ENGINE_STYLE, TypeNames.ANSI, Spellings.DUCKDB);
         this.quoteIdentifiers = quoteIdentifiers;
         this.timeZone = timeZone;
@@ -581,7 +581,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * equalEnumOperationSelector(fn(name), 'col in (...)', 'col = ...'),
      * '0 = 1')})} spelling for {@code rawColumn = enumParam}; null when
      * the expression is not that shape. */
-    private @com.legend.Nullable String enumSelector(SqlExpr e) {
+    private @com.legend.base.Nullable String enumSelector(SqlExpr e) {
         if (!(e instanceof SqlExpr.Call c)
                 || c.fn() != com.legend.sql.SqlFn.EQUAL
                 || c.args().size() != 2) {
@@ -635,7 +635,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
 
     /** The ONE source expression a literal-decode case chain reads
      * ({@link com.legend.sql.DecodeShapes#sourceExpr}), or null. */
-    private static @com.legend.Nullable SqlExpr decodeSourceColumn(SqlExpr e) {
+    private static @com.legend.base.Nullable SqlExpr decodeSourceColumn(SqlExpr e) {
         return com.legend.sql.DecodeShapes.sourceExpr(e).orElse(null);
     }
 
@@ -656,7 +656,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * Every kind: the freemarker SELECTOR spellings of the DATE / DATETIME
      * goldens are the LEGACY (H2 1.4.200) halves of the
      * assertEqualsH2Compatible pairs. Null = not this shape. */
-    private @com.legend.Nullable String optionalParamEquality(SqlExpr e) {
+    private @com.legend.base.Nullable String optionalParamEquality(SqlExpr e) {
         if (!(e instanceof SqlExpr.Call oc)
                 || oc.fn() != com.legend.sql.SqlFn.EQUAL
                 || oc.args().size() != 2) {
@@ -1469,7 +1469,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
      * The shapes (epoch_ms pairs under integer division; the week CASE)
      * are only produced by the dateDiff lowering.
      */
-    private @com.legend.Nullable String engineDateDiff(SqlExpr e) {
+    private @com.legend.base.Nullable String engineDateDiff(SqlExpr e) {
         // truncated elapsed: (epoch_ms(end) - epoch_ms(start)) // unitMs
         if (e instanceof SqlExpr.Call div
                 && div.fn() == com.legend.sql.SqlFn.INT_DIVIDE
@@ -1791,7 +1791,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     /** TYPED format parts → the Java pattern the engine's parsedatetime
      * takes; null when a part has no mapping (the caller throws — never a
      * silent DuckDB fallback). No format string is ever re-parsed here. */
-    private static @com.legend.Nullable String h2Pattern(SqlExpr.FormatLit fl) {
+    private static @com.legend.base.Nullable String h2Pattern(SqlExpr.FormatLit fl) {
         StringBuilder out = new StringBuilder();
         for (com.legend.sql.DateFmt d : fl.parts()) {
             switch (d) {

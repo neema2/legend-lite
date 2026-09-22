@@ -44,17 +44,17 @@ import java.util.List;
 public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   List<TypedFuncCol> leaves, List<Child> nested,
                                   boolean arrayWrap, boolean bareValue,
-                                  @com.legend.Nullable String classFqn,
+                                  @com.legend.base.Nullable String classFqn,
                                   ExprType info,
                                   boolean inlineChild,
                                   List<SubTypePatch> subTypePatches,
                                   List<TypedFuncCol> orderKeys,
-                                  @com.legend.Nullable String typeKeyName,
+                                  @com.legend.base.Nullable String typeKeyName,
                                   boolean fqTypePath,
-                                  @com.legend.Nullable List<CheckedConstraint> checkedConstraints,
+                                  @com.legend.base.Nullable List<CheckedConstraint> checkedConstraints,
                                   boolean removeNullKeys,
                                   boolean removeEmptySets,
-                                  @com.legend.Nullable String objectRefPrefix)
+                                  @com.legend.base.Nullable String objectRefPrefix)
         implements TypedSpec {
 
     /** The same graph over another row source (a resolver fusing two
@@ -69,12 +69,12 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
     /** Config compat (no objectReference channel). */
     public TypedSerializeGraph(TypedSpec source, String rowVar,
             List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
-            boolean bareValue, @com.legend.Nullable String classFqn, ExprType info,
+            boolean bareValue, @com.legend.base.Nullable String classFqn, ExprType info,
             boolean inlineChild, List<SubTypePatch> subTypePatches,
             List<TypedFuncCol> orderKeys,
-            @com.legend.Nullable String typeKeyName,
+            @com.legend.base.Nullable String typeKeyName,
             boolean fqTypePath,
-            @com.legend.Nullable List<CheckedConstraint> checkedConstraints,
+            @com.legend.base.Nullable List<CheckedConstraint> checkedConstraints,
             boolean removeNullKeys, boolean removeEmptySets) {
         this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
                 info, inlineChild, subTypePatches, orderKeys, typeKeyName,
@@ -85,12 +85,12 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
     /** Pre-config compat (removeNull/removeEmpty default off). */
     public TypedSerializeGraph(TypedSpec source, String rowVar,
             List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
-            boolean bareValue, @com.legend.Nullable String classFqn, ExprType info,
+            boolean bareValue, @com.legend.base.Nullable String classFqn, ExprType info,
             boolean inlineChild, List<SubTypePatch> subTypePatches,
             List<TypedFuncCol> orderKeys,
-            @com.legend.Nullable String typeKeyName,
+            @com.legend.base.Nullable String typeKeyName,
             boolean fqTypePath,
-            @com.legend.Nullable List<CheckedConstraint> checkedConstraints) {
+            @com.legend.base.Nullable List<CheckedConstraint> checkedConstraints) {
         this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
                 info, inlineChild, subTypePatches, orderKeys, typeKeyName,
                 fqTypePath, checkedConstraints, false, false);
@@ -123,10 +123,10 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
     /** Unchecked compat (the common envelope). */
     public TypedSerializeGraph(TypedSpec source, String rowVar,
             List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
-            boolean bareValue, @com.legend.Nullable String classFqn, ExprType info,
+            boolean bareValue, @com.legend.base.Nullable String classFqn, ExprType info,
             boolean inlineChild, List<SubTypePatch> subTypePatches,
             List<TypedFuncCol> orderKeys,
-            @com.legend.Nullable String typeKeyName,
+            @com.legend.base.Nullable String typeKeyName,
             boolean fqTypePath) {
         this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
                 info, inlineChild, subTypePatches, orderKeys, typeKeyName,
@@ -144,7 +144,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
     /** Type-key-free compat (includeType off — the common shape). */
     public TypedSerializeGraph(TypedSpec source, String rowVar,
             List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
-            boolean bareValue, @com.legend.Nullable String classFqn, ExprType info,
+            boolean bareValue, @com.legend.base.Nullable String classFqn, ExprType info,
             boolean inlineChild, List<SubTypePatch> subTypePatches,
             List<TypedFuncCol> orderKeys) {
         this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
@@ -154,7 +154,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
     /** Order-free compat: envelope row order = scan order. */
     public TypedSerializeGraph(TypedSpec source, String rowVar,
             List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
-            boolean bareValue, @com.legend.Nullable String classFqn, ExprType info,
+            boolean bareValue, @com.legend.base.Nullable String classFqn, ExprType info,
             boolean inlineChild, List<SubTypePatch> subTypePatches) {
         this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
                 info, inlineChild, subTypePatches, List.of());
@@ -173,7 +173,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
     /** Patch-free compat (every pre-subType construction). */
     public TypedSerializeGraph(TypedSpec source, String rowVar,
             List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
-            boolean bareValue, @com.legend.Nullable String classFqn, ExprType info,
+            boolean bareValue, @com.legend.base.Nullable String classFqn, ExprType info,
             boolean inlineChild) {
         this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
                 info, inlineChild, List.of());
@@ -184,7 +184,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
     public TypedSerializeGraph(TypedSpec source, String rowVar,
             List<TypedFuncCol> leaves, List<Child> nested,
             boolean arrayWrap, boolean bareValue,
-            @com.legend.Nullable String classFqn,
+            @com.legend.base.Nullable String classFqn,
             ExprType info) {
         this(source, rowVar, leaves, nested, arrayWrap, bareValue,
                 classFqn, info, false);

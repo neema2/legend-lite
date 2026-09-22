@@ -37,7 +37,7 @@ class AdversarialParityTest {
 
     private enum Verdict { ACCEPTS, REFUSES, LITE_INTERNAL_ERROR }
 
-    private record Parse(Verdict verdict, @com.legend.Nullable String json) {
+    private record Parse(Verdict verdict, @com.legend.base.Nullable String json) {
     }
 
     private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =

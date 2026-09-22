@@ -32,7 +32,7 @@ final class CallShapes {
      * is {@code toOneMany}, {@code @[*]} the identity; any other target types
      * through the native signature and is a named wall at lowering
      * (Pure.WALLED_NATIVES; parser leg, batch 174). Null when not desugared. */
-    static com.legend.protocol.spec.@com.legend.Nullable ValueSpecification toMultiplicityDesugar(
+    static com.legend.protocol.spec.@com.legend.base.Nullable ValueSpecification toMultiplicityDesugar(
             AppliedFunction af) {
         String fn = af.function();
         String simple = fn.substring(fn.lastIndexOf(':') + 1);
@@ -59,7 +59,7 @@ final class CallShapes {
      * it ({@code relationalExtensions().routerExtensions()} — real m3's
      * SimpleFunctionExpression auto-map; the arrow spelling does not).
      * Null when the call is not that shape. */
-    static @com.legend.Nullable TypedSpec autoMapReceiver(Typer t, AppliedFunction af, Env env) {
+    static @com.legend.base.Nullable TypedSpec autoMapReceiver(Typer t, AppliedFunction af, Env env) {
         if (!af.propertyCall() || af.parameters().isEmpty()) {
             return null;
         }
@@ -114,7 +114,7 @@ final class CallShapes {
     /** The platform class a packageable ELEMENT reads as when it is used
      * as a metamodel VALUE (its system-store row): a database or a
      * mapping; null for any other name. */
-    static @com.legend.Nullable String metamodelElementClass(ModelContext ctx, String fqn) {
+    static @com.legend.base.Nullable String metamodelElementClass(ModelContext ctx, String fqn) {
         if (ctx.findDatabase(fqn).isPresent()) {
             return "meta::relational::metamodel::Database";
         }
@@ -142,7 +142,7 @@ final class CallShapes {
     /** {@code format(fmt, args)} with a CLASS-typed slot: the slot rewritten
      * as {@code $arg->toString()} (PlatformTypes.FORMAT / printsByOwnToString);
      * null when no slot needs it. */
-    static @com.legend.Nullable AppliedFunction formatSlotsByToString(AppliedFunction af,
+    static @com.legend.base.Nullable AppliedFunction formatSlotsByToString(AppliedFunction af,
             Application a) {
         if (!com.legend.compiler.element.type.PlatformTypes.FORMAT
                 .equals(a.chosen().qualifiedName())

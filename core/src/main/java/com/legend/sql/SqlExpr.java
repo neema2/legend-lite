@@ -267,13 +267,13 @@ public sealed interface SqlExpr
      * key for insertion-ordered aggregation (joinStrings parity). Spelled
      * per dialect (DuckDB {@code rowid}, H2 {@code _ROWID_}); a plain
      * Column would bake one backend's spelling into the IR. */
-    record RowOrder(@com.legend.Nullable String table,
+    record RowOrder(@com.legend.base.Nullable String table,
             TypeFact type) implements SqlExpr {
         public RowOrder {
             type = SqlTyping.T_BIGINT;
         }
 
-        public RowOrder(@com.legend.Nullable String table) {
+        public RowOrder(@com.legend.base.Nullable String table) {
             this(table, SqlTyping.UNKNOWN);
         }
     }
@@ -319,18 +319,18 @@ public sealed interface SqlExpr
         }
     }
 
-    record Column(@com.legend.Nullable String table, String name,
-            TypeFact type, OutputCol.@com.legend.Nullable Origin origin)
+    record Column(@com.legend.base.Nullable String table, String name,
+            TypeFact type, OutputCol.@com.legend.base.Nullable Origin origin)
             implements SqlExpr {
         /** M1 leaf default — the builder supplies the type in M2. */
-        public Column(@com.legend.Nullable String table, String name) {
+        public Column(@com.legend.base.Nullable String table, String name) {
             this(table, name, SqlTyping.UNKNOWN, null);
         }
 
 
         /** An UNTYPED reference to a name the query INVENTED (alias,
          * projection label) — origin stamped, type unknown (M1). */
-        public static Column derived(@com.legend.Nullable String table,
+        public static Column derived(@com.legend.base.Nullable String table,
                 String name) {
             return new Column(table, name, SqlTyping.UNKNOWN,
                     OutputCol.Origin.DERIVED);
@@ -338,7 +338,7 @@ public sealed interface SqlExpr
 
         /** An UNTYPED reference to a name that exists in DDL — origin
          * stamped, type unknown (M1). */
-        public static Column physical(@com.legend.Nullable String table,
+        public static Column physical(@com.legend.base.Nullable String table,
                 String name) {
             return new Column(table, name, SqlTyping.UNKNOWN,
                     OutputCol.Origin.PHYSICAL);
@@ -351,7 +351,7 @@ public sealed interface SqlExpr
          * (§4bZ — the engine-compat provenance rides stamped reads up
          * through select layers, so the FINAL plan's outputs still
          * carry it for the wire census). */
-        public static Column of(@com.legend.Nullable String table,
+        public static Column of(@com.legend.base.Nullable String table,
                 OutputCol col) {
             // §E3 M-N1 leaf input: the frame's OWN nullable label —
             // today the pure-multiplicity echo; the DDL/join-pad
@@ -366,7 +366,7 @@ public sealed interface SqlExpr
          * synthetic columns, whose type it just declared. §E3: the
          * caller states the slot's nullability with the same authority
          * it states the type (no default — every site decides). */
-        public static Column of(@com.legend.Nullable String table,
+        public static Column of(@com.legend.base.Nullable String table,
                 String name, SqlType t, boolean nullable,
                 OutputCol.Origin origin) {
             return new Column(table, name,
@@ -376,7 +376,7 @@ public sealed interface SqlExpr
         /** Stamped when {@code outs} claims the name, plain (UNKNOWN)
          * otherwise — the lookup door for callers holding a source's
          * declared output list. */
-        public static Column of(@com.legend.Nullable String table,
+        public static Column of(@com.legend.base.Nullable String table,
                 List<OutputCol> outs, String name) {
             return outs.stream().filter(c -> c.name().equals(name))
                     .findFirst().map(oc -> of(table, oc))
@@ -419,27 +419,27 @@ public sealed interface SqlExpr
 
     /** {@code *} or {@code alias.*}. */
     /** {@code alias.* EXCLUDE (a, b)} — the star minus named columns (pivot key synthesis). */
-    record StarExcept(@com.legend.Nullable String table, List<String> except,
+    record StarExcept(@com.legend.base.Nullable String table, List<String> except,
             TypeFact type) implements SqlExpr {
         public StarExcept {
             except = List.copyOf(except);
             type = SqlTyping.UNKNOWN;   // not a scalar value
         }
 
-        public StarExcept(@com.legend.Nullable String table,
+        public StarExcept(@com.legend.base.Nullable String table,
                 List<String> except) {
             this(table, except, SqlTyping.UNKNOWN);
         }
     }
 
     /** {@code table} null = unqualified {@code *}. */
-    record Star(@com.legend.Nullable String table,
+    record Star(@com.legend.base.Nullable String table,
             TypeFact type) implements SqlExpr {
         public Star {
             type = SqlTyping.UNKNOWN;   // not a scalar value
         }
 
-        public Star(@com.legend.Nullable String table) {
+        public Star(@com.legend.base.Nullable String table) {
             this(table, SqlTyping.UNKNOWN);
         }
     }
@@ -547,7 +547,7 @@ public sealed interface SqlExpr
      * through the engine-style dialect and is a loud error in any
      * executable dialect. */
     record PlanParam(String name, Kind kind, boolean optional,
-            @com.legend.Nullable String enumMapFn,
+            @com.legend.base.Nullable String enumMapFn,
             TypeFact type) implements SqlExpr {
         /** {@code RAW} splices {@code ${name}} bare — the temp-table IN
          * protocol's {@code inFilterClause_X} wrapper variable
@@ -564,7 +564,7 @@ public sealed interface SqlExpr
         }
 
         public PlanParam(String name, Kind kind, boolean optional,
-                @com.legend.Nullable String enumMapFn) {
+                @com.legend.base.Nullable String enumMapFn) {
             this(name, kind, optional, enumMapFn, SqlTyping.UNKNOWN);
         }
 
@@ -656,7 +656,7 @@ public sealed interface SqlExpr
          * its slot type to {@link SqlTyping#structLitType}. Null when
          * the builder has no layout in hand (zip's pair synthesis). */
         public record Field(String name, SqlExpr value,
-                @com.legend.Nullable SqlType declared) {
+                @com.legend.base.Nullable SqlType declared) {
             public Field(String name, SqlExpr value) {
                 this(name, value, null);
             }
@@ -711,14 +711,14 @@ public sealed interface SqlExpr
 
     /** {@code CASE WHEN ... THEN ... [WHEN ...] ELSE ... END}. */
     /** {@code otherwise} null = no ELSE branch (SQL semantics: NULL). */
-    record Case(List<When> whens, @com.legend.Nullable SqlExpr otherwise,
+    record Case(List<When> whens, @com.legend.base.Nullable SqlExpr otherwise,
             TypeFact type) implements SqlExpr {
         public Case {
             type = SqlTyping.caseType(whens, otherwise);
         }
 
         public Case(List<When> whens,
-                @com.legend.Nullable SqlExpr otherwise) {
+                @com.legend.base.Nullable SqlExpr otherwise) {
             this(whens, otherwise, SqlTyping.UNKNOWN);
         }
 
@@ -1006,7 +1006,7 @@ public sealed interface SqlExpr
      */
     /** {@code frame} null = no explicit frame clause (dialect default). */
     record WindowCall(SqlAgg fn, List<SqlExpr> partitionBy, List<SqlSelect.SortKey> orderBy,
-                      @com.legend.Nullable Frame frame,
+                      @com.legend.base.Nullable Frame frame,
                       TypeFact type) implements SqlExpr {
         public WindowCall {
             type = SqlTyping.windowType(fn);
@@ -1014,7 +1014,7 @@ public sealed interface SqlExpr
 
         public WindowCall(SqlAgg fn, List<SqlExpr> partitionBy,
                 List<SqlSelect.SortKey> orderBy,
-                @com.legend.Nullable Frame frame) {
+                @com.legend.base.Nullable Frame frame) {
             this(fn, partitionBy, orderBy, frame, SqlTyping.UNKNOWN);
         }
 

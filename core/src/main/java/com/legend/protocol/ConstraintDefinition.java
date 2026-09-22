@@ -17,11 +17,11 @@ import java.util.Objects;
  * @param realization inline predicate or function-ref binding
  */
 public record ConstraintDefinition(String name, Realization realization,
-        @com.legend.Nullable ValueSpecification message,
-        @com.legend.Nullable String enforcementLevel,
-        @com.legend.Nullable String externalId,
-        @com.legend.Nullable String owner,
-        @com.legend.Nullable SourceInfo pos) {
+        @com.legend.base.Nullable ValueSpecification message,
+        @com.legend.base.Nullable String enforcementLevel,
+        @com.legend.base.Nullable String externalId,
+        @com.legend.base.Nullable String owner,
+        @com.legend.base.Nullable SourceInfo pos) {
     public ConstraintDefinition {
         Objects.requireNonNull(name, "Constraint name cannot be null");
         Objects.requireNonNull(realization, "Constraint realization cannot be null");
@@ -31,8 +31,8 @@ public record ConstraintDefinition(String name, Realization realization,
      *  constraint entry — {@code name: expr} or {@code name ( ... )}, closing paren
      *  inclusive (engine convention, verified via ProbeWireShapes). */
     public ConstraintDefinition(String name, Realization realization,
-            @com.legend.Nullable ValueSpecification message,
-            @com.legend.Nullable String enforcementLevel) {
+            @com.legend.base.Nullable ValueSpecification message,
+            @com.legend.base.Nullable String enforcementLevel) {
         this(name, realization, message, enforcementLevel, null, null, null);
     }
 

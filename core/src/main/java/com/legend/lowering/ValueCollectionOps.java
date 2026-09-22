@@ -46,7 +46,7 @@ final class ValueCollectionOps {
      * rewrite to TypedDistinct — whole-row DISTINCT is only cell dedup
      * when there is exactly one column; multi-column stays at the loud
      * frontier wall. */
-    static @com.legend.Nullable com.legend.compiler.spec.typed.TypedDistinct
+    static @com.legend.base.Nullable com.legend.compiler.spec.typed.TypedDistinct
             relationDistinct(TypedNativeCall n) {
         return "meta::pure::functions::collection::removeDuplicates"
                         .equals(n.callee().qualifiedName())
@@ -62,7 +62,7 @@ final class ValueCollectionOps {
                 : null;
     }
 
-    static @com.legend.Nullable TypedSpec relationSpaceRewrite(TypedNativeCall n) {
+    static @com.legend.base.Nullable TypedSpec relationSpaceRewrite(TypedNativeCall n) {
         if (n.args().size() != 1
                 || !(Type.schemaView(n.args().get(0).info().type())
                         instanceof Type.RelationType rt)

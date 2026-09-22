@@ -84,7 +84,7 @@ final class LambdaBodies {
      * is false; a spelled condition folds the guard away in the unroll —
      * toPostgresModel's converter-registry self-check). Null = not this
      * shape (the first statement is not an assert). */
-    private static @com.legend.Nullable TypedSpec assertThenValue(Typer t, LambdaFunction lam, Env scope) {
+    private static @com.legend.base.Nullable TypedSpec assertThenValue(Typer t, LambdaFunction lam, Env scope) {
         ValueSpecification first = lam.body().get(0);
         if (!(first instanceof AppliedFunction af) || af.parameters().isEmpty()) {
             return null;

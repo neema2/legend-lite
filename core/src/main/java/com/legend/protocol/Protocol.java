@@ -68,7 +68,7 @@ public final class Protocol {
      *  store-keyed; harvest fixtures testDataElementWith*Resolvers): an
      *  optional {@code data} value AND optional {@code dataResolvers},
      *  either or both present. */
-    public record PDataBody(@com.legend.Nullable PEmbeddedDataValue value,
+    public record PDataBody(@com.legend.base.Nullable PEmbeddedDataValue value,
                             List<PDataResolver> resolvers) {
         public PDataBody {
             resolvers = List.copyOf(resolvers);
@@ -81,7 +81,7 @@ public final class Protocol {
      *  {@code _type:"referenceDataResolver"} — {@code data} is null and
      *  only the {@code elementPointer} rides the wire. */
     public record PDataResolver(PElementRef elementPointer,
-                                @com.legend.Nullable PEmbeddedDataValue data,
+                                @com.legend.base.Nullable PEmbeddedDataValue data,
                                 com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -108,8 +108,8 @@ public final class Protocol {
      *  pointer/lambda fork as {@link PClassMappingFunction}; the body is
      *  typed {@code (Source[1], Target[1]) -> Boolean[1]}. */
     public record PFunctionAssociationMapping(PPointer association,
-                                              com.legend.protocol.spec.@com.legend.Nullable PackageableElementPtr function,
-                                              com.legend.protocol.spec.@com.legend.Nullable LambdaFunction bodyLambda,
+                                              com.legend.protocol.spec.@com.legend.base.Nullable PackageableElementPtr function,
+                                              com.legend.protocol.spec.@com.legend.base.Nullable LambdaFunction bodyLambda,
                                               com.legend.protocol.SourceInfo sourceInformation)
             implements PAssociationMapping {
         public PFunctionAssociationMapping {
@@ -125,14 +125,14 @@ public final class Protocol {
      *  condition is a TYPED ###Pure lambda via SpecParser; member span
      *  target..outer brace (probe modeljoin). */
     public record PModelJoinAssociationMapping(PPointer association,
-                                               @com.legend.Nullable String id,
+                                               @com.legend.base.Nullable String id,
                                                com.legend.protocol.spec.ValueSpecification joinCondition,
                                                com.legend.protocol.SourceInfo sourceInformation)
             implements PAssociationMapping {
     }
 
     public record PRelAssociationMapping(PPointer association,
-                                         @com.legend.Nullable String id,
+                                         @com.legend.base.Nullable String id,
                                          List<PRelAssocPropertyMapping> propertyMappings,
                                          List<String> stores,
                                          com.legend.protocol.SourceInfo sourceInformation)
@@ -142,13 +142,13 @@ public final class Protocol {
     public record PRelAssocPropertyMapping(String property,
                                            com.legend.protocol.SourceInfo propertySourceInformation,
                                            PRelOp relationalOperation,
-                                           @com.legend.Nullable String source,
-                                           @com.legend.Nullable String target,
+                                           @com.legend.base.Nullable String source,
+                                           @com.legend.base.Nullable String target,
                                            com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     public record PXStoreAssociationMapping(PPointer association,
-                                            @com.legend.Nullable String id,
+                                            @com.legend.base.Nullable String id,
                                             List<PXStorePropertyMapping> propertyMappings,
                                             com.legend.protocol.SourceInfo sourceInformation)
             implements PAssociationMapping {
@@ -182,7 +182,7 @@ public final class Protocol {
      *  SKIPS it (the class is not mapped in a store lite executes). */
     public record PServiceStoreClassMapping(String className,
                                             com.legend.protocol.SourceInfo classSpan,
-                                            @com.legend.Nullable String id,
+                                            @com.legend.base.Nullable String id,
                                             boolean root,
                                             List<PServiceStoreLocalProp> localProps,
                                             List<PServiceMapping> services,
@@ -194,15 +194,15 @@ public final class Protocol {
      *  the {@code +} through the multiplicity close. */
     public record PServiceStoreLocalProp(String name, String type,
                                          int lowerBound,
-                                         @com.legend.Nullable Integer upperBound,
+                                         @com.legend.base.Nullable Integer upperBound,
                                          com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** One {@code ~service [store] Seg.….Svc (~path ... ~request(...))?}
      *  entry. */
     public record PServiceMapping(PServicePtr service,
-                                  @com.legend.Nullable PPathOffset pathOffset,
-                                  @com.legend.Nullable PRequestBuildInfo request,
+                                  @com.legend.base.Nullable PPathOffset pathOffset,
+                                  @com.legend.base.Nullable PRequestBuildInfo request,
                                   com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -230,14 +230,14 @@ public final class Protocol {
 
     /** {@code ~request ( parameters(...)? body = ...? )}. */
     public record PRequestBuildInfo(
-            @com.legend.Nullable PParametersBuildInfo parameters,
-            @com.legend.Nullable PBodyBuildInfo body,
-            @com.legend.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+            @com.legend.base.Nullable PParametersBuildInfo parameters,
+            @com.legend.base.Nullable PBodyBuildInfo body,
+            @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** {@code parameters ( name = expr, ... )}. */
     public record PParametersBuildInfo(List<PParameterBuildInfo> entries,
-                                       @com.legend.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+                                       @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
         public PParametersBuildInfo {
             entries = List.copyOf(entries);
         }
@@ -261,10 +261,10 @@ public final class Protocol {
      *  {@code _type:"MongoDB"}, NO spans on the wire (ZTailProbe
      *  "mongodb-mapping"). Model transform skips it. */
     public record PClassMappingMongoDb(String className,
-                                       @com.legend.Nullable String id,
+                                       @com.legend.base.Nullable String id,
                                        boolean root, String storePath,
                                        String mainCollectionName,
-                                       @com.legend.Nullable String bindingPath)
+                                       @com.legend.base.Nullable String bindingPath)
             implements PClassMapping {
     }
 
@@ -300,12 +300,12 @@ public final class Protocol {
      */
     public record PClassMappingFunction(String className,
                                         com.legend.protocol.SourceInfo classSourceInformation,
-                                        @com.legend.Nullable String id,
-                                        @com.legend.Nullable String extendsClassMappingId,
+                                        @com.legend.base.Nullable String id,
+                                        @com.legend.base.Nullable String extendsClassMappingId,
                                         boolean root,
                                         String kind,
-                                        com.legend.protocol.spec.@com.legend.Nullable PackageableElementPtr function,
-                                        com.legend.protocol.spec.@com.legend.Nullable LambdaFunction bodyLambda,
+                                        com.legend.protocol.spec.@com.legend.base.Nullable PackageableElementPtr function,
+                                        com.legend.protocol.spec.@com.legend.base.Nullable LambdaFunction bodyLambda,
                                         com.legend.protocol.SourceInfo sourceInformation)
             implements PClassMapping {
         public PClassMappingFunction {
@@ -350,7 +350,7 @@ public final class Protocol {
      *  merge-params-lambda vs merge-op). */
     public record PClassMappingMergeOperation(String className,
                                               com.legend.protocol.SourceInfo classSourceInformation,
-                                              @com.legend.Nullable String id,
+                                              @com.legend.base.Nullable String id,
                                               boolean root,
                                               List<String> parameters,
                                               com.legend.protocol.spec.ValueSpecification validationLambda,
@@ -365,13 +365,13 @@ public final class Protocol {
      *  {@code sourceLambda} INSTEAD — exactly one of
      *  {@code relationFunction}/{@code sourceLambda} is set. */
     public record PClassMappingRelation(String className,
-                                        @com.legend.Nullable String id,
-                                        @com.legend.Nullable String extendsClassMappingId,
+                                        @com.legend.base.Nullable String id,
+                                        @com.legend.base.Nullable String extendsClassMappingId,
                                         List<String> primaryKey,
                                         List<PRelationFnPropertyMapping> propertyMappings,
-                                        @com.legend.Nullable String relationFunction,
-                                        @com.legend.Nullable com.legend.protocol.SourceInfo relationFunctionSourceInformation,
-                                        @com.legend.Nullable PRelationSrcLambda sourceLambda,
+                                        @com.legend.base.Nullable String relationFunction,
+                                        @com.legend.base.Nullable com.legend.protocol.SourceInfo relationFunctionSourceInformation,
+                                        @com.legend.base.Nullable PRelationSrcLambda sourceLambda,
                                         boolean root,
                                         com.legend.protocol.SourceInfo sourceInformation)
             implements PClassMapping {
@@ -383,9 +383,9 @@ public final class Protocol {
      *  shifted DOWN by (descriptor line - cm brace line) — the engine
      *  walker's re-parse anchor quirk (probe ZRelationMappingProbe:
      *  srcMapping 41→42 / 92→93). */
-    public record PRelationSrcLambda(@com.legend.Nullable String function,
-                                     @com.legend.Nullable com.legend.protocol.SourceInfo functionSourceInformation,
-                                     @com.legend.Nullable com.legend.protocol.spec.ValueSpecification expr,
+    public record PRelationSrcLambda(@com.legend.base.Nullable String function,
+                                     @com.legend.base.Nullable com.legend.protocol.SourceInfo functionSourceInformation,
+                                     @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification expr,
                                      com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -405,18 +405,18 @@ public final class Protocol {
      * anchor quirk as {@link PRelationSrcLambda}. The shifted wrapper span
      * rides {@code exprLambdaSourceInformation}.
      */
-    public record PRelationFnPropertyMapping(@com.legend.Nullable String ownerClass,
-                                             @com.legend.Nullable String bindingTransformer,
+    public record PRelationFnPropertyMapping(@com.legend.base.Nullable String ownerClass,
+                                             @com.legend.base.Nullable String bindingTransformer,
                                              String property,
                                              com.legend.protocol.SourceInfo propertySourceInformation,
-                                             @com.legend.Nullable String column,
-                                             @com.legend.Nullable String inlineSetId,
-                                             @com.legend.Nullable List<PRelationFnPropertyMapping> nested,
-                                             @com.legend.Nullable PLocalProp localMappingProperty,
-                                             @com.legend.Nullable String source,
-                                             @com.legend.Nullable String enumMappingId,
-                                             @com.legend.Nullable com.legend.protocol.spec.ValueSpecification expr,
-                                             @com.legend.Nullable com.legend.protocol.SourceInfo exprLambdaSourceInformation,
+                                             @com.legend.base.Nullable String column,
+                                             @com.legend.base.Nullable String inlineSetId,
+                                             @com.legend.base.Nullable List<PRelationFnPropertyMapping> nested,
+                                             @com.legend.base.Nullable PLocalProp localMappingProperty,
+                                             @com.legend.base.Nullable String source,
+                                             @com.legend.base.Nullable String enumMappingId,
+                                             @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification expr,
+                                             @com.legend.base.Nullable com.legend.protocol.SourceInfo exprLambdaSourceInformation,
                                              com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -427,7 +427,7 @@ public final class Protocol {
                            List<PMappingInclude> includedMappings,
                            List<PMappingTestSuite> testSuites,
                            List<PLegacyMappingTest> tests,
-                           @com.legend.Nullable String testSuitesSource,
+                           @com.legend.base.Nullable String testSuitesSource,
                            com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
@@ -439,14 +439,14 @@ public final class Protocol {
      *  {@code _type:"mappingTestSuite"}; the query lambda's spec spans
      *  carry the MAPPING's path as sourceId (probe test-suites). */
     public record PMappingTestSuite(String id,
-                                    @com.legend.Nullable String doc,
+                                    @com.legend.base.Nullable String doc,
                                     com.legend.protocol.spec.ValueSpecification func,
                                     List<PMappingTest> tests,
                                     com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     public record PMappingTest(String id,
-                               @com.legend.Nullable String doc,
+                               @com.legend.base.Nullable String doc,
                                List<PStoreTestData> storeTestData,
                                List<PTestAssertion> assertions,
                                com.legend.protocol.SourceInfo sourceInformation) {
@@ -455,12 +455,12 @@ public final class Protocol {
     /** {@code Store: ModelStore #{...}#} or {@code Store: Reference
      *  #{ my::DataElement }#} (probe reference-data). */
     public record PStoreTestData(PPointer store,
-                                 @com.legend.Nullable List<PModelData> modelData,
-                                 @com.legend.Nullable com.legend.protocol.SourceInfo modelStoreSourceInformation,
-                                 @com.legend.Nullable PPointer dataElement,
-                                 @com.legend.Nullable List<PRelationElement> relationElements,
-                                 @com.legend.Nullable com.legend.protocol.SourceInfo relationAccessorSourceInformation,
-                                 @com.legend.Nullable PEmbeddedDataValue embedded,
+                                 @com.legend.base.Nullable List<PModelData> modelData,
+                                 @com.legend.base.Nullable com.legend.protocol.SourceInfo modelStoreSourceInformation,
+                                 @com.legend.base.Nullable PPointer dataElement,
+                                 @com.legend.base.Nullable List<PRelationElement> relationElements,
+                                 @com.legend.base.Nullable com.legend.protocol.SourceInfo relationAccessorSourceInformation,
+                                 @com.legend.base.Nullable PEmbeddedDataValue embedded,
                                  com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -486,11 +486,11 @@ public final class Protocol {
      *  bodyPatterns) and a responseDefinition whose body is an
      *  externalFormat blob (the engine parses ANY embedded data there and
      *  refuses non-ExternalFormat AFTER the parse). */
-    public record PServiceStub(String method, @com.legend.Nullable String url,
-                               @com.legend.Nullable String urlPath,
-                               @com.legend.Nullable List<PStubParam> queryParams,
-                               @com.legend.Nullable List<PStubParam> headerParams,
-                               @com.legend.Nullable List<PStringValuePattern> bodyPatterns,
+    public record PServiceStub(String method, @com.legend.base.Nullable String url,
+                               @com.legend.base.Nullable String urlPath,
+                               @com.legend.base.Nullable List<PStubParam> queryParams,
+                               @com.legend.base.Nullable List<PStubParam> headerParams,
+                               @com.legend.base.Nullable List<PStringValuePattern> bodyPatterns,
                                com.legend.protocol.SourceInfo requestSpan,
                                PExternalFormatData body,
                                com.legend.protocol.SourceInfo responseSpan,
@@ -621,13 +621,13 @@ public final class Protocol {
      *  {@code *} marker; propertyMapping spans run COLON..operation end. */
     public record PClassMappingRel(String className,
                                    com.legend.protocol.SourceInfo classSourceInformation,
-                                   @com.legend.Nullable String id,
+                                   @com.legend.base.Nullable String id,
                                    boolean root,
                                    boolean distinct,
-                                   @com.legend.Nullable String extendsClassMappingId,
-                                   @com.legend.Nullable PFilterMapping filter,
+                                   @com.legend.base.Nullable String extendsClassMappingId,
+                                   @com.legend.base.Nullable PFilterMapping filter,
                                    List<PRelOp> groupBy,
-                                   @com.legend.Nullable PTablePtr mainTable,
+                                   @com.legend.base.Nullable PTablePtr mainTable,
                                    List<PRelOp> primaryKey,
                                    List<PPropertyMapping> propertyMappings,
                                    com.legend.protocol.SourceInfo sourceInformation)
@@ -639,10 +639,10 @@ public final class Protocol {
      *  parameters are bare set ids (probe operation). */
     public record PClassMappingOperation(String className,
                                          com.legend.protocol.SourceInfo classSourceInformation,
-                                         @com.legend.Nullable String id,
-                                         @com.legend.Nullable String extendsClassMappingId,
+                                         @com.legend.base.Nullable String id,
+                                         @com.legend.base.Nullable String extendsClassMappingId,
                                          boolean root,
-                                         @com.legend.Nullable String operation,
+                                         @com.legend.base.Nullable String operation,
                                          List<String> parameters,
                                          com.legend.protocol.SourceInfo sourceInformation)
             implements PClassMapping {
@@ -653,26 +653,26 @@ public final class Protocol {
      *  wire, parsed by SpecParser and emitted by the SAME spec arms. */
     public record PClassMappingPure(String className,
                                     com.legend.protocol.SourceInfo classSourceInformation,
-                                    @com.legend.Nullable String extendsClassMappingId,
-                                    @com.legend.Nullable String id,
+                                    @com.legend.base.Nullable String extendsClassMappingId,
+                                    @com.legend.base.Nullable String id,
                                     boolean root,
-                                    @com.legend.Nullable String srcClass,
-                                    @com.legend.Nullable com.legend.protocol.SourceInfo sourceClassSourceInformation,
-                                    @com.legend.Nullable List<com.legend.protocol.spec.ValueSpecification> filter,
+                                    @com.legend.base.Nullable String srcClass,
+                                    @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceClassSourceInformation,
+                                    @com.legend.base.Nullable List<com.legend.protocol.spec.ValueSpecification> filter,
                                     List<PPurePropertyMapping> propertyMappings,
                                     com.legend.protocol.SourceInfo sourceInformation)
             implements PClassMapping {
     }
 
-    public record PPurePropertyMapping(@com.legend.Nullable String ownerClass,
+    public record PPurePropertyMapping(@com.legend.base.Nullable String ownerClass,
                                        String property,
                                        com.legend.protocol.SourceInfo propertySourceInformation,
-                                       @com.legend.Nullable String enumMappingId,
+                                       @com.legend.base.Nullable String enumMappingId,
                                        boolean explodeProperty,
-                                       @com.legend.Nullable PLocalProp localMappingProperty,
+                                       @com.legend.base.Nullable PLocalProp localMappingProperty,
                                        List<com.legend.protocol.spec.ValueSpecification> transform,
-                                       @com.legend.Nullable String source,
-                                       @com.legend.Nullable String target,
+                                       @com.legend.base.Nullable String source,
+                                       @com.legend.base.Nullable String target,
                                        com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -684,15 +684,15 @@ public final class Protocol {
             POtherwiseEmbeddedPropertyMapping {
     }
 
-    public record PRelPropertyMapping(@com.legend.Nullable String ownerClass,
-                                      @com.legend.Nullable String bindingTransformer,
+    public record PRelPropertyMapping(@com.legend.base.Nullable String ownerClass,
+                                      @com.legend.base.Nullable String bindingTransformer,
                                       String property,
                                       com.legend.protocol.SourceInfo propertySourceInformation,
-                                      @com.legend.Nullable String enumMappingId,
-                                      @com.legend.Nullable PLocalProp localMappingProperty,
+                                      @com.legend.base.Nullable String enumMappingId,
+                                      @com.legend.base.Nullable PLocalProp localMappingProperty,
                                       PRelOp relationalOperation,
-                                      @com.legend.Nullable String source,
-                                      @com.legend.Nullable String target,
+                                      @com.legend.base.Nullable String source,
+                                      @com.legend.base.Nullable String target,
                                       com.legend.protocol.SourceInfo sourceInformation)
             implements PPropertyMapping {
     }
@@ -701,7 +701,7 @@ public final class Protocol {
      *  runs the FIRST colon through the multiplicity bracket (probe
      *  local-prop). */
     public record PLocalProp(String type, long lowerBound,
-                             @com.legend.Nullable Long upperBound,
+                             @com.legend.base.Nullable Long upperBound,
                              com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -710,10 +710,10 @@ public final class Protocol {
      *  {@code _type:"embedded"} class mapping's span are BOTH the paren
      *  region; the single bracket id rides id AND target AND the nested
      *  mapping's id (probe embedded-plain/embedded-id-and-milestoning). */
-    public record PEmbeddedPropertyMapping(@com.legend.Nullable String ownerClass,
+    public record PEmbeddedPropertyMapping(@com.legend.base.Nullable String ownerClass,
                                            String property,
                                            com.legend.protocol.SourceInfo propertySourceInformation,
-                                           @com.legend.Nullable String id,
+                                           @com.legend.base.Nullable String id,
                                            List<PRelOp> primaryKey,
                                            List<PPropertyMapping> propertyMappings,
                                            com.legend.protocol.SourceInfo sourceInformation)
@@ -722,10 +722,10 @@ public final class Protocol {
 
     /** {@code prop() Inline[setId]} — span paren-open..bracket-close
      *  (probe inline-embedded). */
-    public record PInlineEmbeddedPropertyMapping(@com.legend.Nullable String ownerClass,
+    public record PInlineEmbeddedPropertyMapping(@com.legend.base.Nullable String ownerClass,
                                                  String property,
                                                  com.legend.protocol.SourceInfo propertySourceInformation,
-                                                 @com.legend.Nullable String id,
+                                                 @com.legend.base.Nullable String id,
                                                  String setImplementationId,
                                                  com.legend.protocol.SourceInfo sourceInformation)
             implements PPropertyMapping {
@@ -735,10 +735,10 @@ public final class Protocol {
      *  classMapping span runs paren-open..OTHERWISE-close; the otherwise
      *  op's span STRETCHES back to the {@code [tgt]} bracket (probe
      *  otherwise-embedded). */
-    public record POtherwiseEmbeddedPropertyMapping(@com.legend.Nullable String ownerClass,
+    public record POtherwiseEmbeddedPropertyMapping(@com.legend.base.Nullable String ownerClass,
                                                     String property,
                                                     com.legend.protocol.SourceInfo propertySourceInformation,
-                                                    @com.legend.Nullable String id,
+                                                    @com.legend.base.Nullable String id,
                                                     List<PRelOp> primaryKey,
                                                     List<PPropertyMapping> propertyMappings,
                                                     PRelOp otherwiseOp,
@@ -761,10 +761,10 @@ public final class Protocol {
      *  "mappingIncludeDataSpace"} with {@code includedDataSpace} instead
      *  (ZTailProbe "include-dataspace"); exactly one of the two paths is
      *  set. */
-    public record PMappingInclude(@com.legend.Nullable String includedMapping,
-                                  @com.legend.Nullable String includedDataSpace,
-                                  @com.legend.Nullable String sourceDatabasePath,
-                                  @com.legend.Nullable String targetDatabasePath,
+    public record PMappingInclude(@com.legend.base.Nullable String includedMapping,
+                                  @com.legend.base.Nullable String includedDataSpace,
+                                  @com.legend.base.Nullable String sourceDatabasePath,
+                                  @com.legend.base.Nullable String targetDatabasePath,
                                   List<PStoreSubstitution> substitutions,
                                   com.legend.protocol.SourceInfo sourceInformation) {
         public PMappingInclude {
@@ -774,8 +774,8 @@ public final class Protocol {
 
         /** The mapping-include shape every pre-dataspace caller builds. */
         public PMappingInclude(String includedMapping,
-                @com.legend.Nullable String sourceDatabasePath,
-                @com.legend.Nullable String targetDatabasePath,
+                @com.legend.base.Nullable String sourceDatabasePath,
+                @com.legend.base.Nullable String targetDatabasePath,
                 List<PStoreSubstitution> substitutions,
                 com.legend.protocol.SourceInfo sourceInformation) {
             this(includedMapping, null, sourceDatabasePath, targetDatabasePath,
@@ -800,7 +800,7 @@ public final class Protocol {
                                      String targetDatabasePath) {
     }
 
-    public record PEnumerationMapping(@com.legend.Nullable String id,
+    public record PEnumerationMapping(@com.legend.base.Nullable String id,
                                       PPointer enumeration,
                                       List<PEnumValueMapping> enumValueMappings,
                                       com.legend.protocol.SourceInfo sourceInformation) {
@@ -813,7 +813,7 @@ public final class Protocol {
     /** {@code _type:"stringSourceValue"|"integerSourceValue"}. */
     /** A source value: string/integer literal, or an ENUM VALUE reference
      *  ({@code [my::Other.bla]} — probe enum-source-enumref). */
-    public record PEnumSourceValue(@com.legend.Nullable String enumeration,
+    public record PEnumSourceValue(@com.legend.base.Nullable String enumeration,
                                    Object value) {
     }
 
@@ -859,9 +859,9 @@ public final class Protocol {
 
     /** Column datatype: {@code _type} spelling + optional size/precision
      *  fields (probe TYPES). */
-    public record PDbType(String kind, @com.legend.Nullable Long size,
-                          @com.legend.Nullable Long precision,
-                          @com.legend.Nullable Long scale) {
+    public record PDbType(String kind, @com.legend.base.Nullable Long size,
+                          @com.legend.base.Nullable Long precision,
+                          @com.legend.base.Nullable Long scale) {
     }
 
     /** {@code businessMilestoning} / {@code processingMilestoning}; the
@@ -885,14 +885,14 @@ public final class Protocol {
 
     public record PBusinessMilestoning(String from, String thru,
                                        boolean thruIsInclusive,
-                                       @com.legend.Nullable PDateTimeLit infinityDate,
+                                       @com.legend.base.Nullable PDateTimeLit infinityDate,
                                        com.legend.protocol.SourceInfo sourceInformation)
             implements PMilestoning {
     }
 
     public record PProcessingMilestoning(String in, String out,
                                          boolean outIsInclusive,
-                                         @com.legend.Nullable PDateTimeLit infinityDate,
+                                         @com.legend.base.Nullable PDateTimeLit infinityDate,
                                          com.legend.protocol.SourceInfo sourceInformation)
             implements PMilestoning {
     }
@@ -955,13 +955,13 @@ public final class Protocol {
      *  TYPO {@code "elemtWithJoins"}, preserved deliberately. A join-only
      *  nav ({@code [db]@J}, association sides) has NO element. */
     public record PElemtWithJoins(List<PJoinPtr> joins,
-                                  @com.legend.Nullable PRelOp relationalElement,
+                                  @com.legend.base.Nullable PRelOp relationalElement,
                                   com.legend.protocol.SourceInfo sourceInformation)
             implements PRelOp {
     }
 
-    public record PJoinPtr(@com.legend.Nullable String db,
-                           @com.legend.Nullable String joinType,
+    public record PJoinPtr(@com.legend.base.Nullable String db,
+                           @com.legend.base.Nullable String joinType,
                            String name,
                            com.legend.protocol.SourceInfo sourceInformation) {
     }
@@ -978,8 +978,8 @@ public final class Protocol {
             implements PRelOp {
     }
 
-    public record PTablePtr(@com.legend.Nullable String database,
-                            @com.legend.Nullable String mainTableDb, String schema,
+    public record PTablePtr(@com.legend.base.Nullable String database,
+                            @com.legend.base.Nullable String mainTableDb, String schema,
                             String table,
                             com.legend.protocol.SourceInfo sourceInformation) {
     }
@@ -995,8 +995,8 @@ public final class Protocol {
                           List<PStereotype> stereotypes,
                           List<PTaggedValue> taggedValues,
                           boolean distinct,
-                          @com.legend.Nullable PViewFilter filter,
-                          @com.legend.Nullable List<PRelOp> groupBy,
+                          @com.legend.base.Nullable PViewFilter filter,
+                          @com.legend.base.Nullable List<PRelOp> groupBy,
                           List<String> primaryKey,
                           com.legend.protocol.SourceInfo sourceInformation) {
     }
@@ -1019,7 +1019,7 @@ public final class Protocol {
      * a blocker for the protocol-first migration, since the model the compiler
      * runs on DOES carry the join chain and would have quietly lost it.
      */
-    public record PViewFilter(@com.legend.Nullable String db, String name,
+    public record PViewFilter(@com.legend.base.Nullable String db, String name,
                               List<PJoinPtr> joins,
                               com.legend.protocol.SourceInfo sourceInformation) {
         public PViewFilter {
@@ -1049,19 +1049,19 @@ public final class Protocol {
     public record PService(String pkg, String name,
                            List<PStereotype> stereotypes,
                            List<PTaggedValue> taggedValues,
-                           @com.legend.Nullable String pattern,
-                           @com.legend.Nullable String title,
+                           @com.legend.base.Nullable String pattern,
+                           @com.legend.base.Nullable String title,
                            List<String> owners,
-                           @com.legend.Nullable String ownershipKind,
-                           @com.legend.Nullable String ownershipId,
-                           @com.legend.Nullable List<String> ownershipUsers,
-                           @com.legend.Nullable String mcpServer,
-                           @com.legend.Nullable String documentation,
-                           @com.legend.Nullable Boolean autoActivateUpdates,
+                           @com.legend.base.Nullable String ownershipKind,
+                           @com.legend.base.Nullable String ownershipId,
+                           @com.legend.base.Nullable List<String> ownershipUsers,
+                           @com.legend.base.Nullable String mcpServer,
+                           @com.legend.base.Nullable String documentation,
+                           @com.legend.base.Nullable Boolean autoActivateUpdates,
                            PServiceExecution execution,
-                           @com.legend.Nullable PLegacyServiceTest test,
-                           @com.legend.Nullable List<PServiceTestSuite> testSuites,
-                           @com.legend.Nullable List<PPostValidation> postValidations,
+                           @com.legend.base.Nullable PLegacyServiceTest test,
+                           @com.legend.base.Nullable List<PServiceTestSuite> testSuites,
+                           @com.legend.base.Nullable List<PPostValidation> postValidations,
                            com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
@@ -1089,19 +1089,19 @@ public final class Protocol {
      *  execution span covers {@code Kind..'}'}. */
     public record PSingleExecution(
             com.legend.protocol.spec.ValueSpecification query,
-            @com.legend.Nullable String mapping,
-            @com.legend.Nullable com.legend.protocol.SourceInfo mappingSpan,
-            @com.legend.Nullable String runtime,
-            @com.legend.Nullable com.legend.protocol.SourceInfo runtimeSpan,
-            @com.legend.Nullable PEmbeddedRuntime embeddedRuntime,
+            @com.legend.base.Nullable String mapping,
+            @com.legend.base.Nullable com.legend.protocol.SourceInfo mappingSpan,
+            @com.legend.base.Nullable String runtime,
+            @com.legend.base.Nullable com.legend.protocol.SourceInfo runtimeSpan,
+            @com.legend.base.Nullable PEmbeddedRuntime embeddedRuntime,
             com.legend.protocol.SourceInfo sourceInformation)
             implements PServiceExecution {
     }
 
     public record PMultiExecution(
             com.legend.protocol.spec.ValueSpecification query,
-            @com.legend.Nullable String executionKey,
-            @com.legend.Nullable List<PKeyedExecution> executions,
+            @com.legend.base.Nullable String executionKey,
+            @com.legend.base.Nullable List<PKeyedExecution> executions,
             com.legend.protocol.SourceInfo sourceInformation)
             implements PServiceExecution {
     }
@@ -1109,12 +1109,12 @@ public final class Protocol {
     /** {@code executions['QA']: { mapping; runtime; }} — also the entry
      *  shape of an {@code ExecutionEnvironment}; span = braces. */
     public record PKeyedExecution(String keyValue,
-                                  @com.legend.Nullable String mapping,
-                                  @com.legend.Nullable com.legend.protocol.SourceInfo mappingSpan,
-                                  @com.legend.Nullable String runtime,
-                                  @com.legend.Nullable com.legend.protocol.SourceInfo runtimeSpan,
-                                  @com.legend.Nullable PEmbeddedRuntime embeddedRuntime,
-                                  @com.legend.Nullable PRuntimeComponents runtimeComponents,
+                                  @com.legend.base.Nullable String mapping,
+                                  @com.legend.base.Nullable com.legend.protocol.SourceInfo mappingSpan,
+                                  @com.legend.base.Nullable String runtime,
+                                  @com.legend.base.Nullable com.legend.protocol.SourceInfo runtimeSpan,
+                                  @com.legend.base.Nullable PEmbeddedRuntime embeddedRuntime,
+                                  @com.legend.base.Nullable PRuntimeComponents runtimeComponents,
                                   com.legend.protocol.SourceInfo sourceInformation)
             implements PExecutionParameters {
     }
@@ -1147,14 +1147,14 @@ public final class Protocol {
      *  COMPACT form {@code id 'doc'? ( resolvers... tests... )} adds
      *  {@code doc} and resolver-style test data (ZServiceV2Probe). */
     public record PServiceTestSuite(String id,
-                                    @com.legend.Nullable String doc,
-                                    @com.legend.Nullable PSuiteData testData,
+                                    @com.legend.base.Nullable String doc,
+                                    @com.legend.base.Nullable PSuiteData testData,
                                     List<PSuiteTest> tests,
                                     com.legend.protocol.SourceInfo sourceInformation) {
         /** {@code data: [ connections: [...] ]} — span key..']'; OR the
          *  compact form's resolver entries (exactly one list is used). */
         public record PSuiteData(List<PSuiteConnData> connectionsTestData,
-                                 @com.legend.Nullable List<PResolverData> serviceTestData,
+                                 @com.legend.base.Nullable List<PResolverData> serviceTestData,
                                  com.legend.protocol.SourceInfo sourceInformation) {
         }
 
@@ -1167,7 +1167,7 @@ public final class Protocol {
          *  is a {@code referenceDataResolver}, {@code path: Kind #{...}#;}
          *  a {@code baseDataResolver}; the elementPointer wire carries NO
          *  "type" key. */
-        public record PResolverData(@com.legend.Nullable PEmbeddedDataValue data,
+        public record PResolverData(@com.legend.base.Nullable PEmbeddedDataValue data,
                                     String elementPath,
                                     com.legend.protocol.SourceInfo elementSourceInformation,
                                     com.legend.protocol.SourceInfo sourceInformation) {
@@ -1181,10 +1181,10 @@ public final class Protocol {
         }
 
         public record PSuiteTest(String id,
-                                 @com.legend.Nullable String doc,
-                                 @com.legend.Nullable String serializationFormat,
+                                 @com.legend.base.Nullable String doc,
+                                 @com.legend.base.Nullable String serializationFormat,
                                  List<String> keys,
-                                 @com.legend.Nullable List<PSuiteParam> parameters,
+                                 @com.legend.base.Nullable List<PSuiteParam> parameters,
                                  List<PTestAssertion> assertions,
                                  com.legend.protocol.SourceInfo sourceInformation) {
         }
@@ -1193,7 +1193,7 @@ public final class Protocol {
     /** Legacy {@code test: Single { data; asserts }} — wire
      *  {@code singleExecutionTest} (ZTailProbe "service-legacy-test"). */
     public record PLegacyServiceTest(String kind,
-                                     @com.legend.Nullable String data,
+                                     @com.legend.base.Nullable String data,
                                      List<PLegacyAssert> asserts,
                                      List<PKeyedLegacyTest> keyedTests,
                                      com.legend.protocol.SourceInfo sourceInformation) {
@@ -1285,15 +1285,15 @@ public final class Protocol {
     public record PDataSpace(String pkg, String name,
                              List<PStereotype> stereotypes,
                              List<PTaggedValue> taggedValues,
-                             @com.legend.Nullable List<PDataSpaceContext> executionContexts,
-                             @com.legend.Nullable String defaultExecutionContext,
-                             @com.legend.Nullable String title,
-                             @com.legend.Nullable String description,
-                             @com.legend.Nullable List<PDataSpaceExecutable> executables,
-                             @com.legend.Nullable List<PDataSpaceDiagram> diagrams,
-                             @com.legend.Nullable PDataSpaceSupport supportInfo,
-                             @com.legend.Nullable PDataSpaceOperationalMetadata operationalMetadata,
-                             @com.legend.Nullable List<PDataSpaceElementRef> elements,
+                             @com.legend.base.Nullable List<PDataSpaceContext> executionContexts,
+                             @com.legend.base.Nullable String defaultExecutionContext,
+                             @com.legend.base.Nullable String title,
+                             @com.legend.base.Nullable String description,
+                             @com.legend.base.Nullable List<PDataSpaceExecutable> executables,
+                             @com.legend.base.Nullable List<PDataSpaceDiagram> diagrams,
+                             @com.legend.base.Nullable PDataSpaceSupport supportInfo,
+                             @com.legend.base.Nullable PDataSpaceOperationalMetadata operationalMetadata,
+                             @com.legend.base.Nullable List<PDataSpaceElementRef> elements,
                              com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
@@ -1307,14 +1307,14 @@ public final class Protocol {
      *  context names EITHER a mapping OR a mapping provider, and its
      *  default runtime is optional. */
     public record PDataSpaceContext(String name,
-                                    @com.legend.Nullable String title,
-                                    @com.legend.Nullable String description,
-                                    @com.legend.Nullable String mapping,
-                                    @com.legend.Nullable com.legend.protocol.SourceInfo mappingSpan,
-                                    @com.legend.Nullable PDataSpaceMappingProvider mappingProvider,
-                                    @com.legend.Nullable String defaultRuntime,
-                                    @com.legend.Nullable com.legend.protocol.SourceInfo runtimeSpan,
-                                    @com.legend.Nullable PDataSpaceTestData testData,
+                                    @com.legend.base.Nullable String title,
+                                    @com.legend.base.Nullable String description,
+                                    @com.legend.base.Nullable String mapping,
+                                    @com.legend.base.Nullable com.legend.protocol.SourceInfo mappingSpan,
+                                    @com.legend.base.Nullable PDataSpaceMappingProvider mappingProvider,
+                                    @com.legend.base.Nullable String defaultRuntime,
+                                    @com.legend.base.Nullable com.legend.protocol.SourceInfo runtimeSpan,
+                                    @com.legend.base.Nullable PDataSpaceTestData testData,
                                     com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -1331,7 +1331,7 @@ public final class Protocol {
      *  (4.145.0) — regions and frequency are the engine's enum names,
      *  validated as written; span covers key through {@code }} . */
     public record PDataSpaceOperationalMetadata(List<String> coverageRegions,
-                                                @com.legend.Nullable String updateFrequency,
+                                                @com.legend.base.Nullable String updateFrequency,
                                                 com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -1343,20 +1343,20 @@ public final class Protocol {
 
     /** One dataspace executable: path form OR inline-query template form
      *  (the id stringifies on the wire even when written as an integer). */
-    public record PDataSpaceExecutable(@com.legend.Nullable String id,
+    public record PDataSpaceExecutable(@com.legend.base.Nullable String id,
                                        String title,
-                                       @com.legend.Nullable String description,
-                                       @com.legend.Nullable String executable,
-                                       @com.legend.Nullable com.legend.protocol.SourceInfo executableSpan,
-                                       @com.legend.Nullable com.legend.protocol.spec.ValueSpecification query,
-                                       @com.legend.Nullable String executionContextKey,
-                                       @com.legend.Nullable PRelationElement sampleValues,
+                                       @com.legend.base.Nullable String description,
+                                       @com.legend.base.Nullable String executable,
+                                       @com.legend.base.Nullable com.legend.protocol.SourceInfo executableSpan,
+                                       @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification query,
+                                       @com.legend.base.Nullable String executionContextKey,
+                                       @com.legend.base.Nullable PRelationElement sampleValues,
                                        com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** {@code { label: '..'; url: '..'; }} inside the full support form
      *  (4.145.0); span covers the braces. */
-    public record PDataSpaceLink(@com.legend.Nullable String label, String url,
+    public record PDataSpaceLink(@com.legend.base.Nullable String label, String url,
                                  com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -1368,15 +1368,15 @@ public final class Protocol {
 
     /** {@code { description: '..'; expertIds: ['..']; }} — one expertise
      *  entry of the full support form. */
-    public record PDataSpaceExpertise(@com.legend.Nullable String description,
-                                      @com.legend.Nullable List<String> expertIds,
+    public record PDataSpaceExpertise(@com.legend.base.Nullable String description,
+                                      @com.legend.base.Nullable List<String> expertIds,
                                       com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** One dataspace diagram reference — the pointer carries NO type
      *  field on the wire. */
     public record PDataSpaceDiagram(String title,
-                                    @com.legend.Nullable String description,
+                                    @com.legend.base.Nullable String description,
                                     String diagram,
                                     com.legend.protocol.SourceInfo diagramSpan,
                                     com.legend.protocol.SourceInfo sourceInformation) {
@@ -1392,16 +1392,16 @@ public final class Protocol {
      *  ({@code Kind { ... }}), no key, no semicolon. */
     public sealed interface PDataSpaceSupport {
         record PSupportEmail(String address,
-                             @com.legend.Nullable String documentationUrl,
+                             @com.legend.base.Nullable String documentationUrl,
                              com.legend.protocol.SourceInfo sourceInformation)
                 implements PDataSpaceSupport {
         }
 
-        record PSupportCombined(@com.legend.Nullable String documentationUrl,
-                                @com.legend.Nullable String website,
-                                @com.legend.Nullable String faqUrl,
-                                @com.legend.Nullable String supportUrl,
-                                @com.legend.Nullable List<String> emails,
+        record PSupportCombined(@com.legend.base.Nullable String documentationUrl,
+                                @com.legend.base.Nullable String website,
+                                @com.legend.base.Nullable String faqUrl,
+                                @com.legend.base.Nullable String supportUrl,
+                                @com.legend.base.Nullable List<String> emails,
                                 com.legend.protocol.SourceInfo sourceInformation)
                 implements PDataSpaceSupport {
         }
@@ -1410,12 +1410,12 @@ public final class Protocol {
          *  {@code supportInfo: { documentation: {..}; website: {..};
          *  faqUrl: {..}; supportUrl: {..}; emails: [..]; expertise: [..]; };}
          *  — links carry a label; emails and expertise are structured. */
-        record PSupportFull(@com.legend.Nullable PDataSpaceLink documentation,
-                            @com.legend.Nullable PDataSpaceLink website,
-                            @com.legend.Nullable PDataSpaceLink faqUrl,
-                            @com.legend.Nullable PDataSpaceLink supportUrl,
-                            @com.legend.Nullable List<PDataSpaceEmail> emails,
-                            @com.legend.Nullable List<PDataSpaceExpertise> expertise,
+        record PSupportFull(@com.legend.base.Nullable PDataSpaceLink documentation,
+                            @com.legend.base.Nullable PDataSpaceLink website,
+                            @com.legend.base.Nullable PDataSpaceLink faqUrl,
+                            @com.legend.base.Nullable PDataSpaceLink supportUrl,
+                            @com.legend.base.Nullable List<PDataSpaceEmail> emails,
+                            @com.legend.base.Nullable List<PDataSpaceExpertise> expertise,
                             com.legend.protocol.SourceInfo sourceInformation)
                 implements PDataSpaceSupport {
         }
@@ -1427,14 +1427,14 @@ public final class Protocol {
     public record PPersistence(String pkg, String name,
                                List<PStereotype> stereotypes,
                                List<PTaggedValue> taggedValues,
-                               @com.legend.Nullable String doc,
+                               @com.legend.base.Nullable String doc,
                                String triggerKind,
-                               @com.legend.Nullable String service,
-                               @com.legend.Nullable com.legend.protocol.SourceInfo serviceSpan,
-                               @com.legend.Nullable PPersistenceNode persister,
-                               @com.legend.Nullable PPersistenceNotifier notifier,
-                               @com.legend.Nullable List<PServiceOutputTarget> serviceOutputTargets,
-                               @com.legend.Nullable List<PPersistenceTest> tests,
+                               @com.legend.base.Nullable String service,
+                               @com.legend.base.Nullable com.legend.protocol.SourceInfo serviceSpan,
+                               @com.legend.base.Nullable PPersistenceNode persister,
+                               @com.legend.base.Nullable PPersistenceNotifier notifier,
+                               @com.legend.base.Nullable List<PServiceOutputTarget> serviceOutputTargets,
+                               @com.legend.base.Nullable List<PPersistenceTest> tests,
                                com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
@@ -1448,7 +1448,7 @@ public final class Protocol {
      *  field names ARE the grammar keys; slots sort alphabetically at
      *  emission (ZTailProbe "persist-v1"/"persist-v2"). */
     public record PPersistenceNode(String kind,
-                                   @com.legend.Nullable com.legend.protocol.spec.ValueSpecification headPath,
+                                   @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification headPath,
                                    List<PPersistenceEntry> entries,
                                    com.legend.protocol.SourceInfo sourceInformation) {
         /** A keyword-headed node (the usual form). */
@@ -1509,7 +1509,7 @@ public final class Protocol {
      *  key-anchored span in the family); ALWAYS on the wire, empty
      *  notifyees and no span when unspelled. */
     public record PPersistenceNotifier(List<PPersistenceNode> notifyees,
-                                       @com.legend.Nullable com.legend.protocol.SourceInfo sourceInformation) {
+                                       @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation) {
     }
 
     /** One {@code serviceOutputTargets:} pair —
@@ -1524,7 +1524,7 @@ public final class Protocol {
     public record PPersistenceTest(String id,
                                    List<PPersistenceTestBatch> testBatches,
                                    boolean isTestDataFromServiceOutput,
-                                   @com.legend.Nullable com.legend.protocol.spec.ValueSpecification graphFetchPath,
+                                   @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification graphFetchPath,
                                    com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -1548,9 +1548,9 @@ public final class Protocol {
                                       List<PTaggedValue> taggedValues,
                                       String persistence,
                                       com.legend.protocol.SourceInfo persistenceSpan,
-                                      @com.legend.Nullable PPersistenceNode platform,
+                                      @com.legend.base.Nullable PPersistenceNode platform,
                                       List<PCtxParam> serviceParameters,
-                                      @com.legend.Nullable PConnectionValue sinkConnection,
+                                      @com.legend.base.Nullable PConnectionValue sinkConnection,
                                       com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
@@ -1590,9 +1590,9 @@ public final class Protocol {
      *  its span covers the text AS WRITTEN (ZTailProbe "diagram"). */
     public record PClassView(String id, String classPath,
                              com.legend.protocol.SourceInfo classSpan,
-                             @com.legend.Nullable Boolean hideProperties,
-                             @com.legend.Nullable Boolean hideStereotypes,
-                             @com.legend.Nullable Boolean hideTaggedValues,
+                             @com.legend.base.Nullable Boolean hideProperties,
+                             @com.legend.base.Nullable Boolean hideStereotypes,
+                             @com.legend.base.Nullable Boolean hideTaggedValues,
                              double x, double y, double width, double height,
                              com.legend.protocol.SourceInfo sourceInformation) {
     }
@@ -1648,10 +1648,10 @@ public final class Protocol {
                                      java.util.Map<String, Boolean> booleans,
                                      String functionPath,
                                      com.legend.protocol.SourceInfo functionSpan,
-                                     @com.legend.Nullable String ownerId,
-                                     @com.legend.Nullable List<String> userListUsers,
-                                     @com.legend.Nullable String activationConnection,
-                                     @com.legend.Nullable com.legend.protocol.SourceInfo activationConnectionSpan,
+                                     @com.legend.base.Nullable String ownerId,
+                                     @com.legend.base.Nullable List<String> userListUsers,
+                                     @com.legend.base.Nullable String activationConnection,
+                                     @com.legend.base.Nullable com.legend.protocol.SourceInfo activationConnectionSpan,
                                      com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public PFunctionActivator {
@@ -1671,7 +1671,7 @@ public final class Protocol {
     /** {@code ###Text} — {@code Text pkg::T { type: STRING; content: '...' }};
      *  type is optional (ZTailProbe "text"). */
     public record PText(String pkg, String name,
-                        @com.legend.Nullable String type, String content,
+                        @com.legend.base.Nullable String type, String content,
                         com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
@@ -1720,7 +1720,7 @@ public final class Protocol {
      *  hoist out of configurationProperties. */
     public record PFileGeneration(String pkg, String name, String type,
                                   com.legend.protocol.SourceInfo typeSourceInformation,
-                                  @com.legend.Nullable String generationOutputPath,
+                                  @com.legend.base.Nullable String generationOutputPath,
                                   List<String> scopeElements,
                                   List<PConfigProperty> configurationProperties,
                                   com.legend.protocol.SourceInfo sourceInformation)
@@ -1733,8 +1733,8 @@ public final class Protocol {
     /** A Deephaven table column — kind is the wire {@code _type} stem
      *  (stringType/intType/...); precision/scale ride DECIMAL only. */
     public record PDeephavenColumn(String name, String kind,
-                                   @com.legend.Nullable Integer precision,
-                                   @com.legend.Nullable Integer scale) {
+                                   @com.legend.base.Nullable Integer precision,
+                                   @com.legend.base.Nullable Integer scale) {
     }
 
     /** {@code ###Deephaven} store (ZTailProbe "deephaven-store"/"-cols"):
@@ -1764,8 +1764,8 @@ public final class Protocol {
         /** {@code typeKey} is the lowercase wire key ({@code keyword}). */
         public record PEsProperty(String propertyName, String wireKey,
                 String protocolType, String esType,
-                @com.legend.Nullable List<PEsProperty> fields,
-                @com.legend.Nullable List<PEsProperty> childProperties) {
+                @com.legend.base.Nullable List<PEsProperty> fields,
+                @com.legend.base.Nullable List<PEsProperty> childProperties) {
         }
 
         public String qualifiedName() {
@@ -1778,14 +1778,14 @@ public final class Protocol {
      *  scalar facets only when spelled, properties in source order
      *  (ZTailProbe "mongo-rich"). */
     public record PBsonSchema(String wireType,
-                              @com.legend.Nullable Boolean additionalPropertiesAllowed,
+                              @com.legend.base.Nullable Boolean additionalPropertiesAllowed,
                               List<java.util.Map.Entry<String, PBsonSchema>> properties,
                               List<String> required,
-                              @com.legend.Nullable String title,
-                              @com.legend.Nullable String description,
-                              @com.legend.Nullable Long minLength,
-                              @com.legend.Nullable Long maxLength,
-                              @com.legend.Nullable List<PBsonSchema> items) {
+                              @com.legend.base.Nullable String title,
+                              @com.legend.base.Nullable String description,
+                              @com.legend.base.Nullable Long minLength,
+                              @com.legend.base.Nullable Long maxLength,
+                              @com.legend.base.Nullable List<PBsonSchema> items) {
     }
 
     /** {@code ###MongoDB} database (ZTailProbe "mongo-db"/"mongo-rich"):
@@ -1807,11 +1807,11 @@ public final class Protocol {
     /** A DataQuality graph-fetch tree node: root carries the class name,
      *  property nodes the property name; both carry constraint names and
      *  subtrees (ZTailProbe "dq-validation"). */
-    public record PDqTreeNode(@com.legend.Nullable String className,
-                              @com.legend.Nullable String property,
+    public record PDqTreeNode(@com.legend.base.Nullable String className,
+                              @com.legend.base.Nullable String property,
                               List<String> constraints,
                               List<PDqTreeNode> subTrees,
-                              @com.legend.Nullable String subType,
+                              @com.legend.base.Nullable String subType,
                               com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -1823,10 +1823,10 @@ public final class Protocol {
                                          String contextKind,
                                          String contextPath,
                                          com.legend.protocol.SourceInfo contextPathSpan,
-                                         @com.legend.Nullable String contextSecond,
-                                         @com.legend.Nullable com.legend.protocol.SourceInfo contextSecondSpan,
+                                         @com.legend.base.Nullable String contextSecond,
+                                         @com.legend.base.Nullable com.legend.protocol.SourceInfo contextSecondSpan,
                                          PDqTreeNode validationTree,
-                                         @com.legend.Nullable com.legend.protocol.spec.ValueSpecification filter,
+                                         @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification filter,
                                          com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
@@ -1836,9 +1836,9 @@ public final class Protocol {
 
     /** One {@code validations:} entry of a relation validation. */
     public record PDqRelationCheck(String name,
-                                   @com.legend.Nullable String description,
+                                   @com.legend.base.Nullable String description,
                                    com.legend.protocol.spec.ValueSpecification assertion,
-                                   @com.legend.Nullable String type) {
+                                   @com.legend.base.Nullable String type) {
     }
 
     /** {@code DataQualityRelationValidation} (ZTailProbe
@@ -1849,7 +1849,7 @@ public final class Protocol {
                                                  List<PTaggedValue> taggedValues,
                                                  com.legend.protocol.spec.ValueSpecification query,
                                                  List<PDqRelationCheck> validations,
-                                                 @com.legend.Nullable List<PDqTestSuite> testSuites,
+                                                 @com.legend.base.Nullable List<PDqTestSuite> testSuites,
                                                  com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
@@ -1864,7 +1864,7 @@ public final class Protocol {
      *  {@code dataQualityRelationComparisonTestSuite}, tests likewise);
      *  the data block is a wrapper object with its own span. */
     public record PDqTestSuite(String id,
-                               @com.legend.Nullable PDqTestData testData,
+                               @com.legend.base.Nullable PDqTestData testData,
                                List<PDqTest> tests,
                                com.legend.protocol.SourceInfo sourceInformation) {
     }
@@ -1894,9 +1894,9 @@ public final class Protocol {
                                                  com.legend.protocol.spec.ValueSpecification target,
                                                  List<String> keys,
                                                  List<String> columnsToCompare,
-                                                 @com.legend.Nullable Double expectedMatch,
+                                                 @com.legend.base.Nullable Double expectedMatch,
                                                  PReconStrategy strategy,
-                                                 @com.legend.Nullable List<PDqTestSuite> testSuites,
+                                                 @com.legend.base.Nullable List<PDqTestSuite> testSuites,
                                                  com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
         public String qualifiedName() {
@@ -1908,16 +1908,16 @@ public final class Protocol {
      *  {@code {_type:"md5Hash", ...}}; the config block is OPTIONAL but
      *  must be non-empty when present (engine grammar {@code (...)+}). */
     public record PReconStrategy(String kind,
-                                 @com.legend.Nullable String sourceHashColumn,
-                                 @com.legend.Nullable String targetHashColumn,
-                                 @com.legend.Nullable Boolean aggregatedHash) {
+                                 @com.legend.base.Nullable String sourceHashColumn,
+                                 @com.legend.base.Nullable String targetHashColumn,
+                                 @com.legend.base.Nullable Boolean aggregatedHash) {
     }
 
     /** One {@code schemas:} entry of a SchemaSet — contentSourceInformation
      *  is the string TOKEN's span, quotes included; sourceInformation the
      *  brace body (ZTailProbe "schemaset"). */
-    public record PSchema(@com.legend.Nullable String id,
-                          @com.legend.Nullable String location,
+    public record PSchema(@com.legend.base.Nullable String id,
+                          @com.legend.base.Nullable String location,
                           String content,
                           com.legend.protocol.SourceInfo contentSourceInformation,
                           com.legend.protocol.SourceInfo sourceInformation) {
@@ -1937,8 +1937,8 @@ public final class Protocol {
     /** {@code ###ExternalFormat Binding} (ZTailProbe "binding"):
      *  {@code _type:"binding"}; schemaSet/schemaId omitted when schemaless. */
     public record PBinding(String pkg, String name,
-                           @com.legend.Nullable String schemaSet,
-                           @com.legend.Nullable String schemaId,
+                           @com.legend.base.Nullable String schemaSet,
+                           @com.legend.base.Nullable String schemaId,
                            String contentType,
                            List<String> modelIncludes,
                            List<String> modelExcludes,
@@ -1953,9 +1953,9 @@ public final class Protocol {
      *  {@code [Integer]}) or complex ({@code Class <- binding}); exactly
      *  one of {@code primitive}/{@code complexType} is set (ZTailProbe
      *  "svcstore-rich"). */
-    public record PSsTypeRef(@com.legend.Nullable String primitive,
-                             @com.legend.Nullable String complexType,
-                             @com.legend.Nullable String binding,
+    public record PSsTypeRef(@com.legend.base.Nullable String primitive,
+                             @com.legend.base.Nullable String complexType,
+                             @com.legend.base.Nullable String binding,
                              boolean list,
                              com.legend.protocol.SourceInfo sourceInformation) {
     }
@@ -1963,14 +1963,14 @@ public final class Protocol {
     /** One ServiceStore service parameter — serializationFormat facets
      *  (style/explode) carry their own {@code x = y} text spans. */
     public record PSsParam(String name, PSsTypeRef type,
-                           @com.legend.Nullable Boolean allowReserved,
-                           @com.legend.Nullable Boolean required,
+                           @com.legend.base.Nullable Boolean allowReserved,
+                           @com.legend.base.Nullable Boolean required,
                            String location,
-                           @com.legend.Nullable String style,
-                           @com.legend.Nullable com.legend.protocol.SourceInfo styleSpan,
-                           @com.legend.Nullable Boolean explode,
-                           @com.legend.Nullable com.legend.protocol.SourceInfo explodeSpan,
-                           @com.legend.Nullable String enumeration,
+                           @com.legend.base.Nullable String style,
+                           @com.legend.base.Nullable com.legend.protocol.SourceInfo styleSpan,
+                           @com.legend.base.Nullable Boolean explode,
+                           @com.legend.base.Nullable com.legend.protocol.SourceInfo explodeSpan,
+                           @com.legend.base.Nullable String enumeration,
                            com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -1981,9 +1981,9 @@ public final class Protocol {
     /** {@code Service id ( ... )} — parameters is null when the block is
      *  not spelled (the wire omits the slot entirely). */
     public record PSsService(String id, String path,
-                             @com.legend.Nullable PSsTypeRef requestBody,
+                             @com.legend.base.Nullable PSsTypeRef requestBody,
                              String method,
-                             @com.legend.Nullable List<PSsParam> parameters,
+                             @com.legend.base.Nullable List<PSsParam> parameters,
                              PSsTypeRef response,
                              List<String> security,
                              com.legend.protocol.SourceInfo sourceInformation)
@@ -2001,7 +2001,7 @@ public final class Protocol {
      *  "serviceStore". The {@code description:} field parses but never
      *  reaches the wire (engine walker drops it). */
     public record PServiceStoreDefinition(String pkg, String name,
-                                          @com.legend.Nullable String description,
+                                          @com.legend.base.Nullable String description,
                                           List<PServiceStoreElement> elements,
                                           com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
@@ -2056,7 +2056,7 @@ public final class Protocol {
     /** A typeless store pointer inside connectionStores. */
     public record PStorePointer(String path,
                                 com.legend.protocol.SourceInfo sourceInformation,
-                                @com.legend.Nullable String type) {
+                                @com.legend.base.Nullable String type) {
     }
 
     /** A connection VALUE: a pointer, or a concrete connection (standalone
@@ -2083,8 +2083,8 @@ public final class Protocol {
     /** {@code ServiceStoreConnection { store; baseUrl; }} —
      *  {@code _type:"serviceStore"} (ZTailProbe "servicestore-conn"). */
     public record PServiceStoreConnection(String baseUrl,
-                                          @com.legend.Nullable String element,
-                                          @com.legend.Nullable com.legend.protocol.SourceInfo elementSourceInformation,
+                                          @com.legend.base.Nullable String element,
+                                          @com.legend.base.Nullable com.legend.protocol.SourceInfo elementSourceInformation,
                                           com.legend.protocol.SourceInfo sourceInformation)
             implements PConnectionValue {
     }
@@ -2094,8 +2094,8 @@ public final class Protocol {
      *  "deephaven-conn"); the value's span runs the first body key through
      *  the island close. */
     public record PDeephavenConnection(String serverUrl, String psk,
-                                       @com.legend.Nullable String element,
-                                       @com.legend.Nullable com.legend.protocol.SourceInfo elementSourceInformation,
+                                       @com.legend.base.Nullable String element,
+                                       @com.legend.base.Nullable com.legend.protocol.SourceInfo elementSourceInformation,
                                        com.legend.protocol.SourceInfo sourceInformation)
             implements PConnectionValue {
     }
@@ -2107,8 +2107,8 @@ public final class Protocol {
     public record PMongoDbConnection(String databaseName,
                                      List<PMongoServerUrl> serverUrls,
                                      PAuthSpecValue auth,
-                                     @com.legend.Nullable String element,
-                                     @com.legend.Nullable com.legend.protocol.SourceInfo elementSourceInformation,
+                                     @com.legend.base.Nullable String element,
+                                     @com.legend.base.Nullable com.legend.protocol.SourceInfo elementSourceInformation,
                                      com.legend.protocol.SourceInfo sourceInformation)
             implements PConnectionValue {
         public PMongoDbConnection {
@@ -2211,12 +2211,12 @@ public final class Protocol {
      *  secret itself; awsDefault credentials are spanless, awsStatic
      *  carries its block span (probed asymmetry). */
     public record PAwsSecret(String secretId,
-                             @com.legend.Nullable String versionId,
-                             @com.legend.Nullable String versionStage,
+                             @com.legend.base.Nullable String versionId,
+                             @com.legend.base.Nullable String versionStage,
                              String credsKind,
-                             @com.legend.Nullable PMongoSecret accessKeyId,
-                             @com.legend.Nullable PMongoSecret secretAccessKey,
-                             @com.legend.Nullable com.legend.protocol.SourceInfo credsSpan)
+                             @com.legend.base.Nullable PMongoSecret accessKeyId,
+                             @com.legend.base.Nullable PMongoSecret secretAccessKey,
+                             @com.legend.base.Nullable com.legend.protocol.SourceInfo credsSpan)
             implements PVaultSecret {
     }
 
@@ -2237,7 +2237,7 @@ public final class Protocol {
      *  embedded-json vs json). */
     public record PJsonModelConnection(String className,
                                        com.legend.protocol.SourceInfo classSourceInformation,
-                                       @com.legend.Nullable String element,
+                                       @com.legend.base.Nullable String element,
                                        String url,
                                        com.legend.protocol.SourceInfo sourceInformation)
             implements PConnectionValue {
@@ -2246,7 +2246,7 @@ public final class Protocol {
     /** {@code _type:"XmlModelConnection"} — same shape as Json (probe xml). */
     public record PXmlModelConnection(String className,
                                       com.legend.protocol.SourceInfo classSourceInformation,
-                                      @com.legend.Nullable String element,
+                                      @com.legend.base.Nullable String element,
                                       String url,
                                       com.legend.protocol.SourceInfo sourceInformation)
             implements PConnectionValue {
@@ -2254,7 +2254,7 @@ public final class Protocol {
 
     /** {@code _type:"ModelChainConnection"} — mappings as STRINGS + one
      *  mappingsSourceInformation (probe model-chain). */
-    public record PModelChainConnection(@com.legend.Nullable String element,
+    public record PModelChainConnection(@com.legend.base.Nullable String element,
                                         List<String> mappings,
                                         com.legend.protocol.SourceInfo mappingsSourceInformation,
                                         com.legend.protocol.SourceInfo sourceInformation)
@@ -2269,14 +2269,14 @@ public final class Protocol {
             PAuthStrategy authenticationStrategy,
             String databaseType,
             PDatasourceSpec datasourceSpecification,
-            @com.legend.Nullable String element,
-            @com.legend.Nullable com.legend.protocol.SourceInfo elementSourceInformation,
-            @com.legend.Nullable Boolean localMode,
+            @com.legend.base.Nullable String element,
+            @com.legend.base.Nullable com.legend.protocol.SourceInfo elementSourceInformation,
+            @com.legend.base.Nullable Boolean localMode,
             List<PPostProcessor> postProcessors,
-            @com.legend.Nullable List<PGenerationFeaturesConfig> queryGenerationConfigs,
-            @com.legend.Nullable Long queryTimeOutInSeconds,
-            @com.legend.Nullable Boolean quoteIdentifiers,
-            @com.legend.Nullable String timeZone,
+            @com.legend.base.Nullable List<PGenerationFeaturesConfig> queryGenerationConfigs,
+            @com.legend.base.Nullable Long queryTimeOutInSeconds,
+            @com.legend.base.Nullable Boolean quoteIdentifiers,
+            @com.legend.base.Nullable String timeZone,
             com.legend.protocol.SourceInfo sourceInformation)
             implements PConnectionValue {
     }
@@ -2350,19 +2350,19 @@ public final class Protocol {
 
     /** {@code _type:"athena"} — AthenaParserGrammar: {@code region} required,
      *  the rest optional (AthenaGrammarParserExtension). */
-    public record PAthenaSpec(@com.legend.Nullable String athenaEndpoint,
-                              @com.legend.Nullable String catalog,
-                              @com.legend.Nullable String database,
-                              @com.legend.Nullable String outputLocation,
+    public record PAthenaSpec(@com.legend.base.Nullable String athenaEndpoint,
+                              @com.legend.base.Nullable String catalog,
+                              @com.legend.base.Nullable String database,
+                              @com.legend.base.Nullable String outputLocation,
                               String region,
-                              @com.legend.Nullable String workGroup,
+                              @com.legend.base.Nullable String workGroup,
                               com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }
 
     /** {@code _type:"aurora"} — AuroraParserGrammar auroraDsp: host, port,
      *  name required; clusterInstanceHostPattern optional. */
-    public record PAuroraSpec(@com.legend.Nullable String clusterInstanceHostPattern,
+    public record PAuroraSpec(@com.legend.base.Nullable String clusterInstanceHostPattern,
                               String host, String name, long port,
                               com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
@@ -2383,9 +2383,9 @@ public final class Protocol {
      *  (port a STRING in source, an int on the wire — the engine's walker
      *  runs Integer.valueOf at parse time); databaseName and useSsl
      *  (a STRING read as a Boolean) optional. */
-    public record PMemSqlSpec(@com.legend.Nullable String databaseName,
+    public record PMemSqlSpec(@com.legend.base.Nullable String databaseName,
                               String host, long port,
-                              @com.legend.Nullable Boolean useSsl,
+                              @com.legend.base.Nullable Boolean useSsl,
                               com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }
@@ -2393,7 +2393,7 @@ public final class Protocol {
     /** {@code _type:"oracle"} — OracleParserGrammar: host and port
      *  required, serviceName optional. */
     public record POracleSpec(String host, long port,
-                              @com.legend.Nullable String serviceName,
+                              @com.legend.base.Nullable String serviceName,
                               com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }
@@ -2409,7 +2409,7 @@ public final class Protocol {
     /** {@code _type:"duckDB"} — the engine's DuckDB datasource spec
      *  (DuckDBParserGrammar: {@code DuckDB { (path: '...';)* }}; probe
      *  ZMigrationTargetProbe). No path = in-process/in-memory. */
-    public record PDuckDBSpec(@com.legend.Nullable String path,
+    public record PDuckDBSpec(@com.legend.base.Nullable String path,
                               com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }
@@ -2419,7 +2419,7 @@ public final class Protocol {
      *  future engine SQLite extension finds our text conformant
      *  (own-corpus decision review 2026-08-11). No engine wire shape —
      *  the emitter refuses it loudly like the other extension flavors. */
-    public record PSQLiteSpec(@com.legend.Nullable String path,
+    public record PSQLiteSpec(@com.legend.base.Nullable String path,
                               com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }
@@ -2429,36 +2429,36 @@ public final class Protocol {
      *  {@code warehouse}&rarr;warehouseName; optional fields omitted when
      *  absent (probe ZConnWidenProbe). */
     public record PSnowflakeSpec(String accountName,
-                                 @com.legend.Nullable String accountType,
-                                 @com.legend.Nullable String cloudType,
+                                 @com.legend.base.Nullable String accountType,
+                                 @com.legend.base.Nullable String cloudType,
                                  String databaseName,
-                                 @com.legend.Nullable Boolean enableQueryTags,
-                                 @com.legend.Nullable String nonProxyHosts,
-                                 @com.legend.Nullable String organization,
-                                 @com.legend.Nullable String proxyHost,
-                                 @com.legend.Nullable String proxyPort,
-                                 @com.legend.Nullable Boolean quotedIdentifiersIgnoreCase,
+                                 @com.legend.base.Nullable Boolean enableQueryTags,
+                                 @com.legend.base.Nullable String nonProxyHosts,
+                                 @com.legend.base.Nullable String organization,
+                                 @com.legend.base.Nullable String proxyHost,
+                                 @com.legend.base.Nullable String proxyPort,
+                                 @com.legend.base.Nullable Boolean quotedIdentifiersIgnoreCase,
                                  String region,
-                                 @com.legend.Nullable String role,
-                                 @com.legend.Nullable String tempTableDb,
-                                 @com.legend.Nullable String tempTableSchema,
+                                 @com.legend.base.Nullable String role,
+                                 @com.legend.base.Nullable String tempTableDb,
+                                 @com.legend.base.Nullable String tempTableSchema,
                                  String warehouseName,
-                                 @com.legend.Nullable com.legend.protocol.SourceInfo sourceInformation)
+                                 @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }
 
     /** {@code _type:"spanner"} (probe ZConnWidenProbe). */
     public record PSpannerSpec(String databaseId, String instanceId,
                                String projectId,
-                               @com.legend.Nullable String proxyHost,
-                               @com.legend.Nullable Long proxyPort,
+                               @com.legend.base.Nullable String proxyHost,
+                               @com.legend.base.Nullable Long proxyPort,
                                com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }
 
     /** {@code _type:"redshift"} (census queued-relational-flavors). */
     public record PRedshiftSpec(String clusterID, String databaseName,
-                                @com.legend.Nullable String endpointURL,
+                                @com.legend.base.Nullable String endpointURL,
                                 String host, long port, String region,
                                 com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
@@ -2466,33 +2466,33 @@ public final class Protocol {
 
     /** {@code _type:"Trino"} — capitalized on the wire (census
      *  queued-relational-flavors). */
-    public record PTrinoSpec(@com.legend.Nullable String catalog,
-                             @com.legend.Nullable String clientTags,
+    public record PTrinoSpec(@com.legend.base.Nullable String catalog,
+                             @com.legend.base.Nullable String clientTags,
                              String host, long port,
-                             @com.legend.Nullable String schema,
-                             @com.legend.Nullable PTrinoSsl sslSpecification,
+                             @com.legend.base.Nullable String schema,
+                             @com.legend.base.Nullable PTrinoSsl sslSpecification,
                              com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }
 
     /** Trino {@code sslSpecification { ssl; trustStore...; }}. */
     public record PTrinoSsl(boolean ssl,
-                            @com.legend.Nullable String trustStorePathVaultReference,
-                            @com.legend.Nullable String trustStorePasswordVaultReference) {
+                            @com.legend.base.Nullable String trustStorePathVaultReference,
+                            @com.legend.base.Nullable String trustStorePasswordVaultReference) {
     }
 
     /** {@code _type:"TrinoDelegatedKerberosAuth"} (census C12 flavor). */
     public record PTrinoKerberosAuth(
-            @com.legend.Nullable String kerberosRemoteServiceName,
-            @com.legend.Nullable Boolean kerberosUseCanonicalHostname,
-            @com.legend.Nullable String serverPrincipal,
+            @com.legend.base.Nullable String kerberosRemoteServiceName,
+            @com.legend.base.Nullable Boolean kerberosUseCanonicalHostname,
+            @com.legend.base.Nullable String serverPrincipal,
             com.legend.protocol.SourceInfo sourceInformation)
             implements PAuthStrategy {
     }
 
     /** {@code _type:"gcpWorkloadIdentityFederation"} (census
      *  queued-relational-flavors, C12 sentinel). */
-    public record PGcpWifAuth(@com.legend.Nullable List<String> additionalGcpScopes,
+    public record PGcpWifAuth(@com.legend.base.Nullable List<String> additionalGcpScopes,
                               String serviceAccountEmail,
                               com.legend.protocol.SourceInfo sourceInformation)
             implements PAuthStrategy {
@@ -2508,8 +2508,8 @@ public final class Protocol {
 
     /** {@code _type:"bigQuery"} (probe ZConnWidenProbe). */
     public record PBigQuerySpec(String defaultDataset, String projectId,
-                                @com.legend.Nullable String proxyHost,
-                                @com.legend.Nullable String proxyPort,
+                                @com.legend.base.Nullable String proxyHost,
+                                @com.legend.base.Nullable String proxyPort,
                                 com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }
@@ -2517,8 +2517,8 @@ public final class Protocol {
     /** {@code _type:"h2Local"}; testDataSetupCsv/Sqls omitted when absent
      *  (source key testDataSetupCSV spells testDataSetupCsv on the wire).
      */
-    public record PH2Local(@com.legend.Nullable String testDataSetupCsv,
-                           @com.legend.Nullable List<String> testDataSetupSqls,
+    public record PH2Local(@com.legend.base.Nullable String testDataSetupCsv,
+                           @com.legend.base.Nullable List<String> testDataSetupSqls,
                            com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }
@@ -2552,7 +2552,7 @@ public final class Protocol {
     public record PSnowflakePublic(String passPhraseVaultReference,
                                    String privateKeyVaultReference,
                                    String publicUserName,
-                                   @com.legend.Nullable com.legend.protocol.SourceInfo sourceInformation)
+                                   @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
             implements PAuthStrategy {
     }
 
@@ -2576,7 +2576,7 @@ public final class Protocol {
     }
 
     /** {@code _type:"userNamePassword"} — vault references, base optional. */
-    public record PUserNamePassword(@com.legend.Nullable String baseVaultReference,
+    public record PUserNamePassword(@com.legend.base.Nullable String baseVaultReference,
                                     String userNameVaultReference,
                                     String passwordVaultReference,
                                     com.legend.protocol.SourceInfo sourceInformation)
@@ -2594,7 +2594,7 @@ public final class Protocol {
     }
 
     /** {@code _type:"delegatedKerberos"}; serverPrincipal optional. */
-    public record PDelegatedKerberos(@com.legend.Nullable String serverPrincipal,
+    public record PDelegatedKerberos(@com.legend.base.Nullable String serverPrincipal,
                                      com.legend.protocol.SourceInfo sourceInformation)
             implements PAuthStrategy {
     }
@@ -2605,7 +2605,7 @@ public final class Protocol {
      * lambda whose wrapper carries NO span (probe: vanilla engine Measure JSON).
      */
     public record PMeasure(String pkg, String name,
-                           @com.legend.Nullable PUnit canonicalUnit,
+                           @com.legend.base.Nullable PUnit canonicalUnit,
                            List<PUnit> nonCanonicalUnits,
                            com.legend.protocol.SourceInfo sourceInformation)
             implements Element {
@@ -2622,8 +2622,8 @@ public final class Protocol {
     /** One measure unit: name, owning measure FQN, optional conversion (param + body —
      *  {@code *Unit;} has none), span = name..the terminating ';' ({@code *} excluded). */
     public record PUnit(String name, String measureFqn,
-                        @com.legend.Nullable String paramName,
-                        @com.legend.Nullable com.legend.protocol.spec.ValueSpecification body,
+                        @com.legend.base.Nullable String paramName,
+                        @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification body,
                         com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -2633,7 +2633,7 @@ public final class Protocol {
      * the whole block; a named suite ({@code name ( ... )}) spans name..close-paren
      * (ProbeWireShapes "fn tests wire", "fn tests named suite").
      */
-    public record PTestSuite(@com.legend.Nullable String id,
+    public record PTestSuite(@com.legend.base.Nullable String id,
                              com.legend.protocol.SourceInfo sourceInformation,
                              List<PTestData> testData,
                              List<PFunctionTest> tests) {
@@ -2643,7 +2643,7 @@ public final class Protocol {
         }
 
         /** No-data convenience constructor. */
-        public PTestSuite(@com.legend.Nullable String id,
+        public PTestSuite(@com.legend.base.Nullable String id,
                           com.legend.protocol.SourceInfo sourceInformation,
                           List<PFunctionTest> tests) {
             this(id, sourceInformation, List.of(), tests);
@@ -2658,7 +2658,7 @@ public final class Protocol {
     public record PTestData(String storePath,
                             com.legend.protocol.SourceInfo storeSpan,
                             PTestPayload data,
-                            @com.legend.Nullable String pointerType,
+                            @com.legend.base.Nullable String pointerType,
                             com.legend.protocol.SourceInfo sourceInformation) {
         /** The plain store form every pre-dataspace caller builds. */
         public PTestData(String storePath,
@@ -2680,7 +2680,7 @@ public final class Protocol {
          *  spells {@code DATA} on the wire, {@code DATASPACE} for the
          *  {@code DataspaceTestData #{...}#} island form (ZTailProbe
          *  "dataspace-testref"). */
-        record Reference(String path, @com.legend.Nullable String refType,
+        record Reference(String path, @com.legend.base.Nullable String refType,
                          com.legend.protocol.SourceInfo sourceInformation)
                 implements PTestPayload {
             public Reference(String path,
@@ -2773,7 +2773,7 @@ public final class Protocol {
     /** One test-call argument, keyed by the SIGNATURE parameter name at its position —
      *  {@code null} when the call passes more arguments than the signature declares
      *  (probe "pf extra test arg": the name key is simply absent). */
-    public record PTestParam(@com.legend.Nullable String name,
+    public record PTestParam(@com.legend.base.Nullable String name,
                              com.legend.protocol.spec.ValueSpecification value,
                              com.legend.protocol.SourceInfo sourceInformation) {
     }
@@ -3021,8 +3021,8 @@ public final class Protocol {
                             List<PStereotype> stereotypes,
                             List<PTaggedValue> taggedValues,
                             com.legend.protocol.SourceInfo sourceInformation,
-                            @com.legend.Nullable PDefaultValue defaultValue,
-                            @com.legend.Nullable String aggregation) {
+                            @com.legend.base.Nullable PDefaultValue defaultValue,
+                            @com.legend.base.Nullable String aggregation) {
         public PProperty {
             stereotypes = List.copyOf(stereotypes);
             taggedValues = List.copyOf(taggedValues);
@@ -3033,7 +3033,7 @@ public final class Protocol {
                          com.legend.protocol.Multiplicity multiplicity,
                          List<PStereotype> stereotypes, List<PTaggedValue> taggedValues,
                          com.legend.protocol.SourceInfo sourceInformation,
-                         @com.legend.Nullable PDefaultValue defaultValue) {
+                         @com.legend.base.Nullable PDefaultValue defaultValue) {
             this(name, type, multiplicity, stereotypes, taggedValues,
                     sourceInformation, defaultValue, null);
         }
@@ -3047,7 +3047,7 @@ public final class Protocol {
      * could not build a value-spec tree for it — the parser stays total; {@link ProtocolEmitter}
      * walls loudly on the null rather than dropping the property or the build silently.
      */
-    public record PDefaultValue(@com.legend.Nullable com.legend.protocol.spec.ValueSpecification value,
+    public record PDefaultValue(@com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification value,
                                 com.legend.protocol.SourceInfo sourceInformation) {
     }
 
@@ -3104,7 +3104,7 @@ public final class Protocol {
     }
 
     /** Carries no {@code _type} and no source information. */
-    public record PMultiplicity(int lowerBound, @com.legend.Nullable Integer upperBound) {
+    public record PMultiplicity(int lowerBound, @com.legend.base.Nullable Integer upperBound) {
     }
 
     /**

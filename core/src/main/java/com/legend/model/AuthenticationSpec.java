@@ -41,15 +41,15 @@ public sealed interface AuthenticationSpec
     /** Both kerberos flavors ride here — the plain strategy leaves the
      *  Trino-only fields null; the Trino flavor carries them (they were
      *  silently DROPPED before — deep-audit #2 §3, fixed 2026-08-14). */
-    record DelegatedKerberos(@com.legend.Nullable String serverPrincipal,
-            @com.legend.Nullable String kerberosRemoteServiceName,
-            @com.legend.Nullable Boolean kerberosUseCanonicalHostname)
+    record DelegatedKerberos(@com.legend.base.Nullable String serverPrincipal,
+            @com.legend.base.Nullable String kerberosRemoteServiceName,
+            @com.legend.base.Nullable Boolean kerberosUseCanonicalHostname)
             implements AuthenticationSpec {}
 
     /** Engine's {@code auth: UserNamePassword { ...VaultReference... };} —
      *  ALL THREE fields are vault references, unlike
      *  {@link UsernamePassword}'s literal username. */
-    record VaultUserNamePassword(@com.legend.Nullable String baseVaultReference,
+    record VaultUserNamePassword(@com.legend.base.Nullable String baseVaultReference,
             String userNameVaultReference, String passwordVaultReference)
             implements AuthenticationSpec {}
 

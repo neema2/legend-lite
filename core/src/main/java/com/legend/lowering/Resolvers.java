@@ -29,8 +29,8 @@ final class Resolvers {
      */
     @FunctionalInterface
     interface ColumnResolver {
-        @com.legend.Nullable SqlExpr resolve(@com.legend.Nullable String var,
-                @com.legend.Nullable String propOrNull);
+        @com.legend.base.Nullable SqlExpr resolve(@com.legend.base.Nullable String var,
+                @com.legend.base.Nullable String propOrNull);
     }
 
     /** The resolve-or-fold outcome at a try boundary. */

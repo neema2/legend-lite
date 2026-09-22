@@ -20,7 +20,7 @@ public enum MilestoningStrategy {
      * {@code temporal.*} stereotype names (matching the historical
      * set-membership tolerance).
      */
-    public static @com.legend.Nullable MilestoningStrategy ofStereotypeOrNull(
+    public static @com.legend.base.Nullable MilestoningStrategy ofStereotypeOrNull(
             String profileName,
             String stereotypeName) {
         if (!com.legend.compiler.element.type.PlatformTypes.isProfile(profileName,

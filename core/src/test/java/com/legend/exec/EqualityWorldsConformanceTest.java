@@ -40,7 +40,7 @@ class EqualityWorldsConformanceTest {
 
     /** World 2: {@code {|a == b}} through the whole pipeline. The SQL
      * verdict may be NULL (SQL three-valued logic) — returned as null. */
-    private static @com.legend.Nullable Object world2(String a, String b)
+    private static @com.legend.base.Nullable Object world2(String a, String b)
             throws Exception {
         var r = Compiler.execute("", "{|" + a + " == " + b + "}", conn);
         return ((ExecutionResult.Scalar) r).value();
@@ -56,7 +56,7 @@ class EqualityWorldsConformanceTest {
 
     /** A DECLARED divergence: each world pinned at its OWN verdict, the
      * reason on the record. */
-    private static void diverge(boolean world1, @com.legend.Nullable Object world2,
+    private static void diverge(boolean world1, @com.legend.base.Nullable Object world2,
             String pureA, String pureB, Object javaA, Object javaB,
             String reason) throws Exception {
         assertEquals(world1, Equality.same(Equality.Typed.of(javaA), Equality.Typed.of(javaB)),

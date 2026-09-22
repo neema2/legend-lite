@@ -202,7 +202,7 @@ final class TailEmitter {
     }
 
     private static void esChildMap(StringBuilder b, String label,
-            @com.legend.Nullable java.util.List<
+            @com.legend.base.Nullable java.util.List<
                     Protocol.PElasticsearch7Cluster.PEsProperty> children) {
         if (children == null) {
             return;
@@ -2206,9 +2206,9 @@ final class TailEmitter {
     /** {@code runtimePointer | engineRuntime} — the embedded form reuses
      *  the runtime element's ARRAY emission. */
     private static void serviceRuntime(StringBuilder b,
-            @com.legend.Nullable String runtime,
-            @com.legend.Nullable SourceInfo runtimeSpan,
-            @com.legend.Nullable Protocol.PEmbeddedRuntime embedded) {
+            @com.legend.base.Nullable String runtime,
+            @com.legend.base.Nullable SourceInfo runtimeSpan,
+            @com.legend.base.Nullable Protocol.PEmbeddedRuntime embedded) {
         if (runtime != null) {
             b.append(",\"runtime\":{\"_type\":\"runtimePointer\","
                     + "\"runtime\":");

@@ -23,7 +23,7 @@ public class EngineStyleDB2 extends EngineStyleH2 {
     }
 
     public EngineStyleDB2(boolean quoteIdentifiers,
-            @com.legend.Nullable String timeZone) {
+            @com.legend.base.Nullable String timeZone) {
         super(quoteIdentifiers, timeZone);
     }
 
@@ -253,7 +253,7 @@ public class EngineStyleDB2 extends EngineStyleH2 {
 
     /** TYPED format parts → DB2's pattern spelling; null when a part has
      * no mapping (the caller throws — never a silent fallback). */
-    private static @com.legend.Nullable String db2Pattern(SqlExpr.FormatLit fl) {
+    private static @com.legend.base.Nullable String db2Pattern(SqlExpr.FormatLit fl) {
         StringBuilder out = new StringBuilder();
         for (com.legend.sql.DateFmt d : fl.parts()) {
             switch (d) {

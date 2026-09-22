@@ -18,7 +18,7 @@ public final class DerivedPropertyNames {
     }
 
     /** {owner, name}, or null when {@code fqn} is not a lifted derived property. */
-    public static String @com.legend.Nullable [] split(String fqn) {
+    public static String @com.legend.base.Nullable [] split(String fqn) {
         int i = fqn.indexOf(SIGIL);
         return i <= 0 ? null
                 : new String[] {fqn.substring(0, i), fqn.substring(i + SIGIL.length())};

@@ -69,7 +69,7 @@ public final class AsorRef {
     /** The DEFINING mapping named by a static prefix (segment 2 of the
      *  framing) — the resolver's decode arm keys its pk-column facts on
      *  it. Null when the text is not a well-formed prefix. */
-    public static @com.legend.Nullable String prefixMapping(String prefix) {
+    public static @com.legend.base.Nullable String prefixMapping(String prefix) {
         try {
             int i = "001:010:".length();
             String seg = null;
@@ -93,7 +93,7 @@ public final class AsorRef {
      * the REAL segment walk — never a substring heuristic. Null when
      * the text is not a well-formed reference (callers keep their loud
      * walls). */
-    public static @com.legend.Nullable Ref decode(String ref) {
+    public static @com.legend.base.Nullable Ref decode(String ref) {
         try {
             String b64 = ref.startsWith(MARKER)
                     ? ref.substring(MARKER.length()) : ref;

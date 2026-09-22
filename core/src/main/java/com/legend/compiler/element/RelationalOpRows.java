@@ -96,9 +96,9 @@ public final class RelationalOpRows {
      * (a table's or a view's id), the view it belongs to when it is a
      * view's own alias, and the base TABLE behind it. */
     public static List<String> aliasRow(String mappingFqn, String setId, String name,
-            @com.legend.Nullable String mainElementId,
-            @com.legend.Nullable String viewElementId,
-            @com.legend.Nullable String baseElementId) {
+            @com.legend.base.Nullable String mainElementId,
+            @com.legend.base.Nullable String viewElementId,
+            @com.legend.base.Nullable String baseElementId) {
         List<String> r = element("alias:" + mappingFqn + "|" + setId, "TableAlias");
         r.set(2, name);
         r.set(16, mappingFqn);
@@ -110,11 +110,11 @@ public final class RelationalOpRows {
     }
 
     /** An expression NODE (the op-tree kinds). */
-    private static List<String> opRow(String id, String kind, @com.legend.Nullable String parent,
-            @com.legend.Nullable Integer ordinal, @com.legend.Nullable String dynaName,
-            @com.legend.Nullable String literal, @com.legend.Nullable String colElementId,
-            @com.legend.Nullable String colName, @com.legend.Nullable String typeId,
-            @com.legend.Nullable String pkMapping, @com.legend.Nullable String pkSet) {
+    private static List<String> opRow(String id, String kind, @com.legend.base.Nullable String parent,
+            @com.legend.base.Nullable Integer ordinal, @com.legend.base.Nullable String dynaName,
+            @com.legend.base.Nullable String literal, @com.legend.base.Nullable String colElementId,
+            @com.legend.base.Nullable String colName, @com.legend.base.Nullable String typeId,
+            @com.legend.base.Nullable String pkMapping, @com.legend.base.Nullable String pkSet) {
         List<String> r = element(id, kind);
         r.set(7, parent);
         r.set(8, ordinal == null ? null : Integer.toString(ordinal));
@@ -198,16 +198,16 @@ public final class RelationalOpRows {
      * children. {@code scopeDb}/{@code scopeTable} resolve bare column
      * references (a view reads its own store; a set's expressions its
      * main table). A parenthesized group is transparent (no engine node). */
-    public void node(RelationalOperation op, String id, @com.legend.Nullable String parent,
-            @com.legend.Nullable Integer ordinal, @com.legend.Nullable String scopeDbFqn,
-            @com.legend.Nullable DatabaseDefinition scopeDb, @com.legend.Nullable String scopeTable) {
+    public void node(RelationalOperation op, String id, @com.legend.base.Nullable String parent,
+            @com.legend.base.Nullable Integer ordinal, @com.legend.base.Nullable String scopeDbFqn,
+            @com.legend.base.Nullable DatabaseDefinition scopeDb, @com.legend.base.Nullable String scopeTable) {
         node(op, id, parent, ordinal, scopeDbFqn, scopeDb, scopeTable, null, null);
     }
 
-    public void node(RelationalOperation op, String id, @com.legend.Nullable String parent,
-            @com.legend.Nullable Integer ordinal, @com.legend.Nullable String scopeDbFqn,
-            @com.legend.Nullable DatabaseDefinition scopeDb, @com.legend.Nullable String scopeTable,
-            @com.legend.Nullable String pkMapping, @com.legend.Nullable String pkSet) {
+    public void node(RelationalOperation op, String id, @com.legend.base.Nullable String parent,
+            @com.legend.base.Nullable Integer ordinal, @com.legend.base.Nullable String scopeDbFqn,
+            @com.legend.base.Nullable DatabaseDefinition scopeDb, @com.legend.base.Nullable String scopeTable,
+            @com.legend.base.Nullable String pkMapping, @com.legend.base.Nullable String pkSet) {
         if (op instanceof RelationalOperation.Group g) {
             node(g.inner(), id, parent, ordinal, scopeDbFqn, scopeDb, scopeTable, pkMapping, pkSet);
             return;
@@ -321,7 +321,7 @@ public final class RelationalOpRows {
     /** {schema, table} of a table spelling: {@code schema.table} as
      * written; a bare name is the top-level ({@code default}) table or
      * view when one exists, else the declared schema holding it. */
-    private static String[] splitTable(@com.legend.Nullable DatabaseDefinition db, String spelling) {
+    private static String[] splitTable(@com.legend.base.Nullable DatabaseDefinition db, String spelling) {
         int dot = spelling.indexOf('.');
         if (dot >= 0) {
             return new String[] {spelling.substring(0, dot), spelling.substring(dot + 1)};

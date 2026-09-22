@@ -25,7 +25,7 @@ final class PureSql {
      * (the funnel strips the whole envelope). A synthesized call (no span)
      * raises position-free, exactly as before. */
     static com.legend.sql.SqlExpr raise(com.legend.sql.SqlExpr message,
-            com.legend.protocol.@com.legend.Nullable SourceInfo pos) {
+            com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
         return pos == null
                 ? com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, message)
                 : com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, message,
@@ -83,7 +83,7 @@ final class PureSql {
      * primitives have an SQL carrier, and which" ({@code type()}
      * throws where this is null; {@code carrierOrNull} passes the
      * null through — the audit's two-owners fix). */
-    private static @com.legend.Nullable SqlType primitiveCarrier(
+    private static @com.legend.base.Nullable SqlType primitiveCarrier(
             Type.Primitive p) {
         return switch (p) {
             case STRING -> SqlType.Scalar.VARCHAR;
@@ -226,7 +226,7 @@ final class PureSql {
      * type()} also reads), precision decimals, and the designed class
      * carriers (variant/Any/Nil). Everything else null — the door
      * stays shut. */
-    private static @com.legend.Nullable SqlType carrierOrNull(Type t) {
+    private static @com.legend.base.Nullable SqlType carrierOrNull(Type t) {
         if (t instanceof Type.Primitive p) {
             return primitiveCarrier(p);
         }

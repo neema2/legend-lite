@@ -46,7 +46,7 @@ import java.util.Optional;
  */
 public record TypedNavigate(TypedSpec source, Optional<String> alias, TypedSpec target,
                             TypedLambda predicate, Optional<TypedLambda> pairedPredicate,
-                            @com.legend.Nullable String frameName, Form form, ExprType info,
+                            @com.legend.base.Nullable String frameName, Form form, ExprType info,
                             List<Route> routes) implements TypedSpec {
 
     /** ONE ROUTE of a several-route legacy navigate (legacy routes as
@@ -72,7 +72,7 @@ public record TypedNavigate(TypedSpec source, Optional<String> alias, TypedSpec 
 
     public TypedNavigate(TypedSpec source, Optional<String> alias, TypedSpec target,
                          TypedLambda predicate, Optional<TypedLambda> pairedPredicate,
-                         @com.legend.Nullable String frameName, Form form, ExprType info) {
+                         @com.legend.base.Nullable String frameName, Form form, ExprType info) {
         this(source, alias, target, predicate, pairedPredicate, frameName, form, info, List.of());
     }
 

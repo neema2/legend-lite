@@ -95,7 +95,7 @@ public final class ScanOrder {
 
     /** The driving base-table scan IF the select is order-stabilizable
      * (see class doc); null otherwise. */
-    private static SqlSource.@com.legend.Nullable Table orderableBase(SqlSelect s) {
+    private static SqlSource.@com.legend.base.Nullable Table orderableBase(SqlSelect s) {
         if (!s.orderBy().isEmpty()
                 || s.distinct()
                 || !s.groupBy().isEmpty()

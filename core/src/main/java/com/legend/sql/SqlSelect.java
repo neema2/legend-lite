@@ -1,6 +1,6 @@
 package com.legend.sql;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;

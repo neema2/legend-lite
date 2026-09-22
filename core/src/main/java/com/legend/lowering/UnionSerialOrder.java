@@ -35,12 +35,12 @@ final class UnionSerialOrder {
      * null when no such union surfaces (joins, explicit projections,
      * distinct/grouped pass-throughs — injection bails silently and the
      * array keeps scan order). */
-    static @com.legend.Nullable SqlSelect inject(SqlSelect base) {
+    static @com.legend.base.Nullable SqlSelect inject(SqlSelect base) {
         SqlSource f2 = intoSource(base.from());
         return f2 == null ? null : base.withFrom(f2);
     }
 
-    private static @com.legend.Nullable SqlSource intoSource(SqlSource src) {
+    private static @com.legend.base.Nullable SqlSource intoSource(SqlSource src) {
         if (!(src instanceof SqlSource.Subselect ss)) {
             return null;    // tables/joins: no serial member spine to order
         }
@@ -49,7 +49,7 @@ final class UnionSerialOrder {
                 : new SqlSource.Subselect(rewritten, ss.alias(), ss.frameName());
     }
 
-    private static @com.legend.Nullable SqlQuery intoQuery(SqlQuery q) {
+    private static @com.legend.base.Nullable SqlQuery intoQuery(SqlQuery q) {
         if (q instanceof SqlUnion u && u.all()) {
             List<SqlQuery> branches = new ArrayList<>(u.branches().size());
             for (int i = 0; i < u.branches().size(); i++) {

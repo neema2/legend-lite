@@ -1140,7 +1140,7 @@ public interface TokenStreamCursor {
      *  (the block-shape check is {@link #taggedValuesWithDocumentation}'s,
      *  as in the engine); a plain quoted string at declaration position is
      *  the engine's refusal, verbatim. */
-    default @com.legend.Nullable Documentation parseDocumentation() {
+    default @com.legend.base.Nullable Documentation parseDocumentation() {
         if (peek() == TokenType.STRING && pos() + 1 < tokens().count()
                 && DECLARATION_HEADS.contains(peek(1))) {
             throw error("Documentation must be written as a multi-line ('''...''') literal");
@@ -1162,7 +1162,7 @@ public interface TokenStreamCursor {
 
     /** {@link #parseDecorations()}'s result with the documentation folded
      *  into its tagged values — the relational store's five sites. */
-    default Decorations withDocumentation(@com.legend.Nullable Documentation doc, Decorations dec) {
+    default Decorations withDocumentation(@com.legend.base.Nullable Documentation doc, Decorations dec) {
         return doc == null ? dec
                 : new Decorations(dec.stereotypes(), taggedValuesWithDocumentation(doc, dec.taggedValues()));
     }
@@ -1173,7 +1173,7 @@ public interface TokenStreamCursor {
      *  import, or the qualified profile; {@code my::pkg::doc} is another
      *  profile) both refuse with the engine's message. */
     default java.util.List<com.legend.protocol.Protocol.PTaggedValue> taggedValuesWithDocumentation(
-            @com.legend.Nullable Documentation doc,
+            @com.legend.base.Nullable Documentation doc,
             java.util.List<com.legend.protocol.Protocol.PTaggedValue> taggedValues) {
         if (doc == null) {
             return taggedValues;

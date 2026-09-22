@@ -41,7 +41,7 @@ final class InDbVerdict {
      * for the message only). {@code valueFrame}: our side is a VALUE
      * collection (pure collections hold no empties), so a one-column
      * all-NULL row counts on neither side. */
-    static @com.legend.Nullable String judge(Connection session, Statement oracle,
+    static @com.legend.base.Nullable String judge(Connection session, Statement oracle,
             String goldenSql, String ourSql,
             Map<Integer, Map<String, String>> enumDecode, boolean valueFrame)
             throws SQLException {

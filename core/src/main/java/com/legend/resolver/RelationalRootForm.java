@@ -49,7 +49,7 @@ public final class RelationalRootForm {
      * from() wrapper (the toSQLString K-native resolves with an explicit
      * mapping argument instead). */
     public static List<TypedSpec> apply(List<TypedSpec> body, ModelContext ctx,
-            @com.legend.Nullable String mappingFqn) {
+            @com.legend.base.Nullable String mappingFqn) {
         if (body.isEmpty()) {
             return body;
         }
@@ -205,13 +205,13 @@ public final class RelationalRootForm {
      * flags only when the mapping declares none.
      */
     private static List<String> primaryKeyColumns(TypedSerializeGraph g,
-            @com.legend.Nullable String mappingFqn, ModelContext ctx) {
+            @com.legend.base.Nullable String mappingFqn, ModelContext ctx) {
         return primaryKeyColumns(g.classFqn(), g.source(), mappingFqn, ctx);
     }
 
     /** The GraphEmission order-key entry (same rule, pre-node). */
-    static List<String> primaryKeyColumns(@com.legend.Nullable String classFqn, TypedSpec source,
-            @com.legend.Nullable String mappingFqn, ModelContext ctx) {
+    static List<String> primaryKeyColumns(@com.legend.base.Nullable String classFqn, TypedSpec source,
+            @com.legend.base.Nullable String mappingFqn, ModelContext ctx) {
         if (mappingFqn != null && classFqn != null) {
             var mapping = ctx.findMapping(mappingFqn).orElse(null);
             if (mapping != null) {

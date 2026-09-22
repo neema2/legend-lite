@@ -233,7 +233,7 @@ final class AssociationSynthesis {
 
     /** The class mapping with this class's/set's pending injections
      * appended; null when none apply. */
-    private static ClassMapping.@com.legend.Nullable Relational withInjectedPMs(ClassMapping cm,
+    private static ClassMapping.@com.legend.base.Nullable Relational withInjectedPMs(ClassMapping cm,
             Map<String, List<PropertyMapping>> byClass,
             Map<String, Map<String, List<PropertyMapping>>> bySet, List<String> lineage) {
         if (!(cm instanceof ClassMapping.Relational rcm)) return null;
@@ -327,7 +327,7 @@ final class AssociationSynthesis {
 
     /** The property's OWN end class (the navigation target), mirror of
      * {@link #associationOwnerClass}. */
-    static @com.legend.Nullable String associationTargetClass(AssociationDefinition ad, String propName) {
+    static @com.legend.base.Nullable String associationTargetClass(AssociationDefinition ad, String propName) {
         if (ad.property1().propertyName().equals(propName)) {
             return MappingNormalizer.nameRefOrNull(ad.property1().targetClass());
         }
@@ -343,7 +343,7 @@ final class AssociationSynthesis {
      * class {@code p2} points at (and vice versa). Returns {@code null} if
      * {@code propName} is neither end, or the opposite end is non-NameRef.
      */
-    static @com.legend.Nullable String associationOwnerClass(AssociationDefinition ad, String propName) {
+    static @com.legend.base.Nullable String associationOwnerClass(AssociationDefinition ad, String propName) {
         if (ad.property1().propertyName().equals(propName)) {
             return MappingNormalizer.nameRefOrNull(ad.property2().targetClass());
         }
@@ -378,7 +378,7 @@ final class AssociationSynthesis {
                         md.qualifiedName().substring(0, cut) + "::" + name);
     }
 
-    static @com.legend.Nullable FunctionDefinition synthesizeAssociationMapping(ResolvedMapping md,
+    static @com.legend.base.Nullable FunctionDefinition synthesizeAssociationMapping(ResolvedMapping md,
                                                                   AssociationMapping am,
                                                                   ModelBuilder model,
                                                                   MappingLedger ledger) {
@@ -560,7 +560,7 @@ final class AssociationSynthesis {
             LegacyMappingDefinition.TableReference b) {
     }
 
-    private static @com.legend.Nullable EndAnchors endAnchors(
+    private static @com.legend.base.Nullable EndAnchors endAnchors(
             ResolvedMapping md, String classA, String classB, PropertyMapping.Join join,
             ModelBuilder model) {
         LegacyMappingDefinition.TableReference a = anchorTableOf(md, classA, model);
@@ -678,7 +678,7 @@ final class AssociationSynthesis {
      * EMBEDDED block — the OWNING set's main table (engine: an embedded
      * set implementation shares its owner's table; Join Firm_Organizations
      * anchors on PERSON_FIRM_DENORM). Null when neither resolves. */
-    static LegacyMappingDefinition.@com.legend.Nullable TableReference
+    static LegacyMappingDefinition.@com.legend.base.Nullable TableReference
             anchorTableOf(ResolvedMapping md, String classFqn,
             ModelBuilder model) {
         if (MappingNormalizer.hasMainTable(md, classFqn, model)) {

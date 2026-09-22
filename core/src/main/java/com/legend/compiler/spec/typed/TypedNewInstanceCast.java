@@ -20,7 +20,7 @@ import java.util.Objects;
  */
 public record TypedNewInstanceCast(String classFqn, TypedSpec source,
                                    ExprType info,
-                                   @com.legend.Nullable String targetSetId)
+                                   @com.legend.base.Nullable String targetSetId)
         implements TypedSpec {
 
     public TypedNewInstanceCast {

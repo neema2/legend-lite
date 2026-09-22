@@ -507,7 +507,7 @@ public final class PersistenceSectionGrammar
 
     private static void parseEntries(TokenStreamCursor c,
             List<Protocol.PPersistenceEntry> out,
-            @com.legend.Nullable TokenType close) {
+            @com.legend.base.Nullable TokenType close) {
         while (!c.atEnd() && (close == null || c.peek() != close)) {
             int keyStart = c.pos();
             String key = c.parseIdentifier();

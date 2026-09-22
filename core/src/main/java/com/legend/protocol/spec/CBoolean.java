@@ -6,7 +6,7 @@ package com.legend.protocol.spec;
  * <p><b>Position is excluded from equality on purpose</b> — same contract as
  * {@link CInteger}/{@link CString}, guarded by {@code ValueSpecEqualityTest}.
  */
-public record CBoolean(boolean value, @com.legend.Nullable com.legend.protocol.SourceInfo pos)
+public record CBoolean(boolean value, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
 
     /** Position-free convenience constructor. */

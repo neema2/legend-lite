@@ -33,7 +33,7 @@ public final class CanonicalRenderSql {
     /** Canon LEAF spellings live in {@link LiteralSpelling} (F10
      * proper slice 1 — one grammar owner); this name survives as the
      * verdict lane's entry. */
-    public static @com.legend.Nullable SqlExpr scalarCanon(SqlExpr v, Type t) {
+    public static @com.legend.base.Nullable SqlExpr scalarCanon(SqlExpr v, Type t) {
         return LiteralSpelling.leaf(v, t);
     }
 
@@ -58,7 +58,7 @@ public final class CanonicalRenderSql {
      * rider. */
     public record CanonWrap(com.legend.sql.SqlQuery plan,
             List<Type> kinds, boolean many, int literalIndex,
-            @com.legend.Nullable String declineReason) {
+            @com.legend.base.Nullable String declineReason) {
 
         static CanonWrap decline(com.legend.sql.SqlQuery plan,
                 String reason) {
@@ -69,7 +69,7 @@ public final class CanonicalRenderSql {
     public static CanonWrap wrapWithCanon(com.legend.sql.SqlQuery plan,
             com.legend.compiler.element.type.ExprType rootInfo,
             boolean canonicalOrder,
-            com.legend.compiler.element.@com.legend.Nullable EqualityKeys
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys
                     instanceKeys) {
         return wrapWithCanon(plan, rootInfo, canonicalOrder, instanceKeys,
                 true);
@@ -100,7 +100,7 @@ public final class CanonicalRenderSql {
     public static CanonWrap wrapWithCanon(com.legend.sql.SqlQuery plan,
             com.legend.compiler.element.type.ExprType rootInfo,
             boolean canonicalOrder,
-            com.legend.compiler.element.@com.legend.Nullable EqualityKeys
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys
                     instanceKeys,
             boolean literalChannel) {
         return wrapWithCanon(plan, rootInfo, canonicalOrder, instanceKeys, literalChannel, false);
@@ -110,7 +110,7 @@ public final class CanonicalRenderSql {
     public static CanonWrap wrapWithCanon(com.legend.sql.SqlQuery plan,
             com.legend.compiler.element.type.ExprType rootInfo,
             boolean canonicalOrder,
-            com.legend.compiler.element.@com.legend.Nullable EqualityKeys
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys
                     instanceKeys,
             boolean literalChannel, boolean nameValued) {
         return wrapWithCanon(plan, rootInfo, canonicalOrder, instanceKeys, literalChannel,
@@ -123,10 +123,10 @@ public final class CanonicalRenderSql {
     public static CanonWrap wrapWithCanon(com.legend.sql.SqlQuery plan,
             com.legend.compiler.element.type.ExprType rootInfo,
             boolean canonicalOrder,
-            com.legend.compiler.element.@com.legend.Nullable EqualityKeys
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys
                     instanceKeys,
             boolean literalChannel, boolean nameValued,
-            @com.legend.Nullable String enumFrame) {
+            @com.legend.base.Nullable String enumFrame) {
         if (plan.outputs().size() != 1) {
             return CanonWrap.decline(plan, "non-scalar plan shape: "
                     + plan.outputs().size() + " columns");
@@ -380,7 +380,7 @@ public final class CanonicalRenderSql {
      * per-ROW canonical text appended as the LAST column, or a decline
      * with the plan unchanged. */
     public record TdsWrap(com.legend.sql.SqlQuery plan,
-            @com.legend.Nullable String declineReason) {
+            @com.legend.base.Nullable String declineReason) {
 
         static TdsWrap decline(com.legend.sql.SqlQuery plan,
                 String reason) {
@@ -415,7 +415,7 @@ public final class CanonicalRenderSql {
      * mismatches (pivot, struct flattening), and unclaimed cell
      * kinds. */
     public static TdsWrap wrapTdsCanon(com.legend.sql.SqlQuery plan,
-            Type.@com.legend.Nullable RelationType schema) {
+            Type.@com.legend.base.Nullable RelationType schema) {
         if (schema == null) {
             return TdsWrap.decline(plan, "tds-canon: no schema view");
         }
@@ -559,7 +559,7 @@ public final class CanonicalRenderSql {
      * synthetic {@code __id}: {@code {_type, _id}}, JSON-framed like the
      * keyed canon. Null when the layout has no identity field (Any/
      * variant wire trees, layoutless classes). */
-    static @com.legend.Nullable SqlExpr identityCanon(SqlExpr v,
+    static @com.legend.base.Nullable SqlExpr identityCanon(SqlExpr v,
             String fqn, SqlType layout) {
         String idField = com.legend.compiler.element.ClassLayouts
                 .SYNTHETIC_ID;
@@ -581,8 +581,8 @@ public final class CanonicalRenderSql {
      * entry): keyed classes render their key tree ({@code instanceCanon},
      * the X5 relation), keyless classes their identity. Null =
      * unclaimable shape (the caller keeps its legacy behavior). */
-    static @com.legend.Nullable SqlExpr instanceEqualityCanon(SqlExpr v,
-            com.legend.compiler.element.@com.legend.Nullable EqualityKeys
+    static @com.legend.base.Nullable SqlExpr instanceEqualityCanon(SqlExpr v,
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys
                     keys,
             String fqn, SqlType layout) {
         return keys == null ? identityCanon(v, fqn, layout)
@@ -604,7 +604,7 @@ public final class CanonicalRenderSql {
      * Null = unclaimed shape (to-many key, unknown field, unclaimable
      * leaf kind) — the caller declines, counted.
      */
-    static @com.legend.Nullable SqlExpr instanceCanon(SqlExpr v,
+    static @com.legend.base.Nullable SqlExpr instanceCanon(SqlExpr v,
             com.legend.compiler.element.EqualityKeys keys, SqlType layout) {
         // the BARE-ARRAY carrier (List<T>): the SQL value IS the one
         // to-many key's collection (PureSql — List travels as an array,
@@ -699,7 +699,7 @@ public final class CanonicalRenderSql {
      * cannot collide across different key/value splits). Key and value
      * kinds come from the MAP layout's static types; an unclaimable
      * kind declines, counted. */
-    private static @com.legend.Nullable SqlExpr mapCanon(SqlExpr v,
+    private static @com.legend.base.Nullable SqlExpr mapCanon(SqlExpr v,
             SqlType layout, String fqn) {
         if (!(layout instanceof SqlType.Map mt)) {
             return null;
@@ -735,9 +735,9 @@ public final class CanonicalRenderSql {
     /** One key LEAF: a nested keyed instance recurses (JSON-typed,
      * nests structurally); a scalar renders as PURE'S OWN LITERAL
      * SPELLING ({@link #literalCanon}). */
-    private static @com.legend.Nullable SqlExpr taggedLeaf(SqlExpr field,
+    private static @com.legend.base.Nullable SqlExpr taggedLeaf(SqlExpr field,
             SqlType ft,
-            com.legend.compiler.element.@com.legend.Nullable EqualityKeys
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys
                     nested) {
         // F10 proper: a constructed instance carries its own canon
         // (__canon, stamped at its construction site) — a nested struct
@@ -790,7 +790,7 @@ public final class CanonicalRenderSql {
      * verdict declines the pair, never guesses.
      */
     public static SqlExpr constructionCanon(List<SqlExpr.StructLit.Field> fields,
-            com.legend.compiler.element.@com.legend.Nullable EqualityKeys keys,
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys keys,
             String classFqn) {
         java.util.Map<String, SqlExpr.StructLit.Field> byName = new java.util.LinkedHashMap<>();
         for (SqlExpr.StructLit.Field f : fields) {
@@ -840,8 +840,8 @@ public final class CanonicalRenderSql {
     }
 
     /** One value's canon by its CARRIER (the construction-site rule). */
-    private static SqlExpr valueCanon(SqlExpr v, @com.legend.Nullable SqlType t,
-            com.legend.compiler.element.@com.legend.Nullable EqualityKeys nested) {
+    private static SqlExpr valueCanon(SqlExpr v, @com.legend.base.Nullable SqlType t,
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys nested) {
         if (t instanceof SqlType.Struct st) {
             if (hasCanonField(st)) {
                 return SqlExpr.StructGet.of(v,
@@ -905,7 +905,7 @@ public final class CanonicalRenderSql {
      * engine's same-primitive-kind rule carried by engine syntax.
      * (X5's key-leaf rule, promoted to the shared literal channel —
      * F10 v1 compares Any-involving pairs in it.) */
-    static @com.legend.Nullable SqlExpr literalCanon(SqlExpr v, Type kind) {
+    static @com.legend.base.Nullable SqlExpr literalCanon(SqlExpr v, Type kind) {
         return LiteralSpelling.literal(v, kind);
     }
 

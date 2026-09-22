@@ -47,7 +47,7 @@ public interface TestObserver extends AssertListener {
     }
 
     /** The referee for this test's asserts, or null for none. */
-    default @com.legend.Nullable SqlReplayOracle oracle(PureTests.TestCase test) {
+    default @com.legend.base.Nullable SqlReplayOracle oracle(PureTests.TestCase test) {
         return null;
     }
 
@@ -72,7 +72,7 @@ public interface TestObserver extends AssertListener {
     }
 
     @Override
-    default void verdict(String assertName, boolean pass, @com.legend.Nullable String detail) {
+    default void verdict(String assertName, boolean pass, @com.legend.base.Nullable String detail) {
     }
 
     /** A fixture whose physical table names CLASH with tables the session
@@ -86,7 +86,7 @@ public interface TestObserver extends AssertListener {
      *  aside, its transaction its own — a body's open attempt may not
      *  write to a second namespace); null = no such primitive, the runner
      *  refuses the fixture instead (never a silent clobber). */
-    default @com.legend.Nullable Connection isolateFixture(Connection conn, String setupFqn)
+    default @com.legend.base.Nullable Connection isolateFixture(Connection conn, String setupFqn)
             throws SQLException {
         return null;
     }

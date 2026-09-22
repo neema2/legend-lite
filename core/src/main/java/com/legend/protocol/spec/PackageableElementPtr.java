@@ -27,7 +27,7 @@ import java.util.Objects;
  * @param fullPath  source-level name (simple or {@code ::}-qualified)
  */
 public record PackageableElementPtr(String fullPath,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
     public PackageableElementPtr {
         Objects.requireNonNull(fullPath, "fullPath");
     }

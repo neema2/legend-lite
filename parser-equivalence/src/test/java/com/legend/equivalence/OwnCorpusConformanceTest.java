@@ -71,7 +71,7 @@ class OwnCorpusConformanceTest {
      * the design that wants it). The engine's own message is the evidence
      * the construct was hit.
      */
-    private static @com.legend.Nullable String liteDesign(Throwable root,
+    private static @com.legend.base.Nullable String liteDesign(Throwable root,
             String text) {
         String msg = String.valueOf(root.getMessage());
         if (msg.contains("No parser for AssociationMapping")) {
@@ -140,7 +140,7 @@ class OwnCorpusConformanceTest {
      *  same required-field story (ElementParserTest pins the lenient
      *  default; the drop-in surface stays engine-parity). Strict
      *  accepting it would be a genuine leniency — unclassified. */
-    private static @com.legend.Nullable String lenientTierFixture(
+    private static @com.legend.base.Nullable String lenientTierFixture(
             Throwable root, String text) {
         String msg = String.valueOf(root.getMessage());
         if (!(msg.contains("Field '") && msg.contains("' is required"))) {

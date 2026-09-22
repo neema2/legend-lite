@@ -3,6 +3,8 @@
 
 package com.legend;
 
+import com.legend.base.Nullable;
+
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedCString;

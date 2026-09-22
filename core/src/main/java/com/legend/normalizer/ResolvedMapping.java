@@ -63,7 +63,7 @@ final class ResolvedMapping {
     Map<String, MappingDefinition.ClassBinding.DeclaredKeys> declaredKeys() { return declaredKeys; }
 
     /** The validation's recorded reason for {@code cm}'s set, else null. */
-    @com.legend.Nullable String invalidReason(ClassMapping cm) { return invalid.get(idOf(cm)); }
+    @com.legend.base.Nullable String invalidReason(ClassMapping cm) { return invalid.get(idOf(cm)); }
 
 
 
@@ -76,7 +76,7 @@ final class ResolvedMapping {
     List<MappingInclude> includes() { return md.includes(); }
     List<AssociationMapping> associationMappings() { return md.associationMappings(); }
     List<EnumerationMapping> enumerationMappings() { return md.enumerationMappings(); }
-    @com.legend.Nullable String testSuitesSource() { return md.testSuitesSource(); }
+    @com.legend.base.Nullable String testSuitesSource() { return md.testSuitesSource(); }
 
     // ---- identities -----------------------------------------------------
 
@@ -88,7 +88,7 @@ final class ResolvedMapping {
     // ---- resolutions (today's rules; B2 adopts the engine's) -------------
     /** The set with id {@code setId}: this mapping's own first, else one
      * visible through the includes. Null for a null id or no such set. */
-    @com.legend.Nullable ClassMapping set(@com.legend.Nullable String setId) {
+    @com.legend.base.Nullable ClassMapping set(@com.legend.base.Nullable String setId) {
         if (setId == null) {
             return null;
         }
@@ -131,7 +131,7 @@ final class ResolvedMapping {
 
     /** The Union operation set for {@code classFqn}: own first, else the
      * first found through the includes. */
-    ClassMapping.@com.legend.Nullable Union unionOf(@com.legend.Nullable String classFqn) {
+    ClassMapping.@com.legend.base.Nullable Union unionOf(@com.legend.base.Nullable String classFqn) {
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.Union u && u.className().equals(classFqn)) {
                 return u;
@@ -141,7 +141,7 @@ final class ResolvedMapping {
     }
 
     /** The Inheritance operation set for {@code classFqn}, the same rule. */
-    ClassMapping.@com.legend.Nullable Inheritance inheritanceOf(String classFqn) {
+    ClassMapping.@com.legend.base.Nullable Inheritance inheritanceOf(String classFqn) {
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.Inheritance ih && ih.className().equals(classFqn)) {
                 return ih;
@@ -189,7 +189,7 @@ final class ResolvedMapping {
 
     /** A union member's ordinal for {@code setId}: the member itself, or
      * the member whose {@code extends} chain reaches it; -1 otherwise. */
-    int memberOrdinal(List<String> memberIds, @com.legend.Nullable String setId) {
+    int memberOrdinal(List<String> memberIds, @com.legend.base.Nullable String setId) {
         int direct = memberIds.indexOf(setId);
         if (direct >= 0) {
             return direct;

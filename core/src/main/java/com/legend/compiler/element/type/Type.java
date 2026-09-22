@@ -395,7 +395,7 @@ public sealed interface Type permits
      * {@code Class[1]} was. Null for every other type, the two carrier
      * families included: a {@code Relation<T>} is a table, a function
      * carrier is a lambda — neither is a row. */
-    static @com.legend.Nullable String classFqn(Type t) {
+    static @com.legend.base.Nullable String classFqn(Type t) {
         return switch (t) {
             case ClassType c -> c.fqn();
             case GenericType g when !isRelation(g)
@@ -410,7 +410,7 @@ public sealed interface Type permits
      * type ("is this a row, and of which class"): the resolver works on
      * raw classes, type arguments are the kernel's business. Null when
      * the value is not a row (see classFqn). */
-    static @com.legend.Nullable ClassType asClassType(Type t) {
+    static @com.legend.base.Nullable ClassType asClassType(Type t) {
         String fqn = classFqn(t);
         return fqn == null ? null : t instanceof ClassType c ? c : new ClassType(fqn);
     }
@@ -419,7 +419,7 @@ public sealed interface Type permits
      * {@code t} is not a resolved table type. THE "is this a table?"
      * reader — a bare {@link RelationType} is a schema/row, never a
      * table, and returns null here. */
-    static @com.legend.Nullable RelationType relationSchema(Type t) {
+    static @com.legend.base.Nullable RelationType relationSchema(Type t) {
         return t instanceof GenericType g
                 && com.legend.compiler.element.type.PlatformTypes.RELATION_CARRIERS.contains(g.rawFqn())
                 && g.arguments().size() == 1
@@ -430,7 +430,7 @@ public sealed interface Type permits
      * schema, a bare struct (schema literal / row value) yields itself.
      * For signature-tolerant consumers (colspec rows, declared struct
      * params); table-only readers use {@link #relationSchema}. */
-    static @com.legend.Nullable RelationType schemaView(Type t) {
+    static @com.legend.base.Nullable RelationType schemaView(Type t) {
         RelationType wrapped = relationSchema(t);
         if (wrapped != null) {
             return wrapped;
@@ -515,7 +515,7 @@ public sealed interface Type permits
                     : physical;
         }
 
-        public @com.legend.Nullable Type pivotColumnType(String rawName) {
+        public @com.legend.base.Nullable Type pivotColumnType(String rawName) {
             // quote-tolerant: the PRESENTED name carries literal quotes
             // (presentPivotName); matching runs on the bare spelling
             String name = rawName.length() >= 2 && rawName.startsWith("'")
@@ -665,7 +665,7 @@ public sealed interface Type permits
 
     /** The pure kind a wire (SQL) type spells — a WIRE fact read off a
      * planned output or a value-built layout, never a stamp echo. */
-    public static @com.legend.Nullable Type kindOfSqlType(SqlType t) {
+    public static @com.legend.base.Nullable Type kindOfSqlType(SqlType t) {
         if (t == SqlType.Scalar.BIGINT || t == SqlType.Scalar.INTEGER
                 || t == SqlType.Scalar.HUGEINT) {
             return Type.Primitive.INTEGER;

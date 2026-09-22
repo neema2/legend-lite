@@ -21,9 +21,9 @@ final class WhereMerge {
     }
 
     /** A WHERE split into the engine's conjunct zones; each nullable. */
-    record Zones(@com.legend.Nullable SqlExpr user,
-            @com.legend.Nullable SqlExpr corr,
-            @com.legend.Nullable SqlExpr temporal) { }
+    record Zones(@com.legend.base.Nullable SqlExpr user,
+            @com.legend.base.Nullable SqlExpr corr,
+            @com.legend.base.Nullable SqlExpr temporal) { }
 
     /**
      * Merge {@code predicate} into {@code existing} in zone order,
@@ -33,7 +33,7 @@ final class WhereMerge {
      */
     static SqlExpr merge(
             java.util.IdentityHashMap<SqlExpr, Zones> registry,
-            @com.legend.Nullable SqlExpr existing, SqlExpr predicate,
+            @com.legend.base.Nullable SqlExpr existing, SqlExpr predicate,
             com.legend.compiler.spec.typed.TypedFilter.Stamp stamp) {
         Zones z = existing == null
                 ? new Zones(null, null, null)
@@ -54,8 +54,8 @@ final class WhereMerge {
         return java.util.Objects.requireNonNull(merged, "empty WHERE merge");
     }
 
-    static @com.legend.Nullable SqlExpr and(@com.legend.Nullable SqlExpr a,
-            @com.legend.Nullable SqlExpr b) {
+    static @com.legend.base.Nullable SqlExpr and(@com.legend.base.Nullable SqlExpr a,
+            @com.legend.base.Nullable SqlExpr b) {
         return a == null ? b : b == null ? a : Fold.mergeAnd(a, b);
     }
 }

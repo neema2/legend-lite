@@ -58,7 +58,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     private static final class MirrorState {
         final Connection conn;
         int applied;
-        @com.legend.Nullable String poison;
+        @com.legend.base.Nullable String poison;
         boolean suspended;
 
         MirrorState(Connection conn) {
@@ -66,7 +66,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
         }
     }
 
-    private static @com.legend.Nullable MirrorState MIRROR;
+    private static @com.legend.base.Nullable MirrorState MIRROR;
 
     /** Install the family session's live mirror (runner-owned). */
     public static void mirrorBegin(Connection h2) {
@@ -255,7 +255,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
      * {@code seedFailPrefix} lets a fresh-path seed failure ride the
      * outer {@code freshFailPrefix} catch (the TDG spelling). */
     record Session(String freshDbName,
-            @com.legend.Nullable String seedFailPrefix,
+            @com.legend.base.Nullable String seedFailPrefix,
             String mirrorFailPrefix, String freshFailPrefix) {
     }
 
@@ -274,7 +274,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
      * full recorded history (extensions + seeds). {@code work} runs on
      * the seeded statement either way.
      */
-    static <T> T onOracle(java.util.@com.legend.Nullable List<String> seeds,
+    static <T> T onOracle(java.util.@com.legend.base.Nullable List<String> seeds,
             Session session, Work<T> work) {
         MirrorState mirror = MIRROR;
         if (mirror != null && !mirror.suspended) {
@@ -328,7 +328,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     /** The mirror's incremental seed replay (verify + the TDG replay
      * share it — never a twin). */
     private static void applyPendingSeeds(MirrorState mirror, Statement st,
-            java.util.@com.legend.Nullable List<String> seeds) {
+            java.util.@com.legend.base.Nullable List<String> seeds) {
         List<String> ledger = seeds == null ? List.of() : seeds;
         while (mirror.applied < ledger.size()) {
             String seed = ledger.get(mirror.applied);
@@ -353,9 +353,9 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     // compareFrame and the §6 inventory — stays there)
     // =================================================================
 
-    public static @com.legend.Nullable String verify(
-            java.util.@com.legend.Nullable List<String> seeds,
-            java.util.@com.legend.Nullable List<String> extraSeeds,
+    public static @com.legend.base.Nullable String verify(
+            java.util.@com.legend.base.Nullable List<String> seeds,
+            java.util.@com.legend.base.Nullable List<String> extraSeeds,
             String goldenSql,
             ExecutionResult ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
@@ -405,9 +405,9 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
      * into the oracle. {@code extraSeeds} (§9a cursor fix, 2026-08-30):
      * PER-VERIFY synthesized statements (tempTableForIn derivations)
      * that must NEVER advance the family mirror's incremental cursor. */
-    public static @com.legend.Nullable String verifyAuto(Connection session,
-            java.util.@com.legend.Nullable List<String> seeds,
-            java.util.@com.legend.Nullable List<String> extraSeeds,
+    public static @com.legend.base.Nullable String verifyAuto(Connection session,
+            java.util.@com.legend.base.Nullable List<String> seeds,
+            java.util.@com.legend.base.Nullable List<String> extraSeeds,
             String goldenSql, ExecutionResult ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
@@ -425,7 +425,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
      * golden SELECT runs read-only on the session connection and
      * compares against our rows exactly like the replay path.
      */
-    public static @com.legend.Nullable String verifyOnSession(
+    public static @com.legend.base.Nullable String verifyOnSession(
             Connection session, String goldenSql, ExecutionResult ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
@@ -448,8 +448,8 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
      * is contract — the fetches carry no ORDER BY). null = VERIFIED
      * match; text = REAL divergence; Unverifiable = the caller's
      * counted decline. */
-    public static @com.legend.Nullable String tdgSqlReplay(
-            java.util.@com.legend.Nullable List<String> seeds,
+    public static @com.legend.base.Nullable String tdgSqlReplay(
+            java.util.@com.legend.base.Nullable List<String> seeds,
             String goldenSql, Connection duck, String ourSql) {
         if (!H2Verify.ready()) {
             throw new H2Verify.Unverifiable("h2 driver not on classpath",
@@ -522,8 +522,8 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
      * live-session transcript rows. Golden-side only — fully
      * independent of our side. {@code ancestors} = {tempName, goldenSql}
      * pairs root-first. */
-    public static @com.legend.Nullable String tdgChainedReplay(
-            java.util.@com.legend.Nullable List<String> seeds,
+    public static @com.legend.base.Nullable String tdgChainedReplay(
+            java.util.@com.legend.base.Nullable List<String> seeds,
             List<String[]> ancestors, String goldenSql,
             List<H2Verify.Cells> oursRows) {
         if (!H2Verify.ready()) {
@@ -598,8 +598,8 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     public com.legend.exec.SqlReplayOracle.RowVerdict verify(
             java.sql.Connection session, String goldenSql,
             ExecutionResult ours,
-            @com.legend.Nullable String mappingFqn,
-            @com.legend.Nullable String rootClassFqn,
+            @com.legend.base.Nullable String mappingFqn,
+            @com.legend.base.Nullable String rootClassFqn,
             com.legend.exec.SqlReplayOracle.ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx) {
         com.legend.exec.SqlReplayOracle.RowVerdict v = verify0(session, goldenSql, ours, mappingFqn, rootClassFqn, facts, ctx);
@@ -610,8 +610,8 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     public com.legend.exec.SqlReplayOracle.RowVerdict verify0(
             java.sql.Connection session, String goldenSql,
             ExecutionResult ours,
-            @com.legend.Nullable String mappingFqn,
-            @com.legend.Nullable String rootClassFqn,
+            @com.legend.base.Nullable String mappingFqn,
+            @com.legend.base.Nullable String rootClassFqn,
             com.legend.exec.SqlReplayOracle.ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx) {
         // the STATIC extent-subset fact of the verified chain (computed on
@@ -630,8 +630,8 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     public com.legend.exec.SqlReplayOracle.RowVerdict verify(
             java.sql.Connection session, String goldenSql,
             ExecutionResult ours,
-            @com.legend.Nullable String mappingFqn,
-            @com.legend.Nullable String rootClassFqn,
+            @com.legend.base.Nullable String mappingFqn,
+            @com.legend.base.Nullable String rootClassFqn,
             com.legend.exec.SqlReplayOracle.ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx,
             List<com.legend.exec.SqlReplayOracle.TempTable> temps) {
@@ -643,8 +643,8 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     public com.legend.exec.SqlReplayOracle.RowVerdict verify1(
             java.sql.Connection session, String goldenSql,
             ExecutionResult ours,
-            @com.legend.Nullable String mappingFqn,
-            @com.legend.Nullable String rootClassFqn,
+            @com.legend.base.Nullable String mappingFqn,
+            @com.legend.base.Nullable String rootClassFqn,
             com.legend.exec.SqlReplayOracle.ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx,
             List<com.legend.exec.SqlReplayOracle.TempTable> temps) {
@@ -718,8 +718,8 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             Connection session, String goldenPlan,
             java.util.Map<String, List<String>> bindings,
             ExecutionResult ours,
-            @com.legend.Nullable String mappingFqn,
-            @com.legend.Nullable String rootClassFqn,
+            @com.legend.base.Nullable String mappingFqn,
+            @com.legend.base.Nullable String rootClassFqn,
             com.legend.exec.SqlReplayOracle.ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx) {
         com.legend.exec.SqlReplayOracle.RowVerdict v = verifyPlan0(session, goldenPlan, bindings, ours, mappingFqn, rootClassFqn, facts, ctx);
@@ -731,8 +731,8 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
             Connection session, String goldenPlan,
             java.util.Map<String, List<String>> bindings,
             ExecutionResult ours,
-            @com.legend.Nullable String mappingFqn,
-            @com.legend.Nullable String rootClassFqn,
+            @com.legend.base.Nullable String mappingFqn,
+            @com.legend.base.Nullable String rootClassFqn,
             com.legend.exec.SqlReplayOracle.ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx) {
         // allocation tables materialized on the oracle for THIS replay —
@@ -788,7 +788,7 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     /** H2 statements creating a golden's temp tables from their Pure
      * literal values: drop-first (re-runnable on the live mirror), the
      * engine's own column name, the literal kind's H2 type. */
-    static @com.legend.Nullable List<String> tempSeeds(
+    static @com.legend.base.Nullable List<String> tempSeeds(
             List<com.legend.exec.SqlReplayOracle.TempTable> temps) {
         if (temps.isEmpty()) {
             return null;
@@ -824,10 +824,10 @@ public final class ReplayOracle implements com.legend.exec.SqlReplayOracle {
     private com.legend.exec.SqlReplayOracle.RowVerdict verifyArmed(
             java.sql.Connection session, String goldenSql,
             ExecutionResult ours,
-            @com.legend.Nullable String mappingFqn,
-            @com.legend.Nullable String rootClassFqn,
+            @com.legend.base.Nullable String mappingFqn,
+            @com.legend.base.Nullable String rootClassFqn,
             com.legend.compiler.element.ModelContext ctx,
-            @com.legend.Nullable List<String> extraSeeds,
+            @com.legend.base.Nullable List<String> extraSeeds,
             com.legend.exec.SqlReplayOracle.ReplayFacts facts) {
         java.util.Map<Integer, java.util.Map<String, String>> enumDecode =
                 new java.util.LinkedHashMap<>();

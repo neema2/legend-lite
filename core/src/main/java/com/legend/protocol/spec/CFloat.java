@@ -20,8 +20,8 @@ package com.legend.protocol.spec;
  * lie to keep the VALUE) is deleted.
  */
 public record CFloat(double value,
-        java.math.@com.legend.Nullable BigDecimal exact,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos)
+        java.math.@com.legend.base.Nullable BigDecimal exact,
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
 
     /** Position-free convenience constructor. */
@@ -30,7 +30,7 @@ public record CFloat(double value,
     }
 
     /** Exact-free convenience constructor (the wire-parity shape). */
-    public CFloat(double value, @com.legend.Nullable com.legend.protocol.SourceInfo pos) {
+    public CFloat(double value, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) {
         this(value, null, pos);
     }
 

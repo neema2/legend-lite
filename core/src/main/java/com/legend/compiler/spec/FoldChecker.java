@@ -122,7 +122,7 @@ final class FoldChecker {
      * {@code plus('; ', name)}; {@code times(acc, length(x))} &rarr; {@code length(x)}.
      * Returns {@code null} when the body is not decomposable this way.
      */
-    private static @com.legend.Nullable ValueSpecification elementTransform(ValueSpecification body, String accParam) {
+    private static @com.legend.base.Nullable ValueSpecification elementTransform(ValueSpecification body, String accParam) {
         if (!(body instanceof AppliedFunction af)) {
             return null;
         }
@@ -172,7 +172,7 @@ final class FoldChecker {
      * UN-LOWERABLE CollectionBuild (scalar accumulator) — a gap, not a
      * behavior; the executed fold tests pin the improvement.
      */
-    private static @com.legend.Nullable ValueSpecification commutativeElementTransform(
+    private static @com.legend.base.Nullable ValueSpecification commutativeElementTransform(
             ValueSpecification body, String accParam, ExprType init) {
         if (!(body instanceof AppliedFunction af) || operands(af).size() != 2) {
             return null;

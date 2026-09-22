@@ -99,8 +99,8 @@ final class UnionSynthesis {
      * queried mapping binds that function at query time like every
      * other route. Declared divergence: a query under a mapping that
      * cannot see the set still navigates here, where the engine fails. */
-    static @com.legend.Nullable PinTarget resolvePin(ResolvedMapping md,
-            @com.legend.Nullable String setId, ModelBuilder model) {
+    static @com.legend.base.Nullable PinTarget resolvePin(ResolvedMapping md,
+            @com.legend.base.Nullable String setId, ModelBuilder model) {
         if (setId == null) {
             return null;
         }
@@ -275,7 +275,7 @@ final class UnionSynthesis {
         }
     }
 
-    private static @com.legend.Nullable String embeddedOwner(String ownerCls,
+    private static @com.legend.base.Nullable String embeddedOwner(String ownerCls,
             String prop, ModelBuilder model) {
         ClassDefinition oc = MissProbe.knownMiss(model.knowledge().hierarchyClass(ownerCls));
         TypeExpression pt = oc == null ? null
@@ -768,7 +768,7 @@ final class UnionSynthesis {
     static final String TABLE_KEY_SUFFIX = "__pk";
 
     /** The sole PRIMARY KEY column of a member set's main table, else null. */
-    static @com.legend.Nullable String tableKey(@com.legend.Nullable ClassMapping cm,
+    static @com.legend.base.Nullable String tableKey(@com.legend.base.Nullable ClassMapping cm,
             ModelBuilder model) {
         if (!(cm instanceof ClassMapping.Relational r) || r.mainTable() == null) {
             return null;

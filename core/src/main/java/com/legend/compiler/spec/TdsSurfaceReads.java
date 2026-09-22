@@ -21,7 +21,7 @@ final class TdsSurfaceReads {
     private TdsSurfaceReads() {
     }
 
-    static @com.legend.Nullable TypedSpec read(Typer t, TypedSpec source,
+    static @com.legend.base.Nullable TypedSpec read(Typer t, TypedSpec source,
             AppliedProperty ap, Type.RelationType rt2) {
         // TDS surface over relation values (engine TabularDataSet)
         // and over ROW values (bare struct — Row-vs-Relation):

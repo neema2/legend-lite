@@ -26,8 +26,8 @@ final class ServiceLegacyMappingParser {
      *  PAREN_CLOSE. */
     static Protocol.PServiceMapping parseTail(
             MappingProtocolParser p, String store, List<Protocol.PServiceSegment> segments,
-            Protocol.@com.legend.Nullable PPathOffset pathOffset,
-            Protocol.@com.legend.Nullable PRequestBuildInfo request,
+            Protocol.@com.legend.base.Nullable PPathOffset pathOffset,
+            Protocol.@com.legend.base.Nullable PRequestBuildInfo request,
             int svcStart) {
         List<Protocol.PParameterBuildInfo> legacy = new ArrayList<>();
         if (p.peek() == TokenType.TILDE && "paramMapping".equals(p.peekText(1))) {

@@ -30,16 +30,16 @@ final class HostJudge {
      * verdicts read; any other side decodes as a value list. */
     static List<Object> sideCells(TypedSpec arm, List<TypedSpec> letPrefix,
             SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         ExecutionResult r = StatementExecutor.evalValue(arm, letPrefix,
                 specs, env, null, false, hook);
         return r instanceof ExecutionResult.Tabular t ? AssertVerdicts.cells(t) : AssertVerdicts.decodeSide(r);
     }
 
     static ExecutionResult finish(String family, boolean wantEqual,
-            boolean hostHeld, @com.legend.Nullable Boolean byteHeld,
+            boolean hostHeld, @com.legend.base.Nullable Boolean byteHeld,
             String detail,
-            java.util.function.Supplier<@com.legend.Nullable String> hostMessage) {
+            java.util.function.Supplier<@com.legend.base.Nullable String> hostMessage) {
         if (byteHeld != null) {
             com.legend.exec.CanonicalDivergence.probeSqlVerdict(family,
                     hostHeld, byteHeld, detail);
@@ -162,8 +162,8 @@ final class HostJudge {
 
     /** The TDSRow.values failure narrative — the host lattice's text
      * with the pure-API prefix; null iff the lattice held. */
-    static @com.legend.Nullable String tdsHostMessage(String name,
-            @com.legend.Nullable String d) {
+    static @com.legend.base.Nullable String tdsHostMessage(String name,
+            @com.legend.base.Nullable String d) {
         return d == null ? null
                 : name + " (TDSRow.values) " + d.replaceFirst("^\\n", "");
     }
@@ -217,7 +217,7 @@ final class HostJudge {
     record SqlVerdict(boolean held, String detail) {
     }
 
-    static @com.legend.Nullable SqlVerdict sqlByteVerdict(
+    static @com.legend.base.Nullable SqlVerdict sqlByteVerdict(
             TypedSpec eSpec, TypedSpec aSpec, SideFetch ef, SideFetch af,
             List<TypedSpec> letPrefix, StatementExecutor.ExecEnv env,
             boolean hostHeld) {
@@ -416,7 +416,7 @@ final class HostJudge {
     /** The fine numeric kind whose candidate column judges this side:
      * a refined stamp names it directly; an unrefined Number resolves
      * from the RUNTIME value kinds; null = undeterminable (decline). */
-    static KindClass.@com.legend.Nullable Fine selectedFineKind(
+    static KindClass.@com.legend.base.Nullable Fine selectedFineKind(
             SideFetch f, List<Object> vals) {
         List<com.legend.compiler.element.type.Type> kinds = f.rider().kinds();
         if (kinds.size() == 1) {
@@ -452,8 +452,8 @@ final class HostJudge {
 
     /** A framed side canon: {@code text} null = EMPTY (two empties are
      * byte-equal, as before); {@code decline} = an unframeable side. */
-    record Framed(@com.legend.Nullable String text,
-            @com.legend.Nullable String decline) {
+    record Framed(@com.legend.base.Nullable String text,
+            @com.legend.base.Nullable String decline) {
     }
 
     /** CanonicalForm.renderSide framing over the DB-computed element
@@ -552,7 +552,7 @@ final class HostJudge {
      * own classifier, the engine's rule). A keyless class stays the
      * whole map (identity). */
     static Object restrictNested(Object v,
-            com.legend.compiler.element.@com.legend.Nullable EqualityKeys declared,
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys declared,
             ModelContext ctx) {
         if (declared != null) {
             return restrictOne(v, declared, ctx);
@@ -576,7 +576,7 @@ final class HostJudge {
      * column names OUT) and its canon is the rider's per-ROW texts. */
     record SideFetch(List<Object> values,
             com.legend.exec.CanonRider rider,
-            ExecutionResult.@com.legend.Nullable Tabular grid) {
+            ExecutionResult.@com.legend.base.Nullable Tabular grid) {
     }
 
     /** NUMERIC CHARTER Rule 3: both sides DECLARED Float — their kind is
@@ -592,7 +592,7 @@ final class HostJudge {
     static SideFetch sideCanon(TypedSpec arg,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env, boolean canonicalOrder,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         var rider = new com.legend.exec.CanonRider(canonicalOrder);
         ExecutionResult r = StatementExecutor.evalValue(arg, letPrefix,
                 specs, env, rider, false, hook);
@@ -619,7 +619,7 @@ final class HostJudge {
      * blind to the field). */
     static List<Object> identitySide(TypedSpec arg,
             List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env, @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         return AssertVerdicts.decodeSide(StatementExecutor.evalValue(arg, letPrefix,
                 specs, env, null, true, hook));
     }
@@ -635,9 +635,9 @@ final class HostJudge {
     /** {@code assertTdsEquivalent(one, two, delta[, timeDelta])}: both grids executed,
      * TdsCompare judges cell by cell under the tolerances. Null = a non-tabular shape
      * (fall through, loud later). */
-    static @com.legend.Nullable ExecutionResult tdsEquivalent(String name, List<TypedSpec> targs,
+    static @com.legend.base.Nullable ExecutionResult tdsEquivalent(String name, List<TypedSpec> targs,
             List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         ExecutionResult.Tabular one =
                 AssertVerdicts.tabular(targs.get(0), letPrefix, specs, env, hook);
         ExecutionResult.Tabular two =
@@ -668,7 +668,7 @@ final class HostJudge {
     /** {@code assertSize(coll, n)}: the side executed, its size by result kind. */
     static ExecutionResult size(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         Object n = AssertVerdicts.one(AssertVerdicts.side(args.get(1), letPrefix, specs, env, hook),
                 "assertSize size");
         // D3: the size rule is per-result-kind — grid ROWS,
@@ -701,9 +701,9 @@ final class HostJudge {
 
     /** {@code assertContains(coll, value)}: both sides executed, the lattice judges
      * membership. Null = a non-[1] value argument (generic path). */
-    static @com.legend.Nullable ExecutionResult contains(String name, List<TypedSpec> args,
+    static @com.legend.base.Nullable ExecutionResult contains(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         List<Object> coll = AssertVerdicts.side(args.get(0), letPrefix, specs,
                 env, hook);
         List<Object> val = AssertVerdicts.side(args.get(1), letPrefix, specs,
@@ -721,7 +721,7 @@ final class HostJudge {
     /** {@code assertEqWithinTolerance(e, a, delta)}: the three sides executed. */
     static ExecutionResult tolerance(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         String d = com.legend.exec.PureAsserts.assertEqWithinTolerance(
                 (Number) AssertVerdicts.one(AssertVerdicts.side(args.get(0), letPrefix, specs, env, hook),
                         "tolerance expected"),
@@ -736,7 +736,7 @@ final class HostJudge {
      * over two executed sides, else the condition on the identity lane. */
     static ExecutionResult condition(String name, TypedSpec cond, boolean wantTrue,
             List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         // forAll-contains SUBSET (the functionvariables idiom
         // — the harness's audited fc arm, moved to the owner):
         // both sides evaluate IN THE DATABASE; the membership
@@ -774,7 +774,7 @@ final class HostJudge {
      * row count (engine relation semantics), any other side's its decoded values. */
     static ExecutionResult empty(String name, TypedSpec arg, boolean wantEmpty,
             List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         // §8 leg 1: a TABULAR side's emptiness is its ROW count
         // (engine relation semantics) — no canon involved
         ExecutionResult er = StatementExecutor.evalValue(
@@ -792,66 +792,66 @@ final class HostJudge {
 
     /** The host arm, chosen once per adjudication by the router. */
     static final VerdictArm ARM = new VerdictArm() {
-        @Override public ExecutionResult rendered(String name, boolean wantEqual, List<TypedSpec> args, String form, TypedSpec rendered, @com.legend.Nullable String eForm, @com.legend.Nullable String aForm, boolean orderedForm, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+        @Override public ExecutionResult rendered(String name, boolean wantEqual, List<TypedSpec> args, String form, TypedSpec rendered, @com.legend.base.Nullable String eForm, @com.legend.base.Nullable String aForm, boolean orderedForm, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.rendered(name, wantEqual, args, form, rendered, eForm, aForm, orderedForm, letPrefix, specs, env, hook);
         }
         @Override public void staticallyDecided(String name) {
         }
-        @Override public @com.legend.Nullable ExecutionResult jsonStringsEqual(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+        @Override public @com.legend.base.Nullable ExecutionResult jsonStringsEqual(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.jsonStringsEqual(name, args, letPrefix, specs, env, hook);
         }
         @Override public ExecutionResult equals(String name, boolean wantEqual, List<TypedSpec> args, boolean incidental, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.equals(name, wantEqual, args, incidental, gridPair, letPrefix, specs, env, hook);
         }
-        @Override public @com.legend.Nullable ExecutionResult cellPool(String name, TypedSpec cellsE, TypedSpec cellsA, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+        @Override public @com.legend.base.Nullable ExecutionResult cellPool(String name, TypedSpec cellsE, TypedSpec cellsA, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.cellPool(name, cellsE, cellsA, letPrefix, specs, env, hook);
         }
         @Override public ExecutionResult quantified(String fqn, TypedSpec predMap, boolean wantTrue, String message, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.quantified(fqn, predMap, wantTrue, message, letPrefix, specs, env, hook);
         }
         @Override public ExecutionResult sameElements(String name, List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.sameElements(name, args, gridPair, letPrefix, specs, env, hook);
         }
-        @Override public @com.legend.Nullable ExecutionResult is(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+        @Override public @com.legend.base.Nullable ExecutionResult is(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.is(name, args, letPrefix, specs, env, hook);
         }
-        @Override public @com.legend.Nullable ExecutionResult instanceOf(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+        @Override public @com.legend.base.Nullable ExecutionResult instanceOf(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.instanceOf(name, args, letPrefix, specs, env, hook);
         }
         @Override public ExecutionResult eq(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.eq(name, args, letPrefix, specs, env, hook);
         }
-        @Override public @com.legend.Nullable ExecutionResult tdsEquivalent(String name, List<TypedSpec> targs, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+        @Override public @com.legend.base.Nullable ExecutionResult tdsEquivalent(String name, List<TypedSpec> targs, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.tdsEquivalent(name, targs, letPrefix, specs, env, hook);
         }
         @Override public ExecutionResult size(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.size(name, args, letPrefix, specs, env, hook);
         }
-        @Override public @com.legend.Nullable ExecutionResult contains(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+        @Override public @com.legend.base.Nullable ExecutionResult contains(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.contains(name, args, letPrefix, specs, env, hook);
         }
         @Override public ExecutionResult tolerance(String name, List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.tolerance(name, args, letPrefix, specs, env, hook);
         }
         @Override public ExecutionResult condition(String name, TypedSpec cond, boolean wantTrue, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.condition(name, cond, wantTrue, letPrefix, specs, env, hook);
         }
         @Override public ExecutionResult empty(String name, TypedSpec arg, boolean wantEmpty, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-                @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+                @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
             return HostJudge.empty(name, arg, wantEmpty, letPrefix, specs, env, hook);
         }
     };
@@ -860,7 +860,7 @@ final class HostJudge {
      * (P2-5); the byte channel is the verdict of record for primitives. */
     static ExecutionResult eq(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
                 env, false, hook);
         SideFetch af = sideCanon(args.get(1), letPrefix, specs,
@@ -886,9 +886,9 @@ final class HostJudge {
     /** {@code assertInstanceOf(v, type)}: the value executed; a class value's wire
      * classifier against the model's subtype relation, else the pure rule. Null = a
      * non-literal type argument (fall through). */
-    static @com.legend.Nullable ExecutionResult instanceOf(String name, List<TypedSpec> args,
+    static @com.legend.base.Nullable ExecutionResult instanceOf(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         Object v = AssertVerdicts.one(AssertVerdicts.side(args.get(0), letPrefix, specs, env, hook),
                 "assertInstanceOf instance");
         String type = AssertVerdicts.typeRefName(args.get(1));
@@ -914,9 +914,9 @@ final class HostJudge {
     /** {@code assertIs(a, b)} over tracked ELEMENTS: identity is the row's key — the
      * chain normalizer's identity condition, adjudicated on the identity lane. Null =
      * not an element pair. */
-    static @com.legend.Nullable ExecutionResult is(String name, List<TypedSpec> args,
+    static @com.legend.base.Nullable ExecutionResult is(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         // ELEMENT IDENTITY (metamodel-as-relations D2/D3): a tracked
         // element's identity is its row's primary key — `is` over an
         // element reference and a metamodel row is the same equality
@@ -939,7 +939,7 @@ final class HostJudge {
      * judgment beside the byte verdict of record. */
     static ExecutionResult sameElements(String name, List<TypedSpec> args, boolean gridPair,
             List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
                 env, !gridPair, hook);
         SideFetch af = sideCanon(args.get(1), letPrefix, specs,
@@ -983,7 +983,7 @@ final class HostJudge {
      * the first failure raising the assert's message. */
     static ExecutionResult quantified(String fqn, TypedSpec predMap, boolean wantTrue, String message,
             List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         List<Object> verdicts = identitySide(predMap, letPrefix, specs, env, hook);
         for (Object v : verdicts) {
             if (Boolean.TRUE.equals(v) != wantTrue) {
@@ -995,9 +995,9 @@ final class HostJudge {
 
     /** The cell-pool multiset of the sorted flat-cells idiom: a grid side's cells against
      * the pool. Null = neither side is a grid (the ordinary equality continues). */
-    static @com.legend.Nullable ExecutionResult cellPool(String name, TypedSpec cellsE, TypedSpec cellsA,
+    static @com.legend.base.Nullable ExecutionResult cellPool(String name, TypedSpec cellsE, TypedSpec cellsA,
             List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         SideFetch ef0 = sideCanon(cellsE, letPrefix, specs, env, false, hook);
         SideFetch af0 = sideCanon(cellsA, letPrefix, specs, env, false, hook);
         if (ef0.grid() != null || af0.grid() != null) {
@@ -1012,7 +1012,7 @@ final class HostJudge {
      * verdict of record. */
     static ExecutionResult equals(String name, boolean wantEqual, List<TypedSpec> args,
             boolean incidental, boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         SideFetch ef = sideCanon(args.get(0), letPrefix, specs,
                 env, incidental && !gridPair, hook);
         SideFetch af = sideCanon(args.get(1), letPrefix, specs,
@@ -1067,9 +1067,9 @@ final class HostJudge {
     /** {@code assertJsonStringsEqual(golden, actual)}: both strings executed, parsed, the
      * engine's semantics judged over the structures (object keys order-insensitive, arrays
      * order-sensitive; an incidental-order root as a multiset). Null = a non-string shape. */
-    static @com.legend.Nullable ExecutionResult jsonStringsEqual(String name, List<TypedSpec> args,
+    static @com.legend.base.Nullable ExecutionResult jsonStringsEqual(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         String ejson = AssertVerdicts.jsonSideText(args.get(0), letPrefix,
                 specs, env, hook);
         String ajson = AssertVerdicts.jsonSideText(args.get(1), letPrefix,
@@ -1118,9 +1118,9 @@ final class HostJudge {
     /** The rendered-text pair: both texts executed, TdsCompare.renderedText (the one
      * policy owner) judges them under the render grammar. */
     static ExecutionResult rendered(String name, boolean wantEqual, List<TypedSpec> args, String form,
-            TypedSpec rendered, @com.legend.Nullable String eForm, @com.legend.Nullable String aForm,
+            TypedSpec rendered, @com.legend.base.Nullable String eForm, @com.legend.base.Nullable String aForm,
             boolean orderedForm, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook) {
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook) {
         List<Object> ev = AssertVerdicts.side(args.get(0), letPrefix, specs, env, hook);
         List<Object> av = AssertVerdicts.side(args.get(1), letPrefix, specs, env, hook);
         if (ev.size() == 1 && ev.get(0) instanceof String et

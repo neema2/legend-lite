@@ -35,7 +35,7 @@ public final class Json {
         this.lenient = lenient;
     }
 
-    public static @com.legend.Nullable Object parse(String json) {
+    public static @com.legend.base.Nullable Object parse(String json) {
         Json p = new Json(json);
         p.ws();
         Object v = p.value();
@@ -50,13 +50,13 @@ public final class Json {
      * root value parses even with trailing text after it (the milestoned
      * graphFetch goldens carry a stray quote after the array; the engine's
      * own parse reads the value and ignores the tail). */
-    public static @com.legend.Nullable Object parseOne(String json) {
+    public static @com.legend.base.Nullable Object parseOne(String json) {
         Json p = new Json(json, true);
         p.ws();
         return p.value();
     }
 
-    private @com.legend.Nullable Object value() {
+    private @com.legend.base.Nullable Object value() {
         char c = s.charAt(i);
         return switch (c) {
             case '{' -> obj();
@@ -143,13 +143,13 @@ public final class Json {
      * characters; everything else raw UTF-8). Key order carries no meaning
      * in pure's JSON equality — the engine's own asserts compare
      * structurally — so one fixed order lets bytes decide. */
-    public static String canonical(@com.legend.Nullable Object v) {
+    public static String canonical(@com.legend.base.Nullable Object v) {
         StringBuilder b = new StringBuilder();
         writeCanonical(v, b);
         return b.toString();
     }
 
-    private static void writeCanonical(@com.legend.Nullable Object v, StringBuilder b) {
+    private static void writeCanonical(@com.legend.base.Nullable Object v, StringBuilder b) {
         if (v == null) {
             b.append("null");
         } else if (v instanceof Map<?, ?> m) {

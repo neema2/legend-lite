@@ -3,6 +3,8 @@
 
 package com.legend;
 
+import com.legend.base.Nullable;
+
 import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedSpec;

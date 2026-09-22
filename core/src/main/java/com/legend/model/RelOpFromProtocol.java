@@ -47,7 +47,7 @@ public final class RelOpFromProtocol {
      *     exactly instead of leaving every column ref self-qualified.
      */
     public static RelationalOperation op(Protocol.PRelOp p,
-            @com.legend.Nullable String enclosingDb) {
+            @com.legend.base.Nullable String enclosingDb) {
         return switch (p) {
             case Protocol.PColumnRef c -> columnRef(c, enclosingDb);
             case Protocol.PRelLiteral l -> new RelationalOperation.Literal(l.value());
@@ -67,7 +67,7 @@ public final class RelOpFromProtocol {
     /** {@code {target}.COL} arrives with the sentinel table alias the engine
      *  uses for a self-join's far side; everything else is a plain column. */
     private static RelationalOperation columnRef(Protocol.PColumnRef c,
-            @com.legend.Nullable String enclosingDb) {
+            @com.legend.base.Nullable String enclosingDb) {
         Protocol.PTablePtr t = c.table();
         // a self-join's far side is spelled {target} in the TABLE position
         if ("{target}".equals(t.table()) || "target".equals(c.tableAlias())) {
@@ -91,7 +91,7 @@ public final class RelOpFromProtocol {
     }
 
     private static RelationalOperation joinNavigation(Protocol.PElemtWithJoins j,
-            @com.legend.Nullable String enclosingDb) {
+            @com.legend.base.Nullable String enclosingDb) {
         List<JoinChainElement> chain = new ArrayList<>();
         String db = null;
         for (Protocol.PJoinPtr ptr : j.joins()) {
@@ -132,7 +132,7 @@ public final class RelOpFromProtocol {
      * function call — the same fallback the legacy parser applied.
      */
     private static RelationalOperation dynaFunc(Protocol.PDynaFunc f,
-            @com.legend.Nullable String enclosingDb) {
+            @com.legend.base.Nullable String enclosingDb) {
         List<RelationalOperation> args = f.parameters().stream()
                 .map(a -> op(a, enclosingDb)).toList();
         ComparisonOp cmp = comparison(f.funcName());
@@ -177,7 +177,7 @@ public final class RelOpFromProtocol {
         return new RelationalOperation.FunctionCall(f.funcName(), args);
     }
 
-    private static @com.legend.Nullable ComparisonOp comparison(String name) {
+    private static @com.legend.base.Nullable ComparisonOp comparison(String name) {
         return switch (name) {
             case "equal" -> ComparisonOp.EQ;
             // the engine spells inequality two ways: '!=' mints notEqual and

@@ -72,7 +72,7 @@ public record FunctionDefinition(
         List<ValueSpecification> body,
         List<StereotypeApplication> stereotypes,
         List<TaggedValue> taggedValues,
-        @com.legend.Nullable Synthesized synthesizedFrom) implements PackageableElement, Function {
+        @com.legend.base.Nullable Synthesized synthesizedFrom) implements PackageableElement, Function {
 
     public FunctionDefinition {
         Objects.requireNonNull(qualifiedName, "Qualified name cannot be null");
@@ -133,7 +133,7 @@ public record FunctionDefinition(
      * @param memberName original member name (derived property / constraint / mapped class / association / route)
      */
     public record Synthesized(SynthHat hat, String ownerFqn, String memberName,
-                              @com.legend.Nullable String forwardProperty) {
+                              @com.legend.base.Nullable String forwardProperty) {
         public Synthesized(SynthHat hat, String ownerFqn, String memberName) {
             this(hat, ownerFqn, memberName, null);
         }
@@ -151,7 +151,7 @@ public record FunctionDefinition(
          * function's provenance, never the binding table — the legacy and
          * clean-sheet mapping forms must produce the same bindings. */
         @Override
-        public @com.legend.Nullable String forwardProperty() {
+        public @com.legend.base.Nullable String forwardProperty() {
             return forwardProperty;
         }
 

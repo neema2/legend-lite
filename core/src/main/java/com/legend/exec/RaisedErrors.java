@@ -46,8 +46,8 @@ public final class RaisedErrors {
      * platform-raised message (sentinel pair present); unchanged
      * otherwise. The in-envelope position prefix strips too —
      * production text carries NO wire protocol. */
-    public static @com.legend.Nullable String unwrap(
-            @com.legend.Nullable String message) {
+    public static @com.legend.base.Nullable String unwrap(
+            @com.legend.base.Nullable String message) {
         if (message == null) {
             return null;
         }
@@ -71,7 +71,7 @@ public final class RaisedErrors {
         private final int line;
         private final int column;
 
-        Positioned(String message, @com.legend.Nullable String sqlState,
+        Positioned(String message, @com.legend.base.Nullable String sqlState,
                 java.sql.SQLException cause, int line, int column) {
             super(message, sqlState, cause);
             this.line = line;

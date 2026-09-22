@@ -8,7 +8,7 @@ import java.util.List;
  * digits when the double round-trip is lossy (legend-pure's Float IS
  * BigDecimal-backed — see {@code CFloat}); the TYPE stays Float. */
 public record TypedCFloat(double value,
-        java.math.@com.legend.Nullable BigDecimal exact,
+        java.math.@com.legend.base.Nullable BigDecimal exact,
         ExprType info) implements TypedSpec {
     @Override
     public List<TypedSpec> children() {

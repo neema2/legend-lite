@@ -92,7 +92,7 @@ public record NewInstance(
 
     /** First binding for {@code key}, or null — the lookup consumers'
      *  view (caret specials, TDS literals); wire emission iterates ALL. */
-    public @com.legend.Nullable KeyExpression first(String key) {
+    public @com.legend.base.Nullable KeyExpression first(String key) {
         for (KeyBinding b : properties) {
             if (b.key().equals(key)) {
                 return b.expression();

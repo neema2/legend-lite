@@ -926,10 +926,10 @@ class PreludeGeneratorTest {
                 return i < 0 ? text : text.substring(i + 1, text.length() - 1);
             }
         }
-        record Instance(String classifier, @com.legend.Nullable String name,
-                @com.legend.Nullable String at, Map<String, M3> entries) implements M3 {
+        record Instance(String classifier, @com.legend.base.Nullable String name,
+                @com.legend.base.Nullable String at, Map<String, M3> entries) implements M3 {
             /** The entry whose key ends with {@code properties[<key>]}. */
-            @com.legend.Nullable M3 entry(String key) {
+            @com.legend.base.Nullable M3 entry(String key) {
                 for (Map.Entry<String, M3> e : entries.entrySet()) {
                     if (e.getKey().endsWith("properties[" + key + "]")) {
                         return e.getValue();
@@ -1177,11 +1177,11 @@ class PreludeGeneratorTest {
         return sb.append(" }").toString();
     }
 
-    private static List<M3> items(@com.legend.Nullable M3 v) {
+    private static List<M3> items(@com.legend.base.Nullable M3 v) {
         return v == null ? List.of() : v instanceof M3.Items it ? it.items() : List.of(v);
     }
 
-    private static String str(@com.legend.Nullable M3 v) {
+    private static String str(@com.legend.base.Nullable M3 v) {
         if (v instanceof M3.Str s) {
             return s.value();
         }
@@ -1190,7 +1190,7 @@ class PreludeGeneratorTest {
 
     /** A GenericType instance → its type spelling: a raw type with arguments,
      * a type parameter, or a function type. */
-    private static String genericType(@com.legend.Nullable M3 v) {
+    private static String genericType(@com.legend.base.Nullable M3 v) {
         if (!(v instanceof M3.Instance g)) {
             throw new IllegalStateException("m3 reader: expected a GenericType instance, got " + v);
         }
@@ -1226,7 +1226,7 @@ class PreludeGeneratorTest {
         throw new IllegalStateException("m3 reader: cannot spell the generic type " + g);
     }
 
-    private static String multiplicity(@com.legend.Nullable M3 v) {
+    private static String multiplicity(@com.legend.base.Nullable M3 v) {
         if (v instanceof M3.Path p) {
             return switch (p.last()) {
                 case "PureOne" -> "[1]";

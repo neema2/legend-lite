@@ -20,7 +20,7 @@ import java.util.List;
  * scalar subquery aggregating the chain's rows.
  */
 public record TypedJsonResult(TypedSpec chain, Kind kind,
-        @com.legend.Nullable String sql, ExprType info) implements TypedSpec {
+        @com.legend.base.Nullable String sql, ExprType info) implements TypedSpec {
 
     /** TDS / CLASS: the executeLegendQuery result envelope; TDS_JSON: the
      * bare {@code toJSON(tds)} document — {@code {"columns":[{name,type,

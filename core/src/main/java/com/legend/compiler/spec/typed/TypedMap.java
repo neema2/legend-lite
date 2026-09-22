@@ -33,7 +33,7 @@ public record TypedMap(TypedSpec source, TypedLambda mapper, ExprType info) impl
      * canonical link-reader (D3): a navigation path is a chain of
      * these; the resolver's ingress adapter (Pipelines.chainForm) and
      * the lowering's path readers consume hops ONLY through it. */
-    public static @com.legend.Nullable String singleHopProperty(TypedSpec spec) {
+    public static @com.legend.base.Nullable String singleHopProperty(TypedSpec spec) {
         if (spec instanceof TypedMap m
                 && m.mapper() instanceof TypedLambda ml
                 && ml.body().size() == 1

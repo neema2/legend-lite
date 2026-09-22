@@ -24,7 +24,7 @@ public final class PlanParams {
     /** {@code <param>.<a>.<b>.<field>} when {@code base} is a struct-get
      * chain rooted at a plan parameter (or the parameter itself); null
      * otherwise. */
-    static @com.legend.Nullable String dottedPlanParam(SqlExpr base,
+    static @com.legend.base.Nullable String dottedPlanParam(SqlExpr base,
             String field) {
         ArrayDeque<String> path = new ArrayDeque<>();
         path.addFirst(field);

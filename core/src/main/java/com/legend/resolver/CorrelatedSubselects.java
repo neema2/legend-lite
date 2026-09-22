@@ -139,7 +139,7 @@ final class CorrelatedSubselects {
     ChainMidFold foldChainMid(ClassSource cs, String head,
             AssociationJoins.AssocJoin aj, AssociationJoins.AssocJoin midAj,
             boolean filterPos, SyntheticHeads synthetics, TypedSpec withJoins,
-            Set<String> usedChainPrefixes, @com.legend.Nullable String frameName) {
+            Set<String> usedChainPrefixes, @com.legend.base.Nullable String frameName) {
         String chainFinal = head.substring(head.indexOf('.') + 1);
         if (filterPos) {
             throw new NotImplementedException("aggregate over the chained"
@@ -211,16 +211,16 @@ final class CorrelatedSubselects {
     }
 
     record CorrAggSub(TypedSpec subSource,
-            @com.legend.Nullable List<String> keyCols,
+            @com.legend.base.Nullable List<String> keyCols,
             Type.RelationType keyRow,
-            @com.legend.Nullable String targetPrefix,
-            @com.legend.Nullable String rowVar,
-            Type.@com.legend.Nullable RelationType joinedRow,
-            @com.legend.Nullable ParentCopy pc) {}
+            @com.legend.base.Nullable String targetPrefix,
+            @com.legend.base.Nullable String rowVar,
+            Type.@com.legend.base.Nullable RelationType joinedRow,
+            @com.legend.base.Nullable ParentCopy pc) {}
 
 
     CorrAggSub corrAggSubSource(ClassSource cs, String head,
-            AssociationJoins.AssocJoin aj, @com.legend.Nullable TypedLambda corrAgg,
+            AssociationJoins.AssocJoin aj, @com.legend.base.Nullable TypedLambda corrAgg,
             boolean filterPosition) {
         if (corrAgg == null) {
             List<String> tKeys = targetEquiKeysOrNull(java.util.Objects.requireNonNull(aj.condition()));
@@ -463,7 +463,7 @@ private static boolean hasColPrefixed(Type.RelationType row, String prefix) {
     }
 
 
-private static @com.legend.Nullable List<String> parentEquiKeys(@com.legend.Nullable TypedLambda cond, String head) {
+private static @com.legend.base.Nullable List<String> parentEquiKeys(@com.legend.base.Nullable TypedLambda cond, String head) {
         List<String> keys = new ArrayList<>();
         if (!collectEquiKeys(java.util.Objects.requireNonNull(cond).body().get(cond.body().size() - 1),
                 cond.parameters().get(1), cond.parameters().get(0), keys)
@@ -490,8 +490,8 @@ private static @com.legend.Nullable List<String> parentEquiKeys(@com.legend.Null
 
     /** Null {@code corr} = an UNCORRELATED parent copy (filter-position
      * aggregate): no outer reads, the plain parent pipeline materializes. */
-    @com.legend.Nullable ParentCopy parentCopyFor(ClassSource cs,
-            @com.legend.Nullable TypedLambda corr) {
+    @com.legend.base.Nullable ParentCopy parentCopyFor(ClassSource cs,
+            @com.legend.base.Nullable TypedLambda corr) {
         return parentCopyFor(cs,
                 corr == null ? List.of() : List.of(corr));
     }
@@ -499,7 +499,7 @@ private static @com.legend.Nullable List<String> parentEquiKeys(@com.legend.Null
     /** Parent copy demanded by SEVERAL correlated preds (a head pred
      * plus tail-hop preds — the exploding sub's whole pred set): every
      * pred's OUTER reads join the copy's demand. */
-    @com.legend.Nullable ParentCopy parentCopyFor(ClassSource cs,
+    @com.legend.base.Nullable ParentCopy parentCopyFor(ClassSource cs,
             List<TypedLambda> corrs) {
         Set<List<String>> outerPaths = new LinkedHashSet<>();
         for (TypedLambda corr : corrs) {
@@ -558,7 +558,7 @@ private static @com.legend.Nullable List<String> parentEquiKeys(@com.legend.Null
     }
 
 
-static void collectVarNamesInto(@com.legend.Nullable TypedSpec n, Set<String> out) {
+static void collectVarNamesInto(@com.legend.base.Nullable TypedSpec n, Set<String> out) {
         if (n == null) {
             return;
         }
@@ -571,7 +571,7 @@ static void collectVarNamesInto(@com.legend.Nullable TypedSpec n, Set<String> ou
     }
 
 
-private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambda cond) {
+private static @com.legend.base.Nullable List<String> targetEquiKeysOrNull(TypedLambda cond) {
         List<String> keys = new ArrayList<>();
         if (!collectEquiKeys(cond.body().get(cond.body().size() - 1),
                 cond.parameters().get(0), cond.parameters().get(1), keys)
@@ -598,7 +598,7 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
      * spelling {@code $vals.prop} (TypedMap) or a bare property access;
      * null when either input has no such shape or the sources differ
      * (value equality — the spliced result chain appears twice). */
-    static @com.legend.Nullable TypedSpec zipPairMap(TypedMap zm, TypedNativeCall zc,
+    static @com.legend.base.Nullable TypedSpec zipPairMap(TypedMap zm, TypedNativeCall zc,
             java.util.function.UnaryOperator<TypedSpec> resolver) {
         TypedSpec zp = zipPairProject(zc, resolver);
         if (zp == null) {
@@ -611,7 +611,7 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
         return new TypedMap(zp, zm.mapper(), zm.info());
     }
 
-    private static @com.legend.Nullable TypedSpec zipPairProject(TypedNativeCall zc,
+    private static @com.legend.base.Nullable TypedSpec zipPairProject(TypedNativeCall zc,
             java.util.function.UnaryOperator<TypedSpec> resolver) {
         Object[] a = zipSide(zc.args().get(0));
         Object[] b = zipSide(zc.args().get(1));
@@ -654,7 +654,7 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
         return n.mapChildren(c -> renameVar(c, from, to));
     }
 
-    private static Object @com.legend.Nullable [] zipSide(TypedSpec n) {
+    private static Object @com.legend.base.Nullable [] zipSide(TypedSpec n) {
         // NESTED zip(b, c) as a side: the inner pair is ONE column whose
         // value is the ^Pair(first, second) STRUCT (the platform's Pair
         // carrier) over the same source — zip(a, zip(b, c))->map(p |
@@ -935,7 +935,7 @@ private static @com.legend.Nullable List<String> targetEquiKeysOrNull(TypedLambd
      * not reference the parent row. Returns null on any unrecognized
      * conjunct (slot-shaped reads are NOT bare — the caller's chase or
      * wall handles them). */
-    private static @com.legend.Nullable List<String> parentKeysLenient(TypedSpec n,
+    private static @com.legend.base.Nullable List<String> parentKeysLenient(TypedSpec n,
             String parentVar) {
         if (!(n instanceof TypedNativeCall c)) {
             return null;
@@ -1039,11 +1039,11 @@ private static boolean referencesVar(TypedSpec n, String var) {
      * rebuilt over the aggregate's own callee. */
     TypedAggCol aggColFor(ClassSource cs, String head,
             AssociationJoins.AssocJoin aj, StoreResolver.AggDemand d,
-            String alias, @com.legend.Nullable TypedLambda corrAgg,
-            @com.legend.Nullable String corrTp,
-            @com.legend.Nullable String corrRowVar,
-            Type.@com.legend.Nullable RelationType corrJoinedRow,
-            @com.legend.Nullable ParentCopy pc) {
+            String alias, @com.legend.base.Nullable TypedLambda corrAgg,
+            @com.legend.base.Nullable String corrTp,
+            @com.legend.base.Nullable String corrRowVar,
+            Type.@com.legend.base.Nullable RelationType corrJoinedRow,
+            @com.legend.base.Nullable ParentCopy pc) {
         TypedSpec mapBody;
         String mapVar = aj.target().rowVar();
         var mapRowType = aj.targetRow();
@@ -1227,7 +1227,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
                 : List.of(new TypedAggCol.AggOrder(orderLambda, d.orderAsc(), null)));
     }
     /** The bare column a side of an equi conjunct reads on {@code var}. */
-    private static @com.legend.Nullable String bareColumnOn(TypedSpec n, String var) {
+    private static @com.legend.base.Nullable String bareColumnOn(TypedSpec n, String var) {
         return n instanceof TypedPropertyAccess pa
                 && pa.source() instanceof TypedVariable v
                 && v.name().equals(var) ? pa.property() : null;
@@ -1295,7 +1295,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
 
     /** The flatten route's own-step splicer (NavProvenance.spliceOwnStep),
      * wired by the resolver; null until then. */
-    private java.util.function.@com.legend.Nullable BiFunction<ClassSource, String, ClassSource>
+    private java.util.function.@com.legend.base.Nullable BiFunction<ClassSource, String, ClassSource>
             ownStepSplicer;
 
     void setOwnStepSplicer(
@@ -1552,7 +1552,7 @@ private static boolean referencesVar(TypedSpec n, String var) {
 
     /** The SUB class source a navigate-slot property of {@code parent}
      * targets, or null when the property is not a nav-slot binding. */
-    private @com.legend.Nullable ClassSource navSubSource(ClassSource parent, String seg) {
+    private @com.legend.base.Nullable ClassSource navSubSource(ClassSource parent, String seg) {
         TypedSpec b = parent.bindings().get(seg);
         var navSteps = Pipelines.navSteps(parent.pipeline());
         String alias = b == null ? null
@@ -1570,7 +1570,7 @@ record CompositeChain(TypedSpec pipeline,
             TypedLambda orientedCond) {}
 
 
-@com.legend.Nullable CompositeChain compositeChainTarget(ClassSource cs,
+@com.legend.base.Nullable CompositeChain compositeChainTarget(ClassSource cs,
         TypedLambda navCond, TypedSpec targetPipe) {
         return compositeChainTarget(cs, navCond, targetPipe, false);
     }
@@ -1583,7 +1583,7 @@ record CompositeChain(TypedSpec pipeline,
      * upstream hop, which remains a parent join). The caller owns
      * keeping those upstream slots demanded. Existing (sub-level)
      * callers keep the loud guard. */
-@com.legend.Nullable CompositeChain compositeChainTarget(ClassSource cs,
+@com.legend.base.Nullable CompositeChain compositeChainTarget(ClassSource cs,
         TypedLambda navCond, TypedSpec targetPipe,
         boolean allowUpstreamSlotReads) {
         Set<String> parentSlots = Pipelines.slotAliases(cs.pipeline());
@@ -1879,7 +1879,7 @@ static boolean isCountFamily(TypedNativeCall nc) {
      * grouped row is absent: 0 for the count family, TRUE for pure's
      * isDistinct ({@code []->isDistinct()} — removeDuplicates of nothing is
      * nothing, sizes equal), null (stays NULL) for every other reducer. */
-    static @com.legend.Nullable TypedSpec emptyGroupValue(TypedNativeCall nc) {
+    static @com.legend.base.Nullable TypedSpec emptyGroupValue(TypedNativeCall nc) {
         if (isCountFamily(nc)) {
             return new com.legend.compiler.spec.typed.TypedCInteger(0L,
                     new ExprType(Type.Primitive.INTEGER, com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
@@ -2003,7 +2003,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
     }
 
     static void registerSubTypeSubs(ClassSource cs, TypedSpec top,
-            @com.legend.Nullable ClassSources sources,
+            @com.legend.base.Nullable ClassSources sources,
             Map<String, Substitution.AssocSub> assocs) {
         registerSubTypeSubs(cs, top, sources, assocs, "");
     }
@@ -2012,7 +2012,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
      * the subtype columns of every hop it composed — only the columns
      * under this hop's prefix are this scope's ({@code ""} = any). */
     static void registerSubTypeSubs(ClassSource cs, TypedSpec top,
-            @com.legend.Nullable ClassSources sources,
+            @com.legend.base.Nullable ClassSources sources,
             Map<String, Substitution.AssocSub> assocs, String hopPrefix) {
         Set<String> fqns = new LinkedHashSet<>();
         collectSubTypeFqns(top, fqns);
@@ -2274,7 +2274,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
      * an UNDECIDABLE dispatch context (no runtime, unknown mapping) skips
      * canonicalization (null); a resolution failure AFTER binds()
      * confirmed the class is a real bug and propagates. */
-    private @com.legend.Nullable ClassSource castTarget(
+    private @com.legend.base.Nullable ClassSource castTarget(
             Function<String, String> mappingOf, Type.ClassType navCt) {
         String m;
         try {
@@ -2642,7 +2642,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
      * keep their routes (an embedded to-one head's joinStrings, the
      * aggregationAware goldens). True = registered. */
     private static boolean chainTailAggArm(TypedNativeCall nc,
-            @com.legend.Nullable List<String> path, String userVar, ClassSource cs,
+            @com.legend.base.Nullable List<String> path, String userVar, ClassSource cs,
             Map<String, List<StoreResolver.AggDemand>> aggOut,
             Set<List<String>> bareOut,
             java.util.function.BiPredicate<ClassSource, String> toManyHead,
@@ -2752,14 +2752,14 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
      * 1-hop head access, then re-roots them on a fresh [1]-stamped param.
      * Null when a wrapper is not peelable (auto-map / milestoned
      * spellings) — the caller's loud wall stands. */
-    private static @com.legend.Nullable TypedLambda tailMapperOf(TypedSpec arg, String userVar) {
+    private static @com.legend.base.Nullable TypedLambda tailMapperOf(TypedSpec arg, String userVar) {
         return tailMapperOf(arg, userVar, 1);
     }
 
     /** As above over the element {@code depth} hops down the chain
      * ({@code depth} 2: the tail past {@code $p.firm.employees} — the
      * chain-aggregate arm's mapper over the final hop's element). */
-    private static @com.legend.Nullable TypedLambda tailMapperOf(TypedSpec arg, String userVar,
+    private static @com.legend.base.Nullable TypedLambda tailMapperOf(TypedSpec arg, String userVar,
             int depth) {
         ArrayDeque<Function<TypedSpec, TypedSpec>> shell = new ArrayDeque<>();
         TypedSpec cur = arg;

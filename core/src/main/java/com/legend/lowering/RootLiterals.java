@@ -34,7 +34,7 @@ final class RootLiterals {
 
     /** The root swap, or null when {@code spec} is not a fragile
      * literal (the caller lowers normally). */
-    static @com.legend.Nullable SqlExpr swap(TypedSpec spec) {
+    static @com.legend.base.Nullable SqlExpr swap(TypedSpec spec) {
         if (spec instanceof TypedCDate cd
                 && fragileTemporalPrecision(cd.value())) {
             // TEMPORAL_TEXT-stamped (§4bZ-V B3): the marker cast never

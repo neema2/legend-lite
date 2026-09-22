@@ -261,7 +261,7 @@ public final class ServiceSectionGrammar
      *  wire {@code {"_type":"byteArray","value":"<base64>"}} spanning the
      *  whole call (harvest testBindingServices, probe-verified). Null when
      *  the value is not a toBytes literal. */
-    private static Protocol.PServiceTestSuite.@com.legend.Nullable PSuiteParam
+    private static Protocol.PServiceTestSuite.@com.legend.base.Nullable PSuiteParam
             byteArrayParam(TokenStreamCursor c, String name) {
         if (!(c.peek() == TokenType.VALID_STRING
                 && "toBytes".equals(c.safeText()))) {
@@ -353,10 +353,10 @@ public final class ServiceSectionGrammar
 
     /** The folded literal's span runs the '-' through the digits (harvest
      *  testServiceTestParameters [1.8, 2, -3] → cols 65-66). */
-    private static com.legend.protocol.@com.legend.Nullable SourceInfo
+    private static com.legend.protocol.@com.legend.base.Nullable SourceInfo
             signedSpan(
-            com.legend.protocol.@com.legend.Nullable SourceInfo minus,
-            com.legend.protocol.@com.legend.Nullable SourceInfo lit) {
+            com.legend.protocol.@com.legend.base.Nullable SourceInfo minus,
+            com.legend.protocol.@com.legend.base.Nullable SourceInfo lit) {
         if (minus == null || lit == null) {
             return minus;
         }
@@ -537,7 +537,7 @@ public final class ServiceSectionGrammar
 
     /** The legacy test BODY loop ({@code data:} / {@code asserts:}),
      *  shared by Single and Multi keyed entries; returns data. */
-    private static @com.legend.Nullable String parseLegacyBody(
+    private static @com.legend.base.Nullable String parseLegacyBody(
             TokenStreamCursor c,
             List<Protocol.PLegacyServiceTest.PLegacyAssert> asserts,
             int entryAnchor) {

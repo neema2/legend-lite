@@ -21,72 +21,72 @@ import java.util.List;
 interface VerdictArm {
 
     /** Null = a non-tabular shape (the host arm): fall through, loud later. */
-    @com.legend.Nullable ExecutionResult tdsEquivalent(String name, List<TypedSpec> targs, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.Nullable AssertVerdicts.SpliceHook hook);
+    @com.legend.base.Nullable ExecutionResult tdsEquivalent(String name, List<TypedSpec> targs, List<TypedSpec> letPrefix,
+            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
     ExecutionResult size(String name, List<TypedSpec> args, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.Nullable AssertVerdicts.SpliceHook hook);
+            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
-    @com.legend.Nullable ExecutionResult contains(String name, List<TypedSpec> args, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.Nullable AssertVerdicts.SpliceHook hook);
+    @com.legend.base.Nullable ExecutionResult contains(String name, List<TypedSpec> args, List<TypedSpec> letPrefix,
+            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
     ExecutionResult tolerance(String name, List<TypedSpec> args, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.Nullable AssertVerdicts.SpliceHook hook);
+            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
     /** {@code assert(cond)} / {@code assertFalse(cond)}. */
     ExecutionResult condition(String name, TypedSpec cond, boolean wantTrue, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.Nullable AssertVerdicts.SpliceHook hook);
+            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
     ExecutionResult empty(String name, TypedSpec arg, boolean wantEmpty, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.Nullable AssertVerdicts.SpliceHook hook);
+            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
     /** {@code assertEq(e, a)}. */
     ExecutionResult eq(String name, List<TypedSpec> args, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.Nullable AssertVerdicts.SpliceHook hook);
+            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
     /** {@code assertInstanceOf(v, type)}; null = a shape this arm leaves to the generic path. */
-    @com.legend.Nullable ExecutionResult instanceOf(String name, List<TypedSpec> args, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.Nullable AssertVerdicts.SpliceHook hook);
+    @com.legend.base.Nullable ExecutionResult instanceOf(String name, List<TypedSpec> args, List<TypedSpec> letPrefix,
+            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
     /** {@code assertIs(a, b)} once the static identity gate declined; null = not adjudicable here. */
-    @com.legend.Nullable ExecutionResult is(String name, List<TypedSpec> args, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.Nullable AssertVerdicts.SpliceHook hook);
+    @com.legend.base.Nullable ExecutionResult is(String name, List<TypedSpec> args, List<TypedSpec> letPrefix,
+            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
     /** {@code assertSameElements(e, a)}; {@code gridPair}: a side is statically tabular. */
     ExecutionResult sameElements(String name, List<TypedSpec> args, boolean gridPair, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.Nullable AssertVerdicts.SpliceHook hook);
+            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
     /** A quantified assert's predicate VECTOR ({@code xs->map(x | pred)}): every element true / false. */
     ExecutionResult quantified(String fqn, TypedSpec predMap, boolean wantTrue, String message, List<TypedSpec> letPrefix,
-            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.Nullable AssertVerdicts.SpliceHook hook);
+            SpecCompiler specs, StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
     /** The sorted flat-cells idiom of {@code assertEquals} ({@code $r.values.rows.values->sort()}
      * against a pool): the CELL-POOL multiset. Null (the host arm) = neither side is a grid,
      * the ordinary equality continues. */
-    @com.legend.Nullable ExecutionResult cellPool(String name, TypedSpec cellsE, TypedSpec cellsA,
+    @com.legend.base.Nullable ExecutionResult cellPool(String name, TypedSpec cellsE, TypedSpec cellsA,
             List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook);
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
     /** {@code assertEquals} / {@code assertNotEquals} after the text, rendered-text, cell-pool
      * and grid-pair routes declined; {@code incidental}: the actual side's order is SQL arrival
      * order (the judgment is order-insensitive); {@code gridPair}: a side is statically tabular. */
     ExecutionResult equals(String name, boolean wantEqual, List<TypedSpec> args, boolean incidental,
             boolean gridPair, List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook);
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
     /** {@code assertJsonStringsEqual(golden, actual)}; null = a non-string shape (host arm). */
-    @com.legend.Nullable ExecutionResult jsonStringsEqual(String name, List<TypedSpec> args,
+    @com.legend.base.Nullable ExecutionResult jsonStringsEqual(String name, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable AssertVerdicts.SpliceHook hook);
+            @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
     /** The RENDERED-TEXT pair (a toCSV / toString / joinStrings render of a grid against its
      * golden): {@code form} the render grammar, {@code rendered} the rendered side,
      * {@code eForm} / {@code aForm} which sides render, {@code orderedForm} whether the
      * assert is ordered. */
     ExecutionResult rendered(String name, boolean wantEqual, List<TypedSpec> args, String form,
-            TypedSpec rendered, @com.legend.Nullable String eForm, @com.legend.Nullable String aForm,
+            TypedSpec rendered, @com.legend.base.Nullable String eForm, @com.legend.base.Nullable String aForm,
             boolean orderedForm, List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env, @com.legend.Nullable AssertVerdicts.SpliceHook hook);
+            StatementExecutor.ExecEnv env, @com.legend.base.Nullable AssertVerdicts.SpliceHook hook);
 
     /** The static identity gate decided {@code assertIs} at compile time (a census fact). */
     void staticallyDecided(String name);

@@ -32,7 +32,7 @@ final class RoutingContext {
     /** The mapping REF of an execute()/executionPlan() call, or null
      * when the node is not one (or its mapping argument is not a plain
      * reference — those keep the outer context). */
-    static com.legend.compiler.spec.typed.@com.legend.Nullable
+    static com.legend.compiler.spec.typed.@com.legend.base.Nullable
             TypedPackageableRef routedEntryMapping(TypedNativeCall nc0,
             java.util.function.UnaryOperator<TypedSpec> bind) {
         TypedNativeCall nc = entryCall(nc0, bind);

@@ -177,7 +177,7 @@ final class OpSeeds {
     /** The relational operation element a property mapping carries;
      * null for the m3 shapes that are not RelationalPropertyMappings
      * (embedded family, local properties — named gaps). */
-    private static @com.legend.Nullable RelationalOperation opOf(PropertyMapping pm) {
+    private static @com.legend.base.Nullable RelationalOperation opOf(PropertyMapping pm) {
         return switch (pm) {
             case PropertyMapping.Column c ->
                     new RelationalOperation.ColumnRef(c.database(), c.table(), c.column());
@@ -198,7 +198,7 @@ final class OpSeeds {
      * end it is (recorded as a Property row), else null (no Property row
      * — the mapping is invisible to a by-name lookup, as in the engine
      * where a nameless property never matches). */
-    private @com.legend.Nullable String propertyOwner(String classFqn, String prop) {
+    private @com.legend.base.Nullable String propertyOwner(String classFqn, String prop) {
         java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>();
         Set<String> seen = new LinkedHashSet<>();
         work.add(classFqn);
@@ -234,7 +234,7 @@ final class OpSeeds {
      * corpus class whose property types the model does not carry (engine
      * source referencing protocol classes) has no rows; its own reads stay
      * loud where they happen, the seed never fails on its account. */
-    static com.legend.compiler.element.@com.legend.Nullable TypedClass classOrNull(
+    static com.legend.compiler.element.@com.legend.base.Nullable TypedClass classOrNull(
             ModelContext ctx, String fqn) {
         try {
             return ctx.findClass(fqn).orElse(null);

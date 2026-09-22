@@ -180,7 +180,7 @@ public final class NlqEvalMetrics {
      * callers with no model in hand. */
     public static NlqFullEvalResult.QueryAccuracyScore scoreQueryAccuracy(
             String pureQuery, NlqEvalCase.QueryExpectation expected,
-            @com.legend.Nullable String modelSource) {
+            @com.legend.base.Nullable String modelSource) {
 
         if (pureQuery == null || pureQuery.isBlank()) {
             return new NlqFullEvalResult.QueryAccuracyScore(

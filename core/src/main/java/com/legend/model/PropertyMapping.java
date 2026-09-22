@@ -106,7 +106,7 @@ public sealed interface PropertyMapping
      * is a loud wall until the enum-decode path learns expressions.
      */
     record EnumeratedExpression(String propertyName,
-                                @com.legend.Nullable String enumMappingId,
+                                @com.legend.base.Nullable String enumMappingId,
                                 RelationalOperation expression)
             implements PropertyMapping {
         public EnumeratedExpression {
@@ -116,7 +116,7 @@ public sealed interface PropertyMapping
     }
 
     record EnumeratedColumn(String propertyName,
-                            @com.legend.Nullable String enumMappingId,
+                            @com.legend.base.Nullable String enumMappingId,
                             String database, String table, String column)
             implements PropertyMapping {
         public EnumeratedColumn {
@@ -144,7 +144,7 @@ public sealed interface PropertyMapping
      *                      member dispatch reads THIS field.
      */
     record Join(String propertyName, String database, List<JoinChainElement> joins,
-                @com.legend.Nullable String targetSetId)
+                @com.legend.base.Nullable String targetSetId)
             implements PropertyMapping {
         public Join {
             Objects.requireNonNull(propertyName, "Property name cannot be null");
@@ -179,7 +179,7 @@ public sealed interface PropertyMapping
     record JoinTerminalColumn(String propertyName, String database,
                               List<JoinChainElement> joins,
                               RelationalOperation terminalColumn,
-                              @com.legend.Nullable String enumMappingId, boolean enumMapped)
+                              @com.legend.base.Nullable String enumMappingId, boolean enumMapped)
             implements PropertyMapping {
 
         public JoinTerminalColumn(String propertyName, String database,
