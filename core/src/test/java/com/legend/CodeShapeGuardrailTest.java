@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -251,7 +252,7 @@ class CodeShapeGuardrailTest {
     }
 
     private static List<Path> mainSources() throws IOException {
-        Path root = Path.of("src/main/java");
+        Path root = Repo.module("src/main/java");
         try (Stream<Path> s = Files.walk(root)) {
             List<Path> out = s.filter(p -> p.toString().endsWith(".java"))
                     .toList();

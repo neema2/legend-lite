@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -63,8 +64,8 @@ class RawSqlLedgerTest {
     @Test
     void rawSqlTranslationCallersAreLedgered() throws IOException {
         Map<String, Integer> found = new TreeMap<>();
-        for (Path root : new Path[] {Path.of("src/main/java"),
-                Path.of("src/test/java")}) {
+        for (Path root : new Path[] {Repo.module("src/main/java"),
+                Repo.module("src/test/java")}) {
             try (Stream<Path> files = Files.walk(root)) {
                 for (Path f : files
                         .filter(p -> p.toString().endsWith(".java"))
@@ -119,8 +120,8 @@ class RawSqlLedgerTest {
     void rawSqlSourceConstructionIsQuarantined() throws IOException {
         Pattern ctor = Pattern.compile("new SqlSource\\.RawSql\\(");
         Map<String, Integer> found = new TreeMap<>();
-        for (Path root : new Path[] {Path.of("src/main/java"),
-                Path.of("src/test/java")}) {
+        for (Path root : new Path[] {Repo.module("src/main/java"),
+                Repo.module("src/test/java")}) {
             try (Stream<Path> files = Files.walk(root)) {
                 for (Path f : files
                         .filter(p -> p.toString().endsWith(".java"))

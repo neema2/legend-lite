@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.testing.Repo;
 import java.nio.file.*;
 import java.util.*;
 
@@ -31,8 +32,8 @@ final class StressCorpus {
     private static final List<String> SECTION_ORDER = List.of("model.pure", "store.pure",
             "mapping.pure");
 
-    static final Path STRESS = Path.of("src/test/resources/stress");
-    static final Path PROJECTS = Path.of("../projects");
+    static final Path STRESS = Repo.module("src/test/resources/stress");
+    static final Path PROJECTS = Repo.path("projects");
 
     /** file name -> why legend-lite cannot build a model from it (census 2026-09-16). */
     static final Map<String, String> EXCLUDED = Map.of(

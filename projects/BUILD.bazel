@@ -1,0 +1,8 @@
+# The Legend model projects. For now this package only EXPORTS them: core's
+# stress corpus (StressCorpus.PROJECTS) links eleven of them into its model.
+# Each project becomes a legend_library target later (plan phase 5).
+filegroup(
+    name = "srcs",
+    srcs = glob(["**/*.pure"]),
+    visibility = ["//core:__pkg__"],
+)

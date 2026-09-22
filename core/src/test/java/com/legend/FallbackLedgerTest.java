@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -44,7 +45,7 @@ import java.util.stream.Stream;
  */
 class FallbackLedgerTest {
 
-    private static final Path PACKAGE = Path.of("src/main/java/com/legend/normalizer");
+    private static final Path PACKAGE = Repo.module("src/main/java/com/legend/normalizer");
 
     /** file &rarr; censused empty-answer sites ({@code MissProbe::miss},
      * {@code MissProbe.miss()}, {@code MissProbe.knownMiss(}). Measured

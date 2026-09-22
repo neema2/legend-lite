@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -34,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class PlatformNamesGuardrailTest {
 
-    private static final Path MAIN = Path.of("src/main/java/com/legend");
+    private static final Path MAIN = Repo.module("src/main/java/com/legend");
     private static final Pattern LITERAL_NAME_CHECK =
             Pattern.compile("equals\\(\"meta::");
     /** The retired runtime-shape walkers: their names may not reappear as

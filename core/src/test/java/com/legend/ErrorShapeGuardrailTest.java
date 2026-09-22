@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -383,7 +384,7 @@ class ErrorShapeGuardrailTest {
     }
 
     private static List<Path> mainSources() throws IOException {
-        Path root = Path.of("src/main/java");
+        Path root = Repo.module("src/main/java");
         try (Stream<Path> s = Files.walk(root)) {
             List<Path> out = s.filter(p -> p.toString().endsWith(".java"))
                     .toList();
@@ -393,18 +394,12 @@ class ErrorShapeGuardrailTest {
         }
     }
 
-    /** Core main + engine main (engine tests hold the ONE documented
-     * residual, named in the class javadoc). */
+    /** Core main. The engine module this once also walked was deleted on
+     * 2026-08-11; its walk stayed behind as an `if (Files.isDirectory(...))`
+     * that skipped silently for six weeks — a guard over nothing, removed
+     * rather than carried into the Bazel build. */
     private static List<Path> allSources() throws IOException {
-        List<Path> out = new ArrayList<>(mainSources());
-        Path engine = Path.of("../engine/src/main/java");
-        if (Files.isDirectory(engine)) {
-            try (Stream<Path> s = Files.walk(engine)) {
-                out.addAll(s.filter(p -> p.toString().endsWith(".java"))
-                        .toList());
-            }
-        }
-        return out;
+        return new ArrayList<>(mainSources());
     }
 
     private static int lineOf(String src, int offset) {

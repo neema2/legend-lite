@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -53,7 +54,7 @@ class DanglingStateGuardTest {
      * test trees where they exist — a slot's readers may live in another
      * module (batch 123's lesson: pct reads core's censuses). */
     private static final List<Path> ROOTS = Stream.of("core", "spec", "nlq", "pct", "parser-equivalence")
-            .flatMap(m -> Stream.of(Path.of("..", m, "src/main/java"), Path.of("..", m, "src/test/java")))
+            .flatMap(m -> Stream.of(Repo.path(m, "src/main/java"), Repo.path(m, "src/test/java")))
             .filter(Files::isDirectory)
             .toList();
 
@@ -186,7 +187,7 @@ class DanglingStateGuardTest {
         // not tree classes; only classes spelled like ours count
         List<String> bad = new ArrayList<>();
         List<Path> guards;
-        try (Stream<Path> files = Files.list(Path.of("src/test/java/com/legend"))) {
+        try (Stream<Path> files = Files.list(Repo.module("src/test/java/com/legend"))) {
             guards = files.filter(p -> p.getFileName().toString().matches(".*(Test|Coverage)\\.java")).sorted().toList();
         }
         GuardCoverage.assertFloor("DanglingStateGuardTest(guards)", guards.size(), 20);

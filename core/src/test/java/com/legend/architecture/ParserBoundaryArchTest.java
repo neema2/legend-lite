@@ -3,6 +3,7 @@
 
 package com.legend.architecture;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -153,11 +154,13 @@ class ParserBoundaryArchTest {
 
     private static List<Path> roots() {
         List<Path> roots = new ArrayList<>();
-        roots.add(Path.of("src/main/java"));
-        roots.add(Path.of("src/test/java"));
-        for (String sibling : new String[] {"../nlq/src", "../server/src",
-                "../pct/src", "../parser-equivalence/src"}) {
-            Path p = Path.of(sibling);
+        roots.add(Repo.module("src/main/java"));
+        roots.add(Repo.module("src/test/java"));
+        // "server" names a module that no longer exists; its isDirectory check
+        // below keeps it a no-op, as it has been under Maven
+        for (String sibling : new String[] {"nlq/src", "server/src",
+                "pct/src", "parser-equivalence/src"}) {
+            Path p = Repo.path(sibling);
             if (Files.isDirectory(p)) {
                 roots.add(p);
             }

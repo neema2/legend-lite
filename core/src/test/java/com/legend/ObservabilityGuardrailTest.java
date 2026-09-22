@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -117,7 +118,7 @@ class ObservabilityGuardrailTest {
     }
 
     private static java.util.List<Path> mainSources() throws IOException {
-        Path root = Path.of("src/main/java");
+        Path root = Repo.module("src/main/java");
         try (Stream<Path> s = Files.walk(root)) {
             java.util.List<Path> out = s
                     .filter(f -> f.toString().endsWith(".java")).toList();

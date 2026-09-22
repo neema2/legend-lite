@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -492,7 +493,7 @@ class JdbcSurfaceCensusTest {
     void jdbcSurfaceIsRegistered() throws IOException {
         List<Path> files = new ArrayList<>();
         for (String r : ROOTS) {
-            Path root = Path.of("..", r);
+            Path root = Repo.path(r);
             if (!Files.isDirectory(root)) {
                 continue;
             }
@@ -514,7 +515,7 @@ class JdbcSurfaceCensusTest {
                     .replaceAll("//.*", "")
                     .replaceAll("(?s)/\\*.*?\\*/", "");
             if (JDBC.matcher(src).find()) {
-                String rel = Path.of("..").toAbsolutePath().normalize()
+                String rel = Repo.root().toAbsolutePath().normalize()
                         .relativize(p.toAbsolutePath().normalize())
                         .toString().replace(java.io.File.separatorChar, '/');
                 (rel.contains("/main/") ? mainHits : testHits).add(rel);

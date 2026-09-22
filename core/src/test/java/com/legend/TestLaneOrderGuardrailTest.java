@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import java.io.IOException;
@@ -72,7 +73,7 @@ class TestLaneOrderGuardrailTest {
                 filesMatching(SWITCH_LITERAL),
                 "legend.exec.engineScanOrder is named outside DuckDb: only the corpus runner"
                 + " (spec tests) sets it, only DuckDb's pass list reads it");
-        String duck = Files.readString(Path.of("src/main/java/com/legend/sql/dialect/DuckDb.java"));
+        String duck = Files.readString(Repo.module("src/main/java/com/legend/sql/dialect/DuckDb.java"));
         assertEquals(1, count(SWITCH_READ, duck), "the switch is read exactly once");
         assertEquals(1, count(PASS_INSTALL, duck), "the pass is installed exactly once");
         String shape = duck.replaceAll("\\s+", " ");
@@ -95,7 +96,7 @@ class TestLaneOrderGuardrailTest {
 
     private static TreeSet<String> filesMatching(Pattern p) throws IOException {
         TreeSet<String> out = new TreeSet<>();
-        Path root = Path.of("src/main/java");
+        Path root = Repo.module("src/main/java");
         for (Path f : mainSources()) {
             if (p.matcher(Files.readString(f)).find()) {
                 out.add(root.relativize(f).toString().replace('\\', '/'));
@@ -114,7 +115,7 @@ class TestLaneOrderGuardrailTest {
     }
 
     private static List<Path> mainSources() throws IOException {
-        try (Stream<Path> s = Files.walk(Path.of("src/main/java"))) {
+        try (Stream<Path> s = Files.walk(Repo.module("src/main/java"))) {
             List<Path> out = s.filter(f -> f.toString().endsWith(".java")).toList();
             GuardCoverage.assertFloor("TestLaneOrderGuardrailTest", out.size(), 498);
             return out;

@@ -1,0 +1,9 @@
+# parser-equivalence is still built by Maven. For now this package only EXPORTS its sources,
+# because core's guard tests read them by path (census, skip and boundary
+# guards that walk every module). Declared here, those reads are edges a
+# reviewer can see in core/BUILD.bazel instead of relative paths nobody sees.
+filegroup(
+    name = "srcs",
+    srcs = glob(["src/**"]),
+    visibility = ["//core:__pkg__"],
+)

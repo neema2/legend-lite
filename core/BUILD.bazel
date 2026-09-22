@@ -58,18 +58,31 @@ java_test(
     size = "enormous",
     srcs = glob(["src/test/java/**/*.java"]),
     resources = glob(["src/test/resources/**"]),
-    # the files tests read by path today, declared, so they exist in runfiles
-    data = glob(["src/**"]),
-    main_class = "org.junit.platform.console.ConsoleLauncher",
+    # every file a test reads by path, declared, so it exists in runfiles and
+    # nothing is read by accident. The sibling trees are the cross-module reads
+    # (census, skip and boundary guards that walk every module; the stress
+    # corpus's linked projects) — today's hidden coupling, now visible here.
+    data = glob(["src/**"]) + [
+        "//nlq:srcs",
+        "//parser-equivalence:srcs",
+        "//pct:srcs",
+        "//projects:srcs",
+        "//spec:srcs",
+    ],
+    main_class = "com.legend.tools.junit.JUnitMain",
     use_testrunner = False,
     args = [
         "--select-package=com.legend",
         "--exclude-tag=heavy",
         "--exclude-tag=stress",
-        "--details=none",
+        # always print the counts: a PASSED line alone cannot tell 4,467 tests
+        # from zero, and the console launcher exits 0 when it finds none —
+        # hence also --fail-if-no-tests (Jupiter only here, so it fires; under
+        # the vintage engine it would not, see feasibility.md Q2)
+        "--details=summary",
+        "--fail-if-no-tests",
         "--disable-banner",
         "--disable-ansi-colors",
-        "--reports-dir=$${TEST_UNDECLARED_OUTPUTS_DIR:-/tmp}/junit",
     ],
     jvm_flags = ["-Duser.timezone=GMT"],
     # Maven runs Error Prone on core MAIN only; Bazel's toolchain runs its default
@@ -87,5 +100,5 @@ java_test(
         "@maven//:org_junit_jupiter_junit_jupiter_params",
         "@maven//:org_xerial_sqlite_jdbc",
     ],
-    runtime_deps = ["@maven//:org_junit_platform_junit_platform_console_standalone"],
+    runtime_deps = ["//tools/junit"],
 )

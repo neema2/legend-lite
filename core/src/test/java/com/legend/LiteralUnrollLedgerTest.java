@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -58,8 +59,7 @@ class LiteralUnrollLedgerTest {
     @Test
     @DisplayName("LiteralUnroll folds compare-only natives (the pinned set)")
     void foldSetIsCompareOnly() throws Exception {
-        String src = Files.readString(Path.of(
-                "src/main/java/com/legend/compiler/spec/LiteralUnroll.java"));
+        String src = Files.readString(Repo.module("src/main/java/com/legend/compiler/spec/LiteralUnroll.java"));
         Matcher m = Pattern.compile("is\\(c, \"(\\w+)\"\\)").matcher(src);
         Set<String> found = new TreeSet<>();
         while (m.find()) {

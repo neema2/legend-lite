@@ -32,6 +32,62 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
  */
 final class ArchitectureTest {
 
+    // Declared BEFORE CORE_PROD_CLASSES on purpose: static fields initialise in
+    // textual order, and CORE_PROD_CLASSES's importer reads THIS_TEST_TREE. In
+    // the other order it read null and the import excluded every class — which
+    // ArchUnit's "failed to check any classes" guard caught (2026-09-22).
+    /**
+     * DO_NOT_INCLUDE_TESTS recognises test classes by the PATH of their output
+     * directory — Maven's target/test-classes, Gradle's build/classes/…/test,
+     * IntelliJ's out/test. Bazel packs this module's test classes into a jar
+     * matching none of them, so under Bazel every test class was imported as
+     * production code and the rules reported legitimate test code — one rule
+     * 4,774 times. Excluding this test tree by its own code-source location is
+     * correct under every build: under Maven it is target/test-classes, which
+     * the predefined option already excludes.
+     */
+    private static final java.nio.file.Path THIS_TEST_TREE = realPath(
+            java.nio.file.Path.of(codeSourceUri()));
+
+    /**
+     * Compared as REAL paths: under Bazel the test jar reaches the classpath
+     * through a runfiles symlink, so its code-source path and the path ArchUnit
+     * reports for the same classes can be two spellings of one file (macOS's
+     * /var -> /private/var is a second one). A string match missed every test
+     * class that way.
+     */
+    private static boolean notThisTestTree(com.tngtech.archunit.core.importer.Location location) {
+        java.net.URI uri = location.asURI();
+        java.nio.file.Path container;
+        if ("jar".equals(uri.getScheme())) {
+            String spec = uri.getSchemeSpecificPart();          // file:/x/y.jar!/com/...
+            container = realPath(java.nio.file.Path.of(
+                    java.net.URI.create(spec.substring(0, spec.indexOf("!/")))));
+        } else if ("file".equals(uri.getScheme())) {
+            container = realPath(java.nio.file.Path.of(uri));
+        } else {
+            return true;   // jrt: and friends: the JDK, never this module's test tree
+        }
+        return !container.startsWith(THIS_TEST_TREE);
+    }
+
+    private static java.net.URI codeSourceUri() {
+        try {
+            return ArchitectureTest.class.getProtectionDomain().getCodeSource()
+                    .getLocation().toURI();
+        } catch (java.net.URISyntaxException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private static java.nio.file.Path realPath(java.nio.file.Path p) {
+        try {
+            return p.toRealPath();
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
     /**
      * Imports only production classes (excludes {@code src/test/}). All
      * structural rules apply to production code; tests may use whatever
@@ -39,7 +95,9 @@ final class ArchitectureTest {
      */
     private static final JavaClasses CORE_PROD_CLASSES = new ClassFileImporter()
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
+            .withImportOption(ArchitectureTest::notThisTestTree)
             .importPackages("com.legend");
+
 
     /**
      * <strong>Invariant 1 — The wall.</strong> Nothing under

@@ -942,7 +942,25 @@ class JsonM2MChainIntegrationTest {
         private String fileUrl(String resourcePath) {
             var url = getClass().getClassLoader().getResource(resourcePath);
             assertNotNull(url, resourcePath + " must be on classpath");
-            return url.toString();
+            if ("file".equals(url.getProtocol())) {
+                return url.toString();
+            }
+            // Packaged as a jar entry (Bazel packs test resources into the test
+            // jar; Maven leaves them loose in target/test-classes). A real
+            // sourceUrl names a file, never a jar entry, so hand the connection
+            // one: copied out under its own name, since the connection may
+            // dispatch on the extension.
+            try (var in = url.openStream()) {
+                java.nio.file.Path dir = java.nio.file.Files.createTempDirectory("json-m2m");
+                java.nio.file.Path file = dir.resolve(
+                        java.nio.file.Path.of(resourcePath).getFileName().toString());
+                java.nio.file.Files.copy(in, file);
+                file.toFile().deleteOnExit();
+                dir.toFile().deleteOnExit();
+                return file.toUri().toString();
+            } catch (java.io.IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
         }
 
         private String fileModel(String resourcePath) {

@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -1278,7 +1279,7 @@ class JavaEvalLedgerTest {
     void verdictFilesJudgeOnly() throws IOException {
         StringBuilder drift = new StringBuilder();
         for (String f : VERDICT_FILES) {
-            Path p = Path.of("..", f);
+            Path p = Repo.path(f);
             String src = Files.readString(p)
                     .replaceAll("(?s)/\\*.*?\\*/", "")
                     .replaceAll("//.*", "");
@@ -1305,7 +1306,7 @@ class JavaEvalLedgerTest {
     void theFunnelPackagesAreClosedRegisters() throws IOException {
         StringBuilder drift = new StringBuilder();
         for (var e : FUNNEL_PACKAGE_REGISTERS.entrySet()) {
-            Path dir = Path.of("..", e.getKey());
+            Path dir = Repo.path(e.getKey());
             java.util.Set<String> actual = new java.util.TreeSet<>();
             try (var s = Files.list(dir)) {
                 s.map(p -> p.getFileName().toString())
@@ -1337,7 +1338,7 @@ class JavaEvalLedgerTest {
     void javaEvaluationSurfaceOnlyShrinks() throws IOException {
         StringBuilder drift = new StringBuilder();
         for (var e : EVICT_SIZE.entrySet()) {
-            Path p = Path.of("..", e.getKey());
+            Path p = Repo.path(e.getKey());
             if (!Files.exists(p)) {
                 drift.append("\n  ").append(e.getKey())
                         .append(": EVICTED WHOLE — delete this ledger row"
@@ -1369,7 +1370,7 @@ class JavaEvalLedgerTest {
             }
         }
         for (var e : EVICT_NAMES.entrySet()) {
-            Path p = Path.of("..", e.getKey());
+            Path p = Repo.path(e.getKey());
             int pinned = (Integer) e.getValue()[1];
             if (!Files.exists(p)) {
                 if (pinned != 0) {
