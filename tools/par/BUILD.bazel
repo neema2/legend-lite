@@ -1,0 +1,16 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+
+# Compiles a Pure code repository to its PAR — see ParGenerator.java. The classpath
+# is the one the Maven goal ran with in pct/pom.xml: the engine's compiled core
+# and the TDS DSL, which hold the repositories a PAR may depend on.
+java_binary(
+    name = "par_generator",
+    srcs = ["ParGenerator.java"],
+    main_class = "com.legend.tools.par.ParGenerator",
+    visibility = ["//visibility:public"],
+    runtime_deps = [
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_code_compiled_core",
+        "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_tds_pure",
+    ],
+    deps = ["@maven_upstream//:org_finos_legend_pure_legend_pure_m3_core"],
+)

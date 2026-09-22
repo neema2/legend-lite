@@ -3,6 +3,7 @@
 # workspace-wide targets later.
 exports_files([
     "maven_core_install.json",
+    "maven_h2_modern_install.json",
     "maven_test_install.json",
     "maven_tools_install.json",
     "maven_upstream_install.json",

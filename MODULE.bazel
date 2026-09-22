@@ -22,6 +22,7 @@ maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 # core's closure may reach @maven_core alone (//tools/deps:core_closure_test).
 #
 #   @maven_core      core's own jars — the product's whole external surface
+#   @maven_h2_modern H2 2.4.240, the alternative H2 one pct lane runs on
 #   @maven_test      the test tooling every module's tests share
 #   @maven_upstream  legend-engine / legend-pure, for the modules that referee
 #                    lite against them (parser-equivalence, pct) — TEST ONLY
@@ -39,6 +40,17 @@ maven.install(
     ],
     fail_if_repin_required = False,
     lock_file = "//:maven_core_install.json",
+    repositories = ["https://repo1.maven.org/maven2"],
+)
+
+# THE MODERN H2, for the one lane that runs on it: pct's gate 7 (PCT relation on
+# H2 2.4.240, pct/pom.xml's -Dh2.version profile). An ALTERNATIVE to core's
+# 2.1.214, never beside it — the target that takes this one is given no other H2.
+maven.install(
+    name = "maven_h2_modern",
+    artifacts = ["com.h2database:h2:2.4.240"],
+    fail_if_repin_required = False,
+    lock_file = "//:maven_h2_modern_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
 
@@ -152,7 +164,7 @@ maven.install(
     lock_file = "//:maven_tools_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
-use_repo(maven, "maven_core", "maven_test", "maven_tools", "maven_upstream")
+use_repo(maven, "maven_core", "maven_h2_modern", "maven_test", "maven_tools", "maven_upstream")
 
 # ── THE UPSTREAM SOURCES ────────────────────────────────────────────────────────
 # legend-engine / legend-pure at ONE release, pinned by content. Tests read these

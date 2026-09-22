@@ -20,10 +20,14 @@ import org.junit.jupiter.api.Test;
  */
 class PoolsAreDisjointTest {
 
-    private static final String[] POOLS = {"core", "test", "upstream"};
+    private static final String[] POOLS = {"core", "h2_modern", "test", "upstream"};
 
     /** Overlaps that are known and safe, each with why. */
     private static final Map<String, String> ALLOWED = Map.of(
+            // two H2s by design: core's 2.1.214 and the 2.4.240 gate 7 runs on.
+            // Alternatives, never together — //pct:pct_h2 is given the modern
+            // one and no other (2026-09-22).
+            "com.h2database:h2", "core+h2_modern",
             // ArchUnit (test) logs through slf4j 2.0.12; the engine (upstream)
             // through 1.7.36. Only core and spec use ArchUnit, and neither uses
             // an upstream jar, so no classpath holds both (2026-09-22).

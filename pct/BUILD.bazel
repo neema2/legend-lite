@@ -1,9 +1,132 @@
-# pct is still built by Maven. For now this package only EXPORTS its sources,
-# because core's guard tests read them by path (census, skip and boundary
-# guards that walk every module). Declared here, those reads are edges a
-# reviewer can see in core/BUILD.bazel instead of relative paths nobody sees.
+# pct — Pure Compatibility Testing: legend-engine's PCT framework runs the engine's
+# own function tests (Pure) through legend-lite, via an adapter written in Pure
+# (src/main/resources) and a native bridge in Java (src/test/java/.../extension).
+# Every upstream jar is a TEST input from @maven_upstream: core never sees one.
+load("@rules_java//java:defs.bzl", "java_library")
+load("//tools/junit:defs.bzl", "junit_test")
+
+# sources exported for the guard tests that walk every module
 filegroup(
     name = "srcs",
     srcs = glob(["src/**"]),
     visibility = ["//core:__pkg__", "//parser-equivalence:__pkg__"],
+)
+
+# THE ADAPTER'S PAR: the Pure adapter compiled against the engine's platform, the
+# form the interpreted runtime loads it in (it refuses to start without it). What
+# legend-pure-maven-generation-par's build-pure-jar goal did, by the same call —
+# //tools/par.
+_DEFINITION = "src/main/resources/core_legend_lite_pct.definition.json"
+
+genrule(
+    name = "adapter_par",
+    testonly = True,
+    srcs = glob(["src/main/resources/**"]),
+    outs = ["pure-core_legend_lite_pct.par"],
+    cmd = "$(location //tools/par:par_generator) core_legend_lite_pct " +
+          "$(location %s) $$(dirname $(location %s)) $(RULEDIR)" % (_DEFINITION, _DEFINITION),
+    tools = ["//tools/par:par_generator"],
+)
+
+# the adapter on the classpath: its Pure source and definition, and its PAR at
+# the classpath root, where the runtime looks it up by name
+java_library(
+    name = "adapter",
+    testonly = True,
+    resources = glob(["src/main/resources/**"]),
+    runtime_deps = [":adapter_par_jar"],
+)
+
+java_library(
+    name = "adapter_par_jar",
+    testonly = True,
+    resources = [":adapter_par"],
+    resource_strip_prefix = package_name(),
+)
+
+java_library(
+    name = "pct_tests_lib",
+    testonly = True,
+    srcs = glob(["src/test/java/**/*.java"]),
+    resources = glob(["src/test/resources/**"]),
+    runtime_deps = [
+        ":adapter",
+        # the three function universes and their interpreted natives
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_runtime_java_extension_interpreted_functions_relation",
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_runtime_java_extension_interpreted_functions_standard",
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_runtime_java_extension_interpreted_functions_unclassified",
+        "@maven_upstream//:org_finos_legend_pure_legend_pure_runtime_java_extension_interpreted_dsl_tds",
+        "@maven_upstream//:org_finos_legend_pure_legend_pure_m2_dsl_tds_pure",
+        "@maven_upstream//:org_finos_legend_pure_legend_pure_runtime_java_engine_compiled",
+    ],
+    deps = [
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_functions_unclassified_pure",
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_functions_standard_pure",
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_functions_relation_pure",
+        "//core",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+        "@maven_upstream//:junit_junit",
+        "@maven_upstream//:org_eclipse_collections_eclipse_collections",
+        "@maven_upstream//:org_eclipse_collections_eclipse_collections_api",
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_test_framework",
+        "@maven_upstream//:org_finos_legend_pure_legend_pure_m3_core",
+        "@maven_upstream//:org_finos_legend_pure_legend_pure_m4",
+        "@maven_upstream//:org_finos_legend_pure_legend_pure_runtime_java_engine_interpreted",
+    ],
+)
+
+_SUITES = [
+    "Essential",
+    "Grammar",
+    "Relation",
+    "Standard",
+    "Unclassified",
+]
+
+# GATE 6 — the five PCT suites on DuckDB, in ONE JVM with the discipline guard,
+# exactly as Maven's unfiltered `mvn test -Dtest='!ChannelB*'` composes them: the
+# census ceilings (PctCensusGate) are cumulative per JVM and were measured on
+# that composition.
+junit_test(
+    name = "pct_duckdb",
+    data = glob(["src/**"]),
+    select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_%sFunctions_PCT" % s for s in _SUITES] + [
+        "--select-class=org.finos.legend.lite.pct.PctDisciplineTest",
+    ],
+    runtime_deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+    ],
+)
+
+# GATE 7 — the relation suite on H2 2.4.240 (LEGENDLITE_PCT_BACKEND=h2 selects
+# the H2 execution dialect). This lane has LEDGERED failures, so it is held to a
+# RATCHET rather than pass/fail (tools/junit/JUnitMain.java): at least 469 run,
+# at most 1 failure and 26 errors — the pins tools/allgates.sh held (G7_MIN_RUN,
+# G7_MAX_FAIL, G7_MAX_ERR). Lower them in the change that earns it. Given the
+# modern H2 and NO other: two H2s on one classpath would be a coin toss.
+junit_test(
+    name = "pct_h2",
+    env = {"LEGENDLITE_PCT_BACKEND": "h2"},
+    jvm_flags = ["-Dlegend.ratchet=minRun=469,maxFailures=1,maxErrors=26"],
+    select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_RelationFunctions_PCT"],
+    runtime_deps = [
+        ":pct_tests_lib",
+        "@maven_h2_modern//:com_h2database_h2",
+    ],
+)
+
+# GATE 9 — channel B: lite's own compiler runs the PCT sources straight from the
+# pinned legend-pure / legend-engine trees, and its verdicts are diffed against
+# channel A's ledgers and the engine's manifests.
+junit_test(
+    name = "pct_channel_b",
+    data = glob(["src/**"]),
+    select = ["--select-package=org.finos.legend.lite.pct.channelb"],
+    upstream = True,
+    runtime_deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+    ],
 )
