@@ -27,193 +27,9 @@ const ONLY = process.env.ONLY;
 const RUNTIME = 'trades::RT';
 
 /** The demo model's table, as the cube sees it. */
-const COLUMNS = [
-  { name: 'region', type: 'String' },
-  { name: 'desk', type: 'String' },
-  { name: 'book', type: 'String' },
-  { name: 'year', type: 'Integer', kind: 'dimension' },
-  { name: 'qtr', type: 'String' },
-  { name: 'notional', type: 'Float' },
-  { name: 'pnl', type: 'Float' },
-  { name: 'qty', type: 'Integer' },
-];
+import { ENGINE_COLUMNS, casesFor } from './engine-cases.mjs';
 
-const BASE = {
-  source: { expression: '#>{trades::DB.TRADES}#' },
-  columns: COLUMNS,
-  derived: [],
-  rows: [],
-  pivotOn: [],
-  measures: [],
-  sorts: [],
-  epoch: 1,
-};
-
-const cube = (over = {}) => ({ ...BASE, ...over });
-const SUM = { name: 'notional', column: 'notional', fn: 'sum' };
-
-/** A filter case: one operator, with a value that suits it. */
-const filterCase = (operator, extra = {}) => ({
-  name: `filter: ${operator}`,
-  snapshot: cube({
-    measures: [SUM],
-    rows: ['region'],
-    filter: { kind: 'condition', column: 'region', operator, ...extra },
-  }),
-});
-
-const AGGREGATES = ['sum', 'count', 'average', 'min', 'max', 'median',
-  'stdDevSample', 'stdDevPopulation', 'varianceSample',
-  'variancePopulation', 'joinStrings', 'wavg', 'unique'];
-
-const CASES = [
-  // -- the shapes ----------------------------------------------------
-  { name: 'detail rows', snapshot: cube({}) },
-  {
-    name: 'sort ascending',
-    snapshot: cube({ sorts: [{ column: 'region', direction: 'asc' }] }),
-  },
-  {
-    name: 'sort descending, two columns',
-    snapshot: cube({
-      sorts: [
-        { column: 'region', direction: 'desc' },
-        { column: 'desk', direction: 'asc' },
-      ],
-    }),
-  },
-  {
-    name: 'group by one dimension',
-    snapshot: cube({ rows: ['region'], measures: [SUM] }),
-  },
-  {
-    name: 'group by three dimensions',
-    snapshot: cube({ rows: ['region', 'desk', 'book'], measures: [SUM] }),
-  },
-  {
-    name: 'group by with NO measures',
-    snapshot: cube({ rows: ['region'] }),
-  },
-  {
-    name: 'the grand total (no keys)',
-    snapshot: cube({ measures: [SUM] }),
-  },
-  {
-    name: 'a level scope, with parent conditions',
-    snapshot: cube({ rows: ['region', 'desk'], measures: [SUM] }),
-    scope: { level: 2, parent: ['EMEA'] },
-  },
-  {
-    name: 'column pivot',
-    snapshot: cube({ pivotOn: ['year'], measures: [SUM] }),
-  },
-  {
-    name: 'pivot AND group by, through the cast',
-    snapshot: cube({
-      rows: ['region'],
-      pivotOn: ['year'],
-      measures: [SUM],
-      pivotCast: [
-        { name: '2021__|__notional', measure: 'notional' },
-        { name: '2022__|__notional', measure: 'notional' },
-      ],
-    }),
-  },
-  {
-    name: 'a derived column',
-    snapshot: cube({
-      rows: ['region'],
-      measures: [SUM],
-      derived: [{ name: 'big', expression: '$x.notional > 100' }],
-    }),
-  },
-  {
-    name: 'a row window (offset and limit)',
-    snapshot: cube({ window: { offset: 10, limit: 20 } }),
-  },
-  {
-    name: 'a string value with a quote in it',
-    snapshot: cube({
-      rows: ['region'],
-      measures: [SUM],
-      filter: {
-        kind: 'condition', column: 'desk', operator: 'equal',
-        value: "O'Brien's desk",
-      },
-    }),
-  },
-  {
-    name: 'and / or / not, nested',
-    snapshot: cube({
-      rows: ['region'],
-      measures: [SUM],
-      filter: {
-        kind: 'and',
-        children: [
-          {
-            kind: 'or',
-            children: [
-              { kind: 'condition', column: 'region', operator: 'equal',
-                value: 'EMEA' },
-              { kind: 'condition', column: 'region', operator: 'equal',
-                value: 'AMER' },
-            ],
-          },
-          {
-            kind: 'not',
-            child: { kind: 'condition', column: 'qty', operator: 'lessThan',
-              value: 10 },
-          },
-        ],
-      },
-    }),
-  },
-  // -- every aggregate ----------------------------------------------
-  ...AGGREGATES.map((fn) => ({
-    name: `aggregate: ${fn}`,
-    snapshot: cube({
-      rows: ['region'],
-      measures: [{
-        name: 'agg',
-        column: fn === 'joinStrings' || fn === 'unique' ? 'desk' : 'notional',
-        fn,
-        ...(fn === 'wavg' ? { weight: 'qty' } : {}),
-      }],
-    }),
-  })),
-  // -- every filter operator ----------------------------------------
-  filterCase('equal', { value: 'EMEA' }),
-  filterCase('notEqual', { value: 'EMEA' }),
-  filterCase('lessThan', { value: 'EMEA' }),
-  filterCase('lessThanEqual', { value: 'EMEA' }),
-  filterCase('greaterThan', { value: 'EMEA' }),
-  filterCase('greaterThanEqual', { value: 'EMEA' }),
-  filterCase('isEmpty'),
-  filterCase('isNotEmpty'),
-  filterCase('contains', { value: 'EM' }),
-  filterCase('notContains', { value: 'EM' }),
-  filterCase('startsWith', { value: 'E' }),
-  filterCase('notStartsWith', { value: 'E' }),
-  filterCase('endsWith', { value: 'A' }),
-  filterCase('notEndsWith', { value: 'A' }),
-  filterCase('in', { value: ['EMEA', 'AMER'] }),
-  filterCase('notIn', { value: ['EMEA', 'AMER'] }),
-  filterCase('equalCaseInsensitive', { value: 'emea' }),
-  filterCase('notEqualCaseInsensitive', { value: 'emea' }),
-  filterCase('containsCaseInsensitive', { value: 'em' }),
-  filterCase('startsWithCaseInsensitive', { value: 'e' }),
-  filterCase('endsWithCaseInsensitive', { value: 'a' }),
-  filterCase('inCaseInsensitive', { value: ['emea', 'amer'] }),
-  filterCase('notInCaseInsensitive', { value: ['emea', 'amer'] }),
-  filterCase('equalColumn', { rightColumn: 'desk' }),
-  filterCase('equalCaseInsensitiveColumn', { rightColumn: 'desk' }),
-  filterCase('notEqualColumn', { rightColumn: 'desk' }),
-  filterCase('notEqualCaseInsensitiveColumn', { rightColumn: 'desk' }),
-  filterCase('lessThanColumn', { rightColumn: 'desk' }),
-  filterCase('lessThanEqualColumn', { rightColumn: 'desk' }),
-  filterCase('greaterThanColumn', { rightColumn: 'desk' }),
-  filterCase('greaterThanEqualColumn', { rightColumn: 'desk' }),
-];
+const CASES = casesFor('#>{trades::DB.TRADES}#');
 
 async function post(path, body, text = false) {
   const response = await fetch(`${API}${path}`, {
@@ -321,7 +137,7 @@ if (!ONLY || 'server mode'.includes(ONLY.toLowerCase())) {
     });
     const snapshot = {
       source: { expression: '#>{trades::h2::DB.TRADES_SCHEMA.TRADES}#' },
-      columns: COLUMNS,
+      columns: ENGINE_COLUMNS,
       derived: [],
       rows: ['region'],
       pivotOn: [],
@@ -331,15 +147,19 @@ if (!ONLY || 'server mode'.includes(ONLY.toLowerCase())) {
     };
     const out = await executor.execute(serialize(snapshot), snapshot);
     const by = Object.fromEntries(out.rows.columns.map((c) => [c.name, c]));
-    const seeded = { AMER: 300, APAC: 400.25, EMEA: 301 };
+    // Derived from the seed's own shape (notional counts 1..N),
+    // not copied from a run -- see tools that generate
+    // trades-h2.pure's testDataSetupSqls.
+    const seeded = { AMER: 528, APAC: 3088, EMEA: 2712,
+      LATAM: 1928 };
     const regions = by['region']?.values ?? [];
     const notional = by['notional']?.values ?? [];
     const wrong = regions
       .map((r, i) => [r, notional[i], seeded[r]])
       .filter(([, got, want]) => Math.abs(Number(got) - want) > 0.001);
-    if (out.rows.rowCount !== 3) {
+    if (out.rows.rowCount !== 4) {
       results.push({ name: 'server mode: the engine executes', ok: false,
-        where: 'the engine', detail: `${out.rows.rowCount} rows, expected 3` });
+        where: 'the engine', detail: `${out.rows.rowCount} rows, expected 4` });
     } else if (wrong.length > 0) {
       results.push({ name: 'server mode: the engine executes', ok: false,
         where: 'the figures',
@@ -358,14 +178,17 @@ if (!ONLY || 'server mode'.includes(ONLY.toLowerCase())) {
       // one with a single desk reads the desk.
       const desks = Object.fromEntries(
         regions.map((r, i) => [r, (by['desk']?.values ?? [])[i]]));
-      const agreed = desks['AMER'] === 'Rates' && desks['EMEA'] === null;
+      // LATAM trades on ONE desk and AMER on two, so unique() has to
+      // answer the desk for one and null for the other. With every
+      // region multi-desk this check passes while proving nothing.
+      const agreed = desks['LATAM'] === 'Rates' && desks['AMER'] === null;
       results.push(agreed
         ? { name: 'server mode: the engine executes', ok: true,
-            detail: `3 rows, sums agree, unique agrees` }
+            detail: `4 rows, sums agree, unique agrees` }
         : { name: 'server mode: the engine executes', ok: false,
             where: 'the unique aggregate',
-            detail: `AMER desk ${JSON.stringify(desks['AMER'])},`
-              + ` EMEA desk ${JSON.stringify(desks['EMEA'])}` });
+            detail: `LATAM desk ${JSON.stringify(desks['LATAM'])},`
+              + ` AMER desk ${JSON.stringify(desks['AMER'])}` });
     }
   } catch (e) {
     results.push({ name: 'server mode: the engine executes', ok: false,
