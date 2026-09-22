@@ -1961,12 +1961,19 @@ try {
   };
 
   /** Add one, at `stage` (0 = per row, 1 = per group). */
-  const addCalc = async (stage, name, expression) => {
+  const addCalc = async (stage, name, expression, kind = 'measure') => {
     await openCalc();
     await page.locator('.dc-calc-stage').nth(stage)
       .locator('.dc-calc-add').click();
     await page.waitForSelector('.dc-calc-form');
     await page.fill('.dc-calc-input-name', name);
+    // The ROW stage asks whether the column sums. It defaults to
+    // dimension -- a wrongly-summed column gives a plausible wrong
+    // number, a wrongly-un-summed one gives a blank -- so a check
+    // that wants a total has to say so, exactly as a user would.
+    if (stage === 0) {
+      await page.locator(`.dc-calc-kind-input[value="${kind}"]`).check();
+    }
     await page.fill('.dc-calc-input-expr', expression);
     await page.locator('.dc-calc-save').click();
   };
@@ -2084,9 +2091,18 @@ try {
           e.querySelector('.dc-calc-type')?.textContent]));
       const mine = types.find(([n]) => n === 'uplift');
       if (!mine) throw new Error(`not listed: ${JSON.stringify(types)}`);
-      if (mine[1] !== 'Float') {
-        throw new Error(`type is ${JSON.stringify(mine[1])}, expected Float`
-          + ' — an Arrow name here means the driver stopped normalising');
+      // The line reads "<kind> · <type>" now that the kind is
+      // declared, so the type is the last field.
+      const type = (mine[1] ?? '').split('·').pop()?.trim();
+      if (type !== 'Float') {
+        throw new Error(`type is ${JSON.stringify(type)}, expected Float`
+          + ' — an Arrow name here (Float64) would mean the driver'
+          + ' stopped normalising to the Pure vocabulary');
+      }
+      // The DECLARED kind is on the line too, and it is what actually
+      // decides the aggregate now -- the type only seeds the cast.
+      if (!/measure/.test(mine[1] ?? '')) {
+        throw new Error(`the declared kind is missing: ${mine[1]}`);
       }
       await clearCalcs();
       return `uplift: ${mine[1]}`;

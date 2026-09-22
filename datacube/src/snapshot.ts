@@ -189,6 +189,25 @@ export interface DerivedColumn {
    * until the first result lands.
    */
   readonly type?: string;
+  /**
+   * Measure or dimension, as the user DECLARED it.
+   *
+   * Asked, not inferred. Upstream asks too
+   * (DataCubeExtendedColumnKind), and the alternative here was
+   * inferring it from a type learned off a landed result -- which
+   * meant the answer to "should this column sum?" came from Arrow's
+   * wire vocabulary, via a converter, one query late. A declared kind
+   * is right on the first query and cannot be wrong about what the
+   * user wanted.
+   *
+   * Only meaningful at the ROW stage: a group-stage column is already
+   * post-aggregation, which is why upstream has no
+   * measure-or-dimension variant of GROUP_LEVEL.
+   *
+   * Undefined falls back to the type-based default, so a snapshot
+   * saved before this field existed still behaves as it did.
+   */
+  readonly kind?: ColumnKind;
 }
 
 export type SortDirection = 'asc' | 'desc';

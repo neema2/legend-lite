@@ -1851,10 +1851,12 @@ export class CubeApp {
    * copied onto the snapshot here -- the same way the snapshot
    * already learns the pivot's generated column names.
    *
-   * It matters for the aggregate DEFAULT: without a type, grouping
-   * gives a numeric calculated column `unique` rather than `sum`,
-   * which shows as a blank cell rather than an error. No re-query --
-   * this only fills in what the answer already told us.
+   * It no longer decides whether the column SUMS -- the editor asks
+   * for that (`DerivedColumn.kind`), as upstream does, so the
+   * aggregate is right on the first query instead of one query late.
+   * What still needs the type is the pivot's
+   * `cast(@Relation<(...)>)`, which has to declare one, and the
+   * type-based fallback for a column with no declared kind.
    */
   #learnCalcTypes(snapshot: CubeSnapshot, view: CubeView): CubeSnapshot {
     const seen = new Map(view.rows.columns.map((c) => [c.name, c.type]));
@@ -1898,9 +1900,17 @@ export class CubeApp {
     const learned = this.#learnCalcTypes(previous, view);
     if (learned === previous) return false;
     this.#snapshot = learned;
-    const aggregating = previous.rows.length > 0
-      || previous.pivotOn.length > 0;
-    if (!aggregating) return false;
+    // ONLY WHEN THE TYPE CAN STILL CHANGE THE QUERY. Two cases are
+    // left now that the kind is declared: a pivot has to name a type
+    // in its cast, and a column with no declared kind still falls
+    // back to the type-based default. Anything else would be a second
+    // round trip that buys nothing.
+    const castsATypes = previous.pivotOn.length > 0;
+    const undeclared = [...previous.derived,
+      ...(previous.groupDerived ?? [])].some((d) => d.kind === undefined);
+    if (!castsATypes && !(undeclared && previous.rows.length > 0)) {
+      return false;
+    }
     // The PREVIOUS snapshot goes with it, so a query the planner
     // rejects takes the learned types back out rather than leaving the
     // cube retrying a shape it cannot render.

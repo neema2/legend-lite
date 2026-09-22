@@ -923,3 +923,87 @@ describe('the DETAIL cube: no grouping, no pivot, no measures', () => {
     assert.equal(pure.includes('->limit('), false, pure);
   });
 });
+
+describe('a calculated column aggregates as DECLARED', () => {
+  const base = {
+    source: { expression: '#>{db.T}#' },
+    columns: [
+      { name: 'region', type: 'String' },
+      { name: 'notional', type: 'Float' },
+    ],
+    pivotOn: [],
+    measures: [],
+    sorts: [],
+    epoch: 1,
+  } as const;
+
+  it('sums a column the user called a measure', () => {
+    const out = serialize({
+      ...base,
+      derived: [{ name: 'uplift', expression: '$x.notional * 1.1',
+        kind: 'measure' }],
+      rows: ['region'],
+    });
+    assert.match(out, /uplift:x\|\$x\.uplift:y\|\$y->sum\(\)/);
+  });
+
+  it('does NOT sum one the user called a dimension, whatever its type',
+    () => {
+      // A declared kind beats the type, exactly as it does for a
+      // source column: a numeric-looking calculated column the user
+      // means as a key -- a year bucket, a banded id -- must not sum.
+      const out = serialize({
+        ...base,
+        derived: [{ name: 'bucket', expression: '$x.notional->round()',
+          kind: 'dimension', type: 'Integer' }],
+        rows: ['region'],
+      });
+      assert.match(out, /bucket:x\|\$x\.bucket:y\|\$y->uniqueValueOnly\(\)/);
+      assert.doesNotMatch(out, /bucket:x\|\$x\.bucket:y\|\$y->sum\(\)/);
+    });
+
+  it('sums on the FIRST query, before any type is known', () => {
+    // The point of asking. With the kind inferred from a learned
+    // type, the first query over a grouped cube aggregated a numeric
+    // calculated column as `unique` -- a blank column -- and only
+    // corrected itself after a second round trip.
+    const out = serialize({
+      ...base,
+      derived: [{ name: 'uplift', expression: '$x.notional * 1.1',
+        kind: 'measure' }],
+      rows: ['region'],
+    });
+    assert.match(out, /uplift:x\|\$x\.uplift:y\|\$y->sum\(\)/);
+  });
+
+  it('falls back to the type when no kind was declared', () => {
+    // Snapshots saved before the field existed still behave as they
+    // did: a numeric type defaults to a measure.
+    const out = serialize({
+      ...base,
+      derived: [{ name: 'uplift', expression: '$x.notional * 1.1',
+        type: 'Float' }],
+      rows: ['region'],
+    });
+    assert.match(out, /uplift:x\|\$x\.uplift:y\|\$y->sum\(\)/);
+  });
+
+  it('keeps a group-stage column out of the pre-aggregation select', () => {
+    // The defect that made the whole group stage unusable: the name
+    // went into `select(~[...])`, which runs before the column exists.
+    const out = serialize({
+      ...base,
+      derived: [],
+      groupDerived: [{ name: 'margin', expression: '$x.pnl / $x.notional' }],
+      rows: ['region'],
+      measures: [{ name: 'notional', column: 'notional', fn: 'sum' }],
+    });
+    const select = /select\(~\[([^\]]*)\]/.exec(out)?.[1] ?? '';
+    assert.ok(!select.includes('margin'),
+      `margin leaked into the projection: ${select}`);
+    const groupAt = out.indexOf('groupBy(~[');
+    const extendAt = out.lastIndexOf('extend(~[margin');
+    assert.ok(extendAt > groupAt,
+      'the group-stage extend must come after the groupBy');
+  });
+});

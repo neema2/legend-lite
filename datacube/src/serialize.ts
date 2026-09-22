@@ -467,9 +467,15 @@ function columnSpecs(
   const out = new Map<string,
     { name: string; type?: string; kind?: ColumnKind }>();
   for (const d of [...s.derived, ...(s.groupDerived ?? [])]) {
-    out.set(d.name, d.type === undefined
-      ? { name: d.name }
-      : { name: d.name, type: d.type });
+    // The DECLARED kind wins over the type, exactly as it does for a
+    // source column: `kindOf` reads an explicit kind first, and a
+    // calculated column the user called a dimension must not sum
+    // because its values happen to be numeric.
+    out.set(d.name, {
+      name: d.name,
+      ...(d.type === undefined ? {} : { type: d.type }),
+      ...(d.kind === undefined ? {} : { kind: d.kind }),
+    });
   }
   for (const c of s.columns) out.set(c.name, c);
   return out;

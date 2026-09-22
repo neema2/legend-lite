@@ -26,7 +26,11 @@ import {
   type CalcStage,
   type Completion,
 } from '../calc.ts';
-import type { CubeSnapshot, DerivedColumn } from '../snapshot.ts';
+import type {
+  ColumnKind,
+  CubeSnapshot,
+  DerivedColumn,
+} from '../snapshot.ts';
 
 export interface CalcEditorOptions {
   readonly snapshot: CubeSnapshot;
@@ -43,6 +47,8 @@ interface Editing {
   readonly original?: string;
   name: string;
   expression: string;
+  /** Row stage only: a group-stage column is already aggregated. */
+  kind: ColumnKind;
 }
 
 const STAGE_LABEL: Record<CalcStage, string> = {
@@ -106,6 +112,11 @@ export class CalcEditor {
     const next: DerivedColumn = {
       name: e.name.trim(),
       expression: e.expression.trim(),
+      // Only at the row stage: a group-stage column is already
+      // post-aggregation, so measure-or-dimension has nothing to
+      // decide. Upstream draws the same line -- GROUP_LEVEL has no
+      // measure or dimension variant.
+      ...(e.stage === 'row' ? { kind: e.kind } : {}),
     };
     if (e.original !== undefined) {
       const at = list.findIndex((d) => d.name === e.original);
@@ -162,7 +173,14 @@ export class CalcEditor {
     add.type = 'button';
     add.textContent = '+ Add';
     add.addEventListener('click', () => {
-      this.#editing = { stage, name: '', expression: '' };
+      // DIMENSION by default, and deliberately. The harm is
+      // asymmetric -- the reasoning `infer.ts` already writes down:
+      // summing an id, a year or a postcode gives a plausible number
+      // that is meaningless and says nothing about being wrong, while
+      // leaving a quantity un-summed gives a blank that reads as "no
+      // aggregate chosen". The selector is right there either way.
+      this.#editing = { stage, name: '', expression: '',
+        kind: 'dimension' };
       this.#render();
     });
 
@@ -184,7 +202,8 @@ export class CalcEditor {
       // The type is absent until a result has landed, and saying so is
       // better than showing nothing: it tells the user the column has
       // not been run yet.
-      type.textContent = d.type ?? 'not run yet';
+      type.textContent = [d.kind, d.type ?? 'not run yet']
+        .filter((t) => t !== undefined).join(' · ');
       const expr = this.#el('code', 'dc-calc-expr', li);
       expr.textContent = d.expression;
       const edit = this.#el('button', 'dc-calc-edit', li) as HTMLButtonElement;
@@ -192,7 +211,7 @@ export class CalcEditor {
       edit.textContent = 'Edit';
       edit.addEventListener('click', () => {
         this.#editing = { stage, original: d.name, name: d.name,
-          expression: d.expression };
+          expression: d.expression, kind: d.kind ?? 'dimension' };
         this.#render();
       });
       const del = this.#el('button', 'dc-calc-del', li) as HTMLButtonElement;
@@ -225,6 +244,32 @@ export class CalcEditor {
       e.name = name.value;
       this.#refreshProblem(form);
     });
+
+    if (e.stage === 'row') {
+      const kindRow = this.#el('div', 'dc-calc-field', form);
+      const legend = this.#el('span', 'dc-calc-kind-label', kindRow);
+      legend.textContent = 'Aggregates as';
+      const choices = this.#el('div', 'dc-calc-kinds', kindRow);
+      for (const kind of ['dimension', 'measure'] as const) {
+        const option = this.#el('label', 'dc-calc-kind', choices);
+        const radio = this.#el('input', 'dc-calc-kind-input',
+          option) as HTMLInputElement;
+        radio.type = 'radio';
+        radio.name = 'dc-calc-kind';
+        radio.value = kind;
+        radio.checked = e.kind === kind;
+        radio.addEventListener('change', () => {
+          if (radio.checked) e.kind = kind;
+        });
+        const text = this.#el('span', 'dc-calc-kind-text', option);
+        // Say what it DOES, not what it is called: "measure" and
+        // "dimension" are the cube's words, and the choice the user is
+        // making is whether the column adds up.
+        text.textContent = kind === 'measure'
+          ? 'a measure — sums over a group'
+          : 'a dimension — shows its value, or blank if it varies';
+      }
+    }
 
     const exprRow = this.#el('label', 'dc-calc-field', form);
     exprRow.append(this.#doc.createTextNode('Pure expression'));
