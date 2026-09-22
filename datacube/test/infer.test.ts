@@ -1,4 +1,9 @@
 import assert from 'node:assert/strict';
+import {
+  GRAMMAR_TYPE_KEYWORDS,
+  PIVOT_SEPARATOR,
+  PURE_KIND_BY_SQL_NAME,
+} from '../src/generated/lite-facts.ts';
 import { describe, it } from 'node:test';
 
 import {
@@ -46,7 +51,14 @@ describe('pureTypeOf', () => {
     assert.equal(pureTypeOf('INTEGER'), 'Integer');
     assert.equal(pureTypeOf('BIGINT'), 'Integer');
     assert.equal(pureTypeOf('DOUBLE'), 'Float');
-    assert.equal(pureTypeOf('DECIMAL(9,2)'), 'Float');
+    // 'Decimal', not 'Float'. This test asserted Float, which was
+    // our hand-written table's answer and not legend-lite's
+    // (RelationalKinds.pureKindOf spells Decimal/Numeric as Decimal).
+    // The old answer still reached the right KIND for a money column,
+    // but only because 'Float' happened to be what the measure
+    // default tested for -- see isFractionalType.
+    assert.equal(pureTypeOf('DECIMAL(9,2)'), 'Decimal');
+    assert.equal(pureTypeOf('NUMERIC(18,4)'), 'Decimal');
     assert.equal(pureTypeOf('BIT'), 'Boolean');
     assert.equal(pureTypeOf('DATE'), 'StrictDate');
     assert.equal(pureTypeOf('TIMESTAMP'), 'DateTime');
@@ -205,5 +217,61 @@ describe('inferModel', () => {
       ], { table: 't' }),
       /two columns named/,
     );
+  });
+});
+
+describe('the facts that belong to legend-lite', () => {
+  it('emits only type keywords lite\'s Database grammar accepts', () => {
+    // A generated Database that names a type the grammar does not
+    // parse does not compile, and the failure surfaces as a planner
+    // error on someone's first query after picking a file. The
+    // keyword set is generated from DatabaseProtocolParser, so this
+    // checks our output against lite's actual grammar rather than
+    // against a list someone typed here.
+    const emitted = [
+      'VARCHAR', 'BIGINT', 'HUGEINT', 'UBIGINT', 'INTEGER', 'INT',
+      'TINYINT', 'SMALLINT', 'DOUBLE', 'FLOAT', 'REAL', 'BOOLEAN',
+      'BOOL', 'DATE', 'TIMESTAMP', 'TIMESTAMPTZ', 'DECIMAL', 'NUMERIC',
+      'BLOB', 'UUID', 'INTERVAL', 'STRUCT(a INTEGER)',
+    ].map((t) => sqlTypeOf(t));
+    for (const out of emitted) {
+      const bare = out.includes('(') ? out.slice(0, out.indexOf('(')) : out;
+      assert.ok(
+        GRAMMAR_TYPE_KEYWORDS.includes(bare),
+        `sqlTypeOf produced '${out}', whose keyword '${bare}' is not one `
+          + `lite's Database grammar accepts: `
+          + `${GRAMMAR_TYPE_KEYWORDS.join(', ')}`,
+      );
+    }
+  });
+
+  it('answers what lite answers, for every keyword lite maps', () => {
+    // pureTypeOf is a LOOKUP into the generated table, so this asserts
+    // the lookup does not lose or rewrite an entry -- the table itself
+    // is kept in step by `npm run verify:lite-facts`.
+    for (const [name, kind] of Object.entries(PURE_KIND_BY_SQL_NAME)) {
+      assert.equal(pureTypeOf(name), kind, name);
+    }
+  });
+
+  it('keeps the parameters off the lookup but not off the model', () => {
+    // The table is keyed on the bare name; a declared type keeps its
+    // precision, because that is what the Database carries.
+    assert.equal(pureTypeOf('DECIMAL(38,6)'), 'Decimal');
+    assert.equal(pureTypeOf('VARCHAR(4096)'), 'String');
+    assert.equal(sqlTypeOf('DECIMAL(9,2)'), 'DECIMAL(9,2)');
+  });
+
+  it('falls back to String for a type lite does not map', () => {
+    // Deliberate: a column the planner can only group by is far less
+    // harmful than one whose arithmetic silently means something else.
+    assert.equal(pureTypeOf('NOT_A_TYPE'), 'String');
+    assert.equal(pureTypeOf(''), 'String');
+  });
+
+  it('takes the pivot separator from lite, not from a literal', () => {
+    // If this is ever not '__|__', it is because lite changed
+    // Type.java and the generator picked it up -- which is the point.
+    assert.equal(PIVOT_SEPARATOR, '__|__');
   });
 });

@@ -65,12 +65,45 @@ export interface ColumnSpec {
  */
 export function kindOf(column: ColumnSpec): ColumnKind {
   if (column.kind) return column.kind;
-  return column.type === 'Integer' ||
-    column.type === 'Float' ||
-    column.type === 'Number' ||
-    column.type === 'Decimal'
-    ? 'measure'
-    : 'dimension';
+  return isNumericType(column.type) ? 'measure' : 'dimension';
+}
+
+/**
+ * Whether a Pure type name is one a cube can sum.
+ *
+ * THE predicate, because it was four. This one knew Decimal and
+ * Number; the two in `serialize.ts` and the one in `infer.ts` tested
+ * `Integer || Float` only, so a DECIMAL column was neither defaulted
+ * to a measure nor given a SUM -- while the comment above the
+ * groupBy path said "SUM for Integer/Decimal/Float". The comment was
+ * right and the code was not.
+ *
+ * `Number` is Pure's abstract numeric; lite spells decimals
+ * `Decimal` (RelationalKinds.pureKindOf), which is what
+ * `src/generated/lite-facts.ts` now carries.
+ */
+export function isNumericType(type: string | undefined): boolean {
+  return type === 'Integer' || isFractionalType(type);
+}
+
+/**
+ * Whether a Pure type name is a type that carries a FRACTION.
+ *
+ * The distinction matters for one decision: whether a column with no
+ * declared kind DEFAULTS to a measure. Summing an id, a year or a
+ * postcode gives a plausible number that is meaningless and says
+ * nothing about being wrong; leaving a quantity un-summed gives a
+ * blank, which reads as "no aggregate chosen". So integers default to
+ * dimensions and fractions to measures -- a deliberate divergence
+ * from DataCube, which sums every numeric.
+ *
+ * Money and rates arrive as DOUBLE or DECIMAL and must land here.
+ * Until `pureTypeOf` read its table out of legend-lite, DECIMAL was
+ * mislabelled 'Float' and reached this decision by accident; lite
+ * calls it 'Decimal', so the predicate has to name it.
+ */
+export function isFractionalType(type: string | undefined): boolean {
+  return type === 'Float' || type === 'Number' || type === 'Decimal';
 }
 
 /** Columns a cube may group or pivot by. */

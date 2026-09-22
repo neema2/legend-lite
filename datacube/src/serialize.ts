@@ -22,14 +22,15 @@
 import {
   CubeRefusal,
   columnType,
+  isNumericType,
+  referencedColumns,
+  totalOrderSorts,
   type AggregateFn,
   type CubeSnapshot,
   type FilterNode,
   type FilterValue,
   type Measure,
   type SortSpec,
-  referencedColumns,
-  totalOrderSorts,
 } from './snapshot.ts';
 import type { RowPath } from './tree.ts';
 import { ROOT_COLUMN } from './grid/columns.ts';
@@ -509,8 +510,8 @@ export function serialize(
     return snapshot.columns
       .filter((c) => {
         if (isOn.has(c.name) || c.excludedFromPivot) return false;
-        const numeric = c.type === 'Integer' || c.type === 'Float';
-        return c.kind === 'measure' || (numeric && c.kind === undefined);
+        return c.kind === 'measure'
+          || (isNumericType(c.type) && c.kind === undefined);
       })
       .map((c) => c.name);
   };
@@ -630,9 +631,8 @@ export function serialize(
       // which is nonsense, and the kind inference already knows
       // better: a numeric column it judged key-like is a dimension.
       // An explicit kind wins over the type it is carried in.
-      const numeric = spec?.type === 'Integer' || spec?.type === 'Float';
       const measures = spec?.kind === 'measure'
-        || (numeric && spec?.kind === undefined);
+        || (isNumericType(spec?.type) && spec?.kind === undefined);
       specs.push(aggregateSpec(configured ?? {
         name,
         column: name,
@@ -697,9 +697,8 @@ export function serialize(
       const spec = specOf.get(name);
       // The same measure test the groupBy path uses: an explicit
       // kind wins, and a bare number defaults to a measure.
-      const numeric = spec?.type === 'Integer' || spec?.type === 'Float';
       const isMeasure = spec?.kind === 'measure'
-        || (numeric && spec?.kind === undefined);
+        || (isNumericType(spec?.type) && spec?.kind === undefined);
       if (!isMeasure) continue;
       specs.push(aggregateSpec({ name, column: name, fn: 'sum' }));
     }

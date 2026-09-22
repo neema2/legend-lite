@@ -20,6 +20,9 @@
 // because duckdb-wasm has it compiled in and registerFileBuffer
 // makes it no harder.
 
+import { PURE_KIND_BY_SQL_NAME } from './generated/lite-facts.ts';
+import { isFractionalType } from './snapshot.ts';
+
 /** One column, as DuckDB's `DESCRIBE` reports it. */
 export interface DescribedColumn {
   readonly name: string;
@@ -68,18 +71,31 @@ export function sqlTypeOf(duckdbType: string): string {
   }
 }
 
-/** The SQL type a Database declares, to the Pure type the cube shows. */
+/**
+ * The SQL type a Database declares, to the Pure type the cube shows.
+ *
+ * A LOOKUP, not a table. The table is legend-lite's
+ * (`RelationalKinds.pureKindOf` composed with
+ * `RelationalDataType.fromName`) and is generated into
+ * `src/generated/lite-facts.ts` by `tools/gen-lite-facts.mjs`, so the
+ * cube cannot hold a second opinion about it. The hand-written version
+ * this replaces answered 'Float' for DECIMAL where lite answers
+ * 'Decimal' -- the same divergence lite's own audit found in one of
+ * its readers on 2026-09-15.
+ *
+ * Only the LEXICAL part stays here: a declared type carries its
+ * parameters (`DECIMAL(9,2)`, `VARCHAR(4096)`) and the table is keyed
+ * on the bare name. Stripping them is not a type fact.
+ *
+ * An unknown name is String, deliberately: a column the planner can
+ * only group by is far less harmful than one whose arithmetic
+ * silently means something else.
+ */
 export function pureTypeOf(sqlType: string): string {
   const t = sqlType.trim().toUpperCase();
-  if (t.startsWith('DECIMAL')) return 'Float';
-  switch (t) {
-    case 'BIT': return 'Boolean';
-    case 'INTEGER': case 'BIGINT': return 'Integer';
-    case 'DOUBLE': return 'Float';
-    case 'DATE': return 'StrictDate';
-    case 'TIMESTAMP': return 'DateTime';
-    default: return 'String';
-  }
+  const paren = t.indexOf('(');
+  const bare = paren > 0 ? t.slice(0, paren).trim() : t;
+  return PURE_KIND_BY_SQL_NAME[bare] ?? 'String';
 }
 
 /**
@@ -133,7 +149,7 @@ export function quoteIdent(name: string): string {
  * produce a confident wrong number.
  */
 function kindOf(pureType: string): 'dimension' | 'measure' {
-  return pureType === 'Float' ? 'measure' : 'dimension';
+  return isFractionalType(pureType) ? 'measure' : 'dimension';
 }
 
 export interface InferOptions {

@@ -5,7 +5,7 @@
   "scripts": {
     "test": "node --experimental-strip-types --test test/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "check": "npm run typecheck && npm test",
+    "check": "npm run verify:lite-facts && npm run typecheck && npm test",
     "engine": "cd ../.. && java -cp core/target/legend-lite-core-1.0.0-SNAPSHOT-shaded.jar com.legend.server.LegendHttpServer",
     "engine:build": "cd ../.. && mvn -q -pl core -am -DskipTests package",
     "build:demo": "esbuild demo/main.ts --bundle --format=esm --outfile=demo/bundle.js --target=es2022 && esbuild demo/main-server.ts --bundle --format=esm --outfile=demo/bundle-server.js --target=es2022 && esbuild demo/main-engine.ts --bundle --format=esm --outfile=demo/bundle-engine.js --target=es2022 && esbuild src/planner-worker.ts --bundle --format=esm --outfile=demo/planner-worker.js --target=es2022",
@@ -28,7 +28,9 @@
     "verify:picker": "node demo/verify-picker.mjs",
     "verify:features": "node --experimental-strip-types demo/verify-features.mjs",
     "verify:engine": "node --experimental-strip-types demo/verify-engine.mjs",
-    "verify:smoke": "node --experimental-strip-types demo/verify-smoke.mjs"
+    "verify:smoke": "node --experimental-strip-types demo/verify-smoke.mjs",
+    "gen:lite-facts": "node tools/gen-lite-facts.mjs",
+    "verify:lite-facts": "node tools/gen-lite-facts.mjs --check"
   },
   "keywords": [],
   "author": "",

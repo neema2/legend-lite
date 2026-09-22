@@ -32,13 +32,19 @@
 // header height instead of leaving holes above the data. Getting that
 // wrong is the classic misaligned-pivot-header bug.
 
+import { PIVOT_SEPARATOR } from '../generated/lite-facts.ts';
 import type { ResultTable } from '../result.ts';
 import { TREE_COLUMN } from '../treeview.ts';
 
 export { TREE_COLUMN };
 
 /** legend-lite's and DataCube's shared pivot path separator. */
-export const PIVOT_SEPARATOR = '__|__';
+// Re-exported, not declared: the spelling is legend-lite's
+// (Type.java's PIVOT_SEPARATOR) and `src/generated/lite-facts.ts`
+// reads it out of there, so a change in lite fails
+// `npm run verify:lite-facts` instead of silently flattening a
+// header. Every existing importer of this name keeps working.
+export { PIVOT_SEPARATOR };
 
 /**
  * The grand total's synthetic group key.
