@@ -1,5 +1,6 @@
 package com.legend.equivalence;
 
+import com.legend.testing.Repo;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
@@ -199,8 +200,8 @@ class CorpusCensusTest {
                 .forEach(e -> b.append(String.format("  %5d  %s%n",
                         e.getValue(), e.getKey())));
 
-        Files.writeString(Path.of("target", "corpus-census.txt"), b.toString());
-        Files.writeString(Path.of("target", "corpus-census-defects.txt"),
+        Files.writeString(Repo.out("corpus-census.txt"), b.toString());
+        Files.writeString(Repo.out("corpus-census-defects.txt"),
                 String.join("\n", defectLines));
         System.out.println(b);
     }

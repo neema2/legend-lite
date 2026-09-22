@@ -1,0 +1,4 @@
+# The upstream pins file, read by parser-equivalence's OraclePins. Under Bazel the
+# release is MODULE.bazel's LEGEND_ENGINE_RELEASE; this file stays for Maven until
+# Maven goes.
+exports_files(["oracle-pins.env"])

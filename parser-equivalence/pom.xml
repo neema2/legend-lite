@@ -34,6 +34,11 @@
             <groupId>com.legend</groupId>
             <artifactId>legend-lite-core</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.legend</groupId>
+            <artifactId>legend-lite-testing</artifactId>
+            <scope>test</scope>
+        </dependency>
 
         <!-- the reference parser, and the DSL extensions that let it read non-Pure sections -->
         <dependency>

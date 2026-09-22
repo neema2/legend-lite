@@ -1,5 +1,6 @@
 package com.legend.equivalence.harvest;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Method;
@@ -33,7 +34,7 @@ class ZEngineFixtureHarvest {
         }
         System.out.println("@@ tests-jars: " + testJars);
         java.nio.file.Files.deleteIfExists(
-                java.nio.file.Path.of("target/engine-fixtures.jsonl"));
+                Repo.out("engine-fixtures.jsonl"));
         int classes = 0;
         int methods = 0;
         int invoked = 0;
@@ -95,10 +96,8 @@ class ZEngineFixtureHarvest {
         System.out.println("@@ classes run: " + classes + "; test methods: "
                 + methods + "; completed: " + invoked + "; failures: "
                 + failuresByKind);
-        long lines = java.nio.file.Files.exists(java.nio.file.Path.of(
-                "target/engine-fixtures.jsonl"))
-                ? java.nio.file.Files.lines(java.nio.file.Path.of(
-                        "target/engine-fixtures.jsonl")).count()
+        long lines = java.nio.file.Files.exists(Repo.out("engine-fixtures.jsonl"))
+                ? java.nio.file.Files.lines(Repo.out("engine-fixtures.jsonl")).count()
                 : 0;
         System.out.println("@@ fixtures dumped: " + lines);
     }

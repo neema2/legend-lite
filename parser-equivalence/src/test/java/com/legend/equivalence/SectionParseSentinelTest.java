@@ -1,5 +1,6 @@
 package com.legend.equivalence;
 
+import com.legend.testing.Repo;
 import com.legend.parser.ElementParser;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.junit.jupiter.api.Assumptions;
@@ -76,11 +77,10 @@ class SectionParseSentinelTest {
 
     private static java.util.Set<String> loadSkewClaims() {
         try {
-            java.nio.file.Path f = java.nio.file.Path.of("..", "docs",
+            java.nio.file.Path f = Repo.path("docs",
                     "version-skew-claims.tsv");
-            if (!java.nio.file.Files.exists(f)) {
-                f = java.nio.file.Path.of("docs", "version-skew-claims.tsv");
-            }
+            // one answer: the repository path (the cwd-relative second guess this had
+            // only existed while tests ran from the module directory)
             java.util.Set<String> out = new java.util.HashSet<>();
             for (String line : java.nio.file.Files.readAllLines(f)) {
                 int tab = line.indexOf('\t');
@@ -255,7 +255,7 @@ class SectionParseSentinelTest {
         // "engine accepts, we refuse" bucket — the coverage debt — and a
         // capped list means you can quote 198 without ever seeing 198.
         failures.forEach(f -> report.append("  ").append(f).append('\n'));
-        Files.writeString(Path.of("target", "section-sentinel-report.txt"),
+        Files.writeString(Repo.out("section-sentinel-report.txt"),
                 report.toString());
         System.out.println(report);
 

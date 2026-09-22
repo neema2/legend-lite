@@ -5,5 +5,5 @@
 filegroup(
     name = "srcs",
     srcs = glob(["src/**"]),
-    visibility = ["//core:__pkg__"],
+    visibility = ["//core:__pkg__", "//parser-equivalence:__pkg__"],
 )

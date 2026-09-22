@@ -3,6 +3,7 @@
 
 package com.legend.equivalence;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -142,7 +143,7 @@ class OwnDialectCensusTest {
 
     @Test
     void ownCorpusAtLegendLite() throws Exception {
-        Path repo = Path.of("..").toAbsolutePath().normalize();
+        Path repo = Repo.root().toAbsolutePath().normalize();
         List<Corpus.Source> own = new ArrayList<>();
         for (String module : List.of("core", "parser-equivalence", "pct")) {
             own.addAll(InlineSnippets.extract(repo.resolve(module),
@@ -217,7 +218,7 @@ class OwnDialectCensusTest {
         b.append("# id\trefusal\n");
         rows.sort(String::compareTo);
         rows.forEach(r -> b.append(r).append('\n'));
-        Files.writeString(Path.of("target", "own-dialect-census.tsv"),
+        Files.writeString(Repo.out("own-dialect-census.tsv"),
                 b.toString());
         System.out.println("own-dialect census: " + platformAccepts
                 + " platform-accepted, " + liteAccepts + " LITE-accepted, "

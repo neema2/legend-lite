@@ -3,6 +3,7 @@
 
 package com.legend.equivalence;
 
+import com.legend.testing.Repo;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
@@ -22,10 +23,9 @@ public final class OraclePins {
     private static final Map<String, String> PINS = load();
 
     private static Map<String, String> load() {
-        Path f = Path.of("..", "tools", "oracle-pins.env");
-        if (!Files.exists(f)) {
-            f = Path.of("tools", "oracle-pins.env");
-        }
+        Path f = Repo.path("tools", "oracle-pins.env");
+        // one answer: the repository path (the cwd-relative second guess this had
+        // only existed while tests ran from the module directory)
         Map<String, String> out = new LinkedHashMap<>();
         try {
             for (String line : Files.readAllLines(f)) {

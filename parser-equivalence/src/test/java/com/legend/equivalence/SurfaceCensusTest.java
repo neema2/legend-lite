@@ -1,5 +1,6 @@
 package com.legend.equivalence;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -15,8 +16,7 @@ class SurfaceCensusTest {
     @Test
     void everyEngineSurfaceIsParsedOrNamed() throws Exception {
         java.util.Set<String> excluded = new java.util.HashSet<>();
-        java.nio.file.Path ledger = java.nio.file.Path.of(
-                "../docs/parser-surface-exclusions.tsv");
+        java.nio.file.Path ledger = Repo.path("docs/parser-surface-exclusions.tsv");
         for (String line : java.nio.file.Files.readAllLines(ledger)) {
             String[] c = line.split("\t");
             if (c.length >= 2 && !"kind".equals(c[0])) {
@@ -82,9 +82,9 @@ class SurfaceCensusTest {
             }
         }
         java.nio.file.Files.createDirectories(
-                java.nio.file.Path.of("target"));
+                Repo.outDir());
         java.nio.file.Files.write(
-                java.nio.file.Path.of("target", "surface-census.tsv"), census);
+                Repo.out("surface-census.tsv"), census);
         assertTrue(missing.isEmpty(),
                 "ENGINE grammar surface we neither parse nor NAME in "
                 + "docs/parser-surface-exclusions.tsv: " + missing);
@@ -123,7 +123,7 @@ class SurfaceCensusTest {
         org.junit.jupiter.api.Assumptions.assumeTrue(engineRoot != null);
         java.util.Set<String> snap = new java.util.HashSet<>();
         for (String line : java.nio.file.Files.readAllLines(
-                java.nio.file.Path.of("../docs/g4-keyword-snapshot.tsv"))) {
+                Repo.path("docs/g4-keyword-snapshot.tsv"))) {
             snap.add(line.split("\t")[0]);
         }
         java.util.List<String> fresh = new java.util.ArrayList<>();

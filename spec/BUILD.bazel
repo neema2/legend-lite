@@ -7,7 +7,7 @@ load("//tools/junit:defs.bzl", "junit_test")
 filegroup(
     name = "srcs",
     srcs = glob(["src/**"]),
-    visibility = ["//core:__pkg__"],
+    visibility = ["//core:__pkg__", "//parser-equivalence:__pkg__"],
 )
 
 # Compiled ONCE; every lane below runs from this library.

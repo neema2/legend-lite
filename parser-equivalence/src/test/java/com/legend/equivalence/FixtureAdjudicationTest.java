@@ -7,6 +7,7 @@ import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
+import com.legend.testing.Repo;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -316,23 +317,18 @@ class FixtureAdjudicationTest {
                         + " SHRINKAGE means ratchet the pin down");
     }
 
-    /** legend-lite's own test tree — this module's parent, per Corpus's
-     *  root convention. */
+    /** legend-lite's own test tree, by repository path. */
     private static List<Path> liteTestSources() {
-        Path root = Path.of(System.getProperty("legend.lite.root",
-                Path.of("").toAbsolutePath().getParent() == null
-                        ? "." : Path.of("").toAbsolutePath().getParent()
-                                .toString()));
         List<Path> out = new ArrayList<>();
         // TWO modules, both REQUIRED: the "engine" module was deleted
         // (cd31b9f3) and the silent isDirectory-skip made this walk half-dead
         // (deep-audit #2); batch 7b (2026-09-11) moved the corpus harness and
         // the generators — and the Pure fixtures their tests embed — to spec
         for (String module : new String[] {"core", "spec"}) {
-            Path dir = root.resolve(module).resolve("src/test/java");
+            Path dir = Repo.path(module, "src/test/java");
             if (!Files.isDirectory(dir)) {
                 throw new IllegalStateException(module + " test tree missing at "
-                        + dir + " — set -Dlegend.lite.root");
+                        + dir);
             }
             try (Stream<Path> s = Files.walk(dir)) {
                 s.filter(f -> f.toString().endsWith(".java"))

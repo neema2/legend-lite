@@ -1,5 +1,6 @@
 package com.legend.equivalence;
 
+import com.legend.testing.Repo;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
 import org.junit.jupiter.api.Test;
 
@@ -130,9 +131,9 @@ class RejectionParityTest {
         lineDiverges.stream().limit(10)
                 .forEach(d -> report.append("  LINE-DIVERGE ").append(d).append('\n'));
         try {
-            java.nio.file.Files.createDirectories(java.nio.file.Path.of("target"));
+            java.nio.file.Files.createDirectories(Repo.outDir());
             java.nio.file.Files.writeString(
-                    java.nio.file.Path.of("target", "position-diverges.tsv"),
+                    Repo.out("position-diverges.tsv"),
                     String.join("\n", lineDiverges) + "\n");
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
@@ -142,7 +143,7 @@ class RejectionParityTest {
                     .append("-".repeat(72)).append('\n');
             misses.stream().limit(40).forEach(m -> report.append("  ").append(m).append('\n'));
         }
-        Files.writeString(Path.of("target", "rejection-report.txt"), report.toString());
+        Files.writeString(Repo.out("rejection-report.txt"), report.toString());
         System.out.println(report);
 
         // POSITION FLOOR (position-exactness lane): line agreement is a

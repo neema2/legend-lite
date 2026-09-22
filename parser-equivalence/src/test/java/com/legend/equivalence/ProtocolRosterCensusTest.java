@@ -1,5 +1,6 @@
 package com.legend.equivalence;
 
+import com.legend.testing.Repo;
 import com.fasterxml.jackson.annotation.JsonSubTypes;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.finos.legend.engine.language.pure.grammar.from.PureGrammarParser;
@@ -41,7 +42,12 @@ class ProtocolRosterCensusTest {
      * skipping on ordering. */
     static void materializeRoster() throws Exception {
         // ---- roster: every @JsonSubTypes in protocol packages ----
-        Map<String, String> tagToClass = new TreeMap<>();
+        // A tag maps to EVERY class declaring it: unrelated protocols reuse
+        // tags (sql and relational both declare "literal", protobuf3 and
+        // haskell both "bool"). Keeping only the first class seen made the
+        // ledger depend on classpath order — Maven's and Bazel's differ, and
+        // the two builds pinned different classes for 8 tags (2026-09-22).
+        Map<String, Set<String>> tagToClass = new TreeMap<>();
         String cp = System.getProperty("java.class.path");
         for (String entry : cp.split(java.io.File.pathSeparator)) {
             if (!entry.endsWith(".jar") || !entry.contains("legend-engine")) {
@@ -63,8 +69,8 @@ class ProtocolRosterCensusTest {
                         JsonSubTypes st = c.getAnnotation(JsonSubTypes.class);
                         if (st != null) {
                             for (JsonSubTypes.Type t : st.value()) {
-                                tagToClass.putIfAbsent(t.name(),
-                                        t.value().getName());
+                                tagToClass.computeIfAbsent(t.name(), k -> new TreeSet<>())
+                                        .add(t.value().getName());
                             }
                         }
                     } catch (Throwable ignored) {
@@ -78,8 +84,8 @@ class ProtocolRosterCensusTest {
         PureProtocolExtensionLoader.extensions().forEach(ext ->
                 ext.getExtraProtocolSubTypeInfoCollectors().forEach(c ->
                         c.value().forEach(info -> info.getSubTypes().forEach(
-                                p -> tagToClass.putIfAbsent(p.getTwo(),
-                                        p.getOne().getName())))));
+                                p -> tagToClass.computeIfAbsent(p.getTwo(), k -> new TreeSet<>())
+                                        .add(p.getOne().getName())))));
         System.out.println("@@ FULL roster: " + tagToClass.size() + " tags");
 
         // ---- coverage: engine corpus + OUR OWN corpus ----
@@ -90,9 +96,8 @@ class ProtocolRosterCensusTest {
         Set<String> seen = new TreeSet<>();
         List<Corpus.Source> universe = new ArrayList<>(Corpus.all());
         universe.addAll(Corpus.engineFixtures());
-        Path repo = Path.of(System.getProperty("user.dir")).getParent();
         for (String module : new String[]{"core", "spec", "pct"}) {
-            universe.addAll(InlineSnippets.extract(repo.resolve(module),
+            universe.addAll(InlineSnippets.extract(Repo.path(module),
                     "own-" + module, InlineSnippets.OWN_DECL));
         }
         int accepted = 0;
@@ -115,32 +120,34 @@ class ProtocolRosterCensusTest {
 
         // ---- classification + report ----
         Map<String, List<String>> buckets = new TreeMap<>();
+        int uncovered = 0;
         for (var e : tagToClass.entrySet()) {
             if (seen.contains(e.getKey())) {
                 continue;
             }
-            String cls = e.getValue();
-            String bucket;
-            if (cls.contains(".executionPlan.")
-                    || cls.contains("ExecutionNode")) {
-                bucket = "RUNTIME-plan";
-            } else if (cls.contains("Artifact")
-                    || cls.contains("DeploymentC")
-                    || cls.contains("DeploymentD")) {
-                bucket = "RUNTIME-deployment";
-            } else if (cls.contains(".test.") && (cls.contains("Result")
-                    || cls.contains("Status") || cls.contains("Debug"))) {
-                bucket = "RUNTIME-test-result";
-            } else if (cls.contains("deprecated")
-                    || cls.contains(".application.")) {
-                bucket = "LEGACY-wire";
-            } else {
-                bucket = "USER-TYPABLE?";
+            uncovered++;
+            for (String cls : e.getValue()) {
+                String bucket;
+                if (cls.contains(".executionPlan.")
+                        || cls.contains("ExecutionNode")) {
+                    bucket = "RUNTIME-plan";
+                } else if (cls.contains("Artifact")
+                        || cls.contains("DeploymentC")
+                        || cls.contains("DeploymentD")) {
+                    bucket = "RUNTIME-deployment";
+                } else if (cls.contains(".test.") && (cls.contains("Result")
+                        || cls.contains("Status") || cls.contains("Debug"))) {
+                    bucket = "RUNTIME-test-result";
+                } else if (cls.contains("deprecated")
+                        || cls.contains(".application.")) {
+                    bucket = "LEGACY-wire";
+                } else {
+                    bucket = "USER-TYPABLE?";
+                }
+                buckets.computeIfAbsent(bucket, k -> new ArrayList<>())
+                        .add(e.getKey() + "\t" + cls);
             }
-            buckets.computeIfAbsent(bucket, k -> new ArrayList<>())
-                    .add(e.getKey() + "\t" + cls);
         }
-        int uncovered = buckets.values().stream().mapToInt(List::size).sum();
         System.out.println("@@ covered: " + (tagToClass.size() - uncovered)
                 + "/" + tagToClass.size());
         buckets.forEach((b, tags) -> {
@@ -148,19 +155,19 @@ class ProtocolRosterCensusTest {
             tags.forEach(t -> System.out.println("@@   " + t));
         });
         StringBuilder dump = new StringBuilder();
-        tagToClass.forEach((t, c) -> dump.append(t).append('\t').append(c)
-                .append('\t').append(seen.contains(t) ? "COVERED"
-                        : "UNCOVERED").append('\n'));
+        tagToClass.forEach((t, classes) -> classes.forEach(c -> dump.append(t)
+                .append('\t').append(c).append('\t')
+                .append(seen.contains(t) ? "COVERED" : "UNCOVERED").append('\n')));
         java.nio.file.Files.writeString(
-                Path.of("target", "protocol-roster.txt"), dump.toString());
+                Repo.out("protocol-roster.txt"), dump.toString());
         // THE LEDGER (upstream boundary batch 6): the roster is COMMITTED
         // (docs/protocol-roster.tsv) and held equal — a new upstream tag
         // adds/removes protocol types as a REVIEWED diff, each row marked
         // COVERED (some source in either corpus reaches it) or UNCOVERED.
         // Regenerate with -Droster.generate=1.
-        Path ledger = Path.of("..", "docs", "protocol-roster.tsv");
+        Path ledger = Repo.path("docs", "protocol-roster.tsv");
         String header = "# PROTOCOL-TYPE ROSTER — every @JsonSubTypes tag the pinned engine's protocol jars declare"
-                + " (+ the extension registry),\n# COVERED when a source in the engine corpus, the fixtures or our own"
+                + " (+ the extension registry),\n# one row per (tag, class): unrelated protocols reuse a tag, and every class declaring it is listed.\n# COVERED when a source in the engine corpus, the fixtures or our own"
                 + " test snippets reaches it (ProtocolRosterCensusTest).\n# THE LEDGER IS THIS FILE: a bump that adds"
                 + " or removes a tag, or moves a tag between COVERED and UNCOVERED, is a reviewed diff."
                 + " Regenerate: -Droster.generate=1.\n";

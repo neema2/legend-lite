@@ -1,0 +1,8 @@
+# docs/ is prose, except for the committed LEDGERS some tests compare against
+# (the protocol roster, the refusal allowlists, the skew claims, ...). Declared here
+# so a test reads them as inputs rather than by a path nobody can see.
+filegroup(
+    name = "ledgers",
+    srcs = glob(["*.tsv"]),
+    visibility = ["//visibility:public"],
+)
