@@ -18,7 +18,6 @@
     <modules>
         <module>core</module>
         <module>spec</module>
-        <module>nlq</module>
         <module>pct</module>
         <module>parser-equivalence</module>
     </modules>

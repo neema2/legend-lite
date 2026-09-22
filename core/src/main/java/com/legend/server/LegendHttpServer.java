@@ -392,14 +392,6 @@ public class LegendHttpServer {
         }
     }
 
-    /**
-     * Register an additional HTTP context (route) on this server.
-     * Used by extension modules (e.g. nlq) to add endpoints.
-     */
-    public void addContext(String path, HttpHandler handler) {
-        server.createContext(path, handler);
-    }
-
     public void start() {
         server.setExecutor(null);
         server.start();

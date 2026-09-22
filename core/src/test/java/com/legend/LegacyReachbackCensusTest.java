@@ -50,7 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class LegacyReachbackCensusTest {
 
     private static final List<String> ROOTS = List.of(
-            "core/src/main", "pct/src/main", "nlq/src/main",
+            "core/src/main", "pct/src/main",
             "parser-equivalence/src/main");
 
     /** Coverage floor: production files scanned on 2026-08-30. Shrink

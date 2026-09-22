@@ -1,11 +1,11 @@
 package com.legend.server;
 
-import com.legend.testing.Repo;
 import com.legend.server.DiagramService;
 import com.legend.server.DiagramService.AssociationInfo;
 import com.legend.server.DiagramService.ClassInfo;
 import com.legend.server.DiagramService.DiagramData;
 import com.legend.server.DiagramService.GeneralisationInfo;
+import com.legend.server.DiagramService.TagInfo;
 import com.legend.server.LegendHttpServer;
 import org.junit.jupiter.api.Test;
 
@@ -13,8 +13,7 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -82,15 +81,14 @@ class DiagramServiceTest {
     @Test
     void extractWithAnnotations() {
         String pure = """
-                Profile nlq::NlqProfile
+                Profile trading::Domain
                 {
-                    stereotypes: [dimension, metric];
-                    tags: [description, businessDomain];
+                    stereotypes: [dimension];
+                    tags: [businessDomain];
                 }
 
-                Class <<nlq::NlqProfile.dimension>>
-                  {nlq::NlqProfile.description = 'A financial trade',
-                   nlq::NlqProfile.businessDomain = 'Trading'}
+                Class <<trading::Domain.dimension>>
+                  {doc.doc = 'A financial trade', trading::Domain.businessDomain = 'Trading'}
                 trading::Trade
                 {
                     tradeId: String[1];
@@ -106,21 +104,86 @@ class DiagramServiceTest {
         assertEquals("trading", trade.packagePath());
         assertEquals("trading::Trade", trade.id());
         assertEquals("dimension", trade.stereotype());
+        // the description is the platform's documentation tag, doc.doc
         assertEquals("A financial trade", trade.description());
-        assertEquals("Trading", trade.businessDomain());
+        // and EVERY tag is carried, keyed by the profile the model wrote
+        assertEquals(List.of(
+                new TagInfo("doc", "doc", "A financial trade"),
+                new TagInfo("trading::Domain", "businessDomain", "Trading")), trade.tags());
         assertEquals(2, trade.properties().size());
+    }
+
+    @Test
+    void documentationBlockIsTheDescription() {
+        // Pure's '''...''' documentation is sugar for the full-path doc tag
+        String pure = """
+                '''
+                A booked trade
+                '''
+                Class trading::Trade
+                {
+                    tradeId: String[1];
+                }
+                """;
+
+        ClassInfo trade = service.extract(pure).classes().get(0);
+        assertEquals("meta::pure::profiles::doc", trade.tags().get(0).profile());
+        assertEquals(trade.tags().get(0).value(), trade.description());
+        assertFalse(trade.description().isEmpty(), "documentation block should describe the class");
+    }
+
+    @Test
+    void aTagNamedDocOnAnotherProfileIsNotTheDescription() {
+        // two profiles may define tags of the same name; only doc.doc documents
+        String pure = """
+                Profile my::Meta
+                {
+                    tags: [doc];
+                }
+                Class {my::Meta.doc = 'not documentation'} my::Thing
+                {
+                    name: String[1];
+                }
+                """;
+
+        ClassInfo thing = service.extract(pure).classes().get(0);
+        assertEquals("", thing.description());
+        assertEquals(List.of(new TagInfo("my::Meta", "doc", "not documentation")), thing.tags());
+    }
+
+    @Test
+    void aBareDocIsAmbiguousWhenTheModelDeclaresItsOwnDocProfile() {
+        // `doc` means meta::pure::profiles::doc through the implicit import — unless
+        // the model declares another profile named doc, which makes it ambiguous
+        String pure = """
+                Profile my::doc
+                {
+                    tags: [doc];
+                }
+                Class {doc.doc = 'which doc?'} my::Thing
+                {
+                    name: String[1];
+                }
+                """;
+
+        ClassInfo thing = service.extract(pure).classes().get(0);
+        assertEquals("", thing.description());
+        assertEquals(List.of(new TagInfo("doc", "doc", "which doc?")), thing.tags());
     }
 
     // ── Sales-trading model (the real thing) ──
 
     @Test
     void extractSalesTradingModel() throws IOException {
-        Path modelPath = Repo.path("nlq/src/test/resources/nlq/sales-trading-model.pure");
-        if (!Files.exists(modelPath)) {
-            // Skip if model file not available (CI without nlq module)
-            return;
+        // A 48-class model annotated with its own profile (nlq::NlqProfile — Pure
+        // data, a profile like any other). It lived in the deleted nlq module and
+        // this test bare-returned when it was absent; it is core's fixture now,
+        // read from the classpath, and its absence is a failure.
+        String pure;
+        try (var in = getClass().getResourceAsStream("sales-trading-model.pure")) {
+            assertNotNull(in, "sales-trading-model.pure must be on the test classpath");
+            pure = new String(in.readAllBytes(), StandardCharsets.UTF_8);
         }
-        String pure = Files.readString(modelPath);
         DiagramData data = service.extract(pure);
 
         // Should have ~48 classes and ~55 associations
@@ -143,10 +206,12 @@ class DiagramServiceTest {
         assertTrue(assocNames.contains("Trade_Instrument"), "Missing Trade_Instrument assoc");
         assertTrue(assocNames.contains("Trade_Counterparty"), "Missing Trade_Counterparty assoc");
 
-        // Verify some classes have business domain set
+        // The model's own tags travel with each class, whatever profile they use
         ClassInfo trade = data.classes().stream()
                 .filter(c -> c.id().equals("trading::Trade")).findFirst().orElseThrow();
-        assertFalse(trade.businessDomain().isEmpty(), "Trade should have businessDomain");
+        assertTrue(trade.tags().stream().anyMatch(t -> t.profile().equals("nlq::NlqProfile")
+                        && t.tag().equals("businessDomain") && !t.value().isEmpty()),
+                "Trade should carry its businessDomain tag: " + trade.tags());
         assertTrue(trade.properties().size() >= 5,
                 "Trade should have ≥5 properties, got " + trade.properties().size());
 
@@ -184,6 +249,10 @@ class DiagramServiceTest {
         assertTrue(json.contains("\"name\":\"Foo\""), "JSON should contain Foo");
         assertTrue(json.contains("\"name\":\"Bar\""), "JSON should contain Bar");
         assertTrue(json.contains("\"name\":\"Foo_Bar\""), "JSON should contain Foo_Bar assoc");
+
+        // every class node carries its tags; businessDomain left with nlq
+        assertTrue(json.contains("\"tags\":["), "JSON should carry each class's tags");
+        assertFalse(json.contains("businessDomain"), "businessDomain is no longer a field");
     }
 
     // ── HTTP integration test ──
@@ -250,13 +319,7 @@ class DiagramServiceTest {
     @Test
     void toJsonEscapesSpecialChars() {
         String pure = """
-                Profile nlq::NlqProfile
-                {
-                    stereotypes: [dimension];
-                    tags: [description];
-                }
-                Class <<nlq::NlqProfile.dimension>>
-                  {nlq::NlqProfile.description = 'A description with "quotes" inside'}
+                Class {doc.doc = 'A description with "quotes" inside'}
                 test::Quoted
                 {
                     name: String[1];

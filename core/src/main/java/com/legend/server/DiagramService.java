@@ -3,6 +3,7 @@ package com.legend.server;
 import com.legend.model.AssociationDefinition;
 import com.legend.model.ClassDefinition;
 import com.legend.model.ParsedModel;
+import com.legend.model.ProfileDefinition;
 import com.legend.model.TaggedValue;
 
 import java.util.ArrayList;
@@ -35,8 +36,17 @@ public final class DiagramService {
             String packagePath,
             String stereotype,
             String description,
-            String businessDomain,
+            List<TagInfo> tags,
             List<PropertyInfo> properties) {
+    }
+
+    /**
+     * One tagged value, exactly as the model wrote it — every one the class
+     * carries, from every profile. Nothing is chosen or dropped: two profiles
+     * may define tags of the same name, so a client that wants one reads it by
+     * profile AND tag.
+     */
+    public record TagInfo(String profile, String tag, String value) {
     }
 
     public record PropertyInfo(String name, String type, String multiplicity) {
@@ -70,14 +80,28 @@ public final class DiagramService {
         List<AssociationInfo> associations = new ArrayList<>();
         List<GeneralisationInfo> generalisations = new ArrayList<>();
 
+        // A bare `doc` is meta::pure::profiles::doc through the implicit import
+        // (NameResolver.CORE_IMPORTS) — unless this model declares a profile of
+        // its own named `doc`, which makes the bare name ambiguous in Pure.
+        boolean docIsPlatform = true;
+        for (var el : model.elements()) {
+            if (el instanceof ProfileDefinition pd && simpleName(pd.qualifiedName()).equals(DOC_TAG)
+                    && !pd.qualifiedName().equals(DOC_PROFILE)) {
+                docIsPlatform = false;
+            }
+        }
+
         for (var el : model.elements()) {
             if (!(el instanceof ClassDefinition cd)) {
                 continue;
             }
             String stereotype = cd.stereotypes().isEmpty() ? ""
                     : cd.stereotypes().get(0).stereotypeName();
-            String desc = getTag(cd, "description");
-            String domain = getTag(cd, "businessDomain");
+            String desc = documentation(cd, docIsPlatform);
+            List<TagInfo> tags = new ArrayList<>();
+            for (TaggedValue tv : cd.taggedValues()) {
+                tags.add(new TagInfo(tv.profileName(), tv.tagName(), tv.value()));
+            }
 
             List<PropertyInfo> props = new ArrayList<>();
             for (ClassDefinition.PropertyDefinition p : cd.properties()) {
@@ -92,7 +116,7 @@ public final class DiagramService {
                     packageOf(cd.qualifiedName()),
                     stereotype,
                     desc != null ? desc : "",
-                    domain != null ? domain : "",
+                    tags,
                     props));
 
             for (var sup : cd.superClasses()) {
@@ -137,8 +161,16 @@ public final class DiagramService {
                 .field("name", c.name())
                 .field("package", c.packagePath())
                 .field("stereotype", c.stereotype())
-                .field("description", c.description())
-                .field("businessDomain", c.businessDomain());
+                .field("description", c.description());
+            w.name("tags").beginArray();
+            for (TagInfo t : c.tags()) {
+                w.beginObject()
+                    .field("profile", t.profile())
+                    .field("tag", t.tag())
+                    .field("value", t.value())
+                    .endObject();
+            }
+            w.endArray();
             w.name("properties").beginArray();
             for (PropertyInfo p : c.properties()) {
                 w.beginObject()
@@ -229,11 +261,29 @@ public final class DiagramService {
         return name;
     }
 
-    private static @com.legend.Nullable String getTag(ClassDefinition cd, String tagName) {
+    /** The platform's documentation profile and tag — the one Pure's own
+     *  {@code '''...'''} documentation sugar produces (the parser writes the
+     *  full path, TokenStreamCursor.DOC_PROFILE_PATH) and the one legend-engine's
+     *  models use for class documentation. */
+    private static final String DOC_PROFILE = "meta::pure::profiles::doc";
+    private static final String DOC_TAG = "doc";
+
+    /**
+     * The class's documentation: its first {@code doc.doc} tagged value. The
+     * profile is compared as the model wrote it — the full path always, the bare
+     * {@code doc} only while it can only mean the platform profile. A tag of the
+     * same NAME on another profile is not documentation: two profiles may define
+     * tags of the same name (the prelude's own warning), so matching by name
+     * alone would pick one arbitrarily.
+     */
+    private static @com.legend.Nullable String documentation(ClassDefinition cd,
+            boolean docIsPlatform) {
         for (TaggedValue tv : cd.taggedValues()) {
-            if (tagName.equals(tv.tagName())
-                    && ("NlqProfile".equals(tv.profileName())
-                            || "nlq::NlqProfile".equals(tv.profileName()))) {
+            if (!DOC_TAG.equals(tv.tagName())) {
+                continue;
+            }
+            if (DOC_PROFILE.equals(tv.profileName())
+                    || (docIsPlatform && DOC_TAG.equals(tv.profileName()))) {
                 return tv.value();
             }
         }
