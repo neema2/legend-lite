@@ -94,41 +94,6 @@ public final class Wasm {
     }
 
     /**
-     * The {@code Create Or Replace Table <name> as <select>} spelling,
-     * for a client that has to MATERIALISE a result it just planned.
-     *
-     * <p>A cube that freezes or caches a query writes the result to a
-     * table and then reads from it. The select is ours (it came out of
-     * {@link #plan}); the DDL around it is a per-dialect spelling, and a
-     * browser composing that itself is a dialect fact living in a
-     * client. {@code Ddl} imports {@code com.legend.model} alone, so it
-     * crosses this boundary as text like everything else here.
-     *
-     * <p>{@code duckTarget} picks the flavor rather than a dialect
-     * object because that is the axis {@code Ddl} already dispatches on
-     * ({@code DUCK_EXEC} vs {@code H2_EXEC}) and the caller knows which
-     * store it is about to execute against.
-     *
-     * @param schema null or empty for an unqualified name
-     * @return {@code "OK\n" + statement}, or {@code "ERR\n"} and the
-     *         failure, matching {@link #planOrError}
-     */
-    @org.teavm.jso.JSExport
-    public static String createTableAsSelect(String schema, String table,
-            String selectSql, boolean duckTarget) {
-        try {
-            return "OK\n" + com.legend.exec.Ddl.createTableAsSelect(
-                    schema, table, selectSql,
-                    duckTarget ? com.legend.exec.Ddl.Flavor.DUCK_EXEC
-                            : com.legend.exec.Ddl.Flavor.H2_EXEC);
-        } catch (RuntimeException e) {
-            String name = e.getClass().getName();
-            return "ERR\n" + name + "\n"
-                    + (e.getMessage() == null ? "" : e.getMessage());
-        }
-    }
-
-    /**
      * {@link #plan} with the failure path folded into the RETURN VALUE.
      *
      * <p>A refusal is an answer the planner is expected to give, so the

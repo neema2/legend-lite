@@ -55,53 +55,6 @@ public final class Ddl {
         return createTable(def, schema, Flavor.H2_EXEC);
     }
 
-    /**
-     * {@code Create [Or Replace] Table s.T as <select>} &mdash; a table
-     * whose shape comes from a QUERY rather than from a declared
-     * {@link DatabaseDefinition.TableDefinition}.
-     *
-     * <p>The counterpart to {@link #createTable}: that one knows the
-     * columns and spells their types, this one has neither and lets the
-     * backend take them from the select. Materialising a query under a
-     * name is what a cached or frozen cube is, and every client that
-     * wanted it was composing the DDL itself.
-     *
-     * <p>{@code selectSql} is IR-RENDERED SQL, the output of a dialect
-     * renderer, and is placed verbatim. It is not inspected, rewritten
-     * or re-spelled here: text-level translation of SQL belongs only in
-     * {@link com.legend.sql.dialect.RawSqlBoundary}, and platform-
-     * generated SQL must never pass through that class.
-     *
-     * @param orReplace {@code Or Replace} rather than a preceding
-     *        {@link #dropTable}: re-materialising under the same name is
-     *        a normal thing to do, and the two-statement form leaves the
-     *        name missing if the create fails. H2 accepts the clause from
-     *        1.4.200 and DuckDB from 0.3; the ENGINE text flavor does NOT
-     *        (its corpus spells drop-then-create), so it refuses rather
-     *        than emitting something the engine would reject.
-     */
-    public static String createTableAsSelect(
-            @com.legend.Nullable String schema, String table,
-            String selectSql, Flavor f, boolean orReplace) {
-        if (orReplace && f == Flavor.ENGINE_TEXT) {
-            throw new IllegalArgumentException(
-                    "the engine text flavor has no Or Replace spelling;"
-                    + " emit dropTable() then createTableAsSelect(...,"
-                    + " false)");
-        }
-        return "Create " + (orReplace ? "Or Replace " : "") + "Table "
-                + qualify(schema, execIdentifier(table))
-                + " as " + selectSql;
-    }
-
-    /** {@link #createTableAsSelect} with {@code Or Replace}, which is
-     *  what a re-materialising cache or snapshot wants. */
-    public static String createTableAsSelect(
-            @com.legend.Nullable String schema, String table,
-            String selectSql, Flavor f) {
-        return createTableAsSelect(schema, table, selectSql, f, true);
-    }
-
     public static String createTable(DatabaseDefinition.TableDefinition def,
             @com.legend.Nullable String schema, boolean duckTarget) {
         return createTable(def, schema,
