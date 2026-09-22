@@ -120,9 +120,9 @@ class EnumIntegrationTest {
             assertNotNull(builder.findEnum("model::Color").orElse(null));
 
             // AND: Each has correct values
-            assertEquals(4, builder.findEnum("model::Priority").orElse(null).values().size());
-            assertEquals(3, builder.findEnum("model::Status").orElse(null).values().size());
-            assertEquals(4, builder.findEnum("model::Color").orElse(null).values().size());
+            assertEquals(4, builder.findEnum("model::Priority").orElseThrow().values().size());
+            assertEquals(3, builder.findEnum("model::Status").orElseThrow().values().size());
+            assertEquals(4, builder.findEnum("model::Color").orElseThrow().values().size());
 
             // AND: hasEnumValue works correctly
             assertTrue(hasEnumValue(builder, "model::Priority", "CRITICAL"));

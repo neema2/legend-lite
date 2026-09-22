@@ -85,10 +85,6 @@ java_test(
         "--disable-ansi-colors",
     ],
     jvm_flags = ["-Duser.timezone=GMT"],
-    # Maven runs Error Prone on core MAIN only; Bazel's toolchain runs its default
-    # ERROR-level checks on every compilation, tests included. Match Maven here:
-    # the test tree has its own looser discipline (core/pom.xml, NULL_GATE §6.2).
-    javacopts = ["-XepDisableAllChecks"],
     deps = [
         ":core",
         "@maven//:com_tngtech_archunit_archunit",
