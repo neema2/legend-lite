@@ -1,5 +1,6 @@
 package com.legend.equivalence;
 
+import com.legend.testing.Repo;
 import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
 import com.legend.lexer.TokenType;
@@ -109,8 +110,8 @@ class MigrationSizingTest {
                 .forEach(e -> b.append(String.format("  %5d  %s%n",
                         e.getValue(), e.getKey())));
 
-        Files.writeString(Path.of("target", "migration-sizing.txt"), b.toString());
-        Files.writeString(Path.of("target", "migration-legacy-only.txt"),
+        Files.writeString(Repo.out("migration-sizing.txt"), b.toString());
+        Files.writeString(Repo.out("migration-legacy-only.txt"),
                 String.join("\n", legacyOnlyFiles));
         System.out.println(b);
     }

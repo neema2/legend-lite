@@ -3,6 +3,7 @@
 
 package com.legend.equivalence;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
@@ -32,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class CorpusManifestTest {
 
     private static final Path MANIFEST =
-            Path.of("src/test/resources/corpus-manifest.tsv");
+            Repo.module("src/test/resources/corpus-manifest.tsv");
 
     @Test
     void corpusMatchesTheCommittedManifest() throws Exception {
@@ -55,7 +56,7 @@ class CorpusManifestTest {
         actual.forEach((id, rest) -> out.append(rest.split("\t")[0])
                 .append('\t').append(rest.split("\t")[1])
                 .append('\t').append(id).append('\n'));
-        Files.writeString(Path.of("target", "corpus-manifest.tsv"),
+        Files.writeString(Repo.out("corpus-manifest.tsv"),
                 out.toString());
         System.out.println("corpus: " + sources.size() + " distinct sources, "
                 + Corpus.DEDUPED.get() + " exact-text duplicates dropped, "

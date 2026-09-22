@@ -136,10 +136,11 @@ class FixtureCorpusParityTest {
     }
 
     private static List<String> listResources(String dir) throws Exception {
-        var url = FixtureCorpusParityTest.class.getResource(
-                "/sibling-corpus/" + dir);
-        java.util.Objects.requireNonNull(url, "missing corpus dir " + dir);
-        var path = java.nio.file.Path.of(url.toURI());
+        // listed as FILES of this module's test resources, not by turning the
+        // classpath URL into a Path: under Bazel the resources are packed in a
+        // jar, and a jar: URI has no default FileSystem (2026-09-22)
+        var path = com.legend.testing.Repo.module(
+                "src/test/resources/sibling-corpus", dir);
         try (var files = java.nio.file.Files.list(path)) {
             return files.map(p -> p.getFileName().toString())
                     .filter(n -> n.endsWith(".pure"))

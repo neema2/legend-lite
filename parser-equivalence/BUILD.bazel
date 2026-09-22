@@ -1,9 +1,93 @@
-# parser-equivalence is still built by Maven. For now this package only EXPORTS its sources,
-# because core's guard tests read them by path (census, skip and boundary
-# guards that walk every module). Declared here, those reads are edges a
-# reviewer can see in core/BUILD.bazel instead of relative paths nobody sees.
+# parser-equivalence — legend-lite's parser and legend-engine's over the same input,
+# compared byte for byte (Maven gate 8). The upstream jars are TEST inputs only and
+# live only here: core must never see org.finos.legend.
+load("@rules_java//java:defs.bzl", "java_library")
+load("//tools/junit:defs.bzl", "junit_test")
+
+# sources exported for core's guard tests that walk every module
 filegroup(
     name = "srcs",
     srcs = glob(["src/**"]),
     visibility = ["//core:__pkg__"],
+)
+
+java_library(
+    name = "pe_tests_lib",
+    testonly = True,
+    srcs = glob(["src/test/java/**/*.java"]),
+    resources = glob(["src/test/resources/**"]),
+    deps = [
+        "//core",
+        "//testing",
+        # the engine-namespace recording shims (org/finos/legend/...) compile against the compiler
+        "@maven//:org_finos_legend_engine_legend_engine_language_pure_compiler",
+        "@maven//:org_finos_legend_engine_legend_engine_protocol_pure",
+        "@maven//:org_finos_legend_engine_legend_engine_shared_core",
+        "@maven//:com_fasterxml_jackson_core_jackson_annotations",
+        "@maven//:com_fasterxml_jackson_core_jackson_databind",
+        "@maven//:junit_junit",
+        "@maven//:org_antlr_antlr4_runtime",
+        "@maven//:org_eclipse_collections_eclipse_collections",
+        "@maven//:org_eclipse_collections_eclipse_collections_api",
+        "@maven//:org_finos_legend_engine_legend_engine_language_pure_grammar",
+        "@maven//:org_finos_legend_pure_legend_pure_m3_core",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+        "@maven//:org_junit_jupiter_junit_jupiter_params",
+    ],
+    runtime_deps = [
+        "@maven//:org_finos_legend_engine_legend_engine_extensions_collection_generation",
+        "@maven//:org_finos_legend_engine_legend_engine_xt_diagram_grammar",
+        "@maven//:org_finos_legend_engine_legend_engine_xt_relationalStore_athena_grammar",
+        "@maven//:org_finos_legend_engine_legend_engine_xt_relationalStore_aurora_grammar",
+        "@maven//:org_finos_legend_engine_legend_engine_xt_relationalStore_duckdb_grammar",
+        "@maven//:org_finos_legend_engine_legend_engine_xt_relationalStore_grammar",
+        "@maven//:org_finos_legend_engine_legend_engine_xt_relationalStore_memsql_grammar",
+        "@maven//:org_finos_legend_engine_legend_engine_xt_relationalStore_oracle_grammar",
+    ],
+)
+
+# What the parity tests read besides the upstream trees: committed ledgers in docs/,
+# the pins file, and — for the own-corpus censuses, which harvest the Pure snippets
+# every module's tests embed — the other modules' sources.
+_INPUTS = [
+    ":srcs",
+    "//core:srcs",
+    "//docs:ledgers",
+    "//pct:srcs",
+    "//spec:srcs",
+    "//tools:oracle-pins.env",
+]
+
+# The measurement battery (tools/diagnostics.sh): censuses and a benchmark, run on
+# their triggers, never as part of the gate.
+_DIAGNOSTICS = [
+    "ParseSpeedBenchmarkTest",
+    "CorpusCensusTest",
+    "GrammarKeywordCensusTest",
+    "PmcdReachabilityCensusTest",
+    "GrammarCoverageCensusTest",
+    "MigrationSizingTest",
+]
+
+# Maven gate 8: every asserting parity class. Selected by PACKAGE, so a new test is
+# in the gate the moment it exists — the rename-goes-red roster tools/allgates.sh
+# keeps by hand is not needed when nothing is selected by name.
+junit_test(
+    name = "parser_parity",
+    data = _INPUTS,
+    exclude_tags = [],
+    runtime_deps = [":pe_tests_lib"],
+    select = ["--select-package=com.legend.equivalence"] + [
+        "--exclude-classname=.*\\." + c for c in _DIAGNOSTICS
+    ],
+    upstream = True,
+)
+
+junit_test(
+    name = "diagnostics",
+    data = _INPUTS,
+    runtime_deps = [":pe_tests_lib"],
+    select = ["--select-class=com.legend.equivalence." + c for c in _DIAGNOSTICS + ["ProtocolRosterCensusTest"]],
+    tags = ["manual"],
+    upstream = True,
 )

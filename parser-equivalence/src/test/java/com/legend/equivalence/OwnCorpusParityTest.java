@@ -3,6 +3,7 @@
 
 package com.legend.equivalence;
 
+import com.legend.testing.Repo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -37,7 +38,7 @@ import org.junit.jupiter.api.Test;
  */
 class OwnCorpusParityTest {
 
-    static final Path LEDGER = Path.of("..", "docs", "own-corpus-protocol-diffs.tsv");
+    static final Path LEDGER = Repo.path("docs", "own-corpus-protocol-diffs.tsv");
     /** EXACT pin on MATCHED elements (measured 2026-09-11). 2292 → 2296
      *  (batch 7a): the product test runner's proof model — four functions
      *  in a core test — joined the own corpus and matched. */
@@ -73,10 +74,10 @@ class OwnCorpusParityTest {
             }
         }
         System.out.println("[own-parity] " + kinds + " matched=" + matched + " diffs=" + diffs.size());
-        Files.createDirectories(Path.of("target"));
+        Files.createDirectories(Repo.outDir());
         StringBuilder report = new StringBuilder();
         diffs.forEach((k, d) -> report.append(k).append('\t').append(d).append('\n'));
-        Files.writeString(Path.of("target", "own-corpus-protocol-diffs.txt"), report.toString());
+        Files.writeString(Repo.out("own-corpus-protocol-diffs.txt"), report.toString());
         Map<String, String> ledger = readLedger();
         if ("1".equals(System.getProperty("owncorpus.generate"))) {
             writeLedger(diffs, ledger);

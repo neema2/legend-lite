@@ -1,5 +1,6 @@
 package com.legend.equivalence;
 
+import com.legend.testing.Repo;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -153,7 +154,7 @@ public final class Corpus {
 
     /** The committed fixture snapshot for the pinned release. */
     static java.nio.file.Path engineFixturesFile() {
-        return java.nio.file.Path.of("src/test/resources/"
+        return Repo.module("src/test/resources/"
                 + "engine-grammar-fixtures-" + OraclePins.engineRelease() + ".jsonl");
     }
 
