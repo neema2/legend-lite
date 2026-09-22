@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -70,7 +71,7 @@ class TenetRatchetTest {
     void resultSetConsumptionOnlyShrinks() throws IOException {
         List<String> sites = new ArrayList<>();
         int scanned = 0;
-        Path root = Path.of("src/main/java");
+        Path root = Repo.module("src/main/java");
         try (Stream<Path> files = Files.walk(root)) {
             for (Path f : files.filter(p -> p.toString().endsWith(".java"))
                     .toList()) {

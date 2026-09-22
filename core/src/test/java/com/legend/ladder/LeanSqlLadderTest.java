@@ -3,6 +3,7 @@
 
 package com.legend.ladder;
 
+import com.legend.testing.Repo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -136,7 +137,7 @@ class LeanSqlLadderTest {
             Runtime l::RT { mappings: [l::M]; }
             """;
 
-    private static final Path PINS = Path.of("src/test/resources/ladder");
+    private static final Path PINS = Repo.module("src/test/resources/ladder");
     private static final boolean RECORD = System.getProperty("ladder.record") != null;
 
     private static ModelContext ctx;
@@ -256,9 +257,10 @@ class LeanSqlLadderTest {
             if (pinned == null) {
                 drift.add(rung + ": no current pin (run once with -Dladder.record=1)");
             } else if (!pinned.equals(current)) {
-                Files.writeString(Path.of("target/" + rung + ".current.sql"), current);
-                drift.add(rung + ": emission drifted from the pin (target/" + rung
-                        + ".current.sql holds the new text; re-record only for a deliberate shape change)");
+                Path currentOut = Repo.out(rung + ".current.sql");
+                Files.writeString(currentOut, current);
+                drift.add(rung + ": emission drifted from the pin (" + currentOut
+                        + " holds the new text; re-record only for a deliberate shape change)");
             }
             String lean = Files.exists(leanPin) ? Files.readString(leanPin) : null;
             String status = lean == null ? "OPEN (no lean target written yet)"

@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -219,12 +220,12 @@ class HarnessDisciplineTest {
         for (Path root : new Path[] {
                 // batch 7b (2026-09-11): the harness and the referee live in
                 // the spec module; the discipline is theirs wherever they sit
-                Path.of("../spec/src/test/java/com/legend/harness"),
-                Path.of("../spec/src/test/java/com/legend/rcorpus"),
+                Repo.path("spec/src/test/java/com/legend/harness"),
+                Repo.path("spec/src/test/java/com/legend/rcorpus"),
                 // audit-of-audits #9: the comparison policy lives in
                 // PRODUCTION exec now (TdsCompare/PureAsserts moved
                 // from the harness) — the discipline follows the code
-                Path.of("src/main/java/com/legend/exec")}) {
+                Repo.module("src/main/java/com/legend/exec")}) {
             try (Stream<Path> files = Files.walk(root)) {
                 for (Path f : files
                         .filter(p -> p.toString().endsWith(".java"))

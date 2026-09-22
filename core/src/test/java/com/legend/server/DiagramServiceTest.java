@@ -1,5 +1,6 @@
 package com.legend.server;
 
+import com.legend.testing.Repo;
 import com.legend.server.DiagramService;
 import com.legend.server.DiagramService.AssociationInfo;
 import com.legend.server.DiagramService.ClassInfo;
@@ -114,7 +115,7 @@ class DiagramServiceTest {
 
     @Test
     void extractSalesTradingModel() throws IOException {
-        Path modelPath = Path.of("../nlq/src/test/resources/nlq/sales-trading-model.pure");
+        Path modelPath = Repo.path("nlq/src/test/resources/nlq/sales-trading-model.pure");
         if (!Files.exists(modelPath)) {
             // Skip if model file not available (CI without nlq module)
             return;

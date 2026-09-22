@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -110,7 +111,7 @@ class LegacyReachbackCensusTest {
         Map<String, Integer> found = new TreeMap<>();
         int scanned = 0;
         for (String root : ROOTS) {
-            Path p = Path.of("..", root);
+            Path p = Repo.path(root);
             if (!Files.isDirectory(p)) {
                 continue;
             }
@@ -124,9 +125,12 @@ class LegacyReachbackCensusTest {
                         // '/' ALWAYS: the census keys are compared against a
                         // committed doc written with forward slashes, so on
                         // Windows every key differs and the census reads as
-                        // pure GROWTH (Windows CI, 2026-09-09).
-                        found.put(f.normalize().toString().replace(java.io.File.separatorChar, '/')
-                                .replaceFirst("^\\.\\./", ""), n);
+                        // pure GROWTH (Windows CI, 2026-09-09). Keys are
+                        // REPOSITORY-relative: relativized against the root
+                        // rather than by stripping a "../" that only existed
+                        // while the working directory was the module.
+                        found.put(Repo.root().relativize(f.toAbsolutePath().normalize())
+                                .toString().replace(java.io.File.separatorChar, '/'), n);
                     }
                 }
             }

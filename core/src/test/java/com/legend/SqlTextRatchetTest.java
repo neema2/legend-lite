@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -104,7 +105,7 @@ class SqlTextRatchetTest {
 
     @Test
     void sqlTextOutsideTheDialectLayerOnlyShrinks() throws IOException {
-        Path root = Path.of("..", "core/src/main/java/com/legend");
+        Path root = Repo.path("core/src/main/java/com/legend");
         Map<String, Integer> actual = new TreeMap<>();
         int scanned = 0;
         try (Stream<Path> s = Files.walk(root)) {

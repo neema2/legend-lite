@@ -4,6 +4,7 @@
 package com.legend;
 
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -31,7 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class ShadowWalkerCensusTest {
 
-    private static final Path NORMALIZER = Path.of("src/main/java/com/legend/normalizer");
+    private static final Path NORMALIZER = Repo.module("src/main/java/com/legend/normalizer");
 
     private static final Map<String, Integer> REGISTER = new TreeMap<>(Map.ofEntries(
             // SUBTYPE FAMILY — RETIRED (T4.1 step 3a, 2026-09-13): the kernel's

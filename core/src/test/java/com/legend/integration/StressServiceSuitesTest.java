@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.testing.Repo;
 import com.legend.test.PureTestRunner;
 import com.legend.test.ServiceTestRunner;
 import org.junit.jupiter.api.*;
@@ -73,10 +74,10 @@ class StressServiceSuitesTest {
         Map<String, Integer> failBuckets = new TreeMap<>();
         long execNs = 0;
         List<ServiceTestRunner.Result> slow = new ArrayList<>();
-        Files.createDirectories(Path.of("target"));
+        Files.createDirectories(Repo.outDir());
         // per-test progress, flushed as it happens, so a long run can be
         // watched: `tail -f core/target/stress-suites-progress.txt`
-        Path progressPath = Path.of("target/stress-suites-progress" + (h2 ? "-h2" : "") + ".txt");
+        Path progressPath = Repo.out("stress-suites-progress" + (h2 ? "-h2" : "") + ".txt");
         int done = 0;
         long lastReport = System.nanoTime();
         try (var runner = new ServiceTestRunner(ctx,
@@ -115,10 +116,10 @@ class StressServiceSuitesTest {
             }
             System.out.printf("[suites] sessions opened: %d%n", runner.sessions().size());
         }
-        Files.createDirectories(Path.of("target"));
-        Files.write(Path.of("target/stress-suites-pass" + (h2 ? "-h2" : "") + ".txt"), pass);
-        Files.write(Path.of("target/stress-suites-fail" + (h2 ? "-h2" : "") + ".txt"), fail);
-        Files.write(Path.of("target/stress-suites-skipped" + (h2 ? "-h2" : "") + ".txt"), skipped);
+        Files.createDirectories(Repo.outDir());
+        Files.write(Repo.out("stress-suites-pass" + (h2 ? "-h2" : "") + ".txt"), pass);
+        Files.write(Repo.out("stress-suites-fail" + (h2 ? "-h2" : "") + ".txt"), fail);
+        Files.write(Repo.out("stress-suites-skipped" + (h2 ? "-h2" : "") + ".txt"), skipped);
         System.out.printf("[suites] pass=%d fail=%d skipped=%d of %d tests in %d ms (execution)"
                 + " — %d ms wall%n", pass.size(), fail.size(), skipped.size(),
                 pass.size() + fail.size() + skipped.size(), execNs / 1_000_000,

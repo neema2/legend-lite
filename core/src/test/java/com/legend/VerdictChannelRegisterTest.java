@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -54,12 +55,18 @@ class VerdictChannelRegisterTest {
     void theJudgeHasOneHomeAndAClosedSetOfCallers() throws IOException {
         List<String> callers = new ArrayList<>();
         List<String> ulpSites = new ArrayList<>();
-        for (String root : List.of("src/main/java", "src/test/java",
-                "../pct/src/test/java", "../spec/src/test/java")) {
-            if (!Files.isDirectory(Path.of(root))) {
-                continue;
+        // Roots are REPOSITORY paths, and a missing one is a failure, not a
+        // skip: this walk used to `continue` past an absent root, so from any
+        // working directory but core/ it scanned nothing — it went red only
+        // because it compares an exact set (Bazel, 2026-09-22).
+        for (String root : List.of("core/src/main/java", "core/src/test/java",
+                "pct/src/test/java", "spec/src/test/java")) {
+            Path dir = Repo.path(root);
+            if (!Files.isDirectory(dir)) {
+                throw new IllegalStateException("verdict-channel scan root missing: " + dir
+                        + " (Bazel: declare it as data of the test target)");
             }
-            try (Stream<Path> s = Files.walk(Path.of(root))) {
+            try (Stream<Path> s = Files.walk(dir)) {
                 for (Path f : s.filter(p -> p.toString().endsWith(".java")).toList()) {
                     String name = f.getFileName().toString();
                     if (name.equals("VerdictChannelRegisterTest.java")
@@ -69,15 +76,14 @@ class VerdictChannelRegisterTest {
                     String src = Files.readString(f)
                             .replaceAll("(?s)/\\*.*?\\*/", "")
                             .replaceAll("//.*", "");
-                    String rel = f.toString().replace(java.io.File.separatorChar, '/')
-                            .replace("../pct/", "pct/").replace("../spec/", "spec/");
-                    rel = rel.startsWith("src/") ? "core/" + rel : rel;
+                    String rel = Repo.root().relativize(f.toAbsolutePath().normalize())
+                            .toString().replace(java.io.File.separatorChar, '/');
                     // the JUDGE's own name as a type reference (never a
                     // suffix such as EqualityKeys, never the file name)
                     if (JUDGE_REF.matcher(src).find()) {
                         callers.add(rel);
                     }
-                    if (root.equals("src/main/java") && src.contains("Math.ulp(")) {
+                    if (root.equals("core/src/main/java") && src.contains("Math.ulp(")) {
                         ulpSites.add(rel);
                     }
                 }

@@ -1,5 +1,6 @@
 package com.legend.integration;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.*;
 
 import java.nio.file.*;
@@ -34,7 +35,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("Corpus Differential (legend-lite SQL vs oracle)")
 class CorpusDifferentialTest {
 
-    private static final Path DIFF = Path.of("target/diff");
+    private static final Path DIFF = Repo.out("diff");
     private static final String NULL = "~";
 
     @Test

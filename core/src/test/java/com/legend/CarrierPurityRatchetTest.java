@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -222,7 +223,8 @@ class   CarrierPurityRatchetTest {
      * exactly where the idioms belong (as strategy rules). */
     private static java.util.List<Path> preDialectSources()
             throws IOException {
-        try (Stream<Path> s = Files.walk(Path.of("src/main/java/com/legend"))) {
+        Path root = Repo.module("src/main/java/com/legend");
+        try (Stream<Path> s = Files.walk(root)) {
             java.util.List<Path> out = s
                     .filter(f -> f.toString().endsWith(".java"))
                     .filter(f -> {
@@ -231,8 +233,11 @@ class   CarrierPurityRatchetTest {
                         // contains() checks is false, the guard scans ZERO
                         // files, and its floor trips for a reason that has
                         // nothing to do with carrier purity (Windows CI,
-                        // 2026-09-09).
-                        String path = f.toString().replace(java.io.File.separatorChar, '/');
+                        // 2026-09-09). And RELATIVE to the walk root: the
+                        // root is absolute, so the checkout's own directory
+                        // names would otherwise reach these contains() —
+                        // a checkout under .../plan/ would match every file.
+                        String path = Repo.rel(root, f);
                         return (path.contains("/lowering/")
                                 || path.contains("/resolver/")
                                 || path.contains("/plan/"))

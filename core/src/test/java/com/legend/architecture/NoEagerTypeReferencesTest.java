@@ -59,12 +59,18 @@ class NoEagerTypeReferencesTest {
 
     @Test
     void noForbiddenTypeFieldsOutsideAllowlist() throws Exception {
-        Path classesRoot = Paths.get(
+        Path location = Paths.get(
                 TypedClass.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-        assertTrue(Files.isDirectory(classesRoot),
-                "Expected compiled-classes directory at " + classesRoot);
+        // core's compiled classes are a DIRECTORY under Maven (target/classes)
+        // and a JAR under Bazel. Walk whichever it is — and count, because a walk
+        // over the wrong location finds nothing and a guard that checks nothing
+        // passes.
+        java.nio.file.FileSystem jar = Files.isDirectory(location)
+                ? null : java.nio.file.FileSystems.newFileSystem(location);
+        Path classesRoot = jar == null ? location : jar.getPath("/");
 
         List<String> violations = new ArrayList<>();
+        long[] scanned = {0};
         try (Stream<Path> paths = Files.walk(classesRoot)) {
             paths.filter(p -> p.toString().endsWith(".class"))
                     .map(p -> classesRoot.relativize(p).toString()
@@ -75,8 +81,23 @@ class NoEagerTypeReferencesTest {
                     // Synthetic / lambda classes surface captured-variable
                     // fields that aren't meaningful for this check.
                     .filter(fqn -> !fqn.contains("$$Lambda"))
-                    .forEach(fqn -> scanClass(fqn, violations));
+                    .forEach(fqn -> {
+                        scanned[0]++;
+                        scanClass(fqn, violations);
+                    });
+        } finally {
+            if (jar != null) {
+                jar.close();
+            }
         }
+        // Floor, in GuardCoverage's sense (package-private there, so inline
+        // here): every main source file compiles to at least one class, and
+        // core's main-source guards pin 498 files, so fewer than 498 classes
+        // means this walked the wrong place. Moves down only with a written
+        // justification.
+        assertTrue(scanned[0] >= 498, "NoEagerTypeReferencesTest coverage DROPPED: scanned "
+                + scanned[0] + " classes under " + location + ", floor 498 — the guard's"
+                + " scope rotted; re-point the walk before trusting this guard");
 
         if (!violations.isEmpty()) {
             fail("Lazy-loading guard: resolved TypedClass / TypedEnum field(s) found.\n"

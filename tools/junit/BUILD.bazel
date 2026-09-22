@@ -1,0 +1,11 @@
+load("@rules_java//java:defs.bzl", "java_library")
+
+# The JUnit entry point every test target in the repository runs.
+# See JUnitMain.java for why this is a class rather than BUILD arguments.
+java_library(
+    name = "junit",
+    srcs = ["JUnitMain.java"],
+    visibility = ["//visibility:public"],
+    exports = ["@maven//:org_junit_platform_junit_platform_console_standalone"],
+    deps = ["@maven//:org_junit_platform_junit_platform_console_standalone"],
+)

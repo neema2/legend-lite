@@ -3,6 +3,7 @@
 
 package com.legend.parser;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -53,7 +54,7 @@ class PlatformSurfaceGuardrailTest {
 
     @Test
     void platformSurfaceCallersAreWhitelisted() throws IOException {
-        Path root = Path.of("src/main/java");
+        Path root = Repo.module("src/main/java");
         List<String> offenders;
         try (Stream<Path> files = Files.walk(root)) {
             offenders = files
