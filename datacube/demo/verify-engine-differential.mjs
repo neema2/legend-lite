@@ -23,6 +23,21 @@
 // multiset, because SQL does not promise one and a difference there is
 // not a defect.
 //
+// WHAT IT HAS FOUND SO FAR, both of them invisible to a compile-only
+// check:
+//
+//   * contains/startsWith/endsWithCaseInsensitive emitted
+//     `toLower(<literal>)`, which the engine COMPILES and then cannot
+//     translate -- a StackOverflowError for contains, "Match failure:
+//     TypedFunction" for the other two. The literal is pre-lowered
+//     now. `equal` accepts the same construct, so the inconsistency
+//     is the engine's.
+//   * column pivot: "Dialect translation for node of type
+//     PivotedRelation not implemented in SqlDialect for database type
+//     H2". An engine limitation for this database type, not our
+//     emission -- the groupBy half of the same query runs, and a bare
+//     pivot off the table fails identically.
+//
 //   ENGINE=http://127.0.0.1:6300 npm run verify:engine:diff
 //   ONLY=pivot npm run verify:engine:diff
 

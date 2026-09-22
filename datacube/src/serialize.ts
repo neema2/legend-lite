@@ -299,12 +299,30 @@ export function filterExpression(node: FilterNode, param = 'x'): string {
           return `${lower} == ${lowerLiteral(node.value as FilterValue)}`;
         case 'notEqualCaseInsensitive':
           return `${lower} != ${lowerLiteral(node.value as FilterValue)}`;
+        // PRE-LOWERED, like the `in` lists below and for the same
+        // reason: the engine's dialect translation cannot render
+        // `toLower(<literal>)` in this position. Measured against a
+        // running legend-engine 4.138.5 --
+        // `toLower(col)->contains(toLower('rates'))` dies with a
+        // StackOverflowError inside sqlDialect.pure, and
+        // startsWith/endsWith with "Match failure: TypedFunction" --
+        // while the identical query with a plain literal executes and
+        // returns the right rows. Curiously `equal` DOES accept
+        // `toLower(<literal>)`, which is why equalCaseInsensitive is
+        // spelled the upstream way above; the inconsistency is the
+        // engine's, not ours.
+        //
+        // The cost is the one the `in` lists already pay: the LITERAL
+        // is folded by JavaScript's Unicode default casing while the
+        // COLUMN is folded by the database's collation. Identical for
+        // ASCII, and not for Turkish dotless i or German sharp s. A
+        // working operator with that caveat beats one that cannot run.
         case 'containsCaseInsensitive':
-          return `${lower}->contains(${lowerLiteral(node.value as FilterValue)})`;
+          return `${lower}->contains(${preLowered(node.value as FilterValue)})`;
         case 'startsWithCaseInsensitive':
-          return `${lower}->startsWith(${lowerLiteral(node.value as FilterValue)})`;
+          return `${lower}->startsWith(${preLowered(node.value as FilterValue)})`;
         case 'endsWithCaseInsensitive':
-          return `${lower}->endsWith(${lowerLiteral(node.value as FilterValue)})`;
+          return `${lower}->endsWith(${preLowered(node.value as FilterValue)})`;
         // IN TAKES LITERALS, and only literals: the engine asserts
         // "IN is supported only for literal values or negative
         // numbers", so these two cannot wrap their values in

@@ -616,16 +616,32 @@ describe('the full filter vocabulary', () => {
     // call went in -- which is exactly where upstream puts it
     // (DataCubeQueryFilterOperation__EqualCaseInsensitive).
     //
-    // And `toLower('EMEA')` rather than `'emea'`: the lowering rule
-    // is then the engine's, not JavaScript's, and they are not the
-    // same rule.
+    // And `toLower('EMEA')` rather than `'emea'` for EQUAL: the
+    // lowering rule is then the engine's, not JavaScript's, and they
+    // are not the same rule.
     assert.equal(
       cond('equalCaseInsensitive', { value: 'EMEA' }),
       "$x.region->toOne()->toLower() == toLower('EMEA')",
     );
+    // BUT NOT for contains/startsWith/endsWith, which pre-lower.
+    // Measured against a running legend-engine 4.138.5: with
+    // `toLower(<literal>)` in this position `contains` dies with a
+    // StackOverflowError inside sqlDialect.pure and the other two with
+    // "Match failure: TypedFunction", while the same query with a
+    // plain literal executes and returns the right rows. `equal`
+    // accepts it and these three do not -- the engine's inconsistency,
+    // and the differential (verify:engine:diff) is what found it.
     assert.equal(
       cond('containsCaseInsensitive', { value: 'Em' }),
-      "$x.region->toOne()->toLower()->contains(toLower('Em'))",
+      "$x.region->toOne()->toLower()->contains('em')",
+    );
+    assert.equal(
+      cond('startsWithCaseInsensitive', { value: 'LAT' }),
+      "$x.region->toOne()->toLower()->startsWith('lat')",
+    );
+    assert.equal(
+      cond('endsWithCaseInsensitive', { value: 'MEA' }),
+      "$x.region->toOne()->toLower()->endsWith('mea')",
     );
     // EXCEPT IN AN `in` LIST, which takes literals and nothing else:
     // the engine asserts "IN is supported only for literal values or
