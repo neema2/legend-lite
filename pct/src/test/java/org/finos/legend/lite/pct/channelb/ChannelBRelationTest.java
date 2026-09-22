@@ -21,13 +21,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ChannelBRelationTest {
 
     private static Path pureRoot() {
-        return Path.of(System.getProperty("legend.pure.root",
-                System.getProperty("user.home") + "/legend/legend-pure"));
+        return com.legend.testing.Upstream.pure();
     }
 
     private static Path engineRoot() {
-        return Path.of(System.getProperty("legend.engine.root",
-                System.getProperty("user.home") + "/legend/legend-engine"));
+        return com.legend.testing.Upstream.engine();
     }
 
     @Test
@@ -62,9 +60,9 @@ class ChannelBRelationTest {
         System.out.println("[chB-Relation] census=" + census
                 + " total=" + out.size());
         ChannelBDiff.Counts c = ChannelBDiff.report("chB-Relation", out,
-                Path.of("src/test/java/org/finos/legend/lite/pct/"
+                com.legend.testing.Repo.module("src/test/java/org/finos/legend/lite/pct/"
                         + "Test_LegendLite_RelationFunctions_PCT.java"),
-                Path.of("src/test/resources/oracle/"
+                com.legend.testing.Repo.module("src/test/resources/oracle/"
                         + "RelationFunctions_manifest.duckdb.json"));
         // measured 2026-08-19 at the relation-scope landing (the
         // let-indirection adapter arm + the assertTdsEquivalent GRID

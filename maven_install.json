@@ -4,31 +4,45 @@
     "com.google.code.findbugs:jsr305": 495355163,
     "com.google.code.gson:gson": 597770368,
     "com.google.errorprone:error_prone_annotations": -1035138750,
-    "com.google.errorprone:error_prone_core": 1313483394,
-    "com.google.guava:guava": 1943808618,
+    "com.google.guava:guava": 520979407,
     "com.google.j2objc:j2objc-annotations": 2003271689,
-    "com.h2database:h2": -597962300,
-    "com.tngtech.archunit:archunit-junit5": 1203510502,
-    "com.uber.nullaway:nullaway": 133041687,
-    "com.zaxxer:HikariCP": 173962819,
-    "junit:junit": 1063186871,
-    "org.apache.commons:commons-lang3": -1897960160,
-    "org.apache.httpcomponents:httpcore": -568907559,
-    "org.duckdb:duckdb_jdbc": -1237582733,
-    "org.finos.legend.engine:legend-engine-extensions-collection-generation": 496440755,
-    "org.finos.legend.engine:legend-engine-language-pure-grammar": -664563840,
-    "org.finos.legend.engine:legend-engine-xt-diagram-grammar": -1821771039,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-athena-grammar": -1885090310,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-aurora-grammar": -1807787401,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-duckdb-grammar": 67355598,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-grammar": -288469816,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-memsql-grammar": 1244222768,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-oracle-grammar": -1261108203,
-    "org.finos.legend.pure:legend-pure-m3-core": 1799650894,
-    "org.jspecify:jspecify": -382205121,
-    "org.junit.jupiter:junit-jupiter": -903196223,
-    "org.junit.platform:junit-platform-console-standalone": 74818665,
-    "org.xerial:sqlite-jdbc": -2000415212,
+    "com.h2database:h2": 1515783821,
+    "com.tngtech.archunit:archunit-junit5": 1373854243,
+    "com.zaxxer:HikariCP": 461780174,
+    "junit:junit": -853612836,
+    "org.apache.commons:commons-lang3": 109544183,
+    "org.apache.httpcomponents:httpcore": 912220412,
+    "org.duckdb:duckdb_jdbc": 1136772578,
+    "org.eclipse.collections:eclipse-collections": 1492360397,
+    "org.eclipse.collections:eclipse-collections-api": -1142315878,
+    "org.finos.legend.engine:legend-engine": -1155963668,
+    "org.finos.legend.engine:legend-engine-extensions-collection-generation": 470772108,
+    "org.finos.legend.engine:legend-engine-language-pure-grammar": -256968033,
+    "org.finos.legend.engine:legend-engine-pure-code-compiled-core": 635128054,
+    "org.finos.legend.engine:legend-engine-pure-functions-relation-pure": -1672124904,
+    "org.finos.legend.engine:legend-engine-pure-functions-standard-pure": 1971461401,
+    "org.finos.legend.engine:legend-engine-pure-functions-unclassified-pure": 1672606984,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-relation": -867941252,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-standard": 424636635,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-unclassified": 909716236,
+    "org.finos.legend.engine:legend-engine-test-framework": -1502332969,
+    "org.finos.legend.engine:legend-engine-xt-diagram-grammar": -992679522,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-athena-grammar": 108668389,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-aurora-grammar": -381630904,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-duckdb-grammar": 1407817617,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-grammar": 2127390807,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-memsql-grammar": -1610320145,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-oracle-grammar": 1525861354,
+    "org.finos.legend.pure:legend-pure-m2-dsl-tds-pure": -1911299795,
+    "org.finos.legend.pure:legend-pure-m3-core": -956095527,
+    "org.finos.legend.pure:legend-pure-m4": 1326426650,
+    "org.finos.legend.pure:legend-pure-runtime-java-engine-compiled": -84248999,
+    "org.finos.legend.pure:legend-pure-runtime-java-engine-interpreted": 1225890154,
+    "org.finos.legend.pure:legend-pure-runtime-java-extension-interpreted-dsl-tds": -445370847,
+    "org.junit.jupiter:junit-jupiter": -563746810,
+    "org.junit.platform:junit-platform-console-standalone": 2053836756,
+    "org.junit:junit-bom": 780597989,
+    "org.xerial:sqlite-jdbc": -1140300109,
     "repositories": -1949687017
   },
   "__RESOLVED_ARTIFACTS_HASH": {
@@ -41,41 +55,28 @@
     "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml": 1457011104,
     "com.fasterxml.jackson.module:jackson-module-jaxb-annotations": 48993239,
     "com.fasterxml.woodstox:woodstox-core": -1718649186,
-    "com.github.ben-manes.caffeine:caffeine": -1328760006,
-    "com.github.kevinstern:software-and-algorithms": 2052480962,
-    "com.google.auto.service:auto-service-annotations": 1999106941,
-    "com.google.auto.value:auto-value-annotations": 410854482,
-    "com.google.auto:auto-common": 716753411,
     "com.google.code.findbugs:jsr305": 870839855,
     "com.google.code.gson:gson": -1575757252,
-    "com.google.errorprone:error_prone_annotation": -1775028861,
     "com.google.errorprone:error_prone_annotations": 967586345,
-    "com.google.errorprone:error_prone_check_api": 1880670097,
-    "com.google.errorprone:error_prone_core": -1845812419,
-    "com.google.googlejavaformat:google-java-format": -43177523,
     "com.google.guava:failureaccess": 1715931538,
-    "com.google.guava:guava": -668868333,
+    "com.google.guava:guava": 2138114743,
     "com.google.guava:listenablefuture": 1079558157,
     "com.google.j2objc:j2objc-annotations": 248818742,
-    "com.google.protobuf:protobuf-java": 1838995038,
     "com.googlecode.json-simple:json-simple": 2085875035,
     "com.h2database:h2": -1688451408,
     "com.hazelcast:hazelcast": -353663821,
     "com.microsoft.sqlserver:mssql-jdbc": -1744246439,
-    "com.tngtech.archunit:archunit": -1037369832,
-    "com.tngtech.archunit:archunit-junit5": 894925320,
-    "com.tngtech.archunit:archunit-junit5-api": -235510306,
-    "com.tngtech.archunit:archunit-junit5-engine": -1437166681,
+    "com.tngtech.archunit:archunit": 2084429295,
+    "com.tngtech.archunit:archunit-junit5": -754508567,
+    "com.tngtech.archunit:archunit-junit5-api": -885189888,
+    "com.tngtech.archunit:archunit-junit5-engine": -955921393,
     "com.tngtech.archunit:archunit-junit5-engine-api": -1999613025,
-    "com.uber.nullaway:nullaway": -111828744,
-    "com.zaxxer:HikariCP": -121743357,
+    "com.zaxxer:HikariCP": 1144134308,
     "commons-codec:commons-codec": 1434473311,
     "commons-io:commons-io": -315818487,
     "io.deephaven:deephaven-csv": 1580084095,
-    "io.dropwizard.metrics:metrics-core": 698165697,
+    "io.dropwizard.metrics:metrics-core": -76343002,
     "io.github.classgraph:classgraph": -403625088,
-    "io.github.eisop:dataflow-errorprone": 1875600084,
-    "io.github.java-diff-utils:java-diff-utils": -1540151507,
     "io.opentracing.contrib:opentracing-concurrent": 172591519,
     "io.opentracing:opentracing-api": -299568100,
     "io.opentracing:opentracing-noop": 727228345,
@@ -96,14 +97,13 @@
     "org.apache.commons:commons-csv": 1750235475,
     "org.apache.commons:commons-lang3": -850748327,
     "org.apache.commons:commons-text": 1458185425,
-    "org.apache.httpcomponents:httpclient": 1963541293,
+    "org.apache.httpcomponents:httpclient": 1304241918,
     "org.apache.httpcomponents:httpcore": -391663805,
     "org.apache.tomcat:tomcat-dbcp": 602876043,
     "org.apache.tomcat:tomcat-juli": -735513684,
     "org.apiguardian:apiguardian-api": 1279798469,
     "org.bouncycastle:bcprov-jdk15on": 785190895,
-    "org.checkerframework:checker-qual": -1868243245,
-    "org.checkerframework:dataflow-nullaway": -1959857330,
+    "org.checkerframework:checker-qual": -1482757721,
     "org.codehaus.janino:commons-compiler": 593994327,
     "org.codehaus.janino:janino": 292023916,
     "org.codehaus.woodstox:stax2-api": 1279791166,
@@ -111,326 +111,332 @@
     "org.duckdb:duckdb_jdbc": 845601329,
     "org.eclipse.collections:eclipse-collections": 69974131,
     "org.eclipse.collections:eclipse-collections-api": 1623590875,
-    "org.finos.legend.engine:legend-engine-configuration-contract-extension-pure": 299432392,
-    "org.finos.legend.engine:legend-engine-configuration-plan-generation-serialization": 2031955749,
-    "org.finos.legend.engine:legend-engine-executionPlan-dependencies": 206201370,
-    "org.finos.legend.engine:legend-engine-executionPlan-execution": -869923283,
-    "org.finos.legend.engine:legend-engine-executionPlan-execution-authorizer": -1032521726,
-    "org.finos.legend.engine:legend-engine-executionPlan-execution-store-inMemory": -951957127,
-    "org.finos.legend.engine:legend-engine-executionPlan-generation": -745212423,
-    "org.finos.legend.engine:legend-engine-extensions-collection-generation": 1014028460,
-    "org.finos.legend.engine:legend-engine-external-format-compiler": -827287020,
-    "org.finos.legend.engine:legend-engine-external-format-core": -1935785409,
-    "org.finos.legend.engine:legend-engine-external-format-generation": -557295461,
-    "org.finos.legend.engine:legend-engine-external-format-grammar": -195724407,
-    "org.finos.legend.engine:legend-engine-external-format-jsonSchema": -284209749,
-    "org.finos.legend.engine:legend-engine-external-shared": -402852012,
-    "org.finos.legend.engine:legend-engine-external-shared-format-runtime": -1958946114,
+    "org.finos.legend.engine:legend-engine-configuration-contract-extension-pure": -2028896231,
+    "org.finos.legend.engine:legend-engine-configuration-plan-generation-serialization": 1997967703,
+    "org.finos.legend.engine:legend-engine-executionPlan-dependencies": 991098381,
+    "org.finos.legend.engine:legend-engine-executionPlan-execution": 1836027472,
+    "org.finos.legend.engine:legend-engine-executionPlan-execution-authorizer": 1581662208,
+    "org.finos.legend.engine:legend-engine-executionPlan-execution-store-inMemory": -1695933593,
+    "org.finos.legend.engine:legend-engine-executionPlan-generation": 39845893,
+    "org.finos.legend.engine:legend-engine-extensions-collection-generation": 550299721,
+    "org.finos.legend.engine:legend-engine-external-format-compiler": -548052115,
+    "org.finos.legend.engine:legend-engine-external-format-core": 1442471708,
+    "org.finos.legend.engine:legend-engine-external-format-generation": -1799940433,
+    "org.finos.legend.engine:legend-engine-external-format-grammar": 2005534677,
+    "org.finos.legend.engine:legend-engine-external-format-jsonSchema": -1325285630,
+    "org.finos.legend.engine:legend-engine-external-shared": 2097764096,
+    "org.finos.legend.engine:legend-engine-external-shared-format-runtime": 552496849,
     "org.finos.legend.engine:legend-engine-identity-core": -1934251039,
-    "org.finos.legend.engine:legend-engine-language-pure-compiler": -144130041,
-    "org.finos.legend.engine:legend-engine-language-pure-dsl-generation": 1200852564,
-    "org.finos.legend.engine:legend-engine-language-pure-dsl-generation-pure": 919583868,
-    "org.finos.legend.engine:legend-engine-language-pure-dsl-service": 2145348244,
-    "org.finos.legend.engine:legend-engine-language-pure-dsl-service-pure": 1657277845,
-    "org.finos.legend.engine:legend-engine-language-pure-grammar": 231809150,
-    "org.finos.legend.engine:legend-engine-language-pure-modelManager": -819445778,
-    "org.finos.legend.engine:legend-engine-language-pure-modelManager-sdlc": -2062934790,
+    "org.finos.legend.engine:legend-engine-language-pure-compiler": -1048578842,
+    "org.finos.legend.engine:legend-engine-language-pure-dsl-generation": 1577293721,
+    "org.finos.legend.engine:legend-engine-language-pure-dsl-generation-pure": 23155065,
+    "org.finos.legend.engine:legend-engine-language-pure-dsl-service": 196365360,
+    "org.finos.legend.engine:legend-engine-language-pure-dsl-service-pure": -1109626184,
+    "org.finos.legend.engine:legend-engine-language-pure-grammar": -913752957,
+    "org.finos.legend.engine:legend-engine-language-pure-modelManager": -1883543827,
+    "org.finos.legend.engine:legend-engine-language-pure-modelManager-sdlc": -897666981,
     "org.finos.legend.engine:legend-engine-protocol": 52353612,
-    "org.finos.legend.engine:legend-engine-protocol-pure": 1851185259,
-    "org.finos.legend.engine:legend-engine-pure-code-compiled-core": 303228867,
-    "org.finos.legend.engine:legend-engine-pure-code-core-extension": -443227957,
-    "org.finos.legend.engine:legend-engine-pure-functions-json-pure": 1430889454,
-    "org.finos.legend.engine:legend-engine-pure-functions-legendCompiler-pure": 1029767528,
-    "org.finos.legend.engine:legend-engine-pure-functions-planExecution-pure": -1069347682,
-    "org.finos.legend.engine:legend-engine-pure-functions-pureExtensions-pure": -1950222549,
-    "org.finos.legend.engine:legend-engine-pure-functions-relation-pure": -648258032,
-    "org.finos.legend.engine:legend-engine-pure-functions-standard-pure": -1007637462,
-    "org.finos.legend.engine:legend-engine-pure-functions-unclassified-pure": 642548704,
-    "org.finos.legend.engine:legend-engine-pure-functions-unclassified-pure:jar:tests": -345504730,
-    "org.finos.legend.engine:legend-engine-pure-functions-variant-pure": -1502682272,
-    "org.finos.legend.engine:legend-engine-pure-platform-dsl-diagram-java": -984900149,
-    "org.finos.legend.engine:legend-engine-pure-platform-dsl-graph-java": -1753573607,
-    "org.finos.legend.engine:legend-engine-pure-platform-dsl-mapping-java": -2141446282,
-    "org.finos.legend.engine:legend-engine-pure-platform-dsl-path-java": -1891730500,
-    "org.finos.legend.engine:legend-engine-pure-platform-dsl-store-java": -1083989752,
-    "org.finos.legend.engine:legend-engine-pure-platform-dsl-tds-java": 321217012,
-    "org.finos.legend.engine:legend-engine-pure-platform-java": -1858190418,
-    "org.finos.legend.engine:legend-engine-pure-platform-precisePrimitives-java": -474497779,
-    "org.finos.legend.engine:legend-engine-pure-platform-store-relational-java": 1023881172,
-    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-json": -1550707105,
-    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-legendCompiler": 2089814969,
-    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-planExecution": 1272956014,
-    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-pureExtensions": -374560698,
-    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-relation": -924939259,
-    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-standard": 1183623389,
-    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-unclassified": -867240108,
-    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-variant": -1174747938,
-    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-legendCompiler": -1370630831,
-    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-conversion": 335071708,
-    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-json": 1517232059,
-    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-legendCompiler": 545820905,
-    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-planExecution": -1516108855,
-    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-relation": -649440769,
+    "org.finos.legend.engine:legend-engine-protocol-pure": -1563169476,
+    "org.finos.legend.engine:legend-engine-pure-code-compiled-core": 1046000354,
+    "org.finos.legend.engine:legend-engine-pure-code-core-extension": 212921315,
+    "org.finos.legend.engine:legend-engine-pure-functions-json-pure": -45901152,
+    "org.finos.legend.engine:legend-engine-pure-functions-legendCompiler-pure": 236481526,
+    "org.finos.legend.engine:legend-engine-pure-functions-planExecution-pure": -1215150468,
+    "org.finos.legend.engine:legend-engine-pure-functions-pureExtensions-pure": 1542499727,
+    "org.finos.legend.engine:legend-engine-pure-functions-relation-pure": -1533482804,
+    "org.finos.legend.engine:legend-engine-pure-functions-standard-pure": 1512187648,
+    "org.finos.legend.engine:legend-engine-pure-functions-unclassified-pure": -834241902,
+    "org.finos.legend.engine:legend-engine-pure-functions-unclassified-pure:jar:tests": -1822295336,
+    "org.finos.legend.engine:legend-engine-pure-functions-variant-pure": -23802114,
+    "org.finos.legend.engine:legend-engine-pure-platform-dsl-diagram-java": -865879302,
+    "org.finos.legend.engine:legend-engine-pure-platform-dsl-graph-java": -524265221,
+    "org.finos.legend.engine:legend-engine-pure-platform-dsl-mapping-java": -114830828,
+    "org.finos.legend.engine:legend-engine-pure-platform-dsl-path-java": 802572146,
+    "org.finos.legend.engine:legend-engine-pure-platform-dsl-store-java": 147000949,
+    "org.finos.legend.engine:legend-engine-pure-platform-dsl-tds-java": -1017951253,
+    "org.finos.legend.engine:legend-engine-pure-platform-java": 1153732390,
+    "org.finos.legend.engine:legend-engine-pure-platform-precisePrimitives-java": -1296499411,
+    "org.finos.legend.engine:legend-engine-pure-platform-store-relational-java": 1877246968,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-json": 1920472981,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-legendCompiler": -569807417,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-planExecution": 301441089,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-pureExtensions": 1107280646,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-relation": -1483403617,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-standard": -1957889051,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-unclassified": 937418548,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-variant": -369183794,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-json": -1698186741,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-legendCompiler": -1822714923,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-relation": -1754907128,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-standard": 1687541512,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-unclassified": -604823435,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-variant": 1014681761,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-conversion": -1141718898,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-json": -1726791586,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-legendCompiler": -2072085101,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-planExecution": 1311164009,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-relation": 653758695,
     "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-standard": -324155494,
     "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-unclassified": 1064896443,
-    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-variant": -1550489457,
-    "org.finos.legend.engine:legend-engine-shared-core": 441199487,
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-variant": 1267687233,
+    "org.finos.legend.engine:legend-engine-shared-core": -1599437970,
     "org.finos.legend.engine:legend-engine-shared-extensions": -1166097585,
-    "org.finos.legend.engine:legend-engine-shared-javaCompiler": -16495523,
+    "org.finos.legend.engine:legend-engine-shared-javaCompiler": 1783707349,
     "org.finos.legend.engine:legend-engine-shared-structures": 999246796,
     "org.finos.legend.engine:legend-engine-shared-vault-core": -2055161650,
-    "org.finos.legend.engine:legend-engine-test-framework": 529455575,
-    "org.finos.legend.engine:legend-engine-test-mft": -774207105,
-    "org.finos.legend.engine:legend-engine-test-mft:jar:tests": 537303456,
+    "org.finos.legend.engine:legend-engine-test-framework": -1065029789,
+    "org.finos.legend.engine:legend-engine-test-mft": 789684090,
+    "org.finos.legend.engine:legend-engine-test-mft:jar:tests": 683315129,
     "org.finos.legend.engine:legend-engine-test-runner-shared": 314215323,
-    "org.finos.legend.engine:legend-engine-testable": -1802412840,
-    "org.finos.legend.engine:legend-engine-xt-analytics-binding-pure": 167356284,
-    "org.finos.legend.engine:legend-engine-xt-analytics-class-pure": 541574045,
-    "org.finos.legend.engine:legend-engine-xt-analytics-function-pure": 1808096558,
-    "org.finos.legend.engine:legend-engine-xt-analytics-lineage-http-api": 406139167,
-    "org.finos.legend.engine:legend-engine-xt-analytics-lineage-pure": 690028441,
-    "org.finos.legend.engine:legend-engine-xt-analytics-mapping-protocol": 256167488,
-    "org.finos.legend.engine:legend-engine-xt-analytics-mapping-pure": -2107339849,
-    "org.finos.legend.engine:legend-engine-xt-analytics-search-generation": 990889023,
-    "org.finos.legend.engine:legend-engine-xt-analytics-search-pure": 1886954856,
-    "org.finos.legend.engine:legend-engine-xt-analytics-store-entitlement": 218030549,
-    "org.finos.legend.engine:legend-engine-xt-arrow-pure": 1290326867,
-    "org.finos.legend.engine:legend-engine-xt-authentication-grammar": -903841749,
-    "org.finos.legend.engine:legend-engine-xt-authentication-implementation-core": -879459701,
-    "org.finos.legend.engine:legend-engine-xt-authentication-protocol": -1424454953,
-    "org.finos.legend.engine:legend-engine-xt-authentication-pure": -1687587330,
-    "org.finos.legend.engine:legend-engine-xt-avro": 569266378,
-    "org.finos.legend.engine:legend-engine-xt-avro-pure": -755072680,
-    "org.finos.legend.engine:legend-engine-xt-bigqueryFunction-compiler": -1605504598,
-    "org.finos.legend.engine:legend-engine-xt-bigqueryFunction-grammar": 1545799221,
-    "org.finos.legend.engine:legend-engine-xt-bigqueryFunction-protocol": -254046076,
-    "org.finos.legend.engine:legend-engine-xt-bigqueryFunction-pure": -2063786949,
-    "org.finos.legend.engine:legend-engine-xt-daml-grammar": -25282490,
-    "org.finos.legend.engine:legend-engine-xt-daml-model": 961083375,
-    "org.finos.legend.engine:legend-engine-xt-daml-pure": -1129480467,
-    "org.finos.legend.engine:legend-engine-xt-data-space-compiler": 1812591645,
-    "org.finos.legend.engine:legend-engine-xt-data-space-generation": -2085801449,
-    "org.finos.legend.engine:legend-engine-xt-data-space-grammar": -920831746,
-    "org.finos.legend.engine:legend-engine-xt-data-space-protocol": 1539529030,
-    "org.finos.legend.engine:legend-engine-xt-data-space-pure": -795811907,
-    "org.finos.legend.engine:legend-engine-xt-data-space-pure-metamodel": 1155129699,
-    "org.finos.legend.engine:legend-engine-xt-dataquality-compiler": 589081310,
-    "org.finos.legend.engine:legend-engine-xt-dataquality-generation": -2113476503,
-    "org.finos.legend.engine:legend-engine-xt-dataquality-grammar": 32463919,
-    "org.finos.legend.engine:legend-engine-xt-dataquality-protocol": -1679460582,
-    "org.finos.legend.engine:legend-engine-xt-dataquality-pure": -1629779266,
-    "org.finos.legend.engine:legend-engine-xt-dataquality-test-runner": -491350443,
-    "org.finos.legend.engine:legend-engine-xt-deephaven-grammar": -68578485,
-    "org.finos.legend.engine:legend-engine-xt-deephaven-javaPlatformBinding-pure": 1991825831,
-    "org.finos.legend.engine:legend-engine-xt-deephaven-protocol": 448327827,
-    "org.finos.legend.engine:legend-engine-xt-deephaven-pure": 1704645070,
-    "org.finos.legend.engine:legend-engine-xt-diagram-compiler": -121027229,
-    "org.finos.legend.engine:legend-engine-xt-diagram-grammar": -103540720,
-    "org.finos.legend.engine:legend-engine-xt-diagram-protocol": -1238865315,
-    "org.finos.legend.engine:legend-engine-xt-diagram-pure": 906729969,
-    "org.finos.legend.engine:legend-engine-xt-diagram-pure-metamodel": -39738994,
-    "org.finos.legend.engine:legend-engine-xt-elasticsearch-V7-grammar": -1074036785,
-    "org.finos.legend.engine:legend-engine-xt-elasticsearch-V7-protocol": 942177894,
-    "org.finos.legend.engine:legend-engine-xt-elasticsearch-V7-pure-metamodel": 1048470931,
+    "org.finos.legend.engine:legend-engine-testable": -151355494,
+    "org.finos.legend.engine:legend-engine-xt-analytics-binding-pure": 1757262779,
+    "org.finos.legend.engine:legend-engine-xt-analytics-class-pure": -888533153,
+    "org.finos.legend.engine:legend-engine-xt-analytics-function-pure": 2058992969,
+    "org.finos.legend.engine:legend-engine-xt-analytics-lineage-http-api": 1385888630,
+    "org.finos.legend.engine:legend-engine-xt-analytics-lineage-pure": -101948965,
+    "org.finos.legend.engine:legend-engine-xt-analytics-mapping-protocol": 1090867448,
+    "org.finos.legend.engine:legend-engine-xt-analytics-mapping-pure": -1643879298,
+    "org.finos.legend.engine:legend-engine-xt-analytics-search-generation": 249204847,
+    "org.finos.legend.engine:legend-engine-xt-analytics-search-pure": 1164010176,
+    "org.finos.legend.engine:legend-engine-xt-analytics-store-entitlement": -1633281675,
+    "org.finos.legend.engine:legend-engine-xt-arrow-pure": -1066446363,
+    "org.finos.legend.engine:legend-engine-xt-authentication-grammar": -1538155695,
+    "org.finos.legend.engine:legend-engine-xt-authentication-implementation-core": -150567649,
+    "org.finos.legend.engine:legend-engine-xt-authentication-protocol": 531179329,
+    "org.finos.legend.engine:legend-engine-xt-authentication-pure": 1033948077,
+    "org.finos.legend.engine:legend-engine-xt-avro": 1203060456,
+    "org.finos.legend.engine:legend-engine-xt-avro-pure": 208375039,
+    "org.finos.legend.engine:legend-engine-xt-bigqueryFunction-compiler": 994656840,
+    "org.finos.legend.engine:legend-engine-xt-bigqueryFunction-grammar": -1186940908,
+    "org.finos.legend.engine:legend-engine-xt-bigqueryFunction-protocol": -1715958413,
+    "org.finos.legend.engine:legend-engine-xt-bigqueryFunction-pure": -744147741,
+    "org.finos.legend.engine:legend-engine-xt-daml-grammar": 65182950,
+    "org.finos.legend.engine:legend-engine-xt-daml-model": -1395367005,
+    "org.finos.legend.engine:legend-engine-xt-daml-pure": -1784296421,
+    "org.finos.legend.engine:legend-engine-xt-data-space-compiler": 1762826905,
+    "org.finos.legend.engine:legend-engine-xt-data-space-generation": 778524467,
+    "org.finos.legend.engine:legend-engine-xt-data-space-grammar": 1058453225,
+    "org.finos.legend.engine:legend-engine-xt-data-space-protocol": -965793732,
+    "org.finos.legend.engine:legend-engine-xt-data-space-pure": -1210308493,
+    "org.finos.legend.engine:legend-engine-xt-data-space-pure-metamodel": -624278559,
+    "org.finos.legend.engine:legend-engine-xt-dataquality-compiler": -1448321070,
+    "org.finos.legend.engine:legend-engine-xt-dataquality-generation": -1592778902,
+    "org.finos.legend.engine:legend-engine-xt-dataquality-grammar": -531661057,
+    "org.finos.legend.engine:legend-engine-xt-dataquality-protocol": 1230903085,
+    "org.finos.legend.engine:legend-engine-xt-dataquality-pure": -564074578,
+    "org.finos.legend.engine:legend-engine-xt-dataquality-test-runner": -164950230,
+    "org.finos.legend.engine:legend-engine-xt-deephaven-grammar": -1607275640,
+    "org.finos.legend.engine:legend-engine-xt-deephaven-javaPlatformBinding-pure": 990898760,
+    "org.finos.legend.engine:legend-engine-xt-deephaven-protocol": 453076956,
+    "org.finos.legend.engine:legend-engine-xt-deephaven-pure": -152661834,
+    "org.finos.legend.engine:legend-engine-xt-diagram-compiler": 1717884845,
+    "org.finos.legend.engine:legend-engine-xt-diagram-grammar": 18947773,
+    "org.finos.legend.engine:legend-engine-xt-diagram-protocol": 498002885,
+    "org.finos.legend.engine:legend-engine-xt-diagram-pure": -197190883,
+    "org.finos.legend.engine:legend-engine-xt-diagram-pure-metamodel": -210067790,
+    "org.finos.legend.engine:legend-engine-xt-elasticsearch-V7-grammar": 1492214697,
+    "org.finos.legend.engine:legend-engine-xt-elasticsearch-V7-protocol": -591615000,
+    "org.finos.legend.engine:legend-engine-xt-elasticsearch-V7-pure-metamodel": 1361148290,
     "org.finos.legend.engine:legend-engine-xt-elasticsearch-protocol-utils": -1747077870,
-    "org.finos.legend.engine:legend-engine-xt-flatdata-driver-bloomberg": 136113623,
-    "org.finos.legend.engine:legend-engine-xt-flatdata-javaPlatformBinding-pure": 1973030085,
-    "org.finos.legend.engine:legend-engine-xt-flatdata-model": -342226036,
-    "org.finos.legend.engine:legend-engine-xt-flatdata-pure": -1558410117,
-    "org.finos.legend.engine:legend-engine-xt-flatdata-shared": 585527019,
-    "org.finos.legend.engine:legend-engine-xt-functionActivator-compiler": 310813157,
-    "org.finos.legend.engine:legend-engine-xt-functionActivator-deployment": 2073709358,
-    "org.finos.legend.engine:legend-engine-xt-functionActivator-generation": 556950686,
-    "org.finos.legend.engine:legend-engine-xt-functionActivator-grammar": 1531085975,
-    "org.finos.legend.engine:legend-engine-xt-functionActivator-protocol": -101733209,
-    "org.finos.legend.engine:legend-engine-xt-functionActivator-pure": -1916453906,
-    "org.finos.legend.engine:legend-engine-xt-functionJar-compiler": 782006451,
-    "org.finos.legend.engine:legend-engine-xt-functionJar-grammar": -1854432964,
-    "org.finos.legend.engine:legend-engine-xt-functionJar-protocol": 1770153874,
-    "org.finos.legend.engine:legend-engine-xt-functionJar-pure": -457825767,
-    "org.finos.legend.engine:legend-engine-xt-graphQL-compiler": 230150292,
+    "org.finos.legend.engine:legend-engine-xt-flatdata-driver-bloomberg": -2008967086,
+    "org.finos.legend.engine:legend-engine-xt-flatdata-javaPlatformBinding-pure": -512852874,
+    "org.finos.legend.engine:legend-engine-xt-flatdata-model": 860975546,
+    "org.finos.legend.engine:legend-engine-xt-flatdata-pure": -577733393,
+    "org.finos.legend.engine:legend-engine-xt-flatdata-shared": -1568723896,
+    "org.finos.legend.engine:legend-engine-xt-functionActivator-compiler": 2001140143,
+    "org.finos.legend.engine:legend-engine-xt-functionActivator-deployment": 280302634,
+    "org.finos.legend.engine:legend-engine-xt-functionActivator-generation": -962865682,
+    "org.finos.legend.engine:legend-engine-xt-functionActivator-grammar": -111642149,
+    "org.finos.legend.engine:legend-engine-xt-functionActivator-protocol": -1414119567,
+    "org.finos.legend.engine:legend-engine-xt-functionActivator-pure": 2014164063,
+    "org.finos.legend.engine:legend-engine-xt-functionJar-compiler": -477206333,
+    "org.finos.legend.engine:legend-engine-xt-functionJar-grammar": -1580848892,
+    "org.finos.legend.engine:legend-engine-xt-functionJar-protocol": 892966273,
+    "org.finos.legend.engine:legend-engine-xt-functionJar-pure": -464270114,
+    "org.finos.legend.engine:legend-engine-xt-graphQL-compiler": 1663184144,
     "org.finos.legend.engine:legend-engine-xt-graphQL-grammar": 321835434,
-    "org.finos.legend.engine:legend-engine-xt-graphQL-grammar-integration": 828193867,
+    "org.finos.legend.engine:legend-engine-xt-graphQL-grammar-integration": 1236416336,
     "org.finos.legend.engine:legend-engine-xt-graphQL-grammar:jar:tests": -1448370302,
-    "org.finos.legend.engine:legend-engine-xt-graphQL-http-api": 45154681,
+    "org.finos.legend.engine:legend-engine-xt-graphQL-http-api": -1180491448,
     "org.finos.legend.engine:legend-engine-xt-graphQL-protocol": -547044575,
-    "org.finos.legend.engine:legend-engine-xt-graphQL-pure": -461812662,
-    "org.finos.legend.engine:legend-engine-xt-graphQL-pure-metamodel": 1448675840,
-    "org.finos.legend.engine:legend-engine-xt-haskell-grammar": -315216612,
+    "org.finos.legend.engine:legend-engine-xt-graphQL-pure": -164124334,
+    "org.finos.legend.engine:legend-engine-xt-graphQL-pure-metamodel": 663067732,
+    "org.finos.legend.engine:legend-engine-xt-haskell-grammar": -704437741,
     "org.finos.legend.engine:legend-engine-xt-haskell-protocol": 107751504,
-    "org.finos.legend.engine:legend-engine-xt-haskell-pure": 1202208975,
-    "org.finos.legend.engine:legend-engine-xt-hostedService-compiler": -345470740,
-    "org.finos.legend.engine:legend-engine-xt-hostedService-generation": -1193460893,
-    "org.finos.legend.engine:legend-engine-xt-hostedService-grammar": -23771615,
-    "org.finos.legend.engine:legend-engine-xt-hostedService-protocol": -115782641,
-    "org.finos.legend.engine:legend-engine-xt-hostedService-pure": -1829185624,
+    "org.finos.legend.engine:legend-engine-xt-haskell-pure": 82322285,
+    "org.finos.legend.engine:legend-engine-xt-hostedService-compiler": 1509852441,
+    "org.finos.legend.engine:legend-engine-xt-hostedService-generation": -962134496,
+    "org.finos.legend.engine:legend-engine-xt-hostedService-grammar": -300405287,
+    "org.finos.legend.engine:legend-engine-xt-hostedService-protocol": -369019525,
+    "org.finos.legend.engine:legend-engine-xt-hostedService-pure": -988120968,
     "org.finos.legend.engine:legend-engine-xt-identity-apiToken": -1492794942,
     "org.finos.legend.engine:legend-engine-xt-identity-kerberos": 618883684,
     "org.finos.legend.engine:legend-engine-xt-identity-middletier": 1063864829,
     "org.finos.legend.engine:legend-engine-xt-identity-oauth": -62994730,
-    "org.finos.legend.engine:legend-engine-xt-identity-pac4j": -211863288,
+    "org.finos.legend.engine:legend-engine-xt-identity-pac4j": -136337848,
     "org.finos.legend.engine:legend-engine-xt-identity-plainTextUserPassword": -421448331,
     "org.finos.legend.engine:legend-engine-xt-identity-privateKey": 1414207342,
-    "org.finos.legend.engine:legend-engine-xt-javaGeneration-conventions-essential-pure": 625963165,
-    "org.finos.legend.engine:legend-engine-xt-javaGeneration-conventions-standard-pure": 2016428572,
-    "org.finos.legend.engine:legend-engine-xt-javaGeneration-featureBased-pure": -556804099,
-    "org.finos.legend.engine:legend-engine-xt-javaGeneration-pure": 732280376,
-    "org.finos.legend.engine:legend-engine-xt-javaPlatformBinding-externalFormat-pure": -1900217711,
-    "org.finos.legend.engine:legend-engine-xt-javaPlatformBinding-pure": -1033550900,
-    "org.finos.legend.engine:legend-engine-xt-json-javaPlatformBinding-pure": -1973875451,
-    "org.finos.legend.engine:legend-engine-xt-json-model": -1079564122,
-    "org.finos.legend.engine:legend-engine-xt-json-pure": 1851551546,
-    "org.finos.legend.engine:legend-engine-xt-json-runtime": 455486295,
-    "org.finos.legend.engine:legend-engine-xt-memsqlFunction-compiler": 1734392891,
-    "org.finos.legend.engine:legend-engine-xt-memsqlFunction-grammar": 103139966,
-    "org.finos.legend.engine:legend-engine-xt-memsqlFunction-protocol": 2130710882,
-    "org.finos.legend.engine:legend-engine-xt-memsqlFunction-pure": 604170741,
-    "org.finos.legend.engine:legend-engine-xt-morphir": -376891928,
-    "org.finos.legend.engine:legend-engine-xt-morphir-pure": -1439800037,
-    "org.finos.legend.engine:legend-engine-xt-nonrelationalStore-mongodb-grammar": 1107588707,
-    "org.finos.legend.engine:legend-engine-xt-nonrelationalStore-mongodb-grammar-integration": -914616011,
-    "org.finos.legend.engine:legend-engine-xt-nonrelationalStore-mongodb-javaPlatformBinding-pure": -1952697550,
-    "org.finos.legend.engine:legend-engine-xt-nonrelationalStore-mongodb-protocol": -1152781782,
-    "org.finos.legend.engine:legend-engine-xt-nonrelationalStore-mongodb-pure": 942812172,
-    "org.finos.legend.engine:legend-engine-xt-openapi-generation": 1369084064,
-    "org.finos.legend.engine:legend-engine-xt-openapi-pure": -2076236196,
-    "org.finos.legend.engine:legend-engine-xt-persistence-cloud-grammar": 1892677813,
-    "org.finos.legend.engine:legend-engine-xt-persistence-cloud-protocol": -898937782,
-    "org.finos.legend.engine:legend-engine-xt-persistence-cloud-pure": 1371825313,
+    "org.finos.legend.engine:legend-engine-xt-javaGeneration-conventions-essential-pure": -1181919345,
+    "org.finos.legend.engine:legend-engine-xt-javaGeneration-conventions-standard-pure": -1172972830,
+    "org.finos.legend.engine:legend-engine-xt-javaGeneration-featureBased-pure": 1924560993,
+    "org.finos.legend.engine:legend-engine-xt-javaGeneration-pure": -866284074,
+    "org.finos.legend.engine:legend-engine-xt-javaPlatformBinding-externalFormat-pure": -1139112235,
+    "org.finos.legend.engine:legend-engine-xt-javaPlatformBinding-pure": 877142335,
+    "org.finos.legend.engine:legend-engine-xt-json-javaPlatformBinding-pure": -1120655223,
+    "org.finos.legend.engine:legend-engine-xt-json-model": -405094901,
+    "org.finos.legend.engine:legend-engine-xt-json-pure": -719801389,
+    "org.finos.legend.engine:legend-engine-xt-json-runtime": -1239045396,
+    "org.finos.legend.engine:legend-engine-xt-memsqlFunction-compiler": -1823024824,
+    "org.finos.legend.engine:legend-engine-xt-memsqlFunction-grammar": 714562400,
+    "org.finos.legend.engine:legend-engine-xt-memsqlFunction-protocol": -802936747,
+    "org.finos.legend.engine:legend-engine-xt-memsqlFunction-pure": -723314150,
+    "org.finos.legend.engine:legend-engine-xt-morphir": -1123785317,
+    "org.finos.legend.engine:legend-engine-xt-morphir-pure": -62085600,
+    "org.finos.legend.engine:legend-engine-xt-nonrelationalStore-mongodb-grammar": -1540760957,
+    "org.finos.legend.engine:legend-engine-xt-nonrelationalStore-mongodb-grammar-integration": -1885332181,
+    "org.finos.legend.engine:legend-engine-xt-nonrelationalStore-mongodb-javaPlatformBinding-pure": -221021160,
+    "org.finos.legend.engine:legend-engine-xt-nonrelationalStore-mongodb-protocol": 1854844392,
+    "org.finos.legend.engine:legend-engine-xt-nonrelationalStore-mongodb-pure": -267756855,
+    "org.finos.legend.engine:legend-engine-xt-openapi-generation": -1180535102,
+    "org.finos.legend.engine:legend-engine-xt-openapi-pure": -1896473451,
+    "org.finos.legend.engine:legend-engine-xt-persistence-cloud-grammar": -1875758030,
+    "org.finos.legend.engine:legend-engine-xt-persistence-cloud-protocol": 2017358495,
+    "org.finos.legend.engine:legend-engine-xt-persistence-cloud-pure": -2077403656,
     "org.finos.legend.engine:legend-engine-xt-persistence-component-logical-plan": 650856120,
-    "org.finos.legend.engine:legend-engine-xt-persistence-component-physical-plan": 1540675553,
-    "org.finos.legend.engine:legend-engine-xt-persistence-component-relational-ansi": 264312456,
-    "org.finos.legend.engine:legend-engine-xt-persistence-component-relational-core": -1293351966,
-    "org.finos.legend.engine:legend-engine-xt-persistence-component-relational-h2": -705601566,
-    "org.finos.legend.engine:legend-engine-xt-persistence-grammar": -930099269,
-    "org.finos.legend.engine:legend-engine-xt-persistence-protocol": -1883571508,
-    "org.finos.legend.engine:legend-engine-xt-persistence-pure": 293581652,
-    "org.finos.legend.engine:legend-engine-xt-persistence-target-relational-grammar": -839735921,
-    "org.finos.legend.engine:legend-engine-xt-persistence-target-relational-protocol": -1010658936,
-    "org.finos.legend.engine:legend-engine-xt-persistence-target-relational-pure": -1979410114,
-    "org.finos.legend.engine:legend-engine-xt-persistence-test-runner": 2071222138,
-    "org.finos.legend.engine:legend-engine-xt-powerbi-generation": -1847178166,
-    "org.finos.legend.engine:legend-engine-xt-powerbi-pure": -735677981,
-    "org.finos.legend.engine:legend-engine-xt-protobuf": 1051966141,
+    "org.finos.legend.engine:legend-engine-xt-persistence-component-physical-plan": -1434638586,
+    "org.finos.legend.engine:legend-engine-xt-persistence-component-relational-ansi": 957636342,
+    "org.finos.legend.engine:legend-engine-xt-persistence-component-relational-core": 1577546009,
+    "org.finos.legend.engine:legend-engine-xt-persistence-component-relational-h2": -1305405014,
+    "org.finos.legend.engine:legend-engine-xt-persistence-grammar": 1380711267,
+    "org.finos.legend.engine:legend-engine-xt-persistence-protocol": -816531988,
+    "org.finos.legend.engine:legend-engine-xt-persistence-pure": -1642611768,
+    "org.finos.legend.engine:legend-engine-xt-persistence-target-relational-grammar": 1040301806,
+    "org.finos.legend.engine:legend-engine-xt-persistence-target-relational-protocol": 1905637341,
+    "org.finos.legend.engine:legend-engine-xt-persistence-target-relational-pure": 1682390036,
+    "org.finos.legend.engine:legend-engine-xt-persistence-test-runner": -2107495483,
+    "org.finos.legend.engine:legend-engine-xt-powerbi-generation": -1396209281,
+    "org.finos.legend.engine:legend-engine-xt-powerbi-pure": -615486294,
+    "org.finos.legend.engine:legend-engine-xt-protobuf": -765219834,
     "org.finos.legend.engine:legend-engine-xt-protobuf-grammar": -556065182,
     "org.finos.legend.engine:legend-engine-xt-protobuf-protocol": -739332649,
-    "org.finos.legend.engine:legend-engine-xt-protobuf-pure": 1749202859,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-athena-grammar": -1095455921,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-athena-protocol": -458426717,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-athena-pure": -861793800,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-aurora-grammar": -1916488978,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-aurora-protocol": -421088471,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-aurora-pure": -1440503915,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-bigquery-grammar": 131273129,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-bigquery-protocol": 896080720,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-bigquery-pure": 555610759,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-clickhouse-pure": -1874183416,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-core-pure": -818543185,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-core-pure:jar:tests": 218822125,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-databricks-grammar": -1552972622,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-databricks-protocol": -1968966242,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-databricks-pure": 1747139721,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-duckdb-grammar": 2009706120,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-duckdb-protocol": -396459020,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-duckdb-pure": -781639579,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-duckdb-sqlDialectTranslation-pure": -1229543038,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-executionPlan-connection": -199786380,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-executionPlan-connection-authentication": 1324022449,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-grammar": -2064248217,
+    "org.finos.legend.engine:legend-engine-xt-protobuf-pure": 1361384690,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-athena-grammar": 425108941,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-athena-protocol": 2097714995,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-athena-pure": -997676046,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-aurora-grammar": 658275207,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-aurora-protocol": 2135053241,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-aurora-pure": -1667487538,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-bigquery-grammar": 1526449827,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-bigquery-protocol": -842744864,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-bigquery-pure": -1407224235,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-clickhouse-pure": -567570725,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-core-pure": 413204820,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-core-pure:jar:tests": -1659491882,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-databricks-grammar": 1442308699,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-databricks-protocol": 587175470,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-databricks-pure": 1515250642,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-duckdb-grammar": 2031611630,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-duckdb-protocol": -2135284604,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-duckdb-pure": -606947204,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-duckdb-sqlDialectTranslation-pure": -1513817260,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-executionPlan-connection": -672072028,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-executionPlan-connection-authentication": 998221161,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-grammar": 1328601348,
     "org.finos.legend.engine:legend-engine-xt-relationalStore-h2-execution-2.1.214": -666249501,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-h2-sqlDialectTranslation-pure": 533419010,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-hive-pure": -875231892,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-javaPlatformBinding-pure": -226533005,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-memsql-grammar": 1480407373,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-memsql-protocol": -1266824462,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-memsql-pure": -1727397849,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-oracle-grammar": 1147691002,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-oracle-protocol": 505764534,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-oracle-pure": 1684453101,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-postgres-pure": -839185958,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSql-compiler": 1984359577,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-h2-sqlDialectTranslation-pure": -577772040,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-hive-pure": -1428708885,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-javaPlatformBinding-pure": 1553615027,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-memsql-grammar": -201016718,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-memsql-protocol": 1289317250,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-memsql-pure": -1693598489,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-oracle-grammar": 672561459,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-oracle-protocol": -1233061050,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-oracle-pure": -1988334336,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-postgres-pure": -2071072950,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSql-compiler": 1899938406,
     "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSql-grammar": -248114081,
     "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSql-protocol": 1989362701,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSqlModel-extensions-pure": -46082170,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSqlModel-pure": -2008967275,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSqlParser-functions-compiled": 348293078,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSqlParser-pure": -1418923879,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-presto-pure": 137985720,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-protocol": 1907121741,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-redshift-grammar": -2108870659,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-redshift-protocol": 1816702964,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-redshift-pure": -2143701930,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-snowflake-grammar": -154608951,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-snowflake-protocol": 1562666409,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-snowflake-pure": -932671695,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-snowflake-sqlDialectTranslation-pure": -2113780073,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-spanner-grammar": -1544070762,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-spanner-protocol": -5999894,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-spanner-pure": 1796072601,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-sparksql-pure": -780889717,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-sqlDialectTranslation-pure": -890538489,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-sqlPlanning-pure": -30905711,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-store-entitlement-analytics": -456862802,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-store-entitlement-pure": -1398588982,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-sybase-pure": -747690159,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-sybaseiq-pure": 1754272877,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-trino-grammar": -709108283,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-trino-protocol": -1297717884,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-trino-pure": 1143872411,
-    "org.finos.legend.engine:legend-engine-xt-serviceStore-grammar": 1078674616,
-    "org.finos.legend.engine:legend-engine-xt-serviceStore-javaPlatformBinding-pure": 1549595367,
-    "org.finos.legend.engine:legend-engine-xt-serviceStore-protocol": 1685320649,
-    "org.finos.legend.engine:legend-engine-xt-serviceStore-pure": 4194265,
-    "org.finos.legend.engine:legend-engine-xt-snowflake-compiler": -2005261214,
-    "org.finos.legend.engine:legend-engine-xt-snowflake-generator": 294125665,
-    "org.finos.legend.engine:legend-engine-xt-snowflake-grammar": 1193621863,
-    "org.finos.legend.engine:legend-engine-xt-snowflake-protocol": 1955278269,
-    "org.finos.legend.engine:legend-engine-xt-snowflake-pure": 428455729,
-    "org.finos.legend.engine:legend-engine-xt-sql-expression-compiler": -130087397,
-    "org.finos.legend.engine:legend-engine-xt-sql-expression-grammar": 755630635,
-    "org.finos.legend.engine:legend-engine-xt-sql-expression-pure": -1272158651,
-    "org.finos.legend.engine:legend-engine-xt-sql-pure": -1572850487,
-    "org.finos.legend.engine:legend-engine-xt-tds-compiler": 2006946697,
-    "org.finos.legend.engine:legend-engine-xt-tds-grammar": 183420924,
-    "org.finos.legend.engine:legend-engine-xt-text-compiler": -1272024855,
-    "org.finos.legend.engine:legend-engine-xt-text-grammar": -1845916979,
-    "org.finos.legend.engine:legend-engine-xt-text-protocol": 507813493,
-    "org.finos.legend.engine:legend-engine-xt-text-pure-metamodel": 565604194,
-    "org.finos.legend.engine:legend-engine-xt-xml-javaPlatformBinding-pure": -1769241210,
-    "org.finos.legend.engine:legend-engine-xt-xml-model": 1272268912,
-    "org.finos.legend.engine:legend-engine-xt-xml-pure": 967761411,
-    "org.finos.legend.engine:legend-engine-xt-xml-shared": -1733506756,
-    "org.finos.legend.pure:legend-pure-m2-dsl-diagram-grammar": -1594171882,
-    "org.finos.legend.pure:legend-pure-m2-dsl-diagram-pure": 99021020,
-    "org.finos.legend.pure:legend-pure-m2-dsl-graph-grammar": -1305395432,
-    "org.finos.legend.pure:legend-pure-m2-dsl-graph-pure": -2131519753,
-    "org.finos.legend.pure:legend-pure-m2-dsl-mapping-grammar": -284689697,
-    "org.finos.legend.pure:legend-pure-m2-dsl-mapping-pure": 1933676907,
-    "org.finos.legend.pure:legend-pure-m2-dsl-path-grammar": 1157907699,
-    "org.finos.legend.pure:legend-pure-m2-dsl-path-pure": 1872418584,
-    "org.finos.legend.pure:legend-pure-m2-dsl-store-grammar": 384477723,
-    "org.finos.legend.pure:legend-pure-m2-dsl-store-pure": -1854048903,
-    "org.finos.legend.pure:legend-pure-m2-dsl-tds-grammar": 2022299942,
-    "org.finos.legend.pure:legend-pure-m2-dsl-tds-pure": 1379500768,
-    "org.finos.legend.pure:legend-pure-m2-store-relational-grammar": 614806251,
-    "org.finos.legend.pure:legend-pure-m2-store-relational-pure": -1776977671,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSqlModel-extensions-pure": 514344660,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSqlModel-pure": 944958214,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSqlParser-functions-compiled": 1301848681,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSqlParser-pure": 1383121412,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-presto-pure": -1875991660,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-protocol": 758438257,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-redshift-grammar": -815632967,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-redshift-protocol": 77877380,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-redshift-pure": -502984311,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-snowflake-grammar": 775866741,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-snowflake-protocol": -176159175,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-snowflake-pure": 935530670,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-snowflake-sqlDialectTranslation-pure": -2081056241,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-spanner-grammar": -1449193967,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-spanner-protocol": -1744825478,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-spanner-pure": -1328144018,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-sparksql-pure": -338612960,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-sqlDialectTranslation-pure": 1450422545,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-sqlPlanning-pure": 2057867550,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-store-entitlement-analytics": 1163479793,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-store-entitlement-pure": 631478565,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-sybase-pure": -973488310,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-sybaseiq-pure": -260030689,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-trino-grammar": 1048379191,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-trino-protocol": 1258423828,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-trino-pure": -1884442088,
+    "org.finos.legend.engine:legend-engine-xt-serviceStore-grammar": -670946217,
+    "org.finos.legend.engine:legend-engine-xt-serviceStore-javaPlatformBinding-pure": -1966098213,
+    "org.finos.legend.engine:legend-engine-xt-serviceStore-protocol": -547455895,
+    "org.finos.legend.engine:legend-engine-xt-serviceStore-pure": -1060284935,
+    "org.finos.legend.engine:legend-engine-xt-snowflake-compiler": 97974118,
+    "org.finos.legend.engine:legend-engine-xt-snowflake-generator": -1506655261,
+    "org.finos.legend.engine:legend-engine-xt-snowflake-grammar": 112923165,
+    "org.finos.legend.engine:legend-engine-xt-snowflake-protocol": -1946380454,
+    "org.finos.legend.engine:legend-engine-xt-snowflake-pure": 1479622548,
+    "org.finos.legend.engine:legend-engine-xt-sql-expression-compiler": -185404418,
+    "org.finos.legend.engine:legend-engine-xt-sql-expression-grammar": -695656791,
+    "org.finos.legend.engine:legend-engine-xt-sql-expression-pure": -1568476420,
+    "org.finos.legend.engine:legend-engine-xt-sql-pure": -1680863507,
+    "org.finos.legend.engine:legend-engine-xt-tds-compiler": 1687247910,
+    "org.finos.legend.engine:legend-engine-xt-tds-grammar": -833375174,
+    "org.finos.legend.engine:legend-engine-xt-text-compiler": -1655134023,
+    "org.finos.legend.engine:legend-engine-xt-text-grammar": 1610547655,
+    "org.finos.legend.engine:legend-engine-xt-text-protocol": -2017386323,
+    "org.finos.legend.engine:legend-engine-xt-text-pure-metamodel": -847704871,
+    "org.finos.legend.engine:legend-engine-xt-xml-javaPlatformBinding-pure": -550988059,
+    "org.finos.legend.engine:legend-engine-xt-xml-model": 2048383555,
+    "org.finos.legend.engine:legend-engine-xt-xml-pure": -616207954,
+    "org.finos.legend.engine:legend-engine-xt-xml-shared": 1003354100,
+    "org.finos.legend.pure:legend-pure-m2-dsl-diagram-grammar": -1829537059,
+    "org.finos.legend.pure:legend-pure-m2-dsl-diagram-pure": -1377769586,
+    "org.finos.legend.pure:legend-pure-m2-dsl-graph-grammar": -436928558,
+    "org.finos.legend.pure:legend-pure-m2-dsl-graph-pure": 686656937,
+    "org.finos.legend.pure:legend-pure-m2-dsl-mapping-grammar": 1675669988,
+    "org.finos.legend.pure:legend-pure-m2-dsl-mapping-pure": -656659103,
+    "org.finos.legend.pure:legend-pure-m2-dsl-path-grammar": -1595798719,
+    "org.finos.legend.pure:legend-pure-m2-dsl-path-pure": 395627978,
+    "org.finos.legend.pure:legend-pure-m2-dsl-store-grammar": 2085859857,
+    "org.finos.legend.pure:legend-pure-m2-dsl-store-pure": 964127787,
+    "org.finos.legend.pure:legend-pure-m2-dsl-tds-grammar": 1178331415,
+    "org.finos.legend.pure:legend-pure-m2-dsl-tds-pure": -97289838,
+    "org.finos.legend.pure:legend-pure-m2-store-relational-grammar": -2029532276,
+    "org.finos.legend.pure:legend-pure-m2-store-relational-pure": -1937052034,
     "org.finos.legend.pure:legend-pure-m3-bootstrap-generator": 2005976131,
-    "org.finos.legend.pure:legend-pure-m3-core": -1570683719,
-    "org.finos.legend.pure:legend-pure-m3-precisePrimitives": 375533556,
+    "org.finos.legend.pure:legend-pure-m3-core": -1396457682,
+    "org.finos.legend.pure:legend-pure-m3-precisePrimitives": -417752446,
     "org.finos.legend.pure:legend-pure-m4": 554953675,
-    "org.finos.legend.pure:legend-pure-runtime-java-engine-compiled": 930589207,
-    "org.finos.legend.pure:legend-pure-runtime-java-engine-interpreted": -761296474,
-    "org.finos.legend.pure:legend-pure-runtime-java-engine-shared": 860752884,
-    "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-diagram": 256725397,
-    "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-graph": 626790342,
-    "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-mapping": 348641725,
-    "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-path": 251001489,
-    "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-store": -475438427,
-    "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-tds": 1260254953,
-    "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-store-relational": -1309419341,
-    "org.finos.legend.pure:legend-pure-runtime-java-extension-shared-store-relational": -667125389,
-    "org.finos.legend.shared:legend-shared-pac4j": -1351842562,
-    "org.finos.legend.shared:legend-shared-pac4j-kerberos": 529079307,
+    "org.finos.legend.pure:legend-pure-runtime-java-engine-compiled": -1616605130,
+    "org.finos.legend.pure:legend-pure-runtime-java-engine-interpreted": -1344356671,
+    "org.finos.legend.pure:legend-pure-runtime-java-engine-shared": 1843213870,
+    "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-diagram": -222142316,
+    "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-graph": -935089884,
+    "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-mapping": 1518386711,
+    "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-path": 1414571570,
+    "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-store": 777250534,
+    "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-tds": 342778936,
+    "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-store-relational": 2099550281,
+    "org.finos.legend.pure:legend-pure-runtime-java-extension-interpreted-dsl-tds": -932201704,
+    "org.finos.legend.pure:legend-pure-runtime-java-extension-shared-store-relational": 124279362,
+    "org.finos.legend.shared:legend-shared-pac4j": -588636358,
+    "org.finos.legend.shared:legend-shared-pac4j-kerberos": -1886026196,
     "org.freemarker:freemarker": -1834118444,
     "org.hamcrest:hamcrest-core": 649657847,
     "org.jspecify:jspecify": 117231129,
@@ -446,18 +452,17 @@
     "org.mongodb:mongodb-driver-core": 1540510622,
     "org.mongodb:mongodb-driver-sync": -635951201,
     "org.opentest4j:opentest4j": -1711174392,
-    "org.pac4j.jax-rs:core": 1881227834,
-    "org.pac4j:dropwizard-pac4j": 1448547262,
+    "org.pac4j.jax-rs:core": -1490079650,
+    "org.pac4j:dropwizard-pac4j": 1074266027,
     "org.pac4j:jee-pac4j": 781060942,
-    "org.pac4j:jersey225-pac4j": 1270289327,
-    "org.pac4j:pac4j-config": 2015894460,
-    "org.pac4j:pac4j-core": 1513354810,
-    "org.pac4j:pac4j-kerberos": -189765221,
-    "org.pcollections:pcollections": -1523748864,
-    "org.postgresql:postgresql": -1489457860,
-    "org.slf4j:jcl-over-slf4j": -1426861494,
-    "org.slf4j:jul-to-slf4j": 63526595,
-    "org.slf4j:slf4j-api": -1521593912,
+    "org.pac4j:jersey225-pac4j": -1819296839,
+    "org.pac4j:pac4j-config": -1714147709,
+    "org.pac4j:pac4j-core": -50046579,
+    "org.pac4j:pac4j-kerberos": 1214060765,
+    "org.postgresql:postgresql": 100869707,
+    "org.slf4j:jcl-over-slf4j": -976176259,
+    "org.slf4j:jul-to-slf4j": -1066646556,
+    "org.slf4j:slf4j-api": -844459515,
     "org.xerial:sqlite-jdbc": 835746561,
     "org.yaml:snakeyaml": 778240923
   },
@@ -516,36 +521,6 @@
       },
       "version": "6.2.1"
     },
-    "com.github.ben-manes.caffeine:caffeine": {
-      "shasums": {
-        "jar": "8a9b54d3506a3b92ee46b217bcee79196b21ca6d52dc2967c686a205fb2f9c15"
-      },
-      "version": "3.0.5"
-    },
-    "com.github.kevinstern:software-and-algorithms": {
-      "shasums": {
-        "jar": "61ab82439cef37343b14f53154c461619375373a56b9338e895709fb54e0864c"
-      },
-      "version": "1.0"
-    },
-    "com.google.auto.service:auto-service-annotations": {
-      "shasums": {
-        "jar": "c7bec54b7b5588b5967e870341091c5691181d954cf2039f1bf0a6eeb837473b"
-      },
-      "version": "1.0.1"
-    },
-    "com.google.auto.value:auto-value-annotations": {
-      "shasums": {
-        "jar": "fa5469f4c44ee598a2d8f033ab0a9dcbc6498a0c5e0c998dfa0c2adf51358044"
-      },
-      "version": "1.9"
-    },
-    "com.google.auto:auto-common": {
-      "shasums": {
-        "jar": "f50b1ce8a41fad31a8a819c052f8ffa362ea0a3dbe9ef8f7c7dc9a36d4738a59"
-      },
-      "version": "1.2.2"
-    },
     "com.google.code.findbugs:jsr305": {
       "shasums": {
         "jar": "766ad2a0783f2687962c8ad74ceecc38a28b9f72a2d085ee438b7813e928d0c7"
@@ -558,35 +533,11 @@
       },
       "version": "2.8.9"
     },
-    "com.google.errorprone:error_prone_annotation": {
-      "shasums": {
-        "jar": "aa9b67a3aa3418b366e26594e1ae35d100ad3369cd1010ae7d4782d984ea9aaf"
-      },
-      "version": "2.50.0"
-    },
     "com.google.errorprone:error_prone_annotations": {
       "shasums": {
         "jar": "ff80626baaf12a09342befd4e84cba9d50662f5fcd7f7a9b3490a6b7cf87e66c"
       },
       "version": "2.5.1"
-    },
-    "com.google.errorprone:error_prone_check_api": {
-      "shasums": {
-        "jar": "ee935a4f42ac409fb0a471affea938c3050c6887dbaadb106868936d83d8c8f1"
-      },
-      "version": "2.50.0"
-    },
-    "com.google.errorprone:error_prone_core": {
-      "shasums": {
-        "jar": "40a88d3ea732fac3a57ae0e2b27f1729ce76cc41857bcd63d5845e79eae5f72e"
-      },
-      "version": "2.50.0"
-    },
-    "com.google.googlejavaformat:google-java-format": {
-      "shasums": {
-        "jar": "b2a52e363d51dd86b3b38d1a8dd51538541b42ff1048769684681c676550f043"
-      },
-      "version": "1.35.0"
     },
     "com.google.guava:failureaccess": {
       "shasums": {
@@ -596,9 +547,9 @@
     },
     "com.google.guava:guava": {
       "shasums": {
-        "jar": "bd7fa227591fb8509677d0d1122cf95158f3b8a9f45653f58281d879f6dc48c5"
+        "jar": "958a035b74ff6c7d0cdff9c384524b645eb618f7117b60e1ee915f9cffd0e716"
       },
-      "version": "32.0.1-jre"
+      "version": "33.4.6-jre"
     },
     "com.google.guava:listenablefuture": {
       "shasums": {
@@ -611,12 +562,6 @@
         "jar": "f02a95fa1a5e95edb3ed859fd0fb7df709d121a35290eff8b74dce2ab7f4d6ed"
       },
       "version": "2.8"
-    },
-    "com.google.protobuf:protobuf-java": {
-      "shasums": {
-        "jar": "c5b582aa127fb62c5fc3077329d522dfb7930b4e9a625c08760b681b2ba5aab7"
-      },
-      "version": "4.33.2"
     },
     "com.googlecode.json-simple:json-simple": {
       "shasums": {
@@ -672,12 +617,6 @@
       },
       "version": "1.3.0"
     },
-    "com.uber.nullaway:nullaway": {
-      "shasums": {
-        "jar": "c0dd630589f61ac674d212c73e7f60d36f45c302342f95e5f631c64a018fa0d7"
-      },
-      "version": "0.13.8"
-    },
     "com.zaxxer:HikariCP": {
       "shasums": {
         "jar": "f1e612fa27345be3107a85431e8a8aeb205c15364ab2f2d411e40a9d7bb08095"
@@ -713,18 +652,6 @@
         "jar": "f8e394baad7600aef606a30eaee0fede20e68047c752ac3884b88232405acc18"
       },
       "version": "4.8.25"
-    },
-    "io.github.eisop:dataflow-errorprone": {
-      "shasums": {
-        "jar": "10434fba4e53f55fa9c76904cde414b918932548c9dfc4e2d634ac05ff7a7d10"
-      },
-      "version": "3.41.0-eisop1"
-    },
-    "io.github.java-diff-utils:java-diff-utils": {
-      "shasums": {
-        "jar": "9990a2039778f6b4cc94790141c2868864eacee0620c6c459451121a901cd5b5"
-      },
-      "version": "4.12"
     },
     "io.opentracing.contrib:opentracing-concurrent": {
       "shasums": {
@@ -884,15 +811,9 @@
     },
     "org.checkerframework:checker-qual": {
       "shasums": {
-        "jar": "a06f08bc5dfa51d751cc5bd2453443a99a14825d57bd3c576de2648d2c99fcb8"
+        "jar": "8b9d9a36eaaf7c0fc26503c83cd97d8c9c0f9e2913cc2a6e92ac26c735d4dcbe"
       },
-      "version": "4.0.0"
-    },
-    "org.checkerframework:dataflow-nullaway": {
-      "shasums": {
-        "jar": "4038b94f4a58f5895a19dde9c9c04ee4cc8bf25e83d4ef10152428e760783f9a"
-      },
-      "version": "4.0.0"
+      "version": "3.49.0"
     },
     "org.codehaus.janino:commons-compiler": {
       "shasums": {
@@ -1255,9 +1176,39 @@
       },
       "version": "4.145.0"
     },
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-json": {
+      "shasums": {
+        "jar": "4231d3aec65a2020e8fb77dc1214a9cb5176fe46f3bdcf3d18a512eeaf888166"
+      },
+      "version": "4.145.0"
+    },
     "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-legendCompiler": {
       "shasums": {
         "jar": "b3aca8f83f1071d0c7d2e00c9802f7a02ec87b1a0004a969aa68c3273e31c361"
+      },
+      "version": "4.145.0"
+    },
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-relation": {
+      "shasums": {
+        "jar": "eb4047295e627ec7f2760d0dbea1d9122fb88baebcc1c9513ac276836a569873"
+      },
+      "version": "4.145.0"
+    },
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-standard": {
+      "shasums": {
+        "jar": "cba1b8c00070f66c55f35ba786afbf5bd6bd8f75bcfc3be8eb548a03abf81223"
+      },
+      "version": "4.145.0"
+    },
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-unclassified": {
+      "shasums": {
+        "jar": "b624561adb1d8d7d04f92142f975b0c81908efd7dcb14871836d055a90766675"
+      },
+      "version": "4.145.0"
+    },
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-variant": {
+      "shasums": {
+        "jar": "a60661a45011d5dfbf71017255fa011066bab0a28097373c826ba0f923dbc51a"
       },
       "version": "4.145.0"
     },
@@ -2818,6 +2769,12 @@
       },
       "version": "5.99.0"
     },
+    "org.finos.legend.pure:legend-pure-runtime-java-extension-interpreted-dsl-tds": {
+      "shasums": {
+        "jar": "32fa3e221d59214df72a9527f0e8f25618e2f867da43c7957a77045d676317d9"
+      },
+      "version": "5.99.0"
+    },
     "org.finos.legend.pure:legend-pure-runtime-java-extension-shared-store-relational": {
       "shasums": {
         "jar": "018d7439dcd0b8ee27357b77d8e1d7a9df33369a26c1cc4e4351e5a7e2774322"
@@ -2968,12 +2925,6 @@
       },
       "version": "4.5.8"
     },
-    "org.pcollections:pcollections": {
-      "shasums": {
-        "jar": "1f82766d7c3221930854033bebff5073ea46b43f27326074bbe15d148c18bfb3"
-      },
-      "version": "4.0.1"
-    },
     "org.postgresql:postgresql": {
       "shasums": {
         "jar": "188976721ead8e8627eb6d8389d500dccc0c9bebd885268a3047180274a6031e"
@@ -2994,9 +2945,9 @@
     },
     "org.slf4j:slf4j-api": {
       "shasums": {
-        "jar": "7b751d952061954d5abfed7181c1f645d336091b679891591d63329c622eb832"
+        "jar": "d3ef575e3e4979678dc01bf1dcce51021493b4d11fb7f1be8ad982877c16a1c0"
       },
-      "version": "2.0.17"
+      "version": "1.7.36"
     },
     "org.xerial:sqlite-jdbc": {
       "shasums": {
@@ -3039,52 +2990,12 @@
     "com.fasterxml.woodstox:woodstox-core": [
       "org.codehaus.woodstox:stax2-api"
     ],
-    "com.github.ben-manes.caffeine:caffeine": [
-      "com.google.errorprone:error_prone_annotations",
-      "org.checkerframework:checker-qual"
-    ],
-    "com.google.auto:auto-common": [
-      "com.google.guava:guava"
-    ],
-    "com.google.errorprone:error_prone_annotation": [
-      "com.google.guava:guava"
-    ],
-    "com.google.errorprone:error_prone_check_api": [
-      "com.github.ben-manes.caffeine:caffeine",
-      "com.github.kevinstern:software-and-algorithms",
-      "com.google.auto.value:auto-value-annotations",
-      "com.google.errorprone:error_prone_annotation",
-      "com.google.errorprone:error_prone_annotations",
-      "io.github.eisop:dataflow-errorprone",
-      "io.github.java-diff-utils:java-diff-utils",
-      "javax.inject:javax.inject",
-      "org.jspecify:jspecify"
-    ],
-    "com.google.errorprone:error_prone_core": [
-      "com.google.auto.service:auto-service-annotations",
-      "com.google.auto.value:auto-value-annotations",
-      "com.google.auto:auto-common",
-      "com.google.errorprone:error_prone_annotation",
-      "com.google.errorprone:error_prone_annotations",
-      "com.google.errorprone:error_prone_check_api",
-      "com.google.googlejavaformat:google-java-format",
-      "com.google.guava:guava",
-      "com.google.protobuf:protobuf-java",
-      "io.github.eisop:dataflow-errorprone",
-      "javax.inject:javax.inject",
-      "org.jspecify:jspecify",
-      "org.pcollections:pcollections"
-    ],
-    "com.google.googlejavaformat:google-java-format": [
-      "com.google.guava:guava"
-    ],
     "com.google.guava:guava": [
-      "com.google.code.findbugs:jsr305",
       "com.google.errorprone:error_prone_annotations",
       "com.google.guava:failureaccess",
       "com.google.guava:listenablefuture",
       "com.google.j2objc:j2objc-annotations",
-      "org.checkerframework:checker-qual"
+      "org.jspecify:jspecify"
     ],
     "com.googlecode.json-simple:json-simple": [
       "junit:junit"
@@ -3106,11 +3017,6 @@
     ],
     "com.tngtech.archunit:archunit-junit5-engine-api": [
       "org.junit.platform:junit-platform-engine"
-    ],
-    "com.uber.nullaway:nullaway": [
-      "com.google.guava:guava",
-      "org.checkerframework:dataflow-nullaway",
-      "org.jspecify:jspecify"
     ],
     "com.zaxxer:HikariCP": [
       "org.slf4j:slf4j-api"
@@ -3146,14 +3052,10 @@
       "org.apache.commons:commons-lang3"
     ],
     "org.apache.httpcomponents:httpclient": [
-      "commons-codec:commons-codec",
       "org.apache.httpcomponents:httpcore"
     ],
     "org.apache.tomcat:tomcat-dbcp": [
       "org.apache.tomcat:tomcat-juli"
-    ],
-    "org.checkerframework:dataflow-nullaway": [
-      "org.checkerframework:checker-qual"
     ],
     "org.codehaus.janino:janino": [
       "org.codehaus.janino:commons-compiler"
@@ -3998,7 +3900,7 @@
       "org.eclipse.collections:eclipse-collections",
       "org.eclipse.collections:eclipse-collections-api",
       "org.finos.legend.engine:legend-engine-pure-functions-unclassified-pure",
-      "org.finos.legend.engine:legend-engine-pure-functions-unclassified-pure:test-jar",
+      "org.finos.legend.engine:legend-engine-pure-functions-unclassified-pure:jar:tests",
       "org.finos.legend.engine:legend-engine-pure-platform-java",
       "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-unclassified",
       "org.finos.legend.pure:legend-pure-m3-core",
@@ -4019,6 +3921,18 @@
       "org.finos.legend.pure:legend-pure-m4",
       "org.finos.legend.pure:legend-pure-runtime-java-engine-compiled"
     ],
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-json": [
+      "com.googlecode.json-simple:json-simple",
+      "junit:junit",
+      "org.eclipse.collections:eclipse-collections",
+      "org.eclipse.collections:eclipse-collections-api",
+      "org.finos.legend.engine:legend-engine-pure-functions-json-pure",
+      "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-conversion",
+      "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-json",
+      "org.finos.legend.pure:legend-pure-m3-core",
+      "org.finos.legend.pure:legend-pure-m4",
+      "org.finos.legend.pure:legend-pure-runtime-java-engine-interpreted"
+    ],
     "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-legendCompiler": [
       "junit:junit",
       "org.eclipse.collections:eclipse-collections",
@@ -4032,6 +3946,55 @@
       "org.finos.legend.pure:legend-pure-m3-core",
       "org.finos.legend.pure:legend-pure-m4",
       "org.finos.legend.pure:legend-pure-runtime-java-engine-compiled",
+      "org.finos.legend.pure:legend-pure-runtime-java-engine-interpreted"
+    ],
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-relation": [
+      "io.deephaven:deephaven-csv",
+      "org.eclipse.collections:eclipse-collections",
+      "org.eclipse.collections:eclipse-collections-api",
+      "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-unclassified",
+      "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-variant",
+      "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-relation",
+      "org.finos.legend.pure:legend-pure-m3-core",
+      "org.finos.legend.pure:legend-pure-m4",
+      "org.finos.legend.pure:legend-pure-runtime-java-engine-interpreted",
+      "org.finos.legend.pure:legend-pure-runtime-java-extension-interpreted-dsl-tds"
+    ],
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-standard": [
+      "junit:junit",
+      "org.eclipse.collections:eclipse-collections",
+      "org.eclipse.collections:eclipse-collections-api",
+      "org.finos.legend.engine:legend-engine-pure-functions-relation-pure",
+      "org.finos.legend.engine:legend-engine-pure-functions-standard-pure",
+      "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-relation",
+      "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-relation",
+      "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-standard",
+      "org.finos.legend.pure:legend-pure-m3-core",
+      "org.finos.legend.pure:legend-pure-m4",
+      "org.finos.legend.pure:legend-pure-runtime-java-engine-interpreted"
+    ],
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-unclassified": [
+      "commons-codec:commons-codec",
+      "io.opentracing:opentracing-api",
+      "io.opentracing:opentracing-util",
+      "junit:junit",
+      "org.apache.commons:commons-text",
+      "org.eclipse.collections:eclipse-collections",
+      "org.eclipse.collections:eclipse-collections-api",
+      "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-unclassified",
+      "org.finos.legend.pure:legend-pure-m3-core",
+      "org.finos.legend.pure:legend-pure-m4",
+      "org.finos.legend.pure:legend-pure-runtime-java-engine-interpreted",
+      "org.finos.legend.pure:legend-pure-runtime-java-engine-shared"
+    ],
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-variant": [
+      "com.fasterxml.jackson.core:jackson-databind",
+      "org.eclipse.collections:eclipse-collections",
+      "org.eclipse.collections:eclipse-collections-api",
+      "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-json",
+      "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-variant",
+      "org.finos.legend.pure:legend-pure-m3-core",
+      "org.finos.legend.pure:legend-pure-m4",
       "org.finos.legend.pure:legend-pure-runtime-java-engine-interpreted"
     ],
     "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-conversion": [
@@ -4287,9 +4250,9 @@
       "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-standard",
       "org.finos.legend.engine:legend-engine-test-framework",
       "org.finos.legend.engine:legend-engine-test-mft",
-      "org.finos.legend.engine:legend-engine-test-mft:test-jar",
+      "org.finos.legend.engine:legend-engine-test-mft:jar:tests",
       "org.finos.legend.engine:legend-engine-xt-relationalStore-core-pure",
-      "org.finos.legend.engine:legend-engine-xt-relationalStore-core-pure:test-jar",
+      "org.finos.legend.engine:legend-engine-xt-relationalStore-core-pure:jar:tests",
       "org.finos.legend.engine:legend-engine-xt-sql-expression-pure",
       "org.finos.legend.pure:legend-pure-m2-dsl-diagram-grammar",
       "org.finos.legend.pure:legend-pure-m2-dsl-graph-grammar",
@@ -5263,7 +5226,7 @@
       "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-legendCompiler",
       "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-standard",
       "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-unclassified",
-      "org.finos.legend.engine:legend-engine-xt-graphQL-grammar:test-jar",
+      "org.finos.legend.engine:legend-engine-xt-graphQL-grammar:jar:tests",
       "org.finos.legend.engine:legend-engine-xt-graphQL-pure-metamodel",
       "org.finos.legend.engine:legend-engine-xt-relationalStore-core-pure",
       "org.finos.legend.pure:legend-pure-m2-dsl-diagram-grammar",
@@ -7711,6 +7674,7 @@
       "org.eclipse.collections:eclipse-collections-api"
     ],
     "org.finos.legend.pure:legend-pure-runtime-java-engine-compiled": [
+      "com.google.guava:guava",
       "com.googlecode.json-simple:json-simple",
       "io.github.classgraph:classgraph",
       "io.opentracing:opentracing-api",
@@ -7724,7 +7688,8 @@
       "org.finos.legend.pure:legend-pure-m3-bootstrap-generator",
       "org.finos.legend.pure:legend-pure-m3-core",
       "org.finos.legend.pure:legend-pure-m4",
-      "org.finos.legend.pure:legend-pure-runtime-java-engine-shared"
+      "org.finos.legend.pure:legend-pure-runtime-java-engine-shared",
+      "org.slf4j:slf4j-api"
     ],
     "org.finos.legend.pure:legend-pure-runtime-java-engine-interpreted": [
       "junit:junit",
@@ -7816,6 +7781,14 @@
       "org.finos.legend.pure:legend-pure-runtime-java-engine-shared",
       "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-mapping",
       "org.finos.legend.pure:legend-pure-runtime-java-extension-shared-store-relational"
+    ],
+    "org.finos.legend.pure:legend-pure-runtime-java-extension-interpreted-dsl-tds": [
+      "org.eclipse.collections:eclipse-collections-api",
+      "org.finos.legend.pure:legend-pure-m2-dsl-tds-grammar",
+      "org.finos.legend.pure:legend-pure-m2-dsl-tds-pure",
+      "org.finos.legend.pure:legend-pure-m3-core",
+      "org.finos.legend.pure:legend-pure-m4",
+      "org.finos.legend.pure:legend-pure-runtime-java-engine-interpreted"
     ],
     "org.finos.legend.pure:legend-pure-runtime-java-extension-shared-store-relational": [
       "org.apache.commons:commons-csv",
@@ -8958,28 +8931,6 @@
       "com.ctc.wstx.sw",
       "com.ctc.wstx.util"
     ],
-    "com.github.ben-manes.caffeine:caffeine": [
-      "com.github.benmanes.caffeine.cache",
-      "com.github.benmanes.caffeine.cache.stats"
-    ],
-    "com.github.kevinstern:software-and-algorithms": [
-      "blogspot.software_and_algorithms.stern_library.data_structure",
-      "blogspot.software_and_algorithms.stern_library.geometry",
-      "blogspot.software_and_algorithms.stern_library.optimization",
-      "blogspot.software_and_algorithms.stern_library.string"
-    ],
-    "com.google.auto.service:auto-service-annotations": [
-      "com.google.auto.service"
-    ],
-    "com.google.auto.value:auto-value-annotations": [
-      "com.google.auto.value",
-      "com.google.auto.value.extension.memoized",
-      "com.google.auto.value.extension.serializable",
-      "com.google.auto.value.extension.toprettystring"
-    ],
-    "com.google.auto:auto-common": [
-      "com.google.auto.common"
-    ],
     "com.google.code.findbugs:jsr305": [
       "javax.annotation",
       "javax.annotation.concurrent",
@@ -8996,58 +8947,9 @@
       "com.google.gson.reflect",
       "com.google.gson.stream"
     ],
-    "com.google.errorprone:error_prone_annotation": [
-      "com.google.errorprone"
-    ],
     "com.google.errorprone:error_prone_annotations": [
       "com.google.errorprone.annotations",
       "com.google.errorprone.annotations.concurrent"
-    ],
-    "com.google.errorprone:error_prone_check_api": [
-      "com.google.errorprone",
-      "com.google.errorprone.apply",
-      "com.google.errorprone.bugpatterns",
-      "com.google.errorprone.dataflow",
-      "com.google.errorprone.dataflow.nullnesspropagation",
-      "com.google.errorprone.dataflow.nullnesspropagation.inference",
-      "com.google.errorprone.fixes",
-      "com.google.errorprone.matchers",
-      "com.google.errorprone.matchers.field",
-      "com.google.errorprone.matchers.method",
-      "com.google.errorprone.names",
-      "com.google.errorprone.predicates",
-      "com.google.errorprone.scanner",
-      "com.google.errorprone.suppliers",
-      "com.google.errorprone.util"
-    ],
-    "com.google.errorprone:error_prone_core": [
-      "com.google.errorprone",
-      "com.google.errorprone.bugpatterns",
-      "com.google.errorprone.bugpatterns.android",
-      "com.google.errorprone.bugpatterns.apidiff",
-      "com.google.errorprone.bugpatterns.argumentselectiondefects",
-      "com.google.errorprone.bugpatterns.checkreturnvalue",
-      "com.google.errorprone.bugpatterns.collectionincompatibletype",
-      "com.google.errorprone.bugpatterns.flogger",
-      "com.google.errorprone.bugpatterns.formatstring",
-      "com.google.errorprone.bugpatterns.inject",
-      "com.google.errorprone.bugpatterns.inject.dagger",
-      "com.google.errorprone.bugpatterns.inject.guice",
-      "com.google.errorprone.bugpatterns.inlineme",
-      "com.google.errorprone.bugpatterns.javadoc",
-      "com.google.errorprone.bugpatterns.nullness",
-      "com.google.errorprone.bugpatterns.overloading",
-      "com.google.errorprone.bugpatterns.threadsafety",
-      "com.google.errorprone.bugpatterns.time",
-      "com.google.errorprone.refaster",
-      "com.google.errorprone.refaster.annotation",
-      "com.google.errorprone.scanner"
-    ],
-    "com.google.googlejavaformat:google-java-format": [
-      "com.google.googlejavaformat",
-      "com.google.googlejavaformat.java",
-      "com.google.googlejavaformat.java.filer",
-      "com.google.googlejavaformat.java.javadoc"
     ],
     "com.google.guava:failureaccess": [
       "com.google.common.util.concurrent.internal"
@@ -9074,10 +8976,6 @@
     ],
     "com.google.j2objc:j2objc-annotations": [
       "com.google.j2objc.annotations"
-    ],
-    "com.google.protobuf:protobuf-java": [
-      "com.google.protobuf",
-      "com.google.protobuf.compiler"
     ],
     "com.googlecode.json-simple:json-simple": [
       "org.json.simple",
@@ -9781,24 +9679,6 @@
     "com.tngtech.archunit:archunit-junit5-engine-api": [
       "com.tngtech.archunit.junit.engine_api"
     ],
-    "com.uber.nullaway:nullaway": [
-      "com.uber.nullaway",
-      "com.uber.nullaway.annotations",
-      "com.uber.nullaway.dataflow",
-      "com.uber.nullaway.dataflow.cfg",
-      "com.uber.nullaway.fixserialization",
-      "com.uber.nullaway.fixserialization.adapters",
-      "com.uber.nullaway.fixserialization.location",
-      "com.uber.nullaway.fixserialization.out",
-      "com.uber.nullaway.generics",
-      "com.uber.nullaway.handlers",
-      "com.uber.nullaway.handlers.contract",
-      "com.uber.nullaway.handlers.contract.fieldcontract",
-      "com.uber.nullaway.handlers.stream",
-      "com.uber.nullaway.handlers.temporary",
-      "com.uber.nullaway.jarinfer",
-      "com.uber.nullaway.librarymodel"
-    ],
     "com.zaxxer:HikariCP": [
       "com.zaxxer.hikari",
       "com.zaxxer.hikari.hibernate",
@@ -9857,83 +9737,6 @@
       "nonapi.io.github.classgraph.recycler",
       "nonapi.io.github.classgraph.types",
       "nonapi.io.github.classgraph.utils"
-    ],
-    "io.github.eisop:dataflow-errorprone": [
-      "org.checkerframework.dataflow.qual",
-      "org.checkerframework.errorprone.checker.builder.qual",
-      "org.checkerframework.errorprone.checker.calledmethods.qual",
-      "org.checkerframework.errorprone.checker.compilermsgs.qual",
-      "org.checkerframework.errorprone.checker.fenum.qual",
-      "org.checkerframework.errorprone.checker.formatter.qual",
-      "org.checkerframework.errorprone.checker.guieffect.qual",
-      "org.checkerframework.errorprone.checker.i18n.qual",
-      "org.checkerframework.errorprone.checker.i18nformatter.qual",
-      "org.checkerframework.errorprone.checker.index.qual",
-      "org.checkerframework.errorprone.checker.initialization.qual",
-      "org.checkerframework.errorprone.checker.interning.qual",
-      "org.checkerframework.errorprone.checker.lock.qual",
-      "org.checkerframework.errorprone.checker.mustcall.qual",
-      "org.checkerframework.errorprone.checker.nullness.qual",
-      "org.checkerframework.errorprone.checker.optional.qual",
-      "org.checkerframework.errorprone.checker.propkey.qual",
-      "org.checkerframework.errorprone.checker.regex.qual",
-      "org.checkerframework.errorprone.checker.signature.qual",
-      "org.checkerframework.errorprone.checker.signedness.qual",
-      "org.checkerframework.errorprone.checker.tainting.qual",
-      "org.checkerframework.errorprone.checker.units.qual",
-      "org.checkerframework.errorprone.com.google.common.annotations",
-      "org.checkerframework.errorprone.com.google.common.base",
-      "org.checkerframework.errorprone.com.google.common.base.internal",
-      "org.checkerframework.errorprone.com.google.common.cache",
-      "org.checkerframework.errorprone.com.google.common.collect",
-      "org.checkerframework.errorprone.com.google.common.escape",
-      "org.checkerframework.errorprone.com.google.common.eventbus",
-      "org.checkerframework.errorprone.com.google.common.graph",
-      "org.checkerframework.errorprone.com.google.common.hash",
-      "org.checkerframework.errorprone.com.google.common.html",
-      "org.checkerframework.errorprone.com.google.common.io",
-      "org.checkerframework.errorprone.com.google.common.math",
-      "org.checkerframework.errorprone.com.google.common.net",
-      "org.checkerframework.errorprone.com.google.common.primitives",
-      "org.checkerframework.errorprone.com.google.common.reflect",
-      "org.checkerframework.errorprone.com.google.common.util.concurrent",
-      "org.checkerframework.errorprone.com.google.common.xml",
-      "org.checkerframework.errorprone.com.google.errorprone.annotations",
-      "org.checkerframework.errorprone.com.google.errorprone.annotations.concurrent",
-      "org.checkerframework.errorprone.com.google.thirdparty.publicsuffix",
-      "org.checkerframework.errorprone.common.aliasing.qual",
-      "org.checkerframework.errorprone.common.initializedfields.qual",
-      "org.checkerframework.errorprone.common.reflection.qual",
-      "org.checkerframework.errorprone.common.returnsreceiver.qual",
-      "org.checkerframework.errorprone.common.subtyping.qual",
-      "org.checkerframework.errorprone.common.util.report.qual",
-      "org.checkerframework.errorprone.common.value.qual",
-      "org.checkerframework.errorprone.dataflow.analysis",
-      "org.checkerframework.errorprone.dataflow.busyexpr",
-      "org.checkerframework.errorprone.dataflow.cfg",
-      "org.checkerframework.errorprone.dataflow.cfg.block",
-      "org.checkerframework.errorprone.dataflow.cfg.builder",
-      "org.checkerframework.errorprone.dataflow.cfg.node",
-      "org.checkerframework.errorprone.dataflow.cfg.playground",
-      "org.checkerframework.errorprone.dataflow.cfg.visualize",
-      "org.checkerframework.errorprone.dataflow.constantpropagation",
-      "org.checkerframework.errorprone.dataflow.expression",
-      "org.checkerframework.errorprone.dataflow.livevariable",
-      "org.checkerframework.errorprone.dataflow.reachingdef",
-      "org.checkerframework.errorprone.dataflow.util",
-      "org.checkerframework.errorprone.framework.qual",
-      "org.checkerframework.errorprone.javacutil",
-      "org.checkerframework.errorprone.javacutil.trees",
-      "org.checkerframework.errorprone.org.plumelib.reflection",
-      "org.checkerframework.errorprone.org.plumelib.util"
-    ],
-    "io.github.java-diff-utils:java-diff-utils": [
-      "com.github.difflib",
-      "com.github.difflib.algorithm",
-      "com.github.difflib.algorithm.myers",
-      "com.github.difflib.patch",
-      "com.github.difflib.text",
-      "com.github.difflib.unifieddiff"
     ],
     "io.opentracing.contrib:opentracing-concurrent": [
       "io.opentracing.contrib.concurrent"
@@ -10335,51 +10138,6 @@
       "org.checkerframework.common.value.qual",
       "org.checkerframework.dataflow.qual",
       "org.checkerframework.framework.qual"
-    ],
-    "org.checkerframework:dataflow-nullaway": [
-      "javax.annotation",
-      "javax.annotation.concurrent",
-      "javax.annotation.meta",
-      "org.checkerframework.nullaway.com.google.common.annotations",
-      "org.checkerframework.nullaway.com.google.common.base",
-      "org.checkerframework.nullaway.com.google.common.base.internal",
-      "org.checkerframework.nullaway.com.google.common.cache",
-      "org.checkerframework.nullaway.com.google.common.collect",
-      "org.checkerframework.nullaway.com.google.common.escape",
-      "org.checkerframework.nullaway.com.google.common.eventbus",
-      "org.checkerframework.nullaway.com.google.common.graph",
-      "org.checkerframework.nullaway.com.google.common.hash",
-      "org.checkerframework.nullaway.com.google.common.html",
-      "org.checkerframework.nullaway.com.google.common.io",
-      "org.checkerframework.nullaway.com.google.common.math",
-      "org.checkerframework.nullaway.com.google.common.net",
-      "org.checkerframework.nullaway.com.google.common.primitives",
-      "org.checkerframework.nullaway.com.google.common.reflect",
-      "org.checkerframework.nullaway.com.google.common.util.concurrent",
-      "org.checkerframework.nullaway.com.google.common.util.concurrent.internal",
-      "org.checkerframework.nullaway.com.google.common.xml",
-      "org.checkerframework.nullaway.com.google.errorprone.annotations",
-      "org.checkerframework.nullaway.com.google.errorprone.annotations.concurrent",
-      "org.checkerframework.nullaway.com.google.j2objc.annotations",
-      "org.checkerframework.nullaway.com.google.thirdparty.publicsuffix",
-      "org.checkerframework.nullaway.dataflow.analysis",
-      "org.checkerframework.nullaway.dataflow.busyexpr",
-      "org.checkerframework.nullaway.dataflow.cfg",
-      "org.checkerframework.nullaway.dataflow.cfg.block",
-      "org.checkerframework.nullaway.dataflow.cfg.builder",
-      "org.checkerframework.nullaway.dataflow.cfg.node",
-      "org.checkerframework.nullaway.dataflow.cfg.playground",
-      "org.checkerframework.nullaway.dataflow.cfg.visualize",
-      "org.checkerframework.nullaway.dataflow.constantpropagation",
-      "org.checkerframework.nullaway.dataflow.expression",
-      "org.checkerframework.nullaway.dataflow.livevariable",
-      "org.checkerframework.nullaway.dataflow.reachingdef",
-      "org.checkerframework.nullaway.dataflow.util",
-      "org.checkerframework.nullaway.javacutil",
-      "org.checkerframework.nullaway.javacutil.trees",
-      "org.checkerframework.nullaway.org.plumelib.javacparse",
-      "org.checkerframework.nullaway.org.plumelib.reflection",
-      "org.checkerframework.nullaway.org.plumelib.util"
     ],
     "org.codehaus.janino:commons-compiler": [
       "org.codehaus.commons.compiler",
@@ -11006,9 +10764,44 @@
       "org.finos.legend.pure.runtime.java.extension.external.variant.compiled",
       "org.finos.legend.pure.runtime.java.extension.external.variant.compiled.natives"
     ],
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-json": [
+      "org.finos.legend.pure.runtime.java.extension.external.json.interpreted",
+      "org.finos.legend.pure.runtime.java.extension.external.json.interpreted.natives"
+    ],
     "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-legendCompiler": [
       "org.finos.legend.engine.pure.runtime.compiler.interpreted",
       "org.finos.legend.engine.pure.runtime.compiler.interpreted.natives"
+    ],
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-relation": [
+      "org.finos.legend.pure.runtime.java.extension.external.relation.interpreted",
+      "org.finos.legend.pure.runtime.java.extension.external.relation.interpreted.natives",
+      "org.finos.legend.pure.runtime.java.extension.external.relation.interpreted.natives.shared"
+    ],
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-standard": [
+      "org.finos.legend.pure.runtime.java.extension.functions.standard.interpreted",
+      "org.finos.legend.pure.runtime.java.extension.functions.standard.interpreted.natives.date.operation",
+      "org.finos.legend.pure.runtime.java.extension.functions.standard.interpreted.natives.math.trigonometry",
+      "org.finos.legend.pure.runtime.java.extension.functions.standard.interpreted.natives.string.generation",
+      "org.finos.legend.pure.runtime.java.extension.functions.standard.interpreted.natives.tbd"
+    ],
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-unclassified": [
+      "org.finos.legend.pure.runtime.java.extension.functions.interpreted",
+      "org.finos.legend.pure.runtime.java.extension.functions.interpreted.natives",
+      "org.finos.legend.pure.runtime.java.extension.functions.interpreted.natives.cipher",
+      "org.finos.legend.pure.runtime.java.extension.functions.interpreted.natives.collection",
+      "org.finos.legend.pure.runtime.java.extension.functions.interpreted.natives.date",
+      "org.finos.legend.pure.runtime.java.extension.functions.interpreted.natives.hash",
+      "org.finos.legend.pure.runtime.java.extension.functions.interpreted.natives.io",
+      "org.finos.legend.pure.runtime.java.extension.functions.interpreted.natives.io.http",
+      "org.finos.legend.pure.runtime.java.extension.functions.interpreted.natives.lang",
+      "org.finos.legend.pure.runtime.java.extension.functions.interpreted.natives.meta",
+      "org.finos.legend.pure.runtime.java.extension.functions.interpreted.natives.runtime",
+      "org.finos.legend.pure.runtime.java.extension.functions.interpreted.natives.string",
+      "org.finos.legend.pure.runtime.java.extension.functions.interpreted.natives.tracing"
+    ],
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-variant": [
+      "org.finos.legend.pure.runtime.java.extension.external.variant.interpreted",
+      "org.finos.legend.pure.runtime.java.extension.external.variant.interpreted.natives"
     ],
     "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-conversion": [
       "org.finos.legend.pure.runtime.java.extension.external.shared.conversion"
@@ -12777,6 +12570,10 @@
       "org.finos.legend.pure.runtime.java.extension.store.relational.compiled",
       "org.finos.legend.pure.runtime.java.extension.store.relational.compiled.natives"
     ],
+    "org.finos.legend.pure:legend-pure-runtime-java-extension-interpreted-dsl-tds": [
+      "org.finos.legend.pure.runtime.java.extension.dsl.tds.interpreted",
+      "org.finos.legend.pure.runtime.java.extension.dsl.tds.interpreted.natives"
+    ],
     "org.finos.legend.pure:legend-pure-runtime-java-extension-shared-store-relational": [
       "org.finos.legend.pure.runtime.java.extension.store.relational.shared",
       "org.finos.legend.pure.runtime.java.extension.store.relational.shared.connectionManager"
@@ -13168,9 +12965,6 @@
       "org.pac4j.kerberos.credentials.extractor",
       "org.pac4j.kerberos.profile"
     ],
-    "org.pcollections:pcollections": [
-      "org.pcollections"
-    ],
     "org.postgresql:postgresql": [
       "org.postgresql",
       "org.postgresql.copy",
@@ -13269,23 +13063,13 @@
       "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml",
       "com.fasterxml.jackson.module:jackson-module-jaxb-annotations",
       "com.fasterxml.woodstox:woodstox-core",
-      "com.github.ben-manes.caffeine:caffeine",
-      "com.github.kevinstern:software-and-algorithms",
-      "com.google.auto.service:auto-service-annotations",
-      "com.google.auto.value:auto-value-annotations",
-      "com.google.auto:auto-common",
       "com.google.code.findbugs:jsr305",
       "com.google.code.gson:gson",
-      "com.google.errorprone:error_prone_annotation",
       "com.google.errorprone:error_prone_annotations",
-      "com.google.errorprone:error_prone_check_api",
-      "com.google.errorprone:error_prone_core",
-      "com.google.googlejavaformat:google-java-format",
       "com.google.guava:failureaccess",
       "com.google.guava:guava",
       "com.google.guava:listenablefuture",
       "com.google.j2objc:j2objc-annotations",
-      "com.google.protobuf:protobuf-java",
       "com.googlecode.json-simple:json-simple",
       "com.h2database:h2",
       "com.hazelcast:hazelcast",
@@ -13295,15 +13079,12 @@
       "com.tngtech.archunit:archunit-junit5-api",
       "com.tngtech.archunit:archunit-junit5-engine",
       "com.tngtech.archunit:archunit-junit5-engine-api",
-      "com.uber.nullaway:nullaway",
       "com.zaxxer:HikariCP",
       "commons-codec:commons-codec",
       "commons-io:commons-io",
       "io.deephaven:deephaven-csv",
       "io.dropwizard.metrics:metrics-core",
       "io.github.classgraph:classgraph",
-      "io.github.eisop:dataflow-errorprone",
-      "io.github.java-diff-utils:java-diff-utils",
       "io.opentracing.contrib:opentracing-concurrent",
       "io.opentracing:opentracing-api",
       "io.opentracing:opentracing-noop",
@@ -13331,7 +13112,6 @@
       "org.apiguardian:apiguardian-api",
       "org.bouncycastle:bcprov-jdk15on",
       "org.checkerframework:checker-qual",
-      "org.checkerframework:dataflow-nullaway",
       "org.codehaus.janino:commons-compiler",
       "org.codehaus.janino:janino",
       "org.codehaus.woodstox:stax2-api",
@@ -13393,7 +13173,12 @@
       "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-standard",
       "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-unclassified",
       "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-compiled-functions-variant",
+      "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-json",
       "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-legendCompiler",
+      "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-relation",
+      "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-standard",
+      "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-unclassified",
+      "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-variant",
       "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-conversion",
       "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-json",
       "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-shared-functions-legendCompiler",
@@ -13656,6 +13441,7 @@
       "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-store",
       "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-tds",
       "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-store-relational",
+      "org.finos.legend.pure:legend-pure-runtime-java-extension-interpreted-dsl-tds",
       "org.finos.legend.pure:legend-pure-runtime-java-extension-shared-store-relational",
       "org.finos.legend.shared:legend-shared-pac4j",
       "org.finos.legend.shared:legend-shared-pac4j-kerberos",
@@ -13681,7 +13467,6 @@
       "org.pac4j:pac4j-config",
       "org.pac4j:pac4j-core",
       "org.pac4j:pac4j-kerberos",
-      "org.pcollections:pcollections",
       "org.postgresql:postgresql",
       "org.slf4j:jcl-over-slf4j",
       "org.slf4j:jul-to-slf4j",
@@ -13769,19 +13554,6 @@
       ],
       "org.codehaus.stax2.validation.XMLValidationSchemaFactory.w3c": [
         "com.ctc.wstx.msv.W3CSchemaFactory"
-      ]
-    },
-    "com.google.errorprone:error_prone_core": {
-      "com.sun.source.util.Plugin": [
-        "com.google.errorprone.ErrorProneJavacPlugin"
-      ]
-    },
-    "com.google.googlejavaformat:google-java-format": {
-      "java.util.spi.ToolProvider": [
-        "com.google.googlejavaformat.java.GoogleJavaFormatToolProvider"
-      ],
-      "javax.tools.Tool": [
-        "com.google.googlejavaformat.java.GoogleJavaFormatTool"
       ]
     },
     "com.h2database:h2": {
@@ -13915,12 +13687,6 @@
     "com.tngtech.archunit:archunit-junit5-engine": {
       "org.junit.platform.engine.TestEngine": [
         "com.tngtech.archunit.junit.internal.ArchUnitTestEngine"
-      ]
-    },
-    "com.uber.nullaway:nullaway": {
-      "com.google.errorprone.bugpatterns.BugChecker": [
-        "com.uber.nullaway.NullAway",
-        "com.uber.nullaway.RequireExplicitNullMarking"
       ]
     },
     "org.bouncycastle:bcprov-jdk15on": {
@@ -14228,9 +13994,46 @@
         "org.finos.legend.pure.runtime.java.extension.external.variant.compiled.VariantExtensionCompiled"
       ]
     },
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-json": {
+      "org.finos.legend.pure.runtime.java.interpreted.extension.InterpretedExtension": [
+        "org.finos.legend.pure.runtime.java.extension.external.json.interpreted.JsonExtensionInterpreted"
+      ]
+    },
     "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-legendCompiler": {
       "org.finos.legend.pure.runtime.java.interpreted.extension.InterpretedExtension": [
         "org.finos.legend.engine.pure.runtime.compiler.interpreted.CompileExtensionInterpreted"
+      ]
+    },
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-relation": {
+      "org.finos.legend.pure.m3.pct.shared.provider.PCTReportProvider": [
+        "org.finos.legend.pure.runtime.java.extension.external.relation.interpreted.Relation_Interpreted_PCTReportProvider"
+      ],
+      "org.finos.legend.pure.runtime.java.interpreted.extension.InterpretedExtension": [
+        "org.finos.legend.pure.runtime.java.extension.external.relation.interpreted.RelationExtensionInterpreted"
+      ]
+    },
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-standard": {
+      "org.finos.legend.pure.m3.pct.shared.provider.PCTReportProvider": [
+        "org.finos.legend.pure.runtime.java.extension.functions.standard.interpreted.Base_Interpreted_Standard_PCTReportProvider"
+      ],
+      "org.finos.legend.pure.runtime.java.interpreted.extension.InterpretedExtension": [
+        "org.finos.legend.pure.runtime.java.extension.functions.standard.interpreted.StandardFunctionExtensionInterpreted"
+      ]
+    },
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-unclassified": {
+      "org.finos.legend.pure.m3.pct.shared.provider.PCTReportProvider": [
+        "org.finos.legend.pure.runtime.java.extension.functions.interpreted.Base_Interpreted_PCTReportProvider"
+      ],
+      "org.finos.legend.pure.runtime.java.interpreted.extension.InterpretedExtension": [
+        "org.finos.legend.pure.runtime.java.extension.functions.interpreted.FunctionExtensionInterpreted"
+      ]
+    },
+    "org.finos.legend.engine:legend-engine-pure-runtime-java-extension-interpreted-functions-variant": {
+      "org.finos.legend.pure.m3.pct.shared.provider.PCTReportProvider": [
+        "org.finos.legend.pure.runtime.java.extension.external.variant.interpreted.Variant_Interpreted_PCTReportProvider"
+      ],
+      "org.finos.legend.pure.runtime.java.interpreted.extension.InterpretedExtension": [
+        "org.finos.legend.pure.runtime.java.extension.external.variant.interpreted.VariantExtensionInterpreted"
       ]
     },
     "org.finos.legend.engine:legend-engine-shared-core": {
@@ -15665,6 +15468,11 @@
         "org.finos.legend.pure.generated.RelationalJavaModelFactoryRegistry"
       ]
     },
+    "org.finos.legend.pure:legend-pure-runtime-java-extension-interpreted-dsl-tds": {
+      "org.finos.legend.pure.runtime.java.interpreted.extension.InterpretedExtension": [
+        "org.finos.legend.pure.runtime.java.extension.dsl.tds.interpreted.TDSExtensionInterpreted"
+      ]
+    },
     "org.junit.jupiter:junit-jupiter-engine": {
       "org.junit.platform.engine.TestEngine": [
         "org.junit.jupiter.engine.JupiterTestEngine"
@@ -15732,5 +15540,6 @@
       ]
     }
   },
+  "skipped": [],
   "version": "3"
 }

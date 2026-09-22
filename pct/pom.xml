@@ -52,6 +52,11 @@
             <groupId>com.legend</groupId>
             <artifactId>legend-lite-core</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.legend</groupId>
+            <artifactId>legend-lite-testing</artifactId>
+            <scope>test</scope>
+        </dependency>
 
         <!-- Legend Pure M3/M4 core -->
         <dependency>

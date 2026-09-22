@@ -23,13 +23,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ChannelBStandardTest {
 
     private static Path pureRoot() {
-        return Path.of(System.getProperty("legend.pure.root",
-                System.getProperty("user.home") + "/legend/legend-pure"));
+        return com.legend.testing.Upstream.pure();
     }
 
     private static Path engineRoot() {
-        return Path.of(System.getProperty("legend.engine.root",
-                System.getProperty("user.home") + "/legend/legend-engine"));
+        return com.legend.testing.Upstream.engine();
     }
 
     @Test
@@ -61,9 +59,9 @@ class ChannelBStandardTest {
         System.out.println("[chB-std] census=" + census
                 + " total=" + out.size());
         ChannelBDiff.Counts c = ChannelBDiff.report("chB-std", out,
-                Path.of("src/test/java/org/finos/legend/lite/pct/"
+                com.legend.testing.Repo.module("src/test/java/org/finos/legend/lite/pct/"
                         + "Test_LegendLite_StandardFunctions_PCT.java"),
-                Path.of("src/test/resources/oracle/"
+                com.legend.testing.Repo.module("src/test/resources/oracle/"
                         + "StandardFunctions_manifest.duckdb.json"));
         // RE-MEASURED 2026-08-19 after the let-indirection adapter arm
         // un-declined the 64 window/non-identity rows (declines hide,

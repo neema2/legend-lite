@@ -1,3 +1,6 @@
-# Root package. Exists so //:maven_install.json is a label rules_jvm_external
-# can read, and as the home for workspace-wide targets later.
-exports_files(["maven_install.json"])
+# Root package. Exists so the lock files are labels rules_jvm_external can read,
+# and as the home for workspace-wide targets later.
+exports_files([
+    "maven_install.json",
+    "maven_tools_install.json",
+])
