@@ -8,9 +8,9 @@ import java.util.Objects;
 public record PersistenceContextDefinition(
         String qualifiedName,
         String persistence,
-        @com.legend.Nullable String platformSource,
-        @com.legend.Nullable String serviceParametersSource,
-        @com.legend.Nullable String sinkConnectionSource)
+        @com.legend.base.Nullable String platformSource,
+        @com.legend.base.Nullable String serviceParametersSource,
+        @com.legend.base.Nullable String sinkConnectionSource)
         implements PackageableElement {
 
     public PersistenceContextDefinition {

@@ -17,7 +17,7 @@ import java.util.Objects;
  * like {@link SqlIsland}.
  */
 public record GqlIsland(Gql.Document document,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos)
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
 
     public GqlIsland {

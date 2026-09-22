@@ -1170,7 +1170,10 @@ class JavaEvalLedgerTest {
                     // classification of static types, no value evaluated
                     "KindClass.java",
                     "CrossStoreGuard.java", "LiteralFold.java",
-                    "NonNull.java", "Nullable.java",
+                    // NonNull.java / Nullable.java left this package for
+                    // com.legend.base (2026-09-22, untangle group A): zero-
+                    // dependency annotations sharing a package with Compiler
+                    // welded 25 packages into one cycle
                     // metamodel-as-relations step 3 (2026-09-02): the
                     // system store's SEED derivations — compile-time
                     // facts (mappings, class mappings, include closure,

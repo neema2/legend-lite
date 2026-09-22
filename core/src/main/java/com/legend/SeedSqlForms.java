@@ -65,7 +65,7 @@ final class SeedSqlForms {
     /** The literal records shape — a collection of {@code list([...])}
      *  calls over string literals; null for anything else (the string
      *  form takes over). */
-    private static java.util.@com.legend.Nullable List<java.util.List<String>>
+    private static java.util.@com.legend.base.Nullable List<java.util.List<String>>
             recordsArg(TypedSpec arg) {
         java.util.List<TypedSpec> els =
                 arg instanceof com.legend.compiler.spec.typed.TypedCollection tc
@@ -96,7 +96,7 @@ final class SeedSqlForms {
 
     /** The EXECUTION form for a mapped {@code ->map(executeInDb)} source;
      *  null when the source is not a setUpDataSQLs call. */
-    static ExecutionResult.@com.legend.Nullable Collection mappedExecutionForm(
+    static ExecutionResult.@com.legend.base.Nullable Collection mappedExecutionForm(
             java.util.List<TypedSpec> body,
             com.legend.compiler.spec.typed.TypedMap tm,
             StatementExecutor.ExecEnv env) {

@@ -61,7 +61,7 @@ final class SortChecker {
      * normalizer below. Null when the key is not such a read or does not
      * fold to a non-empty string list.
      */
-    private static @com.legend.Nullable AppliedFunction columnsMetaSortToModern(
+    private static @com.legend.base.Nullable AppliedFunction columnsMetaSortToModern(
             Typer t, AppliedFunction af, Env env) {
         List<ValueSpecification> ps = af.parameters();
         if (ps.size() != 2 || !(ps.get(1) instanceof AppliedProperty)) {

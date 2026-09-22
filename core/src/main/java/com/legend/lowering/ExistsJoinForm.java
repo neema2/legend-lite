@@ -41,7 +41,7 @@ final class ExistsJoinForm {
      * child's milestoning during child processing; the user pred
      * concatenates after), while the merged WHERE arrives user-first. */
     static SqlSelect rewrite(SqlSelect outer, Supplier<String> alias,
-            java.util.function.Function<SqlExpr, WhereMerge.@com.legend.Nullable Zones> zones) {
+            java.util.function.Function<SqlExpr, WhereMerge.@com.legend.base.Nullable Zones> zones) {
         if (outer.where() == null) {
             return outer;
         }
@@ -165,7 +165,7 @@ final class ExistsJoinForm {
     }
 
     /** outer = inner equality (either operand order), or null. */
-    private static @com.legend.Nullable CorrPair corrPair(SqlExpr e,
+    private static @com.legend.base.Nullable CorrPair corrPair(SqlExpr e,
             Set<String> outer, Set<String> inner) {
         if (e instanceof SqlExpr.Call eq && eq.fn() == SqlFn.EQUAL
                 && eq.args().size() == 2
@@ -211,8 +211,8 @@ final class ExistsJoinForm {
      * concatenates the pred). Applies only when the zone split exactly
      * accounts for the non-correlation conds — a user pred that itself
      * contributed a correlation pair falls back to encounter order. */
-    private static @com.legend.Nullable SqlExpr keysWhere(List<SqlExpr> local,
-            WhereMerge.@com.legend.Nullable Zones z) {
+    private static @com.legend.base.Nullable SqlExpr keysWhere(List<SqlExpr> local,
+            WhereMerge.@com.legend.base.Nullable Zones z) {
         if (local.isEmpty()) {
             return null;
         }

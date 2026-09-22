@@ -406,7 +406,7 @@ public final class Pipelines {
 
     static Materialized materialize(TypedSpec pipeline, Set<String> demanded,
                                     Set<String> demandedNavs, String classFqn,
-                                    @com.legend.Nullable TargetResolver targets) {
+                                    @com.legend.base.Nullable TargetResolver targets) {
         return materialize(pipeline, demanded, demandedNavs, classFqn, targets,
                 List.of(), Map.of());
     }
@@ -417,7 +417,7 @@ public final class Pipelines {
      * query's first-read order. */
     static Materialized materialize(TypedSpec pipeline, Set<String> demanded,
                                     Set<String> demandedNavs, String classFqn,
-                                    @com.legend.Nullable TargetResolver targets,
+                                    @com.legend.base.Nullable TargetResolver targets,
                                     List<String> firstRead,
                                     Map<String, Set<String>> mustFollow) {
         pipeline = SlotOrder.byFirstRead(pipeline, firstRead, mustFollow);
@@ -454,7 +454,7 @@ public final class Pipelines {
 
 
     private static TypedSpec walkJoinSlot(TypedJoinSlot js, Set<String> demanded,
-            Set<String> demandedNavs, @com.legend.Nullable TargetResolver targets,
+            Set<String> demandedNavs, @com.legend.base.Nullable TargetResolver targets,
             Map<String, String> prefixes, Set<String> stripped,
             String classFqn) {
 
@@ -602,7 +602,7 @@ public final class Pipelines {
     }
 
     private static TypedSpec walk(TypedSpec n, Set<String> demanded,
-                                  Set<String> demandedNavs, @com.legend.Nullable TargetResolver targets,
+                                  Set<String> demandedNavs, @com.legend.base.Nullable TargetResolver targets,
                                   Map<String, String> prefixes, Set<String> stripped,
                                   String classFqn) {
         return switch (n) {
@@ -857,7 +857,7 @@ public final class Pipelines {
 
     /** drop/slice above the slots: the source materializes beneath. */
     private static TypedSpec walkRowSetWrapper(TypedSpec n, Set<String> demanded,
-            Set<String> demandedNavs, @com.legend.Nullable TargetResolver targets,
+            Set<String> demandedNavs, @com.legend.base.Nullable TargetResolver targets,
             Map<String, String> prefixes, Set<String> stripped, String classFqn) {
         return switch (n) {
             case com.legend.compiler.spec.typed.TypedDrop d -> new com.legend
@@ -881,7 +881,7 @@ public final class Pipelines {
      * slot's; the schema keeps the join's own right columns after the
      * walked left row. */
     private static TypedSpec walkJoinAboveSlots(TypedJoin j, Set<String> demanded,
-            Set<String> demandedNavs, @com.legend.Nullable TargetResolver targets,
+            Set<String> demandedNavs, @com.legend.base.Nullable TargetResolver targets,
             Map<String, String> prefixes, Set<String> stripped, String classFqn) {
         int oldLeft = Type.requireRelationSchema(j.left().info().type())
                 .columns().size();
@@ -911,7 +911,7 @@ public final class Pipelines {
      * loud wall. */
     private static TypedSpec walkSortBy(com.legend.compiler.spec.typed.TypedSortBy sb,
             Set<String> demanded, Set<String> demandedNavs,
-            @com.legend.Nullable TargetResolver targets,
+            @com.legend.base.Nullable TargetResolver targets,
             Map<String, String> prefixes, Set<String> stripped, String classFqn) {
         TypedSpec src = walk(sb.source(), demanded, demandedNavs,
                 targets, prefixes, stripped, classFqn);
@@ -945,7 +945,7 @@ public final class Pipelines {
      * to the prefixed columns (mirror of the project-over-slots arm).
      */
     private static TypedSpec groupByOverSlots(TypedGroupBy g,
-            @com.legend.Nullable TargetResolver targets, String classFqn) {
+            @com.legend.base.Nullable TargetResolver targets, String classFqn) {
         Set<String> gSlots = slotAliases(g.source());
         Set<String> gDemand = new LinkedHashSet<>();
         for (var k : g.keys()) {
@@ -1460,7 +1460,7 @@ public final class Pipelines {
      * shapes (the eq-nodes idiom; TDG lane S1: checker-fold results are
      * instance literals and their navigation must LOWER, never
      * store-resolve). Falls to the auto-map sugar read otherwise. */
-    static @com.legend.Nullable TypedSpec literalOrAutoMapRead(
+    static @com.legend.base.Nullable TypedSpec literalOrAutoMapRead(
             TypedPropertyAccess pa) {
         TypedSpec lit = instanceLiteralProp(pa);
         return lit != null ? lit : autoMapRead(pa);
@@ -1468,7 +1468,7 @@ public final class Pipelines {
 
     /** THE ONE literal-prop rule (both the resolver and the TDG fold
      * walk read it — never a second copy). */
-    public static @com.legend.Nullable TypedSpec instanceLiteralProp(
+    public static @com.legend.base.Nullable TypedSpec instanceLiteralProp(
             TypedPropertyAccess pa) {
         if (pa.source() instanceof com.legend.compiler.spec.typed
                 .TypedNewInstance ni) {
@@ -1477,7 +1477,7 @@ public final class Pipelines {
         return null;
     }
 
-    static @com.legend.Nullable TypedSpec autoMapRead(TypedPropertyAccess pa) {
+    static @com.legend.base.Nullable TypedSpec autoMapRead(TypedPropertyAccess pa) {
         // class-typed = bare or parameterized class (Type.classFqn: the
         // spec's PropertyMapping.property is Property<Nil,Any|*>)
         if (Type.classFqn(pa.info().type()) != null

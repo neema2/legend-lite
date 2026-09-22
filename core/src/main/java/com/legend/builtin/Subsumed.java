@@ -121,7 +121,7 @@ public enum Subsumed {
     }
 
     /** The subsumed program a callee FQN names — empty for every other callee. */
-    public static Optional<Subsumed> of(@com.legend.Nullable String calleeFqn) {
+    public static Optional<Subsumed> of(@com.legend.base.Nullable String calleeFqn) {
         return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
     }
 }

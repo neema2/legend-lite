@@ -19,7 +19,7 @@ import java.util.List;
  * @param info  the relation type ({@link com.legend.compiler.element.type.Type.RelationType}) at {@code [1]}
  */
 public record TypedTableReference(String store, String table, ExprType info,
-                                  boolean accessor, @com.legend.Nullable String frame)
+                                  boolean accessor, @com.legend.base.Nullable String frame)
         implements TypedSpec {
     /** {@code frame}: the rows of this table identity are a PLANNED
      * frame's (a class-rooted let executed once as a CTE — lean ladder rung

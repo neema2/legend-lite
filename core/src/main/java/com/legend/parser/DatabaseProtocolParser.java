@@ -39,16 +39,16 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     record ScopeCtx(String db, String schema, String table,
             SourceInfo tableSpan, boolean singleSeg) { }
 
-    private final @com.legend.Nullable ScopeCtx scope;
+    private final @com.legend.base.Nullable ScopeCtx scope;
 
     /** The CURRENT named schema's declaration-name span — nav ELEMENTS
      *  inside a non-default schema stretch their table pointer span from
      *  the SCHEMA DECLARATION to the local table token (probe
      *  cross-schema-nav). Set by parseSchema. */
-    private @com.legend.Nullable SourceInfo currentSchemaDeclSpan;
+    private @com.legend.base.Nullable SourceInfo currentSchemaDeclSpan;
 
     /** Stretch anchor handed to the NESTED nav-element parser. */
-    private @com.legend.Nullable SourceInfo schemaStretchSpan;
+    private @com.legend.base.Nullable SourceInfo schemaStretchSpan;
 
     /** The caller's level, threaded for UNIFORMITY — every grammar takes
      *  its caller's dialect and reports it truthfully. No lever inside
@@ -64,7 +64,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     }
 
     private DatabaseProtocolParser(TokenStream tokens, int pos, String dbFqn,
-            @com.legend.Nullable ScopeCtx scope, Dialect dialect) {
+            @com.legend.base.Nullable ScopeCtx scope, Dialect dialect) {
         this.scope = scope;
         this.tokens = tokens;
         this.pos = pos;
@@ -123,7 +123,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
      *  built from protocol rather than by a second parser
      *  (PARSER_COMPLETENESS_PLAN.md §1). */
     public static Protocol.PDatabase parse(TokenStream ts, int tokenIndex,
-            int @com.legend.Nullable [] endOut, Dialect dialect) {
+            int @com.legend.base.Nullable [] endOut, Dialect dialect) {
         DatabaseProtocolParser p = new DatabaseProtocolParser(ts, tokenIndex,
                 "", null, dialect);
         Protocol.PDatabase db = p.parseDatabase();
@@ -717,7 +717,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
         return new Protocol.PDynaFunc(op, List.of(left, rest), span);
     }
 
-    private @com.legend.Nullable String boolOpHere() {
+    private @com.legend.base.Nullable String boolOpHere() {
         if (peek() == TokenType.RELATIONAL_AND
                 || (peek() == TokenType.VALID_STRING && "and".equals(text()))) {
             return "and";
@@ -781,7 +781,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
 
     /** {@code null} when parsing OUTSIDE any database (mapping-embedded
      *  bare refs) — the wire then omits both db keys (probe bare-no-db). */
-    private @com.legend.Nullable String dbOrNull() {
+    private @com.legend.base.Nullable String dbOrNull() {
         return dbFqn.isEmpty() ? null : dbFqn;
     }
 
@@ -836,7 +836,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
      *  (association sides) has NO element. {@code firstType} is a
      *  {@code (INNER)}/{@code (OUTER)} spelled BEFORE the first '@'. */
     private Protocol.PRelOp parseJoinNav(String db, String schemaCtx,
-            int s, @com.legend.Nullable String firstType) {
+            int s, @com.legend.base.Nullable String firstType) {
         List<Protocol.PJoinPtr> joinPtrs = new ArrayList<>();
         String curDb = db;
         String pendingType = firstType;

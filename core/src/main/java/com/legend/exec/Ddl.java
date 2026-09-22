@@ -44,7 +44,7 @@ public final class Ddl {
      * trailing {@code , PRIMARY KEY(...)} with RAW pk names. */
     /** {@code Drop table if exists s.T;} — the engine's
      * dropTableStatement spelling, identical across every flavor. */
-    public static com.legend.sql.SqlDdl.DropTable dropTable(@com.legend.Nullable String schema,
+    public static com.legend.sql.SqlDdl.DropTable dropTable(@com.legend.base.Nullable String schema,
             String table) {
         return new com.legend.sql.SqlDdl.DropTable(schema, table);
     }
@@ -95,7 +95,7 @@ public final class Ddl {
      *  declared key and the live catalog answers fetchDbPrimaryKeysMetaData);
      *  the dialect renders it ({@link com.legend.sql.dialect.SqlDialect#render(com.legend.sql.SqlDdl)}). */
     public static com.legend.sql.SqlDdl.CreateTable createTable(
-            DatabaseDefinition.TableDefinition def, @com.legend.Nullable String schema) {
+            DatabaseDefinition.TableDefinition def, @com.legend.base.Nullable String schema) {
         java.util.List<com.legend.sql.SqlDdl.Column> cols = new java.util.ArrayList<>();
         for (DatabaseDefinition.ColumnDefinition col : def.columns()) {
             cols.add(new com.legend.sql.SqlDdl.Column(col.name(), col.quoted(), columnType(col.dataType()),
@@ -236,7 +236,7 @@ public final class Ddl {
         return r.isEmpty() || (r.size() == 1 && r.get(0).isBlank());
     }
 
-    private static DatabaseDefinition.@com.legend.Nullable TableDefinition
+    private static DatabaseDefinition.@com.legend.base.Nullable TableDefinition
             findTable(DatabaseDefinition db, String schema, String table) {
         if (!"default".equals(schema)) {
             for (var sc : db.schemas()) {
@@ -287,7 +287,7 @@ public final class Ddl {
     }
 
     private static String insertText(String schema, String table,
-            DatabaseDefinition.@com.legend.Nullable TableDefinition def,
+            DatabaseDefinition.@com.legend.base.Nullable TableDefinition def,
             java.util.List<String> header, java.util.List<String> cells) {
         java.util.List<String> colNames = new java.util.ArrayList<>();
         java.util.List<String> values = new java.util.ArrayList<>();
@@ -383,7 +383,7 @@ public final class Ddl {
     /** ONE multi-row {@code INSERT} of {@code rows} into the store table
      * (null when there are none) — the seed's insert half, also the
      * content-addressed rows a query constructs. */
-    public static @com.legend.Nullable String metamodelInsert(
+    public static @com.legend.base.Nullable String metamodelInsert(
             DatabaseDefinition.TableDefinition def, String schema,
             java.util.List<java.util.List<String>> rows) {
         if (!rows.isEmpty()) {
@@ -414,7 +414,7 @@ public final class Ddl {
         return null;
     }
 
-    private static String qualify(@com.legend.Nullable String schema, String table) {
+    private static String qualify(@com.legend.base.Nullable String schema, String table) {
         return schema == null || schema.isEmpty() || "default".equals(schema)
                 ? table : schema + "." + table;
     }

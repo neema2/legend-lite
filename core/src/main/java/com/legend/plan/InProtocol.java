@@ -62,9 +62,9 @@ public final class InProtocol {
     }
 
     /** Scan-and-rewrite; null when no site triggers. */
-    public static @com.legend.Nullable Result apply(SqlQuery plan,
-            @com.legend.Nullable Integer threshold,
-            @com.legend.Nullable String dbType) {
+    public static @com.legend.base.Nullable Result apply(SqlQuery plan,
+            @com.legend.base.Nullable Integer threshold,
+            @com.legend.base.Nullable String dbType) {
         if (threshold == null) {
             return null;
         }
@@ -122,9 +122,9 @@ public final class InProtocol {
     }
 
     /** The engine threshold rule (see class doc). */
-    public static @com.legend.Nullable Integer thresholdFor(
-            @com.legend.Nullable String connName,
-            @com.legend.Nullable String dbType) {
+    public static @com.legend.base.Nullable Integer thresholdFor(
+            @com.legend.base.Nullable String connName,
+            @com.legend.base.Nullable String dbType) {
         if (connName != null
                 && connName.startsWith("TestDatabaseConnection")) {
             return 50;
@@ -136,8 +136,8 @@ public final class InProtocol {
      * form (a triggered protocol implies a connection spelling: the
      * threshold rule only fires with one). */
     public static List<String> allNodeTexts(Result inp,
-            @com.legend.Nullable String connName,
-            @com.legend.Nullable String dbType,
+            @com.legend.base.Nullable String connName,
+            @com.legend.base.Nullable String dbType,
             java.util.function.Function<SqlExpr.PlanParam, String> splice) {
         String conn = java.util.Objects.requireNonNull(connName,
                 "in-protocol threshold without a connection spelling");

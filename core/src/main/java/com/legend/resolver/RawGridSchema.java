@@ -227,7 +227,7 @@ public final class RawGridSchema {
     /** Fold/map/filter over a stamped grid: resolve the source first,
      * bind the row binder to its schema, walk the lambda body under the
      * binding (restored after). Null = not such a node. */
-    private static @com.legend.Nullable TypedSpec resolveLambdaOwner(
+    private static @com.legend.base.Nullable TypedSpec resolveLambdaOwner(
             TypedSpec n, SchemaOracle oracle,
             Map<String, Type.RelationType> binders) {
         TypedSpec src;
@@ -289,7 +289,7 @@ public final class RawGridSchema {
     /** The STAMPED schema behind an expression: a stamped raw grid
      * (directly, or under the {@code .rows} marker), or a bound lambda
      * row variable. Null = not a stamped-grid read. */
-    private static Type.@com.legend.Nullable RelationType stampedSchemaOf(
+    private static Type.@com.legend.base.Nullable RelationType stampedSchemaOf(
             TypedSpec source, Map<String, Type.RelationType> binders) {
         TypedSpec s = source;
         while (s instanceof TypedPropertyAccess p

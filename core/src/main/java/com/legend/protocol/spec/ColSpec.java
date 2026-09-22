@@ -55,40 +55,40 @@ import java.util.Objects;
  */
 public record ColSpec(
         String name,
-        @com.legend.Nullable LambdaFunction function1,
-        @com.legend.Nullable LambdaFunction function2,
-        @com.legend.Nullable String alias,
+        @com.legend.base.Nullable LambdaFunction function1,
+        @com.legend.base.Nullable LambdaFunction function2,
+        @com.legend.base.Nullable String alias,
         List<ValueSpecification> args,
         boolean qualified,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos,
-        @com.legend.Nullable com.legend.protocol.TypeExpression colType,
-        @com.legend.Nullable com.legend.protocol.Multiplicity colTypeMult,
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
+        @com.legend.base.Nullable com.legend.protocol.TypeExpression colType,
+        @com.legend.base.Nullable com.legend.protocol.Multiplicity colTypeMult,
         List<com.legend.protocol.Protocol.PStereotype> stereotypes,
         List<com.legend.protocol.Protocol.PTaggedValue> taggedValues)
         implements ColumnInstance {
 
     /** Annotation-free compatibility constructor. */
-    public ColSpec(String name, @com.legend.Nullable LambdaFunction function1,
-            @com.legend.Nullable LambdaFunction function2, @com.legend.Nullable String alias,
+    public ColSpec(String name, @com.legend.base.Nullable LambdaFunction function1,
+            @com.legend.base.Nullable LambdaFunction function2, @com.legend.base.Nullable String alias,
             List<ValueSpecification> args, boolean qualified,
-            @com.legend.Nullable com.legend.protocol.SourceInfo pos,
-            @com.legend.Nullable com.legend.protocol.TypeExpression colType,
-            @com.legend.Nullable com.legend.protocol.Multiplicity colTypeMult) {
+            @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
+            @com.legend.base.Nullable com.legend.protocol.TypeExpression colType,
+            @com.legend.base.Nullable com.legend.protocol.Multiplicity colTypeMult) {
         this(name, function1, function2, alias, args, qualified, pos, colType, colTypeMult,
                 List.of(), List.of());
     }
 
     /** The lambda/bare form (no declared column type). */
-    public ColSpec(String name, @com.legend.Nullable LambdaFunction function1,
-            @com.legend.Nullable LambdaFunction function2, @com.legend.Nullable String alias,
+    public ColSpec(String name, @com.legend.base.Nullable LambdaFunction function1,
+            @com.legend.base.Nullable LambdaFunction function2, @com.legend.base.Nullable String alias,
             List<ValueSpecification> args, boolean qualified,
-            @com.legend.Nullable com.legend.protocol.SourceInfo pos) {
+            @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) {
         this(name, function1, function2, alias, args, qualified, pos, null, null);
     }
 
     /** Position-free form for synthesis and tests. */
-    public ColSpec(String name, @com.legend.Nullable LambdaFunction function1,
-            @com.legend.Nullable LambdaFunction function2, @com.legend.Nullable String alias,
+    public ColSpec(String name, @com.legend.base.Nullable LambdaFunction function1,
+            @com.legend.base.Nullable LambdaFunction function2, @com.legend.base.Nullable String alias,
             List<ValueSpecification> args, boolean qualified) {
         this(name, function1, function2, alias, args, qualified, null, null, null);
     }
@@ -123,23 +123,23 @@ public record ColSpec(
     /** Historical arity: parenthesized-ness follows the args (the graph
      * parser passes the flag explicitly — {@code synonyms()} is
      * qualified with zero args). */
-    public ColSpec(String name, @com.legend.Nullable LambdaFunction function1,
-            @com.legend.Nullable LambdaFunction function2, @com.legend.Nullable String alias,
-            @com.legend.Nullable List<ValueSpecification> args) {
+    public ColSpec(String name, @com.legend.base.Nullable LambdaFunction function1,
+            @com.legend.base.Nullable LambdaFunction function2, @com.legend.base.Nullable String alias,
+            @com.legend.base.Nullable List<ValueSpecification> args) {
         this(name, function1, function2, alias,
                 args == null ? List.of() : args,
                 args != null && !args.isEmpty());
     }
 
     /** Graph-path arity without call args. */
-    public ColSpec(String name, @com.legend.Nullable LambdaFunction function1,
-            @com.legend.Nullable LambdaFunction function2, @com.legend.Nullable String alias) {
+    public ColSpec(String name, @com.legend.base.Nullable LambdaFunction function1,
+            @com.legend.base.Nullable LambdaFunction function2, @com.legend.base.Nullable String alias) {
         this(name, function1, function2, alias, List.of());
     }
 
     /** Un-aliased canonical arity (every non-graph colspec). */
-    public ColSpec(String name, @com.legend.Nullable LambdaFunction function1,
-            @com.legend.Nullable LambdaFunction function2) {
+    public ColSpec(String name, @com.legend.base.Nullable LambdaFunction function1,
+            @com.legend.base.Nullable LambdaFunction function2) {
         this(name, function1, function2, null, List.of());
     }
 
@@ -149,7 +149,7 @@ public record ColSpec(
     }
 
     /** Mapped-only convenience: {@code ~name:fn}. */
-    public ColSpec(String name, @com.legend.Nullable LambdaFunction function1) {
+    public ColSpec(String name, @com.legend.base.Nullable LambdaFunction function1) {
         this(name, function1, null, null);
     }
 }

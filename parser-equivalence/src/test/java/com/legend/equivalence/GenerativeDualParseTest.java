@@ -105,7 +105,7 @@ class GenerativeDualParseTest {
 
     /** Bounded random walk of the ATN from {@code ruleIdx}'s start
      *  state; null when the walk exceeds its budget. */
-    private static @com.legend.Nullable String generate(ATN atn,
+    private static @com.legend.base.Nullable String generate(ATN atn,
             Vocabulary vocab, int ruleIdx, Random rnd) {
         StringBuilder out = new StringBuilder();
         Deque<ATNState> stack = new ArrayDeque<>();

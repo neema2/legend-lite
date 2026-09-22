@@ -56,7 +56,7 @@ final class GroupLambdaAggs {
 
     /** {@code af} with its aggregate argument (index {@code aggIndex}) desugared,
      *  or null when no column spec there is the group-lambda form. */
-    static @com.legend.Nullable Desugared rewrite(AppliedFunction af, int aggIndex) {
+    static @com.legend.base.Nullable Desugared rewrite(AppliedFunction af, int aggIndex) {
         if (af.parameters().size() <= aggIndex) {
             return null;
         }

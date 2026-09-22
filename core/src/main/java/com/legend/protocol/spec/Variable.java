@@ -53,17 +53,17 @@ import java.util.Objects;
  */
 public record Variable(
         String name,
-        @com.legend.Nullable TypeExpression type,
-        @com.legend.Nullable Multiplicity multiplicity,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
+        @com.legend.base.Nullable TypeExpression type,
+        @com.legend.base.Nullable Multiplicity multiplicity,
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
 
     public Variable {
         Objects.requireNonNull(name, "name");
     }
 
     /** Position-free form for synthesis and tests. */
-    public Variable(String name, @com.legend.Nullable TypeExpression type,
-            @com.legend.Nullable Multiplicity multiplicity) {
+    public Variable(String name, @com.legend.base.Nullable TypeExpression type,
+            @com.legend.base.Nullable Multiplicity multiplicity) {
         this(name, type, multiplicity, null);
     }
 

@@ -46,11 +46,11 @@ public final class H2Verify {
          * judged on. A fault never lets the text stand in for rows. */
         private final boolean fault;
 
-        public Unverifiable(String msg, @com.legend.Nullable Throwable cause) {
+        public Unverifiable(String msg, @com.legend.base.Nullable Throwable cause) {
             this(msg, cause, false);
         }
 
-        public Unverifiable(String msg, @com.legend.Nullable Throwable cause, boolean fault) {
+        public Unverifiable(String msg, @com.legend.base.Nullable Throwable cause, boolean fault) {
             super(msg, cause);
             this.fault = fault;
         }
@@ -118,7 +118,7 @@ public final class H2Verify {
      * {@code java.sql.Array} (DuckDB), and the JSON carrier's byte[]
      * text on a list-less backend (§2b — H2 hands JSON back as bytes;
      * only a JSON-array lexeme parses, anything else stays opaque). */
-    public static java.util.@com.legend.Nullable List<Object> carrierList(
+    public static java.util.@com.legend.base.Nullable List<Object> carrierList(
             Object v) {
         if (v instanceof java.sql.Array arr) {
             try {
@@ -359,7 +359,7 @@ public final class H2Verify {
     /** Kind dispatch for the golden compare: flat frames positionally,
      * the Graph frame by label ({@link ReplayOracle}-called — the
      * comparison policy seam). */
-    static @com.legend.Nullable String compareFrame(Statement st,
+    static @com.legend.base.Nullable String compareFrame(Statement st,
             String goldenSql, ExecutionResult ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
@@ -462,7 +462,7 @@ public final class H2Verify {
      * enum-typed property (frame carries decoded names, golden the raw
      * codes) — throws {@link Unverifiable}: a COUNTED decline, never a
      * guessed compare. */
-    private static @com.legend.Nullable String goldenGraphCompare(Statement st,
+    private static @com.legend.base.Nullable String goldenGraphCompare(Statement st,
             String goldenSql, ExecutionResult.Graph g,
             java.util.function.Function<String,
                     java.util.Map<String, String>> enumProp,
@@ -708,7 +708,7 @@ public final class H2Verify {
     /** Run the golden SELECT on {@code st}, compare rows with the frame
      * as ORDER-INSENSITIVE multisets of normalized cells (shared by the
      * replay oracle and the session-direct verify). */
-    private static @com.legend.Nullable String goldenRowsCompare(Statement st,
+    private static @com.legend.base.Nullable String goldenRowsCompare(Statement st,
             String goldenSql, ExecutionResult tab,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             com.legend.exec.SqlReplayOracle.ReplayFacts facts)
@@ -974,8 +974,8 @@ public final class H2Verify {
      * preserved, the residual order-leniency stays COUNTED under
      * LL_ORD_COUNT with its own tag (a named burn candidate), never a
      * decline that loses a working row verdict. */
-    private static int @com.legend.Nullable [] sortKeyIndexes(
-            List<String> columnNames, @com.legend.Nullable List<String> keys) {
+    private static int @com.legend.base.Nullable [] sortKeyIndexes(
+            List<String> columnNames, @com.legend.base.Nullable List<String> keys) {
         if (keys == null) {
             return null;
         }
@@ -1018,7 +1018,7 @@ public final class H2Verify {
      * consecutive keys (rows tied on the sort key have no defined
      * relative order on either backend —
      * testSortByLambdaMultiple's two Johns). */
-    private static @com.legend.Nullable String orderedVerdict(
+    private static @com.legend.base.Nullable String orderedVerdict(
             List<Cells> theirs, List<Cells> mine,
             List<Cells> theirKeys, List<Cells> mineKeys) {
         if (theirs.size() != mine.size()
@@ -1101,7 +1101,7 @@ public final class H2Verify {
      * unpaged population (as a multiset — a duplicated row needs a
      * duplicate). All three sides render through the same {@link #norm}
      * spelling. Counted on the verdict roster as its own kind. */
-    private static @com.legend.Nullable String pageMembership(List<Cells> theirs,
+    private static @com.legend.base.Nullable String pageMembership(List<Cells> theirs,
             List<Cells> mine, List<Cells> population) {
         if (theirs.size() != mine.size()) {
             return "page-membership divergence: golden page has " + theirs.size()
@@ -1162,7 +1162,7 @@ public final class H2Verify {
      * EnumerationMapping for {@code enumFqn}; null when underivable —
      * a cross-enum source value keeps the WHOLE map underivable (a
      * partial map would half-decode). */
-    static java.util.@com.legend.Nullable Map<String, String> decodeOf(
+    static java.util.@com.legend.base.Nullable Map<String, String> decodeOf(
             com.legend.compiler.element.ModelContext ctx, String mappingFqn,
             String enumFqn) {
         var em = com.legend.plan.PlanText.enumMappingOf(ctx, mappingFqn,
@@ -1210,7 +1210,7 @@ public final class H2Verify {
 
     /** The shared TDG row referee tail: header (projection) equality,
      * then ORDER-INSENSITIVE row equality under the cell canon. */
-    static @com.legend.Nullable String multisetCompare(
+    static @com.legend.base.Nullable String multisetCompare(
             List<Cells> golden, List<Cells> ourRows) {
         Cells gCols = golden.get(0);
         Cells oCols = ourRows.get(0);

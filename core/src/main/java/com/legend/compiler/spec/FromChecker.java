@@ -178,7 +178,7 @@ final class FromChecker {
      * navigation over constructed values: {@code $runtime.connectionStores
      * ->at(0).connection->cast(@…)} through lets and zero-arg helpers
      * ({@code testRuntime()}). Null when the expression is not that shape. */
-    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedNewInstance
+    private static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNewInstance
             connectionStoreOf(Typer t, Env env, TypedSpec e) {
         TypedSpec cur = e;
         while (cur instanceof com.legend.compiler.spec.typed.TypedCast c) {
@@ -202,7 +202,7 @@ final class FromChecker {
     /** The constructed instance an expression denotes: {@code ^X(...)}
      * itself, {@code coll->at(k)} of a literal collection, {@code inst.prop},
      * a let-bound variable, a zero-arg helper's value. */
-    private static @com.legend.Nullable TypedSpec instanceOf(Typer t, Env env,
+    private static @com.legend.base.Nullable TypedSpec instanceOf(Typer t, Env env,
             TypedSpec e) {
         TypedSpec cur = e;
         while (cur instanceof com.legend.compiler.spec.typed.TypedCast c) {

@@ -82,7 +82,7 @@ final class ConstructedInstances {
 
     /** The row id of a convertible instance (its rows recorded once), or
      * null when the instance is not one. */
-    @com.legend.Nullable String rowId(TypedNewInstance ni) {
+    @com.legend.base.Nullable String rowId(TypedNewInstance ni) {
         if (!convertible(ni)) {
             return null;
         }
@@ -109,13 +109,13 @@ final class ConstructedInstances {
         rowsById.put(id, rows);
     }
 
-    private java.util.function.@com.legend.Nullable Function<
+    private java.util.function.@com.legend.base.Nullable Function<
             com.legend.compiler.spec.typed.TypedNativeCall,
-            @com.legend.Nullable Map<String, List<List<String>>>> handleRegistrar;
+            @com.legend.base.Nullable Map<String, List<List<String>>>> handleRegistrar;
 
     void setHandleRegistrar(java.util.function.Function<
             com.legend.compiler.spec.typed.TypedNativeCall,
-            @com.legend.Nullable Map<String, List<List<String>>>> registrar) {
+            @com.legend.base.Nullable Map<String, List<List<String>>>> registrar) {
         this.handleRegistrar = registrar;
     }
 
@@ -145,7 +145,7 @@ final class ConstructedInstances {
 
     /** The relational operation a constant instance tree denotes; null for
      * any other shape. */
-    static @com.legend.Nullable RelationalOperation convert(TypedNewInstance ni) {
+    static @com.legend.base.Nullable RelationalOperation convert(TypedNewInstance ni) {
         switch (ni.classFqn()) {
             case DYNA -> {
                 if (!(ni.properties().get("name") instanceof TypedCString cs)) {
@@ -202,11 +202,11 @@ final class ConstructedInstances {
         }
     }
 
-    private static @com.legend.Nullable RelationalOperation argument(TypedSpec e) {
+    private static @com.legend.base.Nullable RelationalOperation argument(TypedSpec e) {
         return e instanceof TypedNewInstance n ? convert(n) : null;
     }
 
-    private static List<TypedSpec> elements(@com.legend.Nullable TypedSpec v) {
+    private static List<TypedSpec> elements(@com.legend.base.Nullable TypedSpec v) {
         return v == null ? List.of()
                 : v instanceof TypedCollection c ? c.elements() : List.of(v);
     }

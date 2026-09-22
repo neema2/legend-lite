@@ -32,14 +32,14 @@ public record EqualityKeys(String classFqn, List<Key> keys) {
      * ({@code List.values : T[*]} — engine compares the value
      * COLLECTIONS under the ordered list rule). */
     public record Key(String name, boolean many,
-                      @com.legend.Nullable EqualityKeys nested) {
+                      @com.legend.base.Nullable EqualityKeys nested) {
     }
 
     /** The class FQN a stamp names, or null for non-class stamps —
      * bare {@code ClassType} and parameterized {@code GenericType}
      * both name a classifier (the engine's classifier-match rule reads
      * the raw class; type arguments never change WHICH keys exist). */
-    public static @com.legend.Nullable String fqnOf(Type t) {
+    public static @com.legend.base.Nullable String fqnOf(Type t) {
         if (t instanceof Type.ClassType ct) {
             return ct.fqn();
         }
@@ -49,7 +49,7 @@ public record EqualityKeys(String classFqn, List<Key> keys) {
         return null;
     }
 
-    public static @com.legend.Nullable EqualityKeys resolve(
+    public static @com.legend.base.Nullable EqualityKeys resolve(
             ModelContext ctx, String classFqn) {
         return resolve(ctx, classFqn, java.util.Map.of(),
                 new LinkedHashSet<>());
@@ -61,7 +61,7 @@ public record EqualityKeys(String classFqn, List<Key> keys) {
      * declares {@code first: U[1]}, so the DECLARED type never nests;
      * the stamp {@code Pair<Pair<Integer,String>, X>} does (witness the
      * zip PCT family's three instance-key-shape declines). */
-    public static @com.legend.Nullable EqualityKeys resolve(
+    public static @com.legend.base.Nullable EqualityKeys resolve(
             ModelContext ctx, Type t) {
         String fqn = fqnOf(t);
         if (fqn == null) {
@@ -70,7 +70,7 @@ public record EqualityKeys(String classFqn, List<Key> keys) {
         return resolve(ctx, fqn, typeArgsOf(ctx, t), new LinkedHashSet<>());
     }
 
-    private static @com.legend.Nullable EqualityKeys resolve(
+    private static @com.legend.base.Nullable EqualityKeys resolve(
             ModelContext ctx, String classFqn, Map<String, Type> typeArgs,
             Set<String> inProgress) {
         // the cycle guard keys the INSTANTIATION, not the bare class —

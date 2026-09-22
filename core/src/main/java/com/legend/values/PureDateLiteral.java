@@ -202,7 +202,7 @@ public sealed interface PureDateLiteral
      * {@code substring(0, 10)} surgery, which mis-truncated any year not
      * exactly four digits: remediation T1.2.)
      */
-    default @com.legend.Nullable StrictDate strictDatePart() {
+    default @com.legend.base.Nullable StrictDate strictDatePart() {
         return switch (this) {
             case StrictDate d -> d;
             case DateWithHour d -> new StrictDate(d.year(), d.month(), d.day());
@@ -657,7 +657,7 @@ public sealed interface PureDateLiteral
         }
     }
 
-    private static void validateSubsecond(@com.legend.Nullable String subsecond) {
+    private static void validateSubsecond(@com.legend.base.Nullable String subsecond) {
         if (subsecond == null || subsecond.isEmpty()) {
             throw new IllegalArgumentException("subsecond cannot be null or empty");
         }

@@ -62,7 +62,7 @@ final class ForeignKeyIdentity {
         }
     }
 
-    static @com.legend.Nullable String sourceKeyColumn(TypedLambda cond, List<String> targetKeys) {
+    static @com.legend.base.Nullable String sourceKeyColumn(TypedLambda cond, List<String> targetKeys) {
         if (targetKeys.size() != 1 || cond.parameters().size() != 2 || cond.body().isEmpty()) {
             return null;
         }

@@ -270,7 +270,7 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
     }
 
     /** model::Person's relational class mapping from the compiled context. */
-    private static ClassMapping.@com.legend.Nullable Relational personMapping(ModelContext ctx) {
+    private static ClassMapping.@com.legend.base.Nullable Relational personMapping(ModelContext ctx) {
         return ctx.findLegacyMapping("model::PersonMapping").orElseThrow()
                 .classMappings().stream()
                 .filter(cm -> cm instanceof ClassMapping.Relational r

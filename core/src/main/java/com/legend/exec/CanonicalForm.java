@@ -37,7 +37,7 @@ public final class CanonicalForm {
     }
 
     /** Canonical text of one scalar wire value (spec §2). */
-    public static Result render(@com.legend.Nullable Object v) {
+    public static Result render(@com.legend.base.Nullable Object v) {
         return switch (v) {
             case null -> new Result.Residue("null-scalar");
             // Integer: bare decimal, no decoration (H1)

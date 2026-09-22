@@ -216,7 +216,7 @@ final class GroupByChecker {
     }
 
     /** The named-agg calls of the TDS legacy aggs argument, or null if not that shape. */
-    private static @com.legend.Nullable List<AppliedFunction> aggList(ValueSpecification v) {
+    private static @com.legend.base.Nullable List<AppliedFunction> aggList(ValueSpecification v) {
         List<ValueSpecification> items = v instanceof PureCollection c ? c.values() : List.of(v);
         List<AppliedFunction> out = new ArrayList<>(items.size());
         for (ValueSpecification item : items) {

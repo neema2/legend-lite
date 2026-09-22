@@ -13,7 +13,7 @@ import java.util.Objects;
  * the #1 tenet's job).
  */
 public record SqlIsland(String sql,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos)
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
 
     public SqlIsland {

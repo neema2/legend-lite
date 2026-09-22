@@ -23,16 +23,16 @@ import java.util.Objects;
  * {@code store} and {@code table}; it is the row identity a cast re-root
  * joins on, never an importDataFlow column.
  */
-public record KeyThread(String name, @com.legend.Nullable String pureKind,
+public record KeyThread(String name, @com.legend.base.Nullable String pureKind,
         String column, int ordinal,
-        @com.legend.Nullable String store, @com.legend.Nullable String table) {
+        @com.legend.base.Nullable String store, @com.legend.base.Nullable String table) {
     public KeyThread {
         Objects.requireNonNull(name, "name");
         Objects.requireNonNull(column, "column");
     }
 
     /** A per-member thread. */
-    public KeyThread(String name, @com.legend.Nullable String pureKind, String column, int ordinal) {
+    public KeyThread(String name, @com.legend.base.Nullable String pureKind, String column, int ordinal) {
         this(name, pureKind, column, ordinal, null, null);
     }
 

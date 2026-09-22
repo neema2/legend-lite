@@ -25,7 +25,7 @@ import java.util.List;
  *               idiom — a position is provenance, never call identity.
  */
 public record TypedNativeCall(TypedFunction callee, List<TypedSpec> args, ExprType info,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos)
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements TypedSpec {
     public TypedNativeCall {
         args = List.copyOf(args);

@@ -35,7 +35,7 @@ public enum ElementKind {
      * because it is the same top-level shape ({@code Runtime name { ... }})
      * with an additional inline connection.
      */
-    public static @com.legend.Nullable ElementKind fromHeaderToken(TokenType t) {
+    public static @com.legend.base.Nullable ElementKind fromHeaderToken(TokenType t) {
         return switch (t) {
             case CLASS, NATIVE -> CLASS;
             case ASSOCIATION -> ASSOCIATION;

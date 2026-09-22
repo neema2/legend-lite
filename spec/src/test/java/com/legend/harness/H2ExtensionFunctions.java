@@ -18,25 +18,25 @@ public final class H2ExtensionFunctions {
     private H2ExtensionFunctions() {
     }
 
-    public static @com.legend.Nullable String legend_h2_extension_base64_encode(
-            @com.legend.Nullable String s) {
+    public static @com.legend.base.Nullable String legend_h2_extension_base64_encode(
+            @com.legend.base.Nullable String s) {
         return s == null ? null
                 : Base64.getEncoder().encodeToString(s.getBytes(StandardCharsets.UTF_8));
     }
 
-    public static @com.legend.Nullable String legend_h2_extension_base64_decode(
-            @com.legend.Nullable String s) {
+    public static @com.legend.base.Nullable String legend_h2_extension_base64_decode(
+            @com.legend.base.Nullable String s) {
         return s == null ? null
                 : new String(Base64.getDecoder().decode(s), StandardCharsets.UTF_8);
     }
 
-    public static @com.legend.Nullable String legend_h2_extension_reverse_string(
-            @com.legend.Nullable String s) {
+    public static @com.legend.base.Nullable String legend_h2_extension_reverse_string(
+            @com.legend.base.Nullable String s) {
         return s == null ? null : new StringBuilder(s).reverse().toString();
     }
 
-    public static @com.legend.Nullable String legend_h2_extension_hash_md5(
-            @com.legend.Nullable String s) {
+    public static @com.legend.base.Nullable String legend_h2_extension_hash_md5(
+            @com.legend.base.Nullable String s) {
         if (s == null) {
             return null;
         }
@@ -58,8 +58,8 @@ public final class H2ExtensionFunctions {
 
     /** Engine semantics: null in → null; empty pad → the string; longer
      * than the width → truncated to the width; else left-padded. */
-    public static @com.legend.Nullable String legend_h2_extension_lpad(
-            @com.legend.Nullable String s, Integer width, @com.legend.Nullable String pad) {
+    public static @com.legend.base.Nullable String legend_h2_extension_lpad(
+            @com.legend.base.Nullable String s, Integer width, @com.legend.base.Nullable String pad) {
         if (s == null) {
             return null;
         }
@@ -76,8 +76,8 @@ public final class H2ExtensionFunctions {
         return out.substring(0, width - s.length()) + s;
     }
 
-    public static @com.legend.Nullable String legend_h2_extension_rpad(
-            @com.legend.Nullable String s, Integer width, @com.legend.Nullable String pad) {
+    public static @com.legend.base.Nullable String legend_h2_extension_rpad(
+            @com.legend.base.Nullable String s, Integer width, @com.legend.base.Nullable String pad) {
         if (s == null) {
             return null;
         }
@@ -97,8 +97,8 @@ public final class H2ExtensionFunctions {
     /** Engine semantics (commons StringUtils.split: the token is a SET of
      * separator characters, adjacent separators collapse, 1-based part; a
      * part past the end is null; part < 1 is an error). */
-    public static @com.legend.Nullable String legend_h2_extension_split_part(
-            @com.legend.Nullable String s, @com.legend.Nullable String token, Integer part) {
+    public static @com.legend.base.Nullable String legend_h2_extension_split_part(
+            @com.legend.base.Nullable String s, @com.legend.base.Nullable String token, Integer part) {
         if (part < 1) {
             throw new IllegalArgumentException("Split part must be greater than zero");
         }
@@ -126,8 +126,8 @@ public final class H2ExtensionFunctions {
     }
 
     /** Levenshtein distance (the engine's commons-text LevenshteinDistance). */
-    public static @com.legend.Nullable Integer legend_h2_extension_edit_distance(
-            @com.legend.Nullable String a, @com.legend.Nullable String b) {
+    public static @com.legend.base.Nullable Integer legend_h2_extension_edit_distance(
+            @com.legend.base.Nullable String a, @com.legend.base.Nullable String b) {
         if (a == null || b == null) {
             return null;
         }
@@ -151,8 +151,8 @@ public final class H2ExtensionFunctions {
 
     /** Jaro-Winkler similarity (the engine's commons-text
      * JaroWinklerSimilarity: prefix scale 0.1, prefix up to 4). */
-    public static @com.legend.Nullable Double legend_h2_extension_jaro_winkler_similarity(
-            @com.legend.Nullable String a, @com.legend.Nullable String b) {
+    public static @com.legend.base.Nullable Double legend_h2_extension_jaro_winkler_similarity(
+            @com.legend.base.Nullable String a, @com.legend.base.Nullable String b) {
         if (a == null || b == null) {
             return null;
         }

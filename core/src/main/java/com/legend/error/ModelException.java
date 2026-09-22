@@ -8,13 +8,13 @@ package com.legend.error;
  */
 public final class ModelException extends LegendCompileException {
 
-    public ModelException(Phase phase, @com.legend.Nullable String message) {
+    public ModelException(Phase phase, @com.legend.base.Nullable String message) {
         super(phase, message);
     }
 
     /** With the FQN of the element the failure is about (position decoration). */
-    public ModelException(Phase phase, @com.legend.Nullable String message,
-            @com.legend.Nullable String elementFqn) {
+    public ModelException(Phase phase, @com.legend.base.Nullable String message,
+            @com.legend.base.Nullable String elementFqn) {
         super(phase, message, elementFqn);
     }
 }

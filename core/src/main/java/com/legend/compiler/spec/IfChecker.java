@@ -140,7 +140,7 @@ final class IfChecker {
      * call — emitted with the FINAL expression's static type (bottom
      * spirit: the value is unreachable, the throw effect exact). Null =
      * not this shape. */
-    static @com.legend.Nullable TypedSpec failThenValue(Typer t, LambdaFunction lam, Env env) {
+    static @com.legend.base.Nullable TypedSpec failThenValue(Typer t, LambdaFunction lam, Env env) {
         List<ValueSpecification> stmts = lam.body();
         if (stmts.size() < 2) {
             return null;

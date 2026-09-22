@@ -15,8 +15,8 @@ package com.legend;
  * @param resources the test-input resource resolver (path → text; null = none)
  */
 public record ExecuteOptions(boolean pctRender,
-        com.legend.sql.dialect.RawSqlBoundary.@com.legend.Nullable Recorder recorder,
-        java.util.function.@com.legend.Nullable Function<String, String> resources,
+        com.legend.sql.dialect.RawSqlBoundary.@com.legend.base.Nullable Recorder recorder,
+        java.util.function.@com.legend.base.Nullable Function<String, String> resources,
         java.util.Set<com.legend.compiler.spec.typed.Feature> features,
         JudgeMode judgeMode) {
 
@@ -29,8 +29,8 @@ public record ExecuteOptions(boolean pctRender,
     public enum JudgeMode { HOST, DATABASE }
 
     public ExecuteOptions(boolean pctRender,
-            com.legend.sql.dialect.RawSqlBoundary.@com.legend.Nullable Recorder recorder,
-            java.util.function.@com.legend.Nullable Function<String, String> resources,
+            com.legend.sql.dialect.RawSqlBoundary.@com.legend.base.Nullable Recorder recorder,
+            java.util.function.@com.legend.base.Nullable Function<String, String> resources,
             java.util.Set<com.legend.compiler.spec.typed.Feature> features) {
         this(pctRender, recorder, resources, features, JudgeMode.HOST);
     }
@@ -54,7 +54,7 @@ public record ExecuteOptions(boolean pctRender,
      * path → text, loud when absent — the reference checkout stays spec,
      * never runtime): the caller owns both, the executor keeps neither. */
     public static ExecuteOptions recording(com.legend.sql.dialect.RawSqlBoundary.Recorder r,
-            java.util.function.@com.legend.Nullable Function<String, String> resources) {
+            java.util.function.@com.legend.base.Nullable Function<String, String> resources) {
         return new ExecuteOptions(false, r, resources, java.util.Set.of());
     }
 }

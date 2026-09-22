@@ -67,7 +67,7 @@ final class Fold {
             com.legend.sql.SqlAgg.Reducer reducer) {
     }
 
-    static @com.legend.Nullable OrderedAgg orderUnionAggregate(com.legend.sql.SqlSelect base,
+    static @com.legend.base.Nullable OrderedAgg orderUnionAggregate(com.legend.sql.SqlSelect base,
             com.legend.sql.SqlAgg.Reducer red) {
         if (red.fn() != com.legend.sql.SqlAgg.Fn.STRING_AGG || !red.orderBy().isEmpty()) {
             return null;
@@ -122,7 +122,7 @@ final class Fold {
             com.legend.sql.SqlExpr expr) {
     }
 
-    static @com.legend.Nullable OrderedAggExpr orderUnionAggregateExpr(
+    static @com.legend.base.Nullable OrderedAggExpr orderUnionAggregateExpr(
             com.legend.sql.SqlSelect base, com.legend.sql.SqlExpr av) {
         if (av instanceof com.legend.sql.SqlAgg.Reducer red) {
             OrderedAgg oa = orderUnionAggregate(base, red);
@@ -181,7 +181,7 @@ final class Fold {
         }
     }
 
-    private static com.legend.sql.SqlSource.@com.legend.Nullable Subselect findUnionSub(
+    private static com.legend.sql.SqlSource.@com.legend.base.Nullable Subselect findUnionSub(
             com.legend.sql.SqlSource src) {
         return switch (src) {
             case com.legend.sql.SqlSource.Subselect s
@@ -395,7 +395,7 @@ final class Fold {
      * dialects' bare-key rendering pins the engine placement
      * (AnsiSqlRenderer.sortKey — nulls-low). The old C1.2 story
      * ("connected target places nulls") conflated the two specs. */
-    static SqlSelect.SortKey.@com.legend.Nullable NullOrder sortNulls(boolean ascending) {
+    static SqlSelect.SortKey.@com.legend.base.Nullable NullOrder sortNulls(boolean ascending) {
         // PURE null ordering: null is LARGEST — ASC nulls last, DESC
         // nulls first (witness testRange_..._WithOrderByDESC). BOTH
         // directions stamp EXPLICITLY (§7 slice-2, 2026-09-01): the ASC
@@ -473,7 +473,7 @@ final class Fold {
      * windows, exists/subqueries, list aggs, UNNEST) return null and the
      * caller isolates.
      */
-    static @com.legend.Nullable SqlExpr resolveInto(SqlSelect s, String column) {
+    static @com.legend.base.Nullable SqlExpr resolveInto(SqlSelect s, String column) {
         if (column == null) {
             // a COLUMN-LESS read reaching fold resolution was an NPE
             // (dishonest wall) — the producing shape failed to name its
@@ -554,7 +554,7 @@ final class Fold {
                 : column;
     }
 
-    private static @com.legend.Nullable SqlExpr resolveIntoExact(SqlSelect s, String column) {
+    private static @com.legend.base.Nullable SqlExpr resolveIntoExact(SqlSelect s, String column) {
         if (s.projections().isEmpty()) {
             // §E3-S: the select's WHERE rides into the read door so
             // pad flips agree with the frame's WHERE≡INNER outputs
@@ -668,7 +668,7 @@ final class Fold {
     // padded sides — so no frame runs a name-keyed repair pass over
     // schema-asserted outputs.
 
-    static SqlExpr.@com.legend.Nullable Column sourceColumnDriving(SqlSource src, String column) {
+    static SqlExpr.@com.legend.base.Nullable Column sourceColumnDriving(SqlSource src, String column) {
         if (src instanceof SqlSource.Join j) {
             SqlExpr.Column c = sourceColumnDriving(j.left(), column);
             // §E3 M-N2: a RIGHT/FULL join pads even the driving side
@@ -844,7 +844,7 @@ final class Fold {
      * {@code TypedFold.columnCollectBody}): {@code fold({e,a|
      * concatenate(elemExpr, $a)}, [])} = per-row elemExpr collection.
      * Null = not that shape. */
-    static com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec
+    static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedSpec
             columnCollectAsMap(com.legend.compiler.spec.typed.TypedFold f) {
         com.legend.compiler.spec.typed.TypedSpec body = f.columnCollectBody();
         if (body == null) {
@@ -890,7 +890,7 @@ final class Fold {
                 });
     }
 
-    static SqlExpr.@com.legend.Nullable Column sourceColumn(SqlSource src, String column) {
+    static SqlExpr.@com.legend.base.Nullable Column sourceColumn(SqlSource src, String column) {
         return sourceColumn(src, column, java.util.Set.of());
     }
 
@@ -901,7 +901,7 @@ final class Fold {
      * side (no padded row survives), so read facts and the ctor's
      * frame-output arm agree. Callers without a WHERE in hand pass the
      * empty set and keep the unconditional flip (the safe side). */
-    static SqlExpr.@com.legend.Nullable Column sourceColumn(SqlSource src,
+    static SqlExpr.@com.legend.base.Nullable Column sourceColumn(SqlSource src,
             String column, java.util.Set<String> rejected) {
         // A quote-bearing pivot IDENTITY ('2011__|__newCol') strips to its
         // bare SQL name ONLY when the source does not claim the exact name —
@@ -1069,7 +1069,7 @@ final class Fold {
     /** The claimed column as a STAMPED reference, or null (name not
      * claimed). Routes through {@link #claims} — ONE owner of the
      * empty-outputs wall. */
-    private static SqlExpr.@com.legend.Nullable Column stamped(String alias,
+    private static SqlExpr.@com.legend.base.Nullable Column stamped(String alias,
             List<OutputCol> outputs, String column) {
         if (!claims(outputs, column)) {
             return null;
@@ -1167,7 +1167,7 @@ final class Fold {
         return LiteralSpelling.declaredDouble(e);
     }
 
-    private static @com.legend.Nullable SqlExpr castElements(SqlExpr list) {
+    private static @com.legend.base.Nullable SqlExpr castElements(SqlExpr list) {
         if (list instanceof SqlExpr.CompactList cl) {
             SqlExpr inner = castElements(cl.list());
             return inner == null ? null
@@ -1311,7 +1311,7 @@ final class Fold {
 
     /** The whole-row {@code distinct()} directly under a restrict (not the
      * TDS-union desugar, which keeps its own UNION form), else null. */
-    static com.legend.compiler.spec.typed.@com.legend.Nullable TypedDistinct restrictOverWholeRowDistinct(
+    static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedDistinct restrictOverWholeRowDistinct(
             com.legend.compiler.spec.typed.TypedSelect sel) {
         if (!(sel.source() instanceof com.legend.compiler.spec.typed.TypedDistinct d)
                 || d.source() instanceof com.legend.compiler.spec.typed.TypedConcatenate) {
@@ -1336,7 +1336,7 @@ final class Fold {
 
     /** All columns resolved against {@code base}, or null if any misses
      * (moved from Lowerer — this is Fold's own resolveInto vocabulary). */
-    static @com.legend.Nullable List<SqlSelect.Projection> tryProjectAll(
+    static @com.legend.base.Nullable List<SqlSelect.Projection> tryProjectAll(
             SqlSelect base, List<String> columns, List<OutputCol> contract) {
         List<SqlSelect.Projection> ps = new ArrayList<>(columns.size());
         for (String c : columns) {

@@ -20,7 +20,7 @@ public record TypedAggCol(String name, TypedLambda map, TypedLambda reduce,
     /** One ORDER BY key of an ordered aggregate ({@code string_agg(x, sep ORDER BY
      *  k [DESC] [NULLS FIRST|LAST])}): the key lowers in the map body's row scope. */
     public record AggOrder(TypedLambda key, boolean ascending,
-            @com.legend.Nullable TypedSortInfo.NullOrder nullOrder) {
+            @com.legend.base.Nullable TypedSortInfo.NullOrder nullOrder) {
         public AggOrder {
             Objects.requireNonNull(key, "key");
         }

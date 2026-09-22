@@ -43,7 +43,7 @@ final class DateShifts {
      * {@code anchor} null means today(). */
     static SqlExpr dayOfWeekShift(
             com.legend.compiler.spec.typed.TypedNativeCall n,
-            List<SqlExpr> args, String dowName, @com.legend.Nullable SqlExpr anchor,
+            List<SqlExpr> args, String dowName, @com.legend.base.Nullable SqlExpr anchor,
             boolean strict) {
         if (anchor == null) {
             anchor = new SqlExpr.Call(SqlFn.TODAY, List.of());

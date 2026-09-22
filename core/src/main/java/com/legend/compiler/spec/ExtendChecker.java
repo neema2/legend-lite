@@ -115,7 +115,7 @@ final class ExtendChecker {
      * converts identically — the engine's col() helper constructs exactly
      * that instance (tds/tdsColumn.pure); null when the shape is anything
      * else. */
-    private static @com.legend.Nullable ColSpec legacyColToSpec(ValueSpecification v) {
+    private static @com.legend.base.Nullable ColSpec legacyColToSpec(ValueSpecification v) {
         com.legend.protocol.spec.LambdaFunction fn;
         com.legend.protocol.spec.CString nm;
         if (v instanceof AppliedFunction nw && AppliedFunction.isNew(nw)

@@ -141,7 +141,7 @@ final class LateralExplodeToUnion extends SqlRewriter {
 
     /** The base alias the elements correlate to (the first table-
      * qualified column read); null = no correlation to key on. */
-    private static @com.legend.Nullable String baseAlias(List<Element> elements) {
+    private static @com.legend.base.Nullable String baseAlias(List<Element> elements) {
         for (Element e : elements) {
             String a = firstTable(e.value());
             if (a != null) {
@@ -151,7 +151,7 @@ final class LateralExplodeToUnion extends SqlRewriter {
         return null;
     }
 
-    private static @com.legend.Nullable String firstTable(SqlExpr e) {
+    private static @com.legend.base.Nullable String firstTable(SqlExpr e) {
         if (e instanceof SqlExpr.Column c && c.table() != null) {
             return c.table();
         }

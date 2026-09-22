@@ -55,7 +55,7 @@ public final class LiteralSpelling {
 
     /** The canon LEAF print of a scalar kind (no literal framing) —
      * null = unclaimed kind (the caller declines, counted). */
-    public static @com.legend.Nullable SqlExpr leaf(SqlExpr v, Type t) {
+    public static @com.legend.base.Nullable SqlExpr leaf(SqlExpr v, Type t) {
         if (t == Type.Primitive.STRING) {
             return v;
         }
@@ -93,7 +93,7 @@ public final class LiteralSpelling {
     /** The full PURE-LITERAL spelling: {@link #leaf} plus the framing
      * that makes the six forms mutually disjoint (quotes + escapes for
      * strings, D suffix for decimals, % prefix for temporals). */
-    public static @com.legend.Nullable SqlExpr literal(SqlExpr v, Type kind) {
+    public static @com.legend.base.Nullable SqlExpr literal(SqlExpr v, Type kind) {
         if (kind instanceof Type.EnumType et) {
             if ("meta::pure::metamodel::type::Enum".equals(et.fqn())) {
                 // the ABSTRACT Enum declaration (a mapping's toDomainValue,
@@ -194,7 +194,7 @@ public final class LiteralSpelling {
      * </ul> */
     enum ValueLane { SCALAR_ROOT, MAP_CHANNEL, GRID_FETCH }
 
-    static SqlExpr.@com.legend.Nullable Cast wireValueEgress(SqlExpr e,
+    static SqlExpr.@com.legend.base.Nullable Cast wireValueEgress(SqlExpr e,
             SqlType declared, ValueLane lane) {
         // the DECLARED egress label (the pure type's SQL mapping) keys
         // the decode — the engine transformer's own key (R8 dispatches
@@ -314,7 +314,7 @@ public final class LiteralSpelling {
      * {@code UNNEST(list_filter([TIMESTAMP '...', ...], λ))} collection
      * — rebuilt with each literal's OWN TEXT (see
      * {@link #writtenTemporalText}). Null = not that shape. */
-    private static @com.legend.Nullable SqlExpr staticTemporalText(SqlExpr e,
+    private static @com.legend.base.Nullable SqlExpr staticTemporalText(SqlExpr e,
             boolean bareOk) {
         // NEGATIVE (BC) years stay on the TIMESTAMP path everywhere —
         // the executor's BC-safe fetch owns them; the engine-string
@@ -546,7 +546,7 @@ public final class LiteralSpelling {
      * own kind; the DOUBLE promotion that erased Integer 1 into 1.0
      * dies here). Null = not this shape (homogeneous, non-numeric,
      * non-literal) — the caller keeps its lane. */
-    static @com.legend.Nullable SqlExpr mixedNumericArray(
+    static @com.legend.base.Nullable SqlExpr mixedNumericArray(
             com.legend.compiler.spec.typed.TypedSpec spec, SqlExpr lowered) {
         if (!(spec instanceof com.legend.compiler.spec.typed.TypedCollection c)
                 || !(lowered instanceof SqlExpr.ArrayLit la)
@@ -697,7 +697,7 @@ public final class LiteralSpelling {
     /** The full ISO timestamp text of a TIME-BEARING pure date literal
      * (hour/minute precisions pad to the SQL timestamp shape); null for
      * date-only and partial literals. */
-    public static @com.legend.Nullable String isoTimestamp(
+    public static @com.legend.base.Nullable String isoTimestamp(
             com.legend.values.PureDateLiteral d) {
         return switch (d) {
             case com.legend.values.PureDateLiteral.DateWithHour h -> h.toEngineString() + ":00:00";

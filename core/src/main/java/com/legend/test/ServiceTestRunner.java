@@ -389,8 +389,8 @@ public final class ServiceTestRunner implements AutoCloseable {
     // ---- SERIALIZE + JUDGE ----------------------------------------------------
 
     /** The result as the JSON tree its serialization format produces. */
-    static @com.legend.Nullable Object serialize(ExecutionResult result,
-            @com.legend.Nullable String format) {
+    static @com.legend.base.Nullable Object serialize(ExecutionResult result,
+            @com.legend.base.Nullable String format) {
         String fmt = format == null ? "DEFAULT" : format;
         return switch (result) {
             case ExecutionResult.Graph g -> {
@@ -431,7 +431,7 @@ public final class ServiceTestRunner implements AutoCloseable {
 
     /** A result cell as a JSON tree leaf (the engine's value transformer:
      *  dates as their engine string, numbers as numbers, the rest as-is). */
-    private static @com.legend.Nullable Object cell(@com.legend.Nullable Object v) {
+    private static @com.legend.base.Nullable Object cell(@com.legend.base.Nullable Object v) {
         return switch (v) {
             case null -> null;
             case PureDateLiteral d -> d.toEngineJson();   // the engine's JSON spelling: nanos + "+0000" on time-bearing values
@@ -452,8 +452,8 @@ public final class ServiceTestRunner implements AutoCloseable {
         };
     }
 
-    private static @com.legend.Nullable String judge(Protocol.PTestAssertion a,
-            @com.legend.Nullable Object actual) {
+    private static @com.legend.base.Nullable String judge(Protocol.PTestAssertion a,
+            @com.legend.base.Nullable Object actual) {
         return switch (a.expected()) {
             case Protocol.PExternalFormatData ef -> {
                 if (!"application/json".equalsIgnoreCase(ef.contentType())) {

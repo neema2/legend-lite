@@ -333,7 +333,7 @@ final class Anchors {
             "meta::pure::functions::multiplicity::toOne",
             "meta::pure::functions::collection::first");
 
-    static @com.legend.Nullable TypedSpec tdsErase(TypedSpec n) {
+    static @com.legend.base.Nullable TypedSpec tdsErase(TypedSpec n) {
         TypedSpec src = n instanceof TypedPropertyAccess pa && pa.property().equals("rows")
                 ? pa.source() : n instanceof com.legend.compiler.spec.typed.TypedCast ? n : null;
         if (src == null) {
@@ -388,7 +388,7 @@ final class Anchors {
      * lowerer's CSV render (Render.lowerTdsCsvProperty, which dispatches on
      * the same property constant over a schema-typed source). Null = not
      * that shape. */
-    static @com.legend.Nullable TypedPropertyAccess tdsCsvRead(TypedPropertyAccess pa,
+    static @com.legend.base.Nullable TypedPropertyAccess tdsCsvRead(TypedPropertyAccess pa,
             java.util.function.Predicate<TypedSpec> anchored) {
         if (!pa.property().equals(PlatformTypes.TDS_CSV_PROPERTY)
                 || !PlatformTypes.isTdsShaped(pa.source().info().type())) {

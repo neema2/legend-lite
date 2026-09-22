@@ -28,7 +28,7 @@ final class MissProbe {
     }
 
     /** A censused, legitimate empty-answer site (see class doc). */
-    static <T> @com.legend.Nullable T knownMiss(java.util.Optional<T> o) {
+    static <T> @com.legend.base.Nullable T knownMiss(java.util.Optional<T> o) {
         return o.orElse(null);
     }
 
@@ -42,7 +42,7 @@ final class MissProbe {
      * StoreSubstitutionRewrite#1, UnionSynthesis#1–3, ViewRelation#1–3
      * (numbered in file order at census time). The 16 that never fired
      * are loud ({@link #neverFired}). */
-    static <T> @com.legend.Nullable T miss() {
+    static <T> @com.legend.base.Nullable T miss() {
         return null;
     }
 

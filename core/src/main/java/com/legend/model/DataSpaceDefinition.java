@@ -26,12 +26,12 @@ import java.util.Objects;
 public record DataSpaceDefinition(
         String qualifiedName,
         List<ExecutionContext> executionContexts,
-        @com.legend.Nullable String defaultExecutionContext,
-        @com.legend.Nullable String title,
-        @com.legend.Nullable String description,
+        @com.legend.base.Nullable String defaultExecutionContext,
+        @com.legend.base.Nullable String title,
+        @com.legend.base.Nullable String description,
         List<Executable> executables,
         List<Diagram> diagrams,
-        @com.legend.Nullable String supportInfoSource,
+        @com.legend.base.Nullable String supportInfoSource,
         List<String> elements) implements PackageableElement {
 
     public DataSpaceDefinition {
@@ -48,11 +48,11 @@ public record DataSpaceDefinition(
      *  (the provider rides the protocol record only; here {@code mapping}
      *  is null for it), and the default runtime is optional. */
     public record ExecutionContext(String name,
-            @com.legend.Nullable String title,
-            @com.legend.Nullable String description,
-            @com.legend.Nullable String mapping,
-            @com.legend.Nullable String defaultRuntime,
-            @com.legend.Nullable String testDataSource) {
+            @com.legend.base.Nullable String title,
+            @com.legend.base.Nullable String description,
+            @com.legend.base.Nullable String mapping,
+            @com.legend.base.Nullable String defaultRuntime,
+            @com.legend.base.Nullable String testDataSource) {
         public ExecutionContext {
             Objects.requireNonNull(name, "Context name cannot be null");
         }
@@ -60,11 +60,11 @@ public record DataSpaceDefinition(
 
     /** One {@code executables:} entry — a path-referencing executable OR an
      *  inline query ({@code querySource} raw), never both. */
-    public record Executable(@com.legend.Nullable String id, String title,
-            @com.legend.Nullable String description,
-            @com.legend.Nullable String executable,
-            @com.legend.Nullable String querySource,
-            @com.legend.Nullable String executionContextKey) {
+    public record Executable(@com.legend.base.Nullable String id, String title,
+            @com.legend.base.Nullable String description,
+            @com.legend.base.Nullable String executable,
+            @com.legend.base.Nullable String querySource,
+            @com.legend.base.Nullable String executionContextKey) {
         public Executable {
             Objects.requireNonNull(title, "Executable title cannot be null");
         }
@@ -72,7 +72,7 @@ public record DataSpaceDefinition(
 
     /** One {@code diagrams:} entry. */
     public record Diagram(String title,
-            @com.legend.Nullable String description, String diagram) {
+            @com.legend.base.Nullable String description, String diagram) {
         public Diagram {
             Objects.requireNonNull(title, "Diagram title cannot be null");
             Objects.requireNonNull(diagram, "Diagram path cannot be null");

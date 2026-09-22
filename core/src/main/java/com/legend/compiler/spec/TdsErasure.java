@@ -76,7 +76,7 @@ final class TdsErasure {
 
     /** The relation a query lambda returns — bare function type or a
      *  Function/LambdaFunction carrier — or null. */
-    private static @com.legend.Nullable Type lambdaResultRelation(Type t) {
+    private static @com.legend.base.Nullable Type lambdaResultRelation(Type t) {
         Type.FunctionType ft = t instanceof Type.FunctionType f ? f
                 : t instanceof Type.GenericType g && g.arguments().size() == 1
                         && g.arguments().get(0) instanceof Type.FunctionType gf ? gf : null;

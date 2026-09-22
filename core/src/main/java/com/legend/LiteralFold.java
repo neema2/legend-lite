@@ -48,7 +48,7 @@ public final class LiteralFold {
     private LiteralFold() {
     }
 
-    static @Nullable ExecutionResult fold(TypedSpec root) {
+    static @com.legend.base.Nullable ExecutionResult fold(TypedSpec root) {
         if (root instanceof TypedCString s) {
             return new ExecutionResult.Scalar(s.value(), root.info().type());
         }

@@ -163,7 +163,7 @@ final class OccurrenceBundling {
      * the PARTIAL so the ctor drill descends and registers the dotted
      * AssocSub (the partial's own mapping wins over the otherwise
      * target's); any other leaf demands the FALLBACK's navigate slot. */
-    static @com.legend.Nullable TypedSpec otherwiseNavRead(
+    static @com.legend.base.Nullable TypedSpec otherwiseNavRead(
             TypedSpec headBinding, List<String> path, ClassSource cs,
             Set<String> navStepKeys) {
         var ow = Substitution.otherwiseOf(headBinding);

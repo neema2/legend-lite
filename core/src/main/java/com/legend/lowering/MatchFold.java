@@ -87,7 +87,7 @@ final class MatchFold {
      * engine's convertDateToSqlString rule (extensionDefaults.pure:144:
      * {@code format('%t{[zone]yyyy-MM-dd HH:mm:ss}', $date)}); date-only
      * and partial literals are untouched. Null = GMT, the identity. */
-    static SqlExpr dateLit(PureDateLiteral d, @com.legend.Nullable String zone) {
+    static SqlExpr dateLit(PureDateLiteral d, @com.legend.base.Nullable String zone) {
         if (zone != null && !zone.equals("GMT") && !zone.equals("UTC")) {
             String iso = LiteralSpelling.isoTimestamp(d);
             if (iso != null) {

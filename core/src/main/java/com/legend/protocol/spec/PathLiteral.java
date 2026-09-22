@@ -23,9 +23,9 @@ public record PathLiteral(
         String startType,
         List<Segment> segments,
         LambdaFunction desugared,
-        @com.legend.Nullable String alias,
+        @com.legend.base.Nullable String alias,
         boolean hasDatedSegment,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos,
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
         int literalLength) implements ValueSpecification {
 
     public PathLiteral {

@@ -15,7 +15,7 @@ public final class Calls {
     }
 
     /** The callee FQN of either call kind; null for a non-call. */
-    public static @com.legend.Nullable String calleeOf(TypedSpec n) {
+    public static @com.legend.base.Nullable String calleeOf(TypedSpec n) {
         return switch (n) {
             case TypedNativeCall c -> c.callee().qualifiedName();
             case TypedUserCall u -> u.callee().qualifiedName();

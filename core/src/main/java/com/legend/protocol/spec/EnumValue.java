@@ -37,8 +37,8 @@ import java.util.Objects;
  * @param value    the enum value name as written
  */
 public record EnumValue(String fullPath, String value,
-        @com.legend.Nullable com.legend.protocol.SourceInfo enumerationPos,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos)
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo enumerationPos,
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
     public EnumValue {
         Objects.requireNonNull(fullPath, "fullPath");

@@ -135,7 +135,7 @@ final class Frames {
     }
 
     /** The numeric value of a literal frame bound, or null (RANGE takes decimals). */
-    private static @com.legend.Nullable Number numericBound(TypedSpec arg) {
+    private static @com.legend.base.Nullable Number numericBound(TypedSpec arg) {
         // A negative literal arrives as unary minus AROUND the number.
         if (arg instanceof TypedNativeCall neg
                 && Pure.nativeNamed("minus", neg.callee().signatureKey())

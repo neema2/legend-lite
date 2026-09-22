@@ -23,7 +23,7 @@ import java.util.Objects;
  *                 may be empty, immutable after construction
  */
 public record ColSpecArray(List<ColSpec> colSpecs,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ColumnInstance {
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) implements ColumnInstance {
 
     /** Position-free form for synthesis and tests. */
     public ColSpecArray(List<ColSpec> colSpecs) {

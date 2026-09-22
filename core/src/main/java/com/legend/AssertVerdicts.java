@@ -46,10 +46,10 @@ final class AssertVerdicts {
     /** Null = not a statement-root assert this arm owns (generic path
      * continues); otherwise the verdict (TRUE, or the spec's failure
      * raised as the runner's failure). */
-    static @com.legend.Nullable ExecutionResult tryAdjudicate(TypedSpec bare,
+    static @com.legend.base.Nullable ExecutionResult tryAdjudicate(TypedSpec bare,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
         com.legend.exec.AssertListener l = env.assertListener();
         com.legend.exec.VerdictBatch batch = env.verdictBatch();
@@ -97,10 +97,10 @@ final class AssertVerdicts {
      * (VerdictBatch); a decided outcome or a raise is a step in order,
      * reported at the flush. Any other exit (a wall) flushes what came
      * before — those verdicts were already the body's — then surfaces. */
-    private static @com.legend.Nullable ExecutionResult batched(com.legend.exec.VerdictBatch batch,
+    private static @com.legend.base.Nullable ExecutionResult batched(com.legend.exec.VerdictBatch batch,
             TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
         com.legend.exec.CanonicalDivergence.sqlEnter();
         batch.open(listenerName(bare));
@@ -162,10 +162,10 @@ final class AssertVerdicts {
                 ? l.body().get(l.body().size() - 1) : branch;
     }
 
-    private static @com.legend.Nullable ExecutionResult adjudicate(TypedSpec bare,
+    private static @com.legend.base.Nullable ExecutionResult adjudicate(TypedSpec bare,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
         SpliceHook hook = rawHook == null ? null : rawHook::apply;
         // task #14 leg 1 (2026-09-21): a lineage tree print is judged as LINES —
@@ -517,7 +517,7 @@ final class AssertVerdicts {
      * other shape returns null: the legacy path then walls loudly on
      * {@code is}'s missing SQL rule — a wire carries values, never
      * reference identity (the eq/equalNonPrimitive irreducible ruling). */
-    static @com.legend.Nullable ExecutionResult isVerdict(
+    static @com.legend.base.Nullable ExecutionResult isVerdict(
             TypedSpec left, TypedSpec right) {
         String lt = typeIdentityOf(left);
         String rt = typeIdentityOf(right);
@@ -541,7 +541,7 @@ final class AssertVerdicts {
      * type of their argument — sound exactly when that type is concrete
      * (a literal or constructed instance), which is what the witnesses
      * pass ({@code type(+1)}, {@code genericType(^LA_Person(...))}). */
-    private static @com.legend.Nullable String typeIdentityOf(TypedSpec t) {
+    private static @com.legend.base.Nullable String typeIdentityOf(TypedSpec t) {
         TypedSpec s = peel(t);
         if (s instanceof com.legend.compiler.spec.typed.TypedPackageableRef pr) {
             return canonicalTypeFqn(pr.fullPath());
@@ -567,7 +567,7 @@ final class AssertVerdicts {
         return null;
     }
 
-    private static @com.legend.Nullable String staticTypeName(TypedSpec arg) {
+    private static @com.legend.base.Nullable String staticTypeName(TypedSpec arg) {
         // concrete static identification only: a literal's primitive or a
         // constructed/class-typed value — never an Any/generic stamp
         var ty = peel(arg).info().type();
@@ -642,11 +642,11 @@ final class AssertVerdicts {
      * adjudicates as a statement-root verdict. All elements must hold.
      * Null when not this shape (a runtime collection, a one-statement
      * predicate lambda — the vector form). */
-    private static @com.legend.Nullable ExecutionResult unrolled(
+    private static @com.legend.base.Nullable ExecutionResult unrolled(
             com.legend.compiler.spec.typed.TypedMap qm,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> rawHook) {
         var lam = qm.mapper();
         // the collection through the caller's lets (let expected = [...])
@@ -748,11 +748,11 @@ final class AssertVerdicts {
         return last == null ? ok() : last;
     }
 
-    private static @com.legend.Nullable ExecutionResult quantified(
+    private static @com.legend.base.Nullable ExecutionResult quantified(
             com.legend.compiler.spec.typed.TypedMap qm,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            @com.legend.Nullable SpliceHook hook) {
+            @com.legend.base.Nullable SpliceHook hook) {
         var lam = qm.mapper();
         if (lam.body().size() != 1) {
             return null;
@@ -828,7 +828,7 @@ final class AssertVerdicts {
      * columns (the 2-ULP leniency) and, under toCSV's grammar, the String
      * columns whose empty cell and NULL print alike. */
     /** A grid side's schema by EFFECTIVE kind (a Number over a DOUBLE wire is a Float). */
-    static com.legend.compiler.element.type.Type.@com.legend.Nullable RelationType effectiveSchema(
+    static com.legend.compiler.element.type.Type.@com.legend.base.Nullable RelationType effectiveSchema(
             StatementExecutor.WrappedSide side) {
         var d = com.legend.compiler.element.type.Type.schemaView(side.shapeInfo().type());
         return d == null || d.columns().size() > side.plan().outputs().size() ? d : com.legend.compiler
@@ -837,14 +837,14 @@ final class AssertVerdicts {
 
     /** A verdict row's evidence column for a message: at most 600
      * characters (a grid text drowns the diagnosis past that). */
-    static String excerpt(@com.legend.Nullable Object evidence) {
+    static String excerpt(@com.legend.base.Nullable Object evidence) {
         String s = String.valueOf(evidence);
         return s.length() <= 600 ? s : s.substring(0, 600) + "…(" + s.length() + " chars)";
     }
 
     /** {@code sort(<flat cells>)} — a one-argument collection sort over
      * a statically table-shaped side; the cells, or null. */
-    static @com.legend.Nullable TypedSpec bareSortOverCells(TypedSpec s) {
+    static @com.legend.base.Nullable TypedSpec bareSortOverCells(TypedSpec s) {
         if (s instanceof TypedNativeCall c
                 && c.callee().qualifiedName().equals(
                         "meta::pure::functions::collection::sort")
@@ -859,7 +859,7 @@ final class AssertVerdicts {
      * grid side reads its harvested row canons; a value peer frames
      * rows from its literal-channel element canons ({@link
      * com.legend.exec.TdsCompare} owns every rule and decline). */
-    static @com.legend.Nullable List<String> sideRowCanons(
+    static @com.legend.base.Nullable List<String> sideRowCanons(
             HostJudge.SideFetch side, int width, boolean isExpected) {
         return side.grid() != null
                 ? com.legend.exec.TdsCompare.tdsRowCanons(side.rider())
@@ -869,7 +869,7 @@ final class AssertVerdicts {
 
     /** A side's per-CELL canon texts (the sameElements view), via the
      * grid policy owner. */
-    static @com.legend.Nullable List<String> sideCellCanons(
+    static @com.legend.base.Nullable List<String> sideCellCanons(
             HostJudge.SideFetch side, boolean isExpected) {
         return side.grid() != null
                 ? com.legend.exec.TdsCompare.tdsCellCanons(side.rider())
@@ -914,7 +914,7 @@ final class AssertVerdicts {
      * the engine prints a one-element result of a many-valued root as a
      * bare object, so a golden written bare stands for one element. */
     static boolean serializedRootMany(TypedSpec s, List<TypedSpec> lets,
-            @com.legend.Nullable SpliceHook hook) {
+            @com.legend.base.Nullable SpliceHook hook) {
         TypedSpec chain = chaseLets(s, lets);
         if (chain instanceof TypedNativeCall lq
                 && com.legend.builtin.NativeFn.Handle.of(lq.callee().qualifiedName()).orElse(null)
@@ -979,7 +979,7 @@ final class AssertVerdicts {
         return false;
     }
 
-    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedSerialize findSerialize(
+    private static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedSerialize findSerialize(
             TypedSpec s) {
         if (s instanceof com.legend.compiler.spec.typed.TypedSerialize ts) {
             return ts;
@@ -1028,7 +1028,7 @@ final class AssertVerdicts {
      * OUR unpaged population for the referee's page-membership verdict.
      * Null when the chain carries no page at its tail. Typed-tree
      * navigation and rebuild ({@code withChildren}), nothing evaluated. */
-    static @com.legend.Nullable TypedSpec unpagedRead(TypedSpec read) {
+    static @com.legend.base.Nullable TypedSpec unpagedRead(TypedSpec read) {
         if (read instanceof com.legend.compiler.spec.typed.TypedLimit l) {
             return l.source();
         }
@@ -1070,7 +1070,7 @@ final class AssertVerdicts {
      * last-sort-wins semantics), through the same order-preserving tails
      * {@link #orderView} descends; null = underivable (a computed key,
      * a native sort spelling, a value the compared output cannot carry). */
-    private static @com.legend.Nullable List<String> sortKeys(TypedSpec s,
+    private static @com.legend.base.Nullable List<String> sortKeys(TypedSpec s,
             List<TypedSpec> lets, java.util.Set<String> seen) {
         if (s instanceof com.legend.compiler.spec.typed.TypedSort so) {
             List<String> keys = new java.util.ArrayList<>();
@@ -1164,11 +1164,11 @@ final class AssertVerdicts {
      * shape (exactly one side a render form, both sides one string).
      * {@code orderedForm} false = the sameElements view (token/line
      * multiset regardless of the chain's sort). */
-    static @com.legend.Nullable ExecutionResult renderedArm(
+    static @com.legend.base.Nullable ExecutionResult renderedArm(
             String name, boolean wantEqual, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            @com.legend.Nullable SpliceHook hook, boolean orderedForm) {
+            @com.legend.base.Nullable SpliceHook hook, boolean orderedForm) {
         String eForm = renderForm(args.get(0), letPrefix);
         String aForm = renderForm(args.get(1), letPrefix);
         // BOTH-RENDERED same-form pairs qualify too (two renders of one
@@ -1212,7 +1212,7 @@ final class AssertVerdicts {
      * when the chain ends in a sort and the assert is ordered. */
     static ExecutionResult renderedValueVerdict(String name, boolean wantEqual,
             List<TypedSpec> args, List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env, @com.legend.Nullable SpliceHook hook,
+            StatementExecutor.ExecEnv env, @com.legend.base.Nullable SpliceHook hook,
             boolean orderedForm) {
         java.util.function.UnaryOperator<TypedSpec> chase = s -> chaseLets(s, letPrefix);
         var re = com.legend.compiler.spec.VerdictQueries.renderedSide(args.get(0), chase);
@@ -1294,7 +1294,7 @@ final class AssertVerdicts {
      * CSVJOIN:sep (token multiset — sep-joined DB arrival order).
      * The comparison policy is {@link com.legend.exec.TdsCompare
      * #renderedText} — the one owner, probed by its own R1b census. */
-    static @com.legend.Nullable String renderForm(TypedSpec s0,
+    static @com.legend.base.Nullable String renderForm(TypedSpec s0,
             List<TypedSpec> lets) {
         TypedSpec s = chaseLets(s0, lets);
         if (s instanceof TypedNativeCall rep
@@ -1371,7 +1371,7 @@ final class AssertVerdicts {
     /** The {@code $exp->forAll(e|$act->contains($e))} SUBSET shape:
      * {expected, actual} sources, or null when not this idiom (the
      * predicate must be a contains of the forAll binder itself). */
-    static TypedSpec @com.legend.Nullable [] forAllContains(
+    static TypedSpec @com.legend.base.Nullable [] forAllContains(
             TypedSpec a0) {
         if (a0 instanceof TypedNativeCall fa
                 && "meta::pure::functions::collection::forAll"
@@ -1395,7 +1395,7 @@ final class AssertVerdicts {
 
     /** The root's callee — except {@code assertError}, whose arm is the host's own
      * (a non-callee here keeps it off the verdict routes). */
-    private static @com.legend.Nullable String calleeFqn(TypedSpec bare) {
+    private static @com.legend.base.Nullable String calleeFqn(TypedSpec bare) {
         String fqn = com.legend.compiler.spec.typed.Calls.calleeOf(bare);
         return com.legend.compiler.element.type.PlatformTypes.ASSERT_ERROR.equals(fqn) ? null : fqn;
     }
@@ -1403,7 +1403,7 @@ final class AssertVerdicts {
     /** The engine golden's null spelling anywhere in the EXPECTED wire
      * values (scalar cells, instance properties, nested lists). */
     static boolean containsTdsNullSentinel(
-            @com.legend.Nullable Object v) {
+            @com.legend.base.Nullable Object v) {
         return switch (v) {
             case null -> false;
             case String s -> "TDSNull".equals(s);
@@ -1422,7 +1422,7 @@ final class AssertVerdicts {
     }
 
     static boolean containsTreeMarker(
-            @com.legend.Nullable String text) {
+            @com.legend.base.Nullable String text) {
         return text != null && text.contains(
                 com.legend.lowering.CanonicalRenderSql.TREE_MARKER);
     }
@@ -1494,7 +1494,7 @@ final class AssertVerdicts {
      * prototype by the typer (Typer.typeRef) but IS a type value; a
      * metamodel type classifier or a tracked element class is the
      * name-valued kind. Everything else by its type. */
-    static @com.legend.Nullable KindClass kindKey(TypedSpec spec,
+    static @com.legend.base.Nullable KindClass kindKey(TypedSpec spec,
             List<TypedSpec> letPrefix, StatementExecutor.ExecEnv env) {
         TypedSpec s = chaseLets(spec, letPrefix);
         if (isTypeValueNode(s)) {
@@ -1529,7 +1529,7 @@ final class AssertVerdicts {
     /** X5 — the pair's shared key tree: non-null iff BOTH stamps are
      * the SAME keyed class (the engine's classifier-match precondition
      * plus resolvable {@code <<equality.Key>>} identity). */
-    static com.legend.compiler.element.@com.legend.Nullable EqualityKeys
+    static com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys
             instanceKeys(TypedSpec eSpec, TypedSpec aSpec,
                     StatementExecutor.ExecEnv env, List<Object> eVals, List<Object> aVals) {
         String ef = com.legend.compiler.element.EqualityKeys.fqnOf(
@@ -1573,7 +1573,7 @@ final class AssertVerdicts {
     }
 
     /** Declared classes only (no wire evidence in hand). */
-    static com.legend.compiler.element.@com.legend.Nullable EqualityKeys
+    static com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys
             instanceKeys(TypedSpec eSpec, TypedSpec aSpec, StatementExecutor.ExecEnv env) {
         return instanceKeys(eSpec, aSpec, env, List.of(), List.of());
     }
@@ -1582,7 +1582,7 @@ final class AssertVerdicts {
 
     static List<Object> side(TypedSpec arg, List<TypedSpec> letPrefix,
             SpecCompiler specs, StatementExecutor.ExecEnv env,
-            @com.legend.Nullable SpliceHook hook) {
+            @com.legend.base.Nullable SpliceHook hook) {
         return decodeSide(StatementExecutor.evalValue(arg, letPrefix,
                 specs, env, null, false, hook));
     }
@@ -1592,10 +1592,10 @@ final class AssertVerdicts {
      * — leg 2 made its stamp String[1], and the DB-built envelope is
      * the value); any other result must decode to one string. Null =
      * not this shape (generic path, loud downstream). */
-    static @com.legend.Nullable String jsonSideText(TypedSpec arg,
+    static @com.legend.base.Nullable String jsonSideText(TypedSpec arg,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            @com.legend.Nullable SpliceHook hook) {
+            @com.legend.base.Nullable SpliceHook hook) {
         ExecutionResult r = StatementExecutor.evalValue(arg, letPrefix,
                 specs, env, null, false, hook);
         if (r instanceof ExecutionResult.Graph g) {
@@ -1606,7 +1606,7 @@ final class AssertVerdicts {
     }
 
     static List<Object> decodeSide(
-            @com.legend.Nullable ExecutionResult r) {
+            @com.legend.base.Nullable ExecutionResult r) {
         List<Object> side = decodeSideValues(r);
         // V7 §5-1 instrument: the side-size histogram (VALUES-literal
         // cost bracket for V12's fused-verdict design) — measurement
@@ -1616,7 +1616,7 @@ final class AssertVerdicts {
     }
 
     static List<Object> decodeSideValues(
-            @com.legend.Nullable ExecutionResult r) {
+            @com.legend.base.Nullable ExecutionResult r) {
         return switch (r) {
             case null -> new ArrayList<>();
             case ExecutionResult.Scalar s -> {
@@ -1657,7 +1657,7 @@ final class AssertVerdicts {
      * ({@code TypedTypeRef}) or a bare reference in value position
      * ({@code TypedPackageableRef}); null = not literal (fall through,
      * the body inlines and walls on its own terms). */
-    static @com.legend.Nullable String typeRefName(TypedSpec t) {
+    static @com.legend.base.Nullable String typeRefName(TypedSpec t) {
         return switch (t) {
             case com.legend.compiler.spec.typed.TypedTypeRef tr ->
                     tr.target().typeName();
@@ -1669,9 +1669,9 @@ final class AssertVerdicts {
 
     /** The relation arg executed in the database, as its TABULAR frame;
      * null = the value did not execute to a relation (fall through). */
-    static ExecutionResult.@com.legend.Nullable Tabular tabular(
+    static ExecutionResult.@com.legend.base.Nullable Tabular tabular(
             TypedSpec arg, List<TypedSpec> letPrefix, SpecCompiler specs,
-            StatementExecutor.ExecEnv env, @com.legend.Nullable SpliceHook hook) {
+            StatementExecutor.ExecEnv env, @com.legend.base.Nullable SpliceHook hook) {
         ExecutionResult r = StatementExecutor.evalValue(arg,
                 letPrefix, specs, env, null, false, hook);
         return r instanceof ExecutionResult.Tabular t ? t : null;

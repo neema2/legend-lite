@@ -17,13 +17,13 @@ package com.legend.error;
  */
 public final class AssertFailed extends RuntimeException {
 
-    private final @com.legend.Nullable String unjudgedReason;
+    private final @com.legend.base.Nullable String unjudgedReason;
 
     public AssertFailed(String message) {
         this(message, null);
     }
 
-    private AssertFailed(String message, @com.legend.Nullable String unjudgedReason) {
+    private AssertFailed(String message, @com.legend.base.Nullable String unjudgedReason) {
         super(message);
         this.unjudgedReason = unjudgedReason;
     }
@@ -36,7 +36,7 @@ public final class AssertFailed extends RuntimeException {
     }
 
     /** Non-null iff this failure is an UNJUDGED decline. */
-    public @com.legend.Nullable String unjudgedReason() {
+    public @com.legend.base.Nullable String unjudgedReason() {
         return unjudgedReason;
     }
 }

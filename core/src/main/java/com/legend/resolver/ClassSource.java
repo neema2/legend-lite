@@ -38,16 +38,16 @@ import java.util.Map;
 public record ClassSource(
         String mappingFqn,
         String classFqn,
-        @com.legend.Nullable String setId,
+        @com.legend.base.Nullable String setId,
         TypedSpec pipeline,
         String rowVar,
         Map<String, TypedSpec> bindings,
         Type.RelationType rowType,
-        @com.legend.Nullable String sourceClass,
+        @com.legend.base.Nullable String sourceClass,
         Map<String, String> deferredWalls,
         String composedPrefix,
-        @com.legend.Nullable String castGate,
-        @com.legend.Nullable String scope) {
+        @com.legend.base.Nullable String castGate,
+        @com.legend.base.Nullable String scope) {
 
     /** The setId of a resolver-built UNION source (an operation-set union
      * synthesized here over its members, or a concatenated-navigation
@@ -63,12 +63,12 @@ public record ClassSource(
 
     /** Without a scope. */
     public ClassSource(String mappingFqn, String classFqn,
-            @com.legend.Nullable String setId, TypedSpec pipeline,
+            @com.legend.base.Nullable String setId, TypedSpec pipeline,
             String rowVar, Map<String, TypedSpec> bindings,
             Type.RelationType rowType,
-            @com.legend.Nullable String sourceClass,
+            @com.legend.base.Nullable String sourceClass,
             Map<String, String> deferredWalls, String composedPrefix,
-            @com.legend.Nullable String castGate) {
+            @com.legend.base.Nullable String castGate) {
         this(mappingFqn, classFqn, setId, pipeline, rowVar, bindings,
                 rowType, sourceClass, deferredWalls, composedPrefix, castGate, null);
     }
@@ -83,7 +83,7 @@ public record ClassSource(
      * source reads the query's inline rows (user ruling 2026-09-02: the
      * system database is read-only; a query carries its own constants).
      */
-    public ClassSource withScope(@com.legend.Nullable String scope) {
+    public ClassSource withScope(@com.legend.base.Nullable String scope) {
         return new ClassSource(mappingFqn, classFqn, setId, pipeline, rowVar,
                 bindings, rowType, sourceClass, deferredWalls, composedPrefix, castGate,
                 scope);
@@ -91,20 +91,20 @@ public record ClassSource(
 
     /** Without a cast gate. */
     public ClassSource(String mappingFqn, String classFqn,
-            @com.legend.Nullable String setId, TypedSpec pipeline,
+            @com.legend.base.Nullable String setId, TypedSpec pipeline,
             String rowVar, Map<String, TypedSpec> bindings,
             Type.RelationType rowType,
-            @com.legend.Nullable String sourceClass,
+            @com.legend.base.Nullable String sourceClass,
             Map<String, String> deferredWalls, String composedPrefix) {
         this(mappingFqn, classFqn, setId, pipeline, rowVar, bindings,
                 rowType, sourceClass, deferredWalls, composedPrefix, null, null);
     }
 
     public ClassSource(String mappingFqn, String classFqn,
-            @com.legend.Nullable String setId, TypedSpec pipeline,
+            @com.legend.base.Nullable String setId, TypedSpec pipeline,
             String rowVar, Map<String, TypedSpec> bindings,
             Type.RelationType rowType,
-            @com.legend.Nullable String sourceClass,
+            @com.legend.base.Nullable String sourceClass,
             Map<String, String> deferredWalls) {
         this(mappingFqn, classFqn, setId, pipeline, rowVar, bindings,
                 rowType, sourceClass, deferredWalls, "");
@@ -114,16 +114,16 @@ public record ClassSource(
      * of the gate class's own properties route through the row's subtype
      * columns, witness-gated (the value-position cast rule); rows that
      * do not conform were made to RAISE by the chain's gate filter. */
-    public ClassSource withCastGate(@com.legend.Nullable String gate) {
+    public ClassSource withCastGate(@com.legend.base.Nullable String gate) {
         return new ClassSource(mappingFqn, classFqn, setId, pipeline, rowVar,
                 bindings, rowType, sourceClass, deferredWalls, composedPrefix, gate, scope);
     }
 
     public ClassSource(String mappingFqn, String classFqn,
-            @com.legend.Nullable String setId, TypedSpec pipeline,
+            @com.legend.base.Nullable String setId, TypedSpec pipeline,
             String rowVar, Map<String, TypedSpec> bindings,
             Type.RelationType rowType,
-            @com.legend.Nullable String sourceClass) {
+            @com.legend.base.Nullable String sourceClass) {
         this(mappingFqn, classFqn, setId, pipeline, rowVar, bindings,
                 rowType, sourceClass, Map.of());
     }
@@ -151,7 +151,7 @@ public record ClassSource(
      * unions) — consumers requiring source identity fall back to
      * structural checks (audit 24 F4). */
     public ClassSource(String mappingFqn, String classFqn,
-            @com.legend.Nullable String setId,
+            @com.legend.base.Nullable String setId,
             TypedSpec pipeline, String rowVar,
             Map<String, TypedSpec> bindings, Type.RelationType rowType) {
         this(mappingFqn, classFqn, setId, pipeline, rowVar, bindings,

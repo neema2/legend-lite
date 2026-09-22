@@ -42,7 +42,7 @@ public final class PlanText {
     public static String single(ModelContext ctx, String rootClassFqn,
             String mappingFqn, SqlQuery plan, String sql,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
-            @com.legend.Nullable String connectionName) {
+            @com.legend.base.Nullable String connectionName) {
         return single(ctx, rootClassFqn, mappingFqn, plan, sql, body,
                 connectionName, java.util.List.of());
     }
@@ -52,7 +52,7 @@ public final class PlanText {
     public static String single(ModelContext ctx, String rootClassFqn,
             String mappingFqn, SqlQuery plan, String sql,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
-            @com.legend.Nullable String connectionName,
+            @com.legend.base.Nullable String connectionName,
             java.util.List<String> chainMappings) {
         return single(ctx, rootClassFqn, mappingFqn, plan, sql, body,
                 connectionName, chainMappings, plan, false);
@@ -65,7 +65,7 @@ public final class PlanText {
     public static String single(ModelContext ctx, String rootClassFqn,
             String mappingFqn, SqlQuery plan, String sql,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
-            @com.legend.Nullable String connectionName,
+            @com.legend.base.Nullable String connectionName,
             java.util.List<String> chainMappings, SqlQuery colsPlan, boolean pushDownEnums) {
         String[] impl = ScanRelations.rootImpl(ctx, mappingFqn,
                 rootClassFqn, chainMappings);
@@ -99,19 +99,19 @@ public final class PlanText {
 
     /** The class extent a plan body is rooted at (its first getAll), or
      * null for a relation-rooted body. */
-    public static @com.legend.Nullable String rootGetAllClass(
+    public static @com.legend.base.Nullable String rootGetAllClass(
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body) {
         var ga = firstOf(body, com.legend.compiler.spec.typed.TypedGetAll.class);
         return ga == null ? null : ga.classFqn();
     }
 
     /** The table reference a relation-rooted plan body is rooted at. */
-    public static com.legend.compiler.spec.typed.@com.legend.Nullable TypedTableReference
+    public static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedTableReference
             rootTableReference(java.util.List<com.legend.compiler.spec.typed.TypedSpec> body) {
         return firstOf(body, com.legend.compiler.spec.typed.TypedTableReference.class);
     }
 
-    private static <T extends com.legend.compiler.spec.typed.TypedSpec> @com.legend.Nullable T firstOf(
+    private static <T extends com.legend.compiler.spec.typed.TypedSpec> @com.legend.base.Nullable T firstOf(
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body, Class<T> kind) {
         java.util.ArrayDeque<com.legend.compiler.spec.typed.TypedSpec> work =
                 new java.util.ArrayDeque<>(body);
@@ -133,7 +133,7 @@ public final class PlanText {
     public static String singleRelationRoot(ModelContext ctx, String dbFqn,
             boolean accessor, SqlQuery plan, String sql,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
-            @com.legend.Nullable String connectionName) {
+            @com.legend.base.Nullable String connectionName) {
         com.legend.compiler.element.type.Type.RelationType rt =
                 com.legend.compiler.element.type.Type.relationSchema(
                         body.get(body.size() - 1).info().type());
@@ -171,7 +171,7 @@ public final class PlanText {
      * every other root class's (a cross-store TDS join's from-tree names
      * the tables of two stores; the engine types each physical column by
      * ITS table's store — tdsTwoJoinThreeDB, batch 112). */
-    static java.util.List<String> storeDbs(ModelContext ctx, @com.legend.Nullable String mappingFqn,
+    static java.util.List<String> storeDbs(ModelContext ctx, @com.legend.base.Nullable String mappingFqn,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
             java.util.List<String> chainMappings, String primary) {
         java.util.LinkedHashSet<String> dbs = new java.util.LinkedHashSet<>();
@@ -248,7 +248,7 @@ public final class PlanText {
     public static String typeBlock(ModelContext ctx, String rootClassFqn,
             String[] impl, SqlQuery plan,
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
-            @com.legend.Nullable String mappingFqn, boolean pushDownEnums) {
+            @com.legend.base.Nullable String mappingFqn, boolean pushDownEnums) {
         com.legend.compiler.spec.typed.TypedSpec last =
                 body.get(body.size() - 1);
         if (com.legend.compiler.element.type.Type.relationSchema(last.info().type())
@@ -361,7 +361,7 @@ public final class PlanText {
      * type/sizeRange, the free plan variables it requires, and the PURE
      * SOURCE of the expression. */
     public static String pureExp(String typeName,
-            @com.legend.Nullable String sizeRange, String requiresSpell,
+            @com.legend.base.Nullable String sizeRange, String requiresSpell,
             String exprSource) {
         return "PureExp\n(\n"
                 + "  type = " + typeName + "\n"
@@ -403,7 +403,7 @@ public final class PlanText {
 
     /** The scalar {@code type/resultSizeRange} pair at 2-space indent. */
     public static String scalarTypeBlock(String typeName,
-            @com.legend.Nullable String sizeRange) {
+            @com.legend.base.Nullable String sizeRange) {
         return "  type = " + typeName + "\n"
                 + "  resultSizeRange = " + sizeRange + "\n";
     }
@@ -415,7 +415,7 @@ public final class PlanText {
      * form). Rendering stays in the root layer — the caller supplies the
      * alias-less SQL text and the post-render alias spelling. */
     public static String scalarRelational(ModelContext ctx, String dbFqn,
-            SqlSelect plan, String typeName, @com.legend.Nullable String sizeRange, String sql,
+            SqlSelect plan, String typeName, @com.legend.base.Nullable String sizeRange, String sql,
             java.util.function.UnaryOperator<String> aliasSpell) {
         StringBuilder rc = new StringBuilder();
         for (SqlSelect.Projection p : plan.projections()) {
@@ -487,7 +487,7 @@ public final class PlanText {
     private static String tdsTuples(ModelContext ctx, java.util.List<String> dbs,
             SqlQuery plan,
             com.legend.compiler.element.type.Type.RelationType rt,
-            java.util.Map<String, String> docs, @com.legend.Nullable String mappingFqn) {
+            java.util.Map<String, String> docs, @com.legend.base.Nullable String mappingFqn) {
         return tdsTuples(ctx, dbs, plan, rt, docs, mappingFqn, false, false);
     }
 
@@ -497,7 +497,7 @@ public final class PlanText {
     private static String tdsTuples(ModelContext ctx, java.util.List<String> dbs,
             SqlQuery plan,
             com.legend.compiler.element.type.Type.RelationType rt,
-            java.util.Map<String, String> docs, @com.legend.Nullable String mappingFqn,
+            java.util.Map<String, String> docs, @com.legend.base.Nullable String mappingFqn,
             boolean m2m, boolean pushDownEnums) {
         if (!(plan instanceof SqlSelect s)) {
             throw new NotImplementedException(
@@ -594,7 +594,7 @@ public final class PlanText {
      * NORMALIZED artifact, whose list is already include-flattened at
      * Phase E (exact match first, simple-name second — parsed mappings
      * may hold either spelling), or null. */
-    public static com.legend.model.@com.legend.Nullable EnumerationMapping enumMappingOf(
+    public static com.legend.model.@com.legend.base.Nullable EnumerationMapping enumMappingOf(
             ModelContext ctx, String mappingFqn, String enumFqn) {
         return enumMappingOf(ctx, mappingFqn, enumFqn, new java.util.HashSet<>());
     }
@@ -603,7 +603,7 @@ public final class PlanText {
      * mappings' (real pure: an included mapping's enumeration mappings
      * are visible through the include — the enum-decoded rows leg over
      * a mapping that includes the store mapping). */
-    private static com.legend.model.@com.legend.Nullable EnumerationMapping enumMappingOf(
+    private static com.legend.model.@com.legend.base.Nullable EnumerationMapping enumMappingOf(
             ModelContext ctx, String mappingFqn, String enumFqn,
             java.util.Set<String> seen) {
         if (!seen.add(mappingFqn)) {
@@ -640,8 +640,8 @@ public final class PlanText {
      * reads the column declares which one ({@code prop:
      * EnumerationMapping synonym: T.COL}). Falls back to
      * first-declared. */
-    private static @com.legend.Nullable String enumMappingIdFor(ModelContext ctx,
-            String mappingFqn, String enumFqn, String @com.legend.Nullable [] phys) {
+    private static @com.legend.base.Nullable String enumMappingIdFor(ModelContext ctx,
+            String mappingFqn, String enumFqn, String @com.legend.base.Nullable [] phys) {
         var md = ctx.findMapping(mappingFqn).orElse(null);
         if (md == null) {
             return null;
@@ -686,7 +686,7 @@ public final class PlanText {
      * {@code enumMap_<mapping fqn underscored>_<enum-mapping id>}
      * (relationalMappingExecution enum templates), or null when the
      * mapping carries no enumeration mapping for the enum. */
-    public static @com.legend.Nullable String enumMapFnOf(ModelContext ctx, String mappingFqn,
+    public static @com.legend.base.Nullable String enumMapFnOf(ModelContext ctx, String mappingFqn,
             String enumFqn) {
         var em = enumMappingOf(ctx, mappingFqn, enumFqn);
         String id = em == null ? null : em.mappingId();
@@ -734,7 +734,7 @@ public final class PlanText {
      * replaced by a {@code (${var})} placeholder, re-rendered with
      * {@code renderer} — null when the top shape is not
      * join-of-subselects (the cross-store split's SQL-text channel). */
-    public static @com.legend.Nullable String spliceLeftVar(
+    public static @com.legend.base.Nullable String spliceLeftVar(
             com.legend.sql.SqlQuery plan, String var,
             java.util.function.Function<com.legend.sql.SqlQuery,
                     String> render) {
@@ -749,7 +749,7 @@ public final class PlanText {
     /** The colsPlan for a maybe-spliced plan: the placeholder-bearing
      * IR when the splice applies, else the plan itself. */
     public static com.legend.sql.SqlQuery colsPlanFor(
-            com.legend.sql.SqlQuery plan, @com.legend.Nullable String var) {
+            com.legend.sql.SqlQuery plan, @com.legend.base.Nullable String var) {
         if (var == null) {
             return plan;
         }
@@ -758,7 +758,7 @@ public final class PlanText {
     }
 
     /** The spliced IR itself (the cross-store colsPlan). */
-    public static @com.legend.Nullable SqlSelect spliceLeftVarQuery(
+    public static @com.legend.base.Nullable SqlSelect spliceLeftVarQuery(
             com.legend.sql.SqlQuery plan, String var) {
         if (!(plan instanceof SqlSelect top)
                 || !(top.from() instanceof SqlSource.Join jn)) {
@@ -796,7 +796,7 @@ public final class PlanText {
     private static String resultColumns(ModelContext ctx, java.util.List<String> dbs,
             SqlQuery plan,
             com.legend.compiler.element.type.Type
-                    .@com.legend.Nullable RelationType rt) {
+                    .@com.legend.base.Nullable RelationType rt) {
         if (!(plan instanceof SqlSelect s)) {
             throw new NotImplementedException(
                     "plan: non-select top query (union) pending");
@@ -882,7 +882,7 @@ public final class PlanText {
     /** The engine dataType a computed column's PURE type infers to
      * (executionPlan goldens: aggregate Number/Float -> FLOAT); null =
      * no known spelling (stays a named wall). */
-    private static @com.legend.Nullable String pureDbSpelling(
+    private static @com.legend.base.Nullable String pureDbSpelling(
             com.legend.compiler.element.type.Type t) {
         if (t == com.legend.compiler.element.type.Type.Primitive.NUMBER
                 || t == com.legend.compiler.element.type.Type.Primitive.FLOAT) {
@@ -905,7 +905,7 @@ public final class PlanText {
 
     /** The ONE column every CASE branch (thens + else, nested) reads,
      * or null when branches differ or carry non-column leaves. */
-    private static SqlExpr.@com.legend.Nullable Column uniformCaseColumn(SqlExpr e) {
+    private static SqlExpr.@com.legend.base.Nullable Column uniformCaseColumn(SqlExpr e) {
         if (!(e instanceof SqlExpr.Case)) {
             return null;
         }
@@ -943,7 +943,7 @@ public final class PlanText {
     }
 
     /** The physical table behind a FROM-tree alias. */
-    private static String tableOf(SqlSource src, @com.legend.Nullable String alias) {
+    private static String tableOf(SqlSource src, @com.legend.base.Nullable String alias) {
         return resolvePhysical(src, alias, null)[0];
     }
 
@@ -1035,8 +1035,8 @@ public final class PlanText {
         };
     }
 
-    private static String[] resolvePhysical(SqlSource src, @com.legend.Nullable String alias,
-            @com.legend.Nullable String col) {
+    private static String[] resolvePhysical(SqlSource src, @com.legend.base.Nullable String alias,
+            @com.legend.base.Nullable String col) {
         switch (src) {
             case SqlSource.VarSetPlaceholder vp -> {
                 if (vp.alias().equals(alias)) {

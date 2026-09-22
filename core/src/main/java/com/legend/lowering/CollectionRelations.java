@@ -81,13 +81,13 @@ final class CollectionRelations {
      * in the select list (placement is dialect assembly).
      * Both consumers above and below go through it. */
     static SqlSelect rows(SqlExpr list, String column,
-            @com.legend.Nullable OutputCol out, List<OutputCol> outputs) {
+            @com.legend.base.Nullable OutputCol out, List<OutputCol> outputs) {
         return rows(list, column, out, outputs, new SqlSource.Dual());
     }
 
     /** The explode over a named source (a verdict's document rows). */
     static SqlSelect rows(SqlExpr list, String column,
-            @com.legend.Nullable OutputCol out, List<OutputCol> outputs, SqlSource from) {
+            @com.legend.base.Nullable OutputCol out, List<OutputCol> outputs, SqlSource from) {
         return new SqlSelect(List.of(new SqlSelect.Projection(
                         SqlExpr.Call.of(SqlFn.UNNEST, list), column, out)),
                 false, from, null, List.of(), null, null,
@@ -188,7 +188,7 @@ final class CollectionRelations {
 
     /** The relation of {@code zip(a, b)}: rows (first, second) joined on the row number;
      * null when an arm does not lower to exactly one column. */
-    static @com.legend.Nullable SqlSelect zipRows(Lowerer lo, TypedNativeCall z) {
+    static @com.legend.base.Nullable SqlSelect zipRows(Lowerer lo, TypedNativeCall z) {
         List<Type.Column> layout = lo.classLayout(z.info().type()).orElseThrow(() ->
                 new com.legend.error.NotImplementedException("zip at row position: no Pair layout for "
                         + z.info().type()));
@@ -219,7 +219,7 @@ final class CollectionRelations {
 
     /** One zip arm as numbered rows {@code (<field>, __rn)}: a relation's first
      * column in its order, or a literal collection as VALUES in list order. */
-    private static @com.legend.Nullable SqlSelect armRows(Lowerer lo, TypedSpec arm, Type.Column field, String alias) {
+    private static @com.legend.base.Nullable SqlSelect armRows(Lowerer lo, TypedSpec arm, Type.Column field, String alias) {
         String inner = lo.nextAlias();
         SqlSource src;
         SqlExpr value;

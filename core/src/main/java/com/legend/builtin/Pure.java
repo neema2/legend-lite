@@ -1569,7 +1569,7 @@ public final class Pure {
                     + " algebra covers types, not values");
 
     /** The wall reason for a walled native, or null when the native is not walled. */
-    public static @com.legend.Nullable String walledNativeReason(String fqn) {
+    public static @com.legend.base.Nullable String walledNativeReason(String fqn) {
         return WALLED_NATIVES.get(fqn);
     }
 

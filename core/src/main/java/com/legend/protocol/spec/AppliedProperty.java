@@ -37,7 +37,7 @@ import java.util.Objects;
 public record AppliedProperty(
         ValueSpecification receiver,
         String property,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
 
     public AppliedProperty {
         Objects.requireNonNull(receiver, "receiver");

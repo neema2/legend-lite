@@ -40,7 +40,7 @@ final class NavProvenance {
      * the composed row, its left reads re-pointed through the composed
      * prefix — the slot route then serves it as usual. Null when the hop
      * is not one of the class's navigate slots. */
-    @com.legend.Nullable ClassSource spliceOwnStep(ClassSource src, String hop) {
+    @com.legend.base.Nullable ClassSource spliceOwnStep(ClassSource src, String hop) {
         if (src.composedPrefix().isEmpty()) {
             return null;
         }
@@ -211,7 +211,7 @@ final class NavProvenance {
     /** The class a navigate-slot head of {@code owner} lands on: the
      * step's own getAll target (a routed set's class), else the declared
      * property / association-end type. */
-    @com.legend.Nullable String navStepTargetClass(ClassSource owner,
+    @com.legend.base.Nullable String navStepTargetClass(ClassSource owner,
             String head) {
         TypedNavigate step = navStepOf(owner, head);
         if (step != null && step.target() instanceof TypedGetAll tg) {
@@ -222,7 +222,7 @@ final class NavProvenance {
 
     /** The navigate step a head of {@code owner} reads, or null (an
      * association end, an embedded head). */
-    @com.legend.Nullable TypedNavigate navStepOf(ClassSource owner, String head) {
+    @com.legend.base.Nullable TypedNavigate navStepOf(ClassSource owner, String head) {
         TypedSpec b = owner.bindings().get(SyntheticHeads.realHead(head));
         var steps = Pipelines.navSteps(owner.pipeline());
         String alias = b == null ? null

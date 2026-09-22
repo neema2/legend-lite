@@ -241,7 +241,7 @@ public final class RuntimeSectionGrammar implements LexableSectionGrammar {
      *  the PROTOCOL field ('connectionPointerStores'), not the source
      *  key. */
     static int parseBodyKeys(TokenStreamCursor c, boolean single, String qn,
-            @com.legend.Nullable TokenType close,
+            @com.legend.base.Nullable TokenType close,
             List<Protocol.PPointer> mappings,
             List<Protocol.PStoreConnections> connections,
             List<Protocol.PConnectionStores> connectionStores,

@@ -268,7 +268,7 @@ final class GraphFetchChecker {
 
 
     /** The nested sub-tree a colspec's {@code function2} wraps, or {@code null} for a leaf. */
-    static @com.legend.Nullable ColSpecArray nestedTree(ColSpec cs) {
+    static @com.legend.base.Nullable ColSpecArray nestedTree(ColSpec cs) {
         if (cs.function2() == null || cs.function2().body().isEmpty()) {
             return null;
         }

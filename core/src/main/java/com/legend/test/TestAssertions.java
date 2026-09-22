@@ -43,8 +43,8 @@ public final class TestAssertions {
 
     /** {@code EqualToJson}: null when the trees are equal under the rules
      *  above, else the path and values of the FIRST difference found. */
-    public static @com.legend.Nullable String equalToJson(
-            @com.legend.Nullable Object expected, @com.legend.Nullable Object actual) {
+    public static @com.legend.base.Nullable String equalToJson(
+            @com.legend.base.Nullable Object expected, @com.legend.base.Nullable Object actual) {
         return com.legend.exec.Equality.serviceJson(expected, actual);
     }
 }

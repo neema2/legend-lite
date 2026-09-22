@@ -46,7 +46,7 @@ final class ColumnsMetaFold {
     /** TDS COLUMN-METADATA folds ({@code .columns.name/.type/
      * .documentation} — static facts of the typed relation); null when
      * the access is not one of these. */
-    static @com.legend.Nullable TypedSpec read(Typer t, AppliedProperty ap, Env env) {
+    static @com.legend.base.Nullable TypedSpec read(Typer t, AppliedProperty ap, Env env) {
         // TDS COLUMN METADATA — engine TabularDataSet.columns.name/.type.
         // Column names and pure type names are STATIC FACTS of the typed
         // relation (no execution): they fold to string collections here.

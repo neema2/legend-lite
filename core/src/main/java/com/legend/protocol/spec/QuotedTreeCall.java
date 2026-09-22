@@ -29,7 +29,7 @@ import java.util.Objects;
 public record QuotedTreeCall(
         AppliedFunction original,
         ValueSpecification tree,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos)
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
 
     public QuotedTreeCall {

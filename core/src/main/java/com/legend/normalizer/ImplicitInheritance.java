@@ -193,7 +193,7 @@ final class ImplicitInheritance {
 
     /** The NEAREST class-hierarchy ancestor with exactly ONE Relational
      * mapping in scope over the child's main table; null otherwise. */
-    private static ClassMapping.@com.legend.Nullable Relational nearestMappedAncestor(
+    private static ClassMapping.@com.legend.base.Nullable Relational nearestMappedAncestor(
             LegacyMappingDefinition.TableReference childMain,
             String childClass, ModelBuilder model,
             Map<String, List<ClassMapping.Relational>> byClass) {

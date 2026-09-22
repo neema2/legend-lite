@@ -75,9 +75,9 @@ final class InstanceEquality {
     }
 
     /** The claimed lowering, or null for an unclaimable shape. */
-    static @com.legend.Nullable SqlExpr lower(TypedNativeCall n,
+    static @com.legend.base.Nullable SqlExpr lower(TypedNativeCall n,
             Function<Type, com.legend.compiler.element
-                    .@com.legend.Nullable EqualityKeys> keysOf,
+                    .@com.legend.base.Nullable EqualityKeys> keysOf,
             Function<Type, SqlType> sqlTypeOf,
             Function<TypedSpec, SqlExpr> scalar,
             Supplier<String> freshVar) {
@@ -94,10 +94,10 @@ final class InstanceEquality {
         };
     }
 
-    private static @com.legend.Nullable SqlExpr equality(TypedNativeCall n,
+    private static @com.legend.base.Nullable SqlExpr equality(TypedNativeCall n,
             boolean isEq,
             Function<Type, com.legend.compiler.element
-                    .@com.legend.Nullable EqualityKeys> keysOf,
+                    .@com.legend.base.Nullable EqualityKeys> keysOf,
             Function<Type, SqlType> sqlTypeOf,
             Function<TypedSpec, SqlExpr> scalar) {
         TypedSpec l = n.args().get(0);
@@ -147,10 +147,10 @@ final class InstanceEquality {
                 new SqlExpr.Cast(cb, SqlType.Scalar.VARCHAR));
     }
 
-    private static @com.legend.Nullable SqlExpr contains(TypedNativeCall n,
+    private static @com.legend.base.Nullable SqlExpr contains(TypedNativeCall n,
             boolean isContains,
             Function<Type, com.legend.compiler.element
-                    .@com.legend.Nullable EqualityKeys> keysOf,
+                    .@com.legend.base.Nullable EqualityKeys> keysOf,
             Function<Type, SqlType> sqlTypeOf,
             Function<TypedSpec, SqlExpr> scalar,
             Supplier<String> freshVar) {
@@ -204,7 +204,7 @@ final class InstanceEquality {
 
     /** The MODEL-class fqn of a [1]-multiplicity instance operand, or
      * null (platform carriers, Any/variant/Nil, collections). */
-    private static @com.legend.Nullable String instanceFqn(TypedSpec s) {
+    private static @com.legend.base.Nullable String instanceFqn(TypedSpec s) {
         if (!(s.info().multiplicity() instanceof Multiplicity.Bounded b)
                 || b.lower() != 1 || b.upper() == null || b.upper() != 1) {
             return null;
@@ -214,7 +214,7 @@ final class InstanceEquality {
 
     /** The MODEL-class fqn of an instance TYPE (any multiplicity), or
      * null (platform carriers, Any/variant/Nil). */
-    private static @com.legend.Nullable String classInstanceFqn(Type t) {
+    private static @com.legend.base.Nullable String classInstanceFqn(Type t) {
         if (PlatformTypes.isPairCarrier(t) || PlatformTypes.isListCarrier(t)
                 || PlatformTypes.isMapCarrier(t)
                 || (t instanceof Type.ClassType ct

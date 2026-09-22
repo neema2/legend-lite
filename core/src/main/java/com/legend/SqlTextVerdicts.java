@@ -47,11 +47,11 @@ final class SqlTextVerdicts {
 
     /** Null = not this arm's shape (the caller's generic path
      * continues); otherwise the verdict. */
-    static @com.legend.Nullable ExecutionResult tryArm(String name,
+    static @com.legend.base.Nullable ExecutionResult tryArm(String name,
             boolean wantEqual, List<TypedSpec> args,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         if (!wantEqual || args.size() < 2) {
             return null;
         }
@@ -232,11 +232,11 @@ final class SqlTextVerdicts {
      * Same verdict policy as the toSQLString arm. Null = not the
      * simple shape (the String-overload spelling, extra args) — the
      * current path keeps it. */
-    static @com.legend.Nullable ExecutionResult tryArmSameSql(
+    static @com.legend.base.Nullable ExecutionResult tryArmSameSql(
             com.legend.compiler.spec.typed.TypedUserCall root,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         if (root.args().size() != 2) {
             return null;
         }
@@ -304,11 +304,11 @@ final class SqlTextVerdicts {
      * H2-1.4.200 residue with no reference database on our stack
      * (inventory row 17). Rows judge; text vs the upgraded golden is
      * the census. Null = not the simple shape. */
-    static @com.legend.Nullable ExecutionResult tryArmH2Compat(
+    static @com.legend.base.Nullable ExecutionResult tryArmH2Compat(
             com.legend.compiler.spec.typed.TypedUserCall root,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         if (root.args().size() != 3) {
             return null;
         }
@@ -392,11 +392,11 @@ final class SqlTextVerdicts {
 
     /** The H2Compatible verdict tail: rows leg + verdict for golden(k)
      * over the frame behind {@code resultArg}. */
-    private static @com.legend.Nullable ExecutionResult h2CompatVerdict(
+    private static @com.legend.base.Nullable ExecutionResult h2CompatVerdict(
             String golden, String ours, TypedSpec resultArg, int readK,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         golden = stripChainedPlanWarning(golden);
         boolean textEqual = golden.equals(ours);
         SqlReplayOracle oracle = env.replayOracle();
@@ -449,10 +449,10 @@ final class SqlTextVerdicts {
      * evaluated as written (any wrapping string code runs in the DB);
      * OUR ROWS = the frame's values (the splice's typed chain); golden
      * rows + verdict via the SHARED tail. */
-    private static @com.legend.Nullable ExecutionResult tryArmExecRead(
+    private static @com.legend.base.Nullable ExecutionResult tryArmExecRead(
             String name, List<TypedSpec> args, List<TypedSpec> letPrefix,
             SpecCompiler specs, StatementExecutor.ExecEnv env,
-            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         // TDG FIRST: a generator fetch text on exactly one side is the
         // fetch-text verdict whatever wraps it — the corpus's
         // assertSqlEquals inlines to assertEquals over
@@ -580,7 +580,7 @@ final class SqlTextVerdicts {
                 pop == null ? List.of() : pop.temps());
     }
 
-    private record PopulationShape(@com.legend.Nullable TypedSpec rowsRead,
+    private record PopulationShape(@com.legend.base.Nullable TypedSpec rowsRead,
             List<SqlReplayOracle.TempTable> temps) {
     }
 
@@ -613,11 +613,11 @@ final class SqlTextVerdicts {
      * named temp read; the `select distinct` population golden the
      * batch-67 route owns). */
     private record StatementRoute(
-            com.legend.compiler.spec.typed.@com.legend.Nullable TypedLet let) {
+            com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedLet let) {
     }
 
-    private static @com.legend.Nullable StatementRoute statementRoute(int k,
-            @com.legend.Nullable String golden, FrameFacts fm) {
+    private static @com.legend.base.Nullable StatementRoute statementRoute(int k,
+            @com.legend.base.Nullable String golden, FrameFacts fm) {
         List<com.legend.compiler.spec.typed.TypedLet> lets = statementLets(fm.query());
         if (golden != null && NAMED_IN_TEMP.matcher(golden).find()) {
             return new StatementRoute(null);
@@ -643,7 +643,7 @@ final class SqlTextVerdicts {
      * executed as its own SQL in declaration order; value-only lets
      * (dates, strings from helpers) are not statements. */
     private static List<com.legend.compiler.spec.typed.TypedLet> statementLets(
-            @com.legend.Nullable TypedSpec query) {
+            @com.legend.base.Nullable TypedSpec query) {
         List<com.legend.compiler.spec.typed.TypedLet> out = new java.util.ArrayList<>();
         if (!(query instanceof TypedLambda lam) || lam.body().size() < 2) {
             return out;
@@ -668,8 +668,8 @@ final class SqlTextVerdicts {
      * (rows leg = the let's expression, wrapped like the frame), or a
      * golden reading {@code tempTableForIn_<let>} (a "population" temp
      * spec the oracle fills from the remembered population golden). */
-    private static @com.legend.Nullable PopulationShape populationShape(
-            String golden, @com.legend.Nullable TypedSpec query) {
+    private static @com.legend.base.Nullable PopulationShape populationShape(
+            String golden, @com.legend.base.Nullable TypedSpec query) {
         if (!(query instanceof TypedLambda lam) || lam.body().size() < 2) {
             return null;
         }
@@ -700,7 +700,7 @@ final class SqlTextVerdicts {
      * over a Result-typed receiver, first-statement form only
      * (1 argument, or 2 with a literal 0). LET-AWARE like
      * {@link #findProducer}. */
-    private static @com.legend.Nullable
+    private static @com.legend.base.Nullable
             com.legend.compiler.spec.typed.TypedUserCall findSqlRead(
             TypedSpec t, List<TypedSpec> letPrefix) {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
@@ -760,11 +760,11 @@ final class SqlTextVerdicts {
      * TEXT census compares the RAW golden (holes intact) as always.
      * Unbindable parameters and residual (freemarker-operation) holes
      * WALL counted — the measure-first residue. */
-    private static @com.legend.Nullable ExecutionResult tryArmPlanText(
+    private static @com.legend.base.Nullable ExecutionResult tryArmPlanText(
             String name, TypedSpec goldenSide, TypedSpec actualSide,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         TypedNativeCall producer = findPlanProducer(actualSide, letPrefix);
         // THE PRODUCER BEHIND A HELPER (2026-09-17): a test that gets its
         // plan string from a user function (executionPlanForQueryWith
@@ -871,7 +871,7 @@ final class SqlTextVerdicts {
      * text ({@code Relational( ... sql = <sql> connection = ...)}, with or
      * without formatting) yields its ONE sql node; several nodes or none
      * = null. */
-    private static @com.legend.Nullable String planReplaySql(String golden) {
+    private static @com.legend.base.Nullable String planReplaySql(String golden) {
         String g = golden.strip();
         String lower = g.toLowerCase(java.util.Locale.ROOT);
         if (lower.startsWith("select") || lower.startsWith("with")
@@ -904,7 +904,7 @@ final class SqlTextVerdicts {
     private record LookThrough(TypedNativeCall producer, List<TypedSpec> scope) {
     }
 
-    private static @com.legend.Nullable LookThrough lookThrough(TypedSpec side,
+    private static @com.legend.base.Nullable LookThrough lookThrough(TypedSpec side,
             List<TypedSpec> letPrefix, SpecCompiler specs) {
         try {
             List<TypedSpec> seq = new java.util.ArrayList<>(letPrefix);
@@ -920,13 +920,13 @@ final class SqlTextVerdicts {
         }
     }
 
-    private static @com.legend.Nullable TypedNativeCall lookThroughPlanProducer(TypedSpec side,
+    private static @com.legend.base.Nullable TypedNativeCall lookThroughPlanProducer(TypedSpec side,
             List<TypedSpec> letPrefix, SpecCompiler specs) {
         LookThrough lt = lookThrough(side, letPrefix, specs);
         return lt == null ? null : lt.producer();
     }
 
-    private static @com.legend.Nullable TypedNativeCall findPlanProducer(
+    private static @com.legend.base.Nullable TypedNativeCall findPlanProducer(
             TypedSpec t, List<TypedSpec> letPrefix) {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
         work.add(t);
@@ -956,11 +956,11 @@ final class SqlTextVerdicts {
      * function — a USER function reaching the verdict layer
      * PRE-inline, the assertSameSQL discipline): 2 args, the TDG side
      * identifies by its producer. Null = not the TDG shape. */
-    static @com.legend.Nullable ExecutionResult tryArmTdgRoot(
+    static @com.legend.base.Nullable ExecutionResult tryArmTdgRoot(
             com.legend.compiler.spec.typed.TypedUserCall root,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         if (root.args().size() != 2) {
             return null;
         }
@@ -983,11 +983,11 @@ final class SqlTextVerdicts {
      * walk's tdgSqlReplay semantics behind the oracle interface. A
      * decline (ordered fetch, chained temp tables) keeps TEXT as the
      * contract, counted. Null = not the TDG shape. */
-    private static @com.legend.Nullable ExecutionResult tryArmTdgSql(
+    private static @com.legend.base.Nullable ExecutionResult tryArmTdgSql(
             String name, TypedSpec goldenSide, TypedSpec actualSide,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            AssertVerdicts.@com.legend.Nullable SpliceHook hook) {
+            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
         if (!hasTdgProducer(actualSide, letPrefix)) {
             return null;
         }
@@ -1082,7 +1082,7 @@ final class SqlTextVerdicts {
      * letPrefix binding whose sqls equals that collection, and its
      * {@code source} is the generator node the fold kept. Null = not
      * the shape (the plain fetch-text verdict owns it). */
-    private static @com.legend.Nullable TdgHop tdgHop(TypedSpec actualSide,
+    private static @com.legend.base.Nullable TdgHop tdgHop(TypedSpec actualSide,
             List<TypedSpec> letPrefix) {
         // the H2Compatible spelling flattens the hop's text through the
         // String overload: $testData.sqls->at(i)->sqlRemoveFormatting()
@@ -1150,14 +1150,14 @@ final class SqlTextVerdicts {
      * over a let-bound Result is SPLICED first (the frame's envelope chain,
      * a from, stands where the variable stood); a read without a from
      * executes under no connection zone. */
-    private static @com.legend.Nullable String frameZone(TypedSpec read) {
+    private static @com.legend.base.Nullable String frameZone(TypedSpec read) {
         var froms = com.legend.compiler.spec.typed.ExecutionContext.froms(read);
         return froms.isEmpty() ? null : froms.get(0).context().timeZone();
     }
 
     private static List<SqlReplayOracle.TempTable> inListTemps(String golden,
             TypedSpec query, List<TypedSpec> letPrefix,
-            @com.legend.Nullable String zone) {
+            @com.legend.base.Nullable String zone) {
         var m = NUMBERED_IN_TEMP.matcher(golden);
         java.util.Set<String> names = new java.util.LinkedHashSet<>();
         while (m.find()) {
@@ -1238,7 +1238,7 @@ final class SqlTextVerdicts {
 
     /** The generator node inside a let's value (through toOne and other
      * wrappers); null when absent or a plan flavor. */
-    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedTestDataGen
+    private static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedTestDataGen
             generatorIn(TypedSpec t) {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
         work.add(t);
@@ -1307,14 +1307,14 @@ final class SqlTextVerdicts {
     private static ExecutionResult rowsLegAndVerdict(String name,
             String golden, String ours, boolean textEqual,
             SqlReplayOracle oracle, TypedSpec rowsRead,
-            @com.legend.Nullable String replaySqlOrNull,
-            @com.legend.Nullable String mappingFqn,
-            @com.legend.Nullable String classFqn, SqlReplayOracle.ReplayFacts facts,
-            @com.legend.Nullable TypedSpec populationRead,
+            @com.legend.base.Nullable String replaySqlOrNull,
+            @com.legend.base.Nullable String mappingFqn,
+            @com.legend.base.Nullable String classFqn, SqlReplayOracle.ReplayFacts facts,
+            @com.legend.base.Nullable TypedSpec populationRead,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            AssertVerdicts.@com.legend.Nullable SpliceHook hook,
-            @com.legend.Nullable TypedSpec query) {
+            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook,
+            @com.legend.base.Nullable TypedSpec query) {
         return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
                 rowsRead, replaySqlOrNull, mappingFqn, classFqn, facts, populationRead,
                 letPrefix, specs, env, hook, query, null, java.util.Map.of());
@@ -1326,15 +1326,15 @@ final class SqlTextVerdicts {
     private static ExecutionResult rowsLegAndVerdict(String name,
             String golden, String ours, boolean textEqual,
             SqlReplayOracle oracle, TypedSpec rowsRead,
-            @com.legend.Nullable String replaySqlOrNull,
-            @com.legend.Nullable String mappingFqn,
-            @com.legend.Nullable String classFqn, SqlReplayOracle.ReplayFacts facts,
-            @com.legend.Nullable TypedSpec populationRead,
+            @com.legend.base.Nullable String replaySqlOrNull,
+            @com.legend.base.Nullable String mappingFqn,
+            @com.legend.base.Nullable String classFqn, SqlReplayOracle.ReplayFacts facts,
+            @com.legend.base.Nullable TypedSpec populationRead,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            AssertVerdicts.@com.legend.Nullable SpliceHook hook,
-            @com.legend.Nullable TypedSpec query,
-            @com.legend.Nullable String goldenPlan,
+            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook,
+            @com.legend.base.Nullable TypedSpec query,
+            @com.legend.base.Nullable String goldenPlan,
             java.util.Map<String, List<String>> planBindings) {
         return rowsLegAndVerdict(name, golden, ours, textEqual, oracle,
                 rowsRead, replaySqlOrNull, mappingFqn, classFqn, facts, populationRead,
@@ -1347,15 +1347,15 @@ final class SqlTextVerdicts {
     private static ExecutionResult rowsLegAndVerdict(String name,
             String golden, String ours, boolean textEqual,
             SqlReplayOracle oracle, TypedSpec rowsRead,
-            @com.legend.Nullable String replaySqlOrNull,
-            @com.legend.Nullable String mappingFqn,
-            @com.legend.Nullable String classFqn, SqlReplayOracle.ReplayFacts facts,
-            @com.legend.Nullable TypedSpec populationRead,
+            @com.legend.base.Nullable String replaySqlOrNull,
+            @com.legend.base.Nullable String mappingFqn,
+            @com.legend.base.Nullable String classFqn, SqlReplayOracle.ReplayFacts facts,
+            @com.legend.base.Nullable TypedSpec populationRead,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            AssertVerdicts.@com.legend.Nullable SpliceHook hook,
-            @com.legend.Nullable TypedSpec query,
-            @com.legend.Nullable String goldenPlan,
+            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook,
+            @com.legend.base.Nullable TypedSpec query,
+            @com.legend.base.Nullable String goldenPlan,
             java.util.Map<String, List<String>> planBindings,
             List<SqlReplayOracle.TempTable> temps) {
         com.legend.exec.VerdictBatch batch = env.verdictBatch();
@@ -1389,15 +1389,15 @@ final class SqlTextVerdicts {
     private static ExecutionResult rowsLegNow(String name,
             String golden, String ours, boolean textEqual,
             SqlReplayOracle oracle, TypedSpec rowsRead,
-            @com.legend.Nullable String replaySqlOrNull,
-            @com.legend.Nullable String mappingFqn,
-            @com.legend.Nullable String classFqn, SqlReplayOracle.ReplayFacts facts,
-            @com.legend.Nullable TypedSpec populationRead,
+            @com.legend.base.Nullable String replaySqlOrNull,
+            @com.legend.base.Nullable String mappingFqn,
+            @com.legend.base.Nullable String classFqn, SqlReplayOracle.ReplayFacts facts,
+            @com.legend.base.Nullable TypedSpec populationRead,
             List<TypedSpec> letPrefix, SpecCompiler specs,
             StatementExecutor.ExecEnv env,
-            AssertVerdicts.@com.legend.Nullable SpliceHook hook,
-            @com.legend.Nullable TypedSpec query,
-            @com.legend.Nullable String goldenPlan,
+            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook,
+            @com.legend.base.Nullable TypedSpec query,
+            @com.legend.base.Nullable String goldenPlan,
             java.util.Map<String, List<String>> planBindings,
             List<SqlReplayOracle.TempTable> temps) {
         ExecutionResult rows;
@@ -1487,7 +1487,7 @@ final class SqlTextVerdicts {
      * keeps lets as lets, so {@code let sql = toSQLString(...);
      * assertEquals(golden, $sql)} carries the producer BEHIND the
      * variable. Null when absent. */
-    private static com.legend.compiler.spec.NativeDispatch.@com.legend.Nullable RoutineCall findProducer(
+    private static com.legend.compiler.spec.NativeDispatch.@com.legend.base.Nullable RoutineCall findProducer(
             TypedSpec t, List<TypedSpec> letPrefix) {
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
         work.add(t);
@@ -1535,17 +1535,17 @@ final class SqlTextVerdicts {
     /** The executed frame's mapping, root class, and STATIC extent-subset
      * fact (a class extent through subset-preserving ops — the graph
      * compare's pk-collapse licence). */
-    private record FrameFacts(@com.legend.Nullable String mapping,
-            @com.legend.Nullable String cls, SqlReplayOracle.ReplayFacts facts,
-            @com.legend.Nullable TypedSpec populationRead,
-            @com.legend.Nullable TypedSpec query,
-            @com.legend.Nullable TypedPackageableRef mappingRef,
+    private record FrameFacts(@com.legend.base.Nullable String mapping,
+            @com.legend.base.Nullable String cls, SqlReplayOracle.ReplayFacts facts,
+            @com.legend.base.Nullable TypedSpec populationRead,
+            @com.legend.base.Nullable TypedSpec query,
+            @com.legend.base.Nullable TypedPackageableRef mappingRef,
             com.legend.compiler.spec.typed.ExecutionContext context) {
     }
 
     private static FrameFacts frameMappingAndClass(TypedSpec resultArg,
             List<TypedSpec> letPrefix,
-            AssertVerdicts.@com.legend.Nullable SpliceHook hook, SpecCompiler specs) {
+            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook, SpecCompiler specs) {
         TypedSpec src = com.legend.compiler.spec.typed.Lets.bound(resultArg, letPrefix);
         while (src instanceof com.legend.compiler.spec.typed.TypedFrom sf) {
             src = sf.source();
@@ -1598,7 +1598,7 @@ final class SqlTextVerdicts {
                 com.legend.compiler.spec.typed.ExecutionContext.NONE);
     }
 
-    private static @com.legend.Nullable String rootClassFqn(
+    private static @com.legend.base.Nullable String rootClassFqn(
             TypedLambda lam) {
         return lam.body().get(lam.body().size() - 1).info().type()
                 instanceof com.legend.compiler.element.type.Type
@@ -1606,8 +1606,8 @@ final class SqlTextVerdicts {
                 ? ct.fqn() : null;
     }
 
-    private static @com.legend.Nullable String scalarString(
-            @com.legend.Nullable ExecutionResult r) {
+    private static @com.legend.base.Nullable String scalarString(
+            @com.legend.base.Nullable ExecutionResult r) {
         return r instanceof ExecutionResult.Scalar s
                 && s.value() instanceof String str ? str : null;
     }
@@ -1630,7 +1630,7 @@ final class SqlTextVerdicts {
      * which seeds it when exactly one fixture does. Model navigation only:
      * no SQL text, no driver message, no judgment. */
     private static void provideStores(StatementExecutor.ExecEnv env,
-            @com.legend.Nullable String mappingFqn) {
+            @com.legend.base.Nullable String mappingFqn) {
         com.legend.exec.AssertListener l = env.assertListener();
         if (l == null || mappingFqn == null) {
             return;

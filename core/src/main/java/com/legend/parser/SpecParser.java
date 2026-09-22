@@ -253,7 +253,7 @@ public final class SpecParser implements TokenStreamCursor {
     @SuppressWarnings("StringOperationCanBeSimplified")
     private static final String SHADOW = new String("<shadowed>");
 
-    private @com.legend.Nullable String constString(String name) {
+    private @com.legend.base.Nullable String constString(String name) {
         for (java.util.Map<String, String> scope : constStrings) {
             String v = scope.get(name);
             if (v != null) {
@@ -468,7 +468,7 @@ public final class SpecParser implements TokenStreamCursor {
      * silently permitted, matching engine.
      */
     private List<ValueSpecification> parseCodeBlockUntil(
-            @com.legend.Nullable TokenType terminator) {
+            @com.legend.base.Nullable TokenType terminator) {
         List<ValueSpecification> stmts = new ArrayList<>();
         if (atTerminator(terminator)) {
             return stmts;
@@ -496,7 +496,7 @@ public final class SpecParser implements TokenStreamCursor {
         return stmts;
     }
 
-    private boolean atTerminator(@com.legend.Nullable TokenType terminator) {
+    private boolean atTerminator(@com.legend.base.Nullable TokenType terminator) {
         if (atEnd()) {
             return true; // EOF terminates
         }
@@ -2337,7 +2337,7 @@ public final class SpecParser implements TokenStreamCursor {
                 || t == TokenType.BRACE_CLOSE;
     }
 
-    private @com.legend.Nullable ColSpec tryTypedColSpec(String name, int nameTokIdx,
+    private @com.legend.base.Nullable ColSpec tryTypedColSpec(String name, int nameTokIdx,
             int startColShift,
             List<com.legend.protocol.Protocol.PStereotype> stereotypes,
             List<com.legend.protocol.Protocol.PTaggedValue> taggedValues) {

@@ -36,7 +36,7 @@ import java.util.Objects;
 public record LambdaFunction(
         List<Variable> parameters,
         List<ValueSpecification> body,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
 
     public LambdaFunction {
         Objects.requireNonNull(parameters, "parameters");

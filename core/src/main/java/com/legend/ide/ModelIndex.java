@@ -81,7 +81,7 @@ public final class ModelIndex {
     }
 
     /** Look up an entry by FQN, or {@code null} if the FQN is not declared. */
-    public @com.legend.Nullable Entry get(String fqn) {
+    public @com.legend.base.Nullable Entry get(String fqn) {
         return byFqn.get(fqn);
     }
 

@@ -77,20 +77,20 @@ final class ViewRelation {
      */
     static ValueSpecification viewRelationExpr(
             DatabaseDefinition.ViewDefinition view, String viewName, String db,
-            ModelBuilder model, @com.legend.Nullable ResolvedMapping md) {
+            ModelBuilder model, @com.legend.base.Nullable ResolvedMapping md) {
         return viewRelationExpr(view, viewName, db, model, md,
                 new java.util.HashSet<>());
     }
 
     /** The owner a message names: the mapping expanding the view, or — for
      *  the E.5 lift, which has no mapping — the store itself. */
-    static String owner(@com.legend.Nullable ResolvedMapping md, String db) {
+    static String owner(@com.legend.base.Nullable ResolvedMapping md, String db) {
         return md == null ? "store=" + db : "mapping=" + md.qualifiedName();
     }
 
     private static ValueSpecification viewRelationExpr(
             DatabaseDefinition.ViewDefinition view, String viewName, String db,
-            ModelBuilder model, @com.legend.Nullable ResolvedMapping md,
+            ModelBuilder model, @com.legend.base.Nullable ResolvedMapping md,
             java.util.Set<String> expanding) {
         if (!expanding.add(viewName)) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,
@@ -444,13 +444,13 @@ final class ViewRelation {
     }
 
     static String inferViewMainTable(DatabaseDefinition.ViewDefinition view,
-                                            String viewName, @com.legend.Nullable ResolvedMapping md) {
+                                            String viewName, @com.legend.base.Nullable ResolvedMapping md) {
         return inferViewMainTable(view, viewName, md, null, null);
     }
 
     static String inferViewMainTable(DatabaseDefinition.ViewDefinition view,
-                                            String viewName, @com.legend.Nullable ResolvedMapping md,
-                                            @com.legend.Nullable ModelBuilder model, @com.legend.Nullable String dbFqn) {
+                                            String viewName, @com.legend.base.Nullable ResolvedMapping md,
+                                            @com.legend.base.Nullable ModelBuilder model, @com.legend.base.Nullable String dbFqn) {
         Set<String> tables = new LinkedHashSet<>();
         for (DatabaseDefinition.ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {
             RelationalOperation expr = vc.expression();
@@ -489,7 +489,7 @@ final class ViewRelation {
      * condition tables MINUS the terminal tables the columns read — a
      * single remainder is the root (table or view); null keeps the
      * caller's loud wall. */
-    private static @com.legend.Nullable String joinOnlyViewRoot(DatabaseDefinition.ViewDefinition view,
+    private static @com.legend.base.Nullable String joinOnlyViewRoot(DatabaseDefinition.ViewDefinition view,
             ModelBuilder model, String dbFqn) {
         Set<String> terminals = new LinkedHashSet<>();
         JoinChainElement first = null;

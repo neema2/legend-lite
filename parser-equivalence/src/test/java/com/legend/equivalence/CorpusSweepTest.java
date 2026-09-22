@@ -679,7 +679,7 @@ public class CorpusSweepTest {
         return id != null && SKEW_CLAIMS.contains(id);
     }
 
-    public static @com.legend.Nullable String classify(Throwable root, String text) {
+    public static @com.legend.base.Nullable String classify(Throwable root, String text) {
         String msg = String.valueOf(root.getMessage());
         if ("Unexpected token".equals(msg.trim())) {
             try {

@@ -14,9 +14,9 @@ import java.util.Objects;
  * pattern-match on {@link PureTimeLiteral} variants instead of
  * re-parsing the string.
  */
-public record CTime(@com.legend.Nullable PureTimeLiteral value,
-        @com.legend.Nullable String written,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos)
+public record CTime(@com.legend.base.Nullable PureTimeLiteral value,
+        @com.legend.base.Nullable String written,
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
     public CTime {
         if (value == null && written == null) {

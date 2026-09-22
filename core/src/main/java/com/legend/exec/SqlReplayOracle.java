@@ -73,7 +73,7 @@ public interface SqlReplayOracle {
      * jdbcTypes} aligned by column, {@code rows} of raw cells. */
     record OracleRows(java.util.List<String> labels,
             java.util.List<Integer> jdbcTypes,
-            java.util.List<java.util.List<@com.legend.Nullable Object>> rows) {
+            java.util.List<java.util.List<@com.legend.base.Nullable Object>> rows) {
     }
 
     /**
@@ -91,8 +91,8 @@ public interface SqlReplayOracle {
      */
     RowVerdict verify(java.sql.Connection session, String goldenSql,
             ExecutionResult ours,
-            @com.legend.Nullable String mappingFqn,
-            @com.legend.Nullable String rootClassFqn,
+            @com.legend.base.Nullable String mappingFqn,
+            @com.legend.base.Nullable String rootClassFqn,
             ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx);
 
@@ -109,13 +109,13 @@ public interface SqlReplayOracle {
      * (the tie boundaries), null when underivable (a computed key): an
      * ordered chain without keys keeps the multiset compare, COUNTED. */
     record ReplayFacts(boolean extentSubset, boolean ordered,
-            java.util.@com.legend.Nullable List<String> sortKeys,
-            @com.legend.Nullable ExecutionResult population) {
+            java.util.@com.legend.base.Nullable List<String> sortKeys,
+            @com.legend.base.Nullable ExecutionResult population) {
         public static final ReplayFacts NONE = new ReplayFacts(false, false, null, null);
 
         /** The compile-time facts alone (no page). */
         public ReplayFacts(boolean extentSubset, boolean ordered,
-                java.util.@com.legend.Nullable List<String> sortKeys) {
+                java.util.@com.legend.base.Nullable List<String> sortKeys) {
             this(extentSubset, ordered, sortKeys, null);
         }
 
@@ -150,8 +150,8 @@ public interface SqlReplayOracle {
      * temp support declines through the missing table as before). */
     default RowVerdict verify(java.sql.Connection session, String goldenSql,
             ExecutionResult ours,
-            @com.legend.Nullable String mappingFqn,
-            @com.legend.Nullable String rootClassFqn,
+            @com.legend.base.Nullable String mappingFqn,
+            @com.legend.base.Nullable String rootClassFqn,
             ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx,
             java.util.List<TempTable> temps) {
@@ -170,14 +170,14 @@ public interface SqlReplayOracle {
     default RowVerdict verifyPlan(java.sql.Connection session, String goldenPlan,
             java.util.Map<String, java.util.List<String>> bindings,
             ExecutionResult ours,
-            @com.legend.Nullable String mappingFqn,
-            @com.legend.Nullable String rootClassFqn,
+            @com.legend.base.Nullable String mappingFqn,
+            @com.legend.base.Nullable String rootClassFqn,
             ReplayFacts facts,
             com.legend.compiler.element.ModelContext ctx) {
         return RowVerdict.declined("plan replay not supported by this oracle");
     }
 
-    record RowVerdict(Outcome outcome, @com.legend.Nullable String detail) {
+    record RowVerdict(Outcome outcome, @com.legend.base.Nullable String detail) {
         public enum Outcome { MATCH, DIVERGED, DECLINED, FAULT }
 
         public static RowVerdict match() {

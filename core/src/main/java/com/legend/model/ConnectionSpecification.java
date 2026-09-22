@@ -38,11 +38,11 @@ public sealed interface ConnectionSpecification
      *  extension carried verbatim when present. Engine's
      *  {@code testDataSetupCSV} / {@code testDataSetupSqls} keys are
      *  carried as data for the test-seeding path. */
-    record LocalH2(@com.legend.Nullable String url,
-            @com.legend.Nullable String testDataSetupCsv,
-            java.util.@com.legend.Nullable List<String> testDataSetupSqls)
+    record LocalH2(@com.legend.base.Nullable String url,
+            @com.legend.base.Nullable String testDataSetupCsv,
+            java.util.@com.legend.base.Nullable List<String> testDataSetupSqls)
             implements ConnectionSpecification {
-        public LocalH2(@com.legend.Nullable String url) {
+        public LocalH2(@com.legend.base.Nullable String url) {
             this(url, null, null);
         }
     }
@@ -68,11 +68,11 @@ public sealed interface ConnectionSpecification
     /** Engine's Snowflake datasource; carried for parse coverage — dialect
      *  selection refuses Snowflake execution loudly. */
     record Snowflake(String databaseName, String accountName, String warehouseName,
-            String region, @com.legend.Nullable String accountType,
-            @com.legend.Nullable String cloudType,
-            @com.legend.Nullable Boolean enableQueryTags,
-            @com.legend.Nullable String organization,
-            @com.legend.Nullable String role)
+            String region, @com.legend.base.Nullable String accountType,
+            @com.legend.base.Nullable String cloudType,
+            @com.legend.base.Nullable Boolean enableQueryTags,
+            @com.legend.base.Nullable String organization,
+            @com.legend.base.Nullable String role)
             implements ConnectionSpecification {}
 
     /** Engine's GCP Spanner datasource; carried for parse coverage. */

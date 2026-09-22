@@ -229,7 +229,7 @@ public final class DiagramService {
         return name;
     }
 
-    private static @com.legend.Nullable String getTag(ClassDefinition cd, String tagName) {
+    private static @com.legend.base.Nullable String getTag(ClassDefinition cd, String tagName) {
         for (TaggedValue tv : cd.taggedValues()) {
             if (tagName.equals(tv.tagName())
                     && ("NlqProfile".equals(tv.profileName())

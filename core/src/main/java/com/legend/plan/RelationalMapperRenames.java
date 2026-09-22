@@ -87,7 +87,7 @@ public final class RelationalMapperRenames {
         /** Peel wrappers, splice query lets, and step INTO zero-arg
          * config helpers' single-expression bodies (the standing
          * schemaMappers()/tableMappers() calls). */
-        @com.legend.Nullable TypedSpec resolve(@com.legend.Nullable TypedSpec v) {
+        @com.legend.base.Nullable TypedSpec resolve(@com.legend.base.Nullable TypedSpec v) {
             if (v == null) {
                 return null;
             }
@@ -133,7 +133,7 @@ public final class RelationalMapperRenames {
         }
     }
 
-    private static void readPostProcessor(@com.legend.Nullable TypedSpec p, Cfg c) {
+    private static void readPostProcessor(@com.legend.base.Nullable TypedSpec p, Cfg c) {
         if (!(p instanceof TypedNativeCall call) || call.args().isEmpty()
                 || com.legend.builtin.NativeFn.ResolverForm.of(call.callee().qualifiedName()).orElse(null) != com.legend.builtin.NativeFn.ResolverForm.RELATIONAL_MAPPER_POST_PROCESSOR) {
             return;   // other postprocessors ride their own channels
@@ -176,7 +176,7 @@ public final class RelationalMapperRenames {
         return v == null ? List.of() : elements(c.resolve(v));
     }
 
-    private static TypedNewInstance mapperInst(@com.legend.Nullable TypedSpec v, Cfg c) {
+    private static TypedNewInstance mapperInst(@com.legend.base.Nullable TypedSpec v, Cfg c) {
         if (c.resolve(v) instanceof TypedNewInstance ni) {
             return ni;
         }
@@ -196,7 +196,7 @@ public final class RelationalMapperRenames {
     /** A schema NAVIGATION — the native {@code schema(db, 'name')} or a
      * shape-alike helper call ({@code getSchema}) — normalized to
      * [definingDbFqn, schemaName]. */
-    private static List<String> schemaKey(@com.legend.Nullable TypedSpec nav, Cfg c) {
+    private static List<String> schemaKey(@com.legend.base.Nullable TypedSpec nav, Cfg c) {
         List<TypedSpec> args = navArgs(nav, 2);
         String dbFqn = refFqn(args.get(0));
         String schema = stringOf(args.get(1));
@@ -205,7 +205,7 @@ public final class RelationalMapperRenames {
 
     /** {@code getTable(db, 'schema', 'table')} — normalized to
      * [definingDbFqn, schema, table]. */
-    private static List<String> tableKey(@com.legend.Nullable TypedSpec nav, Cfg c) {
+    private static List<String> tableKey(@com.legend.base.Nullable TypedSpec nav, Cfg c) {
         List<TypedSpec> args = navArgs(nav, 3);
         String dbFqn = refFqn(args.get(0));
         String schema = stringOf(args.get(1));
@@ -213,7 +213,7 @@ public final class RelationalMapperRenames {
         return List.of(definingDb(c.ctx, dbFqn, schema), schema, table);
     }
 
-    private static List<TypedSpec> navArgs(@com.legend.Nullable TypedSpec nav, int arity) {
+    private static List<TypedSpec> navArgs(@com.legend.base.Nullable TypedSpec nav, int arity) {
         if (nav instanceof TypedNativeCall nc && nc.args().size() == arity
                 && (arity != 2
                         || SCHEMA_NAV.equals(nc.callee().qualifiedName()))) {
@@ -226,7 +226,7 @@ public final class RelationalMapperRenames {
                 + " store navigation: " + nav);
     }
 
-    private static String refFqn(@com.legend.Nullable TypedSpec v) {
+    private static String refFqn(@com.legend.base.Nullable TypedSpec v) {
         if (peel(v) instanceof TypedPackageableRef pr) {
             return pr.fullPath();
         }
@@ -234,7 +234,7 @@ public final class RelationalMapperRenames {
                 "relationalMapper database reference is not an element ref");
     }
 
-    private static String stringOf(@com.legend.Nullable TypedSpec v) {
+    private static String stringOf(@com.legend.base.Nullable TypedSpec v) {
         if (peel(v) instanceof TypedCString cs) {
             return cs.value();
         }
@@ -246,7 +246,7 @@ public final class RelationalMapperRenames {
         return stringOf(ni.properties().get(prop));
     }
 
-    private static List<TypedSpec> elements(@com.legend.Nullable TypedSpec v) {
+    private static List<TypedSpec> elements(@com.legend.base.Nullable TypedSpec v) {
         if (v == null) {
             return List.of();
         }
@@ -254,7 +254,7 @@ public final class RelationalMapperRenames {
     }
 
     /** toOne()/cast wrappers peel — identity for navigation. */
-    private static @com.legend.Nullable TypedSpec peel(@com.legend.Nullable TypedSpec v) {
+    private static @com.legend.base.Nullable TypedSpec peel(@com.legend.base.Nullable TypedSpec v) {
         TypedSpec cur = v;
         while (true) {
             if (cur instanceof TypedNativeCall c && c.args().size() == 1

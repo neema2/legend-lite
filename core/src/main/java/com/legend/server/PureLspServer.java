@@ -59,7 +59,7 @@ public class PureLspServer {
         }
     }
 
-    private String handleInitialize(@com.legend.Nullable Object id, Json.@com.legend.Nullable Obj params) {
+    private String handleInitialize(@com.legend.base.Nullable Object id, Json.@com.legend.base.Nullable Obj params) {
         Map<String, Object> capabilities = new LinkedHashMap<>();
         Map<String, Object> textDocumentSync = new LinkedHashMap<>();
         textDocumentSync.put("openClose", true);
@@ -77,11 +77,11 @@ public class PureLspServer {
         return successResponse(id, result);
     }
 
-    private String handleShutdown(@com.legend.Nullable Object id) {
+    private String handleShutdown(@com.legend.base.Nullable Object id) {
         return successResponse(id, null);
     }
 
-    private List<String> handleDidOpen(Json.@com.legend.Nullable Obj params) {
+    private List<String> handleDidOpen(Json.@com.legend.base.Nullable Obj params) {
         if (params == null) return List.of();
         Json.Obj textDocument = params.getObjOr("textDocument", null);
         if (textDocument == null) return List.of();
@@ -96,7 +96,7 @@ public class PureLspServer {
         return List.of();
     }
 
-    private List<String> handleDidChange(Json.@com.legend.Nullable Obj params) {
+    private List<String> handleDidChange(Json.@com.legend.base.Nullable Obj params) {
         if (params == null) return List.of();
         Json.Obj textDocument = params.getObjOr("textDocument", null);
         if (textDocument == null) return List.of();
@@ -115,7 +115,7 @@ public class PureLspServer {
         return List.of();
     }
 
-    private List<String> handleDidClose(Json.@com.legend.Nullable Obj params) {
+    private List<String> handleDidClose(Json.@com.legend.base.Nullable Obj params) {
         if (params == null) return List.of();
         Json.Obj textDocument = params.getObjOr("textDocument", null);
         if (textDocument == null) return List.of();
@@ -252,7 +252,7 @@ public class PureLspServer {
         return Json.toCompact(notification);
     }
 
-    private String successResponse(@com.legend.Nullable Object id, @com.legend.Nullable Object result) {
+    private String successResponse(@com.legend.base.Nullable Object id, @com.legend.base.Nullable Object result) {
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("jsonrpc", "2.0");
         response.put("id", id);
@@ -260,7 +260,7 @@ public class PureLspServer {
         return Json.toCompact(response);
     }
 
-    private String errorResponse(@com.legend.Nullable Object id, int code, String message) {
+    private String errorResponse(@com.legend.base.Nullable Object id, int code, String message) {
         Map<String, Object> error = new LinkedHashMap<>();
         error.put("code", code);
         error.put("message", message);
@@ -272,6 +272,6 @@ public class PureLspServer {
         return Json.toCompact(response);
     }
 
-    public @com.legend.Nullable String getDocument(String uri) { return documents.get(uri); }
+    public @com.legend.base.Nullable String getDocument(String uri) { return documents.get(uri); }
     public boolean hasDocument(String uri) { return documents.containsKey(uri); }
 }

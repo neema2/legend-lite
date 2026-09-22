@@ -20,7 +20,7 @@ import java.util.List;
  * @param imports  accumulated import scope
  */
 public record ParsedModel(List<PackageableElement> elements, ImportScope imports,
-                          @com.legend.Nullable String source,
+                          @com.legend.base.Nullable String source,
                           java.util.Map<String, Integer> elementOffsets,
                           java.util.Map<String, ImportScope> elementImports,
                           java.util.Map<String, String> elementSources,
@@ -54,7 +54,7 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
      */
     /** Multi-source form without section data. */
     public ParsedModel(List<PackageableElement> elements, ImportScope imports,
-                       @com.legend.Nullable String source,
+                       @com.legend.base.Nullable String source,
                        java.util.Map<String, Integer> elementOffsets,
                        java.util.Map<String, ImportScope> elementImports,
                        java.util.Map<String, String> elementSources) {
@@ -63,7 +63,7 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
     }
 
     public ParsedModel(List<PackageableElement> elements, ImportScope imports,
-                       @com.legend.Nullable String source,
+                       @com.legend.base.Nullable String source,
                        java.util.Map<String, Integer> elementOffsets,
                        java.util.Map<String, ImportScope> elementImports) {
         this(elements, imports, source, elementOffsets, elementImports,
@@ -80,7 +80,7 @@ public record ParsedModel(List<PackageableElement> elements, ImportScope imports
      * simple name ambiguous).
      */
     public ParsedModel(List<PackageableElement> elements, ImportScope imports,
-                       @com.legend.Nullable String source,
+                       @com.legend.base.Nullable String source,
                        java.util.Map<String, Integer> elementOffsets) {
         this(elements, imports, source, elementOffsets, java.util.Map.of());
     }

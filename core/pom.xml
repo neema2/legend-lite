@@ -69,7 +69,7 @@
 
                  The AnnotatedPackages list below IS the adoption ratchet:
                  a listed package builds under the non-null-by-default rule
-                 (fields/params/returns; @com.legend.Nullable declares the
+                 (fields/params/returns; @com.legend.base.Nullable declares the
                  exceptions) and NEVER leaves the list. Adoption order
                  (cheapest proof first): sql -> lowering -> compiler/spec ->
                  resolver; normalizer/exec/harness AFTER their T4.1/T4.2/V3.1
@@ -185,7 +185,7 @@
                                 <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED</arg>
                                 <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED</arg>
                                 <arg>-J--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED</arg>
-                                <arg>-Xplugin:ErrorProne -XepDisableAllChecks -Xep:NullAway:ERROR -XepOpt:NullAway:AnnotatedPackages=com.legend -XepOpt:NullAway:CustomNullableAnnotations=com.legend.Nullable -XepOpt:NullAway:CustomNonnullAnnotations=com.legend.NonNull -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:CheckOptionalEmptiness=true</arg>
+                                <arg>-Xplugin:ErrorProne -XepDisableAllChecks -Xep:NullAway:ERROR -XepOpt:NullAway:AnnotatedPackages=com.legend -XepOpt:NullAway:CustomNullableAnnotations=com.legend.base.Nullable -XepOpt:NullAway:CustomNonnullAnnotations=com.legend.base.NonNull -XepOpt:NullAway:JSpecifyMode=true -XepOpt:NullAway:CheckOptionalEmptiness=true</arg>
                                 <!-- JSpecify mode on JDK21 REQUIRES this arg; without it
                                      NullAway 0.13.x hard-crashes (NULL_GATE_VERIFICATION G3) -->
                                 <arg>-XDaddTypeAnnotationsToSymbol=true</arg>

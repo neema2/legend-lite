@@ -72,7 +72,7 @@ public final class NlqModel {
         return out;
     }
 
-    public static @com.legend.Nullable String tag(List<TaggedValue> taggedValues,
+    public static @com.legend.base.Nullable String tag(List<TaggedValue> taggedValues,
             String profileName, String tagName) {
         for (TaggedValue tv : taggedValues) {
             if (tv.tagName().equals(tagName)

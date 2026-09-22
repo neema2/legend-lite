@@ -25,14 +25,14 @@ final class CastNav {
 
     /** The cast TARGET class FQN when {@code drill} is a class-typed M2M
      * cast on a composed source — null otherwise. */
-    static @com.legend.Nullable String castTarget(ClassSource cs,
-            @com.legend.Nullable TypedSpec drill) {
+    static @com.legend.base.Nullable String castTarget(ClassSource cs,
+            @com.legend.base.Nullable TypedSpec drill) {
         return unwrapToOne(drill) instanceof TypedNewInstanceCast nic
                 && cs.sourceClass() != null ? nic.classFqn() : null;
     }
 
     /** The cast's SOURCE expression (the upstream slot read). */
-    static TypedSpec castSource(@com.legend.Nullable TypedSpec drill) {
+    static TypedSpec castSource(@com.legend.base.Nullable TypedSpec drill) {
         return java.util.Objects.requireNonNull(unwrapToOne(
                 ((TypedNewInstanceCast) java.util.Objects.requireNonNull(unwrapToOne(drill)))
                         .source()));
@@ -42,7 +42,7 @@ final class CastNav {
      * target's composed source when the head is a cast (frame identity
      * guarded), else the slot target itself. */
     static ClassSource leafSource(ClassSources sources, ClassSource cs,
-            @com.legend.Nullable String castFqn, ClassSource target, String headKey) {
+            @com.legend.base.Nullable String castFqn, ClassSource target, String headKey) {
         if (castFqn == null) {
             return target;
         }
@@ -60,7 +60,7 @@ final class CastNav {
     /** The CLASS at hop {@code upto} of a navigation path (declared
      * property walk) — null when a hop is not class-typed. (Relocated
      * from StoreResolver, shared path utility.) */
-    static @com.legend.Nullable String classAtHop(com.legend.compiler.element.ModelContext ctx,
+    static @com.legend.base.Nullable String classAtHop(com.legend.compiler.element.ModelContext ctx,
             ClassSource cs, java.util.List<String> path, int upto) {
         String cur = cs.classFqn();
         for (int i = 0; i < upto; i++) {
@@ -76,8 +76,8 @@ final class CastNav {
         return cur;
     }
 
-    private static @com.legend.Nullable TypedSpec unwrapToOne(
-            @com.legend.Nullable TypedSpec v) {
+    private static @com.legend.base.Nullable TypedSpec unwrapToOne(
+            @com.legend.base.Nullable TypedSpec v) {
         return v instanceof TypedNativeCall c && c.args().size() == 1
                 && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())
                 ? c.args().get(0) : v;

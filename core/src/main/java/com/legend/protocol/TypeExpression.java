@@ -70,7 +70,7 @@ public sealed interface TypeExpression {
      *  {@code TypeExpressionEqualityTest}. The parser sets it; synthesized
      *  references (normalizer, fixtures) leave it null and never reach the
      *  emitter. */
-    record NameRef(String name, @com.legend.Nullable SourceInfo pos) implements TypeExpression {
+    record NameRef(String name, @com.legend.base.Nullable SourceInfo pos) implements TypeExpression {
         public NameRef {
             Objects.requireNonNull(name, "name");
         }
@@ -99,7 +99,7 @@ public sealed interface TypeExpression {
     record Generic(String name, List<TypeExpression> arguments,
             List<String> multiplicityArguments,
             List<com.legend.protocol.spec.ValueSpecification> typeVariableValues,
-            @com.legend.Nullable SourceInfo pos)
+            @com.legend.base.Nullable SourceInfo pos)
             implements TypeExpression {
         public Generic {
             Objects.requireNonNull(name, "name");
@@ -113,7 +113,7 @@ public sealed interface TypeExpression {
 
         /** The angle-bracket form: no type-variable values ({@code X<T|m>}). */
         public Generic(String name, List<TypeExpression> arguments,
-                List<String> multiplicityArguments, @com.legend.Nullable SourceInfo pos) {
+                List<String> multiplicityArguments, @com.legend.base.Nullable SourceInfo pos) {
             this(name, arguments, multiplicityArguments, List.of(), pos);
         }
 
@@ -207,7 +207,7 @@ public sealed interface TypeExpression {
      *  string and we do too. */
     record Column(String name, TypeExpression type, Multiplicity multiplicity,
                   boolean multiplicityDeclared,
-                  @com.legend.Nullable com.legend.protocol.SourceInfo pos) {
+                  @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) {
         public Column {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(type, "type");
@@ -248,7 +248,7 @@ public sealed interface TypeExpression {
      * or relation type generalizes to no class ({@code null}). (Batch 160:
      * m3's Property inherits {@code name} through two parameterized
      * supertypes — every ancestor walk follows this, never only NameRef.) */
-    static @com.legend.Nullable String rawClassName(TypeExpression sup) {
+    static @com.legend.base.Nullable String rawClassName(TypeExpression sup) {
         return switch (sup) {
             case NameRef nr -> nr.name();
             case Generic g -> g.name();

@@ -14,7 +14,7 @@ package com.legend.exec;
 public interface AssertListener {
 
     void verdict(String assertName, boolean pass,
-            @com.legend.Nullable String detail);
+            @com.legend.base.Nullable String detail);
 
     /** A verdict arm DECIDED BY TEXT (Phase 0.6): the rows leg could not
      * be judged — {@code reason} names why (the arm's own vocabulary:

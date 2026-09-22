@@ -585,7 +585,7 @@ public final class SqlTypeCensus {
                 || t == SqlType.Scalar.HUGEINT;
     }
 
-    private static @com.legend.Nullable SqlType metaToType(String meta) {
+    private static @com.legend.base.Nullable SqlType metaToType(String meta) {
         return switch (meta) {
             case "VARCHAR" -> SqlType.Scalar.VARCHAR;
             case "JSON" -> SqlType.Scalar.JSON;
@@ -602,7 +602,7 @@ public final class SqlTypeCensus {
      * names), for comparison against getColumnTypeName. Composites
      * compare by HEAD (full struct field lists are driver-fragile).
      * Null = no spelling (compare impossible — counted unknown). */
-    private static @com.legend.Nullable String wireSpelling(SqlType t) {
+    private static @com.legend.base.Nullable String wireSpelling(SqlType t) {
         if (t instanceof SqlType.Scalar sc) {
             return sc.name();
         }
@@ -621,7 +621,7 @@ public final class SqlTypeCensus {
         return null;
     }
 
-    private static String normalizeMeta(@com.legend.Nullable String name) {
+    private static String normalizeMeta(@com.legend.base.Nullable String name) {
         if (name == null) {
             return "";
         }

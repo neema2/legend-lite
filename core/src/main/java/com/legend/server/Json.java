@@ -126,14 +126,14 @@ public final class Json {
          * {@code *Or} variants (getStringOr, getIntOr, ...) which all treat
          * both cases as "use the default".
          */
-        public @com.legend.Nullable Node getOr(String key, @com.legend.Nullable Node def) {
+        public @com.legend.base.Nullable Node getOr(String key, @com.legend.base.Nullable Node def) {
             Node n = fields.get(key);
             return (n == null || n instanceof Null) ? def : n;
         }
 
         public String getString(String key) { return ((Str) get(key)).value(); }
 
-        public @com.legend.Nullable String getStringOr(String key, @com.legend.Nullable String def) {
+        public @com.legend.base.Nullable String getStringOr(String key, @com.legend.base.Nullable String def) {
             Node n = fields.get(key);
             return n == null || n instanceof Null ? def : ((Str) n).value();
         }
@@ -163,14 +163,14 @@ public final class Json {
 
         public Obj getObj(String key) { return (Obj) get(key); }
 
-        public @com.legend.Nullable Obj getObjOr(String key, @com.legend.Nullable Obj def) {
+        public @com.legend.base.Nullable Obj getObjOr(String key, @com.legend.base.Nullable Obj def) {
             Node n = fields.get(key);
             return n == null || n instanceof Null ? def : (Obj) n;
         }
 
         public Arr getArr(String key) { return (Arr) get(key); }
 
-        public @com.legend.Nullable Arr getArrOr(String key, @com.legend.Nullable Arr def) {
+        public @com.legend.base.Nullable Arr getArrOr(String key, @com.legend.base.Nullable Arr def) {
             Node n = fields.get(key);
             return n == null || n instanceof Null ? def : (Arr) n;
         }
@@ -201,7 +201,7 @@ public final class Json {
 
     /** Number node — stored as long if integral, else double. */
     public record Num(long longValue, double doubleValue, boolean isInteger,
-            java.math.@com.legend.Nullable BigDecimal decimalValue) implements Node {
+            java.math.@com.legend.base.Nullable BigDecimal decimalValue) implements Node {
         /** Pre-F3.1a arity — no exact decimal available. */
         public Num(long longValue, double doubleValue, boolean isInteger) {
             this(longValue, doubleValue, isInteger, null);
@@ -657,7 +657,7 @@ public final class Json {
      * <p>This is the <b>single source of truth</b> for JSON string escaping across the
      * legend-lite codebase. Other implementations are being migrated away.
      */
-    public static String escape(@com.legend.Nullable String s) {
+    public static String escape(@com.legend.base.Nullable String s) {
         if (s == null) return "";
         StringBuilder out = new StringBuilder(s.length() + 8);
         escapeTo(out, s);
@@ -678,7 +678,7 @@ public final class Json {
     }
 
     /** Reverse of {@link #escape} — decodes escape sequences in a JSON-string payload. */
-    public static @com.legend.Nullable String unescape(@com.legend.Nullable String s) {
+    public static @com.legend.base.Nullable String unescape(@com.legend.base.Nullable String s) {
         if (s == null) return null;
         StringBuilder out = new StringBuilder(s.length());
         int i = 0;

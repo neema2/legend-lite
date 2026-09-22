@@ -24,8 +24,8 @@ public interface SqlDialect {
     }
 
     /** JDBC cell value → canonical Java value for {@code type}. Default: identity. */
-    default @com.legend.Nullable Object normalize(@com.legend.Nullable Object jdbcValue,
-            com.legend.sql.@com.legend.Nullable SqlType type) {
+    default @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
+            com.legend.sql.@com.legend.base.Nullable SqlType type) {
         return jdbcValue;
     }
 
@@ -55,7 +55,7 @@ public interface SqlDialect {
     /** The statement that ABORTS a failed script's bracket, or null when the dialect
      *  brackets nothing — a DuckDB transaction a failing statement left open must be
      *  rolled back, or every later transaction on the connection is refused. */
-    default @com.legend.Nullable String scriptAbort() {
+    default @com.legend.base.Nullable String scriptAbort() {
         return null;
     }
 

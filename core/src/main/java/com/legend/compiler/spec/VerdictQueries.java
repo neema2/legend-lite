@@ -53,7 +53,7 @@ public final class VerdictQueries {
      * of a dual-golden assert once its golden is chosen (the verdict arm
      * adjudicates it as the plain verdict). Null when the catalog has no
      * two-argument assertEquals (never, in a platform build). */
-    public static @com.legend.Nullable TypedSpec assertEqualsOf(TypedSpec expected,
+    public static @com.legend.base.Nullable TypedSpec assertEqualsOf(TypedSpec expected,
             TypedSpec actual, SpecCompiler specs) {
         return specs.ctx().findFunction(
                         com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS)
@@ -87,7 +87,7 @@ public final class VerdictQueries {
      * EXECUTED SQL text (ResultEnvelopeSplice.sqlProducerCall). Null
      * when the model does not know the Result overload (the arm then
      * leaves the shape on its current path). */
-    public static @com.legend.Nullable TypedSpec sqlStripRead(
+    public static @com.legend.base.Nullable TypedSpec sqlStripRead(
             TypedSpec resultArg,
             com.legend.compiler.element.ModelContext ctx) {
         for (var f : ctx.findFunction(
@@ -139,7 +139,7 @@ public final class VerdictQueries {
         }
     }
 
-    public static @com.legend.Nullable PlanBindings refereeBindings(
+    public static @com.legend.base.Nullable PlanBindings refereeBindings(
             com.legend.compiler.spec.typed.TypedLambda lam) {
         Type.FunctionType ft = com.legend.compiler.element.type
                 .PlatformTypes.functionTypeOf(lam.info().type());
@@ -397,7 +397,7 @@ public final class VerdictQueries {
      * ...))}) IS the quantified assert: every element's assert holds (an
      * assert never yields false — it raises), so it unrolls exactly as
      * the map form does. Null = not that shape. */
-    public static @com.legend.Nullable TypedMap forAllAsQuantified(TypedSpec bare) {
+    public static @com.legend.base.Nullable TypedMap forAllAsQuantified(TypedSpec bare) {
         if (bare instanceof TypedNativeCall fa
                 && fa.callee().qualifiedName().equals(
                         "meta::pure::functions::collection::forAll")
@@ -418,7 +418,7 @@ public final class VerdictQueries {
      * orchestration, every arithmetic stays in the assert's own side
      * evaluation). Null = not an unrollable shape (a runtime
      * collection, a value with no literal spelling). */
-    public static @com.legend.Nullable List<TypedSpec> unrollElements(
+    public static @com.legend.base.Nullable List<TypedSpec> unrollElements(
             TypedSpec source, List<TypedSpec> letPrefix,
             com.legend.compiler.element.ModelContext ctx,
             java.util.function.Function<TypedSpec, List<Object>> fetch) {
@@ -468,7 +468,7 @@ public final class VerdictQueries {
         return null;
     }
 
-    private static @com.legend.Nullable List<TypedSpec> armElements(TypedSpec arm0,
+    private static @com.legend.base.Nullable List<TypedSpec> armElements(TypedSpec arm0,
             List<TypedSpec> letPrefix,
             java.util.function.Function<TypedSpec, List<Object>> fetch) {
         TypedSpec arm = com.legend.compiler.spec.typed.Lets.bound(arm0, letPrefix);
@@ -488,7 +488,7 @@ public final class VerdictQueries {
 
     /** A database value as the literal spec that spells it; null when
      * the value has no literal spelling (dates, structures). */
-    public static @com.legend.Nullable TypedSpec literalSpec(@com.legend.Nullable Object v) {
+    public static @com.legend.base.Nullable TypedSpec literalSpec(@com.legend.base.Nullable Object v) {
         return switch (v) {
             case Long l -> new com.legend.compiler.spec.typed.TypedCInteger(l,
                     ExprType.one(Type.Primitive.INTEGER));
@@ -510,7 +510,7 @@ public final class VerdictQueries {
 
     public static List<TypedSpec> unrolledElement(SpecCompiler specs,
             List<TypedSpec> letPrefix, TypedLambda lam, TypedSpec element,
-            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
         List<TypedSpec> seq = new java.util.ArrayList<>(letPrefix);
         seq.add(new com.legend.compiler.spec.typed.TypedLet(lam.parameters().get(0),
@@ -548,7 +548,7 @@ public final class VerdictQueries {
      * to ONE literal at compile time; null when any piece is not a literal
      * (the value is not a constant). A constant fold over literals — no
      * data touched. */
-    public static @com.legend.Nullable String foldedStringLiteral(TypedSpec s) {
+    public static @com.legend.base.Nullable String foldedStringLiteral(TypedSpec s) {
         s = throughJsonPrettyPrint(s);
         if (s instanceof com.legend.compiler.spec.typed.TypedCString c) {
             return c.value();
@@ -599,7 +599,7 @@ public final class VerdictQueries {
      * {@code [...]} — the same verdict as the engine's {@code [x] ≡ x}
      * root rule, decided at compile time. Null when the text does not
      * parse (the golden itself is defective — named, never guessed). */
-    public static com.legend.compiler.spec.typed.@com.legend.Nullable TypedCString
+    public static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedCString
             canonicalJsonGolden(String text, boolean rootMany) {
         Object parsed;
         try {
@@ -619,7 +619,7 @@ public final class VerdictQueries {
      * literal String collection) — the peer of a document whose root order
      * the chain does not define (an unsorted graph fetch: the root objects
      * are a multiset). Null when the golden is not an array. */
-    public static @com.legend.Nullable TypedSpec jsonRootElements(String text) {
+    public static @com.legend.base.Nullable TypedSpec jsonRootElements(String text) {
         Object parsed;
         try {
             parsed = com.legend.sql.Json.parseOne(text);
@@ -641,7 +641,7 @@ public final class VerdictQueries {
      * {@code assertInstanceOf} (the model's own subtype relation, lowered by
      * Scalars.instanceOfFold), judged as a condition. Null when the catalog
      * has no two-argument instanceOf. */
-    public static @com.legend.Nullable TypedSpec instanceOfCondition(TypedSpec value,
+    public static @com.legend.base.Nullable TypedSpec instanceOfCondition(TypedSpec value,
             TypedSpec typeArg, SpecCompiler specs) {
         return specs.ctx().findFunction(
                         com.legend.compiler.element.type.PlatformTypes.INSTANCE_OF)
@@ -660,7 +660,7 @@ public final class VerdictQueries {
      * the statement-root forms, minted here as typed natives so the quantified vector
      * plans them like any predicate. Null = not a verdict call with a predicate
      * spelling (the unroll stays the road). */
-    public static @com.legend.Nullable TypedSpec assertAsPredicate(TypedSpec root, SpecCompiler specs) {
+    public static @com.legend.base.Nullable TypedSpec assertAsPredicate(TypedSpec root, SpecCompiler specs) {
         String fqn = com.legend.compiler.spec.typed.Calls.calleeOf(root);
         List<TypedSpec> a = com.legend.compiler.spec.typed.Calls.argsOf(root);
         if (fqn == null) {
@@ -686,7 +686,7 @@ public final class VerdictQueries {
         return null;
     }
 
-    private static @com.legend.Nullable TypedSpec minus(com.legend.compiler.element.ModelContext ctx,
+    private static @com.legend.base.Nullable TypedSpec minus(com.legend.compiler.element.ModelContext ctx,
             TypedSpec l, TypedSpec r) {
         var fn = ctx.findFunction(com.legend.compiler.element.type.PlatformTypes.MINUS).stream()
                 .filter(f -> f.parameters().size() == 1
@@ -699,13 +699,13 @@ public final class VerdictQueries {
         return new TypedNativeCall(fn, List.of(run), scalar(Type.Primitive.NUMBER));
     }
 
-    private static @com.legend.Nullable TypedSpec native1(com.legend.compiler.element.ModelContext ctx,
+    private static @com.legend.base.Nullable TypedSpec native1(com.legend.compiler.element.ModelContext ctx,
             String fqn, TypedSpec x, Type out) {
         return ctx.findFunction(fqn).stream().filter(f -> f.parameters().size() == 1).findFirst()
                 .map(f -> (TypedSpec) new TypedNativeCall(f, List.of(x), scalar(out))).orElse(null);
     }
 
-    private static @com.legend.Nullable TypedSpec native2(com.legend.compiler.element.ModelContext ctx,
+    private static @com.legend.base.Nullable TypedSpec native2(com.legend.compiler.element.ModelContext ctx,
             String fqn, TypedSpec x, TypedSpec y, Type out) {
         return ctx.findFunction(fqn).stream().filter(f -> f.parameters().size() == 2).findFirst()
                 .map(f -> (TypedSpec) new TypedNativeCall(f, List.of(x, y), scalar(out))).orElse(null);
@@ -782,7 +782,7 @@ public final class VerdictQueries {
     /** A rendered side: the VALUE that was rendered and the grammar that
      * rendered it. {@code grid} = the value is a relation. */
     public record RenderedSide(TypedSpec value, RenderGrammar grammar, boolean grid,
-            @com.legend.Nullable String restrictTo) {
+            @com.legend.base.Nullable String restrictTo) {
         public RenderedSide(TypedSpec value, RenderGrammar grammar, boolean grid) {
             this(value, grammar, grid, null);
         }
@@ -791,7 +791,7 @@ public final class VerdictQueries {
     /** The rendered value of a side, or null when the side is not a render
      * the grammar names; {@code chase} reads a let-bound variable through
      * to its value. Typed-tree navigation only. */
-    public static @com.legend.Nullable RenderedSide renderedSide(TypedSpec s0,
+    public static @com.legend.base.Nullable RenderedSide renderedSide(TypedSpec s0,
             java.util.function.UnaryOperator<TypedSpec> chase) {
         TypedSpec s = chase.apply(s0);
         if (s instanceof TypedNativeCall rep
@@ -858,7 +858,7 @@ public final class VerdictQueries {
     /** The relation whose rows a {@code map} walks: {@code rel.rows} (the
      * Typer's marker), or the relation itself once the executor's splice
      * has erased the marker. Null when the source is not a relation. */
-    private static @com.legend.Nullable TypedSpec rowsOf(TypedSpec source) {
+    private static @com.legend.base.Nullable TypedSpec rowsOf(TypedSpec source) {
         if (source instanceof TypedPropertyAccess rows && rows.property().equals("rows")
                 && Type.isRelation(rows.source().info().type())) {
             return rows.source();
@@ -869,8 +869,8 @@ public final class VerdictQueries {
     /** The relation restricted to one declared column (the Typer's own
      * {@code select} node) — {@code schema} the PLANNED side's schema; null
      * when the column is not declared. */
-    public static @com.legend.Nullable TypedSpec restrictedTo(TypedSpec relation,
-            @com.legend.Nullable Type.RelationType schema, String column) {
+    public static @com.legend.base.Nullable TypedSpec restrictedTo(TypedSpec relation,
+            @com.legend.base.Nullable Type.RelationType schema, String column) {
         if (schema == null) {
             return null;
         }
@@ -916,7 +916,7 @@ public final class VerdictQueries {
 
     /** The golden text of a side: a string constant, a one-element list of
      * one, or a folded {@code +} chain of constants. */
-    public static @com.legend.Nullable String goldenText(TypedSpec s0,
+    public static @com.legend.base.Nullable String goldenText(TypedSpec s0,
             java.util.function.UnaryOperator<TypedSpec> chase) {
         TypedSpec s = chase.apply(s0);
         if (s instanceof TypedCollection c && c.elements().size() == 1) {
@@ -930,8 +930,8 @@ public final class VerdictQueries {
      * typed literal collection for a flat join; or the reason it could not
      * be brought to rows. {@code headerMismatch} is a STATIC verdict (both
      * sides compile-time facts), never an unjudged. */
-    public record ParsedGolden(@com.legend.Nullable TypedSpec literal,
-            @com.legend.Nullable String reason, boolean headerMismatch) {
+    public record ParsedGolden(@com.legend.base.Nullable TypedSpec literal,
+            @com.legend.base.Nullable String reason, boolean headerMismatch) {
         public static ParsedGolden of(TypedSpec literal) {
             return new ParsedGolden(literal, null, false);
         }
@@ -944,7 +944,7 @@ public final class VerdictQueries {
      * relation's schema for the grid grammars ({@code elementKind} unused);
      * {@code elementKind} the collection's element kind for a flat join. */
     public static ParsedGolden parseRendered(String text, RenderGrammar grammar,
-            @com.legend.Nullable Type.RelationType schema, @com.legend.Nullable Type elementKind) {
+            @com.legend.base.Nullable Type.RelationType schema, @com.legend.base.Nullable Type elementKind) {
         if (grammar instanceof RenderGrammar.Flat f) {
             Type kind = elementKind;
             if (!(kind instanceof Type.Primitive) && !(kind instanceof Type.EnumType)) {
@@ -1118,7 +1118,7 @@ public final class VerdictQueries {
     /** A late-bound grid's schema read off its PLAN's outputs (a raw
      * executeInDb relation has no static columns; the plan's output kinds
      * are wire facts). Null when an output's kind has no pure kind. */
-    public static @com.legend.Nullable Type.RelationType wireSchema(
+    public static @com.legend.base.Nullable Type.RelationType wireSchema(
             List<com.legend.sql.OutputCol> outputs) {
         List<Type.Column> cols = new ArrayList<>(outputs.size());
         for (com.legend.sql.OutputCol o : outputs) {
@@ -1137,7 +1137,7 @@ public final class VerdictQueries {
      * {@code null} cell is the null cell (empty text); a cell that is not of
      * its column's kind is {@code null}. The literal's lowering types the
      * text by the column ({@code Scalars.tdsCell}). */
-    private static @com.legend.Nullable String tdsCellText(String cell, Type kind) {
+    private static @com.legend.base.Nullable String tdsCellText(String cell, Type kind) {
         if (cell.isEmpty() || cell.equals("TDSNull") || cell.equals("null")) {
             return "";
         }
@@ -1148,7 +1148,7 @@ public final class VerdictQueries {
      * the text is not of that kind. A grid's empty / {@code TDSNull} /
      * {@code null} cell is the TDSNull sentinel string (the peer rule spells
      * it bare on the expected side). */
-    private static @com.legend.Nullable TypedSpec cellLiteral(String cell, Type kind, boolean gridCell) {
+    private static @com.legend.base.Nullable TypedSpec cellLiteral(String cell, Type kind, boolean gridCell) {
         if (gridCell && (cell.isEmpty() || cell.equals("TDSNull") || cell.equals("null"))) {
             return new com.legend.compiler.spec.typed.TypedCString("TDSNull", scalar(Type.Primitive.STRING));
         }

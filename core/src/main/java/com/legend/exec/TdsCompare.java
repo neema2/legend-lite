@@ -89,7 +89,7 @@ public final class TdsCompare {
     /** A grid side's per-ROW canon texts from its rider (harvested by
      * the Executor's one canon choke point), or null = the byte
      * channel declines, counted. */
-    public static @com.legend.Nullable List<String> tdsRowCanons(
+    public static @com.legend.base.Nullable List<String> tdsRowCanons(
             CanonRider rider) {
         if (!rider.tdsWrapped()) {
             CanonicalDivergence.sqlDeclined("tds-side: "
@@ -120,7 +120,7 @@ public final class TdsCompare {
      * element canons, chunked by the grid's {@code width} — framing
      * writes separators only, never renders. Null = declined,
      * counted. */
-    public static @com.legend.Nullable List<String> peerRowCanons(
+    public static @com.legend.base.Nullable List<String> peerRowCanons(
             CanonRider rider, int valueCount, int width,
             boolean isExpected) {
         List<String> cells = peerElementCanons(rider, valueCount,
@@ -160,7 +160,7 @@ public final class TdsCompare {
      * side only (audit 16 F5's direction-aware policy, applied at
      * construction — a real 'TDSNull' string on OUR wire stays quoted
      * and can never fabricate a null). Null = declined, counted. */
-    public static @com.legend.Nullable List<String> peerElementCanons(
+    public static @com.legend.base.Nullable List<String> peerElementCanons(
             CanonRider rider, int valueCount, boolean isExpected) {
         int li = rider.literalIndex();
         if (!rider.wrapped() || li < 0) {
@@ -214,7 +214,7 @@ public final class TdsCompare {
     /** Per-CELL canons of a grid side (the sameElements view): row
      * canons split on the reserved separator — exact, because the wrap
      * poisons any cell carrying it. */
-    public static @com.legend.Nullable List<String> tdsCellCanons(
+    public static @com.legend.base.Nullable List<String> tdsCellCanons(
             CanonRider rider) {
         List<String> rows = tdsRowCanons(rider);
         if (rows == null) {
@@ -264,7 +264,7 @@ public final class TdsCompare {
      * within {@code |timeDeltaInSeconds|} seconds, everything else by
      * same-kind equality (the cross-kind String.valueOf collapse stays
      * deleted — F6.5); rows zip IN ORDER. Null = equivalent. */
-    public static @com.legend.Nullable String tdsEquivalent(
+    public static @com.legend.base.Nullable String tdsEquivalent(
             List<Object> expected, List<Object> got, double delta,
             double timeDeltaSeconds) {
         if (expected.size() != got.size()) {
@@ -299,8 +299,8 @@ public final class TdsCompare {
         return null;
     }
 
-    private static @com.legend.Nullable Double epochSeconds(
-            @com.legend.Nullable Object v) {
+    private static @com.legend.base.Nullable Double epochSeconds(
+            @com.legend.base.Nullable Object v) {
         // THE wire temporal type only (D-arc: sql/java.time temporals
         // never escape the fetch seam) — instant floor, UTC
         return v instanceof com.legend.values.PureDateLiteral d

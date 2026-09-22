@@ -39,7 +39,7 @@ public record TypedSort(TypedSpec source, List<TypedSortKey> keys,
     /** One sort column: its name, direction and explicit null placement
      *  (null = the engine's canonical placement for a bare key). */
     public record TypedSortKey(String column, boolean ascending,
-            @com.legend.Nullable TypedSortInfo.NullOrder nullOrder) {
+            @com.legend.base.Nullable TypedSortInfo.NullOrder nullOrder) {
     }
 
     @Override

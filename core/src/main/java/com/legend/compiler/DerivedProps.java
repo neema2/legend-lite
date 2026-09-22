@@ -77,7 +77,7 @@ public final class DerivedProps {
 
     /** The {@code $prop$} FQN split: {owner, name}, or null if {@code fqn}
      * is not a derived-property reference. */
-    public static String @com.legend.Nullable [] splitPropFqn(String fqn) {
+    public static String @com.legend.base.Nullable [] splitPropFqn(String fqn) {
         return com.legend.model.DerivedPropertyNames.split(fqn);
     }
 }

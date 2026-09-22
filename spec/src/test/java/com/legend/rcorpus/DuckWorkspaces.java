@@ -119,7 +119,7 @@ final class DuckWorkspaces {
 
     /** Attach a fresh aside catalog and make it the CURRENT target: the
      * fixture's unqualified DDL and inserts land there. */
-    static synchronized @com.legend.Nullable String isolateBegin(Connection proxied) throws SQLException {
+    static synchronized @com.legend.base.Nullable String isolateBegin(Connection proxied) throws SQLException {
         String ws = WS_OF.get(proxied);
         if (ws == null) {
             return null;   // not a DuckDB workspace (the H2 lane): no primitive

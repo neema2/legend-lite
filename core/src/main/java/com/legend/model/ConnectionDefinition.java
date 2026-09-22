@@ -31,7 +31,7 @@ import java.util.Objects;
  */
 public record ConnectionDefinition(
         String qualifiedName,
-        @com.legend.Nullable String storeName,
+        @com.legend.base.Nullable String storeName,
         DatabaseType databaseType,
         ConnectionSpecification specification,
         AuthenticationSpec authentication) implements PackageableElement {

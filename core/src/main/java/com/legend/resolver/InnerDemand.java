@@ -286,7 +286,7 @@ final class InnerDemand {
      * the demanded alias set. Identity dedup keeps join count
      * engine-equal. */
     static Set<String> navStepDemand(ClassSource t, Set<String> navStepKeys,
-            @com.legend.Nullable TypedLambda corrPred, List<TypedLambda> parkedPreds,
+            @com.legend.base.Nullable TypedLambda corrPred, List<TypedLambda> parkedPreds,
             Set<List<String>> chains, java.util.Map<String, String> aliasOut) {
         Set<String> demand = new LinkedHashSet<>();
         Set<List<String>> paths = new LinkedHashSet<>();
@@ -314,8 +314,8 @@ final class InnerDemand {
 
     /** The nav-step ALIAS a binding reads (a bare class-typed slot read,
      * toOne-wrapped or not), null otherwise. */
-    static @com.legend.Nullable String navSlotAlias(
-            @com.legend.Nullable TypedSpec binding, String rowVar,
+    static @com.legend.base.Nullable String navSlotAlias(
+            @com.legend.base.Nullable TypedSpec binding, String rowVar,
                                        Set<String> navAliases) {
         TypedSpec inner = binding;
         if (inner instanceof TypedNativeCall c
@@ -594,7 +594,7 @@ final class InnerDemand {
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> ops,
             java.util.List<com.legend.compiler.spec.typed.TypedLambda> terminals,
             java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec,
-                    com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec> rawResolver) {
+                    com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedSpec> rawResolver) {
         java.util.List<com.legend.compiler.spec.typed.TypedSpec> roots =
                 new java.util.ArrayList<>();
         for (com.legend.compiler.spec.typed.TypedSpec op : ops) {
@@ -609,7 +609,7 @@ final class InnerDemand {
         // rides OUTSIDE the resolved relation as a relation-level DISTINCT;
         // an unresolvable chain returns null and keeps its ordinary wall.
         java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec,
-                com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec> resolver =
+                com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedSpec> resolver =
                 chain -> {
             try {
                 // RECURSIVE peel (ledger cluster 47): distinct arrives as
@@ -633,10 +633,10 @@ final class InnerDemand {
     }
 
     /** Self-recursive in-chain peel — see the resolver lambda's comment. */
-    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec
+    private static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedSpec
             peelInChain(com.legend.compiler.spec.typed.TypedSpec chain,
             java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec,
-                    com.legend.compiler.spec.typed.@com.legend.Nullable
+                    com.legend.compiler.spec.typed.@com.legend.base.Nullable
                             TypedSpec> rawResolver) {
         if (chain instanceof com.legend.compiler.spec.typed
                         .TypedNativeCall dc
@@ -748,7 +748,7 @@ final class InnerDemand {
             Substitution.InQueryRead> inQueryReadsOver(
             java.util.List<com.legend.compiler.spec.typed.TypedSpec> roots,
             java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec,
-                    com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec> resolver) {
+                    com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedSpec> resolver) {
         java.util.Map<com.legend.compiler.spec.typed.TypedSpec,
                 Substitution.InQueryRead> out = new java.util.IdentityHashMap<>();
         for (com.legend.compiler.spec.typed.TypedSpec r : roots) {
@@ -760,7 +760,7 @@ final class InnerDemand {
     private static void collectInQuery(
             com.legend.compiler.spec.typed.TypedSpec n,
             java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec,
-                    com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec> resolver,
+                    com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedSpec> resolver,
             java.util.Map<com.legend.compiler.spec.typed.TypedSpec,
                     Substitution.InQueryRead> out) {
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall tc

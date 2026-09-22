@@ -52,7 +52,7 @@ public final class WireTypes {
 
     /** A column as the database reports it for a prepared statement: its
      * label, its type in the SQL vocabulary (null outside it), nullability. */
-    public record ReportedColumn(String name, @com.legend.Nullable SqlType type, boolean nullable) {
+    public record ReportedColumn(String name, @com.legend.base.Nullable SqlType type, boolean nullable) {
     }
 
     /** A plan the compiler could not type (a raw {@code executeInDb} grid: no
@@ -157,7 +157,7 @@ public final class WireTypes {
     /** The declared kind per output: the relation's columns for a grid,
      * the root type for a one-column value; null when the shape does not
      * name one kind per output. */
-    private static @com.legend.Nullable List<Type> declaredKinds(ExprType shapeInfo, int width) {
+    private static @com.legend.base.Nullable List<Type> declaredKinds(ExprType shapeInfo, int width) {
         Type.RelationType schema = Type.schemaView(shapeInfo.type());
         if (schema != null) {
             if (schema.isLateBound() || schema.columns().size() != width) {
@@ -202,7 +202,7 @@ public final class WireTypes {
 
     /** JDBC's type code to the SQL vocabulary (the kinds
      * {@link Type#kindOfSqlType} names). */
-    static @com.legend.Nullable SqlType sqlTypeOf(int jdbcType, int precision, int scale) {
+    static @com.legend.base.Nullable SqlType sqlTypeOf(int jdbcType, int precision, int scale) {
         return switch (jdbcType) {
             case Types.CHAR, Types.VARCHAR, Types.LONGVARCHAR, Types.NCHAR, Types.NVARCHAR,
                     Types.LONGNVARCHAR -> SqlType.Scalar.VARCHAR;

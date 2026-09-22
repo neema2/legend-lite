@@ -954,8 +954,8 @@ class MinimalCorpusTest {
      * let, value, other — never the referee's, the seeding's or the session's), or
      * a PURE body cut into several sends (flushes). Null when the body is one
      * artifact. */
-    private static @com.legend.Nullable String outsideBody(long[] before, long[] after,
-            @com.legend.Nullable String shape, long flushes) {
+    private static @com.legend.base.Nullable String outsideBody(long[] before, long[] after,
+            @com.legend.base.Nullable String shape, long flushes) {
         StringBuilder sb = new StringBuilder();
         for (var o : com.legend.exec.StatementOrigin.values()) {
             long d = after[o.ordinal()] - before[o.ordinal()];

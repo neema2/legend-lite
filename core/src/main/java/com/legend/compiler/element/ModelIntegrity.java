@@ -44,7 +44,7 @@ final class ModelIntegrity {
      * of throwing on the first — the caller drops them and re-runs. */
     static void check(ModelBuilder model, TypeClassifier classifier,
             FunctionCompiler functions,
-            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
         // D6b: element-identity first, so a duplicated FQN poisons with
         // ITS reason rather than a downstream confusion from whichever
         // definition happened to win the last-wins slot.
@@ -73,7 +73,7 @@ final class ModelIntegrity {
 
     /** Attach the element FQN to escaping ModelExceptions (positions wave). */
     private static void withElement(String elementFqn, Runnable work,
-            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
         try {
             work.run();
         } catch (com.legend.error.ModelException e) {
@@ -143,7 +143,7 @@ final class ModelIntegrity {
      * rejects the second definition; silently letting one win answers
      * calls with an arbitrary body. */
     private static void checkDuplicateSignatures(ModelBuilder model,
-            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
         java.util.Set<String> seen = new java.util.HashSet<>();
         for (Function f : model.functions().toList()) {
             String key = f.signatureKey();
@@ -243,7 +243,7 @@ final class ModelIntegrity {
      * the classify checks' concern, not this walk's. */
     private static void checkInheritanceAcyclic(ModelBuilder model,
             TypeClassifier classifier,
-            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
         java.util.Set<String> acyclic = new java.util.HashSet<>();
         model.classes().forEach(cd -> withElement(cd.qualifiedName(),
                 () -> walkSupers(cd, classifier,

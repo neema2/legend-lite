@@ -35,7 +35,7 @@ public sealed interface SqlSource {
          * on H2 and Integer on DuckDB). Null only through the legacy
          * ctor at rewrite sites that predate the field. */
         public record Using(SqlAgg.Reducer agg, String alias,
-                @com.legend.Nullable SqlType type) {
+                @com.legend.base.Nullable SqlType type) {
             public Using(SqlAgg.Reducer agg, String alias) {
                 this(agg, alias, null);
             }
@@ -94,7 +94,7 @@ public sealed interface SqlSource {
      * own name) — null for anonymous isolation subselects. Dialects that
      * re-alias by table group name view frames by it. */
     record Subselect(SqlQuery inner, String alias,
-            @com.legend.Nullable String frameName)
+            @com.legend.base.Nullable String frameName)
             implements SqlSource {
 
         /** SYNTHETIC frame marker (not a model identity): the engine's
@@ -132,7 +132,7 @@ public sealed interface SqlSource {
      * (invalid SQL, or an accidental natural join). LEFT_LATERAL spells
      * its always-true condition explicitly ({@code ON true}). */
     record Join(SqlSource left, SqlSource right, Kind kind,
-            @com.legend.Nullable SqlExpr on) implements SqlSource {
+            @com.legend.base.Nullable SqlExpr on) implements SqlSource {
 
         public Join {
             boolean onless = kind == Kind.CROSS || kind == Kind.CROSS_LATERAL;

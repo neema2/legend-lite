@@ -97,7 +97,7 @@ public final class PmcdParser {
      *  lists (functions use their MANGLED path, like the engine), and the
      *  PROTOCOL type (for rule-grouping — the old JSON-prefix sniff broke
      *  silently on any emitter field-order change, adversarial audit). */
-    public record DocElement(@com.legend.Nullable String path, String json,
+    public record DocElement(@com.legend.base.Nullable String path, String json,
             Class<? extends Protocol.Element> kind) {
     }
 
@@ -402,17 +402,17 @@ public final class PmcdParser {
      *  the document surface stayed lenient. */
     private static List<DocElement> strictWalk(TokenStream ts, long[] r,
             HeadRule rule, boolean importsAllowed, int mappingSectionLine,
-            com.legend.parser.section.@com.legend.Nullable ElementwiseSectionGrammar tailGrammar,
-            @com.legend.Nullable List<TokenType> headsOut) {
+            com.legend.parser.section.@com.legend.base.Nullable ElementwiseSectionGrammar tailGrammar,
+            @com.legend.base.Nullable List<TokenType> headsOut) {
         return strictWalk(ts, r, rule, importsAllowed, mappingSectionLine,
                 tailGrammar, headsOut, null);
     }
 
     private static List<DocElement> strictWalk(TokenStream ts, long[] r,
             HeadRule rule, boolean importsAllowed, int mappingSectionLine,
-            com.legend.parser.section.@com.legend.Nullable ElementwiseSectionGrammar tailGrammar,
-            @com.legend.Nullable List<TokenType> headsOut,
-            com.legend.parser.section.@com.legend.Nullable FunctionActivatorSectionGrammar activatorGrammar) {
+            com.legend.parser.section.@com.legend.base.Nullable ElementwiseSectionGrammar tailGrammar,
+            @com.legend.base.Nullable List<TokenType> headsOut,
+            com.legend.parser.section.@com.legend.base.Nullable FunctionActivatorSectionGrammar activatorGrammar) {
         List<DocElement> out = new ArrayList<>();
         int cursor = skipTo(ts, r[0]);
         boolean sawElement = false;
@@ -548,10 +548,10 @@ public final class PmcdParser {
         return out;
     }
 
-    private static @com.legend.Nullable DocElement parseOneAt(TokenStream ts, int site, int kind,
+    private static @com.legend.base.Nullable DocElement parseOneAt(TokenStream ts, int site, int kind,
             int mappingSectionLine,
-            com.legend.parser.section.@com.legend.Nullable ElementwiseSectionGrammar tailGrammar,
-            com.legend.parser.section.@com.legend.Nullable FunctionActivatorSectionGrammar activatorGrammar,
+            com.legend.parser.section.@com.legend.base.Nullable ElementwiseSectionGrammar tailGrammar,
+            com.legend.parser.section.@com.legend.base.Nullable FunctionActivatorSectionGrammar activatorGrammar,
             int[] endOut) {
         Protocol.Element el;
         String path;

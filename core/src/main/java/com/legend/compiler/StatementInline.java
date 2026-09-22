@@ -186,7 +186,7 @@ public final class StatementInline {
 
         /** The callee when {@code af} calls a user function that is a PROGRAM
          * and not a platform-owned verdict, else null. */
-        private @com.legend.Nullable FunctionDefinition programCallee(AppliedFunction af) {
+        private @com.legend.base.Nullable FunctionDefinition programCallee(AppliedFunction af) {
             FunctionDefinition fd = resolvedDefinition(af);
             return fd == null || fd.body().isEmpty()
                     || PlatformTypes.isVerdictFunction(fd.qualifiedName())
@@ -198,7 +198,7 @@ public final class StatementInline {
          * with a user definition at this arity. Null when the platform owns
          * the name (a native is registered under it), when no candidate has
          * the arity, or when several do. */
-        private @com.legend.Nullable FunctionDefinition resolvedDefinition(AppliedFunction af) {
+        private @com.legend.base.Nullable FunctionDefinition resolvedDefinition(AppliedFunction af) {
             List<String> names = af.function().contains("::")
                     ? List.of(af.function()) : af.candidateFqns();
             FunctionDefinition found = null;

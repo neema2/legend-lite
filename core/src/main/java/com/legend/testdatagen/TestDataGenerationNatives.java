@@ -352,7 +352,7 @@ public final class TestDataGenerationNatives {
     private static final String GET_TABLE_FQN =
             "meta::relational::testDataGeneration::getTable";
 
-    private static @com.legend.Nullable ValueSpecification field(
+    private static @com.legend.base.Nullable ValueSpecification field(
             com.legend.protocol.spec.NewInstance ni, String key) {
         for (var kb : ni.properties()) {
             if (kb.key().equals(key)) {
@@ -386,7 +386,7 @@ public final class TestDataGenerationNatives {
         return new TestDataGenerator.TableRowIds(sc.value(), tc.value(), out);
     }
 
-    private static @com.legend.Nullable String dateField(
+    private static @com.legend.base.Nullable String dateField(
             com.legend.protocol.spec.NewInstance ni, String key) {
         ValueSpecification v = field(ni, key);
         if (v == null || v instanceof com.legend.protocol.spec.PureCollection pc

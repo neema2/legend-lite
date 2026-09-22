@@ -61,7 +61,7 @@ public record NewInstanceCast(
         String className,
         List<TypeExpression> typeArguments,
         ValueSpecification src,
-        @com.legend.Nullable String targetSetId) implements ValueSpecification {
+        @com.legend.base.Nullable String targetSetId) implements ValueSpecification {
 
     public NewInstanceCast {
         Objects.requireNonNull(className, "className");

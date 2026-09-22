@@ -179,9 +179,9 @@ public final class SqlTyping {
      * own rule), so each slot inherits the first branch's origin —
      * branch outputs now derive from branch projections, so the
      * inherited fact is construction truth, never a stamp. */
-    static @com.legend.Nullable List<OutputCol> reconcileUnionLabels(
+    static @com.legend.base.Nullable List<OutputCol> reconcileUnionLabels(
             List<? extends SqlQuery> branches,
-            @com.legend.Nullable List<OutputCol> outputs) {
+            @com.legend.base.Nullable List<OutputCol> outputs) {
         if (outputs == null || branches.isEmpty()) {
             return outputs;
         }
@@ -668,7 +668,7 @@ public final class SqlTyping {
      * null-rejects; empty when there is no WHERE or no strict
      * conjunct. */
     public static java.util.Set<String> whereNullRejections(
-            @com.legend.Nullable SqlExpr where) {
+            @com.legend.base.Nullable SqlExpr where) {
         if (where == null) {
             return java.util.Set.of();
         }
@@ -947,7 +947,7 @@ public final class SqlTyping {
      * &rarr; NULL). Conditions never contribute — an unmatched WHEN
      * falls through. */
     static TypeFact caseType(List<SqlExpr.Case.When> whens,
-            @com.legend.Nullable SqlExpr otherwise) {
+            @com.legend.base.Nullable SqlExpr otherwise) {
         java.util.List<SqlExpr> branches =
                 new java.util.ArrayList<>(whens.size() + 1);
         for (SqlExpr.Case.When w : whens) {
@@ -1334,7 +1334,7 @@ public final class SqlTyping {
      * boundary: 18 when BOTH operand widths &le;18 (the int64 class —
      * the carry digit never promotes across it: probed
      * (18,0)+(18,0)&rarr;(18,0)), else 38. */
-    private static @com.legend.Nullable TypeFact decimalArith(
+    private static @com.legend.base.Nullable TypeFact decimalArith(
             boolean multiply, List<SqlExpr> a) {
         if (a.isEmpty()) {
             return null;
@@ -1522,7 +1522,7 @@ public final class SqlTyping {
      * it never adds them: [Dec(2,1), BIGINT] -> Dec(20,1)) — capped
      * 38; ints enter as (10,0)/(19,0)/(38,0). Remaining cross-kind
      * pairs ERROR at execution — null (UNKNOWN), never guessed. */
-    private static @com.legend.Nullable SqlType branchPromote(
+    private static @com.legend.base.Nullable SqlType branchPromote(
             SqlType a, SqlType b) {
         if (integerKind(a) && integerKind(b)) {
             return intWidth(a) >= intWidth(b) ? a : b;
@@ -1612,7 +1612,7 @@ public final class SqlTyping {
     /** REM over a decimal-bearing numeric pair — the probed no-carry
      * union shape (see the {@code case REM} receipt). Null = not a
      * typed decimal-bearing numeric pair. */
-    private static @com.legend.Nullable TypeFact remDecimalType(
+    private static @com.legend.base.Nullable TypeFact remDecimalType(
             List<SqlExpr> a) {
         if (a.size() != 2
                 || !(a.get(0).type() instanceof TypeFact.Typed l)

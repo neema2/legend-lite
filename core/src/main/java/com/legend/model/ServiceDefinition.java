@@ -61,14 +61,14 @@ public record ServiceDefinition(
         String qualifiedName,
         String pattern,
         ValueSpecification functionBody,
-        @com.legend.Nullable String documentation,
-        @com.legend.Nullable String mappingRef,
-        @com.legend.Nullable String runtimeRef,
-        @com.legend.Nullable List<com.legend.protocol.Protocol.PServiceTestSuite> testSuites,
+        @com.legend.base.Nullable String documentation,
+        @com.legend.base.Nullable String mappingRef,
+        @com.legend.base.Nullable String runtimeRef,
+        @com.legend.base.Nullable List<com.legend.protocol.Protocol.PServiceTestSuite> testSuites,
         List<String> owners,
-        @com.legend.Nullable Boolean autoActivateUpdates,
-        @com.legend.Nullable MultiExecution multiExecution,
-        @com.legend.Nullable com.legend.protocol.Protocol.PLegacyServiceTest test)
+        @com.legend.base.Nullable Boolean autoActivateUpdates,
+        @com.legend.base.Nullable MultiExecution multiExecution,
+        @com.legend.base.Nullable com.legend.protocol.Protocol.PLegacyServiceTest test)
         implements PackageableElement {
 
     public ServiceDefinition {
@@ -82,10 +82,10 @@ public record ServiceDefinition(
     /** The single-execution shape most callers build. */
     public ServiceDefinition(String qualifiedName, String pattern,
             ValueSpecification functionBody,
-            @com.legend.Nullable String documentation,
-            @com.legend.Nullable String mappingRef,
-            @com.legend.Nullable String runtimeRef,
-            @com.legend.Nullable List<com.legend.protocol.Protocol.PServiceTestSuite> testSuites) {
+            @com.legend.base.Nullable String documentation,
+            @com.legend.base.Nullable String mappingRef,
+            @com.legend.base.Nullable String runtimeRef,
+            @com.legend.base.Nullable List<com.legend.protocol.Protocol.PServiceTestSuite> testSuites) {
         this(qualifiedName, pattern, functionBody, documentation, mappingRef,
                 runtimeRef, testSuites, List.of(), null, null, null);
     }
@@ -104,8 +104,8 @@ public record ServiceDefinition(
 
     /** One keyed environment: {@code executions['QA']: { mapping; runtime; }}. */
     public record KeyedExecution(String keyValue,
-            @com.legend.Nullable String mapping,
-            @com.legend.Nullable String runtime) {
+            @com.legend.base.Nullable String mapping,
+            @com.legend.base.Nullable String runtime) {
         public KeyedExecution {
             Objects.requireNonNull(keyValue, "Key value cannot be null");
         }

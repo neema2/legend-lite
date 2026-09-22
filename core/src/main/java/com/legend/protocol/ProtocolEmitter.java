@@ -1061,7 +1061,7 @@ public final class ProtocolEmitter {
 
     private static void modelConnection(StringBuilder b, String type,
             String className, SourceInfo classSpan,
-            @com.legend.Nullable String element, String url, SourceInfo span) {
+            @com.legend.base.Nullable String element, String url, SourceInfo span) {
         b.append("{\"_type\":\"").append(type).append("\",\"class\":");
         str(b, className);
         b.append(",\"classSourceInformation\":");
@@ -1222,7 +1222,7 @@ public final class ProtocolEmitter {
      *  GraphQL AST wire (GqlParser; probe gql-wire 2026-08-14). */
     private static void gqlIsland(StringBuilder b,
             com.legend.protocol.spec.GqlIsland gi,
-            @com.legend.Nullable com.legend.protocol.SourceInfo spanOverride) {
+            @com.legend.base.Nullable com.legend.protocol.SourceInfo spanOverride) {
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
         srcInfo(b, requirePos(spanOverride != null ? spanOverride : gi.pos(),
                 "GQL island"));
@@ -1233,7 +1233,7 @@ public final class ProtocolEmitter {
 
     private static void sqlIsland(StringBuilder b,
             com.legend.protocol.spec.SqlIsland si,
-            @com.legend.Nullable SourceInfo span) {
+            @com.legend.base.Nullable SourceInfo span) {
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
         srcInfo(b, span != null ? span
                 : java.util.Objects.requireNonNull(si.pos(),
@@ -1247,7 +1247,7 @@ public final class ProtocolEmitter {
      *  {@code {"tdsString": inner-untrimmed}} (ZTailProbe "tds-accessor"). */
     private static void tdsLiteral(StringBuilder b,
             com.legend.protocol.spec.TdsLiteral tl,
-            @com.legend.Nullable SourceInfo span) {
+            @com.legend.base.Nullable SourceInfo span) {
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
         srcInfo(b, span != null ? span
                 : java.util.Objects.requireNonNull(tl.pos(),
@@ -1849,7 +1849,7 @@ public final class ProtocolEmitter {
                                       List<com.legend.protocol.TypeExpression> args,
                                       List<String> multArgs,
                                       List<com.legend.protocol.spec.ValueSpecification> typeVarValues,
-                                      com.legend.protocol.@com.legend.Nullable SourceInfo pos) {
+                                      com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
         if (pos == null) {
             throw new UnsupportedOperationException(
                     "ProtocolEmitter needs a source position for type " + path
@@ -2446,7 +2446,7 @@ public final class ProtocolEmitter {
 
     private static void appliedFunction(StringBuilder b,
                                         com.legend.protocol.spec.AppliedFunction f,
-                                        @com.legend.Nullable SourceInfo topSpanOverride) {
+                                        @com.legend.base.Nullable SourceInfo topSpanOverride) {
         if (f.propertyCall()) {
             // The wire emits `receiver.name(args)` as a PROPERTY node with the arguments
             // appended after the receiver, spanning the NAME token only (ProbeWireShapes
@@ -2585,7 +2585,7 @@ public final class ProtocolEmitter {
      * whose values keep their own spans] (ProbeWireShapes "burn zoo" newInst).
      */
     private static void newInstance(StringBuilder b, com.legend.protocol.spec.NewInstance ni,
-                                     @com.legend.Nullable SourceInfo span) {
+                                     @com.legend.base.Nullable SourceInfo span) {
         require(!ni.className().isEmpty(), "new-instance on a variable receiver", "^$x(...)");
         // ENGINE SPECIAL-CASES three classes, matching the spelled name EXACTLY against
         // the simple or canonical-FQN spelling (DomainParseTreeWalker; ProbeWireShapes
@@ -2722,7 +2722,7 @@ public final class ProtocolEmitter {
     /** Let-value form: the OUTER classInstance takes the letFunction span; the value keeps
      *  its SHIFTED spans unchanged (probe "path in let" — same rule as graph fetch). */
     private static void pathLiteral(StringBuilder b, com.legend.protocol.spec.PathLiteral pl,
-            @com.legend.Nullable SourceInfo outerOverride) {
+            @com.legend.base.Nullable SourceInfo outerOverride) {
         SourceInfo lit = requirePos(pl.pos(), "path literal");
         require(lit.startLine() == lit.endLine(), "multi-line path literal", pl.startType());
         int s = lit.startColumn();
@@ -2855,7 +2855,7 @@ public final class ProtocolEmitter {
     /** Let-value form: the OUTER classInstance takes the letFunction span; the inner value
      *  keeps the class-name span (probe "gft as let value"). */
     private static void graphFetch(StringBuilder b, com.legend.protocol.spec.GraphFetchLiteral gf,
-            @com.legend.Nullable SourceInfo outerSpan) {
+            @com.legend.base.Nullable SourceInfo outerSpan) {
         require(!gf.unsupported(),
                 "graph-fetch with aliases/parameters/subType (wire shape unprobed)",
                 gf.className());
@@ -2982,7 +2982,7 @@ public final class ProtocolEmitter {
     }
 
     /** Quote a literal's REQUIRED written form for the wire. */
-    private static String quotedWritten(@com.legend.Nullable String written, String what) {
+    private static String quotedWritten(@com.legend.base.Nullable String written, String what) {
         if (written == null) {
             throw new UnsupportedOperationException(
                     "ProtocolEmitter requires the source-written form for " + what
@@ -2996,7 +2996,7 @@ public final class ProtocolEmitter {
     /** The engine's hardcoded caret-to-function desugars — see {@code newInstance}. */
     private static void caretSpecial(StringBuilder b, com.legend.protocol.spec.NewInstance ni,
                                      String function, String[] keys, boolean dropMissing,
-                                     @com.legend.Nullable SourceInfo span) {
+                                     @com.legend.base.Nullable SourceInfo span) {
         b.append("{\"_type\":\"func\",\"function\":");
         str(b, function);
         b.append(",\"parameters\":[");
@@ -3122,7 +3122,7 @@ public final class ProtocolEmitter {
     /** {@code {"_type":"collection","multiplicity":{n,n},"sourceInformation":…,"values":[…]}} */
     private static void collection(StringBuilder b,
                                    List<com.legend.protocol.spec.ValueSpecification> values,
-                                   @com.legend.Nullable SourceInfo pos) {
+                                   @com.legend.base.Nullable SourceInfo pos) {
         b.append("{\"_type\":\"collection\",\"multiplicity\":{\"lowerBound\":")
                 .append(values.size()).append(",\"upperBound\":").append(values.size())
                 .append('}');
@@ -3294,7 +3294,7 @@ public final class ProtocolEmitter {
         b.append("]}]}");
     }
 
-    private static SourceInfo requirePos(@com.legend.Nullable SourceInfo pos, String what) {
+    private static SourceInfo requirePos(@com.legend.base.Nullable SourceInfo pos, String what) {
         if (pos == null) {
             throw new UnsupportedOperationException(
                     "ProtocolEmitter needs a source position for " + what
@@ -3305,7 +3305,7 @@ public final class ProtocolEmitter {
 
     /** {@code {"_type":…,"sourceInformation":…,"value":…}} — {@code rendered} is emitted verbatim. */
     private static void literal(StringBuilder b, String type, String rendered,
-                                com.legend.protocol.@com.legend.Nullable SourceInfo pos) {
+                                com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
         if (pos == null) {
             throw new UnsupportedOperationException(
                     "ProtocolEmitter needs a source position for a " + type

@@ -74,7 +74,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  the ###Mapping model is built from protocol rather than by a second
      *  parser (PARSER_COMPLETENESS_PLAN.md §1). */
     public static Protocol.PMapping parse(TokenStream ts, int tokenIndex,
-            int sectionStartLine, int @com.legend.Nullable [] endOut,
+            int sectionStartLine, int @com.legend.base.Nullable [] endOut,
             Dialect dialect) {
         MappingProtocolParser p = new MappingProtocolParser(ts, tokenIndex,
                 dialect);
@@ -104,7 +104,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  walk resumes there). */
     public static Protocol.PDataElement parseData(TokenStream ts,
             int tokenIndex, Dialect dialect,
-            int @com.legend.Nullable [] endOut) {
+            int @com.legend.base.Nullable [] endOut) {
         MappingProtocolParser p =
                 new MappingProtocolParser(ts, tokenIndex, dialect);
         Protocol.PDataElement d = p.parseDataElement();
@@ -596,7 +596,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      */
     private Protocol.PServiceStoreClassMapping parseServiceStoreClassMapping(
             String target, int memberStart, SourceInfo targetSpan,
-            @com.legend.Nullable String id, boolean root) {
+            @com.legend.base.Nullable String id, boolean root) {
         expect(TokenType.BRACE_OPEN);
         List<Protocol.PServiceStoreLocalProp> localProps = new ArrayList<>();
         List<Protocol.PServiceMapping> services = new ArrayList<>();
@@ -793,7 +793,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     /** {@code *Class[id]: MongoDB { ~mainCollection [db] Coll }} — the wire
      *  carries NO spans (ZTailProbe "mongodb-mapping"). */
     private Protocol.PClassMappingMongoDb parseMongoDbClassMapping(
-            String target, @com.legend.Nullable String id, boolean root) {
+            String target, @com.legend.base.Nullable String id, boolean root) {
         expect(TokenType.BRACE_OPEN);
         String store = null;
         String coll = null;
@@ -939,8 +939,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      */
     private Protocol.PClassMappingFunction parseFunctionClassMapping(
             String target, int memberStart, SourceInfo targetSpan,
-            @com.legend.Nullable String id,
-            @com.legend.Nullable String extendsId, boolean root, String kind) {
+            @com.legend.base.Nullable String id,
+            @com.legend.base.Nullable String extendsId, boolean root, String kind) {
         expect(TokenType.BRACE_OPEN);
         int bodyStart = pos;
         int depth = 1;
@@ -1013,7 +1013,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     /** The engine's {@code bindingTransformer: BINDING qualifiedName COLON}
      *  ({@code transformer} rule, shared with enumTransformer) — returns
      *  the Binding FQN or null. */
-    private @com.legend.Nullable String bindingTransformerId() {
+    private @com.legend.base.Nullable String bindingTransformerId() {
         if (peek() == TokenType.VALID_STRING && "Binding".equals(text())
                 && isIdentifierToken(peek(1))) {
             advance();                              // 'Binding'
@@ -1024,7 +1024,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
         return null;
     }
 
-    private @com.legend.Nullable String enumerationMappingId() {
+    private @com.legend.base.Nullable String enumerationMappingId() {
         if (peek() != TokenType.ENUMERATION_MAPPING) {
             return null;
         }
@@ -1049,8 +1049,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     /** A Relation binding's right-hand side: a column NAME, or a row
      *  expression when it is richer than one; {@code span} covers the RHS
      *  tokens (the valueFn wrapper's columns — see PRelationFnPropertyMapping). */
-    private record RelationBinding(@com.legend.Nullable String column,
-            @com.legend.Nullable com.legend.protocol.spec.ValueSpecification expr,
+    private record RelationBinding(@com.legend.base.Nullable String column,
+            @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification expr,
             SourceInfo span) {
     }
 
@@ -1134,8 +1134,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  relational-class-mapping; unsupported directives wall by name. */
     private Protocol.PClassMappingRel parseRelationalClassMapping(
             String target, int memberStart, SourceInfo targetSpan,
-            @com.legend.Nullable String id, boolean root,
-            @com.legend.Nullable String extendsId) {
+            @com.legend.base.Nullable String id, boolean root,
+            @com.legend.base.Nullable String extendsId) {
         expect(TokenType.BRACE_OPEN);
         Protocol.PFilterMapping filter = null;
         Protocol.PTablePtr mainTable = null;
@@ -1231,8 +1231,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  absolute spans via token slices (probe pure-m2m). */
     private Protocol.PClassMappingPure parsePureClassMapping(String target,
             int memberStart, SourceInfo targetSpan,
-            @com.legend.Nullable String id, boolean root,
-            @com.legend.Nullable String extendsId) {
+            @com.legend.base.Nullable String id, boolean root,
+            @com.legend.base.Nullable String extendsId) {
         expect(TokenType.BRACE_OPEN);
         String srcClass = null;
         SourceInfo srcSpan = null;
@@ -1412,7 +1412,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  first appearance (probe include-and-assoc). */
     private Protocol.PRelAssociationMapping parseRelAssociationMapping(
             String target, int memberStart, SourceInfo targetSpan,
-            @com.legend.Nullable String id) {
+            @com.legend.base.Nullable String id) {
         expect(TokenType.BRACE_OPEN);
         expect(TokenType.ASSOCIATION_MAPPING);
         expect(TokenType.PAREN_OPEN);
@@ -1472,7 +1472,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  expressions are Pure lambdas via SpecParser (probe xstore). */
     private Protocol.PXStoreAssociationMapping parseXStoreAssociationMapping(
             String target, int memberStart, SourceInfo targetSpan,
-            @com.legend.Nullable String id) {
+            @com.legend.base.Nullable String id) {
         expect(TokenType.BRACE_OPEN);
         List<Protocol.PXStorePropertyMapping> props = new ArrayList<>();
         while (!atEnd() && peek() != TokenType.BRACE_CLOSE) {
@@ -1569,8 +1569,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  differ, a contains-match would run the wrong one). */
     private Protocol.PClassMapping parseOperationClassMapping(
             String target, int memberStart, SourceInfo targetSpan,
-            @com.legend.Nullable String id,
-            @com.legend.Nullable String extendsId, boolean root) {
+            @com.legend.base.Nullable String id,
+            @com.legend.base.Nullable String extendsId, boolean root) {
         expect(TokenType.BRACE_OPEN);
         int fqnTok = pos;
         String fqn = Protocol.unquotePath(parseQualifiedName());
@@ -1750,9 +1750,9 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  {@code EnumerationMapping em:} rides enumMappingId (probe
      *  inline-enum-transform). */
     private void parsePropertyLine(List<Protocol.PPropertyMapping> props,
-            @com.legend.Nullable String target, @com.legend.Nullable String id,
-            @com.legend.Nullable String scopeDb,
-            DatabaseProtocolParser.@com.legend.Nullable ScopeCtx scope) {
+            @com.legend.base.Nullable String target, @com.legend.base.Nullable String id,
+            @com.legend.base.Nullable String scopeDb,
+            DatabaseProtocolParser.@com.legend.base.Nullable ScopeCtx scope) {
         int pS = pos;
         Protocol.PLocalProp localProp = null;
         boolean local = match(TokenType.PLUS);
@@ -1900,8 +1900,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  table (when the header has one) spans the HEADER tokens (probe
      *  scope-forms). */
     private void parseScopeBlock(List<Protocol.PPropertyMapping> props,
-            @com.legend.Nullable String target,
-            @com.legend.Nullable String id) {
+            @com.legend.base.Nullable String target,
+            @com.legend.base.Nullable String id) {
         advance();                                  // 'scope'
         expect(TokenType.PAREN_OPEN);
         expect(TokenType.BRACKET_OPEN);
@@ -1959,7 +1959,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  modeljoin); member span target..outer close. */
     private Protocol.PModelJoinAssociationMapping parseModelJoin(
             String target, int memberStart, SourceInfo targetSpan,
-            @com.legend.Nullable String id) {
+            @com.legend.base.Nullable String id) {
         expect(TokenType.BRACE_OPEN);
         int lS = pos;
         int depth = 0;
@@ -2003,8 +2003,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  with NO spaces); property lines map columns (probe relation-fn). */
     private Protocol.PClassMappingRelation parseRelationClassMapping(
             String target, int memberStart, SourceInfo targetSpan,
-            @com.legend.Nullable String id,
-            @com.legend.Nullable String extendsId, boolean root) {
+            @com.legend.base.Nullable String id,
+            @com.legend.base.Nullable String extendsId, boolean root) {
         int braceTok = pos;
         expect(TokenType.BRACE_OPEN);
         int braceLine = tokens.startLine(braceTok);
@@ -2092,12 +2092,12 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  mapping — shared by the descriptor (~func / ~src fn) and the
      *  expression-source (~src <expr>) heads. */
     private Protocol.PClassMappingRelation finishRelationClassMapping(
-            String target, @com.legend.Nullable String id,
-            @com.legend.Nullable String extendsId, boolean root,
+            String target, @com.legend.base.Nullable String id,
+            @com.legend.base.Nullable String extendsId, boolean root,
             int memberStart, int braceLine,
-            Protocol.@com.legend.Nullable PRelationSrcLambda srcLambda,
-            @com.legend.Nullable String desc,
-            @com.legend.Nullable SourceInfo fnSpan) {
+            Protocol.@com.legend.base.Nullable PRelationSrcLambda srcLambda,
+            @com.legend.base.Nullable String desc,
+            @com.legend.base.Nullable SourceInfo fnSpan) {
         List<String> pk = new ArrayList<>();
         if (peek() == TokenType.PRIMARY_KEY_CMD) {
             // engine (RelationFunctionMappingParserGrammar): ~primaryKey:
@@ -2212,7 +2212,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     /** The valueFn WRAPPER span for an expression binding: the RHS columns
      *  with both lines shifted DOWN by (RHS line - cm brace line) — the
      *  engine walker's re-parse anchor quirk (see PRelationSrcLambda). */
-    private static @com.legend.Nullable SourceInfo exprWrapper(
+    private static @com.legend.base.Nullable SourceInfo exprWrapper(
             RelationBinding rb, int braceLine) {
         if (rb.expr() == null) {
             return null;
@@ -2953,7 +2953,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  shift rules (nested CMs +DELTA lines; lambdas -1 line). */
     private Protocol.PClassMappingAggregationAware parseAggregationAware(
             String target, int memberStart, SourceInfo targetSpan,
-            @com.legend.Nullable String id, boolean root) {
+            @com.legend.base.Nullable String id, boolean root) {
         if (sectionStartLine < 0) {
             throw error("AggregationAware needs the section start line"
                     + " (span-shift emulation)");
@@ -3125,7 +3125,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  outer spans (probe agg-off). */
     private Protocol.PClassMapping parseNested(int signedBodyTok,
             String target, SourceInfo shiftedTarget, String cmId,
-            @com.legend.Nullable String explicitOuterId, boolean root,
+            @com.legend.base.Nullable String explicitOuterId, boolean root,
             SourceInfo shiftedMember) {
         if (signedBodyTok < 0) {
             MappingProtocolParser p = new MappingProtocolParser(tokens,
@@ -3145,7 +3145,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
 
     private Protocol.PClassMappingRel parseNestedRel(int bodyTok,
             String target, SourceInfo shiftedTarget, String cmId,
-            @com.legend.Nullable String explicitOuterId, boolean root,
+            @com.legend.base.Nullable String explicitOuterId, boolean root,
             SourceInfo shiftedMember) {
         MappingProtocolParser p = new MappingProtocolParser(tokens, bodyTok, dialect);
         // pm sources keep the EXPLICIT outer id (or null) — the engine
@@ -3352,8 +3352,8 @@ public final class MappingProtocolParser implements TokenStreamCursor {
     /** One embedded op under the ACTIVE scope context (scope table >
      *  scope db > bare). */
     private Protocol.PRelOp parseOpInCtx(
-            @com.legend.Nullable String scopeDb,
-            DatabaseProtocolParser.@com.legend.Nullable ScopeCtx scope) {
+            @com.legend.base.Nullable String scopeDb,
+            DatabaseProtocolParser.@com.legend.base.Nullable ScopeCtx scope) {
         int[] posOut = new int[1];
         Protocol.PRelOp op;
         if (scope != null) {
@@ -3440,7 +3440,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
      *  local-property sites (was three drifting copies, adversarial audit
      *  F8); stops BEFORE the closing ']' so callers can span it. Overflow
      *  refuses positioned via consumeLong. */
-    private record MultBounds(long lower, @com.legend.Nullable Long upper) {
+    private record MultBounds(long lower, @com.legend.base.Nullable Long upper) {
     }
 
     private MultBounds parseLongMultBounds() {

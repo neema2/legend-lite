@@ -207,13 +207,13 @@ final class ArchitectureTest {
      * <strong>Invariant 6 — the pipeline's actual layer walls</strong>
      * (audit 15: all measured true, now pinned).
      */
-    /** The nullness vocabulary (com.legend.Nullable/NonNull) is values-tier:
+    /** The nullness vocabulary (com.legend.base.Nullable/NonNull) is values-tier:
      * every layer may carry the annotations without breaching its wall. */
     private static final com.tngtech.archunit.base.DescribedPredicate<
             com.tngtech.archunit.core.domain.JavaClass> NULLNESS_ANNOTATIONS =
             com.tngtech.archunit.core.domain.JavaClass.Predicates
-                    .belongToAnyOf(com.legend.Nullable.class,
-                            com.legend.NonNull.class);
+                    .belongToAnyOf(com.legend.base.Nullable.class,
+                            com.legend.base.NonNull.class);
 
     @Test
     void sqlLayerIsFullyStandalone() {

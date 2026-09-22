@@ -27,7 +27,7 @@ final class CrossStoreGuard {
     }
 
     static void check(List<TypedSpec> body, ModelContext ctx,
-            @com.legend.Nullable String runtimeFqn) {
+            @com.legend.base.Nullable String runtimeFqn) {
         if (runtimeFqn == null) {
             return;
         }

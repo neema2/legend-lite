@@ -187,7 +187,7 @@ final class CastPolicy {
      * conversions keep the standing corpus-contract conversion arm
      * (per-lane adjudication territory, not this burn); null = not a
      * concrete primitive (Any/class casts flow). */
-    static @com.legend.Nullable SqlExpr crossKindRaise(Type src, Type target) {
+    static @com.legend.base.Nullable SqlExpr crossKindRaise(Type src, Type target) {
         Type.Primitive.Family sf = familyOf(src);
         Type.Primitive.Family tf = familyOf(target);
         if (sf == null || tf == null || sf == tf) {
@@ -214,7 +214,7 @@ final class CastPolicy {
                         + " cannot be cast to " + target.typeName()));
     }
 
-    private static Type.Primitive.@com.legend.Nullable Family familyOf(Type t) {
+    private static Type.Primitive.@com.legend.base.Nullable Family familyOf(Type t) {
         if (t instanceof Type.PrecisionDecimal) {
             return Type.Primitive.Family.NUMERIC;
         }

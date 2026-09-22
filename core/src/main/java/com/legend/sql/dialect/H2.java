@@ -692,8 +692,8 @@ public class H2 extends AnsiSqlRenderer {
      * canonical envelope representation is the STRING (probed 2.1.214;
      * H2_BACKEND.md §12 step 11's first codec row). */
     @Override
-    public @com.legend.Nullable Object normalize(@com.legend.Nullable Object jdbcValue,
-            com.legend.sql.@com.legend.Nullable SqlType type) {
+    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
+            com.legend.sql.@com.legend.base.Nullable SqlType type) {
         if (jdbcValue instanceof byte[] b
                 && type == com.legend.sql.SqlType.Scalar.JSON) {
             return new String(b, java.nio.charset.StandardCharsets.UTF_8);

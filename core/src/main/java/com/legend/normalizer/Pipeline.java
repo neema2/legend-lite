@@ -66,13 +66,13 @@ final class Pipeline {
      * compiled mapping, never written into the model index. Null on a
      * VIEW pipeline: a view emits physical hops only and records
      * nothing; {@link #ledger()} is loud if that ever changes. */
-    private final @com.legend.Nullable MappingLedger ledgerOrNull;
+    private final @com.legend.base.Nullable MappingLedger ledgerOrNull;
 
     Pipeline(ValueSpecification expr, MappingLedger ledger) {
         this(expr, ledger, false);
     }
 
-    private Pipeline(ValueSpecification expr, @com.legend.Nullable MappingLedger ledger,
+    private Pipeline(ValueSpecification expr, @com.legend.base.Nullable MappingLedger ledger,
             boolean view) {
         this.expr = expr;
         this.ledgerOrNull = view ? null : java.util.Objects.requireNonNull(ledger, "ledger");
@@ -103,12 +103,12 @@ final class Pipeline {
             @Override public String slotFor(List<JoinChainElement> chain) {
                 return JoinChainEmission.slotFor(Pipeline.this, chain);
             }
-            @Override public @com.legend.Nullable String targetTable(
-                    @com.legend.Nullable String alias) {
+            @Override public @com.legend.base.Nullable String targetTable(
+                    @com.legend.base.Nullable String alias) {
                 return aliasToTargetTable.get(alias);
             }
             @Override public boolean targetHasColumn(
-                    @com.legend.Nullable String alias, String column) {
+                    @com.legend.base.Nullable String alias, String column) {
                 for (String c : aliasToTargetColumns.getOrDefault(alias, Set.of())) {
                     if (c.equalsIgnoreCase(column)) {
                         return true;
