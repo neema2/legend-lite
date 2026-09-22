@@ -2,8 +2,9 @@
 # POOLS). Bazel-only by nature — they check what Bazel resolves and links.
 load("//tools/junit:defs.bzl", "junit_test")
 
-# Every external jar core reaches at runtime. NullAway is subtracted: it is a
-# compiler plugin, on javac's processor path, never on core's classpath.
+# Every external jar the product reaches: core itself (NullAway subtracted — a
+# compiler plugin, on javac's processor path, never on a classpath) and the
+# drivers a running core is given.
 genquery(
     name = "core_closure",
     expression = "kind(jvm_import, deps(//core:core) except deps(//core:nullaway))",
@@ -11,11 +12,21 @@ genquery(
     scope = ["//core:core"],
 )
 
+genquery(
+    name = "drivers_closure",
+    expression = "kind(jvm_import, deps(//core:drivers))",
+    opts = ["--noimplicit_deps"],
+    scope = ["//core:drivers"],
+)
+
 junit_test(
     name = "core_closure_test",
     size = "small",
     srcs = ["CoreClosureTest.java"],
-    data = [":core_closure"],
+    data = [
+        ":core_closure",
+        ":drivers_closure",
+    ],
     select = ["--select-class=com.legend.tools.deps.CoreClosureTest"],
     deps = [
         "//testing",
