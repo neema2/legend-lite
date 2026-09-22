@@ -1,0 +1,40 @@
+# Guards on the build graph itself: who may reach which jars (MODULE.bazel, THE JAR
+# POOLS). Bazel-only by nature — they check what Bazel resolves and links.
+load("//tools/junit:defs.bzl", "junit_test")
+
+# Every external jar core reaches at runtime. NullAway is subtracted: it is a
+# compiler plugin, on javac's processor path, never on core's classpath.
+genquery(
+    name = "core_closure",
+    expression = "kind(jvm_import, deps(//core:core) except deps(//core:nullaway))",
+    opts = ["--noimplicit_deps"],
+    scope = ["//core:core"],
+)
+
+junit_test(
+    name = "core_closure_test",
+    size = "small",
+    srcs = ["CoreClosureTest.java"],
+    data = [":core_closure"],
+    select = ["--select-class=com.legend.tools.deps.CoreClosureTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+junit_test(
+    name = "pools_are_disjoint",
+    size = "small",
+    srcs = ["PoolsAreDisjointTest.java"],
+    data = [
+        "//:maven_core_install.json",
+        "//:maven_test_install.json",
+        "//:maven_upstream_install.json",
+    ],
+    select = ["--select-class=com.legend.tools.deps.PoolsAreDisjointTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)

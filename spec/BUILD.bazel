@@ -19,12 +19,12 @@ java_library(
     deps = [
         "//core",
         "//testing",
-        "@maven//:com_h2database_h2",
-        "@maven//:com_tngtech_archunit_archunit",
-        "@maven//:com_tngtech_archunit_archunit_junit5",
-        "@maven//:org_duckdb_duckdb_jdbc",
-        "@maven//:org_junit_jupiter_junit_jupiter_api",
-        "@maven//:org_junit_jupiter_junit_jupiter_params",
+        "@maven_core//:com_h2database_h2",
+        "@maven_test//:com_tngtech_archunit_archunit",
+        "@maven_test//:com_tngtech_archunit_archunit_junit5",
+        "@maven_core//:org_duckdb_duckdb_jdbc",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_params",
     ],
 )
 

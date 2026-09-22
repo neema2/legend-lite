@@ -1,6 +1,9 @@
-# Root package. Exists so the lock files are labels rules_jvm_external can read,
-# and as the home for workspace-wide targets later.
+# Root package. Exists so the jar pools' lock files are labels rules_jvm_external
+# can read (MODULE.bazel says which pool is whose), and as the home for
+# workspace-wide targets later.
 exports_files([
-    "maven_install.json",
+    "maven_core_install.json",
+    "maven_test_install.json",
     "maven_tools_install.json",
+    "maven_upstream_install.json",
 ])
