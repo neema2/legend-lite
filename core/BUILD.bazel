@@ -1,0 +1,50 @@
+# core, as ONE java_library — the first step of the Bazel migration.
+#
+# Deliberately coarse. Building core as a single target separates two risks that
+# a per-package layout would confuse: "can Bazel compile this code at all"
+# (toolchain, deps, resources, Error Prone) from "is the dependency graph right".
+# Only the first is under test here. The split into ~28 targets follows, and
+# Bazel itself checks each one by refusing to load on a cycle.
+load("@rules_java//java:defs.bzl", "java_library", "java_plugin")
+
+package(default_visibility = ["//visibility:public"])
+
+# THE NULL GATE. A java_plugin with NO processor_class lands on javac's
+# --processorpath, where Error Prone's ServiceLoader finds NullAway's
+# @AutoService(BugChecker.class) registration.
+java_plugin(
+    name = "nullaway",
+    deps = ["@maven//:com_uber_nullaway_nullaway"],
+)
+
+# The Maven build's flags, minus the three that do not apply under Bazel
+# (feasibility.md Q1): NO -Xplugin:ErrorProne (JavaBuilder instantiates Error
+# Prone itself and rejects the Maven form), and NO -J--add-exports block
+# (rules_java's BASE_JDK9_JVM_OPTS already passes every one of them).
+NULLAWAY_OPTS = [
+    "-XDcompilePolicy=simple",
+    "--should-stop=ifError=FLOW",
+    "-Xmaxerrs",
+    "10000",
+    "-XepDisableAllChecks",
+    "-Xep:NullAway:ERROR",
+    "-XepOpt:NullAway:AnnotatedPackages=com.legend",
+    "-XepOpt:NullAway:CustomNullableAnnotations=com.legend.base.Nullable",
+    "-XepOpt:NullAway:CustomNonnullAnnotations=com.legend.base.NonNull",
+    "-XepOpt:NullAway:JSpecifyMode=true",
+    "-XepOpt:NullAway:CheckOptionalEmptiness=true",
+    "-XDaddTypeAnnotationsToSymbol=true",
+]
+
+java_library(
+    name = "core",
+    srcs = glob(["src/main/java/**/*.java"]),
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    resources = glob(["src/main/resources/**"]),
+    deps = [
+        "@maven//:com_h2database_h2",
+        "@maven//:org_duckdb_duckdb_jdbc",
+        "@maven//:org_xerial_sqlite_jdbc",
+    ],
+)
