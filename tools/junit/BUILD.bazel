@@ -6,6 +6,6 @@ java_library(
     name = "junit",
     srcs = ["JUnitMain.java"],
     visibility = ["//visibility:public"],
-    exports = ["@maven//:org_junit_platform_junit_platform_console_standalone"],
-    deps = ["@maven//:org_junit_platform_junit_platform_console_standalone"],
+    exports = ["@maven_test//:org_junit_platform_junit_platform_console_standalone"],
+    deps = ["@maven_test//:org_junit_platform_junit_platform_console_standalone"],
 )

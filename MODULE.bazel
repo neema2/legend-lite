@@ -13,18 +13,56 @@ bazel_dep(name = "rules_java", version = "9.9.0")
 bazel_dep(name = "rules_jvm_external", version = "7.1")
 
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
+
+# ── THE JAR POOLS ───────────────────────────────────────────────────────────────
+# One pool per OWNER, never one pool for the repository. A pool is resolved on its
+# own, so nothing in one can move a version in another: the engine's BOM cannot
+# touch core, and a compiler plugin cannot touch a test classpath. Every artifact
+# belongs to exactly ONE pool (//tools/deps:pools_are_disjoint checks it), and
+# core's closure may reach @maven_core alone (//tools/deps:core_closure_test).
+#
+#   @maven_core      core's own jars — the product's whole external surface
+#   @maven_test      the test tooling every module's tests share
+#   @maven_upstream  legend-engine / legend-pure, for the modules that referee
+#                    lite against them (parser-equivalence, pct) — TEST ONLY
+#   @maven_tools     build tooling: compiler plugins, never on a classpath
+
+# core's runtime jars: the JDBC drivers the SQL renderer targets, and nothing
+# else. The planner needs none of them (java.base alone); they belong to the
+# execution side, and shrink to zero when core's targets split planner | exec.
 maven.install(
-    name = "maven",
+    name = "maven_core",
     artifacts = [
-        # core's three production dependencies — the JDBC drivers the SQL
-        # renderer targets. Versions are the root pom's.
         "org.duckdb:duckdb_jdbc:1.4.4.0",
         "org.xerial:sqlite-jdbc:3.47.1.0",
         "com.h2database:h2:2.1.214",
-        # test tooling — the versions core/pom.xml and the root pom manage
+    ],
+    fail_if_repin_required = False,
+    lock_file = "//:maven_core_install.json",
+    repositories = ["https://repo1.maven.org/maven2"],
+)
+
+# test tooling, at legend-lite's own versions (root pom <junit.version>). JUnit's
+# BOM keeps the Jupiter and Platform jars in step with the console launcher.
+maven.install(
+    name = "maven_test",
+    artifacts = [
         "org.junit.jupiter:junit-jupiter:5.11.3",
         "org.junit.platform:junit-platform-console-standalone:1.11.3",
         "com.tngtech.archunit:archunit-junit5:1.3.0",
+    ],
+    boms = ["org.junit:junit-bom:5.11.3"],
+    resolver = "maven",
+    fail_if_repin_required = False,
+    lock_file = "//:maven_test_install.json",
+    repositories = ["https://repo1.maven.org/maven2"],
+)
+
+# legend-engine and legend-pure, at ONE release. Test inputs only (AGENTS.md,
+# reference-checkout tenet): core never sees a jar from here.
+maven.install(
+    name = "maven_upstream",
+    artifacts = [
         "junit:junit:4.13.1",
 
         # parser-equivalence: the reference parser and EVERY section grammar the
@@ -75,33 +113,38 @@ maven.install(
         "com.google.guava:guava:33.4.6-jre",
     ],
     # THE ENGINE RELEASE'S OWN VERSIONS for everything it manages: its root pom is
-    # imported as a BOM, so a third-party artifact on the upstream graph (guava,
-    # slf4j, snakeyaml, the jackson family, ...) resolves at the version the
-    # engine's reactor — the PCT framework included — builds and runs with.
-    # Derived from the release, never chosen here (root pom.xml, INV-5). The BOM
-    # import is a feature of the maven resolver.
-    # JUnit's own BOM comes FIRST so the test tooling stays whole at legend-lite's
-    # version (root pom <junit.version>): the engine manages jupiter 5.11.0, and
-    # 5.11.0 jars beside the 1.11.3 console launcher would put two JUnit
-    # Platforms on one classpath.
-    boms = [
-        "org.junit:junit-bom:5.11.3",
-        "org.finos.legend.engine:legend-engine:" + LEGEND_ENGINE_RELEASE,
-    ],
+    # imported as a BOM, so a third-party artifact here (guava, slf4j, snakeyaml,
+    # the jackson family, ...) resolves at the version the engine's reactor — the
+    # PCT framework included — builds and runs with. Derived from the release,
+    # never chosen here (root pom.xml, INV-5). BOM import needs the maven resolver.
+    boms = ["org.finos.legend.engine:legend-engine:" + LEGEND_ENGINE_RELEASE],
     resolver = "maven",
-    # ONE version of every artifact, for every package: what the root pom's
-    # dependencyManagement and tools/classpath-convergence.sh police by hand, held
-    # here by construction. Explicitly listed versions win.
+    # Jars another pool owns are left out, so a test that uses both pools gets
+    # ONE copy: the drivers are core's, JUnit 5 is the test tooling's.
+    excluded_artifacts = [
+        "com.h2database:h2",
+        "org.duckdb:duckdb_jdbc",
+        "org.xerial:sqlite-jdbc",
+        "org.junit.jupiter:junit-jupiter",
+        "org.junit.jupiter:junit-jupiter-api",
+        "org.junit.jupiter:junit-jupiter-engine",
+        "org.junit.jupiter:junit-jupiter-params",
+        "org.junit.platform:junit-platform-commons",
+        "org.junit.platform:junit-platform-engine",
+        "org.opentest4j:opentest4j",
+        "org.apiguardian:apiguardian-api",
+    ],
+    # one version of every artifact across this pool; listed versions win
     version_conflict_policy = "pinned",
     fail_if_repin_required = False,
-    lock_file = "//:maven_install.json",
+    lock_file = "//:maven_upstream_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
 
-# BUILD TOOLING, resolved apart: a compiler plugin's own dependencies (NullAway
-# brings the Checker Framework's dataflow and guava) must never move a version on
-# the classpath the tests run with. Error Prone itself is the one bundled with
-# Bazel's Java toolchain; NullAway runs inside it as a plugin (core/BUILD.bazel).
+# BUILD TOOLING: a compiler plugin's own dependencies (NullAway brings the Checker
+# Framework's dataflow and guava) must never move a version on a classpath that
+# runs. Error Prone itself is the one bundled with Bazel's Java toolchain; NullAway
+# runs inside it as a plugin (core/BUILD.bazel).
 maven.install(
     name = "maven_tools",
     artifacts = ["com.uber.nullaway:nullaway:0.13.8"],
@@ -109,7 +152,7 @@ maven.install(
     lock_file = "//:maven_tools_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
-use_repo(maven, "maven", "maven_tools", "unpinned_maven", "unpinned_maven_tools")
+use_repo(maven, "maven_core", "maven_test", "maven_tools", "maven_upstream")
 
 # ── THE UPSTREAM SOURCES ────────────────────────────────────────────────────────
 # legend-engine / legend-pure at ONE release, pinned by content. Tests read these
