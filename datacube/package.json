@@ -31,7 +31,8 @@
     "verify:smoke": "node --experimental-strip-types demo/verify-smoke.mjs",
     "gen:lite-facts": "node tools/gen-lite-facts.mjs",
     "verify:lite-facts": "node tools/gen-lite-facts.mjs --check",
-    "verify:engine:diff": "node --experimental-strip-types --experimental-wasm-exnref demo/verify-engine-differential.mjs"
+    "verify:engine:diff": "node --experimental-strip-types --experimental-wasm-exnref demo/verify-engine-differential.mjs",
+    "verify:calc": "node --experimental-strip-types --experimental-wasm-exnref demo/verify-calc-vocabulary.mjs"
   },
   "keywords": [],
   "author": "",
