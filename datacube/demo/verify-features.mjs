@@ -2013,6 +2013,62 @@ try {
       return detail;
     });
 
+  await check('a GROUP-stage calculated column computes on the aggregates',
+    async () => {
+      // THE STAGE THAT WAS BROKEN. `groupDerived` names were being put
+      // into the pre-aggregation `select(...)`, so the planner was
+      // asked for a column that does not exist until after the
+      // groupBy: "unknown column 'margin' in (region:String[0..1],
+      // ...)". Every group-stage calculated column was unusable, and
+      // no check noticed, because the editor offered both stages and
+      // only the row one was ever exercised.
+      //
+      // The arithmetic is the point of the stage: a ratio of two
+      // AGGREGATES. Computing it per row and averaging gives a
+      // different and wrong answer.
+      await menu(['Pivot', 'Clear All Horizontal Pivots'],
+        { requery: false }).catch(() => {});
+      await settle();
+      await addCalc(1, 'doubled', '$x.notional * 2');
+      await settle();
+      await closeCalc();
+      const s2 = await state();
+      if (/unknown column|Binder Error/.test(s2.status)) {
+        throw new Error(s2.status.replace(/\s+/g, ' ').slice(0, 160));
+      }
+      // The extend must come AFTER the groupBy, not in the select.
+      const selectAt = s2.pure.indexOf('select(~[');
+      const groupAt = s2.pure.indexOf('groupBy(~[');
+      const extendAt = s2.pure.lastIndexOf('extend(~[doubled');
+      if (extendAt < 0) {
+        throw new Error(`no group-stage extend: ${s2.pure.slice(0, 200)}`);
+      }
+      if (groupAt >= 0 && extendAt < groupAt) {
+        throw new Error('the group-stage extend ran BEFORE the groupBy');
+      }
+      if (selectAt >= 0 && /select\(~\[[^\]]*doubled/.test(s2.pure)) {
+        throw new Error('a group-stage column leaked into the projection'
+          + ' — that is the defect this check exists for');
+      }
+      const cols = await gridColumns();
+      if (!cols.includes('doubled')) {
+        throw new Error(`not in the grid: ${cols.join(', ')}`);
+      }
+      // notional x 2, off the same row.
+      const cells = await page.locator('.dc-row').first()
+        .locator('.dc-cell').allTextContents();
+      const num = (i) => Number((cells[i] ?? '').replace(/[^0-9.-]/g, ''));
+      const at = cols.indexOf('notional');
+      const got = num(cols.indexOf('doubled'));
+      const want = num(at) * 2;
+      if (at < 0 || want === 0 || Math.abs(got - want) / want > 0.001) {
+        throw new Error(`doubled is ${got}, expected ${want}`);
+      }
+      const detail = `extend after groupBy, doubled = ${got}`;
+      await clearCalcs();
+      return detail;
+    });
+
   await check('a calculated column learns its TYPE from the result',
     async () => {
       // Nothing here infers the type from the expression -- it comes

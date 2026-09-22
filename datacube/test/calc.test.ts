@@ -18,6 +18,8 @@ import {
   nameProblem,
 } from '../src/calc.ts';
 import { PIVOT_SEPARATOR } from '../src/generated/lite-facts.ts';
+import { pureTypeOfArrow } from '../src/result.ts';
+import { isNumericType } from '../src/snapshot.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 
 const snap = (over: Partial<CubeSnapshot> = {}): CubeSnapshot => ({
@@ -219,5 +221,47 @@ describe('naming a calculated column', () => {
 
   it('accepts an ordinary new name', () => {
     assert.equal(nameProblem(snap(), 'row', 'margin'), null);
+  });
+});
+
+describe('an Arrow type name as a Pure type', () => {
+  it('reads every name duckdb-wasm actually produces', () => {
+    // MEASURED, not guessed. These are the exact strings
+    // `String(field.type)` returns from a duckdb-wasm result --
+    // captured by querying one column of each type -- because the
+    // first version of this matched letters ONLY, stopped at the digit
+    // in `Utf8`, and reported every string column as 'Unknown'.
+    const measured: Record<string, string> = {
+      Utf8: 'String',
+      Int32: 'Integer',
+      Int64: 'Integer',
+      Float64: 'Float',
+      'Decimal[9e+2]': 'Decimal',
+      Bool: 'Boolean',
+      'Date32<DAY>': 'StrictDate',
+      'Timestamp<MICROSECOND>': 'DateTime',
+    };
+    for (const [arrow, pure] of Object.entries(measured)) {
+      assert.equal(pureTypeOfArrow(arrow), pure, arrow);
+    }
+  });
+
+  it('answers a Pure type name, never an Arrow one', () => {
+    // The contract on ResultColumn.type: a caller testing
+    // `isNumericType` has to get a name that vocabulary knows.
+    for (const arrow of ['Utf8', 'Int64', 'Float64', 'Decimal[9e+2]']) {
+      const got = pureTypeOfArrow(arrow);
+      assert.ok(!/[0-9]/.test(got), `${arrow} -> ${got} kept a width`);
+      assert.ok(isNumericType(got) || got === 'String',
+        `${arrow} -> ${got} is neither numeric nor String`);
+    }
+  });
+
+  it('says Unknown rather than guessing String', () => {
+    // A column whose type could not be read must not silently become
+    // groupable text.
+    assert.equal(pureTypeOfArrow('SomethingNew'), 'Unknown');
+    assert.equal(pureTypeOfArrow(''), 'Unknown');
+    assert.equal(isNumericType(pureTypeOfArrow('SomethingNew')), false);
   });
 });

@@ -77,6 +77,25 @@ export function columnIndex(table: ResultTable, name: string): number {
 /**
  * An Arrow type name as the Pure type it carries.
  *
+ * A WORKAROUND, and worth naming as one: this is the fourth
+ * type converter in this codebase and the third written by hand
+ * (`sqlTypeOf`, `pureTypeName`, this). It exists only because the
+ * PLAN does not carry the result's types across either boundary.
+ *
+ * legend-lite computes them -- `QueryPlan(sql, rootType, shape)`,
+ * where rootType is the relation's typed columns -- and both
+ * boundaries drop them: the wasm export returns `.sql()` and
+ * `/engine/plan` returns `{sql, shape}`. So each driver re-derives
+ * from whatever metadata its own backend happens to report, in that
+ * backend's own vocabulary, and every backend needs its own
+ * converter. Real legend-engine publishes the same fact properly:
+ * `rootExecutionNode.resultType.tdsColumns[]` carries both `type`
+ * (Pure) and `relationalType` (SQL) per column.
+ *
+ * Fixing the boundary deletes this function and `pureTypeName` with
+ * it. Until then it is here because without it ResultColumn.type
+ * broke its own documented contract.
+ *
  * Arrow spells a type with its width and its unit -- `Int64`,
  * `Float64`, `Decimal<38,6>`, `Timestamp<MICROSECOND>` -- and Pure
  * does not care about either. The match is on the leading token so a
@@ -88,7 +107,13 @@ export function columnIndex(table: ResultTable, name: string): number {
  * rather than assert.
  */
 export function pureTypeOfArrow(name: string): string {
-  const head = /^[A-Za-z]+/.exec(name.trim())?.[0] ?? '';
+  // LETTERS AND DIGITS. The width is part of the name -- `Utf8`,
+  // `Int32`, `Float64` -- so a pattern of letters alone stops at the
+  // first digit and turns `Utf8` into `Utf`, which matched nothing and
+  // reported every string column as Unknown. Measured against
+  // duckdb-wasm: Utf8, Int32, Int64, Float64, Decimal[9e+2], Bool,
+  // Date32<DAY>, Timestamp<MICROSECOND>.
+  const head = /^[A-Za-z][A-Za-z0-9]*/.exec(name.trim())?.[0] ?? '';
   switch (head) {
     case 'Utf8':
     case 'LargeUtf8':
@@ -117,6 +142,8 @@ export function pureTypeOfArrow(name: string): string {
     case 'Decimal':
       return 'Decimal';
     case 'Date':
+    case 'Date32':
+    case 'Date64':
       return 'StrictDate';
     case 'Timestamp':
       return 'DateTime';

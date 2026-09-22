@@ -475,12 +475,21 @@ function columnSpecs(
   return out;
 }
 
-/** Every column a detail cube projects: its own, plus derived. */
+/**
+ * Every column available BEFORE aggregation: the source's, plus the
+ * row-stage calculated ones.
+ *
+ * `groupDerived` is deliberately absent. Those are extended AFTER the
+ * groupBy -- that is the whole point of the stage -- so naming one in
+ * the projection asks the source for a column that does not exist
+ * yet. It did, and the planner said so: "unknown column 'margin' in
+ * (region:String[0..1], ...)". Every group-stage calculated column
+ * was unusable for as long as that line was here.
+ */
 function detailColumns(s: CubeSnapshot): string[] {
   return [
     ...s.columns.map((c) => c.name),
     ...s.derived.map((d) => d.name),
-    ...(s.groupDerived ?? []).map((d) => d.name),
   ];
 }
 
