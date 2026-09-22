@@ -1,123 +1,43 @@
 {
  "packages": {
-  "com.legend.server.serial": [
-   "com.legend.server.serial.CsvSerializer",
-   "com.legend.server.serial.JsonSerializer",
-   "com.legend.server.serial.ResultSerializer",
-   "com.legend.server.serial.SerializerRegistry"
+  "com.legend.base": [
+   "com.legend.base.NonNull",
+   "com.legend.base.Nullable"
   ],
-  "com.legend.exec": [
-   "com.legend.exec.AssertListener",
-   "com.legend.exec.CanonRider",
-   "com.legend.exec.CanonicalDivergence",
-   "com.legend.exec.CanonicalForm",
-   "com.legend.exec.Census",
-   "com.legend.exec.Column",
-   "com.legend.exec.CsvSeed",
-   "com.legend.exec.Ddl",
-   "com.legend.exec.DynamicPivot",
-   "com.legend.exec.EffectSink",
-   "com.legend.exec.Equality",
-   "com.legend.exec.ExecutionResult",
-   "com.legend.exec.ExecutionTrace",
-   "com.legend.exec.Executor",
-   "com.legend.exec.GridProbe",
-   "com.legend.exec.H2Settings",
-   "com.legend.exec.InstanceIds",
-   "com.legend.exec.PctProbe",
-   "com.legend.exec.PrepTrace",
-   "com.legend.exec.PureAsserts",
-   "com.legend.exec.QueryPlan",
-   "com.legend.exec.RaisedErrors",
-   "com.legend.exec.ResultShape",
-   "com.legend.exec.Row",
-   "com.legend.exec.SqlReplayOracle",
-   "com.legend.exec.SqlTypeCensus",
-   "com.legend.exec.StatementOrigin",
-   "com.legend.exec.SystemDatabase",
-   "com.legend.exec.TdsCompare",
-   "com.legend.exec.VerdictBatch",
-   "com.legend.exec.WireTypes"
+  "com.legend.testdatagen": [
+   "com.legend.testdatagen.TestDataGenerationNatives",
+   "com.legend.testdatagen.TestDataGenerator"
   ],
-  "com.legend.server": [
-   "com.legend.server.ConnectionResolver",
-   "com.legend.server.DiagramService",
-   "com.legend.server.Json",
-   "com.legend.server.LegendHttpServer",
-   "com.legend.server.OutputFormat",
-   "com.legend.server.PureLspServer",
-   "com.legend.server.QueryService"
+  "com.legend.compiler.element.type": [
+   "com.legend.compiler.element.type.ExprType",
+   "com.legend.compiler.element.type.Multiplicity",
+   "com.legend.compiler.element.type.PlatformTypes",
+   "com.legend.compiler.element.type.Type"
   ],
-  "com.legend.model": [
-   "com.legend.model.AssociationDefinition",
-   "com.legend.model.AssociationMapping",
-   "com.legend.model.AssociationPropertyMapping",
-   "com.legend.model.AuthenticationSpec",
-   "com.legend.model.ClassDefinition",
-   "com.legend.model.ClassMapping",
-   "com.legend.model.CleanSheetMappingDefinition",
-   "com.legend.model.ComparisonOp",
-   "com.legend.model.ConnectionDefinition",
-   "com.legend.model.ConnectionSpecification",
-   "com.legend.model.DataDefinition",
-   "com.legend.model.DataSpaceDefinition",
-   "com.legend.model.DatabaseDefinition",
-   "com.legend.model.DerivedPropertyNames",
-   "com.legend.model.EnumDefinition",
-   "com.legend.model.EnumerationMapping",
-   "com.legend.model.ExecutionEnvironmentDefinition",
-   "com.legend.model.FilterMapping",
-   "com.legend.model.FilterPointer",
-   "com.legend.model.FromProtocol",
-   "com.legend.model.Function",
-   "com.legend.model.FunctionDefinition",
-   "com.legend.model.GenericSectionElementDefinition",
-   "com.legend.model.ImportScope",
-   "com.legend.model.JoinChainElement",
-   "com.legend.model.JoinType",
-   "com.legend.model.JsonModelConnection",
-   "com.legend.model.KeyThread",
-   "com.legend.model.LegacyMappingDefinition",
-   "com.legend.model.LogicalOp",
-   "com.legend.model.MappingDefinition",
-   "com.legend.model.MappingFromProtocol",
-   "com.legend.model.MappingInclude",
-   "com.legend.model.MeasureDefinition",
-   "com.legend.model.ModelChainConnectionDefinition",
-   "com.legend.model.ModelConnectionDefinition",
-   "com.legend.model.NativeFunctionDefinition",
-   "com.legend.model.NormalizedModel",
-   "com.legend.model.OpaqueElementDefinition",
-   "com.legend.model.PackageableElement",
-   "com.legend.model.ParsedModel",
-   "com.legend.model.PersistenceContextDefinition",
-   "com.legend.model.PersistenceDefinition",
-   "com.legend.model.PoisonKey",
-   "com.legend.model.PrimitiveExtensionDefinition",
-   "com.legend.model.ProfileDefinition",
-   "com.legend.model.PropertyMapping",
-   "com.legend.model.RelOpFromProtocol",
-   "com.legend.model.RelationalDataType",
-   "com.legend.model.RelationalOperation",
-   "com.legend.model.RuntimeDefinition",
-   "com.legend.model.ServiceDefinition",
-   "com.legend.model.SetId",
-   "com.legend.model.SnowflakeActivatorDefinition",
-   "com.legend.model.StereotypeApplication",
-   "com.legend.model.SynthHat",
-   "com.legend.model.TaggedValue"
-  ],
-  "com.legend.protocol.l0": [
-   "com.legend.protocol.Escapes",
-   "com.legend.protocol.Multiplicity",
-   "com.legend.protocol.SourceInfo"
-  ],
-  "com.legend.test": [
-   "com.legend.test.PureTestRunner",
-   "com.legend.test.PureTests",
-   "com.legend.test.ServiceTestRunner",
-   "com.legend.test.TestAssertions",
-   "com.legend.test.TestObserver"
+  "com.legend": [
+   "com.legend.AggAwareActivities",
+   "com.legend.AssertErrorNative",
+   "com.legend.AssertVerdicts",
+   "com.legend.BodyCompiler",
+   "com.legend.Compiler",
+   "com.legend.ConnectionLets",
+   "com.legend.CrossStoreGuard",
+   "com.legend.CsvLoad",
+   "com.legend.DatabaseJudge",
+   "com.legend.ExecuteOptions",
+   "com.legend.HostJudge",
+   "com.legend.KindClass",
+   "com.legend.LiteralFold",
+   "com.legend.MetamodelSeeds",
+   "com.legend.OpSeeds",
+   "com.legend.PlanAllocations",
+   "com.legend.PlanEnvelope",
+   "com.legend.ProgramFacts",
+   "com.legend.SeedSqlForms",
+   "com.legend.SqlTextInputs",
+   "com.legend.SqlTextVerdicts",
+   "com.legend.StatementExecutor",
+   "com.legend.VerdictArm"
   ],
   "com.legend.protocol.spec": [
    "com.legend.protocol.ConstraintDefinition",
@@ -159,275 +79,16 @@
    "com.legend.protocol.spec.ValueSpecification",
    "com.legend.protocol.spec.Variable"
   ],
-  "com.legend.spi": [
-   "com.legend.spi.ElementSink",
-   "com.legend.spi.SectionGrammar",
-   "com.legend.spi.SectionSource"
-  ],
-  "com.legend.resolver": [
-   "com.legend.resolver.AggregationAwareRouting",
-   "com.legend.resolver.Anchors",
-   "com.legend.resolver.AssociationJoins",
-   "com.legend.resolver.CastNav",
-   "com.legend.resolver.CastReRoot",
-   "com.legend.resolver.ChainDispatch",
-   "com.legend.resolver.ChainNormalizer",
-   "com.legend.resolver.ChainedExists",
-   "com.legend.resolver.ClassConcatenates",
-   "com.legend.resolver.ClassSorts",
-   "com.legend.resolver.ClassSources",
-   "com.legend.resolver.ConstructedInstances",
-   "com.legend.resolver.ConstructedRowForm",
-   "com.legend.resolver.CorrelatedSubselects",
-   "com.legend.resolver.DateSplit",
-   "com.legend.resolver.DottedExists",
-   "com.legend.resolver.DriverPkAppend",
-   "com.legend.resolver.ElementReferences",
-   "com.legend.resolver.FlattenOps",
-   "com.legend.resolver.ForeignKeyIdentity",
-   "com.legend.resolver.FunctionBodyRows",
-   "com.legend.resolver.GenericTypeReflection",
-   "com.legend.resolver.GraphEmission",
-   "com.legend.resolver.ImportDataFlowAppend",
-   "com.legend.resolver.InnerDemand",
-   "com.legend.resolver.JsonSourceFrame",
-   "com.legend.resolver.LiteralFolds",
-   "com.legend.resolver.NavExistsMaterial",
-   "com.legend.resolver.NavMaterializer",
-   "com.legend.resolver.NavProvenance",
-   "com.legend.resolver.NavReducer",
-   "com.legend.resolver.NestedUnionKeys",
-   "com.legend.resolver.ObjectReferenceArms",
-   "com.legend.resolver.ObjectReferenceDecode",
-   "com.legend.resolver.OccurrenceBundling",
-   "com.legend.resolver.PipelineWalks",
-   "com.legend.resolver.Pipelines",
-   "com.legend.resolver.RawGridSchema",
-   "com.legend.resolver.RelationalRootForm",
-   "com.legend.resolver.RoutingContext",
-   "com.legend.resolver.ScalarValueReads",
-   "com.legend.resolver.SlotOrder",
-   "com.legend.resolver.Space",
-   "com.legend.resolver.StackBuilder",
-   "com.legend.resolver.StoreEscapees",
-   "com.legend.resolver.StoreResolver",
-   "com.legend.resolver.SubQueryLift",
-   "com.legend.resolver.Substitution",
-   "com.legend.resolver.SyntheticHeads",
-   "com.legend.resolver.TemporalContext",
-   "com.legend.resolver.TemporalFrame",
-   "com.legend.resolver.UnionHeads",
-   "com.legend.resolver.ViewFrames"
-  ],
-  "com.legend.protocol": [
-   "com.legend.protocol.AuthSpecEmitter",
-   "com.legend.protocol.ConnectionEmitters",
-   "com.legend.protocol.GqlEmitter",
-   "com.legend.protocol.MappingEmitter",
-   "com.legend.protocol.ProtocolEmitter",
-   "com.legend.protocol.SpanOrigin",
-   "com.legend.protocol.TailEmitter"
-  ],
-  "com.legend.sql": [
-   "com.legend.sql.AliasPrefix",
-   "com.legend.sql.DateFmt",
-   "com.legend.sql.DecodeShapes",
-   "com.legend.sql.FrameCtes",
-   "com.legend.sql.Json",
-   "com.legend.sql.JsonKeyOrder",
-   "com.legend.sql.OutputCol",
-   "com.legend.sql.PlanProbe",
-   "com.legend.sql.RawSql",
-   "com.legend.sql.ScanOrder",
-   "com.legend.sql.SqlAgg",
-   "com.legend.sql.SqlDdl",
-   "com.legend.sql.SqlExpr",
-   "com.legend.sql.SqlFn",
-   "com.legend.sql.SqlQuery",
-   "com.legend.sql.SqlRewriter",
-   "com.legend.sql.SqlSelect",
-   "com.legend.sql.SqlSource",
-   "com.legend.sql.SqlType",
-   "com.legend.sql.SqlTyping",
-   "com.legend.sql.SqlUnion",
-   "com.legend.sql.SqlWith",
-   "com.legend.sql.TypeFact"
-  ],
-  "com.legend.normalizer": [
-   "com.legend.normalizer.AggregateViewLift",
-   "com.legend.normalizer.AssociationSynthesis",
-   "com.legend.normalizer.DeclaredCoercions",
-   "com.legend.normalizer.DynaFnArms",
-   "com.legend.normalizer.GroupBySynthesis",
-   "com.legend.normalizer.ImplicitInheritance",
-   "com.legend.normalizer.JoinChainEmission",
-   "com.legend.normalizer.M2mRouteGuards",
-   "com.legend.normalizer.MappingClosures",
-   "com.legend.normalizer.MappingFacts",
-   "com.legend.normalizer.MappingLedger",
-   "com.legend.normalizer.MappingNormalizer",
-   "com.legend.normalizer.MappingPrePass",
-   "com.legend.normalizer.MappingValidation",
-   "com.legend.normalizer.MilestoningFacts",
-   "com.legend.normalizer.MissProbe",
-   "com.legend.normalizer.ModelJoinNesting",
-   "com.legend.normalizer.ModelNormalizer",
-   "com.legend.normalizer.Pipeline",
-   "com.legend.normalizer.RelOpTranslator",
-   "com.legend.normalizer.RelationReads",
-   "com.legend.normalizer.ResolvedMapping",
-   "com.legend.normalizer.SetKeyFacts",
-   "com.legend.normalizer.StoreSubstitutionRewrite",
-   "com.legend.normalizer.UnionSynthesis",
-   "com.legend.normalizer.ViewRelation",
-   "com.legend.normalizer.XStorePureEnds"
-  ],
-  "com.legend.validation": [
-   "com.legend.validation.ValidateDesugar"
-  ],
-  "com.legend.error": [
-   "com.legend.error.AssertFailed",
-   "com.legend.error.DataError",
-   "com.legend.error.LegendCompileException",
-   "com.legend.error.MappingResolutionException",
-   "com.legend.error.ModelException",
-   "com.legend.error.NotImplementedException",
-   "com.legend.error.ResolutionException"
-  ],
-  "com.legend.compiler.spec.typed.l0": [
-   "com.legend.compiler.spec.typed.Feature"
-  ],
-  "com.legend": [
-   "com.legend.AggAwareActivities",
-   "com.legend.AssertErrorNative",
-   "com.legend.AssertVerdicts",
-   "com.legend.BodyCompiler",
-   "com.legend.Compiler",
-   "com.legend.ConnectionLets",
-   "com.legend.CrossStoreGuard",
-   "com.legend.CsvLoad",
-   "com.legend.DatabaseJudge",
-   "com.legend.ExecuteOptions",
-   "com.legend.HostJudge",
-   "com.legend.KindClass",
-   "com.legend.LiteralFold",
-   "com.legend.MetamodelSeeds",
-   "com.legend.NonNull",
-   "com.legend.OpSeeds",
-   "com.legend.PlanAllocations",
-   "com.legend.PlanEnvelope",
-   "com.legend.ProgramFacts",
-   "com.legend.SeedSqlForms",
-   "com.legend.SqlTextInputs",
-   "com.legend.SqlTextVerdicts",
-   "com.legend.StatementExecutor",
-   "com.legend.VerdictArm"
-  ],
-  "com.legend.plan": [
-   "com.legend.plan.InProtocol",
-   "com.legend.plan.PlanConn",
-   "com.legend.plan.PlanEnumForm",
-   "com.legend.plan.PlanNode",
-   "com.legend.plan.PlanRows",
-   "com.legend.plan.PlanSupportFunctions",
-   "com.legend.plan.PlanText",
-   "com.legend.plan.PreciseTypes",
-   "com.legend.plan.PurePrint",
-   "com.legend.plan.RelationalMapperRenames"
-  ],
-  "com.legend.compiler.element.l0": [
-   "com.legend.compiler.element.MilestoningStrategy",
-   "com.legend.compiler.element.ModelContext",
-   "com.legend.compiler.element.Property",
-   "com.legend.compiler.element.TypedClass",
-   "com.legend.compiler.element.TypedConstraint",
-   "com.legend.compiler.element.TypedElement",
-   "com.legend.compiler.element.TypedEnum",
-   "com.legend.compiler.element.TypedFunction",
-   "com.legend.compiler.element.TypedNominal",
-   "com.legend.compiler.element.TypedParameter"
-  ],
-  "com.legend.resolver.l0": [
-   "com.legend.resolver.AsorRef",
-   "com.legend.resolver.Callees",
-   "com.legend.resolver.ClassSource",
-   "com.legend.resolver.PkInference"
-  ],
-  "com.legend.l0": [
-   "com.legend.Nullable"
-  ],
-  "com.legend.lowering": [
-   "com.legend.lowering.Aggregates",
-   "com.legend.lowering.AsorReaders",
-   "com.legend.lowering.CalendarAgg",
-   "com.legend.lowering.CanonicalRenderSql",
-   "com.legend.lowering.CastPolicy",
-   "com.legend.lowering.CheckedEnvelope",
-   "com.legend.lowering.Coercions",
-   "com.legend.lowering.CollectionLanes",
-   "com.legend.lowering.CollectionRelations",
-   "com.legend.lowering.Comparators",
-   "com.legend.lowering.ConstBounds",
-   "com.legend.lowering.ConstructionCanon",
-   "com.legend.lowering.DateCtorRule",
-   "com.legend.lowering.DateFormats",
-   "com.legend.lowering.DateShifts",
-   "com.legend.lowering.DecimalKindRules",
-   "com.legend.lowering.Dedup",
-   "com.legend.lowering.EnumSourceValues",
-   "com.legend.lowering.ExistsJoinForm",
-   "com.legend.lowering.FeatureRules",
-   "com.legend.lowering.Fold",
-   "com.legend.lowering.FrameRefs",
-   "com.legend.lowering.GraphAggDecorrelate",
-   "com.legend.lowering.InstanceEquality",
-   "com.legend.lowering.InstanceProjection",
-   "com.legend.lowering.JsonEmission",
-   "com.legend.lowering.JsonLane",
-   "com.legend.lowering.LambdaBinding",
-   "com.legend.lowering.LayoutTypes",
-   "com.legend.lowering.ListEncodings",
-   "com.legend.lowering.ListRules",
-   "com.legend.lowering.LiteralSpelling",
-   "com.legend.lowering.Lowerer",
-   "com.legend.lowering.MatchFold",
-   "com.legend.lowering.MixedEncoding",
-   "com.legend.lowering.NullSemantics",
-   "com.legend.lowering.Numerics",
-   "com.legend.lowering.PctTdsWrap",
-   "com.legend.lowering.Pivots",
-   "com.legend.lowering.PlanParams",
-   "com.legend.lowering.PureSql",
-   "com.legend.lowering.RegexpRules",
-   "com.legend.lowering.RegistryKeys",
-   "com.legend.lowering.RelationPredicates",
-   "com.legend.lowering.Render",
-   "com.legend.lowering.Repr",
-   "com.legend.lowering.Resolvers",
-   "com.legend.lowering.RootLiterals",
-   "com.legend.lowering.RowGetters",
-   "com.legend.lowering.ScalarStats",
-   "com.legend.lowering.Scalars",
-   "com.legend.lowering.SeedableLets",
-   "com.legend.lowering.SnapshotEnvelope",
-   "com.legend.lowering.Sorts",
-   "com.legend.lowering.SqlPostProcessors",
-   "com.legend.lowering.SqlProbes",
-   "com.legend.lowering.StampCensus",
-   "com.legend.lowering.Stamps",
-   "com.legend.lowering.StoreLane",
-   "com.legend.lowering.StreamingGraphRoot",
-   "com.legend.lowering.StringPredicates",
-   "com.legend.lowering.SubselectPrune",
-   "com.legend.lowering.TupleValue",
-   "com.legend.lowering.UnionSerialOrder",
-   "com.legend.lowering.ValueCollectionOps",
-   "com.legend.lowering.ValueCollections",
-   "com.legend.lowering.VariantShapes",
-   "com.legend.lowering.VerdictSql",
-   "com.legend.lowering.WhereMerge",
-   "com.legend.lowering.Windows",
-   "com.legend.lowering.WireRender"
+  "com.legend.compiler.element": [
+   "com.legend.compiler.element.ClassCompiler",
+   "com.legend.compiler.element.ClassLayouts",
+   "com.legend.compiler.element.EqualityKeys",
+   "com.legend.compiler.element.FunctionCompiler",
+   "com.legend.compiler.element.ModelIntegrity",
+   "com.legend.compiler.element.PureModelContext",
+   "com.legend.compiler.element.RelationalOpRows",
+   "com.legend.compiler.element.StoreCompiler",
+   "com.legend.compiler.element.TypeClassifier"
   ],
   "com.legend.compiler.spec.typed": [
    "com.legend.compiler.spec.typed.Calls",
@@ -519,30 +180,254 @@
    "com.legend.compiler.spec.typed.VarUse",
    "com.legend.compiler.spec.typed.WindowFrame"
   ],
-  "com.legend.compiler.element.l1": [
-   "com.legend.compiler.element.RelationalTypeInference",
-   "com.legend.compiler.element.Temporal"
+  "com.legend.compiler": [
+   "com.legend.compiler.DerivedProps",
+   "com.legend.compiler.KnowledgeLayer",
+   "com.legend.compiler.LiteralMapUnroll",
+   "com.legend.compiler.ModelBuilder",
+   "com.legend.compiler.RelationalKinds",
+   "com.legend.compiler.StatementInline",
+   "com.legend.compiler.SymbolTable"
   ],
-  "com.legend.compiler.spec.l0": [
-   "com.legend.compiler.spec.CoreFn",
-   "com.legend.compiler.spec.Env",
-   "com.legend.compiler.spec.SourceSubst",
-   "com.legend.compiler.spec.TypeInferenceException"
+  "com.legend.protocol": [
+   "com.legend.protocol.AuthSpecEmitter",
+   "com.legend.protocol.ConnectionEmitters",
+   "com.legend.protocol.GqlEmitter",
+   "com.legend.protocol.MappingEmitter",
+   "com.legend.protocol.ProtocolEmitter",
+   "com.legend.protocol.SpanOrigin",
+   "com.legend.protocol.TailEmitter"
   ],
-  "com.legend.builtin": [
-   "com.legend.builtin.DynaFn",
-   "com.legend.builtin.NativeFn",
-   "com.legend.builtin.Prelude",
-   "com.legend.builtin.Pure",
-   "com.legend.builtin.Subsumed",
-   "com.legend.builtin.SystemMetamodel",
-   "com.legend.builtin.TdsLegacy"
+  "com.legend.normalizer": [
+   "com.legend.normalizer.AggregateViewLift",
+   "com.legend.normalizer.AssociationSynthesis",
+   "com.legend.normalizer.DeclaredCoercions",
+   "com.legend.normalizer.DynaFnArms",
+   "com.legend.normalizer.GroupBySynthesis",
+   "com.legend.normalizer.ImplicitInheritance",
+   "com.legend.normalizer.JoinChainEmission",
+   "com.legend.normalizer.M2mRouteGuards",
+   "com.legend.normalizer.MappingClosures",
+   "com.legend.normalizer.MappingFacts",
+   "com.legend.normalizer.MappingLedger",
+   "com.legend.normalizer.MappingNormalizer",
+   "com.legend.normalizer.MappingPrePass",
+   "com.legend.normalizer.MappingValidation",
+   "com.legend.normalizer.MilestoningFacts",
+   "com.legend.normalizer.MissProbe",
+   "com.legend.normalizer.ModelJoinNesting",
+   "com.legend.normalizer.ModelNormalizer",
+   "com.legend.normalizer.Pipeline",
+   "com.legend.normalizer.RelOpTranslator",
+   "com.legend.normalizer.RelationReads",
+   "com.legend.normalizer.ResolvedMapping",
+   "com.legend.normalizer.SetKeyFacts",
+   "com.legend.normalizer.StoreSubstitutionRewrite",
+   "com.legend.normalizer.UnionSynthesis",
+   "com.legend.normalizer.ViewRelation",
+   "com.legend.normalizer.XStorePureEnds"
+  ],
+  "com.legend.validation": [
+   "com.legend.validation.ValidateDesugar"
+  ],
+  "com.legend.resolver": [
+   "com.legend.resolver.AggregationAwareRouting",
+   "com.legend.resolver.Anchors",
+   "com.legend.resolver.AssociationJoins",
+   "com.legend.resolver.CastNav",
+   "com.legend.resolver.CastReRoot",
+   "com.legend.resolver.ChainDispatch",
+   "com.legend.resolver.ChainNormalizer",
+   "com.legend.resolver.ChainedExists",
+   "com.legend.resolver.ClassConcatenates",
+   "com.legend.resolver.ClassSorts",
+   "com.legend.resolver.ClassSources",
+   "com.legend.resolver.ConstructedInstances",
+   "com.legend.resolver.ConstructedRowForm",
+   "com.legend.resolver.CorrelatedSubselects",
+   "com.legend.resolver.DateSplit",
+   "com.legend.resolver.DottedExists",
+   "com.legend.resolver.DriverPkAppend",
+   "com.legend.resolver.ElementReferences",
+   "com.legend.resolver.FlattenOps",
+   "com.legend.resolver.ForeignKeyIdentity",
+   "com.legend.resolver.FunctionBodyRows",
+   "com.legend.resolver.GenericTypeReflection",
+   "com.legend.resolver.GraphEmission",
+   "com.legend.resolver.ImportDataFlowAppend",
+   "com.legend.resolver.InnerDemand",
+   "com.legend.resolver.JsonSourceFrame",
+   "com.legend.resolver.LiteralFolds",
+   "com.legend.resolver.NavExistsMaterial",
+   "com.legend.resolver.NavMaterializer",
+   "com.legend.resolver.NavProvenance",
+   "com.legend.resolver.NavReducer",
+   "com.legend.resolver.NestedUnionKeys",
+   "com.legend.resolver.ObjectReferenceArms",
+   "com.legend.resolver.ObjectReferenceDecode",
+   "com.legend.resolver.OccurrenceBundling",
+   "com.legend.resolver.PipelineWalks",
+   "com.legend.resolver.Pipelines",
+   "com.legend.resolver.RawGridSchema",
+   "com.legend.resolver.RelationalRootForm",
+   "com.legend.resolver.RoutingContext",
+   "com.legend.resolver.ScalarValueReads",
+   "com.legend.resolver.SlotOrder",
+   "com.legend.resolver.Space",
+   "com.legend.resolver.StackBuilder",
+   "com.legend.resolver.StoreEscapees",
+   "com.legend.resolver.StoreResolver",
+   "com.legend.resolver.SubQueryLift",
+   "com.legend.resolver.Substitution",
+   "com.legend.resolver.SyntheticHeads",
+   "com.legend.resolver.TemporalContext",
+   "com.legend.resolver.TemporalFrame",
+   "com.legend.resolver.UnionHeads",
+   "com.legend.resolver.ViewFrames"
+  ],
+  "com.legend.compiler.element.l0": [
+   "com.legend.compiler.element.MilestoningStrategy",
+   "com.legend.compiler.element.ModelContext",
+   "com.legend.compiler.element.Property",
+   "com.legend.compiler.element.TypedClass",
+   "com.legend.compiler.element.TypedConstraint",
+   "com.legend.compiler.element.TypedElement",
+   "com.legend.compiler.element.TypedEnum",
+   "com.legend.compiler.element.TypedFunction",
+   "com.legend.compiler.element.TypedNominal",
+   "com.legend.compiler.element.TypedParameter"
+  ],
+  "com.legend.server.serial": [
+   "com.legend.server.serial.CsvSerializer",
+   "com.legend.server.serial.JsonSerializer",
+   "com.legend.server.serial.ResultSerializer",
+   "com.legend.server.serial.SerializerRegistry"
+  ],
+  "com.legend.test": [
+   "com.legend.test.PureTestRunner",
+   "com.legend.test.PureTests",
+   "com.legend.test.ServiceTestRunner",
+   "com.legend.test.TestAssertions",
+   "com.legend.test.TestObserver"
   ],
   "com.legend.lexer": [
    "com.legend.lexer.Lexer",
    "com.legend.lexer.Token",
    "com.legend.lexer.TokenStream",
    "com.legend.lexer.TokenType"
+  ],
+  "com.legend.sql.dialect": [
+   "com.legend.sql.dialect.AnsiSqlRenderer",
+   "com.legend.sql.dialect.CarrierStrategies",
+   "com.legend.sql.dialect.CheckedDefectsToLists",
+   "com.legend.sql.dialect.DdlSpelling",
+   "com.legend.sql.dialect.DialectCapability",
+   "com.legend.sql.dialect.DuckDb",
+   "com.legend.sql.dialect.EngineStyleComposite",
+   "com.legend.sql.dialect.EngineStyleDB2",
+   "com.legend.sql.dialect.EngineStyleH2",
+   "com.legend.sql.dialect.FoldToListReduce",
+   "com.legend.sql.dialect.H2",
+   "com.legend.sql.dialect.H2AvgDelivers",
+   "com.legend.sql.dialect.H2Modern",
+   "com.legend.sql.dialect.LateralExplodeToUnion",
+   "com.legend.sql.dialect.Lexicon",
+   "com.legend.sql.dialect.QualifyToSubselect",
+   "com.legend.sql.dialect.QuantileOrder",
+   "com.legend.sql.dialect.RawSqlAdapt",
+   "com.legend.sql.dialect.RawSqlBoundary",
+   "com.legend.sql.dialect.SourceSpelling",
+   "com.legend.sql.dialect.Spellings",
+   "com.legend.sql.dialect.SqlDialect",
+   "com.legend.sql.dialect.StableScanOrder",
+   "com.legend.sql.dialect.SubstringClamp",
+   "com.legend.sql.dialect.TypeNames",
+   "com.legend.sql.dialect.UnqualifyPivotArgs"
+  ],
+  "com.legend.lowering": [
+   "com.legend.lowering.Aggregates",
+   "com.legend.lowering.AsorReaders",
+   "com.legend.lowering.CalendarAgg",
+   "com.legend.lowering.CanonicalRenderSql",
+   "com.legend.lowering.CastPolicy",
+   "com.legend.lowering.CheckedEnvelope",
+   "com.legend.lowering.Coercions",
+   "com.legend.lowering.CollectionLanes",
+   "com.legend.lowering.CollectionRelations",
+   "com.legend.lowering.Comparators",
+   "com.legend.lowering.ConstBounds",
+   "com.legend.lowering.ConstructionCanon",
+   "com.legend.lowering.DateCtorRule",
+   "com.legend.lowering.DateFormats",
+   "com.legend.lowering.DateShifts",
+   "com.legend.lowering.DecimalKindRules",
+   "com.legend.lowering.Dedup",
+   "com.legend.lowering.EnumSourceValues",
+   "com.legend.lowering.ExistsJoinForm",
+   "com.legend.lowering.FeatureRules",
+   "com.legend.lowering.Fold",
+   "com.legend.lowering.FrameRefs",
+   "com.legend.lowering.GraphAggDecorrelate",
+   "com.legend.lowering.InstanceEquality",
+   "com.legend.lowering.InstanceProjection",
+   "com.legend.lowering.JsonEmission",
+   "com.legend.lowering.JsonLane",
+   "com.legend.lowering.LambdaBinding",
+   "com.legend.lowering.LayoutTypes",
+   "com.legend.lowering.ListEncodings",
+   "com.legend.lowering.ListRules",
+   "com.legend.lowering.LiteralSpelling",
+   "com.legend.lowering.Lowerer",
+   "com.legend.lowering.MatchFold",
+   "com.legend.lowering.MixedEncoding",
+   "com.legend.lowering.NullSemantics",
+   "com.legend.lowering.Numerics",
+   "com.legend.lowering.PctTdsWrap",
+   "com.legend.lowering.Pivots",
+   "com.legend.lowering.PlanParams",
+   "com.legend.lowering.PureSql",
+   "com.legend.lowering.RegexpRules",
+   "com.legend.lowering.RegistryKeys",
+   "com.legend.lowering.RelationPredicates",
+   "com.legend.lowering.Render",
+   "com.legend.lowering.Repr",
+   "com.legend.lowering.Resolvers",
+   "com.legend.lowering.RootLiterals",
+   "com.legend.lowering.RowGetters",
+   "com.legend.lowering.ScalarStats",
+   "com.legend.lowering.Scalars",
+   "com.legend.lowering.SeedableLets",
+   "com.legend.lowering.SnapshotEnvelope",
+   "com.legend.lowering.Sorts",
+   "com.legend.lowering.SqlPostProcessors",
+   "com.legend.lowering.SqlProbes",
+   "com.legend.lowering.StampCensus",
+   "com.legend.lowering.Stamps",
+   "com.legend.lowering.StoreLane",
+   "com.legend.lowering.StreamingGraphRoot",
+   "com.legend.lowering.StringPredicates",
+   "com.legend.lowering.SubselectPrune",
+   "com.legend.lowering.TupleValue",
+   "com.legend.lowering.UnionSerialOrder",
+   "com.legend.lowering.ValueCollectionOps",
+   "com.legend.lowering.ValueCollections",
+   "com.legend.lowering.VariantShapes",
+   "com.legend.lowering.VerdictSql",
+   "com.legend.lowering.WhereMerge",
+   "com.legend.lowering.Windows",
+   "com.legend.lowering.WireRender"
+  ],
+  "com.legend.lineage": [
+   "com.legend.lineage.ColumnLineageRows",
+   "com.legend.lineage.LineageRows",
+   "com.legend.lineage.PkInference",
+   "com.legend.lineage.ScanColumns",
+   "com.legend.lineage.ScanRelations"
+  ],
+  "com.legend.compiler.l0": [
+   "com.legend.compiler.NameResolver",
+   "com.legend.compiler.ResolvedNames",
+   "com.legend.compiler.SynthFqn"
   ],
   "com.legend.parser.section": [
    "com.legend.parser.ElementParser",
@@ -578,11 +463,19 @@
    "com.legend.parser.section.SliceCursor",
    "com.legend.parser.section.TextSectionGrammar"
   ],
-  "com.legend.compiler.element.type": [
-   "com.legend.compiler.element.type.ExprType",
-   "com.legend.compiler.element.type.Multiplicity",
-   "com.legend.compiler.element.type.PlatformTypes",
-   "com.legend.compiler.element.type.Type"
+  "com.legend.cache": [
+   "com.legend.cache.ContentStore",
+   "com.legend.cache.HandleStore",
+   "com.legend.cache.Hash"
+  ],
+  "com.legend.builtin": [
+   "com.legend.builtin.DynaFn",
+   "com.legend.builtin.NativeFn",
+   "com.legend.builtin.Prelude",
+   "com.legend.builtin.Pure",
+   "com.legend.builtin.Subsumed",
+   "com.legend.builtin.SystemMetamodel",
+   "com.legend.builtin.TdsLegacy"
   ],
   "com.legend.parser": [
    "com.legend.parser.DatabaseProtocolParser",
@@ -597,25 +490,35 @@
    "com.legend.parser.ParseException",
    "com.legend.parser.TokenStreamCursor"
   ],
-  "com.legend.compiler": [
-   "com.legend.compiler.DerivedProps",
-   "com.legend.compiler.KnowledgeLayer",
-   "com.legend.compiler.LiteralMapUnroll",
-   "com.legend.compiler.ModelBuilder",
-   "com.legend.compiler.RelationalKinds",
-   "com.legend.compiler.StatementInline",
-   "com.legend.compiler.SymbolTable"
+  "com.legend.protocol.l0": [
+   "com.legend.protocol.Escapes",
+   "com.legend.protocol.Multiplicity",
+   "com.legend.protocol.SourceInfo"
   ],
-  "com.legend.compiler.element": [
-   "com.legend.compiler.element.ClassCompiler",
-   "com.legend.compiler.element.ClassLayouts",
-   "com.legend.compiler.element.EqualityKeys",
-   "com.legend.compiler.element.FunctionCompiler",
-   "com.legend.compiler.element.ModelIntegrity",
-   "com.legend.compiler.element.PureModelContext",
-   "com.legend.compiler.element.RelationalOpRows",
-   "com.legend.compiler.element.StoreCompiler",
-   "com.legend.compiler.element.TypeClassifier"
+  "com.legend.ide": [
+   "com.legend.ide.ModelIndex",
+   "com.legend.ide.ModelIndexer",
+   "com.legend.ide.ModelOrchestrator"
+  ],
+  "com.legend.resolver.l0": [
+   "com.legend.resolver.AsorRef",
+   "com.legend.resolver.Callees",
+   "com.legend.resolver.ClassSource",
+   "com.legend.resolver.PkInference"
+  ],
+  "com.legend.values": [
+   "com.legend.values.LiteralText",
+   "com.legend.values.PureDateLiteral",
+   "com.legend.values.PureTimeLiteral"
+  ],
+  "com.legend.error": [
+   "com.legend.error.AssertFailed",
+   "com.legend.error.DataError",
+   "com.legend.error.LegendCompileException",
+   "com.legend.error.MappingResolutionException",
+   "com.legend.error.ModelException",
+   "com.legend.error.NotImplementedException",
+   "com.legend.error.ResolutionException"
   ],
   "com.legend.compiler.spec": [
    "com.legend.compiler.spec.AggregateChecker",
@@ -698,77 +601,366 @@
    "com.legend.compiler.spec.WalledBodies",
    "com.legend.compiler.spec.WriteChecker"
   ],
-  "com.legend.cache": [
-   "com.legend.cache.ContentStore",
-   "com.legend.cache.HandleStore",
-   "com.legend.cache.Hash"
+  "com.legend.model": [
+   "com.legend.model.AssociationDefinition",
+   "com.legend.model.AssociationMapping",
+   "com.legend.model.AssociationPropertyMapping",
+   "com.legend.model.AuthenticationSpec",
+   "com.legend.model.ClassDefinition",
+   "com.legend.model.ClassMapping",
+   "com.legend.model.CleanSheetMappingDefinition",
+   "com.legend.model.ComparisonOp",
+   "com.legend.model.ConnectionDefinition",
+   "com.legend.model.ConnectionSpecification",
+   "com.legend.model.DataDefinition",
+   "com.legend.model.DataSpaceDefinition",
+   "com.legend.model.DatabaseDefinition",
+   "com.legend.model.DerivedPropertyNames",
+   "com.legend.model.EnumDefinition",
+   "com.legend.model.EnumerationMapping",
+   "com.legend.model.ExecutionEnvironmentDefinition",
+   "com.legend.model.FilterMapping",
+   "com.legend.model.FilterPointer",
+   "com.legend.model.FromProtocol",
+   "com.legend.model.Function",
+   "com.legend.model.FunctionDefinition",
+   "com.legend.model.GenericSectionElementDefinition",
+   "com.legend.model.ImportScope",
+   "com.legend.model.JoinChainElement",
+   "com.legend.model.JoinType",
+   "com.legend.model.JsonModelConnection",
+   "com.legend.model.KeyThread",
+   "com.legend.model.LegacyMappingDefinition",
+   "com.legend.model.LogicalOp",
+   "com.legend.model.MappingDefinition",
+   "com.legend.model.MappingFromProtocol",
+   "com.legend.model.MappingInclude",
+   "com.legend.model.MeasureDefinition",
+   "com.legend.model.ModelChainConnectionDefinition",
+   "com.legend.model.ModelConnectionDefinition",
+   "com.legend.model.NativeFunctionDefinition",
+   "com.legend.model.NormalizedModel",
+   "com.legend.model.OpaqueElementDefinition",
+   "com.legend.model.PackageableElement",
+   "com.legend.model.ParsedModel",
+   "com.legend.model.PersistenceContextDefinition",
+   "com.legend.model.PersistenceDefinition",
+   "com.legend.model.PoisonKey",
+   "com.legend.model.PrimitiveExtensionDefinition",
+   "com.legend.model.ProfileDefinition",
+   "com.legend.model.PropertyMapping",
+   "com.legend.model.RelOpFromProtocol",
+   "com.legend.model.RelationalDataType",
+   "com.legend.model.RelationalOperation",
+   "com.legend.model.RuntimeDefinition",
+   "com.legend.model.ServiceDefinition",
+   "com.legend.model.SetId",
+   "com.legend.model.SnowflakeActivatorDefinition",
+   "com.legend.model.StereotypeApplication",
+   "com.legend.model.SynthHat",
+   "com.legend.model.TaggedValue"
   ],
-  "com.legend.ide": [
-   "com.legend.ide.ModelIndex",
-   "com.legend.ide.ModelIndexer",
-   "com.legend.ide.ModelOrchestrator"
+  "com.legend.spi": [
+   "com.legend.spi.ElementSink",
+   "com.legend.spi.SectionGrammar",
+   "com.legend.spi.SectionSource"
   ],
-  "com.legend.sql.dialect": [
-   "com.legend.sql.dialect.AnsiSqlRenderer",
-   "com.legend.sql.dialect.CarrierStrategies",
-   "com.legend.sql.dialect.CheckedDefectsToLists",
-   "com.legend.sql.dialect.DdlSpelling",
-   "com.legend.sql.dialect.DialectCapability",
-   "com.legend.sql.dialect.DuckDb",
-   "com.legend.sql.dialect.EngineStyleComposite",
-   "com.legend.sql.dialect.EngineStyleDB2",
-   "com.legend.sql.dialect.EngineStyleH2",
-   "com.legend.sql.dialect.FoldToListReduce",
-   "com.legend.sql.dialect.H2",
-   "com.legend.sql.dialect.H2AvgDelivers",
-   "com.legend.sql.dialect.H2Modern",
-   "com.legend.sql.dialect.LateralExplodeToUnion",
-   "com.legend.sql.dialect.Lexicon",
-   "com.legend.sql.dialect.QualifyToSubselect",
-   "com.legend.sql.dialect.QuantileOrder",
-   "com.legend.sql.dialect.RawSqlAdapt",
-   "com.legend.sql.dialect.RawSqlBoundary",
-   "com.legend.sql.dialect.SourceSpelling",
-   "com.legend.sql.dialect.Spellings",
-   "com.legend.sql.dialect.SqlDialect",
-   "com.legend.sql.dialect.StableScanOrder",
-   "com.legend.sql.dialect.SubstringClamp",
-   "com.legend.sql.dialect.TypeNames",
-   "com.legend.sql.dialect.UnqualifyPivotArgs"
+  "com.legend.compiler.element.l1": [
+   "com.legend.compiler.element.RelationalTypeInference",
+   "com.legend.compiler.element.Temporal"
   ],
-  "com.legend.values": [
-   "com.legend.values.LiteralText",
-   "com.legend.values.PureDateLiteral",
-   "com.legend.values.PureTimeLiteral"
+  "com.legend.plan": [
+   "com.legend.plan.InProtocol",
+   "com.legend.plan.PlanConn",
+   "com.legend.plan.PlanEnumForm",
+   "com.legend.plan.PlanNode",
+   "com.legend.plan.PlanRows",
+   "com.legend.plan.PlanSupportFunctions",
+   "com.legend.plan.PlanText",
+   "com.legend.plan.PreciseTypes",
+   "com.legend.plan.PurePrint",
+   "com.legend.plan.RelationalMapperRenames"
   ],
-  "com.legend.lineage": [
-   "com.legend.lineage.ColumnLineageRows",
-   "com.legend.lineage.LineageRows",
-   "com.legend.lineage.PkInference",
-   "com.legend.lineage.ScanColumns",
-   "com.legend.lineage.ScanRelations"
+  "com.legend.exec": [
+   "com.legend.exec.AssertListener",
+   "com.legend.exec.CanonRider",
+   "com.legend.exec.CanonicalDivergence",
+   "com.legend.exec.CanonicalForm",
+   "com.legend.exec.Census",
+   "com.legend.exec.Column",
+   "com.legend.exec.CsvSeed",
+   "com.legend.exec.Ddl",
+   "com.legend.exec.DynamicPivot",
+   "com.legend.exec.EffectSink",
+   "com.legend.exec.Equality",
+   "com.legend.exec.ExecutionResult",
+   "com.legend.exec.ExecutionTrace",
+   "com.legend.exec.Executor",
+   "com.legend.exec.GridProbe",
+   "com.legend.exec.H2Settings",
+   "com.legend.exec.InstanceIds",
+   "com.legend.exec.PctProbe",
+   "com.legend.exec.PrepTrace",
+   "com.legend.exec.PureAsserts",
+   "com.legend.exec.QueryPlan",
+   "com.legend.exec.RaisedErrors",
+   "com.legend.exec.ResultShape",
+   "com.legend.exec.Row",
+   "com.legend.exec.SqlReplayOracle",
+   "com.legend.exec.SqlTypeCensus",
+   "com.legend.exec.StatementOrigin",
+   "com.legend.exec.SystemDatabase",
+   "com.legend.exec.TdsCompare",
+   "com.legend.exec.VerdictBatch",
+   "com.legend.exec.WireTypes"
   ],
-  "com.legend.testdatagen": [
-   "com.legend.testdatagen.TestDataGenerationNatives",
-   "com.legend.testdatagen.TestDataGenerator"
+  "com.legend.compiler.spec.typed.l0": [
+   "com.legend.compiler.spec.typed.Feature"
   ],
-  "com.legend.compiler.l0": [
-   "com.legend.compiler.NameResolver",
-   "com.legend.compiler.ResolvedNames",
-   "com.legend.compiler.SynthFqn"
+  "com.legend.compiler.spec.l0": [
+   "com.legend.compiler.spec.CoreFn",
+   "com.legend.compiler.spec.Env",
+   "com.legend.compiler.spec.SourceSubst",
+   "com.legend.compiler.spec.TypeInferenceException"
+  ],
+  "com.legend.server": [
+   "com.legend.server.ConnectionResolver",
+   "com.legend.server.DiagramService",
+   "com.legend.server.Json",
+   "com.legend.server.LegendHttpServer",
+   "com.legend.server.OutputFormat",
+   "com.legend.server.PureLspServer",
+   "com.legend.server.QueryService"
+  ],
+  "com.legend.sql": [
+   "com.legend.sql.AliasPrefix",
+   "com.legend.sql.DateFmt",
+   "com.legend.sql.DecodeShapes",
+   "com.legend.sql.FrameCtes",
+   "com.legend.sql.Json",
+   "com.legend.sql.JsonKeyOrder",
+   "com.legend.sql.OutputCol",
+   "com.legend.sql.PlanProbe",
+   "com.legend.sql.RawSql",
+   "com.legend.sql.ScanOrder",
+   "com.legend.sql.SqlAgg",
+   "com.legend.sql.SqlDdl",
+   "com.legend.sql.SqlExpr",
+   "com.legend.sql.SqlFn",
+   "com.legend.sql.SqlQuery",
+   "com.legend.sql.SqlRewriter",
+   "com.legend.sql.SqlSelect",
+   "com.legend.sql.SqlSource",
+   "com.legend.sql.SqlType",
+   "com.legend.sql.SqlTyping",
+   "com.legend.sql.SqlUnion",
+   "com.legend.sql.SqlWith",
+   "com.legend.sql.TypeFact"
   ]
  },
  "moves": {
+  "com.legend.compiler.element.MilestoningStrategy": {
+   "from": "com.legend.compiler.element",
+   "to": "com.legend.compiler.element.l0",
+   "refs": 11,
+   "depth": 14
+  },
+  "com.legend.parser.SpecParser": {
+   "from": "com.legend.parser",
+   "to": "com.legend.parser.section",
+   "refs": 7,
+   "depth": 10
+  },
+  "com.legend.compiler.spec.typed.Feature": {
+   "from": "com.legend.compiler.spec.typed",
+   "to": "com.legend.compiler.spec.typed.l0",
+   "refs": 8,
+   "depth": 0
+  },
+  "com.legend.resolver.PkInference": {
+   "from": "com.legend.resolver",
+   "to": "com.legend.resolver.l0",
+   "refs": 1,
+   "depth": 18
+  },
+  "com.legend.protocol.ParameterDefinition": {
+   "from": "com.legend.protocol",
+   "to": "com.legend.protocol.spec",
+   "refs": 12,
+   "depth": 2
+  },
+  "com.legend.compiler.spec.CoreFn": {
+   "from": "com.legend.compiler.spec",
+   "to": "com.legend.compiler.spec.l0",
+   "refs": 15,
+   "depth": 12
+  },
+  "com.legend.compiler.spec.SourceSubst": {
+   "from": "com.legend.compiler.spec",
+   "to": "com.legend.compiler.spec.l0",
+   "refs": 16,
+   "depth": 15
+  },
+  "com.legend.resolver.ClassSource": {
+   "from": "com.legend.resolver",
+   "to": "com.legend.resolver.l0",
+   "refs": 23,
+   "depth": 18
+  },
+  "com.legend.parser.ElementParser": {
+   "from": "com.legend.parser",
+   "to": "com.legend.parser.section",
+   "refs": 9,
+   "depth": 10
+  },
+  "com.legend.protocol.SourceInfo": {
+   "from": "com.legend.protocol",
+   "to": "com.legend.protocol.l0",
+   "refs": 92,
+   "depth": 0
+  },
+  "com.legend.compiler.element.TypedEnum": {
+   "from": "com.legend.compiler.element",
+   "to": "com.legend.compiler.element.l0",
+   "refs": 5,
+   "depth": 16
+  },
+  "com.legend.compiler.spec.Env": {
+   "from": "com.legend.compiler.spec",
+   "to": "com.legend.compiler.spec.l0",
+   "refs": 49,
+   "depth": 14
+  },
   "com.legend.compiler.element.TypedConstraint": {
    "from": "com.legend.compiler.element",
    "to": "com.legend.compiler.element.l0",
    "refs": 3,
    "depth": 0
   },
-  "com.legend.compiler.element.RelationalTypeInference": {
+  "com.legend.parser.PmcdParser": {
+   "from": "com.legend.parser",
+   "to": "com.legend.parser.section",
+   "refs": 1,
+   "depth": 10
+  },
+  "com.legend.protocol.Realization": {
+   "from": "com.legend.protocol",
+   "to": "com.legend.protocol.spec",
+   "refs": 14,
+   "depth": 2
+  },
+  "com.legend.resolver.AsorRef": {
+   "from": "com.legend.resolver",
+   "to": "com.legend.resolver.l0",
+   "refs": 4,
+   "depth": 1
+  },
+  "com.legend.parser.ServiceLegacyMappingParser": {
+   "from": "com.legend.parser",
+   "to": "com.legend.parser.section",
+   "refs": 1,
+   "depth": 10
+  },
+  "com.legend.compiler.element.TypedFunction": {
+   "from": "com.legend.compiler.element",
+   "to": "com.legend.compiler.element.l0",
+   "refs": 124,
+   "depth": 16
+  },
+  "com.legend.protocol.Multiplicity": {
+   "from": "com.legend.protocol",
+   "to": "com.legend.protocol.l0",
+   "refs": 58,
+   "depth": 1
+  },
+  "com.legend.compiler.spec.TypeInferenceException": {
+   "from": "com.legend.compiler.spec",
+   "to": "com.legend.compiler.spec.l0",
+   "refs": 49,
+   "depth": 2
+  },
+  "com.legend.parser.SectionGrammarRegistry": {
+   "from": "com.legend.parser",
+   "to": "com.legend.parser.section",
+   "refs": 2,
+   "depth": 10
+  },
+  "com.legend.protocol.ConstraintDefinition": {
+   "from": "com.legend.protocol",
+   "to": "com.legend.protocol.spec",
+   "refs": 9,
+   "depth": 2
+  },
+  "com.legend.parser.RelationIslands": {
+   "from": "com.legend.parser",
+   "to": "com.legend.parser.section",
+   "refs": 1,
+   "depth": 10
+  },
+  "com.legend.compiler.element.TypedNominal": {
+   "from": "com.legend.compiler.element",
+   "to": "com.legend.compiler.element.l0",
+   "refs": 3,
+   "depth": 16
+  },
+  "com.legend.protocol.DerivedPropertyDefinition": {
+   "from": "com.legend.protocol",
+   "to": "com.legend.protocol.spec",
+   "refs": 14,
+   "depth": 2
+  },
+  "com.legend.compiler.SynthFqn": {
+   "from": "com.legend.compiler",
+   "to": "com.legend.compiler.l0",
+   "refs": 8,
+   "depth": 1
+  },
+  "com.legend.resolver.Callees": {
+   "from": "com.legend.resolver",
+   "to": "com.legend.resolver.l0",
+   "refs": 5,
+   "depth": 18
+  },
+  "com.legend.protocol.TypeExpression": {
+   "from": "com.legend.protocol",
+   "to": "com.legend.protocol.spec",
+   "refs": 72,
+   "depth": 2
+  },
+  "com.legend.protocol.Escapes": {
+   "from": "com.legend.protocol",
+   "to": "com.legend.protocol.l0",
+   "refs": 5,
+   "depth": 0
+  },
+  "com.legend.compiler.ResolvedNames": {
+   "from": "com.legend.compiler",
+   "to": "com.legend.compiler.l0",
+   "refs": 11,
+   "depth": 12
+  },
+  "com.legend.compiler.element.TypedClass": {
+   "from": "com.legend.compiler.element",
+   "to": "com.legend.compiler.element.l0",
+   "refs": 17,
+   "depth": 16
+  },
+  "com.legend.compiler.element.TypedParameter": {
+   "from": "com.legend.compiler.element",
+   "to": "com.legend.compiler.element.l0",
+   "refs": 28,
+   "depth": 14
+  },
+  "com.legend.compiler.element.Property": {
+   "from": "com.legend.compiler.element",
+   "to": "com.legend.compiler.element.l0",
+   "refs": 22,
+   "depth": 15
+  },
+  "com.legend.compiler.element.Temporal": {
    "from": "com.legend.compiler.element",
    "to": "com.legend.compiler.element.l1",
-   "refs": 2,
+   "refs": 9,
    "depth": 18
   },
   "com.legend.parser.MappingProtocolParser": {
@@ -776,6 +968,36 @@
    "to": "com.legend.parser.section",
    "refs": 7,
    "depth": 10
+  },
+  "com.legend.compiler.element.RelationalTypeInference": {
+   "from": "com.legend.compiler.element",
+   "to": "com.legend.compiler.element.l1",
+   "refs": 2,
+   "depth": 18
+  },
+  "com.legend.compiler.element.TypedElement": {
+   "from": "com.legend.compiler.element",
+   "to": "com.legend.compiler.element.l0",
+   "refs": 2,
+   "depth": 16
+  },
+  "com.legend.parser.QuotedSpecParser": {
+   "from": "com.legend.parser",
+   "to": "com.legend.parser.section",
+   "refs": 1,
+   "depth": 10
+  },
+  "com.legend.parser.ServiceStubDataParser": {
+   "from": "com.legend.parser",
+   "to": "com.legend.parser.section",
+   "refs": 1,
+   "depth": 10
+  },
+  "com.legend.compiler.NameResolver": {
+   "from": "com.legend.compiler",
+   "to": "com.legend.compiler.l0",
+   "refs": 3,
+   "depth": 12
   },
   "com.legend.protocol.Protocol": {
    "from": "com.legend.protocol",
@@ -788,234 +1010,6 @@
    "to": "com.legend.compiler.element.l0",
    "refs": 99,
    "depth": 17
-  },
-  "com.legend.compiler.spec.CoreFn": {
-   "from": "com.legend.compiler.spec",
-   "to": "com.legend.compiler.spec.l0",
-   "refs": 15,
-   "depth": 12
-  },
-  "com.legend.compiler.spec.typed.Feature": {
-   "from": "com.legend.compiler.spec.typed",
-   "to": "com.legend.compiler.spec.typed.l0",
-   "refs": 8,
-   "depth": 0
-  },
-  "com.legend.parser.ServiceLegacyMappingParser": {
-   "from": "com.legend.parser",
-   "to": "com.legend.parser.section",
-   "refs": 1,
-   "depth": 10
-  },
-  "com.legend.compiler.element.MilestoningStrategy": {
-   "from": "com.legend.compiler.element",
-   "to": "com.legend.compiler.element.l0",
-   "refs": 11,
-   "depth": 14
-  },
-  "com.legend.protocol.ParameterDefinition": {
-   "from": "com.legend.protocol",
-   "to": "com.legend.protocol.spec",
-   "refs": 12,
-   "depth": 2
-  },
-  "com.legend.compiler.element.TypedElement": {
-   "from": "com.legend.compiler.element",
-   "to": "com.legend.compiler.element.l0",
-   "refs": 2,
-   "depth": 16
-  },
-  "com.legend.resolver.ClassSource": {
-   "from": "com.legend.resolver",
-   "to": "com.legend.resolver.l0",
-   "refs": 23,
-   "depth": 18
-  },
-  "com.legend.parser.ServiceStubDataParser": {
-   "from": "com.legend.parser",
-   "to": "com.legend.parser.section",
-   "refs": 1,
-   "depth": 10
-  },
-  "com.legend.compiler.element.TypedNominal": {
-   "from": "com.legend.compiler.element",
-   "to": "com.legend.compiler.element.l0",
-   "refs": 3,
-   "depth": 16
-  },
-  "com.legend.resolver.PkInference": {
-   "from": "com.legend.resolver",
-   "to": "com.legend.resolver.l0",
-   "refs": 1,
-   "depth": 18
-  },
-  "com.legend.protocol.TypeExpression": {
-   "from": "com.legend.protocol",
-   "to": "com.legend.protocol.spec",
-   "refs": 72,
-   "depth": 2
-  },
-  "com.legend.protocol.DerivedPropertyDefinition": {
-   "from": "com.legend.protocol",
-   "to": "com.legend.protocol.spec",
-   "refs": 14,
-   "depth": 2
-  },
-  "com.legend.compiler.spec.Env": {
-   "from": "com.legend.compiler.spec",
-   "to": "com.legend.compiler.spec.l0",
-   "refs": 49,
-   "depth": 14
-  },
-  "com.legend.resolver.AsorRef": {
-   "from": "com.legend.resolver",
-   "to": "com.legend.resolver.l0",
-   "refs": 4,
-   "depth": 1
-  },
-  "com.legend.protocol.Realization": {
-   "from": "com.legend.protocol",
-   "to": "com.legend.protocol.spec",
-   "refs": 14,
-   "depth": 2
-  },
-  "com.legend.compiler.element.Temporal": {
-   "from": "com.legend.compiler.element",
-   "to": "com.legend.compiler.element.l1",
-   "refs": 9,
-   "depth": 18
-  },
-  "com.legend.protocol.Escapes": {
-   "from": "com.legend.protocol",
-   "to": "com.legend.protocol.l0",
-   "refs": 5,
-   "depth": 0
-  },
-  "com.legend.protocol.Multiplicity": {
-   "from": "com.legend.protocol",
-   "to": "com.legend.protocol.l0",
-   "refs": 58,
-   "depth": 1
-  },
-  "com.legend.parser.SpecParser": {
-   "from": "com.legend.parser",
-   "to": "com.legend.parser.section",
-   "refs": 7,
-   "depth": 10
-  },
-  "com.legend.parser.SectionGrammarRegistry": {
-   "from": "com.legend.parser",
-   "to": "com.legend.parser.section",
-   "refs": 2,
-   "depth": 10
-  },
-  "com.legend.compiler.NameResolver": {
-   "from": "com.legend.compiler",
-   "to": "com.legend.compiler.l0",
-   "refs": 3,
-   "depth": 12
-  },
-  "com.legend.resolver.Callees": {
-   "from": "com.legend.resolver",
-   "to": "com.legend.resolver.l0",
-   "refs": 5,
-   "depth": 18
-  },
-  "com.legend.compiler.SynthFqn": {
-   "from": "com.legend.compiler",
-   "to": "com.legend.compiler.l0",
-   "refs": 8,
-   "depth": 1
-  },
-  "com.legend.parser.RelationIslands": {
-   "from": "com.legend.parser",
-   "to": "com.legend.parser.section",
-   "refs": 1,
-   "depth": 10
-  },
-  "com.legend.compiler.spec.TypeInferenceException": {
-   "from": "com.legend.compiler.spec",
-   "to": "com.legend.compiler.spec.l0",
-   "refs": 49,
-   "depth": 2
-  },
-  "com.legend.Nullable": {
-   "from": "com.legend",
-   "to": "com.legend.l0",
-   "refs": 354,
-   "depth": 0
-  },
-  "com.legend.parser.PmcdParser": {
-   "from": "com.legend.parser",
-   "to": "com.legend.parser.section",
-   "refs": 1,
-   "depth": 10
-  },
-  "com.legend.parser.QuotedSpecParser": {
-   "from": "com.legend.parser",
-   "to": "com.legend.parser.section",
-   "refs": 1,
-   "depth": 10
-  },
-  "com.legend.compiler.element.TypedParameter": {
-   "from": "com.legend.compiler.element",
-   "to": "com.legend.compiler.element.l0",
-   "refs": 28,
-   "depth": 14
-  },
-  "com.legend.protocol.SourceInfo": {
-   "from": "com.legend.protocol",
-   "to": "com.legend.protocol.l0",
-   "refs": 92,
-   "depth": 0
-  },
-  "com.legend.compiler.spec.SourceSubst": {
-   "from": "com.legend.compiler.spec",
-   "to": "com.legend.compiler.spec.l0",
-   "refs": 16,
-   "depth": 15
-  },
-  "com.legend.compiler.element.TypedEnum": {
-   "from": "com.legend.compiler.element",
-   "to": "com.legend.compiler.element.l0",
-   "refs": 5,
-   "depth": 16
-  },
-  "com.legend.protocol.ConstraintDefinition": {
-   "from": "com.legend.protocol",
-   "to": "com.legend.protocol.spec",
-   "refs": 9,
-   "depth": 2
-  },
-  "com.legend.compiler.element.Property": {
-   "from": "com.legend.compiler.element",
-   "to": "com.legend.compiler.element.l0",
-   "refs": 22,
-   "depth": 15
-  },
-  "com.legend.compiler.element.TypedClass": {
-   "from": "com.legend.compiler.element",
-   "to": "com.legend.compiler.element.l0",
-   "refs": 17,
-   "depth": 16
-  },
-  "com.legend.compiler.element.TypedFunction": {
-   "from": "com.legend.compiler.element",
-   "to": "com.legend.compiler.element.l0",
-   "refs": 124,
-   "depth": 16
-  },
-  "com.legend.parser.ElementParser": {
-   "from": "com.legend.parser",
-   "to": "com.legend.parser.section",
-   "refs": 9,
-   "depth": 10
-  },
-  "com.legend.compiler.ResolvedNames": {
-   "from": "com.legend.compiler",
-   "to": "com.legend.compiler.l0",
-   "refs": 11,
-   "depth": 12
   }
  }
 }

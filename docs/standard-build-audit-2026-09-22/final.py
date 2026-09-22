@@ -7,8 +7,9 @@ Phase 3  for each relocated class, try putting it BACK in its original package;
          keep it there if the graph is still acyclic.   -> the refined rule:
          a leaf only moves when something below it actually reaches it
 """
-import collections,json,sys
-exec(open("/private/tmp/claude-502/-Users-neemsandv/75e142bb-86fc-4fc7-9991-eda774c19853/scratchpad/audit/minimal.py").read().split("# genuine cross-package SCCs")[0])
+import collections,json,sys,os
+_HERE=os.path.dirname(os.path.abspath(__file__))
+exec(open(os.path.join(_HERE,"minimal.py"),encoding="utf-8").read().split("# genuine cross-package SCCs")[0])
 ORIG={c:c.rsplit(".",1)[0] for c in ALL}
 def key(c):
     g=csc[comp[c]]

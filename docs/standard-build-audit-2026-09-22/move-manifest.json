@@ -1,13 +1,5 @@
 [
  {
-  "class": "com.legend.Nullable",
-  "from": "com.legend",
-  "to": "com.legend.l0",
-  "refs": 354,
-  "loc": 24,
-  "depth": 0
- },
- {
   "class": "com.legend.compiler.element.ModelContext",
   "from": "com.legend.compiler.element",
   "to": "com.legend.compiler.element.l0",
@@ -32,20 +24,20 @@
   "depth": 2
  },
  {
-  "class": "com.legend.compiler.spec.TypeInferenceException",
-  "from": "com.legend.compiler.spec",
-  "to": "com.legend.compiler.spec.l0",
-  "refs": 49,
-  "loc": 17,
-  "depth": 2
- },
- {
   "class": "com.legend.compiler.spec.Env",
   "from": "com.legend.compiler.spec",
   "to": "com.legend.compiler.spec.l0",
   "refs": 49,
   "loc": 153,
   "depth": 14
+ },
+ {
+  "class": "com.legend.compiler.spec.TypeInferenceException",
+  "from": "com.legend.compiler.spec",
+  "to": "com.legend.compiler.spec.l0",
+  "refs": 49,
+  "loc": 17,
+  "depth": 2
  },
  {
   "class": "com.legend.compiler.element.TypedFunction",
@@ -88,20 +80,20 @@
   "depth": 15
  },
  {
-  "class": "com.legend.compiler.element.Property",
-  "from": "com.legend.compiler.element",
-  "to": "com.legend.compiler.element.l0",
-  "refs": 15,
-  "loc": 104,
-  "depth": 15
- },
- {
   "class": "com.legend.compiler.spec.CoreFn",
   "from": "com.legend.compiler.spec",
   "to": "com.legend.compiler.spec.l0",
   "refs": 15,
   "loc": 262,
   "depth": 12
+ },
+ {
+  "class": "com.legend.compiler.element.Property",
+  "from": "com.legend.compiler.element",
+  "to": "com.legend.compiler.element.l0",
+  "refs": 15,
+  "loc": 104,
+  "depth": 15
  },
  {
   "class": "com.legend.protocol.Realization",
@@ -128,12 +120,12 @@
   "depth": 2
  },
  {
-  "class": "com.legend.compiler.spec.Bindings",
-  "from": "com.legend.compiler.spec",
-  "to": "com.legend.compiler.spec.l0",
+  "class": "com.legend.compiler.ResolvedNames",
+  "from": "com.legend.compiler",
+  "to": "com.legend.compiler.l0",
   "refs": 11,
-  "loc": 96,
-  "depth": 14
+  "loc": 41,
+  "depth": 12
  },
  {
   "class": "com.legend.compiler.element.ClassLayouts",
@@ -144,12 +136,12 @@
   "depth": 19
  },
  {
-  "class": "com.legend.compiler.ResolvedNames",
-  "from": "com.legend.compiler",
-  "to": "com.legend.compiler.l0",
+  "class": "com.legend.compiler.spec.Bindings",
+  "from": "com.legend.compiler.spec",
+  "to": "com.legend.compiler.spec.l0",
   "refs": 11,
-  "loc": 41,
-  "depth": 12
+  "loc": 96,
+  "depth": 14
  },
  {
   "class": "com.legend.compiler.element.TypedParameter",
@@ -168,19 +160,19 @@
   "depth": 10
  },
  {
-  "class": "com.legend.compiler.element.EqualityKeys",
-  "from": "com.legend.compiler.element",
-  "to": "com.legend.compiler.element.l1",
-  "refs": 9,
-  "loc": 179,
-  "depth": 18
- },
- {
   "class": "com.legend.compiler.element.Temporal",
   "from": "com.legend.compiler.element",
   "to": "com.legend.compiler.element.l1",
   "refs": 9,
   "loc": 142,
+  "depth": 18
+ },
+ {
+  "class": "com.legend.compiler.element.EqualityKeys",
+  "from": "com.legend.compiler.element",
+  "to": "com.legend.compiler.element.l1",
+  "refs": 9,
+  "loc": 179,
   "depth": 18
  },
  {
@@ -190,6 +182,22 @@
   "refs": 9,
   "loc": 78,
   "depth": 2
+ },
+ {
+  "class": "com.legend.resolver.TemporalContext",
+  "from": "com.legend.resolver",
+  "to": "com.legend.resolver.l0",
+  "refs": 8,
+  "loc": 132,
+  "depth": 18
+ },
+ {
+  "class": "com.legend.compiler.element.MilestoningStrategy",
+  "from": "com.legend.compiler.element",
+  "to": "com.legend.compiler.element.l0",
+  "refs": 8,
+  "loc": 52,
+  "depth": 14
  },
  {
   "class": "com.legend.compiler.spec.typed.Feature",
@@ -208,36 +216,12 @@
   "depth": 16
  },
  {
-  "class": "com.legend.compiler.element.MilestoningStrategy",
-  "from": "com.legend.compiler.element",
-  "to": "com.legend.compiler.element.l0",
-  "refs": 8,
-  "loc": 52,
-  "depth": 14
- },
- {
-  "class": "com.legend.resolver.TemporalContext",
-  "from": "com.legend.resolver",
-  "to": "com.legend.resolver.l0",
-  "refs": 8,
-  "loc": 132,
-  "depth": 18
- },
- {
   "class": "com.legend.compiler.SynthFqn",
   "from": "com.legend.compiler",
   "to": "com.legend.compiler.l0",
   "refs": 8,
   "loc": 117,
   "depth": 1
- },
- {
-  "class": "com.legend.resolver.RelationalRootForm",
-  "from": "com.legend.resolver",
-  "to": "com.legend.resolver.l0",
-  "refs": 7,
-  "loc": 267,
-  "depth": 19
  },
  {
   "class": "com.legend.parser.SpecParser",
@@ -248,36 +232,20 @@
   "depth": 10
  },
  {
+  "class": "com.legend.resolver.RelationalRootForm",
+  "from": "com.legend.resolver",
+  "to": "com.legend.resolver.l0",
+  "refs": 7,
+  "loc": 267,
+  "depth": 19
+ },
+ {
   "class": "com.legend.parser.MappingProtocolParser",
   "from": "com.legend.parser",
   "to": "com.legend.parser.section",
   "refs": 6,
   "loc": 3497,
   "depth": 10
- },
- {
-  "class": "com.legend.ExecuteOptions",
-  "from": "com.legend",
-  "to": "com.legend.l0",
-  "refs": 6,
-  "loc": 61,
-  "depth": 1
- },
- {
-  "class": "com.legend.sql.dialect.DialectCapability",
-  "from": "com.legend.sql.dialect",
-  "to": "com.legend.sql.dialect.l0",
-  "refs": 5,
-  "loc": 20,
-  "depth": 0
- },
- {
-  "class": "com.legend.protocol.Escapes",
-  "from": "com.legend.protocol",
-  "to": "com.legend.protocol.l0",
-  "refs": 5,
-  "loc": 138,
-  "depth": 0
  },
  {
   "class": "com.legend.resolver.Callees",
@@ -288,11 +256,11 @@
   "depth": 18
  },
  {
-  "class": "com.legend.compiler.spec.typed.WindowFrame",
-  "from": "com.legend.compiler.spec.typed",
-  "to": "com.legend.compiler.spec.typed.l0",
-  "refs": 4,
-  "loc": 39,
+  "class": "com.legend.protocol.Escapes",
+  "from": "com.legend.protocol",
+  "to": "com.legend.protocol.l0",
+  "refs": 5,
+  "loc": 138,
   "depth": 0
  },
  {
@@ -312,14 +280,6 @@
   "depth": 1
  },
  {
-  "class": "com.legend.resolver.AsorRef",
-  "from": "com.legend.resolver",
-  "to": "com.legend.resolver.l0",
-  "refs": 4,
-  "loc": 122,
-  "depth": 1
- },
- {
   "class": "com.legend.compiler.element.TypedEnum",
   "from": "com.legend.compiler.element",
   "to": "com.legend.compiler.element.l0",
@@ -328,27 +288,19 @@
   "depth": 16
  },
  {
-  "class": "com.legend.compiler.NameResolver",
-  "from": "com.legend.compiler",
-  "to": "com.legend.compiler.l0",
-  "refs": 3,
-  "loc": 2021,
-  "depth": 12
+  "class": "com.legend.resolver.AsorRef",
+  "from": "com.legend.resolver",
+  "to": "com.legend.resolver.l0",
+  "refs": 4,
+  "loc": 122,
+  "depth": 1
  },
  {
-  "class": "com.legend.compiler.spec.SchemaInvariantException",
-  "from": "com.legend.compiler.spec",
-  "to": "com.legend.compiler.spec.l0",
-  "refs": 3,
-  "loc": 21,
-  "depth": 3
- },
- {
-  "class": "com.legend.sql.dialect.RawSqlBoundary",
-  "from": "com.legend.sql.dialect",
-  "to": "com.legend.sql.dialect.l0",
-  "refs": 3,
-  "loc": 268,
+  "class": "com.legend.compiler.spec.typed.WindowFrame",
+  "from": "com.legend.compiler.spec.typed",
+  "to": "com.legend.compiler.spec.typed.l0",
+  "refs": 4,
+  "loc": 39,
   "depth": 0
  },
  {
@@ -360,12 +312,12 @@
   "depth": 18
  },
  {
-  "class": "com.legend.compiler.element.TypedNominal",
-  "from": "com.legend.compiler.element",
-  "to": "com.legend.compiler.element.l0",
+  "class": "com.legend.compiler.NameResolver",
+  "from": "com.legend.compiler",
+  "to": "com.legend.compiler.l0",
   "refs": 3,
-  "loc": 28,
-  "depth": 16
+  "loc": 2021,
+  "depth": 12
  },
  {
   "class": "com.legend.resolver.ChainNormalizer",
@@ -376,12 +328,20 @@
   "depth": 18
  },
  {
-  "class": "com.legend.compiler.spec.Expected",
+  "class": "com.legend.compiler.element.TypedNominal",
+  "from": "com.legend.compiler.element",
+  "to": "com.legend.compiler.element.l0",
+  "refs": 3,
+  "loc": 28,
+  "depth": 16
+ },
+ {
+  "class": "com.legend.compiler.spec.SchemaInvariantException",
   "from": "com.legend.compiler.spec",
   "to": "com.legend.compiler.spec.l0",
-  "refs": 2,
-  "loc": 28,
-  "depth": 14
+  "refs": 3,
+  "loc": 21,
+  "depth": 3
  },
  {
   "class": "com.legend.resolver.RawGridSchema",
@@ -392,20 +352,28 @@
   "depth": 18
  },
  {
+  "class": "com.legend.compiler.element.StoreCompiler",
+  "from": "com.legend.compiler.element",
+  "to": "com.legend.compiler.element.l0",
+  "refs": 2,
+  "loc": 216,
+  "depth": 14
+ },
+ {
+  "class": "com.legend.resolver.AggregationAwareRouting",
+  "from": "com.legend.resolver",
+  "to": "com.legend.resolver.l0",
+  "refs": 2,
+  "loc": 336,
+  "depth": 22
+ },
+ {
   "class": "com.legend.parser.SectionGrammarRegistry",
   "from": "com.legend.parser",
   "to": "com.legend.parser.section",
   "refs": 2,
   "loc": 131,
   "depth": 10
- },
- {
-  "class": "com.legend.resolver.ObjectReferenceArms",
-  "from": "com.legend.resolver",
-  "to": "com.legend.resolver.l0",
-  "refs": 2,
-  "loc": 146,
-  "depth": 18
  },
  {
   "class": "com.legend.compiler.RelationalKinds",
@@ -424,20 +392,12 @@
   "depth": 7
  },
  {
-  "class": "com.legend.resolver.AggregationAwareRouting",
-  "from": "com.legend.resolver",
-  "to": "com.legend.resolver.l0",
-  "refs": 2,
-  "loc": 336,
-  "depth": 22
- },
- {
-  "class": "com.legend.compiler.element.StoreCompiler",
+  "class": "com.legend.compiler.element.TypedElement",
   "from": "com.legend.compiler.element",
   "to": "com.legend.compiler.element.l0",
   "refs": 2,
-  "loc": 216,
-  "depth": 14
+  "loc": 22,
+  "depth": 16
  },
  {
   "class": "com.legend.compiler.element.RelationalTypeInference",
@@ -448,22 +408,6 @@
   "depth": 18
  },
  {
-  "class": "com.legend.resolver.ViewFrames",
-  "from": "com.legend.resolver",
-  "to": "com.legend.resolver.l0",
-  "refs": 2,
-  "loc": 73,
-  "depth": 19
- },
- {
-  "class": "com.legend.compiler.element.TypedElement",
-  "from": "com.legend.compiler.element",
-  "to": "com.legend.compiler.element.l0",
-  "refs": 2,
-  "loc": 22,
-  "depth": 16
- },
- {
   "class": "com.legend.compiler.element.TypedConstraint",
   "from": "com.legend.compiler.element",
   "to": "com.legend.compiler.element.l0",
@@ -472,20 +416,12 @@
   "depth": 0
  },
  {
-  "class": "com.legend.resolver.Space",
+  "class": "com.legend.resolver.ViewFrames",
   "from": "com.legend.resolver",
   "to": "com.legend.resolver.l0",
   "refs": 2,
-  "loc": 25,
-  "depth": 0
- },
- {
-  "class": "com.legend.ProgramFacts",
-  "from": "com.legend",
-  "to": "com.legend.l0",
-  "refs": 2,
-  "loc": 40,
-  "depth": 0
+  "loc": 73,
+  "depth": 19
  },
  {
   "class": "com.legend.compiler.spec.WalledBodies",
@@ -496,11 +432,75 @@
   "depth": 1
  },
  {
+  "class": "com.legend.resolver.ObjectReferenceArms",
+  "from": "com.legend.resolver",
+  "to": "com.legend.resolver.l0",
+  "refs": 2,
+  "loc": 146,
+  "depth": 18
+ },
+ {
+  "class": "com.legend.resolver.Space",
+  "from": "com.legend.resolver",
+  "to": "com.legend.resolver.l0",
+  "refs": 2,
+  "loc": 25,
+  "depth": 0
+ },
+ {
+  "class": "com.legend.compiler.spec.Expected",
+  "from": "com.legend.compiler.spec",
+  "to": "com.legend.compiler.spec.l0",
+  "refs": 2,
+  "loc": 28,
+  "depth": 14
+ },
+ {
+  "class": "com.legend.compiler.DerivedProps",
+  "from": "com.legend.compiler",
+  "to": "com.legend.compiler.l0",
+  "refs": 1,
+  "loc": 84,
+  "depth": 7
+ },
+ {
+  "class": "com.legend.compiler.spec.TdsNullForms",
+  "from": "com.legend.compiler.spec",
+  "to": "com.legend.compiler.spec.l0",
+  "refs": 1,
+  "loc": 38,
+  "depth": 3
+ },
+ {
+  "class": "com.legend.parser.PmcdParser",
+  "from": "com.legend.parser",
+  "to": "com.legend.parser.section",
+  "refs": 1,
+  "loc": 727,
+  "depth": 10
+ },
+ {
   "class": "com.legend.resolver.DriverPkAppend",
   "from": "com.legend.resolver",
   "to": "com.legend.resolver.l0",
   "refs": 1,
   "loc": 212,
+  "depth": 18
+ },
+ {
+  "class": "com.legend.compiler.SymbolTable",
+  "from": "com.legend.compiler",
+  "to": "com.legend.compiler.l0",
+  "refs": 1,
+  "loc": 104,
+  "depth": 0
+ },
+ {
+  "class": "com.legend.resolver.PkInference",
+  "from": "com.legend.resolver",
+  "to": "com.legend.resolver.l0",
+  "refs": 1,
+  "loc": 115,
   "depth": 18
  },
  {
@@ -512,36 +512,28 @@
   "depth": 19
  },
  {
-  "class": "com.legend.parser.PmcdParser",
-  "from": "com.legend.parser",
-  "to": "com.legend.parser.section",
-  "refs": 1,
-  "loc": 727,
-  "depth": 10
- },
- {
-  "class": "com.legend.parser.RelationIslands",
-  "from": "com.legend.parser",
-  "to": "com.legend.parser.section",
-  "refs": 1,
-  "loc": 56,
-  "depth": 10
- },
- {
-  "class": "com.legend.resolver.ClassConcatenates",
+  "class": "com.legend.resolver.NavReducer",
   "from": "com.legend.resolver",
   "to": "com.legend.resolver.l0",
   "refs": 1,
-  "loc": 61,
+  "loc": 131,
   "depth": 18
  },
  {
-  "class": "com.legend.compiler.spec.AlphaRename",
-  "from": "com.legend.compiler.spec",
-  "to": "com.legend.compiler.spec.l0",
+  "class": "com.legend.resolver.ImportDataFlowAppend",
+  "from": "com.legend.resolver",
+  "to": "com.legend.resolver.l0",
   "refs": 1,
-  "loc": 57,
-  "depth": 16
+  "loc": 147,
+  "depth": 19
+ },
+ {
+  "class": "com.legend.parser.ServiceLegacyMappingParser",
+  "from": "com.legend.parser",
+  "to": "com.legend.parser.section",
+  "refs": 1,
+  "loc": 102,
+  "depth": 10
  },
  {
   "class": "com.legend.compiler.LiteralMapUnroll",
@@ -552,19 +544,51 @@
   "depth": 16
  },
  {
+  "class": "com.legend.parser.QuotedSpecParser",
+  "from": "com.legend.parser",
+  "to": "com.legend.parser.section",
+  "refs": 1,
+  "loc": 184,
+  "depth": 10
+ },
+ {
+  "class": "com.legend.parser.ServiceStubDataParser",
+  "from": "com.legend.parser",
+  "to": "com.legend.parser.section",
+  "refs": 1,
+  "loc": 219,
+  "depth": 10
+ },
+ {
+  "class": "com.legend.resolver.LiteralFolds",
+  "from": "com.legend.resolver",
+  "to": "com.legend.resolver.l0",
+  "refs": 1,
+  "loc": 97,
+  "depth": 18
+ },
+ {
+  "class": "com.legend.resolver.ClassConcatenates",
+  "from": "com.legend.resolver",
+  "to": "com.legend.resolver.l0",
+  "refs": 1,
+  "loc": 61,
+  "depth": 18
+ },
+ {
+  "class": "com.legend.parser.RelationIslands",
+  "from": "com.legend.parser",
+  "to": "com.legend.parser.section",
+  "refs": 1,
+  "loc": 56,
+  "depth": 10
+ },
+ {
   "class": "com.legend.resolver.ScalarValueReads",
   "from": "com.legend.resolver",
   "to": "com.legend.resolver.l0",
   "refs": 1,
   "loc": 85,
-  "depth": 18
- },
- {
-  "class": "com.legend.resolver.PkInference",
-  "from": "com.legend.resolver",
-  "to": "com.legend.resolver.l0",
-  "refs": 1,
-  "loc": 115,
   "depth": 18
  },
  {
@@ -576,83 +600,11 @@
   "depth": 18
  },
  {
-  "class": "com.legend.parser.ServiceStubDataParser",
-  "from": "com.legend.parser",
-  "to": "com.legend.parser.section",
-  "refs": 1,
-  "loc": 219,
-  "depth": 10
- },
- {
-  "class": "com.legend.compiler.DerivedProps",
-  "from": "com.legend.compiler",
-  "to": "com.legend.compiler.l0",
-  "refs": 1,
-  "loc": 84,
-  "depth": 7
- },
- {
-  "class": "com.legend.parser.QuotedSpecParser",
-  "from": "com.legend.parser",
-  "to": "com.legend.parser.section",
-  "refs": 1,
-  "loc": 184,
-  "depth": 10
- },
- {
-  "class": "com.legend.resolver.NavReducer",
-  "from": "com.legend.resolver",
-  "to": "com.legend.resolver.l0",
-  "refs": 1,
-  "loc": 131,
-  "depth": 18
- },
- {
-  "class": "com.legend.resolver.LiteralFolds",
-  "from": "com.legend.resolver",
-  "to": "com.legend.resolver.l0",
-  "refs": 1,
-  "loc": 97,
-  "depth": 18
- },
- {
-  "class": "com.legend.compiler.spec.TdsNullForms",
+  "class": "com.legend.compiler.spec.AlphaRename",
   "from": "com.legend.compiler.spec",
   "to": "com.legend.compiler.spec.l0",
   "refs": 1,
-  "loc": 38,
-  "depth": 3
- },
- {
-  "class": "com.legend.parser.ServiceLegacyMappingParser",
-  "from": "com.legend.parser",
-  "to": "com.legend.parser.section",
-  "refs": 1,
-  "loc": 102,
-  "depth": 10
- },
- {
-  "class": "com.legend.compiler.SymbolTable",
-  "from": "com.legend.compiler",
-  "to": "com.legend.compiler.l0",
-  "refs": 1,
-  "loc": 104,
-  "depth": 0
- },
- {
-  "class": "com.legend.resolver.ImportDataFlowAppend",
-  "from": "com.legend.resolver",
-  "to": "com.legend.resolver.l0",
-  "refs": 1,
-  "loc": 147,
-  "depth": 19
- },
- {
-  "class": "com.legend.NonNull",
-  "from": "com.legend",
-  "to": "com.legend.l0",
-  "refs": 0,
-  "loc": 18,
-  "depth": 0
+  "loc": 57,
+  "depth": 16
  }
 ]

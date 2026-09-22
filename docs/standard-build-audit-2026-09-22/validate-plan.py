@@ -1,6 +1,9 @@
-import sys,collections,json,statistics
-sys.argv=["x","/tmp/jdeps.txt","core/src/main/java"]
-exec(open("docs/standard-build-audit-2026-09-22/union-graph.py").read().split('if __name__=="__main__":')[0])
+import sys,collections,json,statistics,os
+_HERE=os.path.dirname(os.path.abspath(__file__))
+_JD=sys.argv[1] if len(sys.argv)>1 else "/tmp/jdeps.txt"
+_SRC=sys.argv[2] if len(sys.argv)>2 else "core/src/main/java"
+sys.argv=["x",_JD,_SRC]
+exec(open(os.path.join(_HERE,"union-graph.py"),encoding="utf-8").read().split('if __name__=="__main__":')[0])
 ORIG={c:c.rsplit(".",1)[0] for c in ALL}
 csc=sccs(ALL,E); comp={c:i for i,g in enumerate(csc) for c in g}
 dg=collections.defaultdict(set)
@@ -63,4 +66,4 @@ for (f,t),cs in sorted(g.items(),key=lambda kv:-sum(r for r,_ in kv[1])):
 json.dump({"packages":{k:sorted(v) for k,v in
            ((kk,[c for c in ALL if N[c]==kk]) for kk in set(N.values()))},
            "moves":{c:{"from":ORIG[c],"to":N[c],"refs":REF[c],"depth":DEP[c]} for c in mv}},
-          open("docs/standard-build-audit-2026-09-22/validated-plan.json","w"),indent=1)
+          open(os.path.join(_HERE,"validated-plan.json"),"w"),indent=1)
