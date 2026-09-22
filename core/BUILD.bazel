@@ -51,7 +51,17 @@ java_library(
     javacopts = NULLAWAY_OPTS,
     plugins = [":nullaway"],
     resources = glob(["src/main/resources/**"]),
-    deps = [
+)
+
+# THE JDBC DRIVERS, as their own target. core never compiles against a driver: it
+# speaks java.sql, and names driver classes only as strings (Executor's
+# "org.duckdb.JsonNode"). So a driver is a RUNTIME choice made by whatever runs
+# core — a test, a server, a CLI — not a dependency of the product. A target that
+# executes queries depends on this; one that only plans (a WASM or native planner)
+# does not, and then carries no external jar at all.
+java_library(
+    name = "drivers",
+    runtime_deps = [
         "@maven_core//:com_h2database_h2",
         "@maven_core//:org_duckdb_duckdb_jdbc",
         "@maven_core//:org_xerial_sqlite_jdbc",
@@ -79,6 +89,7 @@ junit_test(
     ],
     select = ["--select-package=com.legend"],
     exclude_tags = ["heavy", "stress"],
+    runtime_deps = [":drivers"],
     deps = [
         ":core",
         "//testing",
