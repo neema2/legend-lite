@@ -23,7 +23,24 @@ export type Scalar = string | number | boolean | Date | null;
 
 export interface ResultColumn {
   readonly name: string;
-  /** Pure type name as reported by the engine, e.g. 'Float'. */
+  /**
+   * Pure type name, e.g. 'Float'.
+   *
+   * ONE VOCABULARY, whichever plane answered. Two backends report a
+   * column's type in their own words -- legend-engine says
+   * `meta::pure::precisePrimitives::Varchar`, an Arrow batch says
+   * `Utf8` -- and a consumer that has to know which is which cannot
+   * be written once. So each driver normalises on the way in:
+   * `pureTypeName` in engine-remote.ts for the engine's spelling and
+   * {@link pureTypeOfArrow} here for Arrow's.
+   *
+   * This was documented as the contract before it was true. The local
+   * plane passed Arrow's own `Float64` straight through, and the first
+   * consumer to depend on the contract -- a calculated column learning
+   * its type from the result -- got a name that matched no Pure type,
+   * so `isNumericType` said false and a numeric column aggregated as
+   * `unique`: a blank column rather than an error.
+   */
   readonly type: string;
   /** One entry per row, in row order. */
   readonly values: readonly Scalar[];
@@ -55,4 +72,55 @@ export function cell(
 
 export function columnIndex(table: ResultTable, name: string): number {
   return table.columns.findIndex((c) => c.name === name);
+}
+
+/**
+ * An Arrow type name as the Pure type it carries.
+ *
+ * Arrow spells a type with its width and its unit -- `Int64`,
+ * `Float64`, `Decimal<38,6>`, `Timestamp<MICROSECOND>` -- and Pure
+ * does not care about either. The match is on the leading token so a
+ * parameterised spelling needs no separate arm.
+ *
+ * Unknown is NOT String: a column whose type we failed to read must
+ * not silently become groupable text. It stays 'Unknown', which
+ * matches no numeric test and no temporal one, so callers fall back
+ * rather than assert.
+ */
+export function pureTypeOfArrow(name: string): string {
+  const head = /^[A-Za-z]+/.exec(name.trim())?.[0] ?? '';
+  switch (head) {
+    case 'Utf8':
+    case 'LargeUtf8':
+      return 'String';
+    case 'Bool':
+      return 'Boolean';
+    case 'Int':
+    case 'Int8':
+    case 'Int16':
+    case 'Int32':
+    case 'Int64':
+    case 'Uint8':
+    case 'Uint16':
+    case 'Uint32':
+    case 'Uint64':
+      return 'Integer';
+    case 'Float':
+    case 'Float16':
+    case 'Float32':
+    case 'Float64':
+      return 'Float';
+    // A decimal is its own Pure type, and lite spells it Decimal
+    // (RelationalKinds.pureKindOf) -- not Float. Collapsing it here
+    // would lose the distinction the generated lite-facts table
+    // exists to preserve.
+    case 'Decimal':
+      return 'Decimal';
+    case 'Date':
+      return 'StrictDate';
+    case 'Timestamp':
+      return 'DateTime';
+    default:
+      return 'Unknown';
+  }
 }

@@ -60,12 +60,14 @@ import type { Scalar } from './result.ts';
 import {
   kindOf,
   type CubeSnapshot,
+  type DerivedColumn,
   type FilterNode,
   type FilterValue,
 } from './snapshot.ts';
 import { columnRange, heatColour } from './style.ts';
 import type { HeatmapRange, HeatmapSpec } from './style.ts';
 import { parsePathKey, pathKey, type TreeRow } from './tree.ts';
+import { CalcEditor } from './ui/calc-editor.ts';
 import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
 import { FilterEditor } from './ui/filter-editor.ts';
 import { applyMenuAction, buildMenu, type MenuItem } from './ui/menu.ts';
@@ -776,6 +778,7 @@ export class CubeApp {
     this.#options.onView?.(view);
     this.#treeRows = view.treeRows;
     this.#snapshot = view.snapshot;
+    if (this.#syncCalcTypes(view)) return;
 
     const model = buildColumnModel(
       view.rows,
@@ -1126,6 +1129,30 @@ export class CubeApp {
     this.#refreshOr(previous);
   }
 
+  /**
+   * Take the editor's two lists.
+   *
+   * A bad expression is not caught here -- `#refreshOr` runs the query
+   * and, if the planner refuses, shows its message and puts the
+   * previous snapshot back. So the cube never sits in a state it
+   * cannot render, and the error the user sees is the planner's own
+   * rather than a paraphrase.
+   */
+  #setCalc(
+    row: readonly DerivedColumn[],
+    group: readonly DerivedColumn[],
+  ): void {
+    const previous = this.#snapshot;
+    this.#snapshot = {
+      ...this.#snapshot,
+      derived: [...row],
+      ...(group.length > 0
+        ? { groupDerived: [...group] }
+        : { groupDerived: [] }),
+    };
+    this.#refreshOr(previous);
+  }
+
   #setFilter(filter: FilterNode | undefined): void {
     const previous = this.#snapshot;
     this.#snapshot = filter
@@ -1258,6 +1285,9 @@ export class CubeApp {
         return;
       case 'view.properties':
         this.openEditor();
+        return;
+      case 'view.calc':
+        this.openCalcColumns();
         return;
       case 'layout.zones':
         this.#setChrome({ showDragZones: !this.#config.showDragZones });
@@ -1767,6 +1797,22 @@ export class CubeApp {
     });
   }
 
+  /**
+   * The calculated-column editor.
+   *
+   * Both stages in one window, because choosing between them IS the
+   * decision the user is making and splitting them into two places
+   * would hide it -- see `src/ui/calc-editor.ts`.
+   */
+  openCalcColumns(): void {
+    this.#showOverlay('Calculated Columns', (host) => {
+      new CalcEditor(host, {
+        snapshot: this.#snapshot,
+        onChange: (row, group) => this.#setCalc(row, group),
+      });
+    });
+  }
+
   openFilters(): void {
     this.#showOverlay('Filters', (host) => {
       new FilterEditor(host, {
@@ -1793,6 +1839,73 @@ export class CubeApp {
       return;
     }
     this.#refreshOr(null);
+  }
+
+  /**
+   * Record what type each calculated column turned out to have.
+   *
+   * The type is a PLAN FACT, not something to infer from the
+   * expression: `$x.a * 2` is a Float and `$x.a->toUpper()` a String,
+   * and deciding which by reading the text would be writing the type
+   * checker the planner already is. The result carries it, so it is
+   * copied onto the snapshot here -- the same way the snapshot
+   * already learns the pivot's generated column names.
+   *
+   * It matters for the aggregate DEFAULT: without a type, grouping
+   * gives a numeric calculated column `unique` rather than `sum`,
+   * which shows as a blank cell rather than an error. No re-query --
+   * this only fills in what the answer already told us.
+   */
+  #learnCalcTypes(snapshot: CubeSnapshot, view: CubeView): CubeSnapshot {
+    const seen = new Map(view.rows.columns.map((c) => [c.name, c.type]));
+    let changed = false;
+    const learn = (list: readonly DerivedColumn[]): DerivedColumn[] =>
+      list.map((d) => {
+        const type = seen.get(d.name);
+        if (type === undefined || type === d.type) return d;
+        changed = true;
+        return { ...d, type };
+      });
+    const derived = learn(snapshot.derived);
+    const group = learn(snapshot.groupDerived ?? []);
+    if (!changed) return snapshot;
+    return { ...snapshot, derived, groupDerived: group };
+  }
+
+  /**
+   * Adopt the learned types, and re-run once if they change the query.
+   *
+   * The aggregate DEFAULT reads a column's type: a numeric one sums,
+   * anything else takes its unique value. A calculated column has no
+   * type until a result has landed, so the first query over a GROUPED
+   * cube aggregates it as `unique` -- which renders as a blank column
+   * rather than an error, and would fix itself only on the user's
+   * next interaction.
+   *
+   * So this does what `#syncPivotCast` does for the pivot's generated
+   * names: takes the fact out of the result, puts it in the snapshot,
+   * and runs once more. It cannot loop, because the second result
+   * reports the same types and nothing changes.
+   *
+   * Only when it MATTERS. On a flat cube nothing is aggregated and the
+   * type cannot change the query, so a second round trip would buy
+   * nothing.
+   *
+   * @returns whether a re-run was started, so the caller stops.
+   */
+  #syncCalcTypes(view: CubeView): boolean {
+    const previous = this.#snapshot;
+    const learned = this.#learnCalcTypes(previous, view);
+    if (learned === previous) return false;
+    this.#snapshot = learned;
+    const aggregating = previous.rows.length > 0
+      || previous.pivotOn.length > 0;
+    if (!aggregating) return false;
+    // The PREVIOUS snapshot goes with it, so a query the planner
+    // rejects takes the learned types back out rather than leaving the
+    // cube retrying a shape it cannot render.
+    this.#refreshOr(previous);
+    return true;
   }
 
   #showOverlay(title: string, build: (host: HTMLElement) => void): void {
@@ -2017,6 +2130,7 @@ export class CubeApp {
           ...(this.#controller.canRedo ? {} : { disabled: true }),
         },
         { id: 'view.properties', label: 'Properties...' },
+        { id: 'view.calc', label: 'Calculated Columns...' },
         {
           id: 'layout.zones',
           label: this.#config.showDragZones

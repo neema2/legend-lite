@@ -16,6 +16,7 @@
 
 import type { QueryEngine } from './engine.ts';
 import { QueryError } from './engine.ts';
+import { pureTypeOfArrow } from './result.ts';
 import type { ResultColumn, ResultTable, Scalar } from './result.ts';
 
 /**
@@ -225,7 +226,15 @@ export function toResultTable(
     } else {
       values.fill(null);
     }
-    columns.push({ name: field.name, type: typeName(field.type), values });
+    // NORMALISED to the Pure vocabulary ResultColumn.type
+    // declares. Arrow's own `Float64` matched no Pure type, so
+    // the first consumer to trust that contract -- a calculated
+    // column learning its type -- got an answer it could not use.
+    columns.push({
+      name: field.name,
+      type: pureTypeOfArrow(typeName(field.type)),
+      values,
+    });
   }
 
   return { columns, rowCount: table.numRows, epoch, elapsedMs };
@@ -279,7 +288,7 @@ class BatchAccumulator {
     return {
       columns: this.#names.map((name, i) => ({
         name,
-        type: this.#types[i] as string,
+        type: pureTypeOfArrow(this.#types[i] as string),
         values: this.#values[i] as Scalar[],
       })),
       rowCount: this.#rows,

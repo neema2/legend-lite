@@ -173,6 +173,22 @@ export interface DerivedColumn {
   readonly name: string;
   /** Pure expression body, with `$x` bound to the row, e.g. '$x.a * 2'. */
   readonly expression: string;
+  /**
+   * The Pure type the expression turned out to have.
+   *
+   * LEARNED, not declared. Nothing here can infer it -- `$x.a * 2` is
+   * a Float and `$x.a->toUpper()` a String, and deciding which by
+   * reading the expression would be writing a type checker the
+   * planner already is. So it arrives from a landed result
+   * (`ResultColumn.type`) and is recorded here, the same way the
+   * snapshot already learns the pivot's generated column names.
+   *
+   * It matters because the aggregate DEFAULT reads it: without a type
+   * a numeric calculated column groups as `unique` rather than `sum`,
+   * which looks like a blank cell rather than an error. Undefined
+   * until the first result lands.
+   */
+  readonly type?: string;
 }
 
 export type SortDirection = 'asc' | 'desc';
@@ -395,12 +411,29 @@ export function referencedColumns(
   return out;
 }
 
-/** The type reported for a column, or undefined if the source lacks it. */
+/**
+ * The type reported for a column, or undefined if nothing knows it.
+ *
+ * A CALCULATED column counts. Its type is learned from a landed result
+ * (see `DerivedColumn.type`) and the pivot's `cast(@Relation<...>)`
+ * needs it: with only `s.columns` consulted, a calculated column was
+ * declared `String` in the cast, so the aggregate default read String
+ * and gave it `uniqueValueOnly()` -- a blank column on a grouped cube
+ * rather than the sum it should have had.
+ *
+ * Source columns win a name collision, which the editor refuses to
+ * create anyway (`nameProblem`).
+ */
 export function columnType(
   s: CubeSnapshot,
   name: string,
 ): string | undefined {
-  return s.columns.find((c) => c.name === name)?.type;
+  const source = s.columns.find((c) => c.name === name)?.type;
+  if (source !== undefined) return source;
+  for (const d of [...s.derived, ...(s.groupDerived ?? [])]) {
+    if (d.name === name && d.type !== undefined) return d.type;
+  }
+  return undefined;
 }
 
 /**

@@ -26,6 +26,7 @@ import {
   referencedColumns,
   totalOrderSorts,
   type AggregateFn,
+  type ColumnKind,
   type CubeSnapshot,
   type FilterNode,
   type FilterValue,
@@ -451,6 +452,29 @@ function isDetail(s: CubeSnapshot): boolean {
   );
 }
 
+/**
+ * Every column an aggregate default may consult, derived included.
+ *
+ * A calculated column has a type once a result has landed (see
+ * `DerivedColumn.type`), and the default has to see it: a numeric one
+ * must sum like any other number rather than fall through to `unique`.
+ * Source columns win a name collision, which cannot happen anyway --
+ * `nameProblem` refuses it in the editor.
+ */
+function columnSpecs(
+  s: CubeSnapshot,
+): Map<string, { name: string; type?: string; kind?: ColumnKind }> {
+  const out = new Map<string,
+    { name: string; type?: string; kind?: ColumnKind }>();
+  for (const d of [...s.derived, ...(s.groupDerived ?? [])]) {
+    out.set(d.name, d.type === undefined
+      ? { name: d.name }
+      : { name: d.name, type: d.type });
+  }
+  for (const c of s.columns) out.set(c.name, c);
+  return out;
+}
+
 /** Every column a detail cube projects: its own, plus derived. */
 function detailColumns(s: CubeSnapshot): string[] {
   return [
@@ -636,7 +660,7 @@ export function serialize(
   ): string {
     const isKey = new Set(keys);
     const byMeasure = new Map(snapshot.measures.map((m) => [m.column, m]));
-    const specOf = new Map(snapshot.columns.map((c) => [c.name, c]));
+    const specOf = columnSpecs(snapshot);
     const specs: string[] = [];
     // Only what the SELECT kept: aggregating a column that was
     // projected away is not a wider answer, it is an unresolvable one.
@@ -708,7 +732,7 @@ export function serialize(
     // dimension columns (e.g. unique values aggregator) are not
     // helpful".
     const isOn = new Set(on);
-    const specOf = new Map(snapshot.columns.map((c) => [c.name, c]));
+    const specOf = columnSpecs(snapshot);
     const specs: string[] = [];
     for (const name of projected) {
       if (isOn.has(name) || excludedFromPivot.has(name)) continue;

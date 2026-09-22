@@ -1533,3 +1533,179 @@
   max-width: 100%;
   height: auto;
 }
+
+/* ---- the calculated-column editor --------------------------------
+   Two stages, one window: choosing between them IS the decision the
+   user is making (a per-row value vs a ratio of aggregates), so
+   splitting them into two places would hide it. */
+.dc-calc {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 460px;
+}
+
+.dc-calc-stage {
+  border: 1px solid var(--tw-neutral-200);
+  border-radius: 3px;
+  padding: 8px 10px;
+}
+
+.dc-calc-stage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dc-calc-stage-title {
+  font-weight: 600;
+}
+
+.dc-calc-help,
+.dc-calc-none {
+  margin: 4px 0 0;
+  font-size: var(--dc-text-sm-size);
+  color: var(--tw-neutral-500);
+  max-width: 60ch;
+}
+
+.dc-calc-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Name, type, expression, then the two buttons. The expression takes
+   the slack and TRUNCATES rather than wrapping, so a long one cannot
+   push the buttons out of reach. */
+.dc-calc-item {
+  display: grid;
+  grid-template-columns: minmax(6em, auto) auto 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.dc-calc-name { font-weight: 500; }
+
+.dc-calc-type {
+  font-size: var(--dc-text-sm-size);
+  color: var(--tw-neutral-400);
+  white-space: nowrap;
+}
+
+.dc-calc-expr {
+  font-family: var(--dc-mono, ui-monospace, monospace);
+  font-size: var(--dc-text-sm-size);
+  color: var(--tw-neutral-600);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-calc-form {
+  border: 1px solid var(--tw-neutral-300);
+  border-radius: 3px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--tw-neutral-50);
+}
+
+.dc-calc-form-head { font-weight: 600; }
+
+.dc-calc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: var(--dc-text-sm-size);
+}
+
+.dc-calc-input-name,
+.dc-calc-input-expr,
+.dc-calc-search {
+  font: inherit;
+  padding: 3px 5px;
+  border: 1px solid var(--tw-neutral-300);
+  border-radius: 2px;
+}
+
+.dc-calc-input-expr {
+  font-family: var(--dc-mono, ui-monospace, monospace);
+  resize: vertical;
+}
+
+/* Completion as a LIST beside the field rather than a popup over it:
+   a popup needs caret geometry and its own keyboard model, and can
+   land in the wrong place. This is the same information, insertable. */
+.dc-calc-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dc-calc-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 168px;
+  overflow-y: auto;
+  border: 1px solid var(--tw-neutral-200);
+  border-radius: 2px;
+}
+
+.dc-calc-insert {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--tw-neutral-100);
+  font: inherit;
+  padding: 3px 6px;
+  cursor: pointer;
+}
+
+.dc-calc-insert:hover,
+.dc-calc-insert:focus-visible {
+  background: var(--tw-neutral-100);
+}
+
+.dc-calc-item-label {
+  font-family: var(--dc-mono, ui-monospace, monospace);
+}
+
+.dc-calc-item-detail {
+  font-size: var(--dc-text-sm-size);
+  color: var(--tw-neutral-400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A column is what you most often want, so it reads first. */
+.dc-calc-item-column .dc-calc-item-label { font-weight: 500; }
+.dc-calc-item-operator .dc-calc-item-label { color: var(--tw-neutral-600); }
+
+.dc-calc-noitem {
+  padding: 4px 6px;
+  font-size: var(--dc-text-sm-size);
+  color: var(--tw-neutral-400);
+}
+
+.dc-calc-problem {
+  margin: 0;
+  font-size: var(--dc-text-sm-size);
+  color: #b3261e;
+}
+
+.dc-calc-actions {
+  display: flex;
+  gap: 6px;
+}

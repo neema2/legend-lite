@@ -160,6 +160,7 @@ export type MenuActionId =
   | 'chart.plot'
   | 'chart.treemap'
   | 'view.properties'
+  | 'view.calc'
   // The chrome, toggled from either menu. Not a snapshot change and
   // not a column operation: what is on SCREEN, which is why these
   // sit beside Properties rather than in any column group.

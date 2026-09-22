@@ -1912,6 +1912,249 @@ try {
     return `aligned at ${p1.th}px after scrolling`;
   });
 
+  // -- calculated columns -------------------------------------------
+
+  /** Open the editor from the title-bar menu. */
+  /** Shut the editor the way `reset` does: the BUTTON, not Escape. */
+  const closeCalc = async () => {
+    const shut = page.locator(
+      '.dc-app-overlay:not([hidden]) .dc-overlay-close');
+    if (await shut.count()) {
+      await shut.first().click().catch(() => {});
+      await page.waitForTimeout(150);
+    }
+  };
+
+  const openCalc = async () => {
+    // CLOSE FIRST, and with the button. The editor stays open after a
+    // save and the title-bar menu sits behind it, so a second open in
+    // one check clicks a covered element and waits thirty seconds.
+    // Escape does not do it: as `reset` says, Escape reaches the
+    // overlay only while focus is still inside it.
+    await closeCalc();
+    await page.click('.dc-titlebar-menu');
+    await page.waitForSelector('.dc-menu', { timeout: 10_000 });
+    await page.locator('.dc-menu-item:has(> .dc-menu-label'
+      + ':text-is("Calculated Columns..."))').click();
+    await page.waitForSelector('.dc-calc', { timeout: 10_000 });
+  };
+
+  /**
+   * Remove every calculated column.
+   *
+   * `reset` shuts windows; it does not touch the snapshot. Without
+   * this a column outlives its own check -- and `uplift` surviving
+   * into a pivoted one produced `Binder Error: Values list "t2" does
+   * not have a column named "uplift"`, which looked like a failure of
+   * whichever check ran next.
+   */
+  const clearCalcs = async () => {
+    await openCalc();
+    for (let i = 0; i < 8; i += 1) {
+      const del = page.locator('.dc-calc-del');
+      if (!await del.count()) break;
+      await del.first().click();
+      await page.waitForTimeout(250);
+    }
+    await closeCalc();
+    await settle();
+  };
+
+  /** Add one, at `stage` (0 = per row, 1 = per group). */
+  const addCalc = async (stage, name, expression) => {
+    await openCalc();
+    await page.locator('.dc-calc-stage').nth(stage)
+      .locator('.dc-calc-add').click();
+    await page.waitForSelector('.dc-calc-form');
+    await page.fill('.dc-calc-input-name', name);
+    await page.fill('.dc-calc-input-expr', expression);
+    await page.locator('.dc-calc-save').click();
+  };
+
+  await check('a calculated column computes, and its arithmetic is right',
+    async () => {
+      // Unpivoted on purpose: in a PIVOTED cube every non-pivoted
+      // column collapses to its unique value by design, so a carried
+      // numeric reads blank there -- pnl and qty included -- and a
+      // check on the VALUE has to be made where the value exists.
+      await menu(['Pivot', 'Clear All Horizontal Pivots'],
+        { requery: false }).catch(() => {});
+      await settle();
+      await addCalc(0, 'uplift', '$x.notional * 1.1');
+      await settle();
+      await page.keyboard.press('Escape');
+      const s2 = await state();
+      if (!/extend\(~\[uplift/.test(s2.pure)) {
+        throw new Error(`no extend in the query: ${s2.pure.slice(0, 160)}`);
+      }
+      if (!/uplift:x\|\$x\.uplift:y\|\$y->sum\(\)/.test(s2.pure)) {
+        throw new Error('a numeric calculated column did not SUM —'
+          + ' its learned type never reached the aggregate default');
+      }
+      const cols = await gridColumns();
+      if (!cols.includes('uplift')) {
+        throw new Error(`not in the grid: ${cols.join(', ')}`);
+      }
+      // THE ARITHMETIC. notional x 1.1, read off the same row.
+      const cells = await page.locator('.dc-row').first()
+        .locator('.dc-cell').allTextContents();
+      const num = (i) => Number((cells[i] ?? '').replace(/[^0-9.-]/g, ''));
+      const at = cols.indexOf('notional');
+      const up = cols.indexOf('uplift');
+      if (at < 0 || up < 0) throw new Error('columns missing for the check');
+      const want = num(at) * 1.1;
+      const got = num(up);
+      if (want === 0 || Math.abs(got - want) / want > 0.001) {
+        throw new Error(`uplift is ${got}, expected ${want}`);
+      }
+      const detail = `${cols.length} columns, uplift = notional x 1.1`
+        + ` = ${got}`;
+      await clearCalcs();
+      return detail;
+    });
+
+  await check('a calculated column learns its TYPE from the result',
+    async () => {
+      // Nothing here infers the type from the expression -- it comes
+      // back from the query. Until it does, the aggregate default
+      // reads no type and a numeric column groups as `unique`, which
+      // renders blank rather than failing.
+      await addCalc(0, 'uplift', '$x.notional * 1.1');
+      await settle();
+      await openCalc();
+      const types = await page.locator('.dc-calc-item').evaluateAll(
+        (els) => els.map((e) => [
+          e.querySelector('.dc-calc-name')?.textContent,
+          e.querySelector('.dc-calc-type')?.textContent]));
+      const mine = types.find(([n]) => n === 'uplift');
+      if (!mine) throw new Error(`not listed: ${JSON.stringify(types)}`);
+      if (mine[1] !== 'Float') {
+        throw new Error(`type is ${JSON.stringify(mine[1])}, expected Float`
+          + ' — an Arrow name here means the driver stopped normalising');
+      }
+      await clearCalcs();
+      return `uplift: ${mine[1]}`;
+    });
+
+  await check("a bad expression shows the PLANNER's own refusal",
+    async () => {
+      await addCalc(0, 'bogus', '$x.notional->nosuchfunction()');
+      await settle();
+      const s2 = await state();
+      if (!/nosuchfunction/.test(s2.status)) {
+        throw new Error(`the refusal did not name the function:`
+          + ` ${s2.status.slice(0, 160)}`);
+      }
+      // ...and the cube is still usable: the snapshot went back.
+      if ((await gridColumns()).length === 0) {
+        throw new Error('the grid emptied instead of reverting');
+      }
+      const refusal = s2.status.replace(/\s+/g, ' ').slice(0, 70);
+      // RECOVER, and assert the recovery. A deliberate error would
+      // otherwise sit on the status line and fail this suite's
+      // standing "nothing failed" invariant for every later check --
+      // and proving the cube comes back is the better assertion
+      // anyway.
+      await addCalc(0, 'recovered', '$x.notional * 1');
+      await settle();
+      await page.keyboard.press('Escape');
+      const after = await state();
+      if (/nosuchfunction/.test(after.status)) {
+        throw new Error('the refusal outlived a later successful query');
+      }
+      await clearCalcs();
+      return `${refusal} … then recovered`;
+    });
+
+  await check('a duplicate name is refused before the planner sees it',
+    async () => {
+      await openCalc();
+      await page.locator('.dc-calc-stage').first().locator('.dc-calc-add')
+        .click();
+      await page.fill('.dc-calc-input-name', 'region');
+      await page.fill('.dc-calc-input-expr', '1');
+      const problem = await page.locator('.dc-calc-problem').textContent();
+      if (!/already a column/.test(problem ?? '')) {
+        throw new Error(`no complaint about the name: ${problem}`);
+      }
+      if (!await page.locator('.dc-calc-save').isDisabled()) {
+        throw new Error('Add stayed enabled on a duplicate name');
+      }
+      await page.keyboard.press('Escape');
+      return problem ?? '';
+    });
+
+  await check('the GROUP stage never offers a source column', async () => {
+    // A groupDerived expression runs after the source rows are gone,
+    // so naming one cannot compile. Offering it would be a suggestion
+    // the planner refuses, and the user could not tell whose fault
+    // that was.
+    await openCalc();
+    await page.locator('.dc-calc-stage').nth(1).locator('.dc-calc-add')
+      .click();
+    await page.waitForSelector('.dc-calc-form[data-stage="group"]');
+    const offered = await page.locator('.dc-calc-item-column'
+      + ' .dc-calc-item-label').allTextContents();
+    const leaked = ['pnl', 'qty', 'book'].filter((n) => offered.includes(n)
+      && !offered.slice(0, 0).includes(n));
+    // A row dimension IS in scope at this stage, so only columns that
+    // are neither a dimension nor a measure count as a leak.
+    const dims = await dimensionNames();
+    const measures = ['notional'];
+    const real = leaked.filter((n) => !dims.includes(n)
+      && !measures.includes(n));
+    if (real.length > 0) {
+      throw new Error(`offered source columns at the group stage:`
+        + ` ${real.join(', ')}`);
+    }
+    await page.keyboard.press('Escape');
+    return `${offered.length} in scope`;
+  });
+
+  await check('removing a calculated column takes it out of the query',
+    async () => {
+      await addCalc(0, 'uplift', '$x.notional * 1.1');
+      await settle();
+      await openCalc();
+      await page.locator('.dc-calc-del').first().click();
+      await settle();
+      await page.keyboard.press('Escape');
+      const s2 = await state();
+      if (/extend\(~\[uplift/.test(s2.pure)) {
+        throw new Error('the extend survived the removal');
+      }
+      if ((await gridColumns()).includes('uplift')) {
+        throw new Error('the column survived in the grid');
+      }
+      await clearCalcs();
+      return 'gone from both the query and the grid';
+    });
+
+  await check('a calculated column survives a PIVOTED, grouped cube',
+    async () => {
+      // Declared as a gap first, on the strength of a `Binder Error:
+      // Values list "t2" does not have a column named "uplift"`. It
+      // was not a defect: the column had LEAKED from an earlier check
+      // into a cube over a different source table, so the expression
+      // named a column that really was not there. With the checks
+      // cleaning up after themselves it passes, and the suite said so
+      // -- which is what the gap mechanism is for.
+      await addCalc(0, 'uplift', '$x.notional * 1.1');
+      await settle();
+      await closeCalc();
+      const s2 = await state();
+      if (/Binder Error|does not have a column/.test(s2.status)) {
+        throw new Error(s2.status.replace(/\s+/g, ' ').slice(0, 150));
+      }
+      const cols = await gridColumns();
+      if (!cols.includes('uplift')) {
+        throw new Error(`not in the grid: ${cols.join(', ')}`);
+      }
+      const detail = `${cols.length} columns, no binder error`;
+      await clearCalcs();
+      return detail;
+    });
+
   await check('clearing the column pivot keeps the other columns',
     async () => {
       // Grouped and pivoted, clearing the pivot left ONE data column
