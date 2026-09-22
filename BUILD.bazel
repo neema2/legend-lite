@@ -1,0 +1,3 @@
+# Root package. Exists so //:maven_install.json is a label rules_jvm_external
+# can read, and as the home for workspace-wide targets later.
+exports_files(["maven_install.json"])

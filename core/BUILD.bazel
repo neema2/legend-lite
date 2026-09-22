@@ -1,0 +1,91 @@
+# core, as ONE java_library — the first step of the Bazel migration.
+#
+# Deliberately coarse. Building core as a single target separates two risks that
+# a per-package layout would confuse: "can Bazel compile this code at all"
+# (toolchain, deps, resources, Error Prone) from "is the dependency graph right".
+# Only the first is under test here. The split into ~28 targets follows, and
+# Bazel itself checks each one by refusing to load on a cycle.
+load("@rules_java//java:defs.bzl", "java_library", "java_plugin", "java_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# THE NULL GATE. A java_plugin with NO processor_class lands on javac's
+# --processorpath, where Error Prone's ServiceLoader finds NullAway's
+# @AutoService(BugChecker.class) registration.
+java_plugin(
+    name = "nullaway",
+    deps = ["@maven//:com_uber_nullaway_nullaway"],
+)
+
+# The Maven build's flags, minus the three that do not apply under Bazel
+# (feasibility.md Q1): NO -Xplugin:ErrorProne (JavaBuilder instantiates Error
+# Prone itself and rejects the Maven form), and NO -J--add-exports block
+# (rules_java's BASE_JDK9_JVM_OPTS already passes every one of them).
+NULLAWAY_OPTS = [
+    "-XDcompilePolicy=simple",
+    "--should-stop=ifError=FLOW",
+    "-Xmaxerrs",
+    "10000",
+    "-XepDisableAllChecks",
+    "-Xep:NullAway:ERROR",
+    "-XepOpt:NullAway:AnnotatedPackages=com.legend",
+    "-XepOpt:NullAway:CustomNullableAnnotations=com.legend.base.Nullable",
+    "-XepOpt:NullAway:CustomNonnullAnnotations=com.legend.base.NonNull",
+    "-XepOpt:NullAway:JSpecifyMode=true",
+    "-XepOpt:NullAway:CheckOptionalEmptiness=true",
+    "-XDaddTypeAnnotationsToSymbol=true",
+]
+
+java_library(
+    name = "core",
+    srcs = glob(["src/main/java/**/*.java"]),
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    resources = glob(["src/main/resources/**"]),
+    deps = [
+        "@maven//:com_h2database_h2",
+        "@maven//:org_duckdb_duckdb_jdbc",
+        "@maven//:org_xerial_sqlite_jdbc",
+    ],
+)
+
+# ALL of core's tests, as ONE target — the same probe the build got: one target
+# first, so a failure is about "can Bazel run these tests at all", not about how
+# they were split. Mirrors Maven's gate 1: everything except the heavy and stress
+# groups, JUnit's own console launcher selecting by package.
+java_test(
+    name = "core_tests",
+    size = "enormous",
+    srcs = glob(["src/test/java/**/*.java"]),
+    resources = glob(["src/test/resources/**"]),
+    # the files tests read by path today, declared, so they exist in runfiles
+    data = glob(["src/**"]),
+    main_class = "org.junit.platform.console.ConsoleLauncher",
+    use_testrunner = False,
+    args = [
+        "--select-package=com.legend",
+        "--exclude-tag=heavy",
+        "--exclude-tag=stress",
+        "--details=none",
+        "--disable-banner",
+        "--disable-ansi-colors",
+        "--reports-dir=$${TEST_UNDECLARED_OUTPUTS_DIR:-/tmp}/junit",
+    ],
+    jvm_flags = ["-Duser.timezone=GMT"],
+    # Maven runs Error Prone on core MAIN only; Bazel's toolchain runs its default
+    # ERROR-level checks on every compilation, tests included. Match Maven here:
+    # the test tree has its own looser discipline (core/pom.xml, NULL_GATE §6.2).
+    javacopts = ["-XepDisableAllChecks"],
+    deps = [
+        ":core",
+        "@maven//:com_tngtech_archunit_archunit",
+        "@maven//:com_h2database_h2",
+        "@maven//:com_tngtech_archunit_archunit_junit5",
+        "@maven//:org_duckdb_duckdb_jdbc",
+        "@maven//:org_junit_jupiter_junit_jupiter",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+        "@maven//:org_junit_jupiter_junit_jupiter_params",
+        "@maven//:org_xerial_sqlite_jdbc",
+    ],
+    runtime_deps = ["@maven//:org_junit_platform_junit_platform_console_standalone"],
+)

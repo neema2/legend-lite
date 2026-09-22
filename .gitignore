@@ -25,3 +25,6 @@ core/javac.*.args
 # Python bytecode caches: build artifacts, and they bake an absolute path into git.
 __pycache__/
 *.pyc
+
+# Bazel
+/bazel-*

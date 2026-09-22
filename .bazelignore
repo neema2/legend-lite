@@ -1,0 +1,2 @@
+# Two Bazel prototype workspaces with their own MODULE.bazel — not part of this build
+experiments
