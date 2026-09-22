@@ -115,14 +115,14 @@ describe('buildColumnModel', () => {
   });
 
   it("splits on the engine's own naming, given the measure names", () => {
-    // DuckDB joins value to measure with '_', not '__|__'. Assuming
-    // the separator produced a flat header and unformatted measures;
-    // the measure name is the reliable anchor.
-    assert.deepEqual(splitPath('2021_notional', ['notional']), [
+    // The measure name is the anchor and the separator is legend-lite's
+    // ('__|__', Type.java:467) -- every planner spells it that way,
+    // DuckDB's native PIVOT included (DuckDb.java:186).
+    assert.deepEqual(splitPath('2021__|__notional', ['notional']), [
       '2021',
       'notional',
     ]);
-    assert.deepEqual(splitPath('USA__|__NYC_total', ['total']), [
+    assert.deepEqual(splitPath('USA__|__NYC__|__total', ['total']), [
       'USA',
       'NYC',
       'total',
@@ -130,11 +130,44 @@ describe('buildColumnModel', () => {
   });
 
   it('prefers the longest measure so one cannot shadow another', () => {
-    assert.deepEqual(splitPath('2021_pnl_net', ['pnl', 'pnl_net']), [
+    assert.deepEqual(splitPath('2021__|__pnl_net', ['pnl', 'pnl_net']), [
       '2021',
       'pnl_net',
     ]);
   });
+
+  it('does NOT split a name that merely ends in a measure', () => {
+    // The hazard the old '_'-tolerant fallback created, and the one
+    // the mutation test demonstrated: making the separator optional
+    // turned any column ending in a measure name into a pivot column.
+    // 'forecast_pnl' became ['forecast', 'pnl'] under a two-level
+    // header -- silently, because a plausible header is not an error.
+    assert.deepEqual(splitPath('2021_notional', ['notional']),
+      ['2021_notional']);
+    assert.deepEqual(splitPath('forecast_pnl', ['pnl']), ['forecast_pnl']);
+  });
+
+  it('keeps punctuation that belongs to the pivot VALUE', () => {
+    // 'ALPHA_' and 'ALPHA' are different books and must stay different
+    // columns. The old code got this right too -- a real pivot column
+    // always ends in the separator and took the safe branch -- so this
+    // is a regression guard, not a mutation the fix was needed for.
+    assert.deepEqual(splitPath('ALPHA___|__total', ['total']),
+      ['ALPHA_', 'total']);
+    assert.deepEqual(splitPath('ALPHA__|__total', ['total']),
+      ['ALPHA', 'total']);
+  });
+
+  it('falls back to a shorter measure when the longer is unseparated',
+    () => {
+      // 'pnl_net' matches the suffix but leaves 'q1_' -- not a
+      // separator -- while 'net' leaves 'q1__|__' and is the anchor
+      // the pivot actually used.
+      assert.deepEqual(splitPath('q1__|__pnl_net', ['net', 'pnl_net']), [
+        'q1',
+        'pnl_net',
+      ]);
+    });
 
   it('treats a bare measure column as depth 1', () => {
     assert.deepEqual(splitPath('notional', ['notional']), ['notional']);
@@ -342,7 +375,7 @@ describe('buildColumnModel', () => {
 
   it('builds a nested header from engine-style names', () => {
     const m = buildColumnModel(
-      table(['region', '2021_notional', '2022_notional']),
+      table(['region', '2021__|__notional', '2022__|__notional']),
       ['region'],
       ['notional'],
     );
@@ -360,7 +393,8 @@ describe('buildColumnModel', () => {
   it('never splits a row dimension, even if it ends in a measure name', () => {
     // A dimension called 'desk' with a measure called 'k' would
     // otherwise be torn into ['des', 'k'].
-    const m = buildColumnModel(table(['desk', '2021_k']), ['desk'], ['k']);
+    const m = buildColumnModel(
+      table(['desk', '2021__|__k']), ['desk'], ['k']);
     assert.deepEqual(m.leaves[0]?.path, ['desk']);
   });
 

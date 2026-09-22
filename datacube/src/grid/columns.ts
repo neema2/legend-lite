@@ -1,22 +1,31 @@
 // Turning a flat result into the grid's column model, including the
 // nested header a pivot needs.
 //
-// A pivot's generated columns encode a path in their name, but the
-// exact spelling is the ENGINE's, not ours, and assuming otherwise was
-// a real bug here: DuckDB names a pivoted column `2021_notional`,
-// joining value to measure with an underscore, while '__|__' is what
-// legend-lite uses to join multiple pivot DIMENSIONS into one
-// composite key. Two different joins, two different separators.
+// A pivot's generated column encodes a path in its name, and the
+// spelling belongs to legend-lite: PIVOT_SEPARATOR ('__|__',
+// Type.java:467) joins pivot DIMENSIONS to each other and the last
+// dimension to the MEASURE. Every planner spells it that way --
+// including DuckDB's native PIVOT, which legend-lite normalises by
+// naming the aggregate alias `_|__agg` so DuckDB's own
+// value + '_' + alias concatenation lands on `value__|__agg`
+// (DuckDb.java:186; DuckDBIntegrationTest:5515 asserts it).
 //
-// So the split is driven by what we ASKED for rather than by guessing
-// at a delimiter: the measure names are known, so a column ending in a
-// measure name splits there, and only the remaining prefix is parsed
-// for the multi-dimension separator. That works for either engine's
-// naming and degrades to a flat header rather than a wrong one.
+// This once also accepted a single '_', on the belief that DuckDB
+// emitted `2021_notional`. Nothing emits that, and the tolerance was
+// not harmless: it made the separator optional, so ANY column whose
+// name merely ENDS in a measure name became a pivot column. A plain
+// `forecast_pnl`, with a measure called `pnl`, was torn into
+// ['forecast', 'pnl'] and rendered under a two-level header it had no
+// business in -- silently, since a plausible header is not an error.
 //
-//   region                     a row dimension, depth 1
-//   2023_total                 pivot value + measure, depth 2
-//   USA__|__NYC_total          two pivot dimensions + measure, depth 3
+// So the separator is required, not sniffed. Measure names are still
+// the anchor, but the prefix must end in the separator or the column
+// is not a generated pivot column and stays flat.
+//
+//   region                          a row dimension, depth 1
+//   2023__|__total                  pivot value + measure, depth 2
+//   USA__|__NYC__|__total           two pivot dimensions + measure, depth 3
+//   forecast_pnl                    NOT a pivot column: stays flat
 //
 // The result is RAGGED: row dimensions sit at depth 1 while pivot
 // columns run deeper, so a row dimension's header has to span the full
@@ -140,10 +149,14 @@ function toArity(parts: readonly string[], arity: number): string[] {
  * Split a generated column name into its header path.
  *
  * `measures` are the measure names the snapshot asked for. When a name
- * ends in one of them, that becomes the last path segment and the
- * prefix (minus any trailing separator character) is the pivot value
- * path. The longest matching measure wins, so 'pnl' cannot shadow
- * 'pnl_net'.
+ * ends in one of them AND the prefix ends in `PIVOT_SEPARATOR`, that
+ * measure becomes the last path segment and the rest of the prefix is
+ * the pivot value path. The longest matching measure wins, so 'pnl'
+ * cannot shadow 'pnl_net'; a shorter candidate is tried when the
+ * longer one leaves a prefix that does not end in the separator.
+ *
+ * A name that ends in a measure without the separator is a plain
+ * column that happens to share a suffix, and stays flat.
  *
  * `pivotArity` is how many columns the cube pivoted on. Pass it and
  * the value path is forced to that many segments; omit it and the
@@ -155,17 +168,20 @@ export function splitPath(
   measures: readonly string[] = [],
   pivotArity?: number,
 ): string[] {
-  const matched = measures
+  // Longest first, but not longest-only: a longer measure that leaves
+  // an unseparated prefix is the wrong anchor, and a shorter one may
+  // be the right one.
+  const candidates = measures
     .filter((m) => name === m || name.endsWith(m))
-    .sort((a, b) => b.length - a.length)[0];
+    .sort((a, b) => b.length - a.length);
 
-  if (matched && name !== matched) {
+  for (const matched of candidates) {
+    if (name === matched) break;
     const prefix = name.slice(0, name.length - matched.length);
-    // Tolerate whatever single separator the engine used between the
-    // value and the measure -- '_' for DuckDB, '__|__' elsewhere.
-    const cleaned = prefix.endsWith(PIVOT_SEPARATOR)
-      ? prefix.slice(0, -PIVOT_SEPARATOR.length)
-      : prefix.replace(/[_\-.|]+$/, '');
+    // THE SEPARATOR IS REQUIRED. Without it this is not a column the
+    // pivot generated, whatever its suffix looks like.
+    if (!prefix.endsWith(PIVOT_SEPARATOR)) continue;
+    const cleaned = prefix.slice(0, -PIVOT_SEPARATOR.length);
     const parts = cleaned.length > 0 ? cleaned.split(PIVOT_SEPARATOR) : [];
     return pivotArity === undefined
       ? parts.length > 0
