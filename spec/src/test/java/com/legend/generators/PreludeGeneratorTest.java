@@ -3,6 +3,7 @@
 
 package com.legend.generators;
 
+import com.legend.testing.Repo;
 import com.legend.Compiler;
 import com.legend.lexer.TokenType;
 import com.legend.protocol.Protocol;
@@ -556,8 +557,8 @@ class PreludeGeneratorTest {
                             "enum", "", "", "", "", "", file));
                 }
             }
-            Files.createDirectories(Path.of("target"));
-            Files.write(Path.of("target/prelude-census.tsv"), rows);
+            Files.createDirectories(Repo.outDir());
+            Files.write(Repo.out("prelude-census.tsv"), rows);
             System.out.println("[prelude-census] " + (rows.size() - 1) + " rows -> target/prelude-census.tsv");
         }
 

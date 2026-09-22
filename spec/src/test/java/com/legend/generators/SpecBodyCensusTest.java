@@ -3,6 +3,7 @@
 
 package com.legend.generators;
 
+import com.legend.testing.Repo;
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.TypedFunction;
@@ -223,8 +224,8 @@ public class SpecBodyCensusTest {
             out.add(r.bucket() + " | " + r.id() + " | " + r.detail()
                     + (r.runningMessage() == null ? "" : " | running: " + r.runningMessage()));
         }
-        Files.createDirectories(Path.of("target"));
-        Files.write(Path.of("target/spec-body-census.txt"), out);
+        Files.createDirectories(Repo.outDir());
+        Files.write(Repo.out("spec-body-census.txt"), out);
         System.out.println("[spec-census] files=" + fileCount + " loadWalls=" + loadWalls.size()
                 + " typedOK=" + ok.size() + " walled=" + walled.size() + " failed(UNWALLED)=" + failures.size()
                 + " nativesSkipped=" + natives);

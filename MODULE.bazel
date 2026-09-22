@@ -28,3 +28,30 @@ maven.install(
     repositories = ["https://repo1.maven.org/maven2"],
 )
 use_repo(maven, "maven", "unpinned_maven")
+
+# ── THE UPSTREAM SOURCES ────────────────────────────────────────────────────────
+# legend-engine / legend-pure at ONE release, pinned by content. Tests read these
+# trees as the spec (see third_party/legend_*_src.BUILD). Measured 2026-09-22:
+# 18.4 MB and 2.4 MB, 2.4 s and 0.7 s to fetch — once; Bazel caches them. The pure
+# release is DERIVED: the <legend.pure.version> the engine release's own pom
+# declares (it was never chosen independently; see tools/oracle-pins.env).
+LEGEND_ENGINE_RELEASE = "4.145.0"
+LEGEND_PURE_RELEASE = "5.99.0"
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "legend_engine_src",
+    build_file = "//third_party:legend_engine_src.BUILD",
+    sha256 = "cf1c2524106c1cde0f98da7af23b943ddadf57e663945f6eb347d469e8e6d361",
+    strip_prefix = "legend-engine-legend-engine-" + LEGEND_ENGINE_RELEASE,
+    urls = ["https://github.com/finos/legend-engine/archive/refs/tags/legend-engine-" + LEGEND_ENGINE_RELEASE + ".tar.gz"],
+)
+
+http_archive(
+    name = "legend_pure_src",
+    build_file = "//third_party:legend_pure_src.BUILD",
+    sha256 = "f216faaa4d414c55b2e9fb92cd25fcd8d934656775ea30d00a865e9cfdf26e8a",
+    strip_prefix = "legend-pure-legend-pure-" + LEGEND_PURE_RELEASE,
+    urls = ["https://github.com/finos/legend-pure/archive/refs/tags/legend-pure-" + LEGEND_PURE_RELEASE + ".tar.gz"],
+)

@@ -1,5 +1,6 @@
 package com.legend.rcorpus;
 
+import com.legend.testing.Repo;
 import com.legend.Compiler;
 import org.junit.jupiter.api.Test;
 
@@ -87,8 +88,8 @@ class EagerCorpusCompileProbe {
         out.add("# RESIDUE (non-test, outside the walled families) = " + residue.size()
                 + " by source: " + residueBySource.entrySet().stream()
                         .sorted((x, y) -> y.getValue() - x.getValue()).toList());
-        Files.createDirectories(Path.of("target"));
-        Files.write(Path.of("target/eager-residue.txt"), residue);
+        Files.createDirectories(Repo.outDir());
+        Files.write(Repo.out("eager-residue.txt"), residue);
         out.add("# by source (failed/total): " + bySource.entrySet().stream()
                 .sorted((x, y) -> y.getValue() - x.getValue())
                 .map(e -> e.getKey() + "=" + e.getValue() + "/" + bodiesBySource.getOrDefault(e.getKey(), 0))
@@ -99,9 +100,9 @@ class EagerCorpusCompileProbe {
         out.add("# by top package: " + byPackage);
         out.add("");
         walls.forEach((k, v) -> out.add(k + " :: " + v.replace('\n', ' ')));
-        Files.createDirectories(Path.of("target"));
+        Files.createDirectories(Repo.outDir());
         if (!"1".equals(System.getProperty("eager.world2"))) {
-            Files.write(Path.of("target/eager-corpus.txt"), out);
+            Files.write(Repo.out("eager-corpus.txt"), out);
             System.out.println(out.get(0));
             System.out.println(out.get(1));
             return;
@@ -170,7 +171,7 @@ class EagerCorpusCompileProbe {
         out.add("# WORLD 2 NEW top unknown types: " + newTypes.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue()).limit(20).toList());
         out.add("# WORLD 2 NEW top messages: " + newMsgs.entrySet().stream().sorted((x, y) -> y.getValue() - x.getValue()).limit(12).toList());
         out.add("# WORLD 2 walls: " + w2walls);
-        Files.write(Path.of("target/eager-corpus.txt"), out);
+        Files.write(Repo.out("eager-corpus.txt"), out);
         for (String l : out) if (l.startsWith("# WORLD 2")) System.out.println(l);
     }
 

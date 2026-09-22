@@ -3,6 +3,7 @@
 
 package com.legend.generators;
 
+import com.legend.testing.Repo;
 import java.nio.file.Path;
 
 /**
@@ -17,8 +18,8 @@ public final class CoreTree {
     private CoreTree() {
     }
 
-    /** The core module's directory ({@code ../core} from this module's). */
-    public static final Path CORE = Path.of("..", "core");
+    /** The core module's directory, by repository path (under Maven and Bazel alike). */
+    public static final Path CORE = Repo.path("core");
 
     public static Path main(String relative) {
         return CORE.resolve("src/main/java").resolve(relative);

@@ -20,7 +20,13 @@ class SpecBoundaryTest {
 
     @Test
     void upstreamJavaNeverEntersSpec() {
-        JavaClasses own = new ClassFileImporter().importPath("target/test-classes");
+        // spec's own compiled tests, found where they actually are: Maven's
+        // target/test-classes directory, or the jar Bazel packs them into. The
+        // relative "target/test-classes" this used to import exists only under
+        // Maven — under Bazel it imported nothing, and ArchUnit's "failed to
+        // check any classes" guard is what said so (2026-09-22).
+        JavaClasses own = new ClassFileImporter().importUrl(
+                SpecBoundaryTest.class.getProtectionDomain().getCodeSource().getLocation());
         noClasses()
             .that().resideInAPackage("com.legend..")
             .should().dependOnClassesThat().resideInAnyPackage("org.finos.legend..")

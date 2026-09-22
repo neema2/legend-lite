@@ -1,9 +1,64 @@
-# spec is still built by Maven. For now this package only EXPORTS its sources,
-# because core's guard tests read them by path (census, skip and boundary
-# guards that walk every module). Declared here, those reads are edges a
-# reviewer can see in core/BUILD.bazel instead of relative paths nobody sees.
+# spec — the tests that read the upstream sources as the SPEC: the generators'
+# byte-parity checks (Maven gate 3) and the relational corpus lanes (gates 4, 5).
+load("@rules_java//java:defs.bzl", "java_library")
+load("//tools/junit:defs.bzl", "junit_test")
+
+# spec's sources, exported for core's guard tests that walk every module.
 filegroup(
     name = "srcs",
     srcs = glob(["src/**"]),
     visibility = ["//core:__pkg__"],
+)
+
+# Compiled ONCE; every lane below runs from this library.
+java_library(
+    name = "spec_tests_lib",
+    testonly = True,
+    srcs = glob(["src/test/java/**/*.java"]),
+    resources = glob(["src/test/resources/**"]),
+    deps = [
+        "//core",
+        "//testing",
+        "@maven//:com_h2database_h2",
+        "@maven//:com_tngtech_archunit_archunit",
+        "@maven//:com_tngtech_archunit_archunit_junit5",
+        "@maven//:org_duckdb_duckdb_jdbc",
+        "@maven//:org_junit_jupiter_junit_jupiter_api",
+        "@maven//:org_junit_jupiter_junit_jupiter_params",
+    ],
+)
+
+# the generators' byte-parity checks read core's committed generated files
+_INPUTS = [
+    ":srcs",
+    "//core:srcs",
+]
+
+# Maven gate 3: every spec test except the heavy corpus sweep.
+junit_test(
+    name = "spec_tests",
+    data = _INPUTS,
+    exclude_tags = ["heavy"],
+    runtime_deps = [":spec_tests_lib"],
+    select = ["--select-package=com.legend"],
+    upstream = True,
+)
+
+# Maven gate 4: the relational corpus against DuckDB.
+junit_test(
+    name = "corpus_duckdb",
+    data = _INPUTS,
+    runtime_deps = [":spec_tests_lib"],
+    select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
+    upstream = True,
+)
+
+# Maven gate 5: the same corpus against H2.
+junit_test(
+    name = "corpus_h2",
+    data = _INPUTS,
+    jvm_flags = ["-Drcorpus.backend=h2"],
+    runtime_deps = [":spec_tests_lib"],
+    select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
+    upstream = True,
 )
