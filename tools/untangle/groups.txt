@@ -1,0 +1,8 @@
+# The untangle's move groups, as data. Each line:
+#     NAME: destination.package <- fully.qualified.Class ... [--inline]
+# Source: docs/standard-build-audit-2026-09-22/UNTANGLE_HOMEWORK.md and
+# validated-plan.json (bytecode + source union graph, phase-3 minimal moves).
+# Applied only through move_classes.py --group NAME, so a rebase re-runs these
+# lines instead of resolving conflicts.
+
+A: com.legend.base <- com.legend.Nullable com.legend.NonNull --inline
