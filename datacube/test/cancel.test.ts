@@ -21,6 +21,7 @@ import { LegendLitePlanner } from '../src/planner.ts';
 import type { ResultTable } from '../src/result.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { fetchTree } from '../src/treeview.ts';
+import { PlanThenRun } from '../src/runner.ts';
 import { TreeState } from '../src/tree.ts';
 
 const GROUPED: CubeSnapshot = {
@@ -129,8 +130,9 @@ describe('a tree fetch that is already obsolete', () => {
     const state = TreeState.fromPaths([['EMEA']]);
     await assert.rejects(
       () => fetchTree(GROUPED, state, {
-        planner,
-        engine,
+        // The levels ask a RUNNER now: plan-then-execute is one
+        // arrangement of that, a remote engine is another.
+        runner: new PlanThenRun(planner, engine),
         guard,
         epoch: guard.current,
         signal: controller.signal,

@@ -15,7 +15,13 @@
 // decision it makes is about WHEN to call them, never about what
 // they mean.
 
-import { CubeController, type CubeView, type Planner } from './cube.ts';
+import type { QueryRunner } from './runner.ts';
+import {
+  CubeController,
+  type CubeControllerOptions,
+  type CubeView,
+  type Planner,
+} from './cube.ts';
 import {
   DEFAULT_CONFIGURATION,
   applyToSnapshot,
@@ -75,9 +81,28 @@ import {
   type ColumnsPanelChild,
 } from './ui/columns-panel.ts';
 
-export interface CubeAppOptions {
-  readonly engine: QueryEngine;
-  readonly planner: Planner;
+/**
+ * How this cube turns Pure into rows -- one of two arrangements.
+ *
+ * A planner and a local engine, which is both browser planes; or a
+ * runner, which is how the remote-engine plane is built
+ * (`new RemoteRun(executor)`). Spelled as a union so the two forms
+ * are visible in the type rather than enforced by a comment, and so
+ * a caller cannot pass half of each.
+ */
+export type CubeAppQuerySource =
+  | {
+    readonly engine: QueryEngine;
+    readonly planner: Planner;
+    readonly runner?: undefined;
+  }
+  | {
+    readonly runner: QueryRunner;
+    readonly engine?: undefined;
+    readonly planner?: undefined;
+  };
+
+export interface CubeAppBaseOptions {
   /** Named hierarchies offered in the toolbar and the editor. */
   readonly dimensions?: readonly Dimension[];
   /**
@@ -153,6 +178,15 @@ export interface CubeAppOptions {
    */
   readonly snapTarget?: { readonly table: string; readonly expression: string };
 }
+
+/**
+ * Everything the app needs, and exactly one way of getting rows.
+ *
+ * The intersection is what makes "a planner and an engine" and "a
+ * runner" both complete and mutually exclusive: pass half of each and
+ * it does not compile.
+ */
+export type CubeAppOptions = CubeAppBaseOptions & CubeAppQuerySource;
 
 const VIEW_KEY = 'datacube.savedView';
 
@@ -413,7 +447,11 @@ export class CubeApp {
         : {}),
     });
 
-    this.#controller = new CubeController(options.engine, options.planner, {
+    // ONE SET OF DEPENDENCIES, then the arrangement that runs the
+    // queries. Written once rather than per form: two copies of this
+    // object would drift, and the half that drifted would be the one
+    // nobody's plane exercised.
+    const deps: CubeControllerOptions = {
       ...(options.snapTarget ? { snapTarget: options.snapTarget } : {}),
       onView: (view) => this.#onView(view),
       onError: (e) =>
@@ -432,7 +470,17 @@ export class CubeApp {
         this.#refreshFormats();
         this.#refreshToolPanel();
       },
-    });
+    };
+    // NARROWED BY THE UNION, spelled out so the reader sees the two
+    // forms as the type does: a runner, or a planner with a local
+    // engine. There is no third state.
+    this.#controller = options.runner !== undefined
+      ? new CubeController(options.runner, deps)
+      : new CubeController(
+        options.engine as QueryEngine,
+        options.planner as Planner,
+        deps,
+      );
 
     this.#wireContextMenu();
     this.#buildToolbar();
@@ -1429,10 +1477,13 @@ export class CubeApp {
     const meta = this.#treeRows[row];
     if (!view || !meta) return;
     const pure = drillQuery(view.snapshot, { path: meta.path });
-    const sql = await this.#options.planner.plan(pure, view.snapshot);
-    const table = await this.#options.engine.execute(
-      sql,
-      view.snapshot.epoch,
+    // THROUGH THE CONTROLLER'S RUNNER, not a planner and an engine of
+    // its own: on the plane where a remote engine executes there is
+    // no local engine here to call, and a drill-through that works on
+    // two planes out of three is a broken feature on the third.
+    const { rows: table } = await this.#controller.runQuery(
+      pure,
+      view.snapshot,
     );
     this.#showOverlay('Drill-through', (host) => {
       const pre = this.#doc.createElement('pre');

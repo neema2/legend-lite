@@ -13,10 +13,15 @@ import {
   type ColumnModel,
 } from './grid/columns.ts';
 import type { CubeSnapshot } from './snapshot.ts';
-import { referencedColumns } from './snapshot.ts';
+import { CubeRefusal, referencedColumns } from './snapshot.ts';
 import { serialize, type LevelScope } from './serialize.ts';
 import type { ResultTable } from './result.ts';
 import { SnapManager } from './snap.ts';
+import {
+  PlanThenRun,
+  type QueryRunner,
+  type RunOutcome,
+} from './runner.ts';
 import { requestKey } from './tree.ts';
 import {
   TreeState,
@@ -117,8 +122,17 @@ export interface CubeControllerOptions {
 }
 
 export class CubeController {
-  readonly #engine: QueryEngine;
-  readonly #planner: Planner;
+  readonly #runner: QueryRunner;
+  /**
+   * The local pair, when there is one.
+   *
+   * Snapping freezes a cube by materialising its source into a local
+   * store, so it needs both halves: the planner for the source SQL,
+   * the engine to hold the table. A remote engine answers queries
+   * for us and cannot do that on our behalf, so there it is null and
+   * `snap` refuses by name.
+   */
+  readonly #local: PlanThenRun | null;
   readonly #guard = new EpochGuard();
   readonly #snaps: SnapManager;
   readonly #options: CubeControllerOptions;
@@ -129,15 +143,44 @@ export class CubeController {
   /** The last state that reached the screen. See #remember. */
   #lastState: CubeState | null = null;
 
+  /**
+   * Two arrangements, and the choice is the CALL, not a flag.
+   *
+   * `new CubeController(engine, planner)` plans then executes
+   * locally -- both browser planes. `new CubeController(runner)`
+   * takes whatever turns Pure into rows, which is how a remote
+   * engine plane is built: `new CubeController(new RemoteRun(...))`.
+   *
+   * Settled at construction and unable to change afterwards, for the
+   * reason `test/guardrails.test.ts` records: the one time shipped
+   * code could pick a planner at runtime, a health-check fallback hid
+   * three real bugs for the life of the project.
+   */
+  constructor(runner: QueryRunner, options?: CubeControllerOptions);
   constructor(
     engine: QueryEngine,
     planner: Planner,
-    options: CubeControllerOptions = {},
+    options?: CubeControllerOptions,
+  );
+  constructor(
+    first: QueryEngine | QueryRunner,
+    second?: Planner | CubeControllerOptions,
+    third: CubeControllerOptions = {},
   ) {
-    this.#engine = engine;
-    this.#planner = planner;
+    // WHICH FORM, by the shape of what arrived. A runner runs; an
+    // engine executes. This is a construction-time reading of the
+    // caller's intent, not a choice the cube makes for itself.
+    const asRunner = 'run' in first ? (first as QueryRunner) : null;
+    const local = asRunner
+      ? null
+      : new PlanThenRun(second as Planner, first as QueryEngine);
+    this.#runner = asRunner ?? (local as PlanThenRun);
+    this.#local = local;
+    const options = asRunner
+      ? ((second as CubeControllerOptions | undefined) ?? {})
+      : third;
     this.#options = options;
-    this.#snaps = new SnapManager(engine);
+    this.#snaps = new SnapManager(local ? local.engine : null);
     this.#history = new History(
       options.historyLimit !== undefined
         ? { limit: options.historyLimit }
@@ -147,6 +190,30 @@ export class CubeController {
 
   get snaps(): SnapManager {
     return this.#snaps;
+  }
+
+  /** Which arrangement answers queries, for diagnostics. */
+  get runnerName(): string {
+    return this.#runner.name;
+  }
+
+  /**
+   * One query, for a host that needs rows of its own.
+   *
+   * Drill-through is the case: it asks for the rows behind a cell,
+   * which is a query the cube did not plan. It goes through the same
+   * runner as everything else, so it works on every plane -- before
+   * this, the host planned and executed it by hand, which meant the
+   * one plane where the engine executes would have had a
+   * drill-through that could not run.
+   */
+  async runQuery(
+    pureGrammar: string,
+    snapshot: CubeSnapshot,
+    scope?: LevelScope,
+    signal?: AbortSignal,
+  ): Promise<RunOutcome> {
+    return this.#runner.run(pureGrammar, snapshot, scope, signal);
   }
 
   get view(): CubeView | null {
@@ -240,8 +307,7 @@ export class CubeController {
         // each open branch are separate queries, stitched in order.
         if (withEpoch.rows.length > 0) {
           const view = await fetchTree(withEpoch, this.#tree, {
-            planner: this.#planner,
-            engine: this.#engine,
+            runner: this.#runner,
             guard: this.#guard,
             epoch,
             signal,
@@ -268,13 +334,12 @@ export class CubeController {
         }
 
         const grammar = serialize(withEpoch);
-        const sql = await this.#planner.plan(
+        const { rows, sql } = await this.#runner.run(
           grammar,
           withEpoch,
           undefined,
           signal,
         );
-        const rows = await this.#engine.execute(sql, epoch, signal);
         const columns = buildColumnModel(
           rows,
           withEpoch.rows,
@@ -326,7 +391,15 @@ export class CubeController {
     // that quietly broke it.
     const columns = referencedColumns(snapshot).join(', ');
     const pure = `${snapshot.source.expression}->select(~[${columns}])`;
-    const sourceSql = await this.#planner.plan(pure, snapshot);
+    if (!this.#local) {
+      // The SnapManager says the same thing; saying it here too
+      // keeps the reason next to the attempt.
+      throw new CubeRefusal(
+        'this cube\u2019s queries run on a remote engine: there is no'
+        + ' local store to freeze a snapshot into.',
+      );
+    }
+    const sourceSql = await this.#local.planner.plan(pure, snapshot);
 
     await this.#snaps.snap(sourceSql, this.#guard.current, {
       ...(label !== undefined ? { label } : {}),

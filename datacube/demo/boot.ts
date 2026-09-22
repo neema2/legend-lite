@@ -20,12 +20,114 @@ import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { mountRemote } from '../src/remote.ts';
 import { ingestFile } from '../src/upload.ts';
 import { makeWindow, type WindowSpec } from '../src/ui/window.ts';
+import type { MenuItem } from '../src/ui/menu.ts';
 import { SAMPLES, sampleById } from '../src/samples.ts';
 import type { ColumnFormat } from '../src/format.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 
 const ROWS = 200_000;
 export const LEGEND_LITE = 'http://localhost:8080';
+export const LEGEND_ENGINE = 'http://127.0.0.1:6300';
+
+/**
+ * THE THREE PLANES, as data rather than as three copies of a menu.
+ *
+ * Each is one page loading one arrangement, statically: a bundle
+ * decides who compiles the Pure and who runs it, and nothing at
+ * runtime can change that (`test/guardrails.test.ts` -- the one time
+ * shipped code could pick a planner by health check, the fallback hid
+ * three real bugs for the life of the project). The menu navigates;
+ * it does not switch.
+ */
+export const PLANES: readonly {
+  readonly id: `host.plane.${string}`;
+  readonly page: string;
+  readonly label: string;
+  readonly word: string;
+}[] = [
+  {
+    id: 'host.plane.wasm',
+    page: 'index.html',
+    label: 'Plan local (in this tab)',
+    word: 'local',
+  },
+  {
+    id: 'host.plane.server',
+    page: 'index-server.html',
+    label: 'Plan remote (legend-lite on :8080)',
+    word: 'remote',
+  },
+  {
+    id: 'host.plane.engine',
+    page: 'index-engine.html',
+    label: 'Run on the engine (legend-engine on :6300)',
+    word: 'engine',
+  },
+];
+
+/** Which page is loaded, and therefore which plane. */
+export function currentPlane(): string {
+  const here = location.pathname;
+  const found = PLANES.find((plane) => plane.page !== 'index.html'
+    && here.includes(plane.page.replace('.html', '')));
+  return (found ?? PLANES[0]!).word;
+}
+
+/** The plane entries, with the one you are ON disabled, not hidden. */
+export function planeMenu(): MenuItem[] {
+  const now = currentPlane();
+  return PLANES.map((plane) => ({
+    id: plane.id,
+    label: plane.label,
+    ...(plane.word === now ? { disabled: true as const } : {}),
+  }));
+}
+
+/** Navigate to a plane, if that is what was chosen. */
+export function goToPlane(id: string | undefined): boolean {
+  const found = PLANES.find((plane) => plane.id === id);
+  if (!found) return false;
+  location.href = found.page;
+  return true;
+}
+
+/**
+ * The formats the HOST knows and the snapshot cannot: notional and
+ * pnl are money, qty is a count. Rendering a trade count as $10,005
+ * is the kind of wrong that looks plausible.
+ */
+export const MONEY: ColumnFormat = {
+  kind: 'currency',
+  currency: 'USD',
+  locale: 'en-US',
+  maximumFractionDigits: 0,
+  negativeParens: true,
+};
+
+/** The demo's own configuration, shared by every plane. */
+export function demoConfiguration(title: string): CubeConfiguration {
+  return {
+    ...DEFAULT_CONFIGURATION,
+    reportTitle: title,
+    showSelectionStats: true,
+    columns: {
+      notional: { format: MONEY },
+      pnl: { format: MONEY },
+      qty: {
+        format: { kind: 'number', locale: 'en-US', maximumFractionDigits: 0 },
+      },
+    },
+  };
+}
+
+/** The named hierarchies the demo offers, shared by every plane. */
+export const DEMO_DIMENSIONS: readonly {
+  readonly name: string;
+  readonly columns: readonly string[];
+}[] = [
+  { name: 'Geography', columns: ['region', 'desk', 'book'] },
+  { name: 'Calendar', columns: ['year', 'qtr'] },
+];
 
 /** What an entry point must hand `boot`. */
 export interface Engine {
@@ -228,25 +330,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
   // The host knows what the snapshot cannot: that notional and pnl
   // are money and qty is a count. Rendering a trade count as $10,005
   // is the kind of wrong that looks plausible.
-  const MONEY: ColumnFormat = {
-    kind: 'currency',
-    currency: 'USD',
-    locale: 'en-US',
-    maximumFractionDigits: 0,
-    negativeParens: true,
-  };
-  const configuration: CubeConfiguration = {
-    ...DEFAULT_CONFIGURATION,
-    reportTitle: 'Trades',
-    showSelectionStats: true,
-    columns: {
-      notional: { format: MONEY },
-      pnl: { format: MONEY },
-      qty: {
-        format: { kind: 'number', locale: 'en-US', maximumFractionDigits: 0 },
-      },
-    },
-  };
+  const configuration: CubeConfiguration = demoConfiguration('Trades');
 
   // The close button on each host window. Wired once, by delegation,
   // so a window can be added to the markup without another listener.
@@ -310,36 +394,23 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
           ? [{ id: 'host.data' as const, label: 'Data\u2026' }]
           : []),
         { id: 'host.query', label: 'Generated Pure & SQL\u2026' },
-        // The plane, as entries rather than a control: the bar is for
-        // what you watch, the menu for what you do occasionally. The
-        // one you are ON is disabled rather than hidden, so the menu
-        // still says where planning happens -- which is the job the
-        // banner used to do.
-        {
-          id: 'host.plane.wasm',
-          label: 'Plan local (in this tab)',
-          ...(onServerPage() ? {} : { disabled: true }),
-        },
-        {
-          id: 'host.plane.server',
-          label: 'Plan remote (legend-lite on :8080)',
-          ...(onServerPage() ? { disabled: true } : {}),
-        },
+        // The planes, as entries rather than a control: the bar is
+        // for what you watch, the menu for what you do occasionally.
+        // The one you are ON is disabled rather than hidden, so the
+        // menu still says where the work happens.
+        ...planeMenu(),
       ],
       onHostMenu: (item) => {
         if (item.id === 'host.data') toggleHostWindow('datawin');
         if (item.id === 'host.query') toggleHostWindow('querywin');
         // A NAVIGATION, not a switch. Each page loads exactly one
-        // planner, statically, and test/guardrails.test.ts holds that
-        // line: shipped code must not be able to CHOOSE a planner at
+        // arrangement, statically, and test/guardrails.test.ts holds
+        // that line: shipped code must not be able to CHOOSE at
         // runtime, because the one time it could -- a health check
         // falling back to a demo shim -- it hid three real bugs for
         // the life of the project. The choice is still which bundle
         // the page loads; this only saves knowing the file names.
-        if (item.id === 'host.plane.wasm') location.href = 'index.html';
-        if (item.id === 'host.plane.server') {
-          location.href = 'index-server.html';
-        }
+        goToPlane(item.id);
       },
       dimensions: dims,
       writeClipboard: (text) => navigator.clipboard?.writeText(text),
@@ -548,10 +619,6 @@ function toggleHostWindow(id: string): void {
   }));
 }
 
-/** Which entry point is loaded, and therefore which planner. */
-function onServerPage(): boolean {
-  return location.pathname.includes('index-server');
-}
 
 /**
  * Pick a label by an explicit index expression.

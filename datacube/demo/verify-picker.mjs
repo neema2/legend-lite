@@ -104,15 +104,23 @@ try {
         label: e.querySelector('.dc-menu-label')?.textContent?.trim() ?? '',
         off: e.classList.contains('dc-disabled'),
       }))
-      .filter((m) => /^Plan /.test(m.label)));
+      // "Run on the engine" is a plane too, and a filter of
+      // /^Plan / silently dropped it -- the check passed while the
+      // third entry went unexamined.
+      .filter((m) => /^(Plan |Run on)/.test(m.label)));
   console.log(`plane entries: ${planes.map((p) =>
     `${p.label}${p.off ? ' [current]' : ''}`).join(' / ')}`);
   // BY THE PLANE'S OWN WORD -- local, remote, engine -- which is
   // what the status bar shows and what the menu entries name.
   const here = planes.find((p) => /local/i.test(p.label));
   const server = planes.find((p) => /remote/i.test(p.label));
+  const engine = planes.find((p) => /engine/i.test(p.label));
   if (!here) bad('the menu does not offer planning in this tab');
   if (!server) bad('the menu does not offer planning on the server');
+  if (!engine) bad('the menu does not offer running on the engine');
+  if (planes.length !== 3) {
+    bad(`the menu offers ${planes.length} planes, not the three there are`);
+  }
   // THE CURRENT PLANE IS THE ONE THAT IS DISABLED, which is how the
   // menu still says where planning happens -- the job the banner
   // used to do, and once did untruthfully.
@@ -122,52 +130,77 @@ try {
   if (server && server.off) {
     bad('the remote entry is marked as current on the local page');
   }
+  if (engine && engine.off) {
+    bad('the engine entry is marked as current on the local page');
+  }
   await page.keyboard.press('Escape');
   await page.waitForTimeout(150);
 
   // THE PAGE THE MENU SENDS YOU TO MUST BE A PAGE.
   //
-  // `boot` is shared between the two entry points, and the server
-  // one was left on the old document layout while boot moved on: it
+  // `boot` is shared by all three entry points, and the server one
+  // was left on the old document layout while boot moved on: it
   // threw `missing #offstage` before drawing a row, so the menu
   // entry led to a blank screen. Nothing noticed, because every
-  // harness loads index.html.
+  // other harness loads index.html.
   //
-  // With no engine on :8080 this page is SUPPOSED to refuse -- there
-  // is one planner and it is the real one -- so what is checked is
-  // that it refuses in words, on a page that rendered.
-  {
+  // A plane whose back end is absent is SUPPOSED to refuse -- there
+  // is one planner per page and it is the real one -- so what is
+  // checked is that it either ran or refused in words, on a page
+  // that rendered either way.
+  // Each non-local plane, in turn. Both are generated from
+  // index.html so the shells cannot drift, and each has its own
+  // refusal element because each has a different thing to be missing:
+  // the server page wants a planner on :8080, the engine page wants
+  // an engine on :6300 and has no local fallback at all.
+  for (const plane of [
+    { page: 'index-server.html', refusal: 'plannermissing', what: 'server' },
+    { page: 'index-engine.html', refusal: 'enginemissing', what: 'engine' },
+  ]) {
     const other = await ctx.newPage();
     const errors = [];
     other.on('pageerror', (e) => errors.push(e.message.split('\n')[0]));
-    await other.goto(URL_.replace('index.html', 'index-server.html'),
+    await other.goto(URL_.replace('index.html', plane.page),
       { waitUntil: 'load', timeout: 120_000 });
-    // Either it plans (an engine is up and rows arrive) or it says
-    // why not. A blank page is the failure.
+    // Either it produced rows or it said why not. A blank page is
+    // the failure, and it is the failure this block exists to catch.
     await other.waitForFunction(
-      () => document.querySelectorAll('.dc-row').length > 0
-        || document.getElementById('plannermissing')?.hidden === false,
-      undefined, { timeout: 60_000 },
+      (id) => document.querySelectorAll('.dc-row').length > 0
+        || document.getElementById(id)?.hidden === false,
+      plane.refusal, { timeout: 60_000 },
     ).catch(() => {});
-    const state = await other.evaluate(() => ({
+    const state = await other.evaluate((id) => ({
       rows: document.querySelectorAll('.dc-row').length,
-      refusal: document.getElementById('plannermissing')?.hidden === false
-        ? (document.getElementById('plannermissing')?.textContent ?? '')
+      refusal: document.getElementById(id)?.hidden === false
+        ? (document.getElementById(id)?.textContent ?? '')
           .replace(/\s+/g, ' ').trim().slice(0, 60)
         : '',
       offstage: document.getElementById('offstage') !== null,
-    }));
-    console.log(`server page: ${state.rows} rows, `
-      + `refusal="${state.refusal}"`);
+      // The plane's own word, as the status bar says it -- the thing
+      // the old banner got wrong.
+      word: document.querySelector('.dc-status-host')?.textContent?.trim()
+        ?? '',
+    }), plane.refusal);
+    console.log(`${plane.what} page: ${state.rows} rows, `
+      + `backend="${state.word}", refusal="${state.refusal}"`);
     if (!state.offstage) {
-      bad('the server page is missing #offstage, which `boot` requires');
+      bad(`the ${plane.what} page is missing #offstage, which \`boot\` `
+        + `requires`);
     }
     if (state.rows === 0 && !state.refusal) {
-      bad(`the server page neither planned nor said why: `
+      bad(`the ${plane.what} page neither ran nor said why: `
         + `${errors.join(' | ') || 'nothing said at all'}`);
     }
+    // A page that RAN must name its own plane, not inherit local's.
+    if (state.rows > 0 && !new RegExp(plane.what === 'server'
+      ? 'remote' : 'engine').test(state.word)) {
+      bad(`the ${plane.what} page ran but its status bar says `
+        + `"${state.word}"`);
+    }
     const missed = errors.filter((e) => /missing #/.test(e));
-    if (missed.length) bad(`the server page asked for: ${missed.join(' | ')}`);
+    if (missed.length) {
+      bad(`the ${plane.what} page asked for: ${missed.join(' | ')}`);
+    }
     await other.close();
   }
 

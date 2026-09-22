@@ -104,12 +104,37 @@ function quoteLiteral(v: string): string {
 }
 
 export class SnapManager {
-  readonly #engine: QueryEngine;
+  /**
+   * The local store a snapshot freezes INTO.
+   *
+   * Null on a plane where a remote engine answers the queries: there
+   * is no local table to materialise into and nothing here can
+   * invent one. Every method that needs it refuses by name rather
+   * than half-working -- the cache mode is what will fill this in.
+   */
+  readonly #engine: QueryEngine | null;
   #state: PlaneState = { mode: 'live' };
   #counter = 0;
 
-  constructor(engine: QueryEngine) {
+  constructor(engine: QueryEngine | null) {
     this.#engine = engine;
+  }
+
+  /**
+   * The local store, or a refusal naming what is missing.
+   *
+   * "Cannot read properties of null" is not an answer anyone can
+   * act on; "this plane has no local store to freeze into" is.
+   */
+  #localStore(): QueryEngine {
+    if (!this.#engine) {
+      throw new SnapRefusal(
+        'this cube\u2019s queries run on a remote engine, which has no'
+        + ' local store to freeze a snapshot into. Caching a source'
+        + ' locally is a mode of its own, and not this one.',
+      );
+    }
+    return this.#engine;
   }
 
   get state(): PlaneState {
@@ -140,7 +165,8 @@ export class SnapManager {
    * "this is 40 million rows" instead of watching a tab die.
    */
   async preflight(sourceSql: string, epoch: number): Promise<PreflightEstimate> {
-    const r = await this.#engine.execute(
+    const engine = this.#localStore();
+    const r = await engine.execute(
       `SELECT count(*) AS n FROM (${sourceSql})`,
       epoch,
     );
@@ -189,14 +215,15 @@ export class SnapManager {
 
     this.#counter += 1;
     const table = options.target?.table ?? `dc_snap_${this.#counter}`;
-    await this.#engine.execute(
+    const engine = this.#localStore();
+    await engine.execute(
       `CREATE OR REPLACE TABLE ${quoteIdent(table)} AS ${sourceSql}`,
       epoch,
     );
 
     const columnValues = new Map<string, readonly string[]>();
     for (const col of options.pivotCandidates ?? []) {
-      const r = await this.#engine.execute(
+      const r = await engine.execute(
         `SELECT DISTINCT ${quoteIdent(col)} AS v ` +
           `FROM ${quoteIdent(table)} ` +
           `WHERE ${quoteIdent(col)} IS NOT NULL ORDER BY v`,
@@ -226,7 +253,8 @@ export class SnapManager {
     if (this.#state.mode !== 'snapped') return;
     const { table } = this.#state.snap;
     this.#state = { mode: 'live' };
-    await this.#engine.execute(`DROP TABLE IF EXISTS ${quoteIdent(table)}`, 0);
+    await this.#localStore()
+      .execute(`DROP TABLE IF EXISTS ${quoteIdent(table)}`, 0);
   }
 
   /**

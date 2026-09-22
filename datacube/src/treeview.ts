@@ -10,9 +10,9 @@
 // pagination. And values are never re-aggregated: a subtotal row shows
 // the row its own query returned, so it cannot drift from the detail.
 
-import type { QueryEngine } from './engine.ts';
+
 import type { EpochGuard } from './epoch.ts';
-import type { Planner } from './cube.ts';
+import type { QueryRunner } from './runner.ts';
 import { NULL_GROUP, serialize } from './serialize.ts';
 import type { ResultColumn, ResultTable, Scalar } from './result.ts';
 import type { CubeSnapshot } from './snapshot.ts';
@@ -133,8 +133,14 @@ export async function fetchTree(
   snapshot: CubeSnapshot,
   state: TreeState,
   deps: {
-    readonly planner: Planner;
-    readonly engine: QueryEngine;
+    /**
+     * Pure in, rows out -- however that happens.
+     *
+     * A level does not care whether a planner and a local engine did
+     * it in two steps or a remote engine did it in one; it cares
+     * that its rows answer its query.
+     */
+    readonly runner: QueryRunner;
     readonly guard: EpochGuard;
     readonly epoch: number;
     readonly assemble?: AssembleOptions;
@@ -169,8 +175,9 @@ export async function fetchTree(
       // data, which is cheaper than a second counting query.
       const scoped = { ...request, limit: maxRows + 1 };
       const grammar = serialize(snapshot, scoped);
-      const sql = await deps.planner.plan(grammar, snapshot, scoped, deps.signal);
-      const full = await deps.engine.execute(sql, deps.epoch, deps.signal);
+      const { rows: full, sql } = await deps.runner.run(
+        grammar, { ...snapshot, epoch: deps.epoch }, scoped, deps.signal,
+      );
       const truncated = full.rowCount > maxRows;
       const table = truncated ? takeRows(full, maxRows) : full;
       levels.set(requestKey(request), {

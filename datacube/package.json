@@ -8,7 +8,7 @@
     "check": "npm run typecheck && npm test",
     "engine": "cd ../.. && java -cp core/target/legend-lite-core-1.0.0-SNAPSHOT-shaded.jar com.legend.server.LegendHttpServer",
     "engine:build": "cd ../.. && mvn -q -pl core -am -DskipTests package",
-    "build:demo": "esbuild demo/main.ts --bundle --format=esm --outfile=demo/bundle.js --target=es2022 && esbuild demo/main-server.ts --bundle --format=esm --outfile=demo/bundle-server.js --target=es2022 && esbuild src/planner-worker.ts --bundle --format=esm --outfile=demo/planner-worker.js --target=es2022",
+    "build:demo": "esbuild demo/main.ts --bundle --format=esm --outfile=demo/bundle.js --target=es2022 && esbuild demo/main-server.ts --bundle --format=esm --outfile=demo/bundle-server.js --target=es2022 && esbuild demo/main-engine.ts --bundle --format=esm --outfile=demo/bundle-engine.js --target=es2022 && esbuild src/planner-worker.ts --bundle --format=esm --outfile=demo/planner-worker.js --target=es2022",
     "demo:vendor": "mkdir -p demo/vendor && cp node_modules/@duckdb/duckdb-wasm/dist/duckdb-mvp.wasm node_modules/@duckdb/duckdb-wasm/dist/duckdb-eh.wasm node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-mvp.worker.js node_modules/@duckdb/duckdb-wasm/dist/duckdb-browser-eh.worker.js demo/vendor/",
     "build:remote": "esbuild demo/remote-harness.ts --bundle --format=esm --outfile=demo/remote-bundle.js --target=es2022",
     "verify:remote": "npm run build:remote && node demo/verify-remote.mjs",

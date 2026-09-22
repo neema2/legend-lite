@@ -174,6 +174,69 @@ describe('there is exactly one planner, and no way to fall back to another', () 
     assert.deepEqual(bad, [], `fallback planner in: ${bad.join(', ')}`);
   });
 
+  it('never chooses a RUNNER at runtime either', () => {
+    // The same ban as the planner one, for the noun the engine plane
+    // added. A runner decides WHO RUNS the query -- this tab, or an
+    // engine that cannot be reached from it -- and a page that picks
+    // by flag or URL is a page whose SQL pane and status bar can be
+    // telling you about a back end you are not using.
+    const bad: string[] = [];
+    for (const file of shipped) {
+      const text = readFileSync(file, 'utf8');
+      if (!/\bnew\s+(?:RemoteRun|PlanThenRun)\b/.test(text)) continue;
+      const code = text.split('\n').filter((l) => !isComment(l)).join('\n');
+      const spans = code.split(/\n(?=(?:export )?(?:async )?function )/);
+      for (const span of spans) {
+        if (/\bnew\s+(?:RemoteRun|PlanThenRun)\b/.test(span)
+            && /URLSearchParams|process\.env|location\.search/.test(span)) {
+          bad.push(file);
+          break;
+        }
+      }
+    }
+    assert.deepEqual(bad, [], `runtime runner choice in: ${bad.join(', ')}`);
+  });
+
+  it('never recovers from an unreachable engine by running locally', () => {
+    // The fallback shape, for runners: a health probe, a catch, and a
+    // runner built inside it. The engine plane has no local store at
+    // all, so a fallback there would not be a degraded cube -- it
+    // would be a cube showing different data under the same title.
+    const bad: string[] = [];
+    for (const file of shipped) {
+      const text = readFileSync(file, 'utf8');
+      if (/catch\s*(\([^)]*\))?\s*\{[^}]*\bnew\s+(?:RemoteRun|PlanThenRun)\b/s
+        .test(text)) {
+        bad.push(file);
+      }
+    }
+    assert.deepEqual(bad, [], `fallback runner in: ${bad.join(', ')}`);
+  });
+
+  it('the engine entry REFUSES to run without the engine', () => {
+    // Same rule as the server entry, third absence. This plane has
+    // the least to fall back to: no local planner AND no local store,
+    // so an absent engine must stop startup before the cube exists
+    // rather than leave an empty grid under a title that claims data.
+    const demo = readFileSync(join('demo', 'main-engine.ts'), 'utf8');
+    const refuse = demo.indexOf("must('enginemissing').hidden = false");
+    const build = demo.indexOf('new CubeApp');
+    assert.ok(refuse > 0, 'main-engine.ts must show its refusal element');
+    assert.ok(build > 0, 'main-engine.ts must build a cube at all');
+    assert.ok(
+      refuse < build,
+      'the refusal must come BEFORE the cube is constructed',
+    );
+    // And it must actually stop: a refusal that falls through builds
+    // the cube anyway, which is the bug the ordering check alone
+    // would not catch.
+    const between = demo.slice(refuse, build);
+    assert.ok(
+      /\n\s*return;/.test(between),
+      'main-engine.ts must return after refusing, not carry on',
+    );
+  });
+
   it('the server entry REFUSES to run without the engine', () => {
     // Not "warns and carries on": constructs nothing, so there is no
     // grid of invented numbers to mistake for real ones.

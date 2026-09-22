@@ -4,6 +4,7 @@ node_modules/
 demo/vendor/
 demo/bundle.js
 demo/bundle-server.js
+demo/bundle-engine.js
 demo/screenshot.png
 demo/remote-bundle.js
 *.parquet
