@@ -3,6 +3,7 @@
 
 package com.legend.claims;
 
+import com.legend.testing.Repo;
 import com.legend.builtin.Pure;
 import com.legend.model.NativeFunctionDefinition;
 import com.legend.protocol.TypeExpression;
@@ -225,8 +226,8 @@ public class ClaimRegistryTest {
     @DisplayName("the implemented surface is the committed ledger (native-claims.tsv), byte-equal")
     void ledgerIsCurrent() throws Exception {
         List<String> actual = ledger();
-        Files.createDirectories(Path.of("target"));
-        Files.write(Path.of("target/native-claims.tsv"), actual, StandardCharsets.UTF_8);
+        Files.createDirectories(Repo.outDir());
+        Files.write(Repo.out("native-claims.tsv"), actual, StandardCharsets.UTF_8);
         if ("1".equals(System.getProperty("claims.generate"))) {
             Files.createDirectories(RESOURCE.getParent());
             Files.write(RESOURCE, actual, StandardCharsets.UTF_8);
@@ -261,8 +262,8 @@ public class ClaimRegistryTest {
         }
         System.out.println("[claims] overloads=" + total + " unclaimed=" + unclaimed.size()
                 + " (" + unclaimedFqns.size() + " FQNs) by-kind=" + byKind);
-        Files.createDirectories(Path.of("target"));
-        Files.write(Path.of("target/unclaimed-natives.txt"), unclaimed, StandardCharsets.UTF_8);
+        Files.createDirectories(Repo.outDir());
+        Files.write(Repo.out("unclaimed-natives.txt"), unclaimed, StandardCharsets.UTF_8);
         assertTrue(unclaimed.size() <= UNCLAIMED_MAX, "UNCLAIMED overloads GREW: " + unclaimed.size()
                 + " > " + UNCLAIMED_MAX + " — a Pure.java entry nothing implements; register it or"
                 + " move it to the prelude (target/unclaimed-natives.txt)");

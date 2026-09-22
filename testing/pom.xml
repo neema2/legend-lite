@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.legend</groupId>
+        <artifactId>legend-lite</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>legend-lite-testing</artifactId>
+    <packaging>jar</packaging>
+    <name>Legend Lite - Testing (where tests find the repository's files)</name>
+    <description>
+        Test support shared by every module: com.legend.testing.Repo, the one answer to
+        "where is this file" under both Maven (working directory = the module) and Bazel
+        (working directory = the runfiles tree). JDK only; test scope everywhere it is used.
+        Exists as a module because Maven cannot otherwise share a class between modules'
+        test trees; under Bazel it is simply //testing.
+    </description>
+</project>

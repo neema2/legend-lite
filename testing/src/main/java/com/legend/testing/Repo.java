@@ -34,36 +34,50 @@ import java.nio.file.Path;
  */
 public final class Repo {
 
-    /** This module's directory name, relative to the repository root. */
-    private static final String MODULE = "core";
+    /** The repository root, and the running test's module under it
+     *  ({@code core}, {@code spec}, …) — both derived, never assumed. */
+    private static final Path ROOT;
+    private static final String MODULE;
 
-    private static final Path ROOT = resolveRoot();
+    static {
+        String srcdir = System.getenv("TEST_SRCDIR");
+        if (srcdir != null) {
+            // Bazel: the runfiles tree of the main repository, and the module is
+            // the package of the running test target (//spec:corpus_duckdb ->
+            // spec). Bazel sets all three variables for every test; a missing one
+            // means this is not a Bazel test, and guessing would be a fallback
+            // (AGENTS.md invariant 4).
+            String workspace = required("TEST_WORKSPACE");
+            String target = required("TEST_TARGET");
+            String label = target.replaceFirst("^@@?", "");
+            if (!label.startsWith("//") || label.indexOf(':') < 0) {
+                throw new IllegalStateException("unrecognised TEST_TARGET label: " + target);
+            }
+            ROOT = Path.of(srcdir, workspace).toAbsolutePath().normalize();
+            MODULE = label.substring(2, label.indexOf(':'));
+        } else {
+            // Maven: surefire forks the test JVM in the module directory. Check it
+            // rather than assume it — a test run from anywhere else would resolve
+            // every path against the wrong tree and fail far from the cause.
+            Path cwd = Path.of("").toAbsolutePath().normalize();
+            if (cwd.getFileName() == null || !Files.isRegularFile(cwd.resolve("pom.xml"))) {
+                throw new IllegalStateException("expected to run in a Maven module directory"
+                        + " (one holding a pom.xml) or under Bazel; working directory is " + cwd);
+            }
+            ROOT = cwd.getParent();
+            MODULE = cwd.getFileName().toString();
+        }
+    }
 
     private Repo() {}
 
-    private static Path resolveRoot() {
-        String srcdir = System.getenv("TEST_SRCDIR");
-        if (srcdir != null) {
-            // Bazel: the runfiles tree of the main repository. Bazel sets both
-            // variables for every test; one without the other is not a Bazel
-            // test, and guessing the workspace name would be a fallback
-            // (AGENTS.md invariant 4).
-            String workspace = System.getenv("TEST_WORKSPACE");
-            if (workspace == null) {
-                throw new IllegalStateException(
-                        "TEST_SRCDIR is set but TEST_WORKSPACE is not — not a Bazel test environment");
-            }
-            return Path.of(srcdir, workspace).toAbsolutePath().normalize();
+    private static String required(String variable) {
+        String value = System.getenv(variable);
+        if (value == null) {
+            throw new IllegalStateException(
+                    "TEST_SRCDIR is set but " + variable + " is not — not a Bazel test environment");
         }
-        // Maven: surefire forks the test JVM in the module directory. Check it
-        // rather than assume it — a test run from anywhere else would resolve
-        // every path against the wrong tree and fail far from the cause.
-        Path cwd = Path.of("").toAbsolutePath().normalize();
-        if (cwd.getFileName() == null || !cwd.getFileName().toString().equals(MODULE)) {
-            throw new IllegalStateException("expected to run in the '" + MODULE
-                    + "' module directory (Maven) or under Bazel; working directory is " + cwd);
-        }
-        return cwd.getParent();
+        return value;
     }
 
     /** The repository root. */

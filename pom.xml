@@ -16,6 +16,7 @@
     </description>
 
     <modules>
+        <module>testing</module>
         <module>core</module>
         <module>spec</module>
         <module>pct</module>
@@ -101,6 +102,11 @@
             <dependency>
                 <groupId>com.legend</groupId>
                 <artifactId>legend-lite-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.legend</groupId>
+                <artifactId>legend-lite-testing</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <!-- ArchUnit (test scope; for core/ wall enforcement) -->

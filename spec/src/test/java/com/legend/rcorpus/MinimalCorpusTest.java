@@ -3,6 +3,7 @@
 
 package com.legend.rcorpus;
 
+import com.legend.testing.Repo;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -263,28 +264,28 @@ class MinimalCorpusTest {
         } finally {
             corpus.endSession();
         }
-        Files.createDirectories(Path.of("target"));
-        Files.write(Path.of("target/corpus2-pass.txt"), pass);
-        Files.write(Path.of("target/corpus2-fail.txt"), fail);
-        Files.write(Path.of("target/corpus2-skipped.txt"), skipped);
-        Files.write(Path.of("target/corpus2-engine-order.txt"), engineOrder);
+        Files.createDirectories(Repo.outDir());
+        Files.write(Repo.out("corpus2-pass.txt"), pass);
+        Files.write(Repo.out("corpus2-fail.txt"), fail);
+        Files.write(Repo.out("corpus2-skipped.txt"), skipped);
+        Files.write(Repo.out("corpus2-engine-order.txt"), engineOrder);
         // the per-test timing ledger, every test (ms, discovery order) — the
         // input a mode-vs-mode or run-vs-run time diff reads
         List<String> timing = new ArrayList<>();
         for (var e : elapsed.entrySet()) {
             timing.add(e.getValue() + "\t" + e.getKey());
         }
-        Files.write(Path.of("target/corpus2-elapsed.txt"), timing);
+        Files.write(Repo.out("corpus2-elapsed.txt"), timing);
         // THE STATEMENT-ORIGIN CENSUS (2026-09-20): every statement sent this
         // JVM by where it came from, and per test — the north star is ONE
         // statement per body, so every origin but BODY is what is left outside it
         originRows.add(0, "test\t" + String.join("\t", java.util.Arrays.stream(
                 com.legend.exec.StatementOrigin.values()).map(Enum::name).toList()));
-        Files.write(Path.of("target/corpus2-statement-origins.tsv"), originRows);
+        Files.write(Repo.out("corpus2-statement-origins.tsv"), originRows);
         // THE BODY-SHAPE CENSUS (block-compiler homework 2026-09-21): one letter per
         // statement (F frame let, L let, A assert, X assertError, E effect, O other)
-        Files.write(Path.of("target/corpus2-body-shapes.tsv"), shapeRows);
-        Files.write(Path.of("target/corpus2-fallbacks.tsv"), fallbackRows);
+        Files.write(Repo.out("corpus2-body-shapes.tsv"), shapeRows);
+        Files.write(Repo.out("corpus2-fallbacks.tsv"), fallbackRows);
         int pure = 0;
         int effectful = 0;
         int interleaved = 0;
@@ -427,7 +428,7 @@ class MinimalCorpusTest {
                         ? (databaseMode ? H2_DATABASE_ENGINE_ORDER : H2_ENGINE_ORDER)
                         : (databaseMode ? DUCKDB_DATABASE_ENGINE_ORDER : DUCKDB_ENGINE_ORDER), false);
         if (databaseMode) {
-            Files.write(Path.of("target/corpus2-outside-body.txt"), artifactRows);
+            Files.write(Repo.out("corpus2-outside-body.txt"), artifactRows);
             pinArtifactRegister(only, ran, artifactRows,
                     "/rcorpus/" + (MinimalCorpus.H2_BACKEND ? "h2" : "duckdb")
                             + "-database-outside-body-register.txt");
@@ -435,7 +436,7 @@ class MinimalCorpusTest {
             // with an assert decided WITHOUT a verdict row (a comparison in Java over two
             // database-computed sides — the lineage, TDG, identity and metadata arms) is a
             // named row; exact, shrink-only — the number that must reach zero
-            Files.write(Path.of("target/corpus2-host-compared.txt"), hostComparedRows);
+            Files.write(Repo.out("corpus2-host-compared.txt"), hostComparedRows);
 
             pinArtifactRegister(only, ran, hostComparedRows,
                     "/rcorpus/" + (MinimalCorpus.H2_BACKEND ? "h2" : "duckdb")
