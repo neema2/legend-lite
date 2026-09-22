@@ -69,7 +69,7 @@ class JdbcSurfaceCensusTest {
      * root it was never told about, so module creation reviews this
      * file. */
     private static final List<String> ROOTS = List.of(
-            "core/src", "spec/src", "pct/src", "nlq/src", "parser-equivalence/src");
+            "core/src", "spec/src", "pct/src", "parser-equivalence/src");
 
     /** Coverage floor: files scanned on 2026-08-18. Shrink needs a
      * written justification (files deleted); growth is free. */

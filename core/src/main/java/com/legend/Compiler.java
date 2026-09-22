@@ -43,7 +43,7 @@ public final class Compiler {
     private Compiler() {}
 
     /** Parse a model at the PRODUCT level (LEGEND_LITE) — the front door
-     *  for product endpoints (servers, nlq), so they never touch the
+     *  for product endpoints (the HTTP server), so they never touch the
      *  parser package directly. The Compiler is the product's provenance
      *  router: which level users get is decided HERE. */
     public static ParsedModel parseModel(String source) {

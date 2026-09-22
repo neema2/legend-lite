@@ -63,7 +63,6 @@ java_test(
     # (census, skip and boundary guards that walk every module; the stress
     # corpus's linked projects) — today's hidden coupling, now visible here.
     data = glob(["src/**"]) + [
-        "//nlq:srcs",
         "//parser-equivalence:srcs",
         "//pct:srcs",
         "//projects:srcs",

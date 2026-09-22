@@ -14,7 +14,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * THE MIRROR CORPUS (deep audit): the same Java-literal extractor that
  * harvests Pure from the ENGINE'S tests, run over OUR OWN test sources —
- * every Pure snippet legend-lite's core/pct/nlq tests embed goes to
+ * every Pure snippet legend-lite's core/spec/pct tests embed goes to
  * the REAL engine oracle. A refusal must classify exactly like a corpus
  * leniency row (the dialect constructs our tests deliberately exercise);
  * an UNCLASSIFIED refusal means our own test surface bakes in grammar
@@ -26,7 +26,7 @@ class OwnCorpusConformanceTest {
     static List<Corpus.Source> ownSnippets() {
         Path repo = Path.of(System.getProperty("user.dir")).getParent();
         List<Corpus.Source> ours = new ArrayList<>();
-        for (String module : new String[]{"core", "spec", "pct", "nlq"}) {
+        for (String module : new String[]{"core", "spec", "pct"}) {
             ours.addAll(InlineSnippets.extract(repo.resolve(module),
                     "lite-" + module, InlineSnippets.OWN_DECL));
         }

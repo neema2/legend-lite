@@ -34,7 +34,7 @@ Usage:
 """
 import argparse, os, re, subprocess, sys
 
-ROOTS = ["core", "spec", "pct", "parser-equivalence", "nlq"]
+ROOTS = ["core", "spec", "pct", "parser-equivalence"]
 SRC_DIRS = ["src/main/java", "src/test/java"]
 TEXT_EXT = (".java",)
 CONFIG_NAMES = ("pom.xml", "BUILD.bazel", "BUILD")
