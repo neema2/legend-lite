@@ -1,0 +1,10 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+
+# `bazel run //tools/bump -- <engine release> [--pins]` — see Bump.java. It calls
+# Bazel again (repin, //:update_generated, `bazel test //...`): a pin change takes
+# effect only in the next Bazel invocation, never inside the one that made it.
+java_binary(
+    name = "bump",
+    srcs = ["Bump.java"],
+    main_class = "com.legend.tools.bump.Bump",
+)
