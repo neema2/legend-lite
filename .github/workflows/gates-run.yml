@@ -80,6 +80,13 @@ jobs:
     defaults:
       run:
         shell: bash
+    # Git Bash on Windows (MSYS) rewrites an argument that starts with '/' as a
+    # path: '//core:core_tests' reached Bazel as '/core:core_tests' and every
+    # Windows lane refused its targets (first Bazel CI run, 2026-09-23). No-ops
+    # elsewhere.
+    env:
+      MSYS_NO_PATHCONV: "1"
+      MSYS2_ARG_CONV_EXCL: "*"
     strategy:
       fail-fast: false
       matrix:
@@ -103,7 +110,7 @@ jobs:
             bazel-${{ inputs.platform }}-
       - name: bazel test ${{ matrix.lane.targets }}
         env:
-          TARGETS: ${{ matrix.lane.targets }}
+          LANE_TARGETS: ${{ matrix.lane.targets }}
           LOW_MEMORY: ${{ inputs.low-memory }}
         run: |
           set -eu
@@ -111,7 +118,7 @@ jobs:
           if [ "$LOW_MEMORY" = "true" ]; then flags+=(--local_test_jobs=1); fi
           # GENERATED: every committed generated file's diff test (//:update_generated's)
           targets=()
-          for t in $TARGETS; do
+          for t in $LANE_TARGETS; do
             if [ "$t" = GENERATED ]; then
               while read -r g; do targets+=("$g"); done < <(bazel query 'attr(name, "update_generated.*_test", tests(//...))' 2>/dev/null)
             else
