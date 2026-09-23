@@ -555,7 +555,7 @@ public final class PreludeGenerator {
                             "enum", "", "", "", "", "", file));
                 }
             }
-            Files.write(census, rows);
+            Files.writeString(census, String.join("\n", rows) + "\n");   // '\n' on every platform
             System.out.println("[prelude-census] " + (rows.size() - 1) + " rows -> " + census);
         }
 

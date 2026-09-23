@@ -46,7 +46,10 @@ public final class ClaimsGenerator {
             overrides.put(kv[0], Path.of(kv[1]));
         }
         List<String> lines = ledger(new SourceTree(Path.of(args[0]), overrides));
-        Files.write(Path.of(args[1]), lines, StandardCharsets.UTF_8);
+        // '\n', never the platform's separator: a committed file's bytes do not
+        // depend on the machine that generated it (Files.write(lines) wrote CRLF on
+        // Windows — the first Bazel CI runs, 2026-09-23)
+        Files.writeString(Path.of(args[1]), String.join("\n", lines) + "\n", StandardCharsets.UTF_8);
         System.out.println("[claims] generated " + lines.size() + " lines");
     }
 
