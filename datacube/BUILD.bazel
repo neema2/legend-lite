@@ -1,0 +1,331 @@
+# DataCube: the browser app over legend-lite's planner (TypeScript on Node).
+#
+# Its npm packages come from pnpm-lock.yaml through rules_js (MODULE.bazel), with
+# Node pinned there. Every test file is its own target — cached and run in
+# parallel on its own, and `bazel test //datacube:<name>_test` runs one.
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary", "js_test")
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("@npm//:defs.bzl", "npm_link_all_packages")
+load("@npm//datacube:esbuild/package_json.bzl", esbuild = "bin")
+load("@npm//datacube:typescript/package_json.bzl", typescript = "bin")
+
+npm_link_all_packages(name = "node_modules")
+
+# the app's sources as the tests read them; package.json carries
+# "type": "module" (the sources are ES modules)
+js_library(
+    name = "src",
+    srcs = glob(["src/**/*.ts"]) + [
+        "package.json",
+        "tsconfig.json",
+    ],
+    deps = [":node_modules/@duckdb/duckdb-wasm"],
+)
+
+_TESTS = glob(["test/*.test.ts"])
+
+# What a test reads from disk beyond src/: the guardrails scan the demo
+# entry points too (they ship), so they are declared, not assumed.
+_EXTRA_DATA = {
+    "guardrails": glob(["demo/**/*.ts"]) + [
+        "test/wasm-differential/compare.ts",
+        "//wasm:differential",
+    ],
+}
+
+# node:test files run TypeScript directly (--experimental-strip-types), from the
+# package directory (a guardrail test walks src/ relative to it). Two
+# reporters: spec for the log, and strict-reporter.mjs for the EXIT CODE —
+# Node 22 counts a suite whose body throws as `# fail 0` and exits 0.
+[js_test(
+    name = t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test",
+    size = "small",
+    chdir = package_name(),
+    data = [
+        ":node_modules/jsdom",
+        ":src",
+        "test/strict-reporter.mjs",
+    ] + _EXTRA_DATA.get(t[len("test/"):-len(".test.ts")], []),
+    entry_point = t,
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+        "--test-reporter=spec",
+        "--test-reporter-destination=stdout",
+        "--test-reporter=./test/strict-reporter.mjs",
+        "--test-reporter-destination=stderr",
+    ],
+) for t in _TESTS]
+
+test_suite(
+    name = "tests",
+    tests = [t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test" for t in _TESTS] + [
+        ":typecheck_test",
+        ":wasm_differential_test",
+    ],
+)
+
+# THE TYPECHECK: tsc over everything tsconfig.json includes (src, test, bench,
+# demo), types only — the tests run the same files with types stripped, so
+# without this a type error ships unnoticed.
+typescript.tsc_test(
+    name = "typecheck_test",
+    size = "small",
+    args = ["-p", "tsconfig.json"],
+    chdir = package_name(),
+    data = glob([
+        "src/**/*.ts",
+        "test/**/*.ts",
+        "demo/**/*.ts",
+    ]) + [
+        "package.json",
+        "tsconfig.json",
+        ":node_modules/@duckdb/duckdb-wasm",
+        ":node_modules/@types/jsdom",
+        ":node_modules/@types/node",
+        ":node_modules/jsdom",
+        ":node_modules/playwright",
+    ],
+)
+
+# LITE'S FACTS, generated from core's Java (tools/gen-lite-facts.mjs says why),
+# and a diff test on the committed copy: `bazel run //datacube:update_generated`.
+js_binary(
+    name = "gen_lite_facts",
+    entry_point = "tools/gen-lite-facts.mjs",
+)
+
+# The four core files the facts are read out of — declared, so the generator
+# reruns when one of them changes and not when the rest of core does — copied
+# into this package's output tree, where the tool reads them.
+copy_to_directory(
+    name = "lite_facts_sources",
+    srcs = ["//core:main_java"],
+    out = "lite_facts_sources",
+    include_srcs_patterns = [
+        "com/legend/compiler/RelationalKinds.java",
+        "com/legend/compiler/element/type/Type.java",
+        "com/legend/model/RelationalDataType.java",
+        "com/legend/parser/DatabaseProtocolParser.java",
+    ],
+    root_paths = ["core/src/main/java"],
+)
+
+js_run_binary(
+    name = "lite_facts",
+    srcs = [":lite_facts_sources"],
+    outs = ["generated/lite-facts.ts"],
+    args = [
+        package_name() + "/lite_facts_sources",
+        package_name() + "/generated/lite-facts.ts",
+    ],
+    tool = ":gen_lite_facts",
+)
+
+write_source_files(
+    name = "update_generated",
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-lite changed a fact this cube mirrors — regenerate: bazel run //datacube:update_generated, then read the diff (a changed Pure kind or pivot separator changes what the grid shows)",
+    files = {"src/generated/lite-facts.ts": ":lite_facts"},
+    visibility = ["//:__pkg__"],
+)
+
+# THE CUBE'S WASM DIFFERENTIAL: DataCube's serialiser writes the queries, the
+# JVM answers them (a build output), and the test plans them through the
+# product's WasmPlanner over //wasm:planner and compares.
+js_binary(
+    name = "emit_cube_queries",
+    data = [":src"],
+    entry_point = "test/wasm-differential/emit.ts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "cube_queries",
+    srcs = [
+        "test/wasm-differential/cases.ts",
+        "test/wasm-differential/emit.ts",
+    ],
+    outs = [
+        "cube_model.pure",
+        "cube_queries.tsv",
+    ],
+    args = [
+        package_name() + "/cube_model.pure",
+        package_name() + "/cube_queries.tsv",
+    ],
+    tool = ":emit_cube_queries",
+)
+
+genrule(
+    name = "cube_jvm_answers",
+    srcs = [
+        "cube_model.pure",
+        "cube_queries.tsv",
+    ],
+    outs = ["cube_jvm_answers.txt"],
+    cmd = "$(location //wasm:jvm_main) $(location cube_model.pure) $(location cube_queries.tsv) trades::RT $@",
+    tools = ["//wasm:jvm_main"],
+)
+
+js_test(
+    name = "wasm_differential_test",
+    size = "small",
+    chdir = package_name(),
+    data = [
+        "test/strict-reporter.mjs",
+        "test/wasm-differential/cases.ts",
+        ":cube_jvm_answers",
+        ":src",
+        "//wasm:planner",
+    ],
+    entry_point = "test/wasm-differential/compare.ts",
+    node_options = [
+        "--experimental-strip-types",
+        "--experimental-wasm-exnref",
+        "--disable-warning=ExperimentalWarning",
+        "--test-reporter=spec",
+        "--test-reporter-destination=stdout",
+        "--test-reporter=./test/strict-reporter.mjs",
+        "--test-reporter-destination=stderr",
+    ],
+)
+
+# ── THE DEMO SITE ───────────────────────────────────────────────────────────────
+# Built where the pages expect it: rules_js lays sources and outputs side by side
+# in bazel-bin/datacube, so demo/index.html finds ./bundle.js and ./vendor/ as it
+# does in a checkout, and every harness in demo/ that serves this directory runs
+# as it is written.
+
+# entry point -> bundle
+_BUNDLES = {
+    "demo/main.ts": "demo/bundle.js",
+    "demo/main-server.ts": "demo/bundle-server.js",
+    "demo/main-engine.ts": "demo/bundle-engine.js",
+    "src/planner-worker.ts": "demo/planner-worker.js",
+    "demo/remote-harness.ts": "demo/remote-bundle.js",
+    "demo/stress.ts": "demo/stress.js",
+}
+
+[esbuild.esbuild(
+    name = "bundle_" + out[len("demo/"):-len(".js")].replace("-", "_"),
+    srcs = glob(["demo/**/*.ts"]) + [":src"],
+    outs = [out],
+    args = [
+        entry,
+        "--bundle",
+        "--format=esm",
+        "--target=es2022",
+        "--log-level=warning",
+        "--outfile=" + out,
+    ],
+    chdir = package_name(),
+) for entry, out in _BUNDLES.items()]
+
+# The two WebAssembly runtimes the page loads from ./vendor/: DuckDB's, from its
+# npm package, and legend-lite's planner, from //wasm:planner.
+copy_to_directory(
+    name = "vendor",
+    srcs = [
+        ":node_modules/@duckdb/duckdb-wasm",
+        "//wasm:planner",
+    ],
+    out = "demo/vendor",
+    include_srcs_patterns = [
+        "**/dist/duckdb-mvp.wasm",
+        "**/dist/duckdb-eh.wasm",
+        "**/dist/duckdb-browser-mvp.worker.js",
+        "**/dist/duckdb-browser-eh.worker.js",
+        "wasm/planner/classes.wasm",
+        "wasm/planner/wasm-gc-module-runtime.js",
+    ],
+    replace_prefixes = {
+        "**/dist/": "",
+        "wasm/planner/": "",
+    },
+)
+
+# Everything a browser fetches: pages, styles, models, bundles, runtimes.
+filegroup(
+    name = "site",
+    srcs = glob([
+        "demo/*.html",
+        "demo/*.pure",
+        "src/**/*.css",
+    ]) + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [":vendor"],
+)
+
+# `bazel run //datacube:serve [-- --data FILE] [-- --open]`: the site, on loopback.
+js_binary(
+    name = "serve",
+    data = [":site"],
+    entry_point = "demo/serve.mjs",
+)
+
+# `bazel build //datacube:dist`: the site as a folder for any static host — no
+# backend; the planner is WebAssembly and so is DuckDB.
+js_binary(
+    name = "make_dist",
+    entry_point = "demo/make-dist.mjs",
+)
+
+js_run_binary(
+    name = "dist",
+    srcs = [":site"],
+    args = [
+        package_name(),
+        package_name() + "/dist",
+    ],
+    out_dirs = ["dist"],
+    tool = ":make_dist",
+)
+
+# THE BROWSER HARNESSES: `bazel run //datacube:<name>`. Each drives the built site
+# in headless Chromium (Playwright's own browser: `npx playwright install
+# chromium` once — a browser binary is not something Bazel fetches here). Run by
+# hand, not tests: several need a live engine as well (the script says which).
+_HARNESS_HELPERS = [
+    "demo/engine-cases.mjs",
+    "demo/grid-invariants.mjs",
+    "demo/stress-corpus.ts",
+    "demo/torture.pure",
+    "demo/trades.pure",
+    "demo/trades-h2.pure",
+]
+
+_HARNESSES = [
+    "chaos",
+    "make-sample",
+    "measure-startup",
+    "run-stress",
+    "shots",
+    "torture",
+    "verify-calc-vocabulary",
+    "verify-engine",
+    "verify-engine-differential",
+    "verify-features",
+    "verify-picker",
+    "verify-real-data",
+    "verify-remote",
+    "verify-smoke",
+    "verify-upload",
+    "verify-wasm-browser",
+]
+
+[js_binary(
+    name = h.replace("-", "_"),
+    data = _HARNESS_HELPERS + [
+        ":node_modules/playwright",
+        ":site",
+        ":src",
+    ],
+    entry_point = "demo/" + h + ".mjs",
+    node_options = [
+        "--experimental-strip-types",
+        "--experimental-wasm-exnref",
+        "--disable-warning=ExperimentalWarning",
+    ],
+) for h in _HARNESSES]

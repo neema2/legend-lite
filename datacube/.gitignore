@@ -1,0 +1,11 @@
+# pnpm's install, for the editor loop (`pnpm test`, `pnpm typecheck`);
+# Bazel keeps its own under bazel-bin.
+node_modules/
+# what a person points the demo at, or a harness leaves behind when run
+# from here (bazel run writes to the directory it was started from)
+*.duckdb
+*.duckdb.wal
+*.parquet
+sample-trades.csv
+stress-results.json
+datacube-shots/

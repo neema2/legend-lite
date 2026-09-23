@@ -1,0 +1,735 @@
+/* Grid styling.
+ *
+ * Layout is CSS grid driven by a column-count custom property, so the
+ * header and the body stay aligned without measuring anything in JS.
+ * Measuring in JS is how grids end up with a header that drifts one
+ * pixel out of line at certain zoom levels.
+ *
+ * Pivot value columns are a UNIFORM width on purpose: the scrollbar
+ * extent has to be right before any column has been measured, and all
+ * value columns hold the same measure in the same format anyway. Row
+ * dimensions get their own width and stick to the left.
+ */
+
+.dc-grid {
+  /* Resolved from their ag-grid variables -- see theme.css for the
+     derivation. --ag-row-height: 20px, --ag-header-height: 24px,
+     --ag-font-size: 12px, --ag-grid-size: 1px (which is what makes
+     quartz compute a 2px cell padding). */
+  --dc-row-height: 20px;
+  --dc-head-height: 24px;
+  --dc-dim-width: 200px;
+  --dc-col-width: 104px;
+  --dc-border: var(--dc-border-color, #e5e5e5);
+  --dc-head-bg: var(--dc-header-bg, #f5f5f5);
+  --dc-total-bg: #fafafa;
+  --dc-focus: var(--dc-active, #0284c7);
+
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--dc-border);
+  /* Every radius in their grid is 0: --ag-border-radius,
+     --ag-card-radius and --ag-wrapper-border-radius are all zeroed. */
+  border-radius: 0;
+  font-family: var(--dc-font, Roboto, ui-sans-serif, system-ui, sans-serif);
+  font-size: var(--dc-text-base-size, 12px);
+  line-height: var(--dc-text-base-line, 16px);
+  font-variant-numeric: tabular-nums;
+  background: var(--dc-bg, #fff);
+  /* Quartz's own foreground, which they do not override. Not black:
+     the HEADER is black and the cells are a shade off it. */
+  color: var(--dc-cell-fg, #181d1f);
+}
+
+.dc-grid:focus-visible {
+  outline: 1.5px solid var(--dc-focus);
+  outline-offset: -1px;
+}
+
+/* -- header ------------------------------------------------------- */
+
+.dc-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  /* NEVER shrink. The header is a flex item beside the scroller, and
+     a flex item defaults to flex-shrink:1 -- so once the body's
+     content is tall enough, the shrink distribution crushes the
+     header to nothing. Measured at 0.015625px against a 25,000-row
+     result, with its grid still reporting a 24px row: the cells were
+     laid out correctly and then clipped by `overflow:hidden` on a
+     container of no height. It never showed on the demo cube, which
+     has three rows and so never overflows. */
+  flex: 0 0 auto;
+  background: var(--dc-head-bg);
+  border-bottom: 1px solid var(--dc-border);
+  /* The header's VIEWPORT. Hidden rather than auto because the header
+     must not carry a scrollbar of its own -- but hidden is still a
+     scroll container, so `scrollLeft` moves it, which is how it
+     follows the body sideways. */
+  overflow: hidden;
+  color: var(--dc-header-fg, #000);
+}
+
+/* The header is one grid; every cell is placed explicitly, which is
+   the only way a ragged header (dimensions spanning several levels)
+   lands under the right columns. Widths come from the same leaf list
+   the body uses, so the two cannot drift apart.
+
+   It sits INSIDE .dc-head rather than being it. `width: max-content`
+   makes an element exactly as wide as its content, so such an element
+   has no scroll range and cannot be slid to follow the body; the
+   width belongs on the content, the clip on a container. */
+.dc-head-grid {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+}
+
+/* The row element carries role=row for assistive technology while its
+   children participate in the grid directly. */
+.dc-head-row {
+  display: contents;
+}
+
+.dc-th {
+  display: flex;
+  align-items: center;
+  /* Centred in the header box. A pivot value sits over a block of
+     measures rather than over one column of figures, so centring is
+     what associates the label with the span it heads. */
+  justify-content: center;
+  text-align: center;
+  /* --ag-grid-size: 1px, and quartz computes cell padding as
+     grid-size * 2. This 2px is most of why their grid reads as
+     dense rather than merely small. */
+  padding: 0 var(--dc-cell-padding-x, 2px);
+  /* quartz's .ag-header-row is 500, not 600. */
+  font-weight: 500;
+  border-right: 1px solid var(--dc-border);
+  box-sizing: border-box;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: var(--dc-head-bg);
+}
+
+/* A header that can be picked up and moved. */
+.dc-th.dc-reorderable {
+  cursor: grab;
+}
+
+/* WHERE IT WILL LAND, on the edge it will land against. A highlight
+   over the whole target says "here somewhere", which is not the
+   question being asked. */
+.dc-th.dc-drop-before {
+  box-shadow: inset 2px 0 0 0 var(--dc-focus);
+}
+
+.dc-th.dc-drop-after {
+  box-shadow: inset -2px 0 0 0 var(--dc-focus);
+}
+
+/* -- body --------------------------------------------------------- */
+
+.dc-scroller {
+  flex: 1 1 auto;
+  overflow: auto;
+  /* Vertical scrolling is the common gesture and must not be hijacked
+     into horizontal panning by a trackpad's diagonal drift. */
+  overscroll-behavior: contain;
+}
+
+.dc-spacer {
+  position: relative;
+  width: max-content;
+  min-width: 100%;
+}
+
+.dc-body {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  will-change: transform;
+}
+
+.dc-row {
+  display: grid;
+  width: max-content;
+  min-width: 100%;
+  height: var(--dc-row-height);
+  border-bottom: 1px solid var(--dc-border);
+  box-sizing: border-box;
+}
+
+.dc-row.dc-total {
+  background: var(--dc-total-bg);
+  font-weight: 600;
+}
+
+.dc-cell {
+  padding: 0 var(--dc-cell-padding-x, 2px);
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  box-sizing: border-box;
+  border-right: 1px solid var(--dc-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The tree column: one column for the whole hierarchy, with depth
+   shown by indentation. DataCube gives its equivalent a 200px minimum
+   and pins it left; the same reasoning applies here, because the
+   labels are the only thing identifying a row. */
+.dc-cell.dc-tree {
+  --dc-indent: 0;
+  padding-left: calc(8px + var(--dc-indent) * 14px);
+  gap: 4px;
+}
+
+.dc-chevron {
+  flex: 0 0 auto;
+  width: 12px;
+  text-align: center;
+  cursor: pointer;
+  opacity: 0.75;
+  user-select: none;
+}
+
+.dc-chevron:hover {
+  opacity: 1;
+}
+
+/* A leaf keeps the chevron's width so its label lines up with its
+   siblings' rather than shifting left by twelve pixels. */
+.dc-chevron-empty {
+  cursor: default;
+}
+
+.dc-tree-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Row dimensions read as labels, not as measures: left-aligned, wider,
+   and pinned so they stay legible while scrolling across a wide pivot. */
+.dc-cell.dc-dim {
+  justify-content: flex-start;
+  position: sticky;
+  left: 0;
+  background: var(--tw-white);
+  z-index: 1;
+  font-variant-numeric: normal;
+}
+
+.dc-row.dc-total .dc-cell.dc-dim {
+  background: var(--tw-neutral-50);
+}
+
+/* A cell whose block has not arrived. Shown as a muted bar rather than
+   blank, so an empty VALUE and a not-yet-loaded cell never look alike. */
+.dc-cell.dc-pending::after {
+  content: "";
+  display: block;
+  width: 60%;
+  height: 0.7em;
+  border-radius: 2px;
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.dc-cell.dc-focus {
+  outline: 2px solid var(--dc-focus);
+  outline-offset: -2px;
+}
+
+.dc-cell:focus {
+  outline: 2px solid var(--dc-focus);
+  outline-offset: -2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-body {
+    will-change: auto;
+  }
+}
+
+
+/* -- filter tree ---------------------------------------------------
+ *
+ * Indentation plus a gutter line per level, as DataCube draws it: a
+ * nested group is only legible if the eye can follow which rows it
+ * contains. 36px matches its FILTER_TREE_INDENTATION_SPACE.
+ */
+
+.dc-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font: 13px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+.dc-filter-tree {
+  min-height: 120px;
+  padding: 4px 0;
+  border: 1px solid var(--tw-neutral-200);
+  border-radius: 4px;
+  overflow: auto;
+}
+
+.dc-filter-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+}
+
+/* A group and its children are ONE block, so the group's highlight
+   and its gutter line can cover the subtree rather than the header
+   row alone. */
+.dc-filter-group-block {
+  position: relative;
+}
+
+/* The vertical rule down the left of a group's children. Its offset
+   is DataCube's gutterIndent, set per block in JS, because the
+   connector stubs are measured to meet it exactly. */
+.dc-filter-children {
+  position: relative;
+}
+
+.dc-filter-children::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 12px;
+  left: var(--dc-f-gutter, 16px);
+  width: 1px;
+  background: var(--tw-neutral-300);
+}
+
+.dc-selected-group > .dc-filter-children::before {
+  background: var(--tw-sky-600);
+}
+
+.dc-selected-group {
+  background: var(--tw-sky-50);
+}
+
+.dc-filter-row {
+  --dc-filter-level: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding-left: var(--dc-f-indent, 10px);
+  min-height: 26px;
+}
+
+.dc-filter-row:hover {
+  background: var(--tw-sky-50);
+}
+
+.dc-filter-row.dc-selected {
+  background: var(--tw-sky-50);
+  box-shadow: inset 2px 0 0 var(--tw-sky-600);
+}
+
+/* The stub joining a row to its parent's vertical rule, plus the
+   operator word. The word sits BETWEEN the things being combined,
+   which is where the meaning is. */
+/* A FIXED box, so the operator word cannot move the row's controls.
+   Its right edge is what every sibling's controls line up against;
+   the word spills leftward into the indent instead of pushing. */
+.dc-filter-lead {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex: 0 0 22px;
+  width: 22px;
+  margin-right: 8px;
+  height: 26px;
+}
+
+.dc-filter-connector {
+  flex: 0 0 22px;
+  height: 1px;
+  background: var(--tw-neutral-300);
+}
+
+/* With a word present the stub shortens rather than the word
+   wrapping or the box growing. */
+.dc-filter-lead.dc-has-word .dc-filter-connector {
+  flex-basis: 8px;
+}
+
+.dc-filter-joinword {
+  flex: 0 0 auto;
+  padding-left: 4px;
+  font-size: 11px;
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+/* The four-button controller DataCube puts on every node. */
+.dc-filter-controller {
+  display: inline-flex;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+
+.dc-filter-ctl {
+  font: 11px/1 ui-sans-serif, system-ui, sans-serif;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 3px;
+  border: 1px solid var(--tw-neutral-400);
+  border-left-width: 0;
+  background: var(--tw-white);
+  color: var(--tw-black);
+  cursor: pointer;
+}
+
+.dc-filter-ctl:first-child {
+  border-left-width: 1px;
+  border-radius: 3px 0 0 3px;
+}
+
+.dc-filter-ctl:last-child {
+  border-radius: 0 3px 3px 0;
+}
+
+.dc-filter-ctl:hover {
+  background: var(--tw-neutral-200);
+}
+
+/* The standing badge beside a negated node. Reading a filter
+   backwards is the most expensive mistake this editor can cause, so
+   the state is shown twice: on the toggle and next to the row. */
+.dc-filter-notlabel {
+  font: 10px/1 ui-sans-serif, system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  padding: 2px 4px;
+  border-radius: 3px;
+  background: #fef2f2;
+  color: var(--tw-red-600);
+  font-weight: 700;
+}
+
+/* A group row is a heading for the list beneath it. */
+.dc-filter-group {
+  font-weight: 600;
+}
+
+.dc-filter-join {
+  font-weight: 600;
+  min-width: 5.5em;
+}
+
+.dc-filter-not {
+  font-weight: 700;
+}
+
+/* A negated node must be obvious at a glance: reading a filter
+   backwards is the most expensive mistake this editor can cause. */
+.dc-filter-not-on {
+  background: #fef2f2;
+  border-color: var(--tw-red-500);
+  color: var(--tw-red-600);
+  font-weight: 700;
+}
+
+.dc-filters select,
+.dc-filters input {
+  font: inherit;
+  padding: 2px 4px;
+  border-radius: 4px;
+  border: 1px solid var(--tw-neutral-400);
+  background: var(--tw-white);
+  color: var(--tw-black);
+}
+
+.dc-filter-op { max-width: 15em; }
+.dc-filter-value { min-width: 7em; }
+
+.dc-filter-btn,
+.dc-filter-remove {
+  font: inherit;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--tw-neutral-400);
+  background: var(--tw-white);
+  color: var(--tw-black);
+  cursor: pointer;
+}
+
+.dc-filter-remove {
+  border-color: transparent;
+  opacity: 0.6;
+}
+
+.dc-filter-remove:hover {
+  opacity: 1;
+  border-color: color-mix(in srgb, crimson 40%, transparent);
+}
+
+.dc-filter-actions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-top: 2px;
+}
+
+
+/* -- pinned columns and blurred values ---------------------------- */
+
+.dc-cell.dc-pin-left,
+.dc-cell.dc-dim {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--tw-white);
+}
+
+.dc-cell.dc-pin-right {
+  position: sticky;
+  right: 0;
+  z-index: 1;
+  background: var(--tw-white);
+}
+
+/* The header of a sticky column, sticky in the same axis.
+   `.dc-head` is the scroll container the header is slid inside, so
+   these stay put while the rest of the header moves -- which is the
+   only way a pinned column's label stays over the column. Above its
+   siblings, or the cells scrolling past would draw over it; the
+   header's own background, not the body's, or it reads as a body
+   cell that wandered up. */
+.dc-th.dc-pin-left,
+.dc-th.dc-dim {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  background: var(--dc-head-bg);
+}
+
+.dc-th.dc-pin-right {
+  position: sticky;
+  right: 0;
+  z-index: 3;
+  background: var(--dc-head-bg);
+}
+
+/* Obscured rather than hidden: the row still lines up, and the value
+   is one hover away for whoever is entitled to it. */
+.dc-cell.dc-blur {
+  filter: blur(5px);
+  transition: filter 120ms ease;
+}
+
+.dc-cell.dc-blur:hover,
+.dc-cell.dc-blur:focus,
+.dc-row:hover .dc-cell.dc-blur {
+  filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dc-cell.dc-blur { transition: none; }
+}
+
+
+/* -- appearance ---------------------------------------------------
+ *
+ * Grid lines are switched by a custom property rather than a class,
+ * so the whole grid changes with one declaration instead of a class
+ * toggle on every cell.
+ */
+
+.dc-grid {
+  /* Their defaults: horizontal off, vertical on. */
+  --dc-hgrid: 0;
+  --dc-vgrid: 1;
+  /* Their DEFAULT_ROW_HIGHLIGHT_BACKGROUND_COLOR. */
+  --dc-alt-row: #d7e0eb;
+}
+
+/* The configurable lines. Their defaults are horizontal OFF and
+   vertical ON, so a row has no bottom rule out of the box and the
+   columns are separated instead -- which is what makes their grid
+   read as columns of figures rather than as a table of boxes. */
+.dc-row {
+  border-bottom-width: calc(var(--dc-hgrid) * 1px);
+  border-bottom-color: var(--dc-grid-line, #d4d4d4);
+}
+
+.dc-cell {
+  border-right-width: calc(var(--dc-vgrid) * 1px);
+  border-right-color: var(--dc-grid-line, #d4d4d4);
+}
+
+/* The header keeps the STRUCTURAL border, so recolouring the grid
+   lines does not move the frame. */
+.dc-th {
+  border-right-width: calc(var(--dc-vgrid) * 1px);
+  border-right-color: var(--dc-border);
+}
+
+/* Banded rows sit UNDER the total shading, so a subtotal stays
+   distinguishable inside a banded region. */
+.dc-row.dc-alt {
+  background: var(--dc-alt-row);
+}
+
+.dc-row.dc-alt .dc-cell.dc-dim {
+  background: var(--dc-alt-row);
+}
+
+.dc-row.dc-total,
+.dc-row.dc-total.dc-alt {
+  background: var(--dc-total-bg);
+}
+
+
+/* -- selection -----------------------------------------------------
+ *
+ * A wash rather than a border: a border on each cell of a rectangle
+ * draws a grid inside the selection instead of an outline around it.
+ */
+
+.dc-cell.dc-selected {
+  background: var(--tw-sky-50);
+}
+
+.dc-row.dc-alt .dc-cell.dc-selected,
+.dc-row.dc-total .dc-cell.dc-selected {
+  background: var(--tw-sky-100);
+}
+
+
+/* -- context menu --------------------------------------------------
+ *
+ * Fixed rather than absolute: the menu is positioned from viewport
+ * coordinates, and an absolutely-positioned menu inside a scrolled
+ * container lands somewhere else entirely.
+ */
+
+/* Their menu: w-40 minimum, no radius, a neutral-400 border and a
+   22px item at text-base. `overflow: visible` matters -- a submenu
+   is nested inside its parent and would be clipped otherwise. */
+.dc-menu {
+  position: fixed;
+  z-index: 1000;
+  min-width: 160px;
+  padding: 2px 0;
+  border-radius: 0;
+  border: 1px solid var(--tw-neutral-400);
+  background: var(--tw-white);
+  color: var(--tw-black);
+  box-shadow: var(--dc-popup-shadow, 2px 2px 5px rgb(0 0 0 / 20%));
+  font-family: var(--dc-font);
+  font-size: var(--dc-text-base-size);
+  line-height: var(--dc-text-base-line);
+}
+
+.dc-menu-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--dc-pad-2);
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dc-menu-item:hover,
+.dc-menu-item:focus {
+  background: var(--tw-neutral-100);
+  outline: none;
+}
+
+/* Shown but dead. It keeps its place so the menu can be learned. */
+.dc-menu-item.dc-disabled {
+  color: var(--tw-neutral-400);
+  cursor: default;
+}
+
+.dc-menu-item.dc-disabled:hover {
+  background: transparent;
+}
+
+.dc-menu-chevron {
+  color: var(--tw-neutral-500);
+}
+
+/* Nested INSIDE its parent, so it cannot outlive the menu. Opened
+   on hover and on focus-within, so the keyboard reaches it too. */
+.dc-submenu {
+  position: absolute;
+  left: 100%;
+  top: -3px;
+  display: none;
+  min-width: 160px;
+  padding: 2px 0;
+  border: 1px solid var(--tw-neutral-400);
+  background: var(--tw-white);
+  box-shadow: var(--dc-popup-shadow, 2px 2px 5px rgb(0 0 0 / 20%));
+}
+
+.dc-menu-item.dc-has-submenu:hover > .dc-submenu,
+.dc-menu-item.dc-has-submenu:focus-within > .dc-submenu {
+  display: block;
+}
+
+/* A submenu that would run off the right edge opens leftward. */
+.dc-menu.dc-flip-x .dc-submenu {
+  left: auto;
+  right: 100%;
+}
+
+.dc-menu-sep {
+  height: 1px;
+  margin: 2px 0;
+  background: var(--tw-neutral-200);
+}
+
+/* Pivot column groups, on their five-colour rotation.
+ *
+ * Each is a gradient from a Tailwind 200 shade down to the matching
+ * 50, with a neutral-400 frame -- taken from their
+ * .data-cube-grid__utility--pivot-column-group-N rules. The point is
+ * legibility rather than decoration: when several measures sit under
+ * each pivot value, the colour is what separates one value's block
+ * from the next. */
+.dc-th[class*='dc-pivot-group-'] {
+  padding-left: 4px;
+  border: 1px solid var(--tw-neutral-400);
+}
+
+.dc-th.dc-pivot-group-0 {
+  background: linear-gradient(#bfdbfe, #eff6ff);
+}
+
+.dc-th.dc-pivot-group-1 {
+  background: linear-gradient(#a7f3d0, #ecfdf5);
+}
+
+.dc-th.dc-pivot-group-2 {
+  background: linear-gradient(#fecdd3, #fff1f2);
+}
+
+.dc-th.dc-pivot-group-3 {
+  background: linear-gradient(#99f6e4, #f0fdfa);
+}
+
+.dc-th.dc-pivot-group-4 {
+  background: linear-gradient(#fef08a, #fefce8);
+}

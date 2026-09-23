@@ -58,7 +58,8 @@ jobs:
             {"key":"8",      "name":"gate 8 parser equivalence",       "targets":"//parser-equivalence:parser_parity"},
             {"key":"9",      "name":"gate 9 Channel B dual-verdict",   "targets":"//pct:pct_channel_b"},
             {"key":"10",     "name":"gate 10 stress corpus",           "targets":"//core:stress_suites"},
-            {"key":"11",     "name":"gate 11 judge differential",      "targets":"//spec:judge_differential"}
+            {"key":"11",     "name":"gate 11 judge differential",      "targets":"//spec:judge_differential"},
+            {"key":"app",    "name":"DataCube app and WASM planner",   "targets":"//datacube:tests //wasm:all"}
           ]')
           if [ -n "${WANT:-}" ]; then
             lanes=$(printf '%s' "$all" | jq -c --arg w ",$WANT," '[.[] | . as $e | select($w | contains("," + $e.key + ","))]')
@@ -66,7 +67,7 @@ jobs:
             lanes=$all
           fi
           [ "$(printf '%s' "$lanes" | jq 'length')" -gt 0 ] || {
-            echo "::error ::no lane matches gates='${WANT:-}' — valid keys: 1,checks,3,4,5,6,7,8,9,10,11"
+            echo "::error ::no lane matches gates='${WANT:-}' — valid keys: 1,checks,3,4,5,6,7,8,9,10,11,app"
             exit 1
           }
           echo "lanes=$lanes" >> "$GITHUB_OUTPUT"

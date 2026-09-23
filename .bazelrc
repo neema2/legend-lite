@@ -31,3 +31,8 @@ build:ci --host_jvmopt=-Xmx3g
 # The 7 GB macOS runner: one test JVM at a time (gates-run.yml), each suite in its
 # own JVM, 4 GB each. Given after --config=ci: the JVM takes the LAST -Xmx.
 build:ci-small --jvmopt=-Xmx4g
+
+# rules_js depends on aspect_tools_telemetry, which reports ruleset usage from
+# every build unless told not to. This repository's builds send nothing.
+common --repo_env=ASPECT_TOOLS_TELEMETRY=-all
+common --repo_env=DO_NOT_TRACK=1

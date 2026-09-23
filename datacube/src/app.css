@@ -1,0 +1,1741 @@
+/* The application chrome, on DataCube's resolved scale.
+ *
+ * Every size and colour here comes from theme.css, which derives
+ * them from their stylesheet, their ag-grid version and their
+ * Tailwind config rather than from eye. The two facts that shape
+ * everything below:
+ *
+ *  - Their base font is 12px Roboto, and their Tailwind font scale
+ *    is CUSTOM: text-sm is 10px, text-xl is 16px, text-xs is 8px.
+ *    A panel built on the stock scale is about 40% too large.
+ *  - Their controls are h-6 (24px) and their list rows are h-5
+ *    (20px), with 8px / 4px padding and a 2px radius. Density is
+ *    most of what their UI feels like.
+ *
+ * This gives up the system-colour palette the first version used,
+ * which followed the viewer's light/dark setting. DataCube is
+ * light-only and matching it means adopting its palette -- but the
+ * palette is expressed as tokens, so a dark variant stays a matter
+ * of redefining them rather than rewriting this file.
+ */
+
+.dc-app {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  font-family: var(--dc-font);
+  font-size: var(--dc-text-base-size);
+  line-height: var(--dc-text-base-line);
+  color: var(--tw-black);
+  background: var(--tw-white);
+}
+
+/* -- the title bar ------------------------------------------------- */
+
+/* Their h-7 bar in neutral-100: the report's name in text-lg
+   medium, the plane toggle, and a hamburger. There is no toolbar,
+   because everything else is in the right-click menu -- and no
+   brand, because naming the product over the grid tells a person
+   nothing they did not know from opening it. */
+.dc-titlebar {
+  display: flex;
+  align-items: center;
+  height: 28px;
+  background: var(--tw-neutral-100);
+}
+
+.dc-titlebar-title {
+  max-width: 320px;
+  padding: 0 var(--dc-pad-2) 0 var(--dc-pad-1);
+  font-size: var(--dc-text-lg-size);
+  line-height: var(--dc-text-lg-line);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Where the plane toggle sits. */
+.dc-titlebar-host {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.dc-titlebar-toggle {
+  font: inherit;
+  font-size: var(--dc-text-base-size);
+  height: var(--dc-row-control-height);
+  padding: 0 var(--dc-pad-2);
+  border: 1px solid var(--tw-neutral-400);
+  border-radius: var(--dc-radius-sm);
+  background: var(--tw-white);
+  color: var(--tw-neutral-600);
+  cursor: pointer;
+}
+
+/* Rule one of snap mode: which plane you are on is never inferable,
+   so the control states it rather than merely offering it. */
+.dc-titlebar-toggle.dc-on {
+  background: var(--tw-sky-100);
+  border-color: var(--tw-sky-600);
+  color: var(--tw-sky-700);
+  font-weight: 500;
+}
+
+.dc-titlebar-menu {
+  font: inherit;
+  font-size: var(--dc-text-xl-size);
+  line-height: 1;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  background: transparent;
+  color: var(--tw-black);
+  cursor: pointer;
+}
+
+.dc-titlebar-menu:hover {
+  background: var(--tw-neutral-200);
+}
+
+/* h-6, px-2, rounded-sm, border-neutral-400, bg-neutral-100 -- their
+   FormButton. */
+.dc-tool,
+.dc-button {
+  font: inherit;
+  font-size: var(--dc-text-base-size);
+  line-height: 1;
+  height: var(--dc-control-height);
+  padding: 0 var(--dc-pad-2);
+  border-radius: var(--dc-radius-sm);
+  border: 1px solid var(--tw-neutral-400);
+  background: var(--tw-neutral-100);
+  color: var(--tw-black);
+  cursor: pointer;
+}
+
+.dc-tool:hover,
+.dc-button:hover:not(:disabled) {
+  background: var(--tw-neutral-200);
+}
+
+.dc-button:disabled,
+.dc-tool:disabled {
+  background: var(--tw-neutral-200);
+  color: var(--tw-neutral-400);
+  cursor: default;
+}
+
+.dc-button.dc-primary {
+  border-color: var(--tw-sky-600);
+  background: var(--tw-sky-100);
+}
+
+/* -- the drag zones ------------------------------------------------ */
+
+/* THE SAME ZONES, DOWN THE SIDEBAR. One surface in three sections
+   -- row groups, column labels, then the columns themselves -- so
+   the whole shape of the cube can be dragged into place in one
+   place. Only the layout differs from the bar's. */
+.dc-pivot-panel.dc-pivot-panel-list {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  /* NO HORIZONTAL PADDING. The rows carry their own, the same as the
+     column list's below, so every label in every section starts at
+     the same x -- which is most of what "the sections look the same"
+     means. */
+  padding: 0 0 var(--dc-pad-1);
+}
+
+/* SPECIFICITY, not order: `.dc-pivot-panel > .dc-zone` sets
+   `flex: 1 1 0` for the bar further down this file, and at equal
+   weight the later rule wins -- so the list's zones were sized as
+   equal halves of a bar and a wrapped third chip had nowhere to go.
+   Two class names on the element beat one. */
+.dc-pivot-panel.dc-pivot-panel-list > .dc-zone {
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  overflow: visible;
+  align-items: flex-start;
+  align-content: flex-start;
+  min-height: calc(var(--dc-control-height) * 1.6);
+  padding: var(--dc-pad-1) var(--dc-pad-2);
+}
+
+/* ONE SHAPE FOR ALL THREE SECTIONS.
+   Row groups, column labels and the columns themselves are the same
+   kind of thing -- a list of columns you drag between -- so they
+   read as one surface in three parts rather than two pill bars above
+   a list. It also makes the zones a target you can hit: a chip bar
+   30px tall is a hard thing to drop into by hand, which is most of
+   why dragging between the sections felt like it did not work. */
+.dc-pivot-panel.dc-pivot-panel-list .dc-chip {
+  display: flex;
+  width: 100%;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  height: var(--dc-row-control-height);
+  padding: 0 var(--dc-pad-2);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  cursor: grab;
+}
+
+.dc-pivot-panel.dc-pivot-panel-list .dc-chip:hover {
+  background: var(--dc-row-hover);
+}
+
+/* A GRIP, in the slot the list's tick box occupies, so every row in
+   every section starts its label at the same place -- and so an axis
+   row says it can be dragged, which a bare word does not. */
+.dc-pivot-panel.dc-pivot-panel-list .dc-chip::before {
+  content: '\22ee\22ee';
+  /* As wide as the list's disclosure and tick box together, so an
+     axis row's label starts exactly where a column row's does. */
+  flex: 0 0 24px;
+  margin-right: 4px;
+  color: var(--tw-neutral-400);
+  font-size: 9px;
+  letter-spacing: -2px;
+}
+
+/* The label takes the room, so the remove button sits at the right
+   edge where the list shows a column's type. */
+.dc-pivot-panel.dc-pivot-panel-list .dc-chip-label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Each zone is a plain block of rows, like the list below it. */
+.dc-pivot-panel.dc-pivot-panel-list > .dc-zone {
+  display: block;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  min-height: var(--dc-row-control-height);
+}
+
+/* Empty, it is one row saying what to drop here -- dashed, because
+   an empty target has to look like a target. */
+.dc-pivot-panel.dc-pivot-panel-list .dc-zone-prompt {
+  display: block;
+  margin: 0 var(--dc-pad-2);
+  padding: 0 var(--dc-pad-1);
+  border: 1px dashed var(--tw-neutral-300);
+  border-radius: var(--dc-radius-sm);
+  line-height: var(--dc-row-control-height);
+  color: var(--tw-neutral-500);
+  font-size: var(--dc-text-sm-size);
+}
+
+/* Where a drop will land, and where it cannot. */
+.dc-pivot-panel.dc-pivot-panel-list > .dc-zone.dc-drop-target {
+  background: color-mix(in srgb, var(--tw-sky-500, #0ea5e9) 10%,
+    transparent);
+  outline: 1px dashed var(--tw-sky-500, #0ea5e9);
+  outline-offset: -1px;
+}
+
+/* A MEASURE CANNOT BE GROUPED BY, and now says so rather than
+   ignoring the drag: grouping by a notional means one group per
+   amount, and upstream does not offer it either. */
+.dc-zone.dc-refuse {
+  outline: 1px dashed var(--tw-neutral-400);
+  outline-offset: -1px;
+  cursor: not-allowed;
+}
+
+/* For the whole length of such a drag, both zones stand back. */
+.dc-app.dc-drag-nogroup .dc-zone {
+  opacity: 0.45;
+}
+
+.dc-app.dc-drag-nogroup .dc-zone-title::after {
+  content: ' — dimensions only';
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* The title goes ABOVE its chips here, not beside them: a zone one
+   column wide has no room for both, and the sections are what make
+   the sidebar readable as three lists. */
+.dc-pivot-panel.dc-pivot-panel-list .dc-zone-title {
+  position: static;
+  flex: 0 0 100%;
+  margin: 0 0 2px;
+  background: transparent;
+}
+
+.dc-pivot-panel.dc-pivot-panel-list .dc-zone-prompt {
+  flex: 0 0 100%;
+}
+
+/* THE SECTIONS KEEP THEIR HEIGHT; THE LIST IS WHAT SCROLLS.
+   The panel is a flex column, so without this the zones shrank to
+   make room for the list below them -- a third row-group chip wrapped
+   to a second line the zone was 22px too short to show, and the
+   chip simply was not there. A zone must be as tall as its chips. */
+.dc-tool-panel-zones {
+  flex: 0 0 auto;
+}
+
+/* A section heading in the panel, matching the zones' own titles. */
+.dc-tool-panel-section {
+  padding: var(--dc-pad-1) var(--dc-pad-2) 0;
+  font-size: var(--dc-text-sm-size);
+  line-height: var(--dc-text-sm-line);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--tw-neutral-500);
+}
+
+/* The list as a drop target: a chip dragged back out of a zone
+   lands here and leaves that axis. */
+.dc-tool-panel-list.dc-drop-target {
+  outline: 1px dashed var(--tw-sky-500, #0ea5e9);
+  outline-offset: -1px;
+}
+
+/* Where a dragged row will land, on the list's own axis. */
+.dc-tool-panel-row.dc-drop-before {
+  box-shadow: inset 0 2px 0 0 var(--tw-sky-500, #0ea5e9);
+}
+
+.dc-tool-panel-row.dc-drop-after {
+  box-shadow: inset 0 -2px 0 0 var(--tw-sky-500, #0ea5e9);
+}
+
+/* The strip: the zones, and the control that folds them away. */
+.dc-zone-bar {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dc-zone-bar[hidden] { display: none !important; }
+
+/* Peeking, because a drag is in flight and needs somewhere to land.
+   Marked so it reads as temporary rather than as a bar the user
+   unfolded and now has to fold again. */
+.dc-zone-bar.dc-peeking .dc-zone {
+  border-style: solid;
+  border-color: var(--tw-sky-500, #0ea5e9);
+}
+
+.dc-zone-bar > .dc-pivot-panel {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* The folds: a chevron, quiet until you want it. Same glyph and
+   same behaviour as the columns panel's, which is the one a person
+   has already learned here. */
+.dc-zone-fold,
+.dc-titlebar-fold,
+.dc-titlebar-zones {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--tw-neutral-500);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+  padding: 0 var(--dc-pad-2);
+}
+
+.dc-zone-fold:hover,
+.dc-titlebar-fold:hover,
+.dc-titlebar-zones:hover {
+  color: var(--tw-black);
+  background: var(--tw-neutral-200);
+}
+
+/* FOLDED, THE TITLE BAR IS A LIP -- 12px carrying one control. The
+   hamburger lives in that bar, so a bar that vanished outright would
+   take the menu with it. */
+.dc-titlebar.dc-collapsed {
+  height: 12px;
+  justify-content: flex-start;
+  border-bottom: 1px solid var(--tw-neutral-200);
+}
+
+.dc-titlebar-lip {
+  width: 100%;
+  height: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--tw-neutral-500);
+  cursor: pointer;
+  font: inherit;
+  font-size: 10px;
+  line-height: 12px;
+  padding: 0;
+}
+
+.dc-titlebar-lip:hover {
+  color: var(--tw-black);
+  background: var(--tw-neutral-200);
+}
+
+/* ONE BAR, SPLIT ROWS | COLUMNS, rather than two stacked strips.
+   Two bars cost 66px of a 900px viewport to hold, most days, four
+   chips and two prompts -- and the grid is what the page is for.
+   Side by side they cost one control height, and both are still
+   visible drop targets, which is the whole reason they are not in
+   the menu: you cannot drag a column into a menu. */
+.dc-pivot-panel {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 2px;
+}
+
+/* Equal halves, and each half scrolls its own chips rather than
+   growing the bar: a cube grouped six deep must not push the grid
+   down the page. */
+.dc-pivot-panel > .dc-zone {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.dc-zone {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  gap: 4px;
+  min-height: var(--dc-control-height);
+  padding: 2px var(--dc-pad-2);
+  border: 1px dashed var(--tw-neutral-300);
+  border-radius: var(--dc-radius-sm);
+  background: var(--tw-neutral-100);
+}
+
+/* A drop target must be unmistakable while a drag is in flight;
+   the alternative is a user hovering, guessing, and letting go. */
+.dc-zone.dc-drop-target {
+  border-style: solid;
+  border-color: var(--tw-sky-600);
+  background: var(--tw-sky-50);
+}
+
+.dc-zone-title {
+  /* Stays put while the chips scroll under it: a zone whose own
+     name has scrolled out of sight is a strip of unlabelled chips,
+     and the label is how you know which half you are dropping
+     into. */
+  flex: 0 0 auto;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--tw-neutral-100);
+  font-size: var(--dc-text-sm-size);
+  line-height: var(--dc-text-sm-line);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--tw-neutral-500);
+  margin-right: 4px;
+}
+
+.dc-zone-prompt {
+  font-size: var(--dc-text-sm-size);
+  color: var(--tw-neutral-500);
+  font-style: italic;
+}
+
+.dc-zone-arrow {
+  color: var(--tw-neutral-400);
+}
+
+.dc-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: var(--dc-row-control-height);
+  padding: 0 2px 0 var(--dc-pad-2);
+  border-radius: var(--dc-radius-sm);
+  font-size: var(--dc-text-base-size);
+  border: 1px solid var(--tw-neutral-400);
+  background: var(--tw-white);
+  cursor: grab;
+}
+
+.dc-chip:focus-visible {
+  outline: 1.5px solid var(--tw-sky-600);
+  outline-offset: -1px;
+}
+
+.dc-chip-remove {
+  font: inherit;
+  font-size: var(--dc-text-base-size);
+  line-height: 1;
+  border: 0;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  cursor: pointer;
+  background: transparent;
+  color: var(--tw-neutral-500);
+}
+
+.dc-chip-remove:hover {
+  color: var(--tw-black);
+  background: var(--tw-neutral-200);
+}
+
+/* A draggable header earns a grab cursor; a measure header, which is
+   deliberately not draggable, must not pretend otherwise. */
+.dc-th.dc-draggable {
+  cursor: grab;
+}
+
+/* -- the status bar -------------------------------------------------- */
+
+/* Their h-5 strip, right-aligned, in neutral-100 under a
+   neutral-200 rule. */
+.dc-app-stats {
+  display: flex;
+  align-items: center;
+  /* WHAT YOU CAN DO AT ONE END, WHAT IS TRUE AT THE OTHER -- theirs
+     is `justify-between` for the same reason. Everything used to be
+     crowded against the right edge, links and figures together. */
+  justify-content: space-between;
+  height: var(--dc-row-control-height);
+  border-top: 1px solid var(--tw-neutral-200);
+  background: var(--tw-neutral-100);
+}
+
+/* Monospaced, because the count changes as the tree expands and a
+   proportional figure jitters its neighbours every time it does. */
+/* The two groups: the things you press, and the things you read. */
+.dc-status-actions,
+.dc-status-readout {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+/* The host's own readout, at the far right of the bar. */
+.dc-status-host {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0 var(--dc-pad-2);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dc-status-rows {
+  font-family: var(--dc-font-mono);
+  font-size: var(--dc-text-sm-size);
+  color: var(--tw-neutral-500);
+  padding: 0 var(--dc-pad-2);
+}
+
+.dc-status-sep {
+  width: 1px;
+  height: 12px;
+  background: var(--tw-neutral-200);
+}
+
+.dc-status-warning {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 var(--dc-pad-2);
+  font-size: var(--dc-text-sm-size);
+  font-weight: 600;
+  color: var(--tw-orange-500);
+}
+
+.dc-status-stats {
+  padding: 0 var(--dc-pad-2);
+  font-size: var(--dc-text-sm-size);
+  font-variant-numeric: tabular-nums;
+  color: var(--tw-neutral-600);
+}
+
+/* -- the grid and its sidebar ---------------------------------------- */
+
+.dc-app-middle {
+  display: flex;
+  gap: 4px;
+  min-height: 0;
+  /* TAKE WHAT IS LEFT. Where the app has a definite height -- a host
+     that gives it the viewport -- the grid should fill it rather than
+     size to its own content and leave the rest of the screen blank.
+     Measured before this: a 422px grid in a 900px window. */
+  flex: 1 1 auto;
+}
+
+.dc-app-middle .dc-app-grid {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Their sidebar is INTERNAL__GRID_CLIENT_SIDE_BAR_WIDTH wide. */
+.dc-app-side {
+  flex: 0 0 200px;
+  min-height: 0;
+}
+
+/* Collapsed, the 200px goes to the grid and a rail is left behind.
+   Not `display: none`: a panel with no way back is one a reload is
+   the only escape from. */
+.dc-app-side.dc-collapsed {
+  flex: 0 0 auto;
+}
+
+.dc-status-link {
+  font: inherit;
+  font-size: var(--dc-text-sm-size);
+  line-height: 1;
+  border: 0;
+  padding: 0 var(--dc-pad-1);
+  background: transparent;
+  /* Underlined and in the accent, as theirs is: in a strip of
+     read-only figures, the one thing that is clickable has to look
+     it. */
+  color: var(--dc-active, #0284c7);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.dc-status-link:hover {
+  color: var(--tw-black);
+}
+
+.dc-status-link:focus-visible {
+  outline: 1.5px solid var(--dc-active, #0284c7);
+  outline-offset: -1px;
+}
+
+/* A filter in force is state, not decoration: it changes what every
+   number in the cube means. */
+.dc-status-filter.dc-on {
+  font-weight: 500;
+}
+
+/* -- the overlay ------------------------------------------------------ */
+
+.dc-app-overlay {
+  border: 1px solid var(--tw-neutral-300);
+  background: var(--tw-white);
+  overflow: hidden;
+}
+
+/* -- the window ------------------------------------------------------- */
+
+/* The app is the window's frame of reference, so a dialog cannot
+   wander off across the host's own page. */
+.dc-app {
+  position: relative;
+}
+
+/* A dialog was a block appended after the grid: opening one pushed
+   the page down and showed it BELOW the data it was about. This is
+   the floating window DataCube has. */
+.dc-app-overlay.dc-window {
+  position: absolute;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  /* Lifted off the grid, or a white panel over white rows reads as
+     part of the page rather than as something on top of it. */
+  box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+}
+
+.dc-app-overlay.dc-window .dc-overlay-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* The title bar is the handle, so it says so. `grab` while resting
+   and the browser's own `grabbing` once the pointer is down. */
+.dc-window-handle {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.dc-window-handle:active {
+  cursor: grabbing;
+}
+
+/* EIGHT grips, as upstream has: the four edges and the four corners,
+   each with the cursor that says which way it goes. 6px is the
+   smallest that can be hit reliably without swallowing clicks meant
+   for the content beneath. */
+.dc-window-grip {
+  position: absolute;
+  touch-action: none;
+}
+
+.dc-window-n, .dc-window-s { left: 6px; right: 6px; height: 6px; }
+.dc-window-e, .dc-window-w { top: 6px; bottom: 6px; width: 6px; }
+.dc-window-n { top: -1px; cursor: ns-resize; }
+.dc-window-s { bottom: -1px; cursor: ns-resize; }
+.dc-window-e { right: -1px; cursor: ew-resize; }
+.dc-window-w { left: -1px; cursor: ew-resize; }
+
+.dc-window-ne, .dc-window-nw, .dc-window-se, .dc-window-sw {
+  width: 12px;
+  height: 12px;
+}
+
+.dc-window-ne { top: -1px; right: -1px; cursor: nesw-resize; }
+.dc-window-nw { top: -1px; left: -1px; cursor: nwse-resize; }
+.dc-window-se { bottom: -1px; right: -1px; cursor: nwse-resize; }
+.dc-window-sw { bottom: -1px; left: -1px; cursor: nesw-resize; }
+
+.dc-overlay-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: var(--dc-control-height);
+  padding: 0 var(--dc-pad-2);
+  font-weight: 500;
+  border-bottom: 1px solid var(--tw-neutral-300);
+  background: var(--tw-neutral-100);
+}
+
+.dc-overlay-close {
+  font: inherit;
+  font-size: var(--dc-text-lg-size);
+  line-height: 1;
+  border: 0;
+  background: transparent;
+  color: var(--tw-neutral-600);
+  cursor: pointer;
+  padding: 0 4px;
+}
+
+.dc-overlay-body {
+  padding: var(--dc-pad-2);
+}
+
+.dc-drill {
+  max-height: 320px;
+  overflow: auto;
+  font-family: var(--dc-font-mono);
+  font-size: var(--dc-text-base-size);
+  margin: 0;
+}
+
+/* -- the editor --------------------------------------------------------- */
+
+.dc-editor {
+  display: flex;
+  flex-direction: column;
+  min-height: 420px;
+}
+
+.dc-editor-tabs {
+  display: flex;
+  gap: 0;
+  overflow-x: auto;
+}
+
+/* Their tab: h-6, px-2, border-neutral-300 with no bottom and no
+   left except the first, and the selected one lifts half a pixel
+   onto the panel. */
+.dc-editor-tab {
+  font: inherit;
+  font-size: var(--dc-text-base-size);
+  white-space: nowrap;
+  height: var(--dc-control-height);
+  padding: 0 var(--dc-pad-2);
+  border: 1px solid var(--tw-neutral-300);
+  border-bottom: 0;
+  border-left: 0;
+  background: var(--tw-neutral-100);
+  color: var(--tw-black);
+  cursor: pointer;
+}
+
+.dc-editor-tab:first-child {
+  border-left: 1px solid var(--tw-neutral-300);
+}
+
+.dc-editor-tab.dc-on {
+  background: var(--tw-white);
+  font-weight: 500;
+}
+
+.dc-editor-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--tw-neutral-300);
+  background: var(--tw-white);
+  padding: var(--dc-pad-2);
+}
+
+.dc-editor-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--dc-pad-2);
+  height: 40px;
+  align-items: center;
+}
+
+/* -- panels and forms ----------------------------------------------------- */
+
+.dc-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--dc-pad-2);
+  height: 100%;
+  min-height: 0;
+}
+
+/* Their panel heading is text-xl font-medium -- 16px, not 20px. */
+.dc-panel-title {
+  font-size: var(--dc-text-xl-size);
+  line-height: var(--dc-text-xl-line);
+  font-weight: 500;
+}
+
+.dc-panel-head-row {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.dc-panel-body {
+  flex: 1;
+  min-height: 280px;
+}
+
+.dc-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 0;
+  border-top: 1px solid var(--tw-neutral-200);
+}
+
+.dc-section:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.dc-section-title {
+  font-size: var(--dc-text-sm-size);
+  line-height: var(--dc-text-sm-line);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--tw-neutral-500);
+}
+
+.dc-field {
+  display: flex;
+  align-items: center;
+  gap: var(--dc-pad-2);
+  min-height: var(--dc-control-height);
+}
+
+.dc-field-label {
+  flex: 0 0 auto;
+  width: 180px;
+  text-align: right;
+  font-size: var(--dc-text-base-size);
+  color: var(--tw-black);
+}
+
+.dc-field-body {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--dc-pad-2);
+  min-width: 0;
+}
+
+/* Their FormTextInput / FormDropdownMenuTrigger: h-5, px-1,
+   border-neutral-400, no radius. */
+.dc-input,
+.dc-select {
+  font: inherit;
+  font-size: var(--dc-text-base-size);
+  height: var(--dc-row-control-height);
+  padding: 0 var(--dc-pad-1);
+  border: 1px solid var(--tw-neutral-400);
+  border-radius: 0;
+  background: var(--tw-white);
+  color: var(--tw-black);
+}
+
+.dc-input::placeholder {
+  color: var(--tw-neutral-400);
+}
+
+.dc-input-number {
+  font-variant-numeric: tabular-nums;
+}
+
+.dc-select:disabled,
+.dc-input:disabled {
+  background: var(--tw-neutral-100);
+  color: var(--tw-neutral-400);
+}
+
+.dc-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--dc-text-base-size);
+  cursor: pointer;
+}
+
+/* Their FormBadge_WIP: text-xs (8px), uppercase, neutral fill. */
+.dc-badge {
+  font-size: var(--dc-text-xs-size);
+  line-height: var(--dc-text-xs-line);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 3px 4px;
+  border-radius: var(--dc-radius-sm);
+  border: 1px solid var(--tw-neutral-300);
+  background: var(--tw-neutral-100);
+  color: var(--tw-neutral-600);
+  font-weight: 500;
+}
+
+.dc-toggles {
+  display: inline-flex;
+  gap: 2px;
+}
+
+.dc-toggle {
+  font: inherit;
+  font-size: var(--dc-text-base-size);
+  min-width: 20px;
+  height: var(--dc-row-control-height);
+  padding: 0 var(--dc-pad-1);
+  border: 1px solid var(--tw-neutral-400);
+  border-radius: var(--dc-radius-sm);
+  background: var(--tw-white);
+  color: var(--tw-black);
+  cursor: pointer;
+}
+
+.dc-toggle.dc-on {
+  background: var(--tw-neutral-600);
+  border-color: var(--tw-neutral-600);
+  color: var(--tw-white);
+  font-weight: 700;
+}
+
+.dc-font-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.dc-color {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Their FormColorPickerButton is a 20px swatch with a 1px neutral
+   border and no radius. */
+.dc-color-input {
+  width: 20px;
+  height: var(--dc-row-control-height);
+  padding: 0;
+  border: 1px solid var(--tw-neutral-400);
+  border-radius: 0;
+  background: var(--tw-white);
+  cursor: pointer;
+}
+
+.dc-color-clear {
+  font: inherit;
+  font-size: var(--dc-text-base-size);
+  line-height: 1;
+  width: 14px;
+  height: var(--dc-row-control-height);
+  padding: 0;
+  border: 1px solid var(--tw-neutral-400);
+  border-left: 0;
+  border-radius: 0;
+  background: var(--tw-white);
+  color: var(--tw-neutral-500);
+  cursor: pointer;
+}
+
+/* An unset swatch must not read as a deliberate black -- and must
+ * not read as a BROKEN control either, which is what a patterned
+ * background over a native colour input looks like. */
+.dc-color-unset .dc-color-input {
+  opacity: 0.4;
+  border-style: dashed;
+}
+
+.dc-colour-grid {
+  display: grid;
+  grid-template-columns: 110px repeat(4, auto);
+  gap: 4px var(--dc-pad-2);
+  align-items: center;
+}
+
+.dc-colour-head {
+  font-size: var(--dc-text-sm-size);
+  color: var(--tw-neutral-500);
+  text-align: center;
+}
+
+.dc-colour-row-label {
+  font-size: var(--dc-text-base-size);
+  text-align: right;
+}
+
+.dc-inline-colour {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--dc-text-sm-size);
+}
+
+.dc-note {
+  font-size: var(--dc-text-sm-size);
+  line-height: var(--dc-text-sm-line);
+  color: var(--tw-neutral-500);
+}
+
+/* Their "No columns selected" warning: a neutral-400 bold block with
+   a 1.5px neutral-200 border. */
+.dc-warning {
+  display: flex;
+  align-items: center;
+  font-size: var(--dc-text-base-size);
+  font-weight: 600;
+  padding: var(--dc-pad-2);
+  border: 1.5px solid var(--tw-neutral-200);
+  color: var(--tw-neutral-400);
+}
+
+/* -- the columns selector ---------------------------------------------------- */
+
+.dc-selector {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  height: 100%;
+  min-height: 260px;
+}
+
+.dc-selector-pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-width: 0;
+  gap: 0;
+}
+
+/* "Available columns:" -- h-5, text-sm. */
+.dc-selector-caption {
+  display: flex;
+  align-items: center;
+  height: var(--dc-row-control-height);
+  font-size: var(--dc-text-base-size);
+}
+
+.dc-selector-box {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--tw-neutral-200);
+  border-radius: var(--dc-radius-sm);
+  overflow: hidden;
+  background: var(--tw-white);
+}
+
+.dc-selector-search {
+  display: flex;
+  align-items: center;
+  height: var(--dc-control-height);
+  gap: 2px;
+  padding: 0 4px;
+  border-bottom: 1px solid var(--tw-neutral-200);
+}
+
+.dc-selector-search-icon {
+  color: var(--tw-neutral-500);
+}
+
+.dc-selector-search-input {
+  font: inherit;
+  font-size: var(--dc-text-base-size);
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  padding: 0 2px;
+  background: transparent;
+  color: var(--tw-black);
+}
+
+.dc-selector-search-input::placeholder {
+  color: var(--tw-neutral-400);
+}
+
+.dc-selector-search-input:focus {
+  outline: none;
+}
+
+.dc-selector-search-clear {
+  font: inherit;
+  border: 0;
+  background: transparent;
+  color: var(--tw-neutral-500);
+  cursor: pointer;
+}
+
+.dc-selector-search-clear:disabled {
+  color: var(--tw-neutral-300);
+}
+
+/* The [All Columns] header row, at the selector's own 20px. */
+.dc-selector-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font: inherit;
+  font-size: var(--dc-text-base-size);
+  font-weight: 500;
+  height: var(--dc-row-control-height);
+  padding: 0 4px;
+  border: 0;
+  border-bottom: 1px solid var(--tw-neutral-200);
+  background: var(--tw-white);
+  color: var(--tw-black);
+  cursor: pointer;
+  text-align: left;
+}
+
+.dc-selector-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 400;
+  color: var(--tw-neutral-500);
+}
+
+.dc-selector-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.dc-selector-list.dc-drop-target {
+  background: var(--tw-sky-50);
+  outline: 1px solid var(--tw-sky-600);
+  outline-offset: -1px;
+}
+
+/* Their selector grid runs at --ag-row-height: 20px with
+   --ag-row-border-color: transparent, so rows have no rule between
+   them and the hover is the only separation. */
+.dc-selector-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--dc-row-control-height);
+  padding: 0 var(--dc-pad-2);
+  font-size: var(--dc-text-base-size);
+  cursor: pointer;
+  user-select: none;
+}
+
+.dc-selector-row:hover {
+  background: var(--dc-row-hover);
+}
+
+.dc-selector-row.dc-picked {
+  background: var(--tw-sky-100);
+}
+
+.dc-selector-row-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Their "Extended (Leaf Level)" tag: text-xs, uppercase, h-3.5. */
+.dc-selector-row-hint {
+  font-size: var(--dc-text-xs-size);
+  line-height: var(--dc-text-xs-line);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+  padding: 2px 4px;
+  border: 1px solid var(--tw-neutral-300);
+  border-radius: var(--dc-radius-sm);
+  background: var(--tw-neutral-100);
+  color: var(--tw-neutral-600);
+  white-space: nowrap;
+}
+
+.dc-selector-row select {
+  font: inherit;
+  font-size: var(--dc-text-sm-size);
+  height: 16px;
+  padding: 0 2px;
+  border: 1px solid var(--tw-neutral-400);
+  border-radius: 0;
+  background: var(--tw-white);
+  color: var(--tw-black);
+}
+
+/* The chevron column between the panes: w-10 in their layout. */
+.dc-selector-middle {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: var(--dc-pad-2);
+  flex: 0 0 40px;
+  align-items: center;
+}
+
+.dc-selector-move {
+  font: inherit;
+  font-size: var(--dc-text-lg-size);
+  line-height: 1;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--tw-neutral-300);
+  border-radius: var(--dc-radius-sm);
+  background: var(--tw-neutral-100);
+  color: var(--tw-neutral-500);
+  cursor: pointer;
+}
+
+.dc-selector-move:hover:not(:disabled) {
+  background: var(--tw-neutral-200);
+}
+
+.dc-selector-move:disabled {
+  background: var(--tw-neutral-200);
+  color: var(--tw-neutral-400);
+  cursor: default;
+}
+
+/* -- the dimensions panel ------------------------------------------------------- */
+
+.dc-dimension-body {
+  display: flex;
+  gap: var(--dc-pad-2);
+  height: 100%;
+  min-height: 280px;
+}
+
+.dc-dimension-side {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 0 0 200px;
+}
+
+.dc-dimension-list {
+  flex: 1;
+  min-height: 120px;
+  overflow: auto;
+  border: 1px solid var(--tw-neutral-200);
+  border-radius: var(--dc-radius-sm);
+}
+
+.dc-dimension-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+  height: var(--dc-row-control-height);
+  padding: 0 var(--dc-pad-2);
+  font-size: var(--dc-text-base-size);
+  cursor: pointer;
+}
+
+.dc-dimension-row:hover {
+  background: var(--dc-row-hover);
+}
+
+.dc-dimension-row.dc-on {
+  background: var(--tw-sky-100);
+}
+
+.dc-dimension-count {
+  font-size: var(--dc-text-sm-size);
+  font-variant-numeric: tabular-nums;
+  color: var(--tw-neutral-500);
+}
+
+.dc-dimension-controls {
+  display: flex;
+  gap: 4px;
+}
+
+.dc-dimension-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* -- the columns tool panel ------------------------------------------------------- */
+
+.dc-tool-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  border: 1px solid var(--tw-neutral-200);
+  overflow: hidden;
+  background: var(--tw-white);
+}
+
+.dc-tool-panel-head {
+  font-size: var(--dc-text-sm-size);
+  line-height: var(--dc-text-sm-line);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--tw-neutral-500);
+  display: flex;
+  align-items: center;
+  /* The title takes the room and the toggle sits at the edge it
+     collapses toward. */
+  justify-content: space-between;
+  height: var(--dc-control-height);
+  padding: 0 var(--dc-pad-2);
+  border-bottom: 1px solid var(--tw-neutral-200);
+  background: var(--tw-neutral-100);
+}
+
+/* -- collapsing ------------------------------------------------------- */
+
+.dc-tool-panel-toggle {
+  font: inherit;
+  font-size: var(--dc-text-base-size);
+  line-height: 1;
+  border: 0;
+  padding: 0 var(--dc-pad-1);
+  background: transparent;
+  /* Darker than the panel's own heading. neutral-500 on neutral-100
+     is 4.2:1, which is under AA for text this small -- and the rail
+     is the ONLY way back once the panel is shut, so it is the last
+     label in the app that should be hard to read. neutral-600 is
+     7.0:1 and still reads as secondary. */
+  color: var(--tw-neutral-600);
+  cursor: pointer;
+}
+
+.dc-tool-panel-toggle:hover {
+  color: var(--tw-black);
+  background: var(--tw-neutral-200);
+}
+
+.dc-tool-panel-toggle:focus-visible {
+  outline: 1.5px solid var(--dc-active, #0284c7);
+  outline-offset: -1px;
+}
+
+/* The rail IS the collapsed panel, so it has to be tall enough to
+   read as one edge of the grid rather than a stray button. The word
+   runs down it, which is what makes a 24px sliver self-explanatory. */
+.dc-tool-panel-rail {
+  width: 24px;
+  /* NOT `height: 100%`. The panel's own height is indefinite -- it
+     is a flex item in a column flow -- so a percentage height there
+     resolves against a distant ancestor instead: measured at 800px,
+     which stretched the whole middle row to 802px, pushed it to
+     y = -1 and grew the document from 888px to 1268px. Collapsing
+     the sidebar wrecked the page. `flex` grows it where there IS
+     room, and the minimum keeps it a usable target where there is
+     not. */
+  flex: 1 1 auto;
+  min-height: 96px;
+  writing-mode: vertical-rl;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: var(--dc-text-sm-size);
+  padding: var(--dc-pad-2) 0;
+  background: var(--tw-neutral-100);
+}
+
+/* Collapsed, the panel is the rail: no inner padding, no list, and
+   crucially no fixed width of its own fighting the rail's 24px. */
+.dc-tool-panel.dc-collapsed {
+  border: 1px solid var(--tw-neutral-200);
+}
+
+.dc-tool-panel-search {
+  font: inherit;
+  font-size: var(--dc-text-base-size);
+  height: var(--dc-control-height);
+  border: 0;
+  border-bottom: 1px solid var(--tw-neutral-200);
+  padding: 0 var(--dc-pad-2);
+  background: transparent;
+  color: var(--tw-black);
+}
+
+.dc-tool-panel-search::placeholder {
+  color: var(--tw-neutral-400);
+}
+
+.dc-tool-panel-search:focus {
+  outline: none;
+  background: var(--tw-neutral-100);
+}
+
+.dc-tool-panel-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.dc-tool-panel-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--dc-row-control-height);
+  padding: 0 var(--dc-pad-2);
+  font-size: var(--dc-text-base-size);
+  cursor: grab;
+}
+
+.dc-tool-panel-row:hover {
+  background: var(--dc-row-hover);
+}
+
+/* A measure is quieter than a dimension -- it cannot be grouped by
+   -- but it IS draggable into the grid now, so it keeps the grab
+   cursor rather than promising nothing. */
+.dc-tool-panel-row.dc-measure {
+  color: var(--tw-neutral-500);
+}
+
+/* The disclosure on a pivoted measure: a pivot on two keys makes
+   twenty columns of one measure, and the list was a wall of them. */
+.dc-tool-panel-twist {
+  flex: 0 0 auto;
+  width: 12px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--tw-neutral-500);
+  cursor: pointer;
+  font: inherit;
+  line-height: 1;
+}
+
+.dc-tool-panel-twist:hover {
+  color: var(--tw-black);
+}
+
+/* The empty slot: the same width, no hit area, nothing to see. */
+.dc-tool-panel-twist.dc-tool-panel-spacer {
+  cursor: default;
+  pointer-events: none;
+}
+
+/* The tick box: what upstream's columns tool panel is mostly for. */
+.dc-tool-panel-show {
+  flex: 0 0 auto;
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  cursor: pointer;
+}
+
+/* ONE COLUMN THE PIVOT MADE, under the measure it came from.
+   Indented, and labelled by the pivot values alone: the measure is
+   named by the row above, and `2021__|__notional` says it twice. */
+.dc-tool-panel-row.dc-tool-panel-child {
+  padding-left: calc(var(--dc-pad-2) + 14px);
+}
+
+.dc-tool-panel-row.dc-tool-panel-child .dc-tool-panel-label {
+  color: var(--tw-neutral-600);
+}
+
+/* Locked: a pivot key, or a measure the pivot spread across its
+   values. The box is disabled rather than absent, so the list still
+   reads as one list. */
+.dc-tool-panel-show:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* A column the grid is not showing: still listed, because the list
+   is how you find it again, and struck through so the list says
+   which is which at a glance. */
+.dc-tool-panel-row.dc-hidden-column .dc-tool-panel-label {
+  color: var(--tw-neutral-500);
+  text-decoration: line-through;
+}
+
+.dc-tool-panel-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-tool-panel-badge {
+  font-size: var(--dc-text-xs-size);
+  line-height: var(--dc-text-xs-line);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+  padding: 2px 3px;
+  border-radius: var(--dc-radius-sm);
+  background: var(--tw-sky-100);
+  color: var(--tw-sky-700);
+}
+
+.dc-tool-panel-type {
+  font-size: var(--dc-text-sm-size);
+  color: var(--tw-neutral-400);
+}
+
+/* A chart in the overlay. The SVG carries its own size; this just
+   centres it and lets a wide one scroll rather than overflow the
+   dialog. */
+.dc-chart {
+  overflow: auto;
+  max-width: 100%;
+  display: flex;
+  justify-content: center;
+  padding: 8px;
+}
+
+.dc-chart svg {
+  max-width: 100%;
+  height: auto;
+}
+
+/* ---- the calculated-column editor --------------------------------
+   Two stages, one window: choosing between them IS the decision the
+   user is making (a per-row value vs a ratio of aggregates), so
+   splitting them into two places would hide it. */
+.dc-calc {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 460px;
+}
+
+.dc-calc-stage {
+  border: 1px solid var(--tw-neutral-200);
+  border-radius: 3px;
+  padding: 8px 10px;
+}
+
+.dc-calc-stage-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dc-calc-stage-title {
+  font-weight: 600;
+}
+
+.dc-calc-help,
+.dc-calc-none {
+  margin: 4px 0 0;
+  font-size: var(--dc-text-sm-size);
+  color: var(--tw-neutral-500);
+  max-width: 60ch;
+}
+
+.dc-calc-list {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Name, type, expression, then the two buttons. The expression takes
+   the slack and TRUNCATES rather than wrapping, so a long one cannot
+   push the buttons out of reach. */
+.dc-calc-item {
+  display: grid;
+  grid-template-columns: minmax(6em, auto) auto 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.dc-calc-name { font-weight: 500; }
+
+.dc-calc-type {
+  font-size: var(--dc-text-sm-size);
+  color: var(--tw-neutral-400);
+  white-space: nowrap;
+}
+
+.dc-calc-expr {
+  font-family: var(--dc-mono, ui-monospace, monospace);
+  font-size: var(--dc-text-sm-size);
+  color: var(--tw-neutral-600);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-calc-form {
+  border: 1px solid var(--tw-neutral-300);
+  border-radius: 3px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--tw-neutral-50);
+}
+
+.dc-calc-form-head { font-weight: 600; }
+
+.dc-calc-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: var(--dc-text-sm-size);
+}
+
+.dc-calc-input-name,
+.dc-calc-input-expr,
+.dc-calc-search {
+  font: inherit;
+  padding: 3px 5px;
+  border: 1px solid var(--tw-neutral-300);
+  border-radius: 2px;
+}
+
+.dc-calc-input-expr {
+  font-family: var(--dc-mono, ui-monospace, monospace);
+  resize: vertical;
+}
+
+/* Completion as a LIST beside the field rather than a popup over it:
+   a popup needs caret geometry and its own keyboard model, and can
+   land in the wrong place. This is the same information, insertable. */
+.dc-calc-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dc-calc-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 168px;
+  overflow-y: auto;
+  border: 1px solid var(--tw-neutral-200);
+  border-radius: 2px;
+}
+
+.dc-calc-insert {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--tw-neutral-100);
+  font: inherit;
+  padding: 3px 6px;
+  cursor: pointer;
+}
+
+.dc-calc-insert:hover,
+.dc-calc-insert:focus-visible {
+  background: var(--tw-neutral-100);
+}
+
+.dc-calc-item-label {
+  font-family: var(--dc-mono, ui-monospace, monospace);
+}
+
+.dc-calc-item-detail {
+  font-size: var(--dc-text-sm-size);
+  color: var(--tw-neutral-400);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A column is what you most often want, so it reads first. */
+.dc-calc-item-column .dc-calc-item-label { font-weight: 500; }
+.dc-calc-item-operator .dc-calc-item-label { color: var(--tw-neutral-600); }
+
+.dc-calc-noitem {
+  padding: 4px 6px;
+  font-size: var(--dc-text-sm-size);
+  color: var(--tw-neutral-400);
+}
+
+.dc-calc-problem {
+  margin: 0;
+  font-size: var(--dc-text-sm-size);
+  color: #b3261e;
+}
+
+.dc-calc-actions {
+  display: flex;
+  gap: 6px;
+}
+
+/* The kind is a CHOICE, not a guess: what the column does when a
+   group collapses. Worded as behaviour rather than as the cube's
+   vocabulary, because "measure" and "dimension" are our words. */
+.dc-calc-kind-label {
+  font-size: var(--dc-text-sm-size);
+}
+
+.dc-calc-kinds {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 2px;
+}
+
+.dc-calc-kind {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: var(--dc-text-sm-size);
+  cursor: pointer;
+}
+
+.dc-calc-kind-input {
+  margin: 0;
+}
+
+.dc-calc-kind-text {
+  color: var(--tw-neutral-600);
+}

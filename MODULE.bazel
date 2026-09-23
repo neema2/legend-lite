@@ -16,6 +16,26 @@ bazel_dep(name = "rules_jvm_external", version = "7.1")
 # by `bazel run //:update_generated` and held equal by the diff tests it makes.
 bazel_dep(name = "bazel_lib", version = "3.7.2")
 
+# THE DATACUBE APP (datacube/): TypeScript on Node. rules_js installs its npm
+# packages from datacube/pnpm-lock.yaml (converted from npm's lock with
+# `pnpm import`, same versions); Node is pinned here, not taken from the machine.
+# 22.16: the app's tests run TypeScript directly (--experimental-strip-types).
+bazel_dep(name = "aspect_rules_js", version = "3.4.1")
+bazel_dep(name = "rules_nodejs", version = "6.7.5")
+
+node = use_extension("@rules_nodejs//nodejs:extensions.bzl", "node")
+node.toolchain(node_version = "22.16.0")
+
+npm = use_extension("@aspect_rules_js//npm:extensions.bzl", "npm")
+npm.npm_translate_lock(
+    name = "npm",
+    pnpm_lock = "//datacube:pnpm-lock.yaml",
+    # package.json's pnpm.onlyBuiltDependencies: NO package runs an install
+    # script (every dependency ships prebuilt platform packages)
+    data = ["//datacube:package.json"],
+)
+use_repo(npm, "npm")
+
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 
 # ── THE JAR POOLS ───────────────────────────────────────────────────────────────
@@ -211,7 +231,22 @@ maven.install(
     lock_file = "//:maven_tools_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
-use_repo(maven, "maven_core", "maven_h2_modern", "maven_runner", "maven_test", "maven_tools", "maven_upstream")
+# THE WASM COMPILER (//wasm): TeaVM, which compiles the planner ahead of time to a
+# WebAssembly-GC module, and the class library it compiles AGAINST (classlib, jso).
+# Build tooling like @maven_tools: its jars run inside a build action or sit on the
+# boundary class's compile-time path (neverlink); none reaches a running classpath.
+maven.install(
+    name = "maven_teavm",
+    artifacts = [
+        "org.teavm:teavm-tooling:0.15.0",
+        "org.teavm:teavm-classlib:0.15.0",
+        "org.teavm:teavm-jso:0.15.0",
+    ],
+    fail_if_repin_required = False,
+    lock_file = "//:maven_teavm_install.json",
+    repositories = ["https://repo1.maven.org/maven2"],
+)
+use_repo(maven, "maven_core", "maven_h2_modern", "maven_runner", "maven_teavm", "maven_test", "maven_tools", "maven_upstream")
 
 # ── THE UPSTREAM SOURCES ────────────────────────────────────────────────────────
 # legend-engine / legend-pure at ONE release, pinned by content. Tests read these

@@ -1,0 +1,44 @@
+###Relational
+Database trades::DB
+(
+    Table TRADES
+    (
+        id INTEGER PRIMARY KEY,
+        region VARCHAR(32),
+        desk VARCHAR(32),
+        book VARCHAR(32),
+        trader VARCHAR(64),
+        year INTEGER,
+        qtr VARCHAR(8),
+        notional DOUBLE,
+        pnl DOUBLE,
+        qty INTEGER,
+        booked DATE,
+        active BIT
+    )
+    Table DESKS
+    (
+        name VARCHAR(32) PRIMARY KEY,
+        head VARCHAR(64),
+        budget DOUBLE
+    )
+    Join TradeDesk(TRADES.desk = DESKS.name)
+)
+
+###Connection
+RelationalDatabaseConnection trades::Conn
+{
+    type: DuckDB;
+    specification: DuckDB { };
+    auth: Test;
+}
+
+###Runtime
+Runtime trades::RT
+{
+    mappings: [];
+    connections:
+    [
+        trades::DB: [ c1: trades::Conn ]
+    ];
+}

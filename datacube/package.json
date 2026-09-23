@@ -1,0 +1,29 @@
+{
+  "name": "@legend/datacube",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "node --experimental-strip-types --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=./test/strict-reporter.mjs --test-reporter-destination=stderr test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "type": "module",
+  "private": "true",
+  "dependencies": {
+    "@duckdb/duckdb-wasm": "^1.33.1-dev57.0"
+  },
+  "devDependencies": {
+    "@types/jsdom": "^30.0.0",
+    "@types/node": "^26.6.2",
+    "esbuild": "^0.28.2",
+    "jsdom": "^29.1.1",
+    "playwright": "^1.63.0",
+    "typescript": "^7.0.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": []
+  }
+}

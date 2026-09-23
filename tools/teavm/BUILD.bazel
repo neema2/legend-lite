@@ -1,0 +1,14 @@
+load("@rules_java//java:defs.bzl", "java_binary")
+
+# TeaVM as a build action (defs.bzl, teavm_wasm). The compiler's jars come from
+# @maven_teavm, build tooling that runs here and nowhere else.
+java_binary(
+    name = "compile",
+    srcs = ["TeaVmCompile.java"],
+    main_class = "com.legend.tools.teavm.TeaVmCompile",
+    visibility = ["//visibility:public"],
+    deps = [
+        "@maven_teavm//:org_teavm_teavm_core",
+        "@maven_teavm//:org_teavm_teavm_tooling",
+    ],
+)

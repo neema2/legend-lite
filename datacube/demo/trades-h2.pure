@@ -1,0 +1,73 @@
+// The demo's model for the ENGINE plane, where the engine executes.
+//
+// The other model (trades.pure) describes a DuckDB the BROWSER owns:
+// legend-lite or the wasm planner turns Pure into SQL and DuckDB-WASM
+// runs it. Here the engine runs the query itself, against a database
+// it can reach -- so the connection is H2, which the engine embeds
+// for exactly this purpose, and the table is seeded by the connection
+// rather than by us.
+//
+// `testDataSetupSqls` is how Legend's own tests give H2 something to
+// read; it runs on connection setup, so the data is there before the
+// first query and lives as long as the connection does.
+
+###Relational
+Database trades::h2::DB
+(
+    Schema TRADES_SCHEMA
+    (
+        Table TRADES
+        (
+            region VARCHAR(32),
+            desk VARCHAR(32),
+            book VARCHAR(32),
+            year INTEGER,
+            qtr VARCHAR(8),
+            notional DOUBLE,
+            pnl DOUBLE,
+            qty INTEGER
+        )
+    )
+)
+
+###Connection
+RelationalDatabaseConnection trades::h2::Conn
+{
+    store: trades::h2::DB;
+    type: H2;
+    specification: LocalH2
+    {
+        testDataSetupSqls: [
+            'DROP SCHEMA IF EXISTS TRADES_SCHEMA CASCADE;',
+            'CREATE SCHEMA TRADES_SCHEMA;',
+            'CREATE TABLE TRADES_SCHEMA.TRADES (region VARCHAR(32), desk VARCHAR(32), book VARCHAR(32), year INTEGER, qtr VARCHAR(8), notional DOUBLE, pnl DOUBLE, qty INTEGER);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'AMER\', \'Rates\', \'Alpha\', 2023, \'Q1\', 1.0, -0.1, 2), (\'AMER\', \'Rates\', \'Alpha\', 2023, \'Q2\', 2.0, 0.2, 3), (\'AMER\', \'Rates\', \'Alpha\', 2023, \'Q3\', 3.0, -0.3, 4), (\'AMER\', \'Rates\', \'Alpha\', 2023, \'Q4\', 4.0, 0.4, 5), (\'AMER\', \'Rates\', \'Alpha\', 2024, \'Q1\', 5.0, -0.5, 6), (\'AMER\', \'Rates\', \'Alpha\', 2024, \'Q2\', 6.0, 0.6, 7), (\'AMER\', \'Rates\', \'Alpha\', 2024, \'Q3\', 7.0, -0.7, 1), (\'AMER\', \'Rates\', \'Alpha\', 2024, \'Q4\', 8.0, 0.8, 2);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'AMER\', \'Rates\', \'Beta\', 2023, \'Q1\', 9.0, -0.9, 3), (\'AMER\', \'Rates\', \'Beta\', 2023, \'Q2\', 10.0, 1.0, 4), (\'AMER\', \'Rates\', \'Beta\', 2023, \'Q3\', 11.0, -1.1, 5), (\'AMER\', \'Rates\', \'Beta\', 2023, \'Q4\', 12.0, 1.2, 6), (\'AMER\', \'Rates\', \'Beta\', 2024, \'Q1\', 13.0, -1.3, 7), (\'AMER\', \'Rates\', \'Beta\', 2024, \'Q2\', 14.0, 1.4, 1), (\'AMER\', \'Rates\', \'Beta\', 2024, \'Q3\', 15.0, -1.5, 2), (\'AMER\', \'Rates\', \'Beta\', 2024, \'Q4\', 16.0, 1.6, 3);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'AMER\', \'Credit\', \'Alpha\', 2023, \'Q1\', 17.0, -1.7, 4), (\'AMER\', \'Credit\', \'Alpha\', 2023, \'Q2\', 18.0, 1.8, 5), (\'AMER\', \'Credit\', \'Alpha\', 2023, \'Q3\', 19.0, -1.9, 6), (\'AMER\', \'Credit\', \'Alpha\', 2023, \'Q4\', 20.0, 2.0, 7), (\'AMER\', \'Credit\', \'Alpha\', 2024, \'Q1\', 21.0, -2.1, 1), (\'AMER\', \'Credit\', \'Alpha\', 2024, \'Q2\', 22.0, 2.2, 2), (\'AMER\', \'Credit\', \'Alpha\', 2024, \'Q3\', 23.0, -2.3, 3), (\'AMER\', \'Credit\', \'Alpha\', 2024, \'Q4\', 24.0, 2.4, 4);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'AMER\', \'Credit\', \'Beta\', 2023, \'Q1\', 25.0, -2.5, 5), (\'AMER\', \'Credit\', \'Beta\', 2023, \'Q2\', 26.0, 2.6, 6), (\'AMER\', \'Credit\', \'Beta\', 2023, \'Q3\', 27.0, -2.7, 7), (\'AMER\', \'Credit\', \'Beta\', 2023, \'Q4\', 28.0, 2.8, 1), (\'AMER\', \'Credit\', \'Beta\', 2024, \'Q1\', 29.0, -2.9, 2), (\'AMER\', \'Credit\', \'Beta\', 2024, \'Q2\', 30.0, 3.0, 3), (\'AMER\', \'Credit\', \'Beta\', 2024, \'Q3\', 31.0, -3.1, 4), (\'AMER\', \'Credit\', \'Beta\', 2024, \'Q4\', 32.0, 3.2, 5);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'EMEA\', \'Rates\', \'Alpha\', 2023, \'Q1\', 33.0, -3.3, 6), (\'EMEA\', \'Rates\', \'Alpha\', 2023, \'Q2\', 34.0, 3.4, 7), (\'EMEA\', \'Rates\', \'Alpha\', 2023, \'Q3\', 35.0, -3.5, 1), (\'EMEA\', \'Rates\', \'Alpha\', 2023, \'Q4\', 36.0, 3.6, 2), (\'EMEA\', \'Rates\', \'Alpha\', 2024, \'Q1\', 37.0, -3.7, 3), (\'EMEA\', \'Rates\', \'Alpha\', 2024, \'Q2\', 38.0, 3.8, 4), (\'EMEA\', \'Rates\', \'Alpha\', 2024, \'Q3\', 39.0, -3.9, 5), (\'EMEA\', \'Rates\', \'Alpha\', 2024, \'Q4\', 40.0, 4.0, 6);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'EMEA\', \'Rates\', \'Beta\', 2023, \'Q1\', 41.0, -4.1, 7), (\'EMEA\', \'Rates\', \'Beta\', 2023, \'Q2\', 42.0, 4.2, 1), (\'EMEA\', \'Rates\', \'Beta\', 2023, \'Q3\', 43.0, -4.3, 2), (\'EMEA\', \'Rates\', \'Beta\', 2023, \'Q4\', 44.0, 4.4, 3), (\'EMEA\', \'Rates\', \'Beta\', 2024, \'Q1\', 45.0, -4.5, 4), (\'EMEA\', \'Rates\', \'Beta\', 2024, \'Q2\', 46.0, 4.6, 5), (\'EMEA\', \'Rates\', \'Beta\', 2024, \'Q3\', 47.0, -4.7, 6), (\'EMEA\', \'Rates\', \'Beta\', 2024, \'Q4\', 48.0, 4.8, 7);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'EMEA\', \'FX\', \'Alpha\', 2023, \'Q1\', 49.0, -4.9, 1), (\'EMEA\', \'FX\', \'Alpha\', 2023, \'Q2\', 50.0, 5.0, 2), (\'EMEA\', \'FX\', \'Alpha\', 2023, \'Q3\', 51.0, -5.1, 3), (\'EMEA\', \'FX\', \'Alpha\', 2023, \'Q4\', 52.0, 5.2, 4), (\'EMEA\', \'FX\', \'Alpha\', 2024, \'Q1\', 53.0, -5.3, 5), (\'EMEA\', \'FX\', \'Alpha\', 2024, \'Q2\', 54.0, 5.4, 6), (\'EMEA\', \'FX\', \'Alpha\', 2024, \'Q3\', 55.0, -5.5, 7), (\'EMEA\', \'FX\', \'Alpha\', 2024, \'Q4\', 56.0, 5.6, 1);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'EMEA\', \'FX\', \'Beta\', 2023, \'Q1\', 57.0, -5.7, 2), (\'EMEA\', \'FX\', \'Beta\', 2023, \'Q2\', 58.0, 5.8, 3), (\'EMEA\', \'FX\', \'Beta\', 2023, \'Q3\', 59.0, -5.9, 4), (\'EMEA\', \'FX\', \'Beta\', 2023, \'Q4\', 60.0, 6.0, 5), (\'EMEA\', \'FX\', \'Beta\', 2024, \'Q1\', 61.0, -6.1, 6), (\'EMEA\', \'FX\', \'Beta\', 2024, \'Q2\', 62.0, 6.2, 7), (\'EMEA\', \'FX\', \'Beta\', 2024, \'Q3\', 63.0, -6.3, 1), (\'EMEA\', \'FX\', \'Beta\', 2024, \'Q4\', 64.0, 6.4, 2);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'EMEA\', \'Equity\', \'Alpha\', 2023, \'Q1\', 65.0, -6.5, 3), (\'EMEA\', \'Equity\', \'Alpha\', 2023, \'Q2\', 66.0, 6.6, 4), (\'EMEA\', \'Equity\', \'Alpha\', 2023, \'Q3\', 67.0, -6.7, 5), (\'EMEA\', \'Equity\', \'Alpha\', 2023, \'Q4\', 68.0, 6.8, 6), (\'EMEA\', \'Equity\', \'Alpha\', 2024, \'Q1\', 69.0, -6.9, 7), (\'EMEA\', \'Equity\', \'Alpha\', 2024, \'Q2\', 70.0, 7.0, 1), (\'EMEA\', \'Equity\', \'Alpha\', 2024, \'Q3\', 71.0, -7.1, 2), (\'EMEA\', \'Equity\', \'Alpha\', 2024, \'Q4\', 72.0, 7.2, 3);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'EMEA\', \'Equity\', \'Beta\', 2023, \'Q1\', 73.0, -7.3, 4), (\'EMEA\', \'Equity\', \'Beta\', 2023, \'Q2\', 74.0, 7.4, 5), (\'EMEA\', \'Equity\', \'Beta\', 2023, \'Q3\', 75.0, -7.5, 6), (\'EMEA\', \'Equity\', \'Beta\', 2023, \'Q4\', 76.0, 7.6, 7), (\'EMEA\', \'Equity\', \'Beta\', 2024, \'Q1\', 77.0, -7.7, 1), (\'EMEA\', \'Equity\', \'Beta\', 2024, \'Q2\', 78.0, 7.8, 2), (\'EMEA\', \'Equity\', \'Beta\', 2024, \'Q3\', 79.0, -7.9, 3), (\'EMEA\', \'Equity\', \'Beta\', 2024, \'Q4\', 80.0, 8.0, 4);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'APAC\', \'FX\', \'Alpha\', 2023, \'Q1\', 81.0, -8.1, 5), (\'APAC\', \'FX\', \'Alpha\', 2023, \'Q2\', 82.0, 8.2, 6), (\'APAC\', \'FX\', \'Alpha\', 2023, \'Q3\', 83.0, -8.3, 7), (\'APAC\', \'FX\', \'Alpha\', 2023, \'Q4\', 84.0, 8.4, 1), (\'APAC\', \'FX\', \'Alpha\', 2024, \'Q1\', 85.0, -8.5, 2), (\'APAC\', \'FX\', \'Alpha\', 2024, \'Q2\', 86.0, 8.6, 3), (\'APAC\', \'FX\', \'Alpha\', 2024, \'Q3\', 87.0, -8.7, 4), (\'APAC\', \'FX\', \'Alpha\', 2024, \'Q4\', 88.0, 8.8, 5);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'APAC\', \'FX\', \'Beta\', 2023, \'Q1\', 89.0, -8.9, 6), (\'APAC\', \'FX\', \'Beta\', 2023, \'Q2\', 90.0, 9.0, 7), (\'APAC\', \'FX\', \'Beta\', 2023, \'Q3\', 91.0, -9.1, 1), (\'APAC\', \'FX\', \'Beta\', 2023, \'Q4\', 92.0, 9.2, 2), (\'APAC\', \'FX\', \'Beta\', 2024, \'Q1\', 93.0, -9.3, 3), (\'APAC\', \'FX\', \'Beta\', 2024, \'Q2\', 94.0, 9.4, 4), (\'APAC\', \'FX\', \'Beta\', 2024, \'Q3\', 95.0, -9.5, 5), (\'APAC\', \'FX\', \'Beta\', 2024, \'Q4\', 96.0, 9.6, 6);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'APAC\', \'Equity\', \'Alpha\', 2023, \'Q1\', 97.0, -9.7, 7), (\'APAC\', \'Equity\', \'Alpha\', 2023, \'Q2\', 98.0, 9.8, 1), (\'APAC\', \'Equity\', \'Alpha\', 2023, \'Q3\', 99.0, -9.9, 2), (\'APAC\', \'Equity\', \'Alpha\', 2023, \'Q4\', 100.0, 10.0, 3), (\'APAC\', \'Equity\', \'Alpha\', 2024, \'Q1\', 101.0, -10.1, 4), (\'APAC\', \'Equity\', \'Alpha\', 2024, \'Q2\', 102.0, 10.2, 5), (\'APAC\', \'Equity\', \'Alpha\', 2024, \'Q3\', 103.0, -10.3, 6), (\'APAC\', \'Equity\', \'Alpha\', 2024, \'Q4\', 104.0, 10.4, 7);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'APAC\', \'Equity\', \'Beta\', 2023, \'Q1\', 105.0, -10.5, 1), (\'APAC\', \'Equity\', \'Beta\', 2023, \'Q2\', 106.0, 10.6, 2), (\'APAC\', \'Equity\', \'Beta\', 2023, \'Q3\', 107.0, -10.7, 3), (\'APAC\', \'Equity\', \'Beta\', 2023, \'Q4\', 108.0, 10.8, 4), (\'APAC\', \'Equity\', \'Beta\', 2024, \'Q1\', 109.0, -10.9, 5), (\'APAC\', \'Equity\', \'Beta\', 2024, \'Q2\', 110.0, 11.0, 6), (\'APAC\', \'Equity\', \'Beta\', 2024, \'Q3\', 111.0, -11.1, 7), (\'APAC\', \'Equity\', \'Beta\', 2024, \'Q4\', 112.0, 11.2, 1);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'LATAM\', \'Rates\', \'Alpha\', 2023, \'Q1\', 113.0, -11.3, 2), (\'LATAM\', \'Rates\', \'Alpha\', 2023, \'Q2\', 114.0, 11.4, 3), (\'LATAM\', \'Rates\', \'Alpha\', 2023, \'Q3\', 115.0, -11.5, 4), (\'LATAM\', \'Rates\', \'Alpha\', 2023, \'Q4\', 116.0, 11.6, 5), (\'LATAM\', \'Rates\', \'Alpha\', 2024, \'Q1\', 117.0, -11.7, 6), (\'LATAM\', \'Rates\', \'Alpha\', 2024, \'Q2\', 118.0, 11.8, 7), (\'LATAM\', \'Rates\', \'Alpha\', 2024, \'Q3\', 119.0, -11.9, 1), (\'LATAM\', \'Rates\', \'Alpha\', 2024, \'Q4\', 120.0, 12.0, 2);',
+            'INSERT INTO TRADES_SCHEMA.TRADES VALUES (\'LATAM\', \'Rates\', \'Beta\', 2023, \'Q1\', 121.0, -12.1, 3), (\'LATAM\', \'Rates\', \'Beta\', 2023, \'Q2\', 122.0, 12.2, 4), (\'LATAM\', \'Rates\', \'Beta\', 2023, \'Q3\', 123.0, -12.3, 5), (\'LATAM\', \'Rates\', \'Beta\', 2023, \'Q4\', 124.0, 12.4, 6), (\'LATAM\', \'Rates\', \'Beta\', 2024, \'Q1\', 125.0, -12.5, 7), (\'LATAM\', \'Rates\', \'Beta\', 2024, \'Q2\', 126.0, 12.6, 1), (\'LATAM\', \'Rates\', \'Beta\', 2024, \'Q3\', 127.0, -12.7, 2), (\'LATAM\', \'Rates\', \'Beta\', 2024, \'Q4\', 128.0, 12.8, 3);'
+        ];
+    };
+    auth: DefaultH2;
+}
+
+###Runtime
+Runtime trades::h2::RT
+{
+    mappings: [];
+    connections:
+    [
+        trades::h2::DB: [ c1: trades::h2::Conn ]
+    ];
+}

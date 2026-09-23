@@ -8,6 +8,7 @@ exports_files([
     "maven_core_install.json",
     "maven_h2_modern_install.json",
     "maven_runner_install.json",
+    "maven_teavm_install.json",
     "maven_test_install.json",
     "maven_tools_install.json",
     "maven_upstream_install.json",
@@ -22,6 +23,7 @@ write_source_files(
     testonly = True,
     additional_update_targets = [
         "//core:update_generated",
+        "//datacube:update_generated",
         "//docs:update_generated",
         "//parser-equivalence:update_generated",
     ],

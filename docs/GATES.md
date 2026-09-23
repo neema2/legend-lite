@@ -21,15 +21,17 @@ commands (`mvn`, `tools/allgates.sh`, `-Dx.generate=1`) no longer exist.
 | 9 | `//pct:pct_channel_b` | Channel B dual-verdict suites |
 | 10 | `//core:stress_suites` | the stress corpus |
 | 11 | `//spec:judge_differential` | host judge, then database judge joined per assert |
+| app | `//datacube:tests`, `//wasm:all` | DataCube's suite and typecheck; the planner compiled to WebAssembly (TeaVM) and held to the JVM by differentials — its own corpus, DataCube's serialised cubes, the timezone database |
 
 Beside the gates, in `bazel test //...`:
 
 - **Generated files** — `//core:update_generated_*_test`,
-  `//docs:update_generated_test`, `//parser-equivalence:update_generated_*_test`:
-  each committed generated file (Pure.java's signatures, DynaFn.java,
-  NameResolver.java's imports, prelude.pure, native-claims.tsv, the fixture
-  snapshot, the corpus manifest, the protocol roster) equals its generator's
-  output. Regenerate: `bazel run //:update_generated`.
+  `//docs:update_generated_test`, `//parser-equivalence:update_generated_*_test`,
+  `//datacube:update_generated_test`: each committed generated file
+  (Pure.java's signatures, DynaFn.java, NameResolver.java's imports,
+  prelude.pure, native-claims.tsv, the fixture snapshot, the corpus manifest,
+  the protocol roster, DataCube's lite-facts.ts) equals its generator's output.
+  Regenerate: `bazel run //:update_generated`.
 - **Dependency guards** — `//tools/deps:core_closure_test` (core compiles
   against no jar; the drivers are exactly three), `:pools_are_disjoint`,
   `:one_release` (MODULE.bazel and tools/oracle-pins.env name one release).

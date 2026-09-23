@@ -1,0 +1,215 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Server · DataCube demo</title>
+<!-- Roboto first, because their font stack names it first and the
+     metrics are part of the look: without it nothing lines up the
+     same way, however exact the pixel values are. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
+<!-- No planner module to preload: this page plans on the server. -->
+<link rel="stylesheet" href="../src/theme.css">
+<link rel="stylesheet" href="../src/grid/grid.css">
+<link rel="stylesheet" href="../src/app.css">
+<style>
+  :root { color-scheme: light dark; }
+  :root {
+    /* The page paints its own white ground and black text below, so
+       say so. Without this a browser running auto-dark inverts the
+       ground and leaves the hardcoded greys unreadable -- reported
+       as "almost black on black". */
+    color-scheme: light;
+  }
+  /* THE PAGE IS THE VIEWPORT. No padding, no page scroll: the cube
+     fills it and does its own scrolling inside. */
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    /* Their .data-cube base: 12px Roboto. */
+    font: 12px/16px Roboto, ui-sans-serif, system-ui, sans-serif;
+    background: #fff;
+    color: #000;
+  }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  .sub { opacity: .7; margin: 0 0 16px; }
+  .bar {
+    display: flex; flex-wrap: wrap; gap: 12px; align-items: center;
+    margin-bottom: 12px;
+  }
+  label { display: inline-flex; gap: 6px; align-items: center; }
+  button {
+    font: inherit; padding: 5px 12px; border-radius: 5px;
+    border: 1px solid color-mix(in srgb, currentColor 25%, transparent);
+    background: Canvas; color: CanvasText; cursor: pointer;
+  }
+  button:hover { background: color-mix(in srgb, currentColor 8%, Canvas); }
+  /* NO FIXED HEIGHT. This pinned the grid to 420px, which was right
+     when the page was a document with text above and below it. The
+     page is the viewport now, so the grid takes whatever the title
+     bar and the zones leave. */
+  #status { font-size: 12px; opacity: .75; margin-top: 10px; }
+  #status.bad { color: crimson; opacity: 1; }
+  #status.warn-text { color: #a15c00; opacity: 1; font-weight: 600; }
+  #busy {
+    font-size: 12px; padding: 2px 8px; border-radius: 4px;
+    background: color-mix(in srgb, currentColor 10%, transparent);
+  }
+  details { margin-top: 12px; }
+  pre {
+    margin: 6px 0 0; padding: 10px; overflow-x: auto; font-size: 12px;
+    border-radius: 6px;
+    background: color-mix(in srgb, currentColor 7%, Canvas);
+  }
+  .warn {
+    margin: 0 0 12px; padding: 8px 12px; border-radius: 6px; font-size: 13px;
+    background: color-mix(in srgb, orange 14%, Canvas);
+    border: 1px solid color-mix(in srgb, orange 40%, transparent);
+  }
+</style>
+<style>
+  #app { height: 100vh; }
+
+  /* A host panel, floating: `makeWindow` positions and sizes it, so
+     only the frame is described here. */
+  .hostwin {
+    position: absolute;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    background: #fff;
+    border: 1px solid #d4d4d4;
+    box-shadow: 0 8px 24px rgb(0 0 0 / 18%);
+  }
+  .hostwin[hidden] { display: none !important; }
+  .hostwin-head {
+    display: flex; align-items: center; justify-content: space-between;
+    height: 24px; padding: 0 6px; background: #f5f5f5;
+    border-bottom: 1px solid #e5e5e5; font-weight: 500;
+  }
+  .hostwin-close {
+    border: 0; background: transparent; cursor: pointer;
+    font: inherit; font-size: 14px; line-height: 1; padding: 0 4px;
+  }
+  .hostwin-body { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 8px; }
+  .hostwin-body h2 { font-size: 12px; margin: 8px 0 4px; }
+  .hostwin-body pre {
+    margin: 0; white-space: pre-wrap; word-break: break-word;
+    font: 11px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  /* In the cube's STATUS bar now, so it has to be small and quiet.
+     Scoped to the bar: the same element is offstage until `boot`
+     moves it, and an offstage width cap would be nonsense. */
+  .dc-status-host #status {
+    opacity: .75; white-space: nowrap; overflow: hidden;
+    text-overflow: ellipsis; max-width: 40vw; margin: 0;
+  }
+
+  .dc-uploadbar {
+    /* WRAPS. Without this the bar's controls -- a file input, a
+       picker, a row count, a button and a note -- need about 790px in
+       a row, so any window narrower than that made the whole PAGE
+       scroll sideways and carried the grid and its header off with
+       it. The grid has its own scroller for wide data; the chrome
+       around it must never need one. */
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 6px 10px; font: 12px/1.4 Roboto, system-ui, sans-serif;
+    border-top: 1px solid rgba(128,128,128,.25);
+  }
+  .dc-uploadbar label { font-weight: 500; }
+  #uploadnote { color: #555; }
+  .dc-sep { color: #666; }
+  /* Explicit, not inherited: a control with only half its colours set
+     is what renders dark-on-dark under a forced theme. */
+  #samplepick, #samplerows {
+    font: inherit; color: #000; background: #fff;
+    border: 1px solid rgba(0,0,0,.35); border-radius: 3px;
+    padding: 2px 4px;
+  }
+  #samplepick { min-width: 20em; max-width: 30em; }
+  #samplerows { width: 7em; }
+  #samplecsv {
+    font: inherit; cursor: pointer; padding: 2px 8px;
+    border: 1px solid rgba(128,128,128,.4); border-radius: 3px;
+    background: transparent; color: inherit;
+  }
+  #samplecsv:hover { border-color: rgba(128,128,128,.8); }
+  #uploadnote.bad { color: #b00020; }
+</style>
+</head>
+<body>
+  <!-- NOTHING BUT THE GRID, exactly as on the default page: this is
+       generated from index.html, because `boot` is shared between the
+       two and the page that was NOT kept up with it threw "missing
+       #offstage" before drawing a row. The only differences are the
+       title, the absent planner preload, the refusal below, and which
+       bundle loads. -->
+  <div id="app"></div>
+
+  <!-- THE REFUSAL, and it has to be able to show itself. There is one
+       planner and it is the real one: if :8080 does not answer,
+       main-server.ts unhides this and boot throws, so the page must
+       say why rather than going blank. It sits outside the offstage
+       box for that reason -- a hidden parent hides its children
+       however unhidden they are. -->
+  <p class="warn" id="plannermissing" hidden
+     style="position: fixed; z-index: 30; inset: 12px 12px auto;
+            background: color-mix(in srgb, crimson 10%, #fff);
+            border-color: color-mix(in srgb, crimson 45%, transparent);">
+    <strong>legend-lite is not running.</strong> This page has no
+    fallback planner and will not show you numbers it made up: start
+    the engine with <code>bazel run //core:server</code> and reload, or open
+    <a href="index.html">index.html</a>, the default, which plans in
+    the browser with no server at all.
+  </p>
+
+  <!-- OFFSTAGE. These carry state the demo still needs; `boot` moves
+       the one it shows into the cube's status bar. Kept in the markup
+       rather than built in script so the page remains readable as a
+       page. -->
+  <div id="offstage" hidden>
+    <span id="status">loading&hellip;</span>
+    <span id="busy"></span>
+    <span id="plannerreal"></span>
+  </div>
+
+  <!-- The panels, in windows of their own. Hidden until asked for. -->
+  <div id="datawin" class="hostwin" hidden>
+    <div class="hostwin-head"><span>Data</span>
+      <button type="button" class="hostwin-close" data-win="datawin"
+              aria-label="Close">&times;</button></div>
+    <div class="hostwin-body">
+      <div id="uploadbar" class="dc-uploadbar">
+        <label for="uploadfile">Open a file</label>
+        <input id="uploadfile" type="file" accept=".csv,.parquet,text/csv">
+        <span class="dc-sep">or</span>
+        <label for="samplepick">try</label>
+        <select id="samplepick"></select>
+        <input id="samplerows" type="number" min="1" max="2000000"
+               step="1000" title="rows">
+        <button id="samplecsv" type="button">Get CSV</button>
+        <span id="uploadnote">CSV or Parquet. It stays in this tab.</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="querywin" class="hostwin" hidden>
+    <div class="hostwin-head"><span>Generated Pure &amp; SQL</span>
+      <button type="button" class="hostwin-close" data-win="querywin"
+              aria-label="Close">&times;</button></div>
+    <div class="hostwin-body">
+      <h2>Pure</h2>
+      <pre id="pure"></pre>
+      <h2>SQL</h2>
+      <pre id="sql"></pre>
+    </div>
+  </div>
+
+  <script type="module" src="./bundle-server.js"></script>
+</body>
+</html>
