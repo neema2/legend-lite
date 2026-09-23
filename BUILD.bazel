@@ -4,6 +4,7 @@ load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 # can read (MODULE.bazel says which pool is whose), and as the home for
 # workspace-wide targets later.
 exports_files([
+    "MODULE.bazel",
     "maven_core_install.json",
     "maven_h2_modern_install.json",
     "maven_test_install.json",

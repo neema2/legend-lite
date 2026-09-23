@@ -61,3 +61,20 @@ junit_test(
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )
+
+# one release: MODULE.bazel and tools/oracle-pins.env agree (//tools/bump writes both)
+junit_test(
+    name = "one_release",
+    size = "small",
+    srcs = ["OneReleaseTest.java"],
+    data = [
+        "//:MODULE.bazel",
+        "//tools:oracle-pins.env",
+    ],
+    select = ["--select-class=com.legend.tools.deps.OneReleaseTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
