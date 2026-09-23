@@ -2,12 +2,12 @@
 # oracle-rejected 2196 | symmetric (both refuse) 1911 | asymmetric 285
 # categories: m3-corroborated/document+strict=17 m3-corroborated/strict=170 sectioned/document=1 sectioned/document+strict=17 sectioned/strict=80 
 # id	category	accepting-surfaces	oracle-message
-engine-fixture#241	sectioned	document+strict	null
-engine-fixture#236	sectioned	document+strict	null
-engine-fixture#183	sectioned	document+strict	null
-engine-fixture#1506	sectioned	document+strict	Unexpected token
-engine-fixture#1511	sectioned	document+strict	null
-engine-fixture#505	sectioned	document	ModelJoin association mapping requires a lambda join condition of the form '{src: SrcClass[1], tgt: TgtClass[1] | <boolean expression>}'
+engine-fixture#2d8fa77dbfc4	sectioned	document+strict	null
+engine-fixture#1027a006427e	sectioned	document+strict	null
+engine-fixture#0a4ae2ea42a3	sectioned	document+strict	null
+engine-fixture#d4927241e998	sectioned	document+strict	Unexpected token
+engine-fixture#6ab8e975f069	sectioned	document+strict	null
+engine-fixture#7331ff530d77	sectioned	document	ModelJoin association mapping requires a lambda join condition of the form '{src: SrcClass[1], tgt: TgtClass[1] | <boolean expression>}'
 legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/corefunctions/mathExtension.pure	m3-corroborated	strict	Cannot invoke "org.finos.legend.engine.language.pure.grammar.from.antlr4.domain.DomainParserGrammar$QualifiedNameContext.packagePath()" because the return value
 legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/corefunctions/milestoningExtension.pure	m3-corroborated	strict	Cannot invoke "org.finos.legend.engine.language.pure.grammar.from.antlr4.domain.DomainParserGrammar$QualifiedNameContext.packagePath()" because the return value
 legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/graphFetch/graphFetchExecutionPlan.pure	m3-corroborated	strict	Cannot invoke "org.finos.legend.engine.language.pure.grammar.from.antlr4.domain.DomainParserGrammar$QualifiedNameContext.packagePath()" because the return value

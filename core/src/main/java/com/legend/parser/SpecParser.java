@@ -3343,7 +3343,7 @@ public final class SpecParser implements TokenStreamCursor {
         if (specs.isEmpty() && dialect.refusesPlatformDialect()) {
             // the engine's graphDefinition requires at least ONE path —
             // an EMPTY #{Class{}}# body is a parse error (negative
-            // fixture engine-fixture#183, refusal at the '}')
+            // fixture engine-fixture#0a4ae2ea42a3, refusal at the '}')
             throw error("Unexpected token '}'");
         }
         expect(TokenType.BRACE_CLOSE, "expected '}' to close graph-fetch body");
