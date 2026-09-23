@@ -5,6 +5,7 @@ load("@rules_java//java:defs.bzl", "java_binary", "java_library")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/generators:defs.bzl", "UPSTREAM_TREES", "program_flags")
 load("//tools/junit:defs.bzl", "junit_test")
+load("//tools/jars:defs.bzl", "java_jars")
 
 # sources exported for core's guard tests that walk every module
 filegroup(
@@ -51,6 +52,33 @@ java_library(
 # What the parity tests read besides the upstream trees: committed ledgers in docs/,
 # the pins file, and — for the own-corpus censuses, which harvest the Pure snippets
 # every module's tests embed — the other modules' sources.
+# THE ENGINE JARS the protocol roster, PMCD reachability and grammar coverage read
+# (every jar :pe_tests_lib runs with), DECLARED: the BUILD says which jars, a
+# program never re-derives them from its class path (tools/jars/defs.bzl). The
+# tests take runfiles paths; the roster generator action takes execroot paths and
+# the jars themselves as inputs.
+java_jars(
+    name = "engine_jars",
+    testonly = True,
+    deps = [":pe_tests_lib"],
+)
+
+java_jars(
+    name = "engine_jars_exec",
+    testonly = True,
+    exec_paths = True,
+    deps = [":pe_tests_lib"],
+)
+
+filegroup(
+    name = "engine_jar_files",
+    testonly = True,
+    srcs = [":engine_jars_exec"],
+    output_group = "jars",
+)
+
+_ENGINE_JARS_FLAG = "-Dlegend.engine.jars=$(rootpath :engine_jars)"
+
 _INPUTS = [
     ":srcs",
     "//core:srcs",
@@ -76,7 +104,8 @@ _DIAGNOSTICS = [
 # keeps by hand is not needed when nothing is selected by name.
 junit_test(
     name = "parser_parity",
-    data = _INPUTS,
+    data = _INPUTS + [":engine_jars"],
+    jvm_flags = [_ENGINE_JARS_FLAG],
     exclude_tags = [],
     runtime_deps = [":pe_tests_lib"],
     select = ["--select-package=com.legend.equivalence"] + [
@@ -87,7 +116,8 @@ junit_test(
 
 junit_test(
     name = "diagnostics",
-    data = _INPUTS,
+    data = _INPUTS + [":engine_jars"],
+    jvm_flags = [_ENGINE_JARS_FLAG],
     runtime_deps = [":pe_tests_lib"],
     select = ["--select-class=com.legend.equivalence." + c for c in _DIAGNOSTICS + ["ProtocolRosterCensusTest"]],
     tags = ["manual"],
@@ -115,6 +145,25 @@ java_library(
     ],
 )
 
+# the two tests-jars the harvest enumerates, grammar before compiler, DECLARED
+java_jars(
+    name = "harvest_tests_jars",
+    testonly = True,
+    exec_paths = True,
+    transitive = False,
+    deps = [
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_grammar_tests",
+        "@maven_upstream//:org_finos_legend_engine_legend_engine_language_pure_compiler_tests",
+    ],
+)
+
+filegroup(
+    name = "harvest_tests_jar_files",
+    testonly = True,
+    srcs = [":harvest_tests_jars"],
+    output_group = "jars",
+)
+
 java_binary(
     name = "harvest_generator",
     testonly = True,
@@ -126,9 +175,16 @@ java_binary(
 genrule(
     name = "gen_fixtures",
     testonly = True,
-    srcs = UPSTREAM_TREES + ["//tools:oracle-pins.env"],
+    srcs = UPSTREAM_TREES + [
+        ":harvest_tests_jar_files",
+        ":harvest_tests_jars",
+        "//tools:oracle-pins.env",
+    ],
     outs = ["generated/engine-grammar-fixtures.jsonl"],
-    cmd = " ".join(["$(location :harvest_generator)"] + program_flags("parser-equivalence", pure = False) + ["$@"]),
+    cmd = " ".join(["$(location :harvest_generator)"] + program_flags("parser-equivalence", pure = False) + [
+        "--jvm_flag=-Dlegend.harvest.jars=$(execpath :harvest_tests_jars)",
+        "$@",
+    ]),
     tools = [":harvest_generator"],
 )
 
@@ -170,6 +226,8 @@ genrule(
     name = "gen_roster",
     testonly = True,
     srcs = UPSTREAM_TREES + [
+        ":engine_jar_files",
+        ":engine_jars_exec",
         ":gen_fixtures",
         "//core:srcs",
         "//pct:srcs",
@@ -177,8 +235,11 @@ genrule(
         "//tools:oracle-pins.env",
     ],
     outs = ["generated/protocol-roster.tsv"],
-    cmd = " ".join(["$(location :roster_generator)"] + program_flags("parser-equivalence") +
-                   [_NEW_FIXTURES, "$@"]),
+    cmd = " ".join(["$(location :roster_generator)"] + program_flags("parser-equivalence") + [
+        _NEW_FIXTURES,
+        "--jvm_flag=-Dlegend.engine.jars=$(execpath :engine_jars_exec)",
+        "$@",
+    ]),
     tools = [":roster_generator"],
     visibility = ["//docs:__pkg__"],
 )

@@ -35,20 +35,19 @@ public final class FixtureHarvestGenerator {
         // before FixtureRecorder loads: it reads the dump location once
         System.setProperty("fixture.dump", dump.toString());
 
-        List<String> entries = com.legend.testing.Classpath.entries();
-        String classpath = String.join(java.io.File.pathSeparator, entries);
+        // the grammar and compiler tests-jars, in that order: declared by the BUILD
+        // file (java_jars), not found on the class path
         List<String> testJars = new ArrayList<>();
-        for (String entry : entries) {
-            if (entry.endsWith("-tests.jar")
-                    && (entry.contains("legend-engine-language-pure-grammar")
-                    || entry.contains("legend-engine-language-pure-compiler"))) {
-                testJars.add(entry);
-            }
+        for (Path jar : com.legend.testing.Repo.listed("legend.harvest.jars")) {
+            testJars.add(jar.toString());
         }
         if (testJars.size() != 2) {
-            throw new IllegalStateException("expected the grammar and compiler tests-jars on the classpath, found "
+            throw new IllegalStateException("expected the grammar and compiler tests-jars, declared, found "
                     + testJars);
         }
+        // tier 2 compiles against this program's own class path, handed to javac
+        // whole: the JDK reads a launcher's manifest jar itself
+        String classpath = System.getProperty("java.class.path");
         ClassLoader loader = FixtureHarvestGenerator.class.getClassLoader();
         System.out.println("@@ tier 1 " + FixtureHarvest.tier1(testJars, loader));
 

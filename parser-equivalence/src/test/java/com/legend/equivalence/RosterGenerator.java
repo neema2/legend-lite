@@ -65,7 +65,8 @@ public final class RosterGenerator {
         // ledger depend on classpath order — Maven's and Bazel's differ, and
         // the two builds pinned different classes for 8 tags (2026-09-22).
         Map<String, Set<String>> tagToClass = new TreeMap<>();
-        for (String entry : com.legend.testing.Classpath.entries()) {
+        for (java.nio.file.Path jarPath : com.legend.testing.Repo.listed("legend.engine.jars")) {
+            String entry = jarPath.toString();
             if (!entry.endsWith(".jar") || !entry.contains("legend-engine")) {
                 continue;
             }

@@ -102,6 +102,24 @@ public final class Repo {
         return ROOT.resolve(Path.of(first, more));
     }
 
+    /** The files a declared list names ({@code //tools/jars:defs.bzl} java_jars):
+     *  the list's path is {@code -D<property>} (the BUILD file's $(rootpath) for a
+     *  test, $(execpath) for a build action), and every line is a path resolved the
+     *  same way. The build says which files; nothing is discovered. */
+    public static java.util.List<Path> listed(String property) {
+        String list = System.getProperty(property);
+        if (list == null || list.isEmpty()) {
+            throw new IllegalStateException("-D" + property + " is not set — the BUILD file"
+                    + " passes the declared list (java_jars) to this program");
+        }
+        try {
+            return Files.readAllLines(path(list)).stream()
+                    .filter(line -> !line.isBlank()).map(Repo::path).toList();
+        } catch (IOException e) {
+            throw new UncheckedIOException("cannot read the declared list " + list, e);
+        }
+    }
+
     /**
      * A writable location — what tests wrote as {@code Path.of("target/…")}. Under
      * Bazel, the test's undeclared-outputs directory (collected into
