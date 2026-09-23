@@ -78,7 +78,7 @@ class ProfileBuildCost {
         }
 
         // DB + Mapping + Runtime
-        sb.append("Database store::DB (\n");
+        sb.append("###Relational\nDatabase store::DB (\n");
         for (int i = 0; i < n; i++) {
             sb.append("    Table TC").append(i).append(" (ID INT, FK0 INT)\n");
         }
@@ -89,7 +89,7 @@ class ProfileBuildCost {
         }
         sb.append(")\n");
 
-        sb.append("Mapping test::M (\n");
+        sb.append("###Mapping\nMapping test::M (\n");
         for (int i = 0; i < n; i++) {
             sb.append("    test::C").append(i).append(": Relational {\n");
             sb.append("        ~mainTable [store::DB] TC").append(i).append("\n");
@@ -106,7 +106,6 @@ class ProfileBuildCost {
         }
         sb.append(")\n");
 
-        sb.append("import test::*;\n");
         sb.append("\n###Connection\nRelationalDatabaseConnection store::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }\n");
         sb.append("\n###Runtime\nRuntime test::RT { mappings: [ test::M ]; connections: [ store::DB: [ environment: store::Conn ] ]; }\n");
 

@@ -126,22 +126,34 @@ junit_test(
     ],
 )
 
-# the HEAVY group — ProfileBuildCost, StressTestChaotic: measurements no gate
-# runs, kept runnable. `bazel test //core:heavy`
-junit_test(
-    name = "heavy",
+# THE SCALE TESTS: generated models far past the 1K baseline (StressTest, in
+# core_tests) — 10K, 100K, dense links, complex multi-hop queries, 50K chaotic
+# classes, and the 100K parse-vs-compile profile. Named explicitly: none of these
+# class names matches a test-name pattern, so no default discovery (Maven's
+# surefire included) ever ran them.
+_SCALE = [
+    "StressTest10K",
+    "StressTest100K",
+    "StressTestDense",
+    "StressTestComplexQueries",
+    "StressTestChaotic",
+    "ProfileBuildCost",
+]
+
+[junit_test(
+    name = "scale_" + c.lower(),
     size = "enormous",
     data = _TEST_READS,
     select = [
-        "--select-package=com.legend",
-        "--include-tag=heavy",
+        "--select-class=com.legend.integration." + c,
+        "--include-classname=.*",
     ],
     tags = ["manual"],
     runtime_deps = [
         ":core_tests_lib",
         ":drivers",
     ],
-)
+) for c in _SCALE]
 
 # Maven gate 10: THE STRESS CORPUS — every stress service suite on DuckDB shared
 # sessions, held by the MIN_PASS ratchet inside StressServiceSuitesTest. Its own

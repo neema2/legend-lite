@@ -135,25 +135,38 @@ class StressTest10K {
               .append(" (ID INT, LABEL VARCHAR(100), VALUE INT, HUB_ID INT)\n");
         }
 
-        // Hub ring joins
+        // Hub ring joins (table-level — consumed by the views' v_next_name)
         for (int h = 0; h < HUBS; h++) {
             int next = (h + 1) % HUBS;
             sb.append("    Join JHubRing").append(h)
               .append("(TH").append(h).append(".NEXT_HUB_ID = TH").append(next).append(".ID)\n");
         }
 
-        // Cross-link joins
-        for (int h = 0; h < HUBS; h += 10) {
-            int target = (h + 5) % HUBS;
-            sb.append("    Join JCross").append(h)
-              .append("(TH").append(h).append(".CROSS_HUB_ID = TH").append(target).append(".ID)\n");
+        // ASSOCIATION joins are view-aware: an end whose class maps to a
+        // view (h % 10 == 0) joins through the view's columns — core
+        // requires association joins to land on the mapped mainTable row
+        for (int h = 0; h < HUBS; h++) {
+            int next = (h + 1) % HUBS;
+            String src = (h % 10 == 0) ? "VH" + h + ".v_next_id" : "TH" + h + ".NEXT_HUB_ID";
+            String tgt = (next % 10 == 0) ? "VH" + next + ".v_id" : "TH" + next + ".ID";
+            sb.append("    Join JARing").append(h)
+              .append("(").append(src).append(" = ").append(tgt).append(")\n");
         }
 
-        // Satellite→Hub joins
+        // Cross-link joins (sources are all view hubs: h % 10 == 0)
+        for (int h = 0; h < HUBS; h += 10) {
+            int target = (h + 5) % HUBS;
+            String tgt = (target % 10 == 0) ? "VH" + target + ".v_id" : "TH" + target + ".ID";
+            sb.append("    Join JCross").append(h)
+              .append("(VH").append(h).append(".v_cross_id = ").append(tgt).append(")\n");
+        }
+
+        // Satellite→Hub joins (hub end through the view when view-mapped)
         for (int s = 0; s < SATS; s++) {
             int hub = s / SATS_PER_HUB;
+            String tgt = (hub % 10 == 0) ? "VH" + hub + ".v_id" : "TH" + hub + ".ID";
             sb.append("    Join JSat").append(s)
-              .append("(TS").append(s).append(".HUB_ID = TH").append(hub).append(".ID)\n");
+              .append("(TS").append(s).append(".HUB_ID = ").append(tgt).append(")\n");
         }
 
         // Filters on even hubs
@@ -162,7 +175,7 @@ class StressTest10K {
               .append("(TH").append(h).append(".STATUS = 'ACTIVE')\n");
         }
 
-        // Views on every 10th hub
+        // Views on every 10th hub: filter + ring-join column + DynaFunc
         for (int h = 0; h < HUBS; h += 10) {
             int next = (h + 1) % HUBS;
             sb.append("    View VH").append(h).append(" (\n");
@@ -172,6 +185,8 @@ class StressTest10K {
             sb.append("        v_code: TH").append(h).append(".CODE,\n");
             sb.append("        v_score: TH").append(h).append(".SCORE,\n");
             sb.append("        v_next_name: @JHubRing").append(h).append(" | TH").append(next).append(".NAME,\n");
+            sb.append("        v_next_id: TH").append(h).append(".NEXT_HUB_ID,\n");
+            sb.append("        v_cross_id: TH").append(h).append(".CROSS_HUB_ID,\n");
             sb.append("        v_label: concat(TH").append(h).append(".NAME, '-', TH").append(h).append(".CODE)\n");
             sb.append("    )\n");
         }
@@ -221,8 +236,8 @@ class StressTest10K {
         // Hub ring association mappings
         for (int h = 0; h < HUBS; h++) {
             sb.append("    test::HubRing").append(h).append(": Relational { AssociationMapping (\n");
-            sb.append("        nextHub").append(h).append(": [store::DB]@JHubRing").append(h).append(",\n");
-            sb.append("        prevHub").append(h).append(": [store::DB]@JHubRing").append(h).append("\n");
+            sb.append("        nextHub").append(h).append(": [store::DB]@JARing").append(h).append(",\n");
+            sb.append("        prevHub").append(h).append(": [store::DB]@JARing").append(h).append("\n");
             sb.append("    ) }\n");
         }
 
