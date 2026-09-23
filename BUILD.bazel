@@ -1,3 +1,5 @@
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+
 # Root package. Exists so the jar pools' lock files are labels rules_jvm_external
 # can read (MODULE.bazel says which pool is whose), and as the home for
 # workspace-wide targets later.
@@ -8,3 +10,13 @@ exports_files([
     "maven_tools_install.json",
     "maven_upstream_install.json",
 ])
+
+
+# EVERY generated file in the repository, written into the checkout from the pinned
+# upstream release: `bazel run //:update_generated`. Each package's own list is
+# the source of truth; this only runs them all.
+write_source_files(
+    name = "update_generated",
+    additional_update_targets = ["//core:update_generated"],
+)
+

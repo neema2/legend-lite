@@ -11,6 +11,10 @@ bazel_dep(name = "rules_java", version = "9.9.0")
 # 7.x, NOT 6.10: 6.10 is broken on Bazel 9 (rules_android "CcInfo symbol has
 # been removed") — docs/standard-build-audit-2026-09-22/feasibility.md Q3.
 bazel_dep(name = "rules_jvm_external", version = "7.1")
+# write_source_files: generated files that are COMMITTED (the reference-checkout
+# tenet: core never builds from the upstream trees) are build outputs, written back
+# by `bazel run //:update_generated` and held equal by the diff tests it makes.
+bazel_dep(name = "bazel_lib", version = "3.7.2")
 
 maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 

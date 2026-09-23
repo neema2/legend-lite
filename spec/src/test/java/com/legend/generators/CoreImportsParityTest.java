@@ -38,7 +38,8 @@ import org.junit.jupiter.api.Test;
  * packages differently — pure lists {@code functions::relation} before
  * {@code functions::io}, the engine after {@code functions::multiplicity} —
  * which is why the engine's sequence, not a merge, is the one held).
- * {@code -Dimports.generate=1} rewrites the constant from the checkout.
+ * {@link ImportsGenerator} writes the constant from the checkout
+ * ({@code bazel run //:update_generated}).
  * Until the batch-5 audit (2026-09-11) the list was typed by hand with the
  * three engine additions APPENDED — a different first-match order from the
  * engine's.
@@ -52,16 +53,8 @@ class CoreImportsParityTest {
             + "language/pure/compiler/toPureGraph/CompileContext.java";
 
     static List<String> engineMetaImports() throws IOException {
-        String java = Files.readString(Corpus.ENGINE_ROOT.resolve(COMPILE_CONTEXT), StandardCharsets.UTF_8);
-        int at = java.indexOf("META_IMPORTS");
-        assertTrue(at >= 0, "CompileContext.META_IMPORTS not found — upstream moved it");
-        int end = java.indexOf(");", at);
-        Matcher m = Pattern.compile("\"(meta::[A-Za-z0-9_:]+)\"").matcher(java.substring(at, end));
-        List<String> out = new ArrayList<>();
-        while (m.find()) {
-            out.add(m.group(1));
-        }
-        return out;
+        return ImportsGenerator.metaImports(
+                Files.readString(Corpus.ENGINE_ROOT.resolve(COMPILE_CONTEXT), StandardCharsets.UTF_8));
     }
 
     static List<String> pureCoreImport() throws IOException {
@@ -85,29 +78,12 @@ class CoreImportsParityTest {
         Assumptions.assumeTrue(Files.isDirectory(PreludeGeneratorTest.pureRoot()), "legend-pure checkout not present");
         List<String> engine = engineMetaImports();
         List<String> pure = pureCoreImport();
-        if ("1".equals(System.getProperty("imports.generate"))) {
-            generate(engine);
-            return;
-        }
         assertEquals(engine, NameResolver.CORE_IMPORTS,
-                "CORE_IMPORTS drifted from CompileContext.META_IMPORTS — regenerate with -Dimports.generate=1");
+                "CORE_IMPORTS drifted from CompileContext.META_IMPORTS — regenerate: bazel run //:update_generated");
         List<String> engineMinusThree = new ArrayList<>(engine);
         engineMinusThree.removeAll(List.of("meta::pure::metamodel::variant",
                 "meta::pure::metamodel::relation", "meta::pure::precisePrimitives"));
         assertEquals(new java.util.TreeSet<>(pure), new java.util.TreeSet<>(engineMinusThree),
                 "pure's coreImport is no longer the engine's META_IMPORTS minus variant/relation/precisePrimitives");
-    }
-
-    private static void generate(List<String> engine) throws IOException {
-        Path src = CoreTree.main("com/legend/compiler/NameResolver.java");
-        String text = Files.readString(src, StandardCharsets.UTF_8);
-        int start = text.indexOf("CORE_IMPORTS = List.of(") + "CORE_IMPORTS = List.of(".length();
-        int end = text.indexOf(");", start);
-        StringBuilder sb = new StringBuilder("\n");
-        for (int k = 0; k < engine.size(); k++) {
-            sb.append("            \"").append(engine.get(k)).append('"').append(k + 1 < engine.size() ? ",\n" : "");
-        }
-        Files.writeString(src, text.substring(0, start) + sb + text.substring(end), StandardCharsets.UTF_8);
-        System.out.println("[imports] regenerated " + engine.size() + " packages");
     }
 }

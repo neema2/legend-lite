@@ -6,6 +6,7 @@
 # Only the first is under test here. The split into ~28 targets follows, and
 # Bazel itself checks each one by refusing to load on a cycle.
 load("@rules_java//java:defs.bzl", "java_library", "java_plugin")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/junit:defs.bzl", "junit_test")
 
 package(default_visibility = ["//visibility:public"])
@@ -127,3 +128,21 @@ junit_test(
         ":drivers",
     ],
 )
+
+# ── GENERATED FILES ─────────────────────────────────────────────────────────────
+# Committed files that are generator OUTPUTS (their generators: //spec, "THE
+# GENERATORS"). `bazel run //core:update_generated` (or //:update_generated)
+# writes them; `bazel test` fails when a committed copy differs, naming the command.
+_GENERATED = {
+    "src/main/java/com/legend/compiler/NameResolver.java": "//spec:gen_imports",
+}
+
+# the committed copies are also generator INPUTS (a generator splices its part in)
+exports_files(_GENERATED.keys())
+
+write_source_files(
+    name = "update_generated",
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThis file is generated from the pinned upstream release — regenerate: bazel run //:update_generated",
+    files = _GENERATED,
+)
+
