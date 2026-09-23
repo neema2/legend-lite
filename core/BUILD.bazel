@@ -5,7 +5,7 @@
 # (toolchain, deps, resources, Error Prone) from "is the dependency graph right".
 # Only the first is under test here. The split into ~28 targets follows, and
 # Bazel itself checks each one by refusing to load on a cycle.
-load("@rules_java//java:defs.bzl", "java_library", "java_plugin")
+load("@rules_java//java:defs.bzl", "java_binary", "java_library", "java_plugin")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/junit:defs.bzl", "junit_test")
 
@@ -69,6 +69,18 @@ java_library(
     ],
 )
 
+# THE PRODUCT, runnable: the HTTP server (LSP, query execution, SQL, diagrams) with
+# the JDBC drivers. `bazel run //core:server` (port 8080, or $PORT);
+# `bazel build //core:server_deploy.jar` is the one self-contained jar to ship.
+java_binary(
+    name = "server",
+    main_class = "com.legend.server.LegendHttpServer",
+    runtime_deps = [
+        ":core",
+        ":drivers",
+    ],
+)
+
 # every file a core test reads by path, declared, so it exists in runfiles and
 # nothing is read by accident. The sibling trees are the cross-module reads
 # (census, skip and boundary guards that walk every module; the stress corpus's
@@ -108,6 +120,23 @@ junit_test(
     data = _TEST_READS,
     select = ["--select-package=com.legend"],
     exclude_tags = ["heavy", "stress"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+)
+
+# the HEAVY group — ProfileBuildCost, StressTestChaotic: measurements no gate
+# runs, kept runnable. `bazel test //core:heavy`
+junit_test(
+    name = "heavy",
+    size = "enormous",
+    data = _TEST_READS,
+    select = [
+        "--select-package=com.legend",
+        "--include-tag=heavy",
+    ],
+    tags = ["manual"],
     runtime_deps = [
         ":core_tests_lib",
         ":drivers",

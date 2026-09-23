@@ -7,26 +7,17 @@ It exists because the asserted corpus in `core/src/test/resources/stress/` is po
 Legend grammar, and "portable" is only a claim until a second engine executes it. legend-lite
 parses and plans those files; this runs them for real and checks the answers.
 
-## Build
+## Build and run
 
-This harness is OUTSIDE the reactor, so `-pl` cannot reach it -- use `-f`. It depends on
-legend-lite's own `core` (LiteParseMain drives that parser beside legend-engine), so core
-must be installed first. Drop `-o` on a cold Maven cache.
-
-```
-mvn -B -pl core install -DskipTests
-mvn -B -f tools/engine-runner/pom.xml compile
-mvn -B -f tools/engine-runner/pom.xml dependency:build-classpath -Dmdep.outputFile=cp.txt
-```
-
-`target/` and `cp.txt` are generated and gitignored; regenerate them after any pom change.
-`JAVA_HOME` is taken from the environment.
-
-## Run
+A Bazel target beside legend-lite's `core`, with its own jar pool (`@maven_runner` in
+MODULE.bazel: the engine's execution stack at the pinned release, and the driver versions
+it runs with). Paths are relative to where you type the command.
 
 ```
-java -cp target/classes:$(cat cp.txt) perf.TestableMain <file.pure>... \
-     [--testable=<fqn>]... [--dump=<dir>]
+bazel run //tools/engine-runner:testable -- <file.pure>... [--testable=<fqn>]... [--dump=<dir>]
+bazel run //tools/engine-runner:parse -- <file.pure>...
+bazel run //tools/engine-runner:lite_parse -- <file.pure>...
+bazel run //tools/engine-runner:token_dump
 ```
 
 - `--testable=` selects which testable elements to run; omit to parse and compile only.
@@ -37,10 +28,15 @@ java -cp target/classes:$(cat cp.txt) perf.TestableMain <file.pure>... \
 The whole stress corpus:
 
 ```
-S=../../core/src/test/resources/stress
-java -cp target/classes:$(cat cp.txt) perf.TestableMain $S/*.pure \
+S=core/src/test/resources/stress
+bazel run //tools/engine-runner:testable -- $S/*.pure \
   $(grep -h '^Service ' $S/92-services.pure | awk '{print "--testable="$2}')
 ```
+
+(Out of date on the corpus side, measured 2026-09-22: the stress corpus now names
+classes from the linked projects under projects/, so this fails to compile with
+`Can't find class 'core_ratings::RatingVersion'` until the command passes those files
+too. The Maven-built runner failed identically.)
 
 Note zsh does not word-split unquoted parameter expansions; use an array or `${=VAR}`.
 

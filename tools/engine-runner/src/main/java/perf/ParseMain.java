@@ -50,7 +50,7 @@ public class ParseMain
             else if (a.equals("--compile")) compile = true;
             else
             {
-                Path p = Paths.get(a);
+                Path p = Cwd.of(a);
                 if (Files.isDirectory(p))
                 {
                     try (var s = Files.walk(p))

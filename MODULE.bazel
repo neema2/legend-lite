@@ -166,6 +166,40 @@ maven.install(
     repositories = ["https://repo1.maven.org/maven2"],
 )
 
+# THE ENGINE RUNNER (tools/engine-runner): the real legend-engine — parse,
+# compile, execute through its Testable framework — beside legend-lite's core, to
+# check that the stress corpus is portable Legend by running it on a second engine.
+# A tool with its own classpath universe: the engine's execution stack at the
+# release, with the driver versions it runs with. Never on a test classpath, so it
+# shares no artifact rule with the pools above.
+maven.install(
+    name = "maven_runner",
+    artifacts = [
+        "org.finos.legend.engine:legend-engine-language-pure-grammar:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-language-pure-compiler:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-language-pure-modelManager:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-executionPlan-generation:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-extensions-collection-generation:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-extensions-collection-execution:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-executionPlan-connection:" + LEGEND_ENGINE_RELEASE,
+        "com.h2database:h2:2.2.224",
+        "org.finos.legend.engine:legend-engine-test-runner-mapping:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-test-runner-function:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-test-runner-service:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-duckdb-execution:" + LEGEND_ENGINE_RELEASE,
+        "org.duckdb:duckdb_jdbc:1.3.0.0",
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-athena-grammar:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-oracle-grammar:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-aurora-grammar:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-memsql-grammar:" + LEGEND_ENGINE_RELEASE,
+    ],
+    boms = ["org.finos.legend.engine:legend-engine:" + LEGEND_ENGINE_RELEASE],
+    resolver = "maven",
+    fail_if_repin_required = False,
+    lock_file = "//:maven_runner_install.json",
+    repositories = ["https://repo1.maven.org/maven2"],
+)
+
 # BUILD TOOLING: a compiler plugin's own dependencies (NullAway brings the Checker
 # Framework's dataflow and guava) must never move a version on a classpath that
 # runs. Error Prone itself is the one bundled with Bazel's Java toolchain; NullAway
@@ -177,7 +211,7 @@ maven.install(
     lock_file = "//:maven_tools_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
-use_repo(maven, "maven_core", "maven_h2_modern", "maven_test", "maven_tools", "maven_upstream")
+use_repo(maven, "maven_core", "maven_h2_modern", "maven_runner", "maven_test", "maven_tools", "maven_upstream")
 
 # ── THE UPSTREAM SOURCES ────────────────────────────────────────────────────────
 # legend-engine / legend-pure at ONE release, pinned by content. Tests read these

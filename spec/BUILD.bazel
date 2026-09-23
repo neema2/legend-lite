@@ -88,6 +88,43 @@ junit_test(
     upstream = True,
 )
 
+# the H2 corpus under the DATABASE judge (the fourth judge lane; DuckDB's is the
+# second pass of :judge_differential)
+junit_test(
+    name = "corpus_h2_database",
+    data = _INPUTS,
+    jvm_flags = [
+        "-Drcorpus.backend=h2",
+        "-Dlegend.judge.mode=database",
+    ],
+    runtime_deps = [":spec_tests_lib"],
+    select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
+    upstream = True,
+)
+
+# THE MEASURE BEFORE ANY CHAIN (was tools/corpus-both.sh): the full corpus on both
+# backends. `bazel test //spec:corpus_lanes`
+test_suite(
+    name = "corpus_lanes",
+    tests = [
+        ":corpus_duckdb",
+        ":corpus_h2",
+    ],
+)
+
+# THE JUDGE LANES (was tools/judge-lanes.sh; docs/DATABASE_MODE_HOMEWORK_2026_09_18.md):
+# DuckDB and H2 under both judges, and the per-assert differential at zero
+# unregistered disagreements. `bazel test //spec:judge_lanes`
+test_suite(
+    name = "judge_lanes",
+    tests = [
+        ":corpus_duckdb",
+        ":corpus_h2",
+        ":corpus_h2_database",
+        ":judge_differential",
+    ],
+)
+
 # Maven gate 11: THE JUDGE DIFFERENTIAL. The DuckDB corpus under the HOST judge
 # writing its per-assert ledger (the prerun, a child JVM), then under the DATABASE
 # judge, which joins the two per assert in the lane itself
