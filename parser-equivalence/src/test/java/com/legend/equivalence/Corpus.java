@@ -153,6 +153,25 @@ public final class Corpus {
      *  it from :gen_fixtures) with its history kept across bumps. */
     public static final String FIXTURE_HEADER_PREFIX = "# engine=";
 
+    /** Hex digits of a fixture's id: 12 (48 bits) — for the ~1,650 fixtures a
+     *  collision is ~1e-8, and one fails the read, never shadows a fixture. */
+    static final int FIXTURE_ID_HEX = 12;
+
+    /** A fixture's id: {@code engine-fixture#} + the first {@link #FIXTURE_ID_HEX}
+     *  hex digits of its source's SHA-256. By CONTENT, not position (2026-09-22):
+     *  a positional id renumbered whenever a harvest added, dropped or reordered a
+     *  fixture, and every ledger row or comment naming one silently pointed at a
+     *  different fixture. Now an id names the same source for as long as it exists. */
+    static String fixtureId(String source) {
+        try {
+            byte[] h = java.security.MessageDigest.getInstance("SHA-256")
+                    .digest(source.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            return "engine-fixture#" + java.util.HexFormat.of().formatHex(h).substring(0, FIXTURE_ID_HEX);
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
     /** The committed fixture snapshot for the pinned release. */
     static java.nio.file.Path engineFixturesFile() {
         // a generator in a bump reads the NEW snapshot, the harvest's output,
@@ -179,7 +198,7 @@ public final class Corpus {
         }
         try {
             var om = new com.fasterxml.jackson.databind.ObjectMapper();
-            int i = 0;
+            java.util.Map<String, String> ids = new java.util.HashMap<>();
             boolean first = true;
             for (String line : java.nio.file.Files.readAllLines(p)) {
                 if (first) {
@@ -196,9 +215,14 @@ public final class Corpus {
                     }
                     continue;
                 }
-                out.add(new Source("engine-fixture#" + (i++),
-                        om.readTree(line).get("source").asText(),
-                        "C6 engine-fixtures"));
+                String text = om.readTree(line).get("source").asText();
+                String id = fixtureId(text);
+                String clash = ids.put(id, text);
+                if (clash != null) {
+                    throw new IllegalStateException("two fixtures share the id " + id
+                            + " — lengthen FIXTURE_ID_HEX");
+                }
+                out.add(new Source(id, text, "C6 engine-fixtures"));
             }
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);

@@ -1487,7 +1487,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 String first = parseSetId();
                 if (peek() != TokenType.COMMA) {
                     // engine crossExpr requires BOTH ids: side[src, tgt]
-                    // (negative fixture engine-fixture#236). No m2 corpus
+                    // (negative fixture engine-fixture#1027a006427e). No m2 corpus
                     // source, no engine test, and no own test writes a
                     // single id (census 2026-08-12), so the old
                     // platform-level tolerance had ZERO users: every
@@ -1510,7 +1510,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
                 }
                 // ...or the head of the NEXT entry, when the comma that
                 // should separate them is missing. The engine REFUSES the
-                // missing comma (negative fixture engine-fixture#241) —
+                // missing comma (negative fixture engine-fixture#2d8fa77dbfc4) —
                 // the drop-in surface does too; lite's own dialect keeps
                 // the tolerant break.
                 if (depth == 0 && pos > exprStart && isIdentifierToken(t)
@@ -1986,7 +1986,7 @@ public final class MappingProtocolParser implements TokenStreamCursor {
             // ENGINE-VERBATIM (ModelJoinAssociationMappingParseTreeWalker):
             // a bare boolean expression is NOT a legal join condition —
             // the walker re-parses the body and refuses non-lambdas
-            // (refusal-asymmetry engine-fixture#505)
+            // (refusal-asymmetry engine-fixture#7331ff530d77)
             throw error("ModelJoin association mapping requires a lambda"
                     + " join condition of the form '{src: SrcClass[1],"
                     + " tgt: TgtClass[1] | <boolean expression>}'");
