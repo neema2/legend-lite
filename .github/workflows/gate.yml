@@ -1,45 +1,36 @@
-# THE STANDING GATE — the same nine gates (docs/GATES.md) on Linux, macOS and
-# Windows, in parallel, on every push.
-#
-# The chain itself lives in gates-run.yml, called three times below, and it
-# runs tools/allgates.sh — so gate policy has exactly one home (the script) and
-# the CI shape has exactly one definition (that file). Adding a gate touches
-# the script and the lane list; it never touches this file.
+# THE STANDING GATE — every gate (docs/GATES.md) on Linux, macOS and Windows,
+# in parallel, on every push: `bazel test` on each gate's targets, one lane per
+# gate (gates-run.yml). Gate policy lives in the BUILD files — each gate is a
+# test target — so adding a gate adds a target and a lane, never a script.
 #
 # WHY THREE PLATFORMS. On 2026-09-09 the first CI run found that DuckDB's
 # percentile_cont returns a different double on x86_64 than on arm64, reddening
 # three lanes. A single-platform pipeline cannot see that class of bug by
-# construction. The three chains are independent jobs, so the wall clock is the
-# SLOWEST platform rather than the sum, and the runners are free for a public
-# repository.
+# construction. The three are independent jobs, so the wall clock is the SLOWEST
+# platform rather than the sum, and the runners are free for a public repository.
 #
-# macOS is arm64 — the architecture the rosters and goldens were minted on, so
-# it is the reference configuration rather than a new one. Windows is the
-# genuinely new surface; gates-run.yml carries its checkout guards (autocrlf
-# would rewrite the .pure corpus and break byte-exact parser parity, and the
-# engine checkout's deep paths need core.longpaths).
+# macOS is arm64 — the architecture the rosters and goldens were minted on, so it
+# is the reference configuration. Windows is the genuinely new surface;
+# gates-run.yml carries its checkout guards (autocrlf would rewrite the .pure
+# corpus and break byte-exact parser parity; the upstream trees' deep paths need
+# core.longpaths).
 name: gates
 on:
   push:
     branches: [main]
-    # Prose cannot change a gate's verdict, and the chain costs ~6 runner
-    # minutes per lane — a documentation commit must not spend them. The
-    # scoreboard is deliberately NOT ignored: gate 4 rewrites
-    # docs/RELATIONAL_CORPUS.md, so a hand edit to it IS a claim about a
-    # gate's result and gets checked like any other.
+    # Prose cannot change a gate's verdict, and a lane costs runner minutes — a
+    # documentation commit must not spend them.
     paths-ignore:
       - "**/*.md"
-      - "!docs/RELATIONAL_CORPUS.md"
       - progress*.txt
   pull_request:
     paths-ignore:
       - "**/*.md"
-      - "!docs/RELATIONAL_CORPUS.md"
       - progress*.txt
   workflow_dispatch:
     inputs:
       gates:
-        description: "Comma-separated gate numbers to run (empty = all). Gate 1 always runs."
+        description: "Comma-separated lanes to run (empty = all): 1,checks,3,4,5,6,7,8,9,10,11."
         default: ""
         type: string
       platforms:
@@ -74,25 +65,18 @@ jobs:
     with:
       runs-on: ubuntu-latest
       platform: linux
-      # 16 GB runner: the heap has room and the PCT suites share one
-      # fork, as they did before the macOS runner forced the split.
-      heap: 8g
-      reuse-forks: true
       gates: ${{ inputs.gates }}
 
   macos:
     # macos-14 and later are arm64. Pinned rather than -latest so a runner
-    # image flip is a deliberate commit, like the oracle pins.
+    # image flip is a deliberate commit, like the upstream pins.
     if: ${{ github.event_name != 'workflow_dispatch' || inputs.platforms == 'all' || inputs.platforms == 'macos' }}
     uses: ./.github/workflows/gates-run.yml
     with:
       runs-on: macos-14
       platform: macos
-      # 3 vCPU / 7 GB TOTAL — cannot hold five 2.0-2.8 GB Pure graphs
-      # at once, and cannot give a JVM 8 GB. This is the ONE runner
-      # the per-suite fork exists for.
-      heap: 4g
-      reuse-forks: false
+      # 3 vCPU / 7 GB TOTAL: one test JVM at a time, one PCT suite per JVM
+      low-memory: true
       gates: ${{ inputs.gates }}
 
   windows:
@@ -101,8 +85,4 @@ jobs:
     with:
       runs-on: windows-2022
       platform: windows
-      # 16 GB runner: the heap has room and the PCT suites share one
-      # fork, as they did before the macOS runner forced the split.
-      heap: 8g
-      reuse-forks: true
       gates: ${{ inputs.gates }}
