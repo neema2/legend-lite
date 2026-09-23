@@ -128,7 +128,8 @@ public final class Bump {
         Files.writeString(pinsFile, p, StandardCharsets.UTF_8);
         System.out.println("   tools/oracle-pins.env -> " + release + " / " + pure);
 
-        bazel(Map.of("REPIN", "1"), "run", "@maven_upstream//:pin");
+        bazel(Map.of("REPIN", "1"), "the upstream jar pool could not be repinned at " + release,
+                "run", "@maven_upstream//:pin");
         if (pinsOnly) {
             step("pins only — stopping before regeneration");
             git("status", "--short");
@@ -136,10 +137,15 @@ public final class Bump {
         }
 
         step("phase 2: regenerate every generated file from the new pins");
-        bazel(Map.of(), "run", "//:update_generated");
+        bazel(Map.of(), "a generator REFUSED — the new thing we cannot parse yet: fix the platform,"
+                + " then re-run (the bump is idempotent: every step rewrites from the pins)",
+                "run", "//:update_generated");
 
         step("phase 3: every gate, and every generated file checked against its generator");
-        bazel(Map.of(), "test", "//...");
+        bazel(Map.of(), "the pins moved and every file is regenerated, but gates are red: that is the"
+                + " judgement half — read the diff, adjudicate each failure, re-pin every moved ratchet"
+                + " with a reason (ledgers shrink-only)",
+                "test", "//...");
 
         step("done — the upstream change, made legible:");
         git("status", "--short");
@@ -258,7 +264,7 @@ public final class Bump {
         return out;
     }
 
-    private void bazel(Map<String, String> env, String... args) throws Exception {
+    private void bazel(Map<String, String> env, String whenItFails, String... args) throws Exception {
         List<String> cmd = new ArrayList<>(List.of("bazel"));
         cmd.addAll(List.of(args));
         System.out.println("   $ " + String.join(" ", cmd));
@@ -266,9 +272,8 @@ public final class Bump {
         pb.environment().putAll(env);
         int rc = pb.start().waitFor();
         if (rc != 0) {
-            throw new IllegalStateException("BUMP FAILED at `" + String.join(" ", cmd) + "` (exit " + rc + ")"
-                    + " — a generator that refuses is the new thing we cannot parse yet: fix the platform,"
-                    + " then re-run (the bump is idempotent: every step rewrites from the pins)");
+            throw new IllegalStateException("BUMP STOPPED at `" + String.join(" ", cmd) + "` (exit " + rc + "): "
+                    + whenItFails);
         }
     }
 
