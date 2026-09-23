@@ -1,6 +1,0 @@
-# Project toolchain pin (SDKMAN): run `sdk env` in the repo root to switch,
-# or `sdk env install` on a fresh machine. The build compiles with this JDK
-# targeting release 21 (root pom); the NullAway gate's -J--add-exports flags
-# in core/pom.xml are validated against it — re-verify both on any bump.
-java=25.0.1-tem
-maven=3.9.12

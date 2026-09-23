@@ -18,8 +18,10 @@ public final class FixtureRecorder {
     }
 
     private static final Set<String> SEEN = new HashSet<>();
-    private static final Path OUT = Path.of(System.getProperty(
-            "fixture.dump", "target/engine-fixtures.jsonl"));
+    /** The dump, NAMED by the harvest program (FixtureHarvestGenerator) before
+     *  any shim runs; a run that does not name it is not a harvest. */
+    private static final Path OUT = Path.of(java.util.Objects.requireNonNull(
+            System.getProperty("fixture.dump"), "-Dfixture.dump names the harvest's dump"));
     private static final com.fasterxml.jackson.databind.ObjectMapper JSON =
             new com.fasterxml.jackson.databind.ObjectMapper();
 
@@ -33,7 +35,7 @@ public final class FixtureRecorder {
             if (!Files.exists(OUT)) {
                 // the release the fixtures are harvested from, INSIDE the file
                 // (upstream boundary batch 2): the reader (Corpus.engineFixtures)
-                // and tools/version-report.sh INV-4 assert it against the pin
+                // asserts it against the pin on every read
                 Files.writeString(OUT, com.legend.equivalence.Corpus.FIXTURE_HEADER_PREFIX
                         + com.legend.equivalence.OraclePins.engineRelease() + "\n",
                         StandardOpenOption.CREATE);

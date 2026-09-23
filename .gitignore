@@ -1,4 +1,5 @@
-# Build output
+# Build output: Bazel's is /bazel-* below; target/ is left by the old Maven build
+# and by experiments/, which keeps its own
 target/
 
 # IDE
@@ -9,9 +10,6 @@ target/
 # OS
 .DS_Store
 Thumbs.db
-
-# Maven
-dependency-reduced-pom.xml
 
 # Logs
 *.log

@@ -1,4 +1,4 @@
-# The upstream pins file, read by parser-equivalence's OraclePins. Under Bazel the
-# release is MODULE.bazel's LEGEND_ENGINE_RELEASE; this file stays for Maven until
-# Maven goes.
+# The release as the tests read it (parser-equivalence's OraclePins). MODULE.bazel
+# holds the build's copy; //tools/bump writes both and //tools/deps:one_release
+# holds them equal.
 exports_files(["oracle-pins.env"])

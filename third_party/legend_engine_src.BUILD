@@ -1,8 +1,8 @@
 # The pinned legend-engine SOURCE tree, as a Bazel input (MODULE.bazel: http_archive).
 # Tests read it as the SPEC — corpus sources, platform .pure, parity fixtures — never
 # as a runtime component (AGENTS.md, reference-checkout tenet). This replaces the
-# hand-kept checkout at ~/legend/legend-engine, tools/oracle-pins.env and
-# tools/oracle-roots.sh: the pin is the archive's sha256, so there is no "wrong
+# hand-kept checkout at ~/legend/legend-engine (and the script that checked which
+# commit it sat on): the pin is the archive's sha256, so there is no "wrong
 # checkout" to be on.
 filegroup(
     name = "tree",

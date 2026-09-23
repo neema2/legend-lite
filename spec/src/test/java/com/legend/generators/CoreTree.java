@@ -18,7 +18,7 @@ public final class CoreTree {
     private CoreTree() {
     }
 
-    /** The core module's directory, by repository path (under Maven and Bazel alike). */
+    /** The core module's directory, by repository path. */
     public static final Path CORE = Repo.path("core");
 
     public static Path main(String relative) {

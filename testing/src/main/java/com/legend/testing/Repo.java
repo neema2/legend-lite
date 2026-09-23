@@ -4,20 +4,18 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Objects;
 
 /**
- * Where a test finds the repository's files — one answer under Maven and Bazel.
- *
- * <p>Maven runs a module's tests with the MODULE directory as the working
- * directory, so tests grew three spellings that only work there:
- * {@code Path.of("src/main/java")} for this module, {@code Path.of("..", "spec/…")}
- * for anything else in the repository, and {@code Path.of("target/…")} for output.
- * Bazel runs tests from the runfiles tree, where none of the three resolve. Every
- * such path goes through here instead:
- *
- * <p>A third caller is a BUILD ACTION — a generator program run by Bazel over its
+ * Where a test finds the repository's files. Bazel runs a test in its runfiles
+ * tree, not in a module directory, so no test spells a path relative to its
+ * working directory; every such path goes through here. Two callers exist: a
+ * Bazel TEST (the runfiles of the main repository; the module is the test
+ * target's package), and a BUILD ACTION — a generator program run over its
  * declared inputs — which names the tree and module it reads with
- * {@code -Dlegend.repo.root} / {@code -Dlegend.repo.module}.
+ * {@code -Dlegend.repo.root} / {@code -Dlegend.repo.module}. (Under the old Maven
+ * build a test ran in its module directory; the three spellings that relied on
+ * that are the "was" column below.)
  *
  * <pre>
  *   module("src/main/java")      this module's files        (was Path.of("src/…"))
@@ -72,16 +70,9 @@ public final class Repo {
             ROOT = Path.of(srcdir, workspace).toAbsolutePath().normalize();
             MODULE = label.substring(2, label.indexOf(':'));
         } else {
-            // Maven: surefire forks the test JVM in the module directory. Check it
-            // rather than assume it — a test run from anywhere else would resolve
-            // every path against the wrong tree and fail far from the cause.
-            Path cwd = Path.of("").toAbsolutePath().normalize();
-            if (cwd.getFileName() == null || !Files.isRegularFile(cwd.resolve("pom.xml"))) {
-                throw new IllegalStateException("expected to run in a Maven module directory"
-                        + " (one holding a pom.xml) or under Bazel; working directory is " + cwd);
-            }
-            ROOT = cwd.getParent();
-            MODULE = cwd.getFileName().toString();
+            throw new IllegalStateException("Repo needs a Bazel test (TEST_SRCDIR) or a build action"
+                    + " naming its tree (-Dlegend.repo.root / -Dlegend.repo.module) — run it with"
+                    + " `bazel test` or `bazel run`");
         }
     }
 
@@ -114,14 +105,14 @@ public final class Repo {
     /**
      * A writable location — what tests wrote as {@code Path.of("target/…")}. Under
      * Bazel, the test's undeclared-outputs directory (collected into
-     * {@code bazel-testlogs/…/test.outputs}); under Maven, the module's
-     * {@code target}, exactly as before. Parent directories are created.
+     * {@code bazel-testlogs/…/test.outputs}); in a build action, a temporary
+     * directory. Parent directories are created.
      */
     public static Path out(String first, String... more) {
         String undeclared = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
         Path base = System.getProperty("legend.repo.root") != null ? actionScratch()
-                : undeclared != null ? Path.of(undeclared)
-                : module("target");
+                : Path.of(Objects.requireNonNull(undeclared,
+                        "a Bazel test always has TEST_UNDECLARED_OUTPUTS_DIR"));
         Path p = base.resolve(Path.of(first, more));
         try {
             Files.createDirectories(p.getParent());

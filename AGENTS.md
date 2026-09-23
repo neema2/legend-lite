@@ -78,8 +78,8 @@ was deleted after everything real moved in:
   serializers) → `core com.legend.server`.
 - **Behavioral test suite** (checker/integration tests, ~4,000 tests) →
   `core/src/test/.../com/legend/integration`.
-- **Relational corpus scoreboard** → `com.legend.rcorpus` (gates 4/5 run
-  `-pl core`).
+- **Relational corpus scoreboard** → `com.legend.rcorpus` (gates 4/5:
+  `//spec:corpus_duckdb`, `//spec:corpus_h2`).
 - **Stress benchmarks** → ported onto `Compiler.compileModel`/`lowerResolved`.
 - Hosted services and the mapping-testSuites runner were engine-lite
   inventions and were deleted, not ported —
@@ -357,8 +357,9 @@ otherwise, which is how it drifted:
 10. **Making the compiler lenient on missing model elements** — it MUST throw
     if a referenced class, property or type is absent. If a test fails because
     a class is not found, **fix the test's model setup**. Never degrade silently.
-11. **Running a downstream gate without rebuilding core.** `mvn -pl <module>
-    test` resolves `legend-lite-core` from `~/.m2`, **not** the reactor — so it
-    silently tests the previously installed jar. Use `-am`, or `mvn -pl core
-    install -DskipTests` first. This has already produced a phantom
-    regression report.
+11. **(Retired with Maven, 2026-09-22 — kept so the numbering holds.)** Under
+    Maven, `mvn -pl <module> test` resolved `legend-lite-core` from `~/.m2`, not
+    the reactor, and silently tested a stale jar. Bazel builds every dependency
+    from source on every `bazel test`; there is no installed jar to go stale. The
+    lesson that remains: a gate result is only about the target that produced it
+    — `bazel test //...` for the whole chain (docs/GATES.md).

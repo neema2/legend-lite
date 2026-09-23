@@ -38,8 +38,8 @@ class ZFixtureAdjudicationProbe {
         java.util.List<String> diffSamples = new java.util.ArrayList<>();
         java.util.List<String> refuseSamples = new java.util.ArrayList<>();
         // fresh harvest dump if present, else the committed snapshot —
-        // NOTE: honest verdicts need the PRODUCTION oracle (run WITHOUT
-        // -Pengine-fixture-harvest; the tests-jars alter the oracle)
+        // NOTE: honest verdicts need the PRODUCTION oracle (run on the
+        // ordinary test classpath, never :harvest_lib — the tests-jars alter it)
         Path dump = Files.exists(Repo.out("engine-fixtures.jsonl"))
                 ? Repo.out("engine-fixtures.jsonl")
                 : Repo.module("src/test/resources/"
