@@ -72,7 +72,8 @@ class SkipCensusTest {
             "PlatformNamesSpellingTest.java",
             // the upstream path manifest (upstream boundary batch 2,
             // 2026-09-10): skips ONLY when a checkout root itself is absent
-            // (tools/oracle-roots.sh fails the gates upstream of that); a
+            // (under Bazel the pinned archive is a declared input, so it is
+            // always present — the skip cannot fire in a gate); a
             // PRESENT checkout is checked in full — 90 paths, every miss
             // named, the count pinned
             "UpstreamPathManifestTest.java",

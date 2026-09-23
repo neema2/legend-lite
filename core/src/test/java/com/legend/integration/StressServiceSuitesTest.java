@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code target/}, and does not yet pin a count. The ratchet arrives with the
  * gate once the numbers are known.
  */
-@org.junit.jupiter.api.Tag("stress")   // GATE 10 (tools/allgates.sh): its own gate, excluded from the core suite by group
+@org.junit.jupiter.api.Tag("stress")   // GATE 10 (//core:stress_suites): its own gate, excluded from the core suite by tag
 @DisplayName("Stress corpus: service test suites through legend-lite")
 class StressServiceSuitesTest {
 

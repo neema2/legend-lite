@@ -93,8 +93,8 @@ public class UpstreamPathManifestTest {
     void everyUpstreamPathResolves() {
         Path engine = Corpus.ENGINE_ROOT;
         Path pure = PreludeGeneratorTest.pureRoot();
-        // no checkout at all = nothing to check (the gates fail that upstream,
-        // tools/oracle-roots.sh); a PRESENT checkout is checked in full
+        // no checkout at all = nothing to check (under Bazel the pinned archive
+        // is a declared input, always present); a PRESENT checkout is checked in full
         Assumptions.assumeTrue(Files.isDirectory(engine), "legend-engine checkout not present at " + engine);
         Assumptions.assumeTrue(Files.isDirectory(pure), "legend-pure checkout not present at " + pure);
         List<Entry> all = manifest();
