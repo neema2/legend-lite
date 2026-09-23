@@ -5,14 +5,6 @@
 load("@rules_java//java:defs.bzl", "java_library")
 load("//tools/junit:defs.bzl", "junit_test")
 
-# THE HEAP IS THE SUITE'S, NOT THE MACHINE'S. A JVM defaults to a quarter of the
-# machine's RAM, so an unpinned suite passes on a big desk and dies on a CI runner
-# (the first Bazel CI run, 2026-09-23: Linux gate 6 and macOS gates 7/9 out of
-# heap). Measured under Maven (gates-run.yml, 2026-09-09): ONE suite's Pure graph
-# is a 2.0-2.8 GB live set it never releases; five suites in one JVM need 8 GB.
-_ONE_SUITE_HEAP = "-Xmx4g"
-_ALL_SUITES_HEAP = "-Xmx8g"
-
 # sources exported for the guard tests that walk every module
 filegroup(
     name = "srcs",
@@ -99,7 +91,6 @@ _SUITES = [
 junit_test(
     name = "pct_duckdb",
     data = glob(["src/**"]),
-    jvm_flags = [_ALL_SUITES_HEAP],
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_%sFunctions_PCT" % s for s in _SUITES] + [
         "--select-class=org.finos.legend.lite.pct.PctDisciplineTest",
     ],
@@ -116,7 +107,6 @@ junit_test(
 [junit_test(
     name = "pct_duckdb_" + s.lower(),
     data = glob(["src/**"]),
-    jvm_flags = [_ONE_SUITE_HEAP],
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_%sFunctions_PCT" % s],
     tags = ["manual"],
     runtime_deps = [
@@ -143,10 +133,7 @@ junit_test(
 junit_test(
     name = "pct_h2",
     env = {"LEGENDLITE_PCT_BACKEND": "h2"},
-    jvm_flags = [
-        _ONE_SUITE_HEAP,
-        "-Dlegend.ratchet=minRun=469,maxFailures=1,maxErrors=26",
-    ],
+    jvm_flags = ["-Dlegend.ratchet=minRun=469,maxFailures=1,maxErrors=26"],
     select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_RelationFunctions_PCT"],
     runtime_deps = [
         ":pct_tests_lib",
@@ -160,7 +147,6 @@ junit_test(
 junit_test(
     name = "pct_channel_b",
     data = glob(["src/**"]),
-    jvm_flags = [_ONE_SUITE_HEAP],
     select = ["--select-package=org.finos.legend.lite.pct.channelb"],
     upstream = True,
     runtime_deps = [

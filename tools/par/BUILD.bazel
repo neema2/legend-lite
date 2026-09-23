@@ -6,9 +6,6 @@ load("@rules_java//java:defs.bzl", "java_binary")
 java_binary(
     name = "par_generator",
     srcs = ["ParGenerator.java"],
-    # the PAR compile peaks at ~2.5 GB (measured under Maven, 2026-09-09); a JVM's
-    # default quarter of a 7 GB runner is 1.75 GB — the first Bazel CI run died here
-    jvm_flags = ["-Xmx3g"],
     main_class = "com.legend.tools.par.ParGenerator",
     visibility = ["//visibility:public"],
     runtime_deps = [

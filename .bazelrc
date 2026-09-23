@@ -20,3 +20,14 @@ build:windows --enable_runfiles
 # CI: `--config=ci` — every test's log on failure, and no progress-bar noise.
 common:ci --color=no --curses=no --show_progress_rate_limit=30
 test:ci --test_output=errors --test_summary=terse
+# CI's HEAPS. A JVM defaults to a quarter of the machine's RAM: plenty on a desk
+# (which keeps that default, so local loops are not capped), too little on a hosted
+# runner. Pinned here, not on the targets, from Maven's measured peaks (2026-09-09):
+# a PCT suite's Pure graph is a 2.0-2.8 GB live set and five in one JVM need 8 GB;
+# the Pure PAR generator (a build tool) peaks at ~2.5 GB. The first Bazel CI run
+# (2026-09-23) died out of heap on Linux gate 6 and macOS gates 7/9 without them.
+build:ci --jvmopt=-Xmx8g
+build:ci --host_jvmopt=-Xmx3g
+# The 7 GB macOS runner: one test JVM at a time (gates-run.yml), each suite in its
+# own JVM, 4 GB each. Given after --config=ci: the JVM takes the LAST -Xmx.
+build:ci-small --jvmopt=-Xmx4g
