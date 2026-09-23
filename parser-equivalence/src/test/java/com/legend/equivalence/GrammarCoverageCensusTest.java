@@ -647,8 +647,7 @@ class GrammarCoverageCensusTest {
     private static Map<String, String> discoverParserGrammars()
             throws Exception {
         Map<String, String> found = new TreeMap<>();
-        for (String cp : System.getProperty("java.class.path")
-                .split(java.io.File.pathSeparator)) {
+        for (String cp : com.legend.testing.Classpath.entries()) {
             if (!cp.endsWith(".jar")) {
                 continue;
             }

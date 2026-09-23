@@ -35,9 +35,10 @@ public final class FixtureHarvestGenerator {
         // before FixtureRecorder loads: it reads the dump location once
         System.setProperty("fixture.dump", dump.toString());
 
-        String classpath = System.getProperty("java.class.path");
+        List<String> entries = com.legend.testing.Classpath.entries();
+        String classpath = String.join(java.io.File.pathSeparator, entries);
         List<String> testJars = new ArrayList<>();
-        for (String entry : classpath.split(java.io.File.pathSeparator)) {
+        for (String entry : entries) {
             if (entry.endsWith("-tests.jar")
                     && (entry.contains("legend-engine-language-pure-grammar")
                     || entry.contains("legend-engine-language-pure-compiler"))) {

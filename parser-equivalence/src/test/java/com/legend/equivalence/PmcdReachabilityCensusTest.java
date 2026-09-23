@@ -35,8 +35,7 @@ class PmcdReachabilityCensusTest {
         // ---- tag -> class (and class -> subtypes) from every jar ----
         Map<String, String> tagToClass = new TreeMap<>();
         Map<String, Set<String>> parentToChildren = new HashMap<>();
-        String cp = System.getProperty("java.class.path");
-        for (String entry : cp.split(java.io.File.pathSeparator)) {
+        for (String entry : com.legend.testing.Classpath.entries()) {
             if (!entry.endsWith(".jar") || !entry.contains("legend-engine")) {
                 continue;
             }
