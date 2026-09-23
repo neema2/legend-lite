@@ -135,15 +135,62 @@ junit_test(
 # writes them; `bazel test` fails when a committed copy differs, naming the command.
 _GENERATED = {
     "src/main/java/com/legend/builtin/DynaFn.java": "//spec:gen_dynafn",
+    "src/main/java/com/legend/builtin/Pure.java": "//spec:gen_natives",
     "src/main/java/com/legend/compiler/NameResolver.java": "//spec:gen_imports",
+    "src/main/resources/com/legend/builtin/native-claims.tsv": "//spec:gen_claims",
+    "src/main/resources/com/legend/builtin/prelude.pure": "//spec:gen_prelude",
 }
 
-# the committed copies are also generator INPUTS (a generator splices its part in)
-exports_files(_GENERATED.keys())
+# the committed copies are also generator INPUTS (a generator splices its part
+# in), as is the hand-owned membership list natives reads
+exports_files(list(_GENERATED.keys()) + [
+    "src/main/resources/com/legend/builtin/native-membership.tsv",
+])
+
+# core's main Java sources as TEXT — the prelude generator reads what the
+# platform's own code names
+filegroup(
+    name = "main_java",
+    srcs = glob(["src/main/java/**"]),
+)
 
 write_source_files(
     name = "update_generated",
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThis file is generated from the pinned upstream release — regenerate: bazel run //:update_generated",
     files = _GENERATED,
+)
+
+# CORE AS THE GENERATORS REWRITE IT: the generated Java and prelude in place of
+# the committed copies. Only the claims generator runs on it — the one generator
+# that reads the COMPILED registries the others rewrite. At a fixpoint (every
+# committed file current) it is core, byte for byte.
+java_library(
+    name = "core_next",
+    srcs = glob(
+        ["src/main/java/**/*.java"],
+        exclude = [
+            "src/main/java/com/legend/builtin/DynaFn.java",
+            "src/main/java/com/legend/builtin/Pure.java",
+            "src/main/java/com/legend/compiler/NameResolver.java",
+        ],
+    ) + [
+        "//spec:gen_dynafn",
+        "//spec:gen_imports",
+        "//spec:gen_natives",
+    ],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    resources = glob(
+        ["src/main/resources/**"],
+        exclude = ["src/main/resources/com/legend/builtin/prelude.pure"],
+    ),
+    visibility = ["//spec:__pkg__"],
+    runtime_deps = [":core_next_prelude"],
+)
+
+java_library(
+    name = "core_next_prelude",
+    resource_strip_prefix = "spec/generated",
+    resources = ["//spec:gen_prelude"],
 )
 

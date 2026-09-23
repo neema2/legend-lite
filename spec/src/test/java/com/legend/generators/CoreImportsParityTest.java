@@ -58,7 +58,7 @@ class CoreImportsParityTest {
     }
 
     static List<String> pureCoreImport() throws IOException {
-        String m3 = Files.readString(PreludeGeneratorTest.pureRoot().resolve(PreludeGeneratorTest.M3_PURE),
+        String m3 = Files.readString(PreludeGeneratorTest.pureRoot().resolve(PreludeGenerator.M3_PURE),
                 StandardCharsets.UTF_8);
         int at = m3.indexOf("coreImport @Root");
         assertTrue(at >= 0, "m3.pure system::imports::coreImport not found — upstream moved it");

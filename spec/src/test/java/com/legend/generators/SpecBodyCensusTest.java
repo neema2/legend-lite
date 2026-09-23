@@ -50,16 +50,7 @@ public class SpecBodyCensusTest {
     }
 
 
-    public static final List<String> PLATFORM_ROOTS = List.of(
-            "legend-pure-core/legend-pure-m3-core/src/main/resources/platform",
-            "legend-pure-core/legend-pure-m3-precisePrimitives/src/main/resources/platform_precise_primitives",
-            "legend-pure-dsl/legend-pure-dsl-diagram/legend-pure-m2-dsl-diagram-pure/src/main/resources/platform_dsl_diagram",
-            "legend-pure-dsl/legend-pure-dsl-graph/legend-pure-m2-dsl-graph-pure/src/main/resources/platform_dsl_graph",
-            "legend-pure-dsl/legend-pure-dsl-mapping/legend-pure-m2-dsl-mapping-pure/src/main/resources/platform_dsl_mapping",
-            "legend-pure-dsl/legend-pure-dsl-path/legend-pure-m2-dsl-path-pure/src/main/resources/platform_dsl_path",
-            "legend-pure-dsl/legend-pure-dsl-store/legend-pure-m2-dsl-store-pure/src/main/resources/platform_dsl_store",
-            "legend-pure-dsl/legend-pure-dsl-tds/legend-pure-m2-dsl-tds-pure/src/main/resources/platform_dsl_tds",
-            "legend-pure-store/legend-pure-store-relational/legend-pure-m2-store-relational-pure/src/main/resources/platform_store_relational");
+    public static final List<String> PLATFORM_ROOTS = UpstreamFiles.PLATFORM_ROOTS;
 
     @Test
     @DisplayName("typing census: every Pure body in legend-pure's platform packages typed once, failures as rows")
