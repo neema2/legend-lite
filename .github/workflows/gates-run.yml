@@ -1,77 +1,35 @@
-# THE GATE CHAIN, ONCE — called with a runner, never triggered directly.
+# ONE PLATFORM'S GATES, as parallel lanes: each lane is `bazel test` on the
+# targets of one gate (docs/GATES.md). Called by gate.yml once per platform.
 #
-# The nine standing gates (docs/GATES.md) run through tools/allgates.sh so the
-# gate logic (rosters, ceilings, skip detection, the tree tripwire) keeps
-# exactly one home. This file is that chain's ONLY CI definition: gate.yml
-# calls it for Linux on every push, gates-cross-platform.yml calls it for
-# macOS and Windows. Adding a gate means editing the script and the lane list
-# here, and nowhere else.
-#
-# Shape: gate 1 (core suite) first and FAIL-FAST — a red core jar makes every
-# later gate noise. Then gates 4, 5, 6, 7, 9, 8 as parallel lanes, GATES=2,<n>
-# each so every lane installs core into its own cold ~/.m2 (gate 8 uses -am and
-# needs no install). Locally the chain is sequential because concurrent JVMs get
-# killed on a laptop; here each lane owns a runner.
+# Nothing here installs Java, Maven or the upstream checkouts: Bazel fetches the
+# pinned JDK, the jar pools and the legend-engine / legend-pure release archives
+# itself (MODULE.bazel), from their lock files and sha256s. The cache below only
+# saves the downloads and outputs between runs; a cold cache gives the same answer.
 name: gates (run)
 
 on:
   workflow_call:
     inputs:
       runs-on:
-        description: "Runner label for every job in the chain."
+        description: "Runner label for every job."
+        required: true
+        type: string
+      platform:
+        description: "Short label for job and artifact names (linux/macos/windows)."
         required: true
         type: string
       gates:
-        description: "Comma-separated gate numbers (empty = all). Gate 1 always runs."
+        description: "Comma-separated lane keys to run (empty = all)."
         default: ""
         type: string
-      platform:
-        description: "Short label for job names and artifact names (linux/macos/windows)."
-        required: true
-        type: string
-      heap:
+      low-memory:
         description: >-
-          Max heap for every JVM in the chain. Per-platform BECAUSE the
-          hardware differs: ubuntu and windows runners have 16 GB, the macOS
-          arm64 runner 7 GB. Not a knob to turn without measuring.
-        default: "4g"
-        type: string
-      reuse-forks:
-        description: >-
-          Share ONE JVM across the PCT suites (fast) or fork per suite (safe).
-          A suite's Pure graph is a 2.0-2.8 GB live set it never releases, so
-          sharing needs headroom the 7 GB macOS runner does not have.
+          The 7 GB macOS runner: one test JVM at a time, and the PCT suites each
+          in their own JVM (a suite's Pure graph is a 2.0-2.8 GB live set).
         default: false
         type: boolean
 
-env:
-  # CI has a cold ~/.m2 and MUST resolve; the script defaults to -o for local
-  # hygiene
-  MVN_OFFLINE: "0"
-  # Maven 3.9 reads MAVEN_ARGS: batch mode, no transfer progress spam, and
-  # ONE JVM PER PCT SUITE. That last one is bought for the macOS runner:
-  # GitHub's hosted arm64 macOS box has 3 vCPU and 7 GB TOTAL (ubuntu and
-  # windows have 16 GB), and a PCT suite's Pure graph is a 2.0-2.8 GB live
-  # set it never releases, so five suites cannot share a fork there at any
-  # heap. It costs ~11s (measured locally, 89s -> 100s), which is why the
-  # pom DEFAULTS to sharing and CI opts out rather than the reverse — a
-  # developer machine should not pay for a 7 GB runner's constraint.
-  MAVEN_ARGS: -B -ntp -Dpct.reuseForks=${{ inputs.reuse-forks }}
-  # The forked test JVMs default to 1/4 of the runner's RAM. Pin the heap so
-  # every runner behaves alike; the local chain is validated under this same cap
-  # before a bump lands. MEASURED 2026-09-09: corpus and parser lanes fit in
-  # 3 GB; a PCT suite's live set is 2.0-2.8 GB (pct/pom forks one JVM per suite
-  # for exactly that reason) and the Pure PAR generation plugin peaks at ~2.5 GB
-  # inside the Maven JVM, which this variable also caps.
-  JAVA_TOOL_OPTIONS: -Xmx${{ inputs.heap }}
-
 jobs:
-  # The lane matrix is DATA, computed here, because a job-level `if` cannot read
-  # the `matrix` context (GitHub allows only github/needs/vars/inputs there — an
-  # `if` on matrix.* makes the whole FILE invalid, zero jobs, and a run named
-  # after the file path). So a gate selection filters the list before it becomes
-  # a matrix. This job runs on Linux whatever the target platform: it only
-  # computes JSON.
   setup:
     name: lane matrix
     runs-on: ubuntu-latest
@@ -81,85 +39,39 @@ jobs:
       - id: pick
         env:
           WANT: ${{ inputs.gates }}
+          LOW_MEMORY: ${{ inputs.low-memory }}
         run: |
           set -eu
-          all='[
-            {"name":"gate 3 spec parity",            "gate":"3","gates":"2,3"},
-            {"name":"gate 4 DuckDB corpus",          "gate":"4","gates":"2,4"},
-            {"name":"gate 5 H2 corpus",              "gate":"5","gates":"2,5"},
-            {"name":"gate 6 PCT DuckDB",             "gate":"6","gates":"2,6"},
-            {"name":"gate 7 PCT H2 relation",        "gate":"7","gates":"2,7"},
-            {"name":"gate 9 Channel B dual-verdict", "gate":"9","gates":"2,9"},
-            {"name":"gate 10 stress corpus",         "gate":"10","gates":"2,10"},
-            {"name":"gate 11 judge differential",    "gate":"11","gates":"2,11"},
-            {"name":"gate 8 parser equivalence",     "gate":"8","gates":"8"}
-          ]'
-          if [ -n "${WANT:-}" ]; then
-            # BIND THE ELEMENT FIRST. In `$w | contains(X)`, jq evaluates X
-            # against $w — so a bare `.gate` there indexes the STRING and dies
-            # with "Cannot index string with string". This path had never run:
-            # every push event leaves the gate list empty and takes the else
-            # branch, so the first real dispatch was its first execution
-            # (2026-09-09).
-            lanes=$(printf '%s' "$all" | jq -c --arg w ",$WANT," \
-              '[.[] | . as $e | select($w | contains("," + $e.gate + ","))]')
+          if [ "$LOW_MEMORY" = "true" ]; then
+            pct6='//pct:pct_duckdb_essential //pct:pct_duckdb_grammar //pct:pct_duckdb_relation //pct:pct_duckdb_standard //pct:pct_duckdb_unclassified //pct:pct_discipline'
           else
-            lanes=$(printf '%s' "$all" | jq -c .)
+            pct6='//pct:pct_duckdb'
           fi
-          # an empty matrix fails the lanes job with a cryptic runner error —
-          # say what actually went wrong instead
+          all=$(jq -nc --arg pct6 "$pct6" '[
+            {"key":"1",      "name":"gate 1 core suite",               "targets":"//core:core_tests"},
+            {"key":"checks", "name":"generated files and dependency guards", "targets":"GENERATED //tools/deps:all"},
+            {"key":"3",      "name":"gate 3 spec parity",              "targets":"//spec:spec_tests"},
+            {"key":"4",      "name":"gate 4 DuckDB corpus",            "targets":"//spec:corpus_duckdb"},
+            {"key":"5",      "name":"gate 5 H2 corpus",                "targets":"//spec:corpus_h2"},
+            {"key":"6",      "name":"gate 6 PCT DuckDB",               "targets":$pct6},
+            {"key":"7",      "name":"gate 7 PCT H2 relation",          "targets":"//pct:pct_h2"},
+            {"key":"8",      "name":"gate 8 parser equivalence",       "targets":"//parser-equivalence:parser_parity"},
+            {"key":"9",      "name":"gate 9 Channel B dual-verdict",   "targets":"//pct:pct_channel_b"},
+            {"key":"10",     "name":"gate 10 stress corpus",           "targets":"//core:stress_suites"},
+            {"key":"11",     "name":"gate 11 judge differential",      "targets":"//spec:judge_differential"}
+          ]')
+          if [ -n "${WANT:-}" ]; then
+            lanes=$(printf '%s' "$all" | jq -c --arg w ",$WANT," '[.[] | . as $e | select($w | contains("," + $e.key + ","))]')
+          else
+            lanes=$all
+          fi
           [ "$(printf '%s' "$lanes" | jq 'length')" -gt 0 ] || {
-            echo "::error ::no lane matches gates='${WANT:-}' — valid lanes are 3,4,5,6,7,8,9,10,11 (gate 1 always runs, gate 2 is folded into each lane)"
+            echo "::error ::no lane matches gates='${WANT:-}' — valid keys: 1,checks,3,4,5,6,7,8,9,10,11"
             exit 1
           }
           echo "lanes=$lanes" >> "$GITHUB_OUTPUT"
-          echo "$lanes" | jq -r '.[].name' | sed 's/^/lane: /'
+          echo "$lanes" | jq -r '.[] | "lane: \(.name) -> \(.targets)"'
 
-  core:
-    name: gate 1 core suite (${{ inputs.platform }})
-    runs-on: ${{ inputs.runs-on }}
-    timeout-minutes: 60
-    defaults:
-      run:
-        # Git Bash on Windows, so ONE script serves all three platforms
-        shell: bash
-    steps:
-      - name: line endings and long paths (Windows checkout would corrupt the corpus)
-        run: |
-          git config --global core.autocrlf false
-          git config --global core.eol lf
-          git config --global core.longpaths true
-      - uses: actions/checkout@v4
-        with:
-          path: legend-lite
-      - uses: ./legend-lite/.github/actions/gate-env
-      - name: run gate 1
-        working-directory: legend-lite
-        run: GATES=1 GATES_LOG="$RUNNER_TEMP/gates.log" tools/allgates.sh
-      - name: gate log to summary
-        if: always()
-        working-directory: legend-lite
-        run: |
-          { echo '### gate 1 (${{ inputs.platform }})'; echo '```'; cat "$RUNNER_TEMP/gates.log" 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          # on RED the script copies the failing surefire output beside the log,
-          # so the assertion is in the artifact rather than just "exit 1"
-          for f in "$RUNNER_TEMP"/gates.g*.out; do
-            [ -f "$f" ] && { echo "::group::$(basename "$f") (tail)"; tail -200 "$f"; echo '::endgroup::'; }
-          done; true
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: ${{ inputs.platform }}-gate-1-core
-          path: ${{ runner.temp }}/gates*
-          if-no-files-found: ignore
-
-  # NOT `needs: core`. The lanes are self-sufficient — each runs GATES=2,<n>,
-  # so it installs core into its own cold ~/.m2 before its gate — and waiting
-  # for the core SUITE only serialized the run: 112s on linux, 133s on macOS,
-  # 210s on windows, on every green push, which is the common case. The local
-  # chain keeps its fail-fast (a red core there means the same broken jar feeds
-  # every later gate); here a red core costs six lanes of runner time on a
-  # public repo, and buys back ~2 minutes of wall clock every other run.
   lanes:
     name: ${{ matrix.lane.name }} (${{ inputs.platform }})
     needs: [setup]
@@ -169,46 +81,52 @@ jobs:
       run:
         shell: bash
     strategy:
-      # collect-all semantics, like the local chain: every lane reports
       fail-fast: false
       matrix:
         lane: ${{ fromJSON(needs.setup.outputs.lanes) }}
     steps:
-      - name: line endings and long paths (Windows checkout would corrupt the corpus)
+      - name: line endings and long paths (a Windows checkout would corrupt the corpus)
         run: |
           git config --global core.autocrlf false
           git config --global core.eol lf
           git config --global core.longpaths true
       - uses: actions/checkout@v4
+      - name: Bazel downloads and outputs, keyed by the lock files
+        uses: actions/cache@v4
         with:
-          path: legend-lite
-      - uses: ./legend-lite/.github/actions/gate-env
-      - name: run ${{ matrix.lane.name }}
-        working-directory: legend-lite
-        run: GATES="${{ matrix.lane.gates }}" GATES_LOG="$RUNNER_TEMP/gates.log" tools/allgates.sh
-      - name: gate log to summary
-        if: always()
-        working-directory: legend-lite
-        run: |
-          { echo '### ${{ matrix.lane.name }} (${{ inputs.platform }})'; echo '```'; cat "$RUNNER_TEMP/gates.log" 2>/dev/null; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          for f in "$RUNNER_TEMP"/gates.g*.out; do
-            [ -f "$f" ] && { echo "::group::$(basename "$f") (tail)"; tail -200 "$f"; echo '::endgroup::'; }
-          done; true
-      - name: scoreboard drift (gate 4 rewrites docs/RELATIONAL_CORPUS.md in place)
-        if: always()
-        working-directory: legend-lite
-        run: |
-          if ! git diff --quiet -- docs/RELATIONAL_CORPUS.md; then
-            echo "::warning file=docs/RELATIONAL_CORPUS.md::the committed scoreboard differs from this run's — regenerate locally (gate 4) and commit it with the change"
-            { echo '#### scoreboard drift'; echo '```diff'; git diff -- docs/RELATIONAL_CORPUS.md | head -200; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
-          fi
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: ${{ inputs.platform }}-gate-${{ matrix.lane.gate }}
           path: |
-            ${{ runner.temp }}/gates*
-            legend-lite/parser-equivalence/target/*-report.txt
-            legend-lite/docs/RELATIONAL_CORPUS.md
-            legend-lite/core/target/stress-suites-*.txt
+            ~/.cache/bazel-repo
+            ~/.cache/bazel-disk
+          key: bazel-${{ inputs.platform }}-${{ hashFiles('MODULE.bazel.lock', 'maven_*_install.json', '.bazelversion') }}-${{ matrix.lane.key }}
+          restore-keys: |
+            bazel-${{ inputs.platform }}-${{ hashFiles('MODULE.bazel.lock', 'maven_*_install.json', '.bazelversion') }}-
+            bazel-${{ inputs.platform }}-
+      - name: bazel test ${{ matrix.lane.targets }}
+        env:
+          TARGETS: ${{ matrix.lane.targets }}
+          LOW_MEMORY: ${{ inputs.low-memory }}
+        run: |
+          set -eu
+          flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo" --disk_cache="$HOME/.cache/bazel-disk")
+          if [ "$LOW_MEMORY" = "true" ]; then flags+=(--local_test_jobs=1); fi
+          # GENERATED: every committed generated file's diff test (//:update_generated's)
+          targets=()
+          for t in $TARGETS; do
+            if [ "$t" = GENERATED ]; then
+              while read -r g; do targets+=("$g"); done < <(bazel query 'attr(name, "update_generated.*_test", tests(//...))' 2>/dev/null)
+            else
+              targets+=("$t")
+            fi
+          done
+          echo "targets: ${targets[*]}"
+          bazel test "${flags[@]}" "${targets[@]}"
+      - name: test logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.platform }}-lane-${{ matrix.lane.key }}
+          path: |
+            bazel-testlogs/**/test.log
+            bazel-testlogs/**/test.xml
+            bazel-testlogs/**/test.outputs/**
           if-no-files-found: ignore

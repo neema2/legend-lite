@@ -1,25 +1,23 @@
-# THE DIAGNOSTICS BATTERY — triggered, not scheduled (tools/diagnostics.sh,
-# user ruling 2026-08-26). Its inputs are pinned constants between pin
-# changes, so it runs only when one of them moves:
-#   1. corpus manifest / fixture tier            -> parser-equivalence/**
-#   2. oracle-pin bump                            -> tools/oracle-pins.env
-#   3. parser, protocol, or census code           -> the parser-side packages
-# plus on demand (workflow_dispatch).
+# THE DIAGNOSTICS BATTERY — parser-equivalence's censuses, sizers and parse-speed
+# benchmark: MEASUREMENTS, not gates, run on the triggers that change their inputs
+# (a pin, the corpus, the parser, the protocol, parser-equivalence itself).
+# `bazel test //parser-equivalence:diagnostics` names every class, so a renamed
+# or deleted diagnostic fails the run instead of silently shrinking the battery.
 name: diagnostics
 on:
   push:
     branches: [main]
     paths:
+      - MODULE.bazel
       - tools/oracle-pins.env
-      - tools/diagnostics.sh
       - parser-equivalence/**
       - core/src/main/java/com/legend/parser/**
       - core/src/main/java/com/legend/lexer/**
       - core/src/main/java/com/legend/protocol/**
   pull_request:
     paths:
+      - MODULE.bazel
       - tools/oracle-pins.env
-      - tools/diagnostics.sh
       - parser-equivalence/**
       - core/src/main/java/com/legend/parser/**
       - core/src/main/java/com/legend/lexer/**
@@ -30,11 +28,6 @@ concurrency:
   group: diagnostics-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  MAVEN_ARGS: -B -ntp
-  # same envelope as gate.yml (measured there)
-  JAVA_TOOL_OPTIONS: -Xmx4g
-
 jobs:
   diagnostics:
     name: diagnostics battery
@@ -42,15 +35,24 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/cache@v4
         with:
-          path: legend-lite
-      - uses: ./legend-lite/.github/actions/gate-env
+          path: |
+            ~/.cache/bazel-repo
+            ~/.cache/bazel-disk
+          key: bazel-linux-${{ hashFiles('MODULE.bazel.lock', 'maven_*_install.json', '.bazelversion') }}-diagnostics
+          restore-keys: |
+            bazel-linux-${{ hashFiles('MODULE.bazel.lock', 'maven_*_install.json', '.bazelversion') }}-
+            bazel-linux-
       - name: run the battery
-        working-directory: legend-lite
-        run: tools/diagnostics.sh
+        run: >-
+          bazel test --config=ci --repository_cache="$HOME/.cache/bazel-repo"
+          --disk_cache="$HOME/.cache/bazel-disk" //parser-equivalence:diagnostics
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: diagnostics-reports
-          path: legend-lite/parser-equivalence/target/*.txt
+          path: |
+            bazel-testlogs/parser-equivalence/diagnostics/test.log
+            bazel-testlogs/parser-equivalence/diagnostics/test.outputs/**
           if-no-files-found: ignore
