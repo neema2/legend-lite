@@ -134,6 +134,7 @@ junit_test(
 # GENERATORS"). `bazel run //core:update_generated` (or //:update_generated)
 # writes them; `bazel test` fails when a committed copy differs, naming the command.
 _GENERATED = {
+    "src/main/java/com/legend/builtin/DynaFn.java": "//spec:gen_dynafn",
     "src/main/java/com/legend/compiler/NameResolver.java": "//spec:gen_imports",
 }
 
