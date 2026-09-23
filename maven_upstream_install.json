@@ -5,6 +5,7 @@
     "com.h2database:h2": -429197902,
     "com.zaxxer:HikariCP": 461780174,
     "junit:junit": -853612836,
+    "net.javacrumbs.json-unit:json-unit": 120390234,
     "org.apache.commons:commons-lang3": 109544183,
     "org.apache.httpcomponents:httpcore": 912220412,
     "org.apiguardian:apiguardian-api": -2135100431,
@@ -13,7 +14,8 @@
     "org.eclipse.collections:eclipse-collections-api": -1142315878,
     "org.finos.legend.engine:legend-engine": -1155963668,
     "org.finos.legend.engine:legend-engine-extensions-collection-generation": 470772108,
-    "org.finos.legend.engine:legend-engine-language-pure-grammar": -256968033,
+    "org.finos.legend.engine:legend-engine-language-pure-compiler": 971479565,
+    "org.finos.legend.engine:legend-engine-language-pure-grammar": -1604282779,
     "org.finos.legend.engine:legend-engine-pure-code-compiled-core": 635128054,
     "org.finos.legend.engine:legend-engine-pure-functions-relation-pure": -1672124904,
     "org.finos.legend.engine:legend-engine-pure-functions-standard-pure": 1971461401,
@@ -85,6 +87,8 @@
     "javax.servlet:javax.servlet-api": 324870439,
     "javax.ws.rs:javax.ws.rs-api": 953786401,
     "junit:junit": -817498543,
+    "net.javacrumbs.json-unit:json-unit": 459293505,
+    "net.javacrumbs.json-unit:json-unit-core": -1731530312,
     "org.antlr:antlr4-runtime": 1471891907,
     "org.apache.commons:commons-csv": 1750235475,
     "org.apache.commons:commons-lang3": -850748327,
@@ -118,11 +122,13 @@
     "org.finos.legend.engine:legend-engine-external-shared-format-runtime": -1289137391,
     "org.finos.legend.engine:legend-engine-identity-core": -1934251039,
     "org.finos.legend.engine:legend-engine-language-pure-compiler": -1309082644,
+    "org.finos.legend.engine:legend-engine-language-pure-compiler:jar:tests": -127341484,
     "org.finos.legend.engine:legend-engine-language-pure-dsl-generation": -910596540,
     "org.finos.legend.engine:legend-engine-language-pure-dsl-generation-pure": 1501088578,
     "org.finos.legend.engine:legend-engine-language-pure-dsl-service": 279506123,
     "org.finos.legend.engine:legend-engine-language-pure-dsl-service-pure": -1472022405,
     "org.finos.legend.engine:legend-engine-language-pure-grammar": 148287003,
+    "org.finos.legend.engine:legend-engine-language-pure-grammar:jar:tests": -1733299643,
     "org.finos.legend.engine:legend-engine-language-pure-modelManager": -745673150,
     "org.finos.legend.engine:legend-engine-language-pure-modelManager-sdlc": -257545929,
     "org.finos.legend.engine:legend-engine-protocol": 52353612,
@@ -682,6 +688,18 @@
       },
       "version": "4.13.1"
     },
+    "net.javacrumbs.json-unit:json-unit": {
+      "shasums": {
+        "jar": "dcac63ce57b27355e2fc52b998eaea17cc41793ccb5232fae7e6c081703592a0"
+      },
+      "version": "2.17.0"
+    },
+    "net.javacrumbs.json-unit:json-unit-core": {
+      "shasums": {
+        "jar": "5fed64bdc695168b2309469412acf7d5a318da8d74aa275c81f04a44e38566eb"
+      },
+      "version": "2.17.0"
+    },
     "org.antlr:antlr4-runtime": {
       "shasums": {
         "jar": "bdcf58107ba1a499b25e3db205086767dd409d3f5ab12c90f2d429f55ec774a6"
@@ -876,7 +894,8 @@
     },
     "org.finos.legend.engine:legend-engine-language-pure-compiler": {
       "shasums": {
-        "jar": "01d91310f728328d9711eac5f29ad235605e18d0ccee89707c15807857da2c75"
+        "jar": "01d91310f728328d9711eac5f29ad235605e18d0ccee89707c15807857da2c75",
+        "tests": "2c4731e8ff69584ce0e22659dc0ee95935cd832f814601abd5826649b7200dad"
       },
       "version": "4.145.0"
     },
@@ -906,7 +925,8 @@
     },
     "org.finos.legend.engine:legend-engine-language-pure-grammar": {
       "shasums": {
-        "jar": "36215b1725e1b40ef12c4da6be50436a581438f2ff15d259ec4aacf9e5db0cbc"
+        "jar": "36215b1725e1b40ef12c4da6be50436a581438f2ff15d259ec4aacf9e5db0cbc",
+        "tests": "b850163b20c8ac565a6354c9f28ac4cfefea1135b4ce8966542d433902977b35"
       },
       "version": "4.145.0"
     },
@@ -2897,6 +2917,12 @@
     "junit:junit": [
       "org.hamcrest:hamcrest-core"
     ],
+    "net.javacrumbs.json-unit:json-unit": [
+      "net.javacrumbs.json-unit:json-unit-core"
+    ],
+    "net.javacrumbs.json-unit:json-unit-core": [
+      "org.hamcrest:hamcrest-core"
+    ],
     "org.apache.commons:commons-text": [
       "org.apache.commons:commons-lang3"
     ],
@@ -3291,6 +3317,39 @@
       "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-path",
       "org.slf4j:slf4j-api"
     ],
+    "org.finos.legend.engine:legend-engine-language-pure-compiler:jar:tests": [
+      "com.fasterxml.jackson.core:jackson-core",
+      "com.fasterxml.jackson.core:jackson-databind",
+      "org.apache.commons:commons-lang3",
+      "org.eclipse.collections:eclipse-collections",
+      "org.eclipse.collections:eclipse-collections-api",
+      "org.finos.legend.engine:legend-engine-identity-core",
+      "org.finos.legend.engine:legend-engine-protocol",
+      "org.finos.legend.engine:legend-engine-protocol-pure",
+      "org.finos.legend.engine:legend-engine-pure-code-compiled-core",
+      "org.finos.legend.engine:legend-engine-pure-platform-dsl-mapping-java",
+      "org.finos.legend.engine:legend-engine-pure-platform-dsl-store-java",
+      "org.finos.legend.engine:legend-engine-pure-platform-java",
+      "org.finos.legend.engine:legend-engine-pure-platform-precisePrimitives-java",
+      "org.finos.legend.engine:legend-engine-shared-core",
+      "org.finos.legend.engine:legend-engine-shared-extensions",
+      "org.finos.legend.pure:legend-pure-m2-dsl-graph-grammar",
+      "org.finos.legend.pure:legend-pure-m2-dsl-graph-pure",
+      "org.finos.legend.pure:legend-pure-m2-dsl-mapping-grammar",
+      "org.finos.legend.pure:legend-pure-m2-dsl-mapping-pure",
+      "org.finos.legend.pure:legend-pure-m2-dsl-path-grammar",
+      "org.finos.legend.pure:legend-pure-m2-dsl-path-pure",
+      "org.finos.legend.pure:legend-pure-m2-dsl-store-grammar",
+      "org.finos.legend.pure:legend-pure-m2-dsl-store-pure",
+      "org.finos.legend.pure:legend-pure-m2-store-relational-pure",
+      "org.finos.legend.pure:legend-pure-m3-core",
+      "org.finos.legend.pure:legend-pure-m4",
+      "org.finos.legend.pure:legend-pure-runtime-java-engine-compiled",
+      "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-graph",
+      "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-mapping",
+      "org.finos.legend.pure:legend-pure-runtime-java-extension-compiled-dsl-path",
+      "org.slf4j:slf4j-api"
+    ],
     "org.finos.legend.engine:legend-engine-language-pure-dsl-generation": [
       "com.fasterxml.jackson.core:jackson-annotations",
       "com.fasterxml.jackson.core:jackson-core",
@@ -3361,6 +3420,21 @@
       "org.finos.legend.pure:legend-pure-runtime-java-engine-compiled"
     ],
     "org.finos.legend.engine:legend-engine-language-pure-grammar": [
+      "com.fasterxml.jackson.core:jackson-core",
+      "com.fasterxml.jackson.core:jackson-databind",
+      "org.antlr:antlr4-runtime",
+      "org.apache.commons:commons-lang3",
+      "org.apache.commons:commons-text",
+      "org.eclipse.collections:eclipse-collections",
+      "org.eclipse.collections:eclipse-collections-api",
+      "org.finos.legend.engine:legend-engine-identity-core",
+      "org.finos.legend.engine:legend-engine-protocol",
+      "org.finos.legend.engine:legend-engine-protocol-pure",
+      "org.finos.legend.engine:legend-engine-shared-core",
+      "org.finos.legend.engine:legend-engine-shared-extensions",
+      "org.slf4j:slf4j-api"
+    ],
+    "org.finos.legend.engine:legend-engine-language-pure-grammar:jar:tests": [
       "com.fasterxml.jackson.core:jackson-core",
       "com.fasterxml.jackson.core:jackson-databind",
       "org.antlr:antlr4-runtime",
@@ -9534,6 +9608,17 @@
       "org.junit.runners.parameterized",
       "org.junit.validator"
     ],
+    "net.javacrumbs.json-unit:json-unit": [
+      "net.javacrumbs.jsonunit"
+    ],
+    "net.javacrumbs.json-unit:json-unit-core": [
+      "net.javacrumbs.jsonunit.core",
+      "net.javacrumbs.jsonunit.core.internal",
+      "net.javacrumbs.jsonunit.core.internal.matchers",
+      "net.javacrumbs.jsonunit.core.listener",
+      "net.javacrumbs.jsonunit.core.util",
+      "net.javacrumbs.jsonunit.providers"
+    ],
     "org.antlr:antlr4-runtime": [
       "org.antlr.v4.runtime",
       "org.antlr.v4.runtime.atn",
@@ -10164,6 +10249,14 @@
       "org.finos.legend.engine.language.pure.compiler.toPureGraph.test.assertion.core",
       "org.finos.legend.engine.language.pure.compiler.toPureGraph.validator"
     ],
+    "org.finos.legend.engine:legend-engine-language-pure-compiler:jar:tests": [
+      "org.finos.legend.engine.language.pure.compiler",
+      "org.finos.legend.engine.language.pure.compiler.test",
+      "org.finos.legend.engine.language.pure.compiler.test.fromGrammar",
+      "org.finos.legend.engine.language.pure.compiler.test.fromProtocol",
+      "org.finos.legend.engine.language.pure.compiler.toPureGraph",
+      "org.finos.legend.engine.language.pure.compiler.toPureGraph.extension"
+    ],
     "org.finos.legend.engine:legend-engine-language-pure-dsl-generation": [
       "org.finos.legend.engine.language.pure.dsl.generation.compiler.toPureGraph",
       "org.finos.legend.engine.language.pure.dsl.generation.config",
@@ -10232,6 +10325,16 @@
       "org.finos.legend.engine.language.pure.grammar.to.data",
       "org.finos.legend.engine.language.pure.grammar.to.extension",
       "org.finos.legend.engine.language.pure.grammar.to.test.assertion"
+    ],
+    "org.finos.legend.engine:legend-engine-language-pure-grammar:jar:tests": [
+      "org.finos.legend.engine.language.pure.grammar.test",
+      "org.finos.legend.engine.language.pure.grammar.test.from",
+      "org.finos.legend.engine.language.pure.grammar.test.parser",
+      "org.finos.legend.engine.language.pure.grammar.test.roundtrip",
+      "org.finos.legend.engine.language.pure.grammar.test.roundtrip.embedded",
+      "org.finos.legend.engine.language.pure.grammar.test.roundtrip.embedded.extensions",
+      "org.finos.legend.engine.language.pure.grammar.test.roundtrip.valueSpecification",
+      "org.finos.legend.engine.language.pure.grammar.test.to"
     ],
     "org.finos.legend.engine:legend-engine-language-pure-modelManager": [
       "org.finos.legend.engine.language.pure.modelManager"
@@ -12585,6 +12688,8 @@
       "javax.servlet:javax.servlet-api",
       "javax.ws.rs:javax.ws.rs-api",
       "junit:junit",
+      "net.javacrumbs.json-unit:json-unit",
+      "net.javacrumbs.json-unit:json-unit-core",
       "org.antlr:antlr4-runtime",
       "org.apache.commons:commons-csv",
       "org.apache.commons:commons-lang3",
@@ -12618,11 +12723,13 @@
       "org.finos.legend.engine:legend-engine-external-shared-format-runtime",
       "org.finos.legend.engine:legend-engine-identity-core",
       "org.finos.legend.engine:legend-engine-language-pure-compiler",
+      "org.finos.legend.engine:legend-engine-language-pure-compiler:jar:tests",
       "org.finos.legend.engine:legend-engine-language-pure-dsl-generation",
       "org.finos.legend.engine:legend-engine-language-pure-dsl-generation-pure",
       "org.finos.legend.engine:legend-engine-language-pure-dsl-service",
       "org.finos.legend.engine:legend-engine-language-pure-dsl-service-pure",
       "org.finos.legend.engine:legend-engine-language-pure-grammar",
+      "org.finos.legend.engine:legend-engine-language-pure-grammar:jar:tests",
       "org.finos.legend.engine:legend-engine-language-pure-modelManager",
       "org.finos.legend.engine:legend-engine-language-pure-modelManager-sdlc",
       "org.finos.legend.engine:legend-engine-protocol",
@@ -13283,6 +13390,11 @@
         "org.finos.legend.engine.language.pure.compiler.toPureGraph.test.ModelStoreTestConnectionFactory"
       ]
     },
+    "org.finos.legend.engine:legend-engine-language-pure-compiler:jar:tests": {
+      "org.finos.legend.engine.language.pure.compiler.toPureGraph.extension.CompilerExtension": [
+        "org.finos.legend.engine.language.pure.compiler.test.fromGrammar.EmbeddedPureCompilerExtension"
+      ]
+    },
     "org.finos.legend.engine:legend-engine-language-pure-dsl-generation": {
       "org.finos.legend.engine.language.pure.compiler.toPureGraph.extension.CompilerExtension": [
         "org.finos.legend.engine.language.pure.dsl.generation.compiler.toPureGraph.GenerationCompilerExtensionImpl"
@@ -13330,6 +13442,17 @@
       ],
       "org.finos.legend.engine.language.pure.grammar.to.extension.PureGrammarComposerExtension": [
         "org.finos.legend.engine.language.pure.grammar.to.CorePureGrammarComposer"
+      ]
+    },
+    "org.finos.legend.engine:legend-engine-language-pure-grammar:jar:tests": {
+      "org.finos.legend.engine.language.pure.grammar.from.extension.PureGrammarParserExtension": [
+        "org.finos.legend.engine.language.pure.grammar.test.roundtrip.embedded.extensions.GrammarParserExtension"
+      ],
+      "org.finos.legend.engine.language.pure.grammar.to.extension.PureGrammarComposerExtension": [
+        "org.finos.legend.engine.language.pure.grammar.test.roundtrip.embedded.extensions.GrammarComposerExtension"
+      ],
+      "org.finos.legend.engine.protocol.pure.v1.extension.PureProtocolExtension": [
+        "org.finos.legend.engine.language.pure.grammar.test.roundtrip.embedded.extensions.ProtocolExtension"
       ]
     },
     "org.finos.legend.engine:legend-engine-protocol-pure": {

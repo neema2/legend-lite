@@ -874,7 +874,7 @@ public final class ServiceSectionGrammar
                         c.expect(TokenType.BRACKET_OPEN);
                         if (c.peek() == TokenType.BRACKET_CLOSE) {
                             // the engine's keys list requires at least ONE
-                            // entry (negative fixture engine-fixture#1490)
+                            // entry (negative fixture engine-fixture#1506)
                             throw c.error("Unexpected token ']'");
                         }
                         while (c.peek() != TokenType.BRACKET_CLOSE) {
@@ -1256,7 +1256,7 @@ public final class ServiceSectionGrammar
         if (runtime == null && embedded == null && runtimeComponents == null) {
             // the EE GRAMMAR itself requires runtime OR runtimeComponents
             // — a mapping-only single is a parse error (negative fixture
-            // engine-fixture#1508, refusal at the '}')
+            // engine-fixture#1511, refusal at the '}')
             throw com.legend.parser.TokenStreamCursor.throwAt(
                     c.tokens(), c.pos() - 1, "Unexpected token '}'");
         }

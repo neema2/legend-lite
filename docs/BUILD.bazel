@@ -1,3 +1,5 @@
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+
 # docs/ is prose, except for the committed LEDGERS some tests compare against
 # (the protocol roster, the refusal allowlists, the skew claims, ...). Declared here
 # so a test reads them as inputs rather than by a path nobody can see.
@@ -6,3 +8,30 @@ filegroup(
     srcs = glob(["*.tsv"]),
     visibility = ["//visibility:public"],
 )
+
+# GENERATED ledgers in docs/ (see //:update_generated)
+write_source_files(
+    name = "update_generated",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nThis file is generated from the pinned upstream release — regenerate: bazel run //:update_generated",
+    files = {
+        "protocol-roster.tsv": "//parser-equivalence:gen_roster",
+    },
+    visibility = ["//visibility:public"],
+)
+
+# NOT a generated file: the own-corpus protocol ledger's reasons are written by a
+# person. This writes a DRAFT (current diffs, surviving reasons kept, new rows
+# "TODO: adjudicate") for that person to finish; OwnCorpusParityTest is the check.
+# Deliberately outside //:update_generated, and with no diff test of its own.
+exports_files(["own-corpus-protocol-diffs.tsv"])
+
+write_source_files(
+    name = "draft_own_corpus_ledger",
+    testonly = True,
+    diff_test = False,
+    files = {
+        "own-corpus-protocol-diffs.tsv": "//parser-equivalence:gen_own_corpus_draft",
+    },
+)
+
