@@ -43,7 +43,7 @@ class ZFixtureAdjudicationProbe {
         Path dump = Files.exists(Repo.out("engine-fixtures.jsonl"))
                 ? Repo.out("engine-fixtures.jsonl")
                 : Repo.module("src/test/resources/"
-                        + "engine-grammar-fixtures-4.138.2.jsonl");
+                        + "engine-grammar-fixtures.jsonl");
         for (String line : Files.readAllLines(dump)) {
             JsonNode n = json.readTree(line);
             String src = n.get("source").asText();

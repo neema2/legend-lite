@@ -110,6 +110,15 @@ maven.install(
         "org.finos.legend.pure:legend-pure-runtime-java-engine-interpreted:" + LEGEND_PURE_RELEASE,
         "org.finos.legend.pure:legend-pure-runtime-java-extension-interpreted-dsl-tds:" + LEGEND_PURE_RELEASE,
         "org.finos.legend.pure:legend-pure-m2-dsl-tds-pure:" + LEGEND_PURE_RELEASE,
+        # the FIXTURE HARVEST's classpath only (parser-equivalence :harvest_lib,
+        # run by :gen_fixtures): the engine's published grammar and compiler
+        # tests-jars, and json-unit at the engine's own jsonunit version for the
+        # tier-2 sources. QUARANTINED by construction — their test-scoped
+        # ServiceLoader registrations would alter the oracle, and nothing but the
+        # harvest depends on them (was the engine-fixture-harvest Maven profile).
+        "org.finos.legend.engine:legend-engine-language-pure-grammar:jar:tests:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-language-pure-compiler:jar:tests:" + LEGEND_ENGINE_RELEASE,
+        "net.javacrumbs.json-unit:json-unit:2.17.0",
         "org.eclipse.collections:eclipse-collections:10.2.0",
         "org.eclipse.collections:eclipse-collections-api:10.2.0",
 

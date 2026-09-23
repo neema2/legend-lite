@@ -17,6 +17,11 @@ exports_files([
 # the source of truth; this only runs them all.
 write_source_files(
     name = "update_generated",
-    additional_update_targets = ["//core:update_generated"],
+    testonly = True,
+    additional_update_targets = [
+        "//core:update_generated",
+        "//docs:update_generated",
+        "//parser-equivalence:update_generated",
+    ],
 )
 

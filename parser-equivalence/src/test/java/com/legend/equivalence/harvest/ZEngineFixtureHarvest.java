@@ -35,67 +35,7 @@ class ZEngineFixtureHarvest {
         System.out.println("@@ tests-jars: " + testJars);
         java.nio.file.Files.deleteIfExists(
                 Repo.out("engine-fixtures.jsonl"));
-        int classes = 0;
-        int methods = 0;
-        int invoked = 0;
-        Map<String, Integer> failuresByKind = new TreeMap<>();
-        for (String jarPath : testJars) {
-            try (JarFile jar = new JarFile(jarPath)) {
-                Enumeration<JarEntry> es = jar.entries();
-                while (es.hasMoreElements()) {
-                    String name = es.nextElement().getName();
-                    if (!name.endsWith(".class") || name.contains("$")) {
-                        continue;
-                    }
-                    String cls = name.substring(0, name.length() - 6)
-                            .replace('/', '.');
-                    if (!cls.substring(cls.lastIndexOf('.') + 1)
-                            .startsWith("Test")) {
-                        continue;
-                    }
-                    Class<?> c;
-                    try {
-                        c = Class.forName(cls, false,
-                                getClass().getClassLoader());
-                    } catch (Throwable t) {
-                        failuresByKind.merge("load", 1, Integer::sum);
-                        continue;
-                    }
-                    if (c.isInterface()
-                            || Modifier.isAbstract(c.getModifiers())) {
-                        continue;
-                    }
-                    Object instance;
-                    try {
-                        instance = c.getDeclaredConstructor().newInstance();
-                    } catch (Throwable t) {
-                        failuresByKind.merge("instantiate", 1, Integer::sum);
-                        continue;
-                    }
-                    classes++;
-                    for (Method m : c.getMethods()) {
-                        if (m.getAnnotation(org.junit.Test.class) == null
-                                || m.getParameterCount() != 0) {
-                            continue;
-                        }
-                        methods++;
-                        try {
-                            m.invoke(instance);
-                            invoked++;
-                        } catch (Throwable t) {
-                            // the shims recorded BEFORE any failure; a
-                            // throw here just means the engine test went
-                            // on to assert something the shim skipped
-                            failuresByKind.merge("invoke-threw", 1,
-                                    Integer::sum);
-                        }
-                    }
-                }
-            }
-        }
-        System.out.println("@@ classes run: " + classes + "; test methods: "
-                + methods + "; completed: " + invoked + "; failures: "
-                + failuresByKind);
+        System.out.println("@@ " + FixtureHarvest.tier1(testJars, getClass().getClassLoader()));
         long lines = java.nio.file.Files.exists(Repo.out("engine-fixtures.jsonl"))
                 ? java.nio.file.Files.lines(Repo.out("engine-fixtures.jsonl")).count()
                 : 0;

@@ -145,15 +145,23 @@ public final class Corpus {
      * syntax with zero normal declarations, which skews every count.
      */
     /** The first line of the fixture snapshot: the engine release it was
-     *  harvested from, INSIDE the file (upstream boundary batch 2). The
-     *  filename carries it too; both must equal the pinned release
-     *  ({@link OraclePins#engineRelease()}, INV-4 in tools/version-report.sh). */
+     *  harvested from, INSIDE the file (upstream boundary batch 2), and it must
+     *  equal the pinned release ({@link OraclePins#engineRelease()}; checked on
+     *  every read below). The filename carried the release too until
+     *  2026-09-22: the header is the check that fires, and a fixed name is what
+     *  lets the snapshot be an ordinary generated file (the Bazel build writes
+     *  it from :gen_fixtures) with its history kept across bumps. */
     public static final String FIXTURE_HEADER_PREFIX = "# engine=";
 
     /** The committed fixture snapshot for the pinned release. */
     static java.nio.file.Path engineFixturesFile() {
-        return Repo.module("src/test/resources/"
-                + "engine-grammar-fixtures-" + OraclePins.engineRelease() + ".jsonl");
+        // a generator in a bump reads the NEW snapshot, the harvest's output,
+        // named explicitly (-Dlegend.engine.fixtures, :gen_manifest/:gen_roster)
+        String named = System.getProperty("legend.engine.fixtures");
+        if (named != null) {
+            return java.nio.file.Path.of(named);
+        }
+        return Repo.module("src/test/resources/engine-grammar-fixtures.jsonl");
     }
 
     /** C6: the committed engine-fixture snapshot (see the harvest note
@@ -167,8 +175,7 @@ public final class Corpus {
         if (!java.nio.file.Files.exists(p)) {
             throw new IllegalStateException("engine fixture snapshot for the pinned release "
                     + OraclePins.engineRelease() + " is missing: " + p
-                    + " — harvest it (mvn -pl parser-equivalence test -Pengine-fixture-harvest"
-                    + " -Dtest=ZEngineFixtureHarvest) and commit it under that name");
+                    + " — regenerate it: bazel run //:update_generated");
         }
         try {
             var om = new com.fasterxml.jackson.databind.ObjectMapper();

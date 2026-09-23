@@ -15,6 +15,10 @@ import java.nio.file.Path;
  * Bazel runs tests from the runfiles tree, where none of the three resolve. Every
  * such path goes through here instead:
  *
+ * <p>A third caller is a BUILD ACTION — a generator program run by Bazel over its
+ * declared inputs — which names the tree and module it reads with
+ * {@code -Dlegend.repo.root} / {@code -Dlegend.repo.module}.
+ *
  * <pre>
  *   module("src/main/java")      this module's files        (was Path.of("src/…"))
  *   path("spec/src/test/java")   anything by repository path (was Path.of("..", …))
@@ -41,7 +45,19 @@ public final class Repo {
 
     static {
         String srcdir = System.getenv("TEST_SRCDIR");
-        if (srcdir != null) {
+        if (System.getProperty("legend.repo.root") != null) {
+            // a BUILD ACTION (a generator program), FIRST: an explicit instruction
+            // beats the environment — Bazel's java launcher exports TEST_SRCDIR
+            // even outside a test (measured 2026-09-22). The action names the tree it
+            // reads — its declared inputs, laid out at their repository paths —
+            // and the module it runs as. Both are required; neither is guessed.
+            ROOT = Path.of(System.getProperty("legend.repo.root")).toAbsolutePath().normalize();
+            String module = System.getProperty("legend.repo.module");
+            if (module == null || module.isEmpty()) {
+                throw new IllegalStateException("-Dlegend.repo.root is set but -Dlegend.repo.module is not");
+            }
+            MODULE = module;
+        } else if (srcdir != null) {
             // Bazel: the runfiles tree of the main repository, and the module is
             // the package of the running test target (//spec:corpus_duckdb ->
             // spec). Bazel sets all three variables for every test; a missing one
@@ -103,7 +119,9 @@ public final class Repo {
      */
     public static Path out(String first, String... more) {
         String undeclared = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
-        Path base = undeclared != null ? Path.of(undeclared) : module("target");
+        Path base = System.getProperty("legend.repo.root") != null ? actionScratch()
+                : undeclared != null ? Path.of(undeclared)
+                : module("target");
         Path p = base.resolve(Path.of(first, more));
         try {
             Files.createDirectories(p.getParent());
@@ -111,6 +129,22 @@ public final class Repo {
             throw new UncheckedIOException(e);
         }
         return p;
+    }
+
+    private static Path scratch;
+
+    /** A build action's side reports (a generator's diagnostics) go to a
+     *  temporary directory: the action's one declared output is the file it
+     *  generates, and its inputs are read-only. */
+    private static synchronized Path actionScratch() {
+        if (scratch == null) {
+            try {
+                scratch = Files.createTempDirectory("legend-action-");
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        return scratch;
     }
 
     /** The writable base itself — what tests wrote as {@code Path.of("target")}. */

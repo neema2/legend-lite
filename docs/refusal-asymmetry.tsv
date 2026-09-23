@@ -2,11 +2,11 @@
 # oracle-rejected 2196 | symmetric (both refuse) 1911 | asymmetric 285
 # categories: m3-corroborated/document+strict=17 m3-corroborated/strict=170 sectioned/document=1 sectioned/document+strict=17 sectioned/strict=80 
 # id	category	accepting-surfaces	oracle-message
-engine-fixture#118	sectioned	document+strict	null
-engine-fixture#119	sectioned	document+strict	null
-engine-fixture#128	sectioned	document+strict	null
-engine-fixture#1490	sectioned	document+strict	Unexpected token
-engine-fixture#1508	sectioned	document+strict	null
+engine-fixture#241	sectioned	document+strict	null
+engine-fixture#236	sectioned	document+strict	null
+engine-fixture#183	sectioned	document+strict	null
+engine-fixture#1506	sectioned	document+strict	Unexpected token
+engine-fixture#1511	sectioned	document+strict	null
 engine-fixture#505	sectioned	document	ModelJoin association mapping requires a lambda join condition of the form '{src: SrcClass[1], tgt: TgtClass[1] | <boolean expression>}'
 legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/corefunctions/mathExtension.pure	m3-corroborated	strict	Cannot invoke "org.finos.legend.engine.language.pure.grammar.from.antlr4.domain.DomainParserGrammar$QualifiedNameContext.packagePath()" because the return value
 legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/corefunctions/milestoningExtension.pure	m3-corroborated	strict	Cannot invoke "org.finos.legend.engine.language.pure.grammar.from.antlr4.domain.DomainParserGrammar$QualifiedNameContext.packagePath()" because the return value

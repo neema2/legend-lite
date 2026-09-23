@@ -1,6 +1,7 @@
 # spec — the tests that read the upstream sources as the SPEC: the generators'
 # byte-parity checks (Maven gate 3) and the relational corpus lanes (gates 4, 5).
 load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+load("//tools/generators:defs.bzl", "ENGINE_ROOT", "PURE_ROOT", "UPSTREAM_TREES")
 load("//tools/junit:defs.bzl", "junit_test")
 
 # spec's sources, exported for core's guard tests that walk every module.
@@ -113,16 +114,6 @@ junit_test(
 # `bazel test` when a committed file is not its generator's output.
 _ENGINE_COMPILE_CONTEXT = "@legend_engine_src//:legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-compiler/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/CompileContext.java"
 
-# a generator that walks a whole upstream tree gets the tree as inputs and its
-# root as an argument: the directory of a file every release has at its root
-_ENGINE_ROOT = "$$(dirname $(execpath @legend_engine_src//:pom.xml))"
-_PURE_ROOT = "$$(dirname $(execpath @legend_pure_src//:pom.xml))"
-_UPSTREAM_TREES = [
-    "@legend_engine_src//:pom.xml",
-    "@legend_engine_src//:tree",
-    "@legend_pure_src//:pom.xml",
-    "@legend_pure_src//:tree",
-]
 
 java_binary(
     name = "imports_generator",
@@ -152,13 +143,11 @@ java_binary(
 # DynaFn.java's members: the engine's dynafunction registries, every dialect
 genrule(
     name = "gen_dynafn",
-    srcs = [
-        "@legend_engine_src//:pom.xml",
-        "@legend_engine_src//:tree",
+    srcs = UPSTREAM_TREES + [
         "//core:src/main/java/com/legend/builtin/DynaFn.java",
     ],
     outs = ["generated/DynaFn.java"],
-    cmd = "$(location :dynafn_generator) " + _ENGINE_ROOT + " $(location //core:src/main/java/com/legend/builtin/DynaFn.java) $@",
+    cmd = "$(location :dynafn_generator) " + ENGINE_ROOT + " $(location //core:src/main/java/com/legend/builtin/DynaFn.java) $@",
     tools = [":dynafn_generator"],
     visibility = ["//core:__pkg__"],
 )
@@ -173,15 +162,15 @@ java_binary(
 # Runs on core AS COMMITTED (its parser and resolver) — the first link of the chain.
 genrule(
     name = "gen_natives",
-    srcs = _UPSTREAM_TREES + [
+    srcs = UPSTREAM_TREES + [
         "//core:src/main/resources/com/legend/builtin/native-membership.tsv",
         "//core:src/main/java/com/legend/builtin/Pure.java",
     ],
     outs = ["generated/Pure.java"],
     cmd = " ".join([
         "$(location :natives_generator)",
-        _ENGINE_ROOT,
-        _PURE_ROOT,
+        ENGINE_ROOT,
+        PURE_ROOT,
         "$(location //core:src/main/resources/com/legend/builtin/native-membership.tsv)",
         "$(location //core:src/main/java/com/legend/builtin/Pure.java)",
         "$@",
@@ -201,15 +190,15 @@ java_binary(
 # prelude), and runs on core as committed.
 genrule(
     name = "gen_prelude",
-    srcs = _UPSTREAM_TREES + [
+    srcs = UPSTREAM_TREES + [
         ":gen_natives",
         "//core:main_java",
     ],
     outs = ["generated/com/legend/builtin/prelude.pure"],
     cmd = " ".join([
         "$(location :prelude_generator)",
-        _ENGINE_ROOT,
-        _PURE_ROOT,
+        ENGINE_ROOT,
+        PURE_ROOT,
         "core/src/main/java",
         "$@",
         "com/legend/builtin/Pure.java=$(location :gen_natives)",
