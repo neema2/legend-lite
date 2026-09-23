@@ -90,6 +90,10 @@ junit_test(
 # `bazel test` when a committed file is not its generator's output.
 _ENGINE_COMPILE_CONTEXT = "@legend_engine_src//:legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-compiler/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/CompileContext.java"
 
+# a generator that walks a whole upstream tree gets the tree as inputs and its
+# root as an argument: the directory of a file every release has at its root
+_ENGINE_ROOT = "$$(dirname $(execpath @legend_engine_src//:pom.xml))"
+
 java_binary(
     name = "imports_generator",
     srcs = ["src/test/java/com/legend/generators/ImportsGenerator.java"],
@@ -108,3 +112,24 @@ genrule(
     tools = [":imports_generator"],
     visibility = ["//core:__pkg__"],
 )
+
+java_binary(
+    name = "dynafn_generator",
+    srcs = ["src/test/java/com/legend/generators/DynaFnGenerator.java"],
+    main_class = "com.legend.generators.DynaFnGenerator",
+)
+
+# DynaFn.java's members: the engine's dynafunction registries, every dialect
+genrule(
+    name = "gen_dynafn",
+    srcs = [
+        "@legend_engine_src//:pom.xml",
+        "@legend_engine_src//:tree",
+        "//core:src/main/java/com/legend/builtin/DynaFn.java",
+    ],
+    outs = ["generated/DynaFn.java"],
+    cmd = "$(location :dynafn_generator) " + _ENGINE_ROOT + " $(location //core:src/main/java/com/legend/builtin/DynaFn.java) $@",
+    tools = [":dynafn_generator"],
+    visibility = ["//core:__pkg__"],
+)
+

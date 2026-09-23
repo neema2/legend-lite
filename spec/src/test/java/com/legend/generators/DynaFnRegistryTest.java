@@ -34,14 +34,11 @@ import org.junit.jupiter.api.Test;
  * SHIM names a Lite constant, TRANSLATED names have arms (and armed names are
  * TRANSLATED or PURE), UNSUPPORTED only shrinks. The translator's declared arm
  * set is derived from its SOURCE, and {@code Pure.ENGINE_VOCAB_SHIMS} from the
- * registry. {@code -Ddynafn.generate=1} rewrites the members (existing
- * resolutions kept; a new engine name lands UNSUPPORTED).
+ * registry. {@link DynaFnGenerator} writes the members (existing resolutions
+ * kept; a new engine name lands UNSUPPORTED): {@code bazel run //:update_generated}.
  */
 class DynaFnRegistryTest {
 
-    private static final Pattern DYNA = Pattern.compile("dynaFnToSql\\('([A-Za-z0-9_]+)'");
-    private static final Pattern INFERENCE_ENTRY = Pattern.compile("pair\\(\\s*\\n\\s*'([A-Za-z0-9_]+)',");
-    private static final String INFERENCE_MAP = "getDynaFunctionTypeInferenceMap():";
     private static final Path TRANSLATOR = CoreTree.main("com/legend/normalizer/RelOpTranslator.java");
     /** Shrink-only: engine operators the platform handles by nothing yet.
      *  37 → 42 at the 4.145.0 bump (batch 8): the engine ADDED five
@@ -52,70 +49,22 @@ class DynaFnRegistryTest {
      *  side did not move; each is a leg, not a ledger row. */
     static final int UNSUPPORTED_MAX = 41;   // 42 -> 41 (2026-09-17: isAlphaNumeric is OURS — ledger F-X)
 
-    /** One upstream name's facts: registering dialects + inference-map membership. */
-    record Upstream(TreeSet<String> dialects, boolean inferred) {
-    }
-
     static Path engineRoot() {
         return com.legend.testing.Upstream.engine();
-    }
-
-    static String dialectOf(Path p) {
-        String s = p.toString().replace('\\', '/');
-        Matcher m = Pattern.compile("core_relational_(\\w+)/").matcher(s);
-        if (m.find()) {
-            return m.group(1).toUpperCase();
-        }
-        m = Pattern.compile("dbSpecific/(\\w+)/").matcher(s);
-        if (m.find()) {
-            return m.group(1).toUpperCase();
-        }
-        return s.endsWith("extensionDefaults.pure") ? "DEFAULT" : "OTHER";
-    }
-
-    /** name → facts, read from every registry file in the checkout. */
-    static TreeMap<String, Upstream> upstream() throws IOException {
-        TreeMap<String, Upstream> out = new TreeMap<>();
-        try (Stream<Path> walk = Files.walk(engineRoot())) {
-            for (Path p : walk.filter(x -> x.toString().endsWith(".pure")).toList()) {
-                String text = Files.readString(p, StandardCharsets.UTF_8);
-                if (text.contains("dynaFnToSql(")) {
-                    String dialect = dialectOf(p);
-                    Matcher m = DYNA.matcher(text);
-                    while (m.find()) {
-                        out.computeIfAbsent(m.group(1), k -> new Upstream(new TreeSet<>(), false))
-                                .dialects().add(dialect);
-                    }
-                }
-                int at = text.indexOf(INFERENCE_MAP);
-                if (at >= 0) {
-                    Matcher m = INFERENCE_ENTRY.matcher(text.substring(at));
-                    while (m.find()) {
-                        Upstream u = out.get(m.group(1));
-                        out.put(m.group(1), new Upstream(u == null ? new TreeSet<>() : u.dialects(), true));
-                    }
-                }
-            }
-        }
-        return out;
     }
 
     @Test
     @DisplayName("the registry IS the engine's: every dynaFnToSql and type-inference name, with its dialects, and nothing else")
     void registryMatchesTheCheckout() throws IOException {
         Assumptions.assumeTrue(Files.isDirectory(engineRoot()), "legend-engine checkout not present");
-        TreeMap<String, Upstream> up = upstream();
-        if ("1".equals(System.getProperty("dynafn.generate"))) {
-            generate(up);
-            return;
-        }
-        TreeMap<String, Upstream> ours = new TreeMap<>();
+        TreeMap<String, DynaFnGenerator.Upstream> up = DynaFnGenerator.upstream(engineRoot());
+        TreeMap<String, DynaFnGenerator.Upstream> ours = new TreeMap<>();
         for (DynaFn d : DynaFn.values()) {
             TreeSet<String> ds = new TreeSet<>();
             d.dialects().forEach(x -> ds.add(x.name()));
-            ours.put(d.dynaName(), new Upstream(ds, d.inference() == DynaFn.Inference.MAPPED));
+            ours.put(d.dynaName(), new DynaFnGenerator.Upstream(ds, d.inference() == DynaFn.Inference.MAPPED));
         }
-        assertEquals(up, ours, "DynaFn drifted from the checkout's registries — regenerate with -Ddynafn.generate=1");
+        assertEquals(up, ours, "DynaFn drifted from the checkout's registries — regenerate: bazel run //:update_generated");
     }
 
     @Test
@@ -179,35 +128,5 @@ class DynaFnRegistryTest {
                 "the engine-vocabulary shim set must be exactly what the registry and the arms land on");
     }
 
-    /** Rewrite the member block of DynaFn.java from the checkout, keeping each
-     *  existing member's resolution and Lite constant. */
-    private static void generate(TreeMap<String, Upstream> up) throws IOException {
-        Path src = CoreTree.main("com/legend/builtin/DynaFn.java");
-        String text = Files.readString(src, StandardCharsets.UTF_8);
-        Map<String, String[]> existing = new TreeMap<>();
-        Matcher m = Pattern.compile("^    ([A-Z_0-9]+)\\(\"(\\w+)\", Resolution\\.(\\w+), (null|Pure\\.Lite\\.\\w+), Inference\\.\\w+", Pattern.MULTILINE).matcher(text);
-        while (m.find()) {
-            existing.put(m.group(2), new String[] {m.group(3), m.group(4)});
-        }
-        List<String> lines = new ArrayList<>();
-        for (Map.Entry<String, Upstream> e : up.entrySet()) {
-            String[] keep = existing.getOrDefault(e.getKey(), new String[] {"UNSUPPORTED", "null"});
-            String member = e.getKey().replaceAll("([a-z0-9])([A-Z])", "$1_$2").toUpperCase();
-            StringBuilder ds = new StringBuilder();
-            for (String d : e.getValue().dialects()) {
-                ds.append(", Dialect.").append(d);
-            }
-            lines.add("    " + member + "(\"" + e.getKey() + "\", Resolution." + keep[0] + ", " + keep[1]
-                    + ", Inference." + (e.getValue().inferred() ? "MAPPED" : "NONE") + ds + "),");
-        }
-        String last = lines.get(lines.size() - 1);
-        lines.set(lines.size() - 1, last.substring(0, last.length() - 1) + ";");
-        int start = text.indexOf("public enum DynaFn {\n") + "public enum DynaFn {\n".length();
-        Matcher end = Pattern.compile("^    [A-Z_0-9]+\\(.*\\);\\n", Pattern.MULTILINE).matcher(text);
-        if (!end.find(start)) {
-            throw new IllegalStateException("member block not found");
-        }
-        Files.writeString(src, text.substring(0, start) + String.join("\n", lines) + "\n" + text.substring(end.end()), StandardCharsets.UTF_8);
-        System.out.println("[dynafn] regenerated " + lines.size() + " members");
-    }
+
 }
