@@ -49,6 +49,17 @@ class CoreClosureTest {
                 "the drivers changed — edit DRIVER_JARS in the same change, with the reason");
     }
 
+    @Test
+    void specReachesNoUpstreamJar() throws IOException {
+        List<String> jars = jars("spec_closure");
+        assertTrue(!jars.isEmpty(), "the spec closure query returned nothing — the guard is not looking");
+        for (String jar : jars) {
+            assertTrue(!jar.contains("maven_upstream//:"),
+                    () -> "spec reaches an upstream jar: " + jar
+                            + " — spec reads the pinned checkouts as files, never their Java");
+        }
+    }
+
     private static List<String> jars(String closure) throws IOException {
         return Files.readAllLines(Repo.module(closure)).stream()
                 .filter(l -> !l.isBlank())

@@ -63,3 +63,21 @@ junit_test(
     select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
     upstream = True,
 )
+
+# Maven gate 11: THE JUDGE DIFFERENTIAL. The DuckDB corpus under the HOST judge
+# writing its per-assert ledger (the prerun, a child JVM), then under the DATABASE
+# judge, which joins the two per assert in the lane itself
+# (MinimalCorpusTest.pinJudgeDifferential). Both passes are this target's own.
+junit_test(
+    name = "judge_differential",
+    data = _INPUTS,
+    jvm_flags = [
+        "-Dlegend.prerun=legend.judge.mode=host,legend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
+        "-Dlegend.judge.mode=database",
+        "-Dlegend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-database.tsv",
+        "-Dlegend.judge.ledger.host=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
+    ],
+    runtime_deps = [":spec_tests_lib"],
+    select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
+    upstream = True,
+)

@@ -68,28 +68,23 @@ java_library(
     ],
 )
 
-# ALL of core's tests, as ONE target — the same probe the build got: one target
-# first, so a failure is about "can Bazel run these tests at all", not about how
-# they were split. Mirrors Maven's gate 1: everything except the heavy and stress
-# groups, JUnit's own console launcher selecting by package.
-junit_test(
-    name = "core_tests",
-    size = "enormous",
+# every file a core test reads by path, declared, so it exists in runfiles and
+# nothing is read by accident. The sibling trees are the cross-module reads
+# (census, skip and boundary guards that walk every module; the stress corpus's
+# linked projects) — today's hidden coupling, now visible here.
+_TEST_READS = glob(["src/**"]) + [
+    "//parser-equivalence:srcs",
+    "//pct:srcs",
+    "//projects:srcs",
+    "//spec:srcs",
+]
+
+# core's tests, compiled ONCE; every lane below runs from this library.
+java_library(
+    name = "core_tests_lib",
+    testonly = True,
     srcs = glob(["src/test/java/**/*.java"]),
     resources = glob(["src/test/resources/**"]),
-    # every file a test reads by path, declared, so it exists in runfiles and
-    # nothing is read by accident. The sibling trees are the cross-module reads
-    # (census, skip and boundary guards that walk every module; the stress
-    # corpus's linked projects) — today's hidden coupling, now visible here.
-    data = glob(["src/**"]) + [
-        "//parser-equivalence:srcs",
-        "//pct:srcs",
-        "//projects:srcs",
-        "//spec:srcs",
-    ],
-    select = ["--select-package=com.legend"],
-    exclude_tags = ["heavy", "stress"],
-    runtime_deps = [":drivers"],
     deps = [
         ":core",
         "//testing",
@@ -101,5 +96,34 @@ junit_test(
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@maven_test//:org_junit_jupiter_junit_jupiter_params",
         "@maven_core//:org_xerial_sqlite_jdbc",
+    ],
+)
+
+# Maven gate 1: every core test except the heavy and stress groups, JUnit's own
+# console launcher selecting by package.
+junit_test(
+    name = "core_tests",
+    size = "enormous",
+    data = _TEST_READS,
+    select = ["--select-package=com.legend"],
+    exclude_tags = ["heavy", "stress"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+)
+
+# Maven gate 10: THE STRESS CORPUS — every stress service suite on DuckDB shared
+# sessions, held by the MIN_PASS ratchet inside StressServiceSuitesTest. Its own
+# lane: the stress group is what gate 1 leaves out.
+junit_test(
+    name = "stress_suites",
+    size = "enormous",
+    data = _TEST_READS,
+    select = ["--select-class=com.legend.integration.StressServiceSuitesTest"],
+    exclude_tags = ["heavy"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
     ],
 )
