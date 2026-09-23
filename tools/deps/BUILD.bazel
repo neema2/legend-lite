@@ -19,6 +19,16 @@ genquery(
     scope = ["//core:drivers"],
 )
 
+# spec reads the pinned checkouts as FILES and imports no upstream Java (its
+# SpecBoundaryTest bans the imports; this bans the jars) — the half of the old
+# gate 2 convergence check that pools alone do not make true.
+genquery(
+    name = "spec_closure",
+    expression = "kind(jvm_import, deps(//spec:spec_tests_lib))",
+    opts = ["--noimplicit_deps"],
+    scope = ["//spec:spec_tests_lib"],
+)
+
 junit_test(
     name = "core_closure_test",
     size = "small",
@@ -26,6 +36,7 @@ junit_test(
     data = [
         ":core_closure",
         ":drivers_closure",
+        ":spec_closure",
     ],
     select = ["--select-class=com.legend.tools.deps.CoreClosureTest"],
     deps = [
