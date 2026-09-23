@@ -75,12 +75,12 @@ public class UpstreamPathManifestTest {
         for (String r : SpecBodyCensusTest.PLATFORM_ROOTS) {
             out.add(new Entry("SpecBodyCensusTest.PLATFORM_ROOTS", "pure", pure.resolve(r), true));
         }
-        for (String r : PreludeGeneratorTest.ENGINE_SPEC_ROOTS) {
-            out.add(new Entry("PreludeGeneratorTest.ENGINE_SPEC_ROOTS", "engine", engine.resolve(r), true));
+        for (String r : PreludeGenerator.ENGINE_SPEC_ROOTS) {
+            out.add(new Entry("PreludeGenerator.ENGINE_SPEC_ROOTS", "engine", engine.resolve(r), true));
         }
-        out.add(new Entry("PreludeGeneratorTest.CORPUS_ROOT", "engine",
-                engine.resolve(PreludeGeneratorTest.CORPUS_ROOT), true));
-        out.add(new Entry("PreludeGeneratorTest.M3_PURE", "pure", pure.resolve(PreludeGeneratorTest.M3_PURE), false));
+        out.add(new Entry("PreludeGenerator.CORPUS_ROOT", "engine",
+                engine.resolve(PreludeGenerator.CORPUS_ROOT), true));
+        out.add(new Entry("PreludeGenerator.M3_PURE", "pure", pure.resolve(PreludeGenerator.M3_PURE), false));
         // +1 (batch 5 audit, 2026-09-11): the engine's implicit-import sequence
         out.add(new Entry("CoreImportsParityTest.COMPILE_CONTEXT", "engine",
                 engine.resolve(CoreImportsParityTest.COMPILE_CONTEXT), false));

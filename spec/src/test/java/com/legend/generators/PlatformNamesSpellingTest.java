@@ -94,7 +94,7 @@ class PlatformNamesSpellingTest {
         Assumptions.assumeTrue(Files.isDirectory(pure), "legend-pure checkout not present");
         List<Path> roots = new ArrayList<>();
         roots.add(pure);
-        for (String r : PreludeGeneratorTest.ENGINE_SPEC_ROOTS) {
+        for (String r : PreludeGenerator.ENGINE_SPEC_ROOTS) {
             roots.add(engine.resolve(r));
         }
         Set<String> declared = declaredIn(roots);

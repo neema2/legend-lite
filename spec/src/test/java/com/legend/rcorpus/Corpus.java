@@ -47,10 +47,7 @@ public final class Corpus {
      */
     public static final Path ENGINE_ROOT = com.legend.testing.Upstream.engine();
 
-    public static final Path RELATIONAL = ENGINE_ROOT.resolve(
-            "legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/"
-            + "legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/"
-            + "src/main/resources/core_relational/relational");
+    public static final Path RELATIONAL = ENGINE_ROOT.resolve(com.legend.generators.UpstreamFiles.RELATIONAL);
 
     /** The PLATFORM M2M test model sources (shared::src/dest classes,
      * createInstances) — the relational corpus's cross-store tests map
@@ -61,38 +58,15 @@ public final class Corpus {
             + "src/main/resources/core/store/m2m/tests");
 
     /** The engine's core Pure module root (legend-engine-pure-code-compiled-core). */
-    public static final Path CORE_PURE = ENGINE_ROOT.resolve(
-            "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/"
-            + "src/main/resources/core");
+    public static final Path CORE_PURE = ENGINE_ROOT.resolve(com.legend.generators.UpstreamFiles.CORE_PURE);
 
     /** Named LIBRARY files admitted to the global module as elements
      * (never setups): each is a PROGRAM library a corpus family imports
      * (docs/WORLD_MAP.md rule 5 — "a loading rule that did not admit the
      * file"). The prelude generator scans the same list for the shapes
      * their signatures name, so the two stay in step. */
-    public static final java.util.List<Path> LIBRARY_FILES = java.util.List.of(
-            // the relational compiler's OWN model vocabulary
-            // (RelationalDebugContext / IsolationStrategy — tests/advanced
-            // testForced*)
-            RELATIONAL.resolve("pureToSQLQuery/pureToSQLQuery.pure"),
-            // toPostgresModel's helper vocabulary (literal, simpleFunctionCall,
-            // cast, …) — sqlDialectTranslation family, batch 54
-            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/"
-                    + "legend-engine-xt-relationalStore-generation/"
-                    + "legend-engine-xt-relationalStore-pure/"
-                    + "legend-engine-xt-relationalStore-sqlDialectTranslation-pure/"
-                    + "src/main/resources/core_external_store_relational_sql_dialect_translation/utils.pure"),
-            // ENGINE-CORE TEST FIXTURES (batch 145, USER 2026-09-08): classes and
-            // enums the relational corpus imports by name — meta::pure::tds::
-            // toRelation::TestClass, the PCT model (meta::pure::functions::tests::
-            // model::*), the router preeval fixtures, meta::json::tests::*. A
-            // Pure import shortens names, it is not a dependency: nothing ties a
-            // package to a file, so the files are NAMED here. Their own test
-            // functions are library elements — never discovered as this corpus.
-            CORE_PURE.resolve("pure/tds/relation/testTdsToRelation.pure"),
-            CORE_PURE.resolve("pure/corefunctions/tests/testModel.pure"),
-            CORE_PURE.resolve("pure/router/preeval/tests.pure"),
-            CORE_PURE.resolve("external/format/json/tests/testToJson.pure"));
+    public static final java.util.List<Path> LIBRARY_FILES =
+            com.legend.generators.UpstreamFiles.LIBRARY_FILES.stream().map(ENGINE_ROOT::resolve).toList();
 
     /**
      * SHAPE files (PHASE3_DEMAND_CUT_HOMEWORK D1, USER 2026-09-08: "the most
@@ -106,71 +80,8 @@ public final class Corpus {
      * library is graph material, by file. Two lists, two meanings:
      * LIBRARY_FILES are PROGRAMS admitted whole; SHAPE_FILES are declarations.
      */
-    public static final java.util.List<Path> SHAPE_FILES = java.util.List.of(
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/external/format/json/fromJSON.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/external/format/json/toJSON.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/binding/binding/binding.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/binding/binding/mapping.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/binding/binding/validation.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/binding/executionPlan/model.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/binding/externalFormat/externalFormatContract.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/binding/schemaSet/metamodel.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/binding/transformation/generation.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/constraints/constraintsExtension.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/corefunctions/testExtension.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/data/data.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/dataQuality/dataQuality.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/executionPlan/executionPlan.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/executionPlan/executionPlanFeature.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/executionPlan/executionPlan_generation.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/executionPlan/extensions.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/executionPlan/platformBinding/platformBinding.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/extensions/extension.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/graphFetch/graphFetchExecutionPlan.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/mapping/mappingExtension.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/mapping/modelToModel.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/mapping/relationFunctionMapping.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/model/modelUnit.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/protocol/vX_X_X/models/core/_extra.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/protocol/vX_X_X/models/core/m3.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/protocol/vX_X_X/models/pureModelContextData.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/metamodel/clustering.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/metamodel/routing.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/platform/metamodel.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/routing/router_routing.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/store/builder.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/store/cluster.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/router/store/metamodel.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/runtime/runtimeExtension.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/serialization/toPureGrammar.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/store/storeContract.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/tds/relation/tdsToRelation.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/tds/tds.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/tds/tdsSchema.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/test/mft.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/test/testCoverage/testCoverageModel.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/test/testable.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/treepath/treePath.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/store/aggregationAware/aggregationAware.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-json/legend-engine-pure-functions-json-pure/src/main/resources/core_functions_json/json.pure"),
-            ENGINE_ROOT.resolve("legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources/core_functions_unclassified/io/http/executeHTTPRaw.pure"),
-            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-dbExtension/legend-engine-xt-relationalStore-duckdb/legend-engine-xt-relationalStore-duckdb-pure/src/main/resources/core_relational_duckdb/relational/connection/metamodel.pure"),
-            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-postgresSql/legend-engine-xt-relationalStore-postgresSqlModel-extensions-pure/src/main/resources/core_external_store_relational_postgres_sql_model_extensions/metamodel_extensions.pure"),
-            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-postgresSql/legend-engine-xt-relationalStore-postgresSqlModel-pure/src/main/resources/core_external_store_relational_postgres_sql_model/metamodel.pure"),
-            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/executionPlan/executionPlan.pure"),
-            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/metamodel/metamodel.pure"),
-            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/postprocessor/defaultPostProcessor/dbSpecificProcessor.pure"),
-            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/pureToSQLQuery/metamodel.pure"),
-            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/runtime/connection/authenticationStrategy.pure"),
-            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/runtime/connection/postprocessor.pure"),
-            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-core-pure/src/main/resources/core_relational/relational/sqlQueryToString/dbExtension.pure"),
-            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-sqlDialectTranslation-pure/src/main/resources/core_external_store_relational_sql_dialect_translation/functionRegistry/functionRegistry.pure"),
-            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-sqlDialectTranslation-pure/src/main/resources/core_external_store_relational_sql_dialect_translation/sqlDialect.pure"),
-            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-sqlDialectTranslation-pure/src/main/resources/core_external_store_relational_sql_dialect_translation/sqlDialectTranslator.pure"),
-            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-sqlDialectTranslation-pure/src/main/resources/core_external_store_relational_sql_dialect_translation/sqlTyping/sqlTypes.pure"),
-            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-sqlDialectTranslation-pure/src/main/resources/core_external_store_relational_sql_dialect_translation/utils.pure"),
-            ENGINE_ROOT.resolve("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-sqlPlanning-pure/src/main/resources/core_external_store_relational_sql_planning/sqlPlanner.pure"),
-            ENGINE_ROOT.resolve("legend-engine-xts-service/legend-engine-language-pure-dsl-service-pure/src/main/resources/core_service/service/metamodel.pure"));
+    public static final java.util.List<Path> SHAPE_FILES =
+            com.legend.generators.UpstreamFiles.SHAPE_FILES.stream().map(ENGINE_ROOT::resolve).toList();
 
 
     // NOTE (V7 tenet correction 2026-08-28): the corpus lane reads NO

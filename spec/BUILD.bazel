@@ -11,13 +11,36 @@ filegroup(
 )
 
 # Compiled ONCE; every lane below runs from this library.
+# THE GENERATOR PROGRAMS (see "THE GENERATORS" below): plain code, no test
+# framework — a program reads its declared inputs and writes one file.
+_GENERATOR_SRCS = [
+    "src/test/java/com/legend/claims/Claims.java",
+    "src/test/java/com/legend/claims/ClaimsGenerator.java",
+    "src/test/java/com/legend/generators/DynaFnGenerator.java",
+    "src/test/java/com/legend/generators/ImportsGenerator.java",
+    "src/test/java/com/legend/generators/NativesGenerator.java",
+    "src/test/java/com/legend/generators/PreludeGenerator.java",
+    "src/test/java/com/legend/generators/SourceTree.java",
+    "src/test/java/com/legend/generators/UpstreamFiles.java",
+]
+
+java_library(
+    name = "generators",
+    srcs = _GENERATOR_SRCS,
+    deps = ["//core"],
+)
+
 java_library(
     name = "spec_tests_lib",
     testonly = True,
-    srcs = glob(["src/test/java/**/*.java"]),
+    srcs = glob(
+        ["src/test/java/**/*.java"],
+        exclude = _GENERATOR_SRCS,
+    ),
     resources = glob(["src/test/resources/**"]),
     runtime_deps = ["//core:drivers"],
     deps = [
+        ":generators",
         "//core",
         "//testing",
         "@maven_core//:com_h2database_h2",
@@ -93,11 +116,18 @@ _ENGINE_COMPILE_CONTEXT = "@legend_engine_src//:legend-engine-core/legend-engine
 # a generator that walks a whole upstream tree gets the tree as inputs and its
 # root as an argument: the directory of a file every release has at its root
 _ENGINE_ROOT = "$$(dirname $(execpath @legend_engine_src//:pom.xml))"
+_PURE_ROOT = "$$(dirname $(execpath @legend_pure_src//:pom.xml))"
+_UPSTREAM_TREES = [
+    "@legend_engine_src//:pom.xml",
+    "@legend_engine_src//:tree",
+    "@legend_pure_src//:pom.xml",
+    "@legend_pure_src//:tree",
+]
 
 java_binary(
     name = "imports_generator",
-    srcs = ["src/test/java/com/legend/generators/ImportsGenerator.java"],
     main_class = "com.legend.generators.ImportsGenerator",
+    runtime_deps = [":generators"],
 )
 
 # NameResolver.java's CORE_IMPORTS: the engine's META_IMPORTS sequence
@@ -115,8 +145,8 @@ genrule(
 
 java_binary(
     name = "dynafn_generator",
-    srcs = ["src/test/java/com/legend/generators/DynaFnGenerator.java"],
     main_class = "com.legend.generators.DynaFnGenerator",
+    runtime_deps = [":generators"],
 )
 
 # DynaFn.java's members: the engine's dynafunction registries, every dialect
@@ -130,6 +160,103 @@ genrule(
     outs = ["generated/DynaFn.java"],
     cmd = "$(location :dynafn_generator) " + _ENGINE_ROOT + " $(location //core:src/main/java/com/legend/builtin/DynaFn.java) $@",
     tools = [":dynafn_generator"],
+    visibility = ["//core:__pkg__"],
+)
+
+java_binary(
+    name = "natives_generator",
+    main_class = "com.legend.generators.NativesGenerator",
+    runtime_deps = [":generators"],
+)
+
+# Pure.java's membership signatures: upstream's spelling of OUR membership rows.
+# Runs on core AS COMMITTED (its parser and resolver) — the first link of the chain.
+genrule(
+    name = "gen_natives",
+    srcs = _UPSTREAM_TREES + [
+        "//core:src/main/resources/com/legend/builtin/native-membership.tsv",
+        "//core:src/main/java/com/legend/builtin/Pure.java",
+    ],
+    outs = ["generated/Pure.java"],
+    cmd = " ".join([
+        "$(location :natives_generator)",
+        _ENGINE_ROOT,
+        _PURE_ROOT,
+        "$(location //core:src/main/resources/com/legend/builtin/native-membership.tsv)",
+        "$(location //core:src/main/java/com/legend/builtin/Pure.java)",
+        "$@",
+    ]),
+    tools = [":natives_generator"],
+    visibility = ["//core:__pkg__"],
+)
+
+java_binary(
+    name = "prelude_generator",
+    main_class = "com.legend.generators.PreludeGenerator",
+    runtime_deps = [":generators"],
+)
+
+# prelude.pure: the spec shapes the platform and the corpus name. It reads core's
+# Java SOURCES with Pure.java as :gen_natives wrote it (the chain: natives, then
+# prelude), and runs on core as committed.
+genrule(
+    name = "gen_prelude",
+    srcs = _UPSTREAM_TREES + [
+        ":gen_natives",
+        "//core:main_java",
+    ],
+    outs = ["generated/com/legend/builtin/prelude.pure"],
+    cmd = " ".join([
+        "$(location :prelude_generator)",
+        _ENGINE_ROOT,
+        _PURE_ROOT,
+        "core/src/main/java",
+        "$@",
+        "com/legend/builtin/Pure.java=$(location :gen_natives)",
+    ]),
+    tools = [":prelude_generator"],
+    visibility = ["//core:__pkg__"],
+)
+
+# the claims generator reads the COMPILED registries, so it is compiled against,
+# and runs on, //core:core_next — core as the generators above rewrite it — and
+# never beside a second core
+java_library(
+    name = "claims_generator_lib",
+    srcs = [
+        "src/test/java/com/legend/claims/Claims.java",
+        "src/test/java/com/legend/claims/ClaimsGenerator.java",
+        "src/test/java/com/legend/generators/SourceTree.java",
+    ],
+    deps = ["//core:core_next"],
+)
+
+java_binary(
+    name = "claims_generator",
+    main_class = "com.legend.claims.ClaimsGenerator",
+    runtime_deps = [":claims_generator_lib"],
+)
+
+# native-claims.tsv: the implemented surface. The last link of the chain: it
+# runs on core_next and reads core's sources with the three generated Java files.
+genrule(
+    name = "gen_claims",
+    srcs = [
+        ":gen_dynafn",
+        ":gen_imports",
+        ":gen_natives",
+        "//core:main_java",
+    ],
+    outs = ["generated/native-claims.tsv"],
+    cmd = " ".join([
+        "$(location :claims_generator)",
+        "core/src/main/java",
+        "$@",
+        "com/legend/builtin/DynaFn.java=$(location :gen_dynafn)",
+        "com/legend/builtin/Pure.java=$(location :gen_natives)",
+        "com/legend/compiler/NameResolver.java=$(location :gen_imports)",
+    ]),
+    tools = [":claims_generator"],
     visibility = ["//core:__pkg__"],
 )
 
