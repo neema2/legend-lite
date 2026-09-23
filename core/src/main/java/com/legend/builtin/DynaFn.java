@@ -29,7 +29,7 @@ import java.util.Optional;
  * ({@code and}/{@code or} with more than two operands, {@code parseDate} with a
  * format): the arm rewrites that shape and pure's own shape passes through —
  * {@code DynaFnArms.ARMS} lists every name with an arm, TRANSLATED or PURE.
- * GENERATED from the checkouts by {@code DynaFnRegistryTest -Ddynafn.generate=1}
+ * GENERATED from the checkouts by {@code DynaFnGenerator} ({@code bazel run //:update_generated})
  * (members, dialects); the resolution column is the platform's own decision, kept
  * by hand and VERIFIED by the same test (a PURE name must exist in the catalog, a
  * SHIM must name a Lite constant, every TRANSLATED name has an arm and every armed

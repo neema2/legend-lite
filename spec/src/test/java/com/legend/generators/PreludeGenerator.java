@@ -565,7 +565,7 @@ public final class PreludeGenerator {
         sb.append("// Copyright 2026 Legend Contributors\n");
         sb.append("// SPDX-License-Identifier: Apache-2.0\n");
         sb.append("//\n");
-        sb.append("// GENERATED — do not edit (com.legend.generators.PreludeGeneratorTest, -Dprelude.generate=1).\n");
+        sb.append("// GENERATED — do not edit (com.legend.generators.PreludeGenerator; regenerate: bazel run //:update_generated).\n");
         sb.append("// THE PRELUDE AS A MODULE (docs/SYSTEM_PRELUDE_DESIGN_2026_09_08.md §10,\n");
         sb.append("// docs/PRELUDE_MODULE_HOMEWORK_2026_09_08.md): the library shapes the corpus and the platform's Java\n");
         sb.append("// name, copied VERBATIM from the legend-pure / legend-engine spec — one ###Pure section per spec file\n");

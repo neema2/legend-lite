@@ -21,8 +21,8 @@ import java.util.stream.Collectors;
 /**
  * THE PRELUDE AS A MODULE (docs/SYSTEM_PRELUDE_DESIGN_2026_09_08.md §10,
  * docs/PRELUDE_MODULE_HOMEWORK_2026_09_08.md): the generated shapes
- * ({@code prelude.pure}, written by {@code PreludeGeneratorTest
- * -Dprelude.generate=1} — the spec's declarations VERBATIM under their
+ * ({@code prelude.pure}, written by {@code PreludeGenerator},
+ * {@code bazel run //:update_generated} — the spec's declarations VERBATIM under their
  * files' imports) read as ONE Pure source and parsed once. They are not
  * catalog entries: the compiler's BOOT LAYER ({@code Compiler.bootLayer})
  * resolves and normalizes them beside the system metamodel and joins them

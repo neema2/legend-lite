@@ -1,7 +1,7 @@
 # PROTOCOL-TYPE ROSTER — every @JsonSubTypes tag the pinned engine's protocol jars declare (+ the extension registry),
 # one row per (tag, class): unrelated protocols reuse a tag, and every class declaring it is listed.
 # COVERED when a source in the engine corpus, the fixtures or our own test snippets reaches it (ProtocolRosterCensusTest).
-# THE LEDGER IS THIS FILE: a bump that adds or removes a tag, or moves a tag between COVERED and UNCOVERED, is a reviewed diff. Regenerate: -Droster.generate=1.
+# THE LEDGER IS THIS FILE: a bump that adds or removes a tag, or moves a tag between COVERED and UNCOVERED, is a reviewed diff. Regenerate: bazel run //:update_generated.
 AggregationAwarePropertyMapping	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.mapping.aggregationAware.AggregationAwarePropertyMapping	COVERED
 AnalyticsExecutionContext	org.finos.legend.engine.protocol.pure.v1.model.valueSpecification.raw.executionContext.AnalyticsExecutionContext	UNCOVERED
 Array	org.finos.legend.engine.protocol.pure.v1.model.packageableElement.store.relational.model.datatype.Other	UNCOVERED

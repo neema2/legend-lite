@@ -209,7 +209,7 @@ public final class NameResolver {
      * {@code metamodel::variant}, {@code metamodel::relation} and
      * {@code precisePrimitives} at the engine's positions). GENERATED from the
      * pinned checkout and held as a sequence by {@code CoreImportsParityTest}
-     * ({@code -Dimports.generate=1}). */
+     * ({@code ImportsGenerator}, {@code bazel run //:update_generated}). */
     public static final List<String> CORE_IMPORTS = List.of(
             "meta::pure::metamodel",
             "meta::pure::metamodel::type",

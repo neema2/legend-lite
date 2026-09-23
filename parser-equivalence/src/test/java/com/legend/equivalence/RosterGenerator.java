@@ -42,7 +42,7 @@ public final class RosterGenerator {
                 + " (+ the extension registry),\n# one row per (tag, class): unrelated protocols reuse a tag, and every class declaring it is listed.\n# COVERED when a source in the engine corpus, the fixtures or our own"
                 + " test snippets reaches it (ProtocolRosterCensusTest).\n# THE LEDGER IS THIS FILE: a bump that adds"
                 + " or removes a tag, or moves a tag between COVERED and UNCOVERED, is a reviewed diff."
-                + " Regenerate: -Droster.generate=1.\n";
+                + " Regenerate: bazel run //:update_generated.\n";
 
     /** The roster: tag → every class declaring it, the tags seen, and the rows. */
     public record Roster(Map<String, Set<String>> tagToClass, Set<String> seen, String dump) {
