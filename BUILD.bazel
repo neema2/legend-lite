@@ -7,6 +7,7 @@ exports_files([
     "MODULE.bazel",
     "maven_core_install.json",
     "maven_h2_modern_install.json",
+    "maven_runner_install.json",
     "maven_test_install.json",
     "maven_tools_install.json",
     "maven_upstream_install.json",

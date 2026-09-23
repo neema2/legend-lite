@@ -100,6 +100,30 @@ junit_test(
     ],
 )
 
+# GATE 6, ONE JVM PER SUITE — for a machine that cannot hold five Pure graphs
+# (2.0-2.8 GB live each) in one JVM: CI's 7 GB macOS runner, as Maven's
+# -Dpct.reuseForks=false was. The census ceilings are whole-lane ceilings, which a
+# suite's own JVM stays under. Manual: //... runs :pct_duckdb, not these twice.
+[junit_test(
+    name = "pct_duckdb_" + s.lower(),
+    data = glob(["src/**"]),
+    select = ["--select-class=org.finos.legend.lite.pct.Test_LegendLite_%sFunctions_PCT" % s],
+    tags = ["manual"],
+    runtime_deps = [
+        ":pct_tests_lib",
+        "//core:drivers",
+    ],
+) for s in _SUITES]
+
+junit_test(
+    name = "pct_discipline",
+    size = "small",
+    data = glob(["src/**"]),
+    select = ["--select-class=org.finos.legend.lite.pct.PctDisciplineTest"],
+    tags = ["manual"],
+    runtime_deps = [":pct_tests_lib"],
+)
+
 # GATE 7 — the relation suite on H2 2.4.240 (LEGENDLITE_PCT_BACKEND=h2 selects
 # the H2 execution dialect). This lane has LEDGERED failures, so it is held to a
 # RATCHET rather than pass/fail (tools/junit/JUnitMain.java): at least 469 run,

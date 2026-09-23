@@ -1,0 +1,47 @@
+load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+
+# The engine runner (README.md): the real legend-engine over .pure sources, beside
+# legend-lite's core. Its jars are its own pool, @maven_runner (MODULE.bazel).
+java_library(
+    name = "runner",
+    srcs = glob(["src/main/java/**/*.java"]),
+    runtime_deps = [
+        "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_grammar",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_compiler",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_modelManager",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_executionPlan_generation",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_extensions_collection_generation",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_extensions_collection_execution",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_executionPlan_connection",
+        "@maven_runner//:com_h2database_h2",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_test_runner_mapping",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_test_runner_function",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_duckdb_execution",
+        "@maven_runner//:org_duckdb_duckdb_jdbc",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_athena_grammar",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_oracle_grammar",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_aurora_grammar",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_xt_relationalStore_memsql_grammar",
+    ],
+    deps = [
+        "//core",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_test_runner_service",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_grammar",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_compiler",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_protocol_pure",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_shared_core",
+        "@maven_runner//:org_finos_legend_engine_legend_engine_testable",
+        "@maven_runner//:org_antlr_antlr4_runtime",
+    ],
+)
+
+[java_binary(
+    name = name,
+    main_class = "perf." + main,
+    runtime_deps = [":runner"],
+) for (name, main) in [
+    ("testable", "TestableMain"),
+    ("parse", "ParseMain"),
+    ("lite_parse", "LiteParseMain"),
+    ("token_dump", "TokenDump"),
+]]

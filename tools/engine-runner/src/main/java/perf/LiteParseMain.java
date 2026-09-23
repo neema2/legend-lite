@@ -37,7 +37,7 @@ public class LiteParseMain
             else if (a.equals("--protocol-check")) protocolCheck = true;
             else
             {
-                Path p = Paths.get(a);
+                Path p = Cwd.of(a);
                 if (Files.isDirectory(p))
                 {
                     try (var s = Files.walk(p))

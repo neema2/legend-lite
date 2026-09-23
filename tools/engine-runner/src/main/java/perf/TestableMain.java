@@ -55,11 +55,11 @@ public class TestableMain
             else if (a.startsWith("--dump="))
             {
                 dumpDir = a.substring("--dump=".length());
-                Files.createDirectories(Paths.get(dumpDir));
+                Files.createDirectories(Cwd.of(dumpDir));
             }
             else
             {
-                src.append(Files.readString(Paths.get(a))).append("\n");
+                src.append(Files.readString(Cwd.of(a))).append("\n");
             }
         }
 
@@ -70,7 +70,7 @@ public class TestableMain
         t0 = System.nanoTime();
         if (pmcdJson != null)
         {
-            Files.writeString(Paths.get(pmcdJson),
+            Files.writeString(Cwd.of(pmcdJson),
                     org.finos.legend.engine.shared.core.ObjectMapperFactory
                             .getNewStandardObjectMapperWithPureProtocolExtensionSupports()
                             .writeValueAsString(pmcd));
@@ -139,9 +139,9 @@ public class TestableMain
                     if (dumpDir != null)
                     {
                         String base = id.replaceAll("[^A-Za-z0-9_.-]", "_");
-                        Files.writeString(Paths.get(dumpDir, base + ".expected.json"),
+                        Files.writeString(Cwd.of(dumpDir, base + ".expected.json"),
                                 eq.expected == null ? "null" : eq.expected);
-                        Files.writeString(Paths.get(dumpDir, base + ".actual.json"),
+                        Files.writeString(Cwd.of(dumpDir, base + ".actual.json"),
                                 eq.actual == null ? "null" : eq.actual);
                         System.out.println("      dumped  : " + base + ".{expected,actual}.json");
                     }
