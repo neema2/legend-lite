@@ -9,3 +9,6 @@ filegroup(
     srcs = glob(["**"]),
     visibility = ["//visibility:public"],
 )
+
+# every file, individually addressable, for generators that read one named file
+exports_files(glob(["**"]))

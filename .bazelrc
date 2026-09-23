@@ -10,4 +10,3 @@ build --tool_java_language_version=21
 build --tool_java_runtime_version=remotejdk_21
 # the engine's test clock (root pom surefire argLine) — one clock, everywhere
 test --test_env=TZ=GMT
-test --jvmopt=-Duser.timezone=GMT
