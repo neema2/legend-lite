@@ -683,7 +683,8 @@ public final class CanonicalDivergence {
      * adjudication). The partition follows its tests: the runner reports
      * each ERROR wall here, vocabulary-matched by the SAME list. */
     private static final java.util.Set<String> QUARANTINED_WALL_TESTS =
-            java.util.concurrent.ConcurrentHashMap.newKeySet();
+            java.util.Collections.newSetFromMap(
+                    new java.util.concurrent.ConcurrentHashMap<>());
 
     public static void noteWall(String test, String reason) {
         if (quarantined(reason)) {

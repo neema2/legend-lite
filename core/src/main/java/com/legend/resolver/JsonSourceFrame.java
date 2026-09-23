@@ -54,7 +54,12 @@ final class JsonSourceFrame {
         for (var e : urls.entrySet()) {
             java.util.regex.Matcher m = java.util.regex.Pattern
                     .compile("\\$\\{(\\w+)\\}").matcher(e.getValue());
-            StringBuilder sb = new StringBuilder();
+            // StringBuffer, not StringBuilder: the StringBuilder overloads
+            // of Matcher.appendReplacement/appendTail are Java 9 additions
+            // that TeaVM's class library does not carry, and the planner
+            // has to survive an ahead-of-time compile to WebAssembly. The
+            // synchronisation costs nothing on a local that never escapes.
+            StringBuffer sb = new StringBuffer();
             while (m.find()) {
                 TypedSpec b = letBindings.get(m.group(1));
                 m.appendReplacement(sb,

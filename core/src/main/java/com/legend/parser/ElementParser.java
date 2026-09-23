@@ -2420,7 +2420,7 @@ public final class ElementParser implements TokenStreamCursor {
         List<String> columns = new ArrayList<>();
         List<List<String>> rows = new ArrayList<>();
         boolean first = true;
-        for (String line : body.lines().toList()) {
+        for (String line : linesOf(body)) {
             if (line.isBlank()) {
                 continue;
             }
@@ -2438,6 +2438,48 @@ public final class ElementParser implements TokenStreamCursor {
                         tokens.columnOf(semi));
         return new com.legend.protocol.Protocol.PTestPayload.RelationElement(
                 columns, paths, rows, span);
+    }
+
+    /**
+     * {@code String.lines()} by hand: split on LF, CRLF or a lone CR, and
+     * do not emit a trailing empty line.
+     *
+     * <p>Two rules force this shape. It must not be {@code split("\n")},
+     * because that is a REGEX and this file's regex-site count is frozen
+     * at zero ({@code DropInSurfaceTextRuleTest}) — the drop-in surface
+     * does not grow shadow grammars. And it must not be
+     * {@code String.lines()}, which TeaVM's class library does not
+     * carry, because the planner has to survive an ahead-of-time
+     * compile to WebAssembly.
+     *
+     * <p>The CR handling is belt-and-braces today — {@link #csvCells}
+     * trims every cell, so a CRLF file's stray carriage return would be
+     * dropped there anyway — but this method promises
+     * {@code String.lines()} semantics, and a caller that stops
+     * trimming should not quietly acquire a line-ending bug.
+     */
+    // Package-private, not private, so ElementParserTest can pin it
+    // directly against String.lines() — reflection is banned here, and
+    // a contract this method's javadoc states outright deserves a test
+    // that reads it rather than one that infers it through a parse.
+    static List<String> linesOf(String text) {
+        List<String> out = new ArrayList<>();
+        int start = 0;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (c != '\n' && c != '\r') {
+                continue;
+            }
+            out.add(text.substring(start, i));
+            if (c == '\r' && i + 1 < text.length() && text.charAt(i + 1) == '\n') {
+                i++;
+            }
+            start = i + 1;
+        }
+        if (start < text.length()) {
+            out.add(text.substring(start));
+        }
+        return out;
     }
 
 
