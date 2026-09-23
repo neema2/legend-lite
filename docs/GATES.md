@@ -1,5 +1,56 @@
 # Standing gates — every change cycle runs ALL of these, sequentially
 
+## THE GATES UNDER BAZEL (since 2026-09-22) — read this first
+
+Every gate is a test target. `bazel test //...` runs them all, plus the checks
+below; CI runs the same targets as parallel lanes on Linux, macOS and Windows
+(`.github/workflows/gate.yml`). Gate numbers are unchanged, so the log below
+still reads — but **everything under this section is the Maven-era log**: its
+commands (`mvn`, `tools/allgates.sh`, `-Dx.generate=1`) no longer exist.
+
+| Gate | Target | What it holds |
+|---|---|---|
+| 1 | `//core:core_tests` | the compiler suite + guardrails (NullAway runs on every compile) |
+| 2 | *(the build itself)* | NullAway is a compile error; the jar pools are one version each by construction; `//tools/deps:all` (below) |
+| 3 | `//spec:spec_tests` | spec parity: generators, census, manifest |
+| 4 | `//spec:corpus_duckdb` | the relational corpus on DuckDB |
+| 5 | `//spec:corpus_h2` | the relational corpus on H2 |
+| 6 | `//pct:pct_duckdb` | the five PCT suites on DuckDB, one JVM (per suite: `//pct:pct_duckdb_<suite>`) |
+| 7 | `//pct:pct_h2` | PCT relation on H2 2.4.240, held to a ratchet (469 / 1 / 26) |
+| 8 | `//parser-equivalence:parser_parity` | byte parity with legend-engine's parser |
+| 9 | `//pct:pct_channel_b` | Channel B dual-verdict suites |
+| 10 | `//core:stress_suites` | the stress corpus |
+| 11 | `//spec:judge_differential` | host judge, then database judge joined per assert |
+
+Beside the gates, in `bazel test //...`:
+
+- **Generated files** — `//core:update_generated_*_test`,
+  `//docs:update_generated_test`, `//parser-equivalence:update_generated_*_test`:
+  each committed generated file (Pure.java's signatures, DynaFn.java,
+  NameResolver.java's imports, prelude.pure, native-claims.tsv, the fixture
+  snapshot, the corpus manifest, the protocol roster) equals its generator's
+  output. Regenerate: `bazel run //:update_generated`.
+- **Dependency guards** — `//tools/deps:core_closure_test` (core compiles
+  against no jar; the drivers are exactly three), `:pools_are_disjoint`,
+  `:one_release` (MODULE.bazel and tools/oracle-pins.env name one release).
+
+Suites and manual targets: `//spec:judge_lanes` (all four judge lanes),
+`//spec:corpus_lanes`, `//parser-equivalence:diagnostics` (the measurement
+battery), `//core:heavy`, `//docs:draft_own_corpus_ledger` (a DRAFT of the
+own-corpus ledger for a person to finish — never generated).
+
+**Upstream.** The legend-engine / legend-pure release is pinned in MODULE.bazel
+(the jars, and the source archives by sha256); tests read the sources as declared
+inputs, so no gate can run against a missing or wrong checkout.
+`bazel run //tools/bump -- <release>` moves it: pins, repin, regenerate, every
+gate — then the judgement half (re-pin each moved ratchet with a reason).
+
+**Reading a result.** `bazel-testlogs/<package>/<target>/test.log`, and the
+test's written reports under `test.outputs/`. A `(cached) PASSED` is a real
+pass: Bazel re-runs a test whenever any of its inputs changed.
+
+---
+
 Established 2026-08-02 after the engine-suite audit: 23 tests had been
 failing for months because only the corpus runner was gated. The FULL
 suite is the acceptance scoreboard — a runner-only cycle is not a gate.
