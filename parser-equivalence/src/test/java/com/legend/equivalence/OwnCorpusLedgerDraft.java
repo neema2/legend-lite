@@ -58,7 +58,7 @@ public final class OwnCorpusLedgerDraft {
         sb.append("# OWN-CORPUS PROTOCOL DIFFS — every element of our own test snippets whose wire JSON differs from the\n");
         sb.append("# oracle's (OwnCorpusParityTest; upstream boundary batch 6). THE RATCHET IS THIS FILE: a diff not listed\n");
         sb.append("# here is red; a listed row that no longer diffs is red (stale). Columns: source#element, first divergence\n");
-        sb.append("# (JSON path), REASON — the reason is the review; 'TODO' is not a reason. Regenerate: -Downcorpus.generate=1.\n");
+        sb.append("# (JSON path), REASON — the reason is the review; 'TODO' is not a reason. Draft: bazel run //docs:draft_own_corpus_ledger.\n");
         pass.diffs().forEach((k, d) -> sb.append(k).append('\t').append(d.replace('\t', ' ')).append('\t')
                 .append(previous.getOrDefault(k, "TODO: adjudicate")).append('\n'));
         Files.writeString(Path.of(args[1]), sb.toString(), StandardCharsets.UTF_8);
