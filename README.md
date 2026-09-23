@@ -250,37 +250,32 @@ counterpart that supersedes it. See `AGENTS.md`.
 
 ### Prerequisites
 
-- **Java 21+** — records, sealed interfaces, pattern matching
-- **Maven 3.9+**
-- **GEMINI_API_KEY** — required only for NLQ features
+- **[Bazelisk](https://github.com/bazelbuild/bazelisk)** (as `bazel`) — it runs the
+  Bazel release `.bazelversion` pins. Nothing else: Bazel fetches the JDK, every jar
+  (MODULE.bazel, pinned by lock files) and the legend-engine / legend-pure release
+  sources the tests read as the spec (pinned by sha256).
+- An IDE: IntelliJ with the Bazel plugin opens the BUILD files as the project.
 
 ### Build & Test
 
 ```bash
-mvn clean install -DskipTests   # build everything
-mvn -pl core clean test         # the compiler: 1,713 tests + null gate + guardrails
-mvn -pl engine test             # integration + corpus: 2,730 tests (default suite)
+bazel build //...                 # everything
+bazel test //core:core_tests      # the compiler suite (+ NullAway, which runs on every compile)
+bazel test //...                  # every gate, and every generated file checked against its generator
+bazel run //:update_generated     # regenerate every generated file from the pinned upstream release
+bazel run //tools/bump -- 4.146.0 # move upstream to another release (docs/GATES.md)
 ```
 
-**`clean` on the core suite is load-bearing** — NullAway runs only on a cold
-compile. And after touching core, `mvn -pl core install -DskipTests` before any
-downstream module: `-pl <module>` resolves core from `~/.m2`, not the reactor,
-so it will otherwise silently test the previously installed jar.
+Each gate is one test target; `docs/GATES.md` lists them.
 
 ### Run the Server
 
 ```bash
-# Engine only (LSP, query execution, SQL, diagrams)
-mvn exec:java -pl engine \
-  -Dexec.mainClass="com.gs.legend.server.LegendHttpServer"
-
-# With NLQ (adds natural language → Pure endpoint)
-GEMINI_API_KEY=your-key \
-mvn exec:java -pl nlq \
-  -Dexec.mainClass="com.legend.nlq.NlqHttpServer"
+bazel run //core:server                  # LSP, query execution, SQL, diagrams
+bazel build //core:server_deploy.jar     # the one self-contained jar to ship
 ```
 
-Both start on **port 8080**. Connect [Studio Lite](https://github.com/neema2/studio-lite) (the React IDE) to `http://localhost:8080`.
+The server starts on **port 8080**. Connect [Studio Lite](https://github.com/neema2/studio-lite) (the React IDE) to `http://localhost:8080`.
 
 ---
 
@@ -292,7 +287,6 @@ Both start on **port 8080**. Connect [Studio Lite](https://github.com/neema2/stu
 | `POST` | `/engine/execute` | Compile + execute Pure query → tabular or graph | **core** (legacy front/back) |
 | `POST` | `/engine/sql` | Raw SQL against a Runtime's connection | legacy |
 | `POST` | `/engine/diagram` | Extract class diagram from Pure model | legacy |
-| `POST` | `/engine/nlq` | Natural language → Pure query (`nlq` module) | legacy + nlq |
 | `GET` | `/health` | Health check | — |
 
 Only `/engine/execute` reaches the live compiler, and only for the compile and
@@ -415,47 +409,19 @@ Every query compiles to a **single SQL statement**. Associations → JOINs, to-m
 
 ---
 
-## NLQ (Natural Language Query)
-
-Translates English questions to executable Pure queries via a 4-step LLM pipeline:
-
-```
-Question → Semantic Retrieval → LLM Router → Query Planner → Pure Generator → Parse Validation
-              (TF-IDF)          (root class)   (JSON plan)    (Pure syntax)    (PureParser)
-```
-
-```
-Input:  "show me total notional by desk"
-Output: Trade.all()->project([t|$t.trader.desk.name, t|$t.notional], ['desk', 'notional'])
-          ->groupBy([{r|$r.desk}], [{r|$r.notional->sum()}], ['desk', 'totalNotional'])
-```
-
-Annotate models with `Profile nlq { tags: [description, synonyms, ...]; }` for better accuracy.
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `GEMINI_API_KEY` | Yes (NLQ only) | — | Google Gemini API key |
-| `GEMINI_MODEL` | No | `gemini-3-flash-preview` | Model name |
-
----
-
 ## Testing
 
 ```bash
-mvn -pl core clean test          # the compiler suite + null gate + guardrails
-                                 # (clean is load-bearing: NullAway runs only
-                                 #  on a cold compile)
-mvn -pl core install -DskipTests # ALWAYS do this before a downstream module —
-                                 # `-pl <module>` resolves core from ~/.m2, not
-                                 # the reactor, and will silently test the old jar
-mvn -pl engine test              # integration + the relational corpus scoreboard
-mvn -pl pct -o test              # legend-pure's own PCT suite against legend-lite
-mvn -pl parser-equivalence -am test   # byte-equivalence vs legend-engine's parser
+bazel test //...                  # all of it
+bazel test //core:core_tests      # gate 1: the compiler suite + guardrails
+bazel test //spec:judge_lanes     # the corpus on DuckDB and H2 under both judges
+bazel test //pct:pct_duckdb       # the engine's own PCT suites against legend-lite
+bazel test //parser-equivalence:parser_parity   # byte-equivalence vs legend-engine's parser
 ```
 
-The corpus and parser-equivalence gates need local checkouts of
-`legend-engine` and `legend-pure` under `~/legend/`. **Without them they skip
-rather than fail** — see `docs/GATES.md`.
+The upstream sources are declared inputs, so these never skip for a missing
+checkout, and never run against the wrong one. Test logs and outputs land in
+`bazel-testlogs/<package>/<target>/`.
 
 ---
 
@@ -468,7 +434,6 @@ from surefire reports.
 |--------|-------|
 | `core` (the compiler) | 418 files / 120,629 LOC main; 91 test files |
 | `engine` (legacy + server) | 341 files / 47,949 LOC main; 104 test files |
-| `nlq` | 14 files / 2,750 LOC |
 | Total main source | ~171,000 LOC across 5 modules |
 | `core` tests | 1,713 |
 | `engine` tests | 2,730 (default suite; `heavy` group excluded) |
