@@ -3,6 +3,7 @@
 
 package com.legend.compiler.element;
 
+import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 
 import java.util.ArrayList;
@@ -30,9 +31,15 @@ public record EqualityKeys(String classFqn, List<Key> keys) {
 
     /** One key property: {@code many} marks a to-many key
      * ({@code List.values : T[*]} — engine compares the value
-     * COLLECTIONS under the ordered list rule). */
+     * COLLECTIONS under the ordered list rule). {@code objectOnly}: the
+     * property is DECLARED as a model class other than Any, so a value
+     * in it is an instance or empty, never a primitive — a canon need
+     * not spell primitives there. */
     public record Key(String name, boolean many,
-                      @com.legend.Nullable EqualityKeys nested) {
+                      @com.legend.Nullable EqualityKeys nested, boolean objectOnly) {
+        public Key(String name, boolean many, @com.legend.Nullable EqualityKeys nested) {
+            this(name, many, nested, false);
+        }
     }
 
     /** The class FQN a stamp names, or null for non-class stamps —
@@ -165,7 +172,10 @@ public record EqualityKeys(String classFqn, List<Key> keys) {
                 nested = resolve(ctx, g.rawFqn(), typeArgsOf(ctx, g),
                         inProgress);
             }
-            out.add(new Key(st.name(), st.multiplicity().isMany(), nested));
+            String declared = fqnOf(pt);
+            boolean objectOnly = declared != null && !PlatformTypes.isAny(pt)
+                    && ctx.findClass(declared).isPresent();
+            out.add(new Key(st.name(), st.multiplicity().isMany(), nested, objectOnly));
         }
         for (String sup : tc.superClassFqns()) {
             if (!collect(ctx, sup, typeArgs, inProgress, out, seenNames,

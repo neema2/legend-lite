@@ -785,7 +785,7 @@ public final class CanonicalRenderSql {
                     com.legend.compiler.element.ClassLayouts.SYNTHETIC_CANON);
         }
         if (ft == SqlType.Scalar.JSON) {
-            return jsonSlotCanon(field);
+            return jsonSlotCanon(field, false);
         }
         if (nested != null) {
             return instanceCanon(field, nested, ft);
@@ -863,11 +863,11 @@ public final class CanonicalRenderSql {
                                     SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, f.value(),
                                             new SqlExpr.Lambda(List.of("__e"),
                                                     valueCanon(SqlExpr.Column.derived(null, "__e"),
-                                                            elem, k.nested()))),
+                                                            elem, k))),
                                     emptyArray());
                 } else {
                     c = SqlExpr.Call.of(SqlFn.COALESCE,
-                            valueCanon(f.value(), ft, k.nested()),
+                            valueCanon(f.value(), ft, k),
                             new SqlExpr.StringLit("[]"));
                 }
             }
@@ -879,7 +879,8 @@ public final class CanonicalRenderSql {
 
     /** One value's canon by its CARRIER (the construction-site rule). */
     private static SqlExpr valueCanon(SqlExpr v, @com.legend.Nullable SqlType t,
-            com.legend.compiler.element.@com.legend.Nullable EqualityKeys nested) {
+            com.legend.compiler.element.EqualityKeys.Key k) {
+        var nested = k.nested();
         if (t instanceof SqlType.Struct st) {
             if (hasCanonField(st)) {
                 return SqlExpr.StructGet.of(v,
@@ -889,7 +890,7 @@ public final class CanonicalRenderSql {
             return c == null ? new SqlExpr.StringLit(TREE_MARKER) : c;
         }
         if (t == SqlType.Scalar.JSON) {
-            return jsonSlotCanon(v);
+            return jsonSlotCanon(v, k.objectOnly());
         }
         Type kind = t == null ? null : Type.kindOfSqlType(t);
         SqlExpr lit = kind == null ? null : literalCanon(v, kind);
@@ -907,8 +908,11 @@ public final class CanonicalRenderSql {
     /** A JSON-carried slot's canon: NULL stays NULL; an OBJECT is the
      * {@code __canon} its constructor stamped (an object without one —
      * a producer outside the construction sites — is its identity,
-     * {@code _type} + {@code _id}); a scalar takes the Any-cell spelling. */
-    private static SqlExpr jsonSlotCanon(SqlExpr v) {
+     * {@code _type} + {@code _id}); a scalar takes the Any-cell spelling —
+     * except in an {@code objectOnly} slot (declared as a model class), where
+     * no primitive can arrive: there a non-object is the unclaimable marker,
+     * declined, instead of six primitive spellings that can never run. */
+    private static SqlExpr jsonSlotCanon(SqlExpr v, boolean objectOnly) {
         SqlExpr canon = SqlExpr.Call.of(SqlFn.VARIANT_GET, v,
                 new SqlExpr.StringLit(com.legend.compiler.element.ClassLayouts.SYNTHETIC_CANON));
         SqlExpr type = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.VARIANT_GET, v,
@@ -930,7 +934,11 @@ public final class CanonicalRenderSql {
                 new SqlExpr.Case.When(eqText(SqlExpr.Call.of(SqlFn.JSON_TYPE, v), "OBJECT"),
                         new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.COALESCE, canon, identity),
                                 SqlType.Scalar.VARCHAR))),
-                anyJsonCanon(v));
+                objectOnly ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                        eqText(SqlExpr.Call.of(SqlFn.JSON_TYPE, v), "NULL"),
+                        new SqlExpr.StringLit("'TDSNull'"))),
+                        new SqlExpr.StringLit(TREE_MARKER))
+                        : anyJsonCanon(v));
     }
 
     /** PURE'S OWN LITERAL SPELLING of a scalar (user ruling 2026-08-22
