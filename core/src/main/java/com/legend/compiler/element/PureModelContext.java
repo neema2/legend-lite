@@ -3,6 +3,7 @@ package com.legend.compiler.element;
 import com.legend.compiler.ModelBuilder;
 import com.legend.compiler.element.type.Type;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -290,10 +291,8 @@ public final class PureModelContext implements ModelContext {
                 return o instanceof String s
                         && (platform.contains(s) || extensions.contains(s) || model.hasElement(s)
                                 // a graph function's SIGNATURE ID is its element
-                                // name upstream: membership asks the declarations
-                                // under a prefix of it to spell it exactly
-                                || (s.indexOf('_') > 0 && !com.legend.model.SignatureMangle
-                                        .resolve(s, model::findFunction, f -> f).exact().isEmpty()));
+                                // name upstream: registered with the function
+                                || model.hasFunctionId(s));
             }
 
             @Override
@@ -352,6 +351,24 @@ public final class PureModelContext implements ModelContext {
             enumCache.put(fqn, typed);
             return typed;
         });
+    }
+
+    @Override
+    public List<TypedFunction> findFunctionById(String qualifiedId) {
+        List<com.legend.model.Function> defs = new ArrayList<>(model.findFunctionById(qualifiedId));
+        com.legend.model.NativeFunctionDefinition n = com.legend.builtin.Pure.nativeFunctionById(qualifiedId);
+        if (n != null) {
+            defs.add(n);
+        }
+        List<TypedFunction> out = new ArrayList<>(defs.size());
+        for (com.legend.model.Function d : defs) {
+            for (TypedFunction tf : findFunction(d.qualifiedName())) {
+                if (d.equals(tf.definition())) {
+                    out.add(tf);
+                }
+            }
+        }
+        return out;
     }
 
     @Override

@@ -600,6 +600,10 @@ public final class Pure {
         static final java.util.Map<String, List<NativeFunctionDefinition>> FN_BY_BARE = new java.util.HashMap<>();
         /** name -> overload signature keys; nativeNamed's O(1) surface (re-audit M5). */
         static final java.util.Map<String, java.util.Set<String>> KEYS_BY_NAME = new java.util.HashMap<>();
+        /** engine signature id -> the one overload that declares it (a function's
+         *  element name upstream IS its id; the id is generated from the
+         *  declaration, SignatureMangle.mangle) */
+        static final java.util.Map<String, NativeFunctionDefinition> FN_BY_ID = new java.util.HashMap<>();
 
         static {
             for (ClassDefinition cd : ALL_CLASSES) {
@@ -610,6 +614,7 @@ public final class Pure {
             }
             for (NativeFunctionDefinition nfd : ALL) {
                 FN_BY_FQN.computeIfAbsent(nfd.qualifiedName(), k -> new ArrayList<>()).add(nfd);
+                FN_BY_ID.put(com.legend.model.SignatureMangle.mangle(nfd), nfd);
                 String bare = nfd.qualifiedName().contains("::")
                         ? nfd.qualifiedName().substring(nfd.qualifiedName().lastIndexOf("::") + 2)
                         : nfd.qualifiedName();
@@ -629,6 +634,11 @@ public final class Pure {
                 }
             }
         }
+    }
+
+    /** The catalog overload whose engine signature id is exactly {@code qualifiedId}, if any. */
+    public static @com.legend.Nullable NativeFunctionDefinition nativeFunctionById(String qualifiedId) {
+        return Index.FN_BY_ID.get(qualifiedId);
     }
 
     /** The native class registered at {@code fqn}, if any. */

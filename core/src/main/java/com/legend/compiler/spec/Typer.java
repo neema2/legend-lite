@@ -2527,10 +2527,10 @@ final class Typer {
         if (!found.isEmpty()) {
             return found;
         }
-        // a MANGLED engine id names ONE overload: the declarations under a
-        // prefix of it are SPELLED and the exact match kept (a spelling this
-        // platform cannot reproduce is a miss, never a redirect)
-        return com.legend.model.SignatureMangle.resolve(name, ctx::findFunction, TypedFunction::definition).exact();
+        // a function referenced by its engine SIGNATURE ID names ONE overload,
+        // registered under that exact id (a spelling this platform cannot
+        // reproduce is a miss, never a redirect)
+        return ctx.findFunctionById(name);
     }
 
     /**

@@ -164,6 +164,9 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
      * and/or {@link NativeFunctionDefinition}) for that FQN.
      */
     private final ArrayList<List<Function>>        functions     = new ArrayList<>();
+    /** Engine signature id -> the overloads declaring it, registered with the
+     *  function (a function's element name upstream IS its id). */
+    private final java.util.Map<String, List<Function>> functionsById = new java.util.HashMap<>();
 
     /**
      * Per-database secondary lookup: {@code dbFqn} (interned id) &rarr;
@@ -593,6 +596,8 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
             functions.set(id, overloads);
         }
         overloads.add(fn);
+        functionsById.computeIfAbsent(com.legend.model.SignatureMangle.mangle(fn),
+                k -> new ArrayList<>(1)).add(fn);
     }
 
     private int intern(String fqn) {
@@ -906,6 +911,19 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
     public List<Function> findFunction(String fqn) {
         List<Function> hit = idGet(functions, symbols.resolveId(fqn));
         return hit == null ? List.of() : Collections.unmodifiableList(hit);
+    }
+
+    /** The overloads whose engine signature id is exactly {@code qualifiedId}
+     * ({@code meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_}):
+     * an exact key, never a name cut apart. Empty if none. */
+    public List<Function> findFunctionById(String qualifiedId) {
+        List<Function> hit = functionsById.get(qualifiedId);
+        return hit == null ? List.of() : Collections.unmodifiableList(hit);
+    }
+
+    /** Whether some registered function's engine signature id is exactly {@code qualifiedId}. */
+    public boolean hasFunctionId(String qualifiedId) {
+        return functionsById.containsKey(qualifiedId);
     }
 
     // ====================================================================

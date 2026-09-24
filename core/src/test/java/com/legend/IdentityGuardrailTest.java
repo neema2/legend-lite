@@ -90,7 +90,7 @@ class IdentityGuardrailTest {
             "LITERAL_NAME_COMPARE", 65,
             "NAME_AFFIX_TEST", 53,
             "NAME_CUTTING", 106,
-            "SIGNATURE_ID_CUTTING", 4,
+            "SIGNATURE_ID_CUTTING", 1,
             "CATALOG_LOOKUP_BY_NAME", 180,
             "FAMILY_LOOKUP_BY_NAME", 89,
             "FUNCTION_CATEGORY_CHECK", 19);

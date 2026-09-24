@@ -86,6 +86,12 @@ public interface ModelContext extends StoreLookups {
      */
     List<TypedFunction> findFunction(String fqn);
 
+    /** The overloads (as {@link #findFunction} presents them) whose engine
+     * signature id is exactly {@code qualifiedId} — a function referenced by
+     * its id ({@code and_Boolean_1__Boolean_1__Boolean_1_}), looked up by that
+     * exact key. Empty if none. */
+    List<TypedFunction> findFunctionById(String qualifiedId);
+
     /**
      * The canonical (post-normalization) mapping for {@code fqn}, if present
      * &mdash; the Phase-H resolver's dispatch surface: its

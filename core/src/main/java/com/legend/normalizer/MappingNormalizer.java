@@ -909,11 +909,9 @@ public final class MappingNormalizer {
         String ref = rf.funcRef();
         List<Function> fns = model.findFunction(ref);
         if (fns.isEmpty()) {
-            // the MANGLED spelling f__Relation_1_ encodes the signature in
-            // the name — ONE grammar (SignatureMangle), and only zero-param
-            // functions can satisfy a ~func ref's single-segment tail
-            fns = com.legend.model.SignatureMangle
-                    .resolve(ref, model::findFunction, f -> f).exact();
+            // the signature-id spelling f__Relation_1_ names one overload,
+            // registered under that exact id
+            fns = model.findFunctionById(ref);
         }
         if (fns.size() != 1
                 || !(fns.get(0) instanceof FunctionDefinition fn)) {
