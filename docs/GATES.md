@@ -14,7 +14,7 @@ commands (`mvn`, `tools/allgates.sh`, `-Dx.generate=1`) no longer exist.
 | 2 | *(the build itself)* | NullAway is a compile error; the jar pools are one version each by construction; `//tools/deps:all` (below) |
 | 3 | `//spec:spec_tests` | spec parity: generators, census, manifest |
 | 4 | `//spec:corpus_duckdb` | the relational corpus on DuckDB, host judge (the target's first pass) |
-| 5 | `//spec:corpus_h2` | the relational corpus on H2 |
+| 5 | `//spec:corpus_h2` | the relational corpus on H2, both judges and their per-assert join — :corpus_duckdb's shape (joined since 2026-09-23; `rcorpus/h2-database-untriaged-register.txt` lists what the first join found and has yet to be explained) |
 | 6 | `//pct:pct_duckdb` | the five PCT suites on DuckDB, one JVM (per suite: `//pct:pct_duckdb_<suite>`) |
 | 7 | `//pct:pct_h2` | PCT relation on H2 2.4.240: 469 tests, H2's 27 expected failures each pinned by message (`Test_LegendLite_H2_RelationFunctions_PCT`) |
 | 8 | `//parser-equivalence:parser_parity` | byte parity with legend-engine's parser |

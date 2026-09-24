@@ -1,0 +1,8 @@
+meta::relational::tests::mapping::dataType::testSimpleTypeMappingProjectNulls ||| UNTRIAGED 2026-09-23 (first H2 join under Bazel): #0 host FAIL / database PASS; #1 database FAIL, host never reached it
+meta::relational::graphFetch::tests::subType::testInheritanceMappingWithoutSubType ||| UNTRIAGED 2026-09-23 (first H2 join under Bazel): #0 host FAIL, database never reached it
+meta::relational::graphFetch::tests::subType::testSubTypeAtRootLevelWithInheritanceMapping ||| UNTRIAGED 2026-09-23 (first H2 join under Bazel): #0 host FAIL, database never reached it
+meta::relational::tests::groupBy::testAggToManyWithFilter ||| UNTRIAGED 2026-09-23 (first H2 join under Bazel): #1 host PASS, database never reached it
+meta::relational::tests::functions::objectReferenceIn::testObjectReferenceInWithObjReferenceOutput ||| UNTRIAGED 2026-09-23 (first H2 join under Bazel): #0 database FAIL, host never reached it
+meta::relational::tests::mapping::sqlFunction::stringToDate::testToSQLStringconvertToDateinH2UserDefinedFormat ||| UNTRIAGED 2026-09-23 (first H2 join under Bazel): #0 database PASS, #1 database FAIL, host never reached either
+meta::relational::tests::query::association::mixed::testAssociationMixed ||| UNTRIAGED 2026-09-23 (first H2 join under Bazel): #1, #2 database PASS, host never reached them
+meta::relational::tests::tds::tdsJoin::alloy::testJoinWithExtendWithDigestOnColumnsOnBothQueries ||| UNTRIAGED 2026-09-23 (first H2 join under Bazel): #0 database FAIL, host never reached it

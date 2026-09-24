@@ -91,24 +91,19 @@ junit_test(
     upstream = True,
 )
 
-# Maven gate 5: the same corpus against H2.
+# Maven gate 5, the same two passes on H2: the corpus under the HOST judge (the
+# prerun, writing its ledger), then under the DATABASE judge, joined per assert —
+# :corpus_duckdb's shape. The database pass was its own target until 2026-09-23,
+# which ran the H2 database judge but never the join.
 junit_test(
     name = "corpus_h2",
     data = _INPUTS,
-    jvm_flags = ["-Drcorpus.backend=h2"],
-    runtime_deps = [":spec_tests_lib"],
-    select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
-    upstream = True,
-)
-
-# the H2 corpus under the DATABASE judge (the fourth judge lane; DuckDB's is the
-# second pass of :corpus_duckdb)
-junit_test(
-    name = "corpus_h2_database",
-    data = _INPUTS,
     jvm_flags = [
         "-Drcorpus.backend=h2",
+        "-Dlegend.prerun=legend.judge.mode=host,legend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
         "-Dlegend.judge.mode=database",
+        "-Dlegend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-database.tsv",
+        "-Dlegend.judge.ledger.host=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
     ],
     runtime_deps = [":spec_tests_lib"],
     select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
@@ -133,7 +128,6 @@ test_suite(
     tests = [
         ":corpus_duckdb",
         ":corpus_h2",
-        ":corpus_h2_database",
     ],
 )
 

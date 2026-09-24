@@ -52,7 +52,7 @@ jobs:
             {"key":"checks", "name":"generated files, dependency guards, source checks", "targets":"GENERATED //tools/deps:all //core:guardrails //core:census"},
             {"key":"3",      "name":"gate 3 spec parity",              "targets":"//spec:spec_tests"},
             {"key":"4",      "name":"gates 4+11 DuckDB corpus, both judges", "targets":"//spec:corpus_duckdb"},
-            {"key":"5",      "name":"gate 5 H2 corpus",                "targets":"//spec:corpus_h2"},
+            {"key":"5",      "name":"gate 5 H2 corpus, both judges",   "targets":"//spec:corpus_h2"},
             {"key":"6",      "name":"gate 6 PCT DuckDB",               "targets":$pct6},
             {"key":"7",      "name":"gate 7 PCT H2 relation",          "targets":"//pct:pct_h2"},
             {"key":"8",      "name":"gate 8 parser equivalence",       "targets":"//parser-equivalence:parser_parity"},

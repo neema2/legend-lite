@@ -82,6 +82,15 @@ final class JudgeLedger {
     record Differential(int agree, List<Row[]> disagree, List<Row> unjudged,
             List<Row> hostOnly, List<Row> databaseOnly) {
 
+        /** Every test with a disagreement or a one-sided adjudication. */
+        java.util.Set<String> tests() {
+            java.util.Set<String> out = new java.util.HashSet<>();
+            disagree.forEach(pair -> out.add(pair[0].test()));
+            hostOnly.forEach(r -> out.add(r.test()));
+            databaseOnly.forEach(r -> out.add(r.test()));
+            return out;
+        }
+
         List<String> unregistered(java.util.Set<String> registered) {
             List<String> out = new ArrayList<>();
             for (Row[] pair : disagree) {

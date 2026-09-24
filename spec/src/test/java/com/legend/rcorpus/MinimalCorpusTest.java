@@ -474,6 +474,11 @@ class MinimalCorpusTest {
             registered.addAll(registerTests("/rcorpus/" + lane + "-database-" + r + "-register.txt"));
         }
         registered.addAll(registerTests(MinimalCorpus.H2_BACKEND ? H2_ACCEPTED : DUCKDB_ACCEPTED));
+        // UNTRIAGED: disagreements recorded as found but not yet explained — a
+        // work list, not a reason. Shrink-only: an entry whose test no longer
+        // disagrees must be deleted (below), so the list cannot outlive its cause.
+        java.util.Set<String> untriaged = registerTests("/rcorpus/" + lane + "-database-untriaged-register.txt");
+        registered.addAll(untriaged);
         List<String> unregistered = x.unregistered(registered);
         System.out.println("[judge-differential] " + lane + ": asserts agree=" + x.agree()
                 + " disagree=" + x.disagree().size() + " unjudged-in-database=" + x.unjudged().size()
@@ -483,20 +488,37 @@ class MinimalCorpusTest {
         for (String u : unregistered) {
             System.out.println("[judge-differential] UNREGISTERED " + u);
         }
+        java.util.Set<String> disagreeing = x.tests();
+        List<String> staleUntriaged = untriaged.stream()
+                .filter(t -> !disagreeing.contains(t)).toList();
+        org.junit.jupiter.api.Assertions.assertEquals(List.of(), staleUntriaged,
+                "untriaged entries whose test no longer disagrees — delete them from "
+                + lane + "-database-untriaged-register.txt (the work is done, or moved)");
         org.junit.jupiter.api.Assertions.assertEquals(List.of(), unregistered,
                 "the host and database judges DISAGREE on an assert of a test no register names"
                 + " (a verdict pair, or one judge adjudicating what the other never reached) — a bug"
                 + " in one mode (host is the reference): fix it, or name the test on the lane's"
                 + " register with its reason");
-        java.nio.file.Path ceilingFile = java.nio.file.Path.of(
-                "src/test/resources/rcorpus/" + lane + "-judge-unjudged-ceiling.txt");
-        int ceiling = java.nio.file.Files.exists(ceilingFile)
-                ? Integer.parseInt(java.nio.file.Files.readString(ceilingFile).trim()) : Integer.MAX_VALUE;
+        // From the classpath, like the registers, and REQUIRED: this read was a
+        // path relative to the working directory, which under Bazel is the
+        // runfiles root — the file was never found, and a missing ceiling read as
+        // "no ceiling" (found 2026-09-23; the DuckDB pin is 0 and so was the count,
+        // so nothing slipped through).
+        String ceilingResource = "/rcorpus/" + lane + "-judge-unjudged-ceiling.txt";
+        int ceiling;
+        try (var in = MinimalCorpusTest.class.getResourceAsStream(ceilingResource)) {
+            if (in == null) {
+                throw new IllegalStateException("no unjudged ceiling for the " + lane + " lane: "
+                        + ceilingResource + " pins how many asserts the database judge may decline");
+            }
+            ceiling = Integer.parseInt(new String(in.readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8).trim());
+        }
         org.junit.jupiter.api.Assertions.assertTrue(x.unjudged().size() <= ceiling,
                 "asserts the database judge declines grew: " + x.unjudged().size() + " > " + ceiling
                 + " — a shape the host judges and the database does not is a work item, never a"
                 + " fallback (" + x.unjudgedByFamily() + ")");
-        if (x.unjudged().size() < ceiling && java.nio.file.Files.exists(ceilingFile)) {
+        if (x.unjudged().size() < ceiling) {
             System.out.println("[judge-differential] unjudged ceiling " + ceiling + " -> "
                     + x.unjudged().size() + " (re-pin: headroom is not a pin)");
         }
