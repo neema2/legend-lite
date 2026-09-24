@@ -86,7 +86,11 @@ class PlatformNamesGuardrailTest {
             // the legacy TDS vocabulary as a closed enum (batch 5 audit leg C,
             // 2026-09-11): upstream tds.pure / math::olap identities the Typer
             // desugars by exact spelling — a catalog of names, like NativeFn
-            "TdsLegacy.java");
+            "TdsLegacy.java",
+            // the language forms' ownership registry (untangle step 2,
+            // 2026-09-24): each form names the exact FQNs whose overloads it
+            // owns — a registration, like a NativeFn member's
+            "CoreFn.java");
 
     /** A function FQN literal: {@code "meta::…::lowerCamel"} (a class or enum
      *  FQN ends in an upper-case segment and is a TYPE spelling, not dispatch). */

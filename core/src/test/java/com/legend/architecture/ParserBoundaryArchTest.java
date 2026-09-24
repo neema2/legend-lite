@@ -84,10 +84,11 @@ class ParserBoundaryArchTest {
             // the spec's own declaration files, the same provenance as the
             // generator (SYSTEM_PRELUDE_DESIGN §6, 2026-09-08)
             "com/legend/generators/SpecBodyCensusTest.java",
-            // the census's RUNNING-WORLD pass parses the engine files a module
-            // body runs against (its own spec file, the corpus's library
-            // files) — COMPILE_EVERYTHING_HOMEWORK §6, batch 168
-            "com/legend/generators/CensusWorlds.java",
+            // the catalog-vs-upstream census and the implementation table's
+            // upstream reader parse the pinned trees' declaration files in the
+            // platform dialect — the census's provenance (untangle step 1-2)
+            "com/legend/generators/UpstreamDeclarations.java",
+            "com/legend/generators/CatalogUpstreamDiffTest.java",
             // the EAGER corpus compile probe (COMPILE_EVERYTHING_HOMEWORK §10) parses
             // the corpus world plus legend-pure's platform packages to measure what
             // closes — a measurement run by name, not a gate (batch 169)

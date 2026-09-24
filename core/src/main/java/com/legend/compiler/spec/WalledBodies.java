@@ -23,16 +23,28 @@ public final class WalledBodies {
     private WalledBodies() {
     }
 
-    private static final String PRINTER =
+    /** Why a body is walled. */
+    public enum Kind {
+        /** the engine's machinery for a concern the platform serves itself */
+        ENGINE_MACHINERY,
+        /** a capability the platform does not model (reflection) */
+        CANNOT_IMPLEMENT
+    }
+
+    /** One wall: its kind and its reason. */
+    public record Wall(Kind kind, String why) {
+    }
+
+    private static final Wall PRINTER = new Wall(Kind.ENGINE_MACHINERY,
             "the engine's SQL printer — the platform's compiler is the implementation"
-            + " (the post-processor design session decides which passes the platform implements)";
-    private static final String SCHEMA =
-            "the engine's plan-time schema inference for TDS operations — the platform's typer infers schemas";
+            + " (the post-processor design session decides which passes the platform implements)");
+    private static final Wall SCHEMA = new Wall(Kind.ENGINE_MACHINERY,
+            "the engine's plan-time schema inference for TDS operations — the platform's typer infers schemas");
 
-    static final Map<String, String> REASONS = build();
+    static final Map<String, Wall> REASONS = build();
 
-    private static Map<String, String> build() {
-        Map<String, String> REASONS = new LinkedHashMap<>();
+    private static Map<String, Wall> build() {
+        Map<String, Wall> REASONS = new LinkedHashMap<>();
         // the SQL post-processing machinery (USER 2026-09-08; UserCallInliner's original five)
         REASONS.put("meta::relational::functions::sqlQueryToString::sqlQueryToString", PRINTER);
         REASONS.put("meta::relational::runtime::PostProcessor$prop$planPostProcessorId", PRINTER);
@@ -43,8 +55,8 @@ public final class WalledBodies {
         // prelude carries MultiExecutionContext as ExecutionOptionContext's superclass —
         // the platform reads the option context's flags directly (ContextReading)
         REASONS.put("meta::pure::executionPlan::MultiExecutionContext$prop$allContexts",
-                "the engine's plan-time context flattening — the platform reads"
-                + " ExecutionOptionContext's feature flags directly (ContextReading.contextFeatures)");
+                new Wall(Kind.ENGINE_MACHINERY, "the engine's plan-time context flattening — the platform reads"
+                + " ExecutionOptionContext's feature flags directly (ContextReading.contextFeatures)"));
         // the printer's bodies on the prelude's vocabulary classes (the census's B3 rows)
         for (String p : new String[] {"dataTypeToSqlText", "dynaFuncDispatch", "joinProcessor",
                 "lateralJoinProcessor", "literalProcessor",
@@ -66,26 +78,37 @@ public final class WalledBodies {
             REASONS.put("meta::pure::tds::schema::SchemaState$prop$" + p, SCHEMA);
         }
         REASONS.put("meta::pure::extension::Extension$prop$fetchSerializerExtension",
-                "the engine's serializer-extension registry lookup — the platform has its own extensions");
+                new Wall(Kind.ENGINE_MACHINERY,
+                        "the engine's serializer-extension registry lookup — the platform has its own extensions"));
         // the descriptors' constraints call checkSuperType, whose reflection
         // helper getAllClassGeneralisations lives in the engine's
         // corefunctions/metaExtension.pure — a stdlib-extension file the
         // 2026-08-28 ruling refuses as runtime; walled until that ruling
         // is revisited (COMPILE_EVERYTHING_HOMEWORK §12 group D)
         REASONS.put("meta::external::format::shared::ExternalFormatFromPureDescriptor$constraint$configurationType",
-                "external-format binding validation — its reflection helper is in the refused stdlib-extension files");
+                new Wall(Kind.CANNOT_IMPLEMENT, "external-format binding validation — its reflection helper"
+                        + " is in the refused stdlib-extension files"));
         REASONS.put("meta::external::format::shared::ExternalFormatToPureDescriptor$constraint$configurationType",
-                "external-format binding validation — its reflection helper is in the refused stdlib-extension files");
+                new Wall(Kind.CANNOT_IMPLEMENT, "external-format binding validation — its reflection helper"
+                        + " is in the refused stdlib-extension files"));
         // legend-pure new.pure (parser leg, batch 174): instantiation from a Class VALUE —
         // new($l1->class(), '') — is reflection; the platform's new is the ^X(...) form
         REASONS.put("meta::pure::functions::lang::tests::new::testNewGenericFunc",
-                "REFLECTION: instantiation from a Class value (new(class, id)) — not modeled");
+                new Wall(Kind.CANNOT_IMPLEMENT,
+                        "REFLECTION: instantiation from a Class value (new(class, id)) — not modeled"));
         return Map.copyOf(REASONS);   // immutable (ArchitectureTest invariant 3)
+    }
+
+    /** Every walled FQN with its reason, read-only (the implementation table's
+     * Refused rows read it). */
+    public static Map<String, Wall> reasons() {
+        return java.util.Collections.unmodifiableMap(REASONS);
     }
 
     /** The wall reason for a body FQN (a lifted derived property / constraint or a function), or null. */
     public static @com.legend.Nullable String reason(String fqn) {
-        return REASONS.get(fqn);
+        Wall w = REASONS.get(fqn);
+        return w == null ? null : w.why();
     }
 
     public static int count() {

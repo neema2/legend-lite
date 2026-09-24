@@ -198,6 +198,179 @@ public enum CoreFn {
         this.parseNames = parseNames;
     }
 
+    /**
+     * THE FUNCTIONS EACH FORM OWNS, by exact FQN: every overload declared at
+     * one of these FQNs is the form's (the implementation table's Form row).
+     * Written out here, never derived from a bare name — the {@link #of}
+     * bare-name and FQN-tail rules that still dispatch today are what this
+     * list replaces (platform architecture untangle, step 2). {@code NEW} owns
+     * no function: {@code ^Class(...)} is syntax.
+     */
+    private static final Map<CoreFn, java.util.Set<String>> OWNS = owns();
+
+    private static Map<CoreFn, java.util.Set<String>> owns() {
+        Map<CoreFn, java.util.Set<String>> m = new java.util.EnumMap<>(CoreFn.class);
+        m.put(LET, java.util.Set.of(
+                "meta::pure::functions::lang::letFunction"));
+        m.put(DEACTIVATE, java.util.Set.of(
+                "meta::pure::functions::meta::deactivate"));
+        m.put(GET_RELATIONAL_CSV_DATA, java.util.Set.of(
+                "meta::relational::testDataGeneration::getRelationalCSVDataFromQuery"));
+        m.put(GENERATE_TEST_DATA, java.util.Set.of(
+                "meta::relational::testDataGeneration::generateTestData"));
+        m.put(GENERATE_SEED_DATA_STRING, java.util.Set.of(
+                "meta::relational::testDataGeneration::generateSeedDataString"));
+        m.put(PLAN_TEST_DATA_GENERATION, java.util.Set.of(
+                "meta::relational::testDataGeneration::executionPlan::planTestDataGeneration"));
+        m.put(MAY_EXECUTE_ALLOY_TEST, java.util.Set.of(
+                "meta::alloy::test::mayExecuteAlloyTest"));
+        m.put(MAY_EXECUTE_LEGEND_TEST, java.util.Set.of(
+                "meta::legend::test::mayExecuteLegendTest"));
+        m.put(IF, java.util.Set.of(
+                "meta::pure::functions::lang::if"));
+        m.put(TABLE_REFERENCE, java.util.Set.of(
+                "meta::relational::functions::database::tableReference"));
+        m.put(TABLE_TO_TDS, java.util.Set.of(
+                "meta::pure::tds::tableToTDS"));
+        m.put(PROJECT, java.util.Set.of(
+                "meta::pure::functions::relation::project",
+                "meta::pure::tds::project"));
+        m.put(SORT, java.util.Set.of(
+                "meta::pure::functions::collection::sort",
+                "meta::pure::functions::relation::sort",
+                "meta::pure::tds::sort"));
+        m.put(RENAME, java.util.Set.of(
+                "meta::pure::functions::relation::rename"));
+        m.put(FILTER, java.util.Set.of(
+                "meta::pure::functions::collection::filter",
+                "meta::pure::functions::relation::filter",
+                "meta::pure::tds::filter"));
+        m.put(MAP, java.util.Set.of(
+                "meta::pure::functions::collection::map",
+                "meta::pure::functions::relation::map"));
+        m.put(ASC, java.util.Set.of(
+                "meta::pure::functions::relation::ascending",
+                "meta::pure::tds::asc"));
+        m.put(DESC, java.util.Set.of(
+                "meta::pure::functions::relation::descending",
+                "meta::pure::tds::desc"));
+        m.put(EMPTY_FIRST, java.util.Set.of(
+                "meta::pure::functions::relation::emptyFirst"));
+        m.put(EMPTY_LAST, java.util.Set.of(
+                "meta::pure::functions::relation::emptyLast"));
+        m.put(SELECT, java.util.Set.of(
+                "meta::pure::functions::relation::select",
+                "meta::pure::metamodel::relation::newTDSRelationAccessor"));
+        m.put(DISTINCT, java.util.Set.of(
+                "meta::pure::functions::collection::distinct",
+                "meta::pure::functions::relation::distinct",
+                "meta::pure::tds::distinct"));
+        m.put(CONCATENATE, java.util.Set.of(
+                "meta::pure::functions::collection::concatenate",
+                "meta::pure::functions::relation::concatenate"));
+        m.put(LIMIT, java.util.Set.of(
+                "meta::pure::functions::collection::limit",
+                "meta::pure::functions::relation::limit",
+                "meta::pure::tds::limit"));
+        m.put(TAKE, java.util.Set.of(
+                "meta::pure::functions::collection::take"));
+        m.put(DROP, java.util.Set.of(
+                "meta::pure::functions::collection::drop",
+                "meta::pure::functions::relation::drop"));
+        m.put(SLICE, java.util.Set.of(
+                "meta::pure::functions::collection::slice",
+                "meta::pure::functions::relation::slice"));
+        m.put(EXTEND, java.util.Set.of(
+                "meta::pure::functions::relation::extend",
+                "meta::pure::tds::extend"));
+        m.put(GROUP_BY, java.util.Set.of(
+                "meta::legend::lite::groupByComputedKeys",
+                "meta::legend::lite::groupByOverInstances",
+                "meta::pure::functions::collection::groupBy",
+                "meta::pure::functions::relation::groupBy",
+                "meta::pure::tds::groupBy"));
+        m.put(GROUP_BY_WITH_WINDOW_SUBSET, java.util.Set.of(
+                "meta::pure::tds::groupByWithWindowSubset"));
+        m.put(AGGREGATE, java.util.Set.of(
+                "meta::pure::functions::relation::aggregate"));
+        m.put(JOIN, java.util.Set.of(
+                "meta::legend::lite::joinSlot",
+                "meta::legend::lite::joinWithPrefix",
+                "meta::pure::functions::relation::join"));
+        m.put(AS_OF_JOIN, java.util.Set.of(
+                "meta::legend::lite::asOfJoinWithPrefix",
+                "meta::pure::functions::relation::asOfJoin"));
+        m.put(CAST, java.util.Set.of(
+                "meta::pure::functions::lang::cast"));
+        m.put(TYPE_AS_DECLARED, java.util.Set.of(
+                "meta::legend::lite::typeAsDeclared"));
+        m.put(CAST_AS_DECLARED, java.util.Set.of(
+                "meta::legend::lite::castAsDeclared"));
+        m.put(TO, java.util.Set.of(
+                "meta::pure::functions::variant::convert::to"));
+        m.put(TO_MANY, java.util.Set.of(
+                "meta::pure::functions::variant::convert::toMany"));
+        m.put(MATCH, java.util.Set.of(
+                "meta::pure::functions::lang::match"));
+        m.put(EVAL, java.util.Set.of(
+                "meta::pure::functions::lang::eval",
+                "meta::pure::functions::relation::eval"));
+        m.put(TDS, java.util.Set.of(
+                "meta::legend::lite::tds"));
+        m.put(SOURCE_URL, java.util.Set.of(
+                "meta::legend::lite::sourceUrl"));
+        m.put(FLATTEN, java.util.Set.of(
+                "meta::pure::functions::relation::variant::flatten"));
+        m.put(PIVOT, java.util.Set.of(
+                "meta::pure::functions::relation::pivot"));
+        m.put(COLUMNS, java.util.Set.of(
+                "meta::pure::functions::relation::columns"));
+        m.put(TO_JSON, java.util.Set.of(
+                "meta::json::toJSON"));
+        m.put(TDS_TO_JSON_KV, java.util.Set.of(
+                "meta::json::tdsToJSONKeyValueObjectString"));
+        m.put(SORT_BY, java.util.Set.of(
+                "meta::pure::functions::collection::sortBy"));
+        m.put(SORT_BY_REVERSED, java.util.Set.of(
+                "meta::pure::functions::collection::sortByReversed"));
+        m.put(GET_ALL, java.util.Set.of(
+                "meta::pure::functions::collection::getAll"));
+        m.put(GET_ALL_FOR_EACH_DATE, java.util.Set.of(
+                "meta::pure::functions::collection::getAllForEachDate"));
+        m.put(GET_ALL_VERSIONS, java.util.Set.of(
+                "meta::pure::functions::collection::getAllVersions"));
+        m.put(GET_ALL_VERSIONS_IN_RANGE, java.util.Set.of(
+                "meta::pure::functions::collection::getAllVersionsInRange"));
+        m.put(FROM, java.util.Set.of(
+                "meta::pure::mapping::from"));
+        m.put(WRITE, java.util.Set.of(
+                "meta::pure::functions::relation::write"));
+        m.put(FOLD, java.util.Set.of(
+                "meta::pure::functions::collection::fold"));
+        m.put(NAVIGATE, java.util.Set.of(
+                "meta::legend::lite::navigate"));
+        m.put(LEGACY_NAVIGATE, java.util.Set.of(
+                "meta::legend::lite::legacyNavigate"));
+        m.put(ROUTE, java.util.Set.of(
+                "meta::legend::lite::route"));
+        m.put(IS_DISTINCT, java.util.Set.of(
+                "meta::pure::functions::collection::isDistinct"));
+        m.put(GRAPH_FETCH, java.util.Set.of(
+                "meta::pure::graphFetch::execution::graphFetch"));
+        m.put(GRAPH_FETCH_CHECKED, java.util.Set.of(
+                "meta::pure::graphFetch::execution::graphFetchChecked"));
+        m.put(SERIALIZE, java.util.Set.of(
+                "meta::pure::graphFetch::execution::serialize"));
+        m.put(OVER, java.util.Set.of(
+                "meta::pure::functions::relation::over"));
+        return Map.copyOf(m);
+    }
+
+    /** The FQNs whose every overload this form owns (empty for {@code NEW}). */
+    public java.util.Set<String> ownedFqns() {
+        return OWNS.getOrDefault(this, java.util.Set.of());
+    }
+
     /** The construct's canonical parse-time name (aliases like {@code ascending} resolve here too). */
     public String parseName() {
         return parseNames[0];

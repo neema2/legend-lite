@@ -83,7 +83,10 @@ public final class ClaimsGenerator {
     }
 
     private static final java.util.Set<String> NOT_ALSO = java.util.Set.of(
-            "Pure", "Claims", "NativeFn");
+            "Pure", "Claims", "NativeFn",
+            // the language forms' ownership registry (CoreFn.OWNS): a form
+            // naming what it owns is a registration, like a NativeFn member
+            "CoreFn");
 
     /** {@code Pure.<constant>} as a WHOLE identifier — {@code Pure.PI} is
      *  not a reference inside {@code Pure.PIVOT__…} (the readers column
