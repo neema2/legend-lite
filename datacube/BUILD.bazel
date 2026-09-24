@@ -6,6 +6,7 @@
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary", "js_test")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("//tools/java_run:defs.bzl", "java_run")
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@npm//datacube:esbuild/package_json.bzl", esbuild = "bin")
 load("@npm//datacube:typescript/package_json.bzl", typescript = "bin")
@@ -160,15 +161,21 @@ js_run_binary(
     tool = ":emit_cube_queries",
 )
 
-genrule(
+java_run(
     name = "cube_jvm_answers",
     srcs = [
         "cube_model.pure",
         "cube_queries.tsv",
     ],
     outs = ["cube_jvm_answers.txt"],
-    cmd = "$(location //wasm:jvm_main) $(location cube_model.pure) $(location cube_queries.tsv) trades::RT $@",
-    tools = ["//wasm:jvm_main"],
+    arguments = [
+        "$(execpath cube_model.pure)",
+        "$(execpath cube_queries.tsv)",
+        "trades::RT",
+        "{OUT}",
+    ],
+    main_class = "planner.JvmMain",
+    deps = ["//wasm:jvm_main"],
 )
 
 js_test(

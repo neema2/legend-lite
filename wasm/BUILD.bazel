@@ -1,7 +1,8 @@
 # legend-lite's planner, compiled ahead of time to WebAssembly (TeaVM), and the
 # differential that holds it to the JVM. See README.md.
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_test")
-load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+load("@rules_java//java:defs.bzl", "java_library")
+load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/teavm:defs.bzl", "teavm_wasm")
 
 # DataCube's guardrail requires the differential behind its second transport
@@ -52,34 +53,40 @@ teavm_wasm(
     ],
 )
 
-# The JVM halves of the differentials: the corpus, and the timezone probe.
-java_binary(
+# The JVM halves of the differentials: the corpus, and the timezone probe. Target-
+# configuration libraries run by java_run (//tools/java_run), so core is compiled
+# once for them and for the module.
+java_library(
     name = "jvm_main",
     srcs = ["src/main/java/planner/JvmMain.java"],
-    main_class = "planner.JvmMain",
     visibility = ["//visibility:public"],
     deps = [":boundary"],
 )
 
-java_binary(
+java_library(
     name = "zone_main",
     srcs = ["src/main/java/planner/ZoneMain.java"],
-    main_class = "planner.ZoneMain",
     deps = [":boundary"],
 )
 
 # THE DIFFERENTIAL. The JVM's answers are a build output — a function of the
 # planner's source and the corpus, cached until either changes — and the test
 # plans the same corpus in the module and compares, refusals included.
-genrule(
+java_run(
     name = "jvm_answers",
     srcs = [
         "corpus/model.pure",
         "corpus/queries.tsv",
     ],
     outs = ["jvm_answers.txt"],
-    cmd = "$(location :jvm_main) $(location corpus/model.pure) $(location corpus/queries.tsv) trades::RT $@",
-    tools = [":jvm_main"],
+    arguments = [
+        "$(execpath corpus/model.pure)",
+        "$(execpath corpus/queries.tsv)",
+        "trades::RT",
+        "{OUT}",
+    ],
+    main_class = "planner.JvmMain",
+    deps = [":jvm_main"],
 )
 
 js_test(
@@ -97,11 +104,12 @@ js_test(
 
 # THE TIMEZONE DIFFERENTIAL: a tz database is a resource, not code, so only the
 # built module can say whether it survived. ZoneMain's answers are the cases.
-genrule(
+java_run(
     name = "zone_jvm",
     outs = ["zone_jvm.txt"],
-    cmd = "$(location :zone_main) > $@",
-    tools = [":zone_main"],
+    arguments = ["{OUT}"],
+    main_class = "planner.ZoneMain",
+    deps = [":zone_main"],
 )
 
 js_test(

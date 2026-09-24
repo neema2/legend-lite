@@ -1,9 +1,10 @@
 # parser-equivalence — legend-lite's parser and legend-engine's over the same input,
 # compared byte for byte (Maven gate 8). The upstream jars are TEST inputs only and
 # live only here: core must never see org.finos.legend.
-load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+load("@rules_java//java:defs.bzl", "java_library")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
-load("//tools/generators:defs.bzl", "UPSTREAM_TREES", "program_flags")
+load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags")
+load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/jars:defs.bzl", "java_jars")
 
@@ -169,15 +170,8 @@ filegroup(
     output_group = "jars",
 )
 
-java_binary(
-    name = "harvest_generator",
-    testonly = True,
-    main_class = "com.legend.equivalence.harvest.FixtureHarvestGenerator",
-    runtime_deps = [":harvest_lib"],
-)
-
 # engine-grammar-fixtures.jsonl: corpus tier C6, harvested from the pinned release
-genrule(
+java_run(
     name = "gen_fixtures",
     testonly = True,
     srcs = UPSTREAM_TREES + [
@@ -186,33 +180,22 @@ genrule(
         "//tools:oracle-pins.env",
     ],
     outs = ["generated/engine-grammar-fixtures.jsonl"],
-    cmd = " ".join(["$(location :harvest_generator)"] + program_flags("parser-equivalence", pure = False) + [
-        "--jvm_flag=-Dlegend.harvest.jars=$(execpath :harvest_tests_jars)",
-        "$@",
-    ]),
-    tools = [":harvest_generator"],
-)
-
-java_binary(
-    name = "manifest_generator",
-    testonly = True,
-    main_class = "com.legend.equivalence.ManifestGenerator",
-    runtime_deps = [":pe_tests_lib"],
-)
-
-java_binary(
-    name = "roster_generator",
-    testonly = True,
-    main_class = "com.legend.equivalence.RosterGenerator",
-    runtime_deps = [":pe_tests_lib"],
+    arguments = ["{OUT}"],
+    jvm_flags = program_jvm_flags("parser-equivalence", pure = False) + [
+        "-Dlegend.harvest.jars=$(execpath :harvest_tests_jars)",
+    ],
+    main_class = "com.legend.equivalence.harvest.FixtureHarvestGenerator",
+    mnemonic = "Generate",
+    roots = UPSTREAM_ROOTS,
+    deps = [":harvest_lib"],
 )
 
 # the corpus's two consumers of the fixture snapshot read the harvest's OUTPUT, so
 # a bump regenerates them from the new snapshot, never the committed one
-_NEW_FIXTURES = "--jvm_flag=-Dlegend.engine.fixtures=$(location :gen_fixtures)"
+_NEW_FIXTURES = "-Dlegend.engine.fixtures=$(execpath :gen_fixtures)"
 
 # corpus-manifest.tsv: the corpus as data — every distinct source, hashed
-genrule(
+java_run(
     name = "gen_manifest",
     testonly = True,
     srcs = UPSTREAM_TREES + [
@@ -220,14 +203,17 @@ genrule(
         "//tools:oracle-pins.env",
     ],
     outs = ["generated/corpus-manifest.tsv"],
-    cmd = " ".join(["$(location :manifest_generator)"] + program_flags("parser-equivalence") +
-                   [_NEW_FIXTURES, "$@"]),
-    tools = [":manifest_generator"],
+    arguments = ["{OUT}"],
+    jvm_flags = program_jvm_flags("parser-equivalence") + [_NEW_FIXTURES],
+    main_class = "com.legend.equivalence.ManifestGenerator",
+    mnemonic = "Generate",
+    roots = UPSTREAM_ROOTS,
+    deps = [":pe_tests_lib"],
 )
 
 # docs/protocol-roster.tsv: every protocol subtype tag, COVERED or UNCOVERED by
 # the corpus, the fixtures and our own test snippets (core/spec/pct test trees)
-genrule(
+java_run(
     name = "gen_roster",
     testonly = True,
     srcs = UPSTREAM_TREES + [
@@ -240,13 +226,16 @@ genrule(
         "//tools:oracle-pins.env",
     ],
     outs = ["generated/protocol-roster.tsv"],
-    cmd = " ".join(["$(location :roster_generator)"] + program_flags("parser-equivalence") + [
+    arguments = ["{OUT}"],
+    jvm_flags = program_jvm_flags("parser-equivalence") + [
         _NEW_FIXTURES,
-        "--jvm_flag=-Dlegend.engine.jars=$(execpath :engine_jars_exec)",
-        "$@",
-    ]),
-    tools = [":roster_generator"],
+        "-Dlegend.engine.jars=$(execpath :engine_jars_exec)",
+    ],
+    main_class = "com.legend.equivalence.RosterGenerator",
+    mnemonic = "Generate",
+    roots = UPSTREAM_ROOTS,
     visibility = ["//docs:__pkg__"],
+    deps = [":pe_tests_lib"],
 )
 
 # GENERATED FILES in this package: `bazel run //:update_generated` writes them;
@@ -262,16 +251,9 @@ write_source_files(
     visibility = ["//visibility:public"],
 )
 
-java_binary(
-    name = "own_corpus_ledger_draft",
-    testonly = True,
-    main_class = "com.legend.equivalence.OwnCorpusLedgerDraft",
-    runtime_deps = [":pe_tests_lib"],
-)
-
 # a DRAFT of docs/own-corpus-protocol-diffs.tsv (//docs:draft_own_corpus_ledger):
 # current diffs, reasons kept, new rows marked for a human
-genrule(
+java_run(
     name = "gen_own_corpus_draft",
     testonly = True,
     srcs = UPSTREAM_TREES + [
@@ -282,9 +264,15 @@ genrule(
         "//tools:oracle-pins.env",
     ],
     outs = ["generated/own-corpus-protocol-diffs.tsv"],
-    cmd = " ".join(["$(location :own_corpus_ledger_draft)"] + program_flags("parser-equivalence") +
-                   ["$(location //docs:own-corpus-protocol-diffs.tsv)", "$@"]),
-    tools = [":own_corpus_ledger_draft"],
+    arguments = [
+        "$(execpath //docs:own-corpus-protocol-diffs.tsv)",
+        "{OUT}",
+    ],
+    jvm_flags = program_jvm_flags("parser-equivalence"),
+    main_class = "com.legend.equivalence.OwnCorpusLedgerDraft",
+    mnemonic = "Generate",
+    roots = UPSTREAM_ROOTS,
     visibility = ["//docs:__pkg__"],
+    deps = [":pe_tests_lib"],
 )
 

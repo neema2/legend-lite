@@ -1,0 +1,1 @@
+# java_run (defs.bzl): JVM programs as build actions over target-configuration jars.

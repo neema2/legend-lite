@@ -1,7 +1,8 @@
 # spec — the tests that read the upstream sources as the SPEC: the generators'
 # byte-parity checks (Maven gate 3) and the relational corpus lanes (gates 4, 5).
-load("@rules_java//java:defs.bzl", "java_binary", "java_library")
-load("//tools/generators:defs.bzl", "ENGINE_ROOT", "PURE_ROOT", "UPSTREAM_TREES")
+load("@rules_java//java:defs.bzl", "java_library")
+load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES")
+load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
 
 # spec's sources, exported for core's guard tests that walk every module.
@@ -140,96 +141,95 @@ test_suite(
 _ENGINE_COMPILE_CONTEXT = "@legend_engine_src//:legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-compiler/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/CompileContext.java"
 
 
-java_binary(
-    name = "imports_generator",
-    main_class = "com.legend.generators.ImportsGenerator",
-    runtime_deps = [":generators"],
-)
+# Each generator runs through java_run (//tools/java_run): its program is an
+# ordinary TARGET-configuration library — compiled once, with core — run on the
+# build machine's Java runtime. As a genrule tool it was an exec-configuration
+# java_binary, which compiled core a second time for the tools (2026-09-23).
+_ROOTS = UPSTREAM_ROOTS
 
 # NameResolver.java's CORE_IMPORTS: the engine's META_IMPORTS sequence
-genrule(
+java_run(
     name = "gen_imports",
     srcs = [
         _ENGINE_COMPILE_CONTEXT,
         "//core:src/main/java/com/legend/compiler/NameResolver.java",
     ],
     outs = ["generated/NameResolver.java"],
-    cmd = "$(location :imports_generator) $(location %s) $(location //core:src/main/java/com/legend/compiler/NameResolver.java) $@" % _ENGINE_COMPILE_CONTEXT,
-    tools = [":imports_generator"],
+    arguments = [
+        "$(execpath %s)" % _ENGINE_COMPILE_CONTEXT,
+        "$(execpath //core:src/main/java/com/legend/compiler/NameResolver.java)",
+        "{OUT}",
+    ],
+    main_class = "com.legend.generators.ImportsGenerator",
+    mnemonic = "Generate",
     visibility = ["//core:__pkg__"],
-)
-
-java_binary(
-    name = "dynafn_generator",
-    main_class = "com.legend.generators.DynaFnGenerator",
-    runtime_deps = [":generators"],
+    deps = [":generators"],
 )
 
 # DynaFn.java's members: the engine's dynafunction registries, every dialect
-genrule(
+java_run(
     name = "gen_dynafn",
     srcs = UPSTREAM_TREES + [
         "//core:src/main/java/com/legend/builtin/DynaFn.java",
     ],
     outs = ["generated/DynaFn.java"],
-    cmd = "$(location :dynafn_generator) " + ENGINE_ROOT + " $(location //core:src/main/java/com/legend/builtin/DynaFn.java) $@",
-    tools = [":dynafn_generator"],
+    arguments = [
+        "{ENGINE_ROOT}",
+        "$(execpath //core:src/main/java/com/legend/builtin/DynaFn.java)",
+        "{OUT}",
+    ],
+    main_class = "com.legend.generators.DynaFnGenerator",
+    mnemonic = "Generate",
+    roots = _ROOTS,
     visibility = ["//core:__pkg__"],
-)
-
-java_binary(
-    name = "natives_generator",
-    main_class = "com.legend.generators.NativesGenerator",
-    runtime_deps = [":generators"],
+    deps = [":generators"],
 )
 
 # Pure.java's membership signatures: upstream's spelling of OUR membership rows.
 # Runs on core AS COMMITTED (its parser and resolver) — the first link of the chain.
-genrule(
+java_run(
     name = "gen_natives",
     srcs = UPSTREAM_TREES + [
         "//core:src/main/resources/com/legend/builtin/native-membership.tsv",
         "//core:src/main/java/com/legend/builtin/Pure.java",
     ],
     outs = ["generated/Pure.java"],
-    cmd = " ".join([
-        "$(location :natives_generator)",
-        ENGINE_ROOT,
-        PURE_ROOT,
-        "$(location //core:src/main/resources/com/legend/builtin/native-membership.tsv)",
-        "$(location //core:src/main/java/com/legend/builtin/Pure.java)",
-        "$@",
-    ]),
-    tools = [":natives_generator"],
+    arguments = [
+        "{ENGINE_ROOT}",
+        "{PURE_ROOT}",
+        "$(execpath //core:src/main/resources/com/legend/builtin/native-membership.tsv)",
+        "$(execpath //core:src/main/java/com/legend/builtin/Pure.java)",
+        "{OUT}",
+    ],
+    main_class = "com.legend.generators.NativesGenerator",
+    mnemonic = "Generate",
+    roots = _ROOTS,
     visibility = ["//core:__pkg__"],
-)
-
-java_binary(
-    name = "prelude_generator",
-    main_class = "com.legend.generators.PreludeGenerator",
-    runtime_deps = [":generators"],
+    deps = [":generators"],
 )
 
 # prelude.pure: the spec shapes the platform and the corpus name. It reads core's
 # Java SOURCES with Pure.java as :gen_natives wrote it (the chain: natives, then
 # prelude), and runs on core as committed.
-genrule(
+java_run(
     name = "gen_prelude",
     srcs = UPSTREAM_TREES + [
         ":gen_natives",
         "//core:main_java",
     ],
     outs = ["generated/com/legend/builtin/prelude.pure"],
-    cmd = " ".join([
-        "$(location :prelude_generator)",
-        ENGINE_ROOT,
-        PURE_ROOT,
+    arguments = [
+        "{ENGINE_ROOT}",
+        "{PURE_ROOT}",
         "core/src/main/java",
-        "$@",
-        "com/legend/builtin/Pure.java=$(location :gen_natives)",
-    ]),
-    tools = [":prelude_generator"],
+        "{OUT}",
+        "com/legend/builtin/Pure.java=$(execpath :gen_natives)",
+    ],
+    main_class = "com.legend.generators.PreludeGenerator",
+    mnemonic = "Generate",
+    roots = _ROOTS,
     visibility = ["//core:__pkg__"],
+    deps = [":generators"],
 )
 
 # the claims generator reads the COMPILED registries, so it is compiled against,
@@ -245,15 +245,9 @@ java_library(
     deps = ["//core:core_next"],
 )
 
-java_binary(
-    name = "claims_generator",
-    main_class = "com.legend.claims.ClaimsGenerator",
-    runtime_deps = [":claims_generator_lib"],
-)
-
 # native-claims.tsv: the implemented surface. The last link of the chain: it
 # runs on core_next and reads core's sources with the three generated Java files.
-genrule(
+java_run(
     name = "gen_claims",
     srcs = [
         ":gen_dynafn",
@@ -262,15 +256,16 @@ genrule(
         "//core:main_java",
     ],
     outs = ["generated/native-claims.tsv"],
-    cmd = " ".join([
-        "$(location :claims_generator)",
+    arguments = [
         "core/src/main/java",
-        "$@",
-        "com/legend/builtin/DynaFn.java=$(location :gen_dynafn)",
-        "com/legend/builtin/Pure.java=$(location :gen_natives)",
-        "com/legend/compiler/NameResolver.java=$(location :gen_imports)",
-    ]),
-    tools = [":claims_generator"],
+        "{OUT}",
+        "com/legend/builtin/DynaFn.java=$(execpath :gen_dynafn)",
+        "com/legend/builtin/Pure.java=$(execpath :gen_natives)",
+        "com/legend/compiler/NameResolver.java=$(execpath :gen_imports)",
+    ],
+    main_class = "com.legend.claims.ClaimsGenerator",
+    mnemonic = "Generate",
     visibility = ["//core:__pkg__"],
+    deps = [":claims_generator_lib"],
 )
 

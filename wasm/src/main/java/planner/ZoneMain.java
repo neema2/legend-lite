@@ -25,9 +25,14 @@ public final class ZoneMain {
         {"2026-01-15T12:00:00", "Not/AZone"},           // must refuse, identically
     };
 
-    public static void main(String[] args) {
+    /** Usage: {@code ZoneMain <out-file>} — one {@code iso\tzone\tanswer} line per case, LF-ended. */
+    public static void main(String[] args) throws java.io.IOException {
+        StringBuilder out = new StringBuilder();
         for (String[] c : CASES) {
-            System.out.println(c[0] + "\t" + c[1] + "\t" + Wasm.zoneProbe(c[0], c[1]));
+            out.append(c[0]).append('\t').append(c[1]).append('\t')
+                    .append(Wasm.zoneProbe(c[0], c[1])).append('\n');
         }
+        java.nio.file.Files.writeString(java.nio.file.Path.of(args[0]), out.toString(),
+                java.nio.charset.StandardCharsets.UTF_8);
     }
 }
