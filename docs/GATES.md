@@ -16,7 +16,7 @@ commands (`mvn`, `tools/allgates.sh`, `-Dx.generate=1`) no longer exist.
 | 4 | `//spec:corpus_duckdb` | the relational corpus on DuckDB |
 | 5 | `//spec:corpus_h2` | the relational corpus on H2 |
 | 6 | `//pct:pct_duckdb` | the five PCT suites on DuckDB, one JVM (per suite: `//pct:pct_duckdb_<suite>`) |
-| 7 | `//pct:pct_h2` | PCT relation on H2 2.4.240, held to a ratchet (469 / 1 / 26) |
+| 7 | `//pct:pct_h2` | PCT relation on H2 2.4.240: 469 tests, H2's 27 expected failures each pinned by message (`Test_LegendLite_H2_RelationFunctions_PCT`) |
 | 8 | `//parser-equivalence:parser_parity` | byte parity with legend-engine's parser |
 | 9 | `//pct:pct_channel_b` | Channel B dual-verdict suites |
 | 10 | `//core:stress_suites` | the stress corpus |
