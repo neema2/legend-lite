@@ -5,6 +5,7 @@ package com.legend;
 
 import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -47,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * registered file is also a conscious registration — the JDBC census's
  * recorded file-grain limit, closed here where it is cheap.
  */
+@Tag("census")
 class LegacyReachbackCensusTest {
 
     private static final List<String> ROOTS = List.of(

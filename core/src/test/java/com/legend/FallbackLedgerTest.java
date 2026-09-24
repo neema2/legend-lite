@@ -17,6 +17,7 @@ import java.util.TreeMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
+import org.junit.jupiter.api.Tag;
 
 /**
  * THE FALLBACK LEDGER (audit 2026-09-15 P5-6). AGENTS.md invariant 4 — NO
@@ -43,6 +44,7 @@ import java.util.stream.Stream;
  * work; they are not silent (each is commented at its site) and they are not
  * in this package's empty-answer funnel.
  */
+@Tag("guardrail")
 class FallbackLedgerTest {
 
     private static final Path PACKAGE = Repo.module("src/main/java/com/legend/normalizer");

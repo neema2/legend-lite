@@ -5,6 +5,7 @@ package com.legend;
 
 import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -43,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * deliberately high-precision over high-recall — a missed spelling is
  * drift the next audit catches; a noisy pin rots trust in the register.
  */
+@Tag("guardrail")
 class SqlTextRatchetTest {
 
     // UNROLLED-LOOP form (no per-character alternation): the naive

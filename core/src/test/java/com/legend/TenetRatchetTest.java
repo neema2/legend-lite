@@ -5,6 +5,7 @@ package com.legend;
 
 import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -56,6 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * consolidated onto the same captureRows choke point — consolidate,
  * never sprawl.)
  */
+@Tag("guardrail")
 class TenetRatchetTest {
 
     private static final int RESULT_SET_ACCESSOR_SITES = 13;

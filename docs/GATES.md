@@ -32,6 +32,10 @@ Beside the gates, in `bazel test //...`:
   prelude.pure, native-claims.tsv, the fixture snapshot, the corpus manifest,
   the protocol roster, DataCube's lite-facts.ts) equals its generator's output.
   Regenerate: `bazel run //:update_generated`.
+- **Source checks** — `//core:guardrails` (tests whose subject is core's own
+  code: size and layer guardrails, shrink-only ratchets, ledgers; `@Tag("guardrail")`)
+  and `//core:census` (the ones that walk other modules too; `@Tag("census")`).
+  Out of `//core:core_tests`, so the behaviour suite declares only core's tree.
 - **Dependency guards** — `//tools/deps:core_closure_test` (core compiles
   against no jar; the drivers are exactly three), `:pools_are_disjoint`,
   `:one_release` (MODULE.bazel and tools/oracle-pins.env name one release).

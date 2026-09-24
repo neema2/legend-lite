@@ -5,6 +5,7 @@ package com.legend;
 
 import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -31,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * §4 definition. LIST_* / UNNEST SqlFn references upstream are counted
  * because those functions presuppose the list carrier itself.
  */
+@Tag("guardrail")
 class   CarrierPurityRatchetTest {
 
     /** Pattern -> R0 census pin (2026-08-01, main @ 85ff6c8a; raw

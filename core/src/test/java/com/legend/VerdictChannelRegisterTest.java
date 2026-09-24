@@ -5,6 +5,7 @@ package com.legend;
 
 import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -23,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * caller registers consciously with its tenet argument (the Charter's
  * Clause 2c: product equality is World 2, it lowers to SQL).
  */
+@Tag("census")
 class VerdictChannelRegisterTest {
 
     private static final List<String> JUDGE_CALLERS = List.of(

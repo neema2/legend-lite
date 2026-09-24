@@ -5,6 +5,7 @@ package com.legend;
 
 import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -52,6 +53,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * and the deleted {@code JsonAssertCanon.sortByKey} (re-created the TEST'S OWN
  * canonicalization over a metamodel that never executes through SQL).
  */
+@Tag("census")
 class JavaEvalLedgerTest {
 
     /** SIZE rows — the METAMODEL-CHANNEL register: pinned MAX count of

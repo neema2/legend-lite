@@ -15,6 +15,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 /**
  * THE ORDER RULING, PINNED (user, 2026-09-20): product SQL carries NO
@@ -39,6 +40,7 @@ import org.junit.jupiter.api.Test;
  *       wrap — never from a product render path.</li>
  * </ol>
  */
+@Tag("guardrail")
 class TestLaneOrderGuardrailTest {
 
     private static final Pattern ROW_ORDER_MINT =

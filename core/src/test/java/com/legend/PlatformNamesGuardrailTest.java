@@ -5,6 +5,7 @@ package com.legend;
 
 import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -33,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *       so they cannot return under their old spelling.</li>
  * </ol>
  */
+@Tag("guardrail")
 class PlatformNamesGuardrailTest {
 
     private static final Path MAIN = Repo.module("src/main/java/com/legend");

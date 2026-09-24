@@ -5,6 +5,7 @@ package com.legend;
 
 import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -41,6 +42,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *       the FEED narrows instead (verified by F7.4's acceptance).</li>
  * </ul>
  */
+@Tag("guardrail")
 class RawSqlLedgerTest {
 
     // F6.6: HostEval joined — the executeInDb READ path adapts the SAME

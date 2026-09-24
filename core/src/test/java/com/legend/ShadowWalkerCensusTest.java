@@ -6,6 +6,7 @@ package com.legend;
 
 import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -30,6 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * shadow; SHRINKAGE means a family moved — ratchet the row down in the
  * same commit with the batch's name.
  */
+@Tag("guardrail")
 class ShadowWalkerCensusTest {
 
     private static final Path NORMALIZER = Repo.module("src/main/java/com/legend/normalizer");

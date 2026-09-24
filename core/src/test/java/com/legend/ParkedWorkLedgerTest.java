@@ -16,6 +16,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 /**
  * THE PARKED-WORK LEDGER (2026-09-15). Work deliberately NOT done yet is
@@ -33,6 +34,7 @@ import org.junit.jupiter.api.Test;
  * <p>A green anchor is not approval: each row is a debt with a stated price.
  * Rows leave by being fixed, never by being loosened.
  */
+@Tag("guardrail")
 class ParkedWorkLedgerTest {
 
     /** Ledger row id &rarr; (what the anchor matches, the product files that

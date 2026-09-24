@@ -5,6 +5,7 @@ package com.legend;
 
 import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -35,6 +36,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * is a new way for the suite to go quiet).</li>
  * </ol>
  */
+@Tag("census")
 class SkipCensusTest {
 
     /** file basename -> pinned MAX {@code @Disabled(} count. */

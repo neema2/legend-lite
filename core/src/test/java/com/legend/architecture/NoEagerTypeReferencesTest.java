@@ -3,6 +3,7 @@ package com.legend.architecture;
 import com.legend.compiler.element.TypedClass;
 import com.legend.compiler.element.TypedEnum;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
@@ -39,6 +40,7 @@ import static org.junit.jupiter.api.Assertions.fail;
  * site. The allowlist is reserved for the model registry itself (which by
  * definition owns all loaded elements).
  */
+@Tag("guardrail")
 class NoEagerTypeReferencesTest {
 
     private static final Set<Class<?>> FORBIDDEN_TYPES = Set.of(TypedClass.class, TypedEnum.class);

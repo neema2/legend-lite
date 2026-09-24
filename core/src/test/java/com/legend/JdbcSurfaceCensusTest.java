@@ -5,6 +5,7 @@ package com.legend;
 
 import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -50,6 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * eval ledger's size/name pins cover, and residue DELETION (the
  * relation-typed fetchDb leg) is the durable fix, not finer guards.
  */
+@Tag("census")
 class JdbcSurfaceCensusTest {
 
     /** PRECISION (2026-08-21): the bare word {@code ResultSet} is gone —

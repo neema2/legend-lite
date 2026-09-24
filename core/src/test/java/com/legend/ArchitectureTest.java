@@ -6,6 +6,7 @@ import com.tngtech.archunit.core.domain.JavaClasses;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
 import com.tngtech.archunit.core.importer.ImportOption;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 
@@ -30,6 +31,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
  *   <li>JUnit 5 + ArchUnit (test scope only)</li>
  * </ul>
  */
+@Tag("guardrail")
 final class ArchitectureTest {
 
     // Declared BEFORE CORE_PROD_CLASSES on purpose: static fields initialise in

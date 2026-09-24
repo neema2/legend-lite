@@ -2,6 +2,7 @@ package com.legend.parser;
 
 import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -42,6 +43,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * decoder) is the parser's JOB, not surgery, and is deliberately not policed
  * here — the enforceable line is the regex family plus source re-reads.
  */
+@Tag("guardrail")
 class DropInSurfaceTextRuleTest {
 
     /** The regex family: each match is one shadow-grammar call site. */

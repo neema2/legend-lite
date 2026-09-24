@@ -49,7 +49,7 @@ jobs:
           fi
           all=$(jq -nc --arg pct6 "$pct6" '[
             {"key":"1",      "name":"gate 1 core suite",               "targets":"//core:core_tests"},
-            {"key":"checks", "name":"generated files and dependency guards", "targets":"GENERATED //tools/deps:all"},
+            {"key":"checks", "name":"generated files, dependency guards, source checks", "targets":"GENERATED //tools/deps:all //core:guardrails //core:census"},
             {"key":"3",      "name":"gate 3 spec parity",              "targets":"//spec:spec_tests"},
             {"key":"4",      "name":"gate 4 DuckDB corpus",            "targets":"//spec:corpus_duckdb"},
             {"key":"5",      "name":"gate 5 H2 corpus",                "targets":"//spec:corpus_h2"},

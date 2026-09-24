@@ -5,6 +5,7 @@ package com.legend;
 
 import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -27,6 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * the harness fails until it is either gated-and-listed here (with the
  * reason) or removed; a removed site forces the list to shrink.
  */
+@Tag("census")
 class HarnessDisciplineTest {
 
     /** The audited sites (F1.11 re-enumeration — the first census

@@ -5,6 +5,7 @@ package com.legend;
 
 import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -47,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * deleted / died / retired), or the pin is a negative one
  * ({@code !Files.exists(...)}: the file must stay gone).
  */
+@Tag("census")
 class DanglingStateGuardTest {
 
     /** Source roots, relative to the core module (the test's cwd): every

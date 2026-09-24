@@ -5,6 +5,7 @@ package com.legend.architecture;
 
 import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -33,6 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *       review). Shrink-only.</li>
  * </ol>
  */
+@Tag("census")
 class ParserBoundaryArchTest {
 
     /** Classes (path suffixes) allowed to reference {@code Dialect}

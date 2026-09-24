@@ -6,6 +6,7 @@ package com.legend;
 import com.legend.testing.Repo;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * a tenet violation, not an optimization — the database computes it
  * through a residual CASE. Moving this set is a reviewed design decision.
  */
+@Tag("guardrail")
 class LiteralUnrollLedgerTest {
 
     private static final Set<String> COMPARE_ONLY = Set.of(

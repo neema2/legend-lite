@@ -5,6 +5,7 @@ package com.legend;
 
 import com.legend.testing.Repo;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.Tag;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -25,6 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * stderr prints, and the sealed-CoreFn dispatch (phase-G design leg)
  * replacing spelled-out function-name comparisons.
  */
+@Tag("guardrail")
 class ObservabilityGuardrailTest {
 
     /** The debug env-flag vocabulary at freeze time — TWO naming schemes,
