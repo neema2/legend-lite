@@ -84,7 +84,7 @@ class ChainTypeDispatchTest {
         SpecCompiler specs = new SpecCompiler(ctx);
         List<TypedSpec> body = specs.typeQueryBody(NameResolver.resolveQuery(
                 com.legend.testing.Own.spec("|" + chain + "->from(rt::M, rt::RT)")));
-        return new DuckDb().render(new Lowerer().lower(
+        return new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(
                 new StoreResolver(ctx, specs).resolve(body, null)));
     }
 

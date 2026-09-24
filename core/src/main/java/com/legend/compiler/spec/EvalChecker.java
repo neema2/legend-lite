@@ -1,5 +1,7 @@
 package com.legend.compiler.spec;
 
+
+import com.legend.platform.CoreFn;
 import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.type.Multiplicity;
@@ -94,7 +96,7 @@ final class EvalChecker {
                 t.kernel().unify(fn.parameters().get(i).type(), arg.info().type(), b);   // types must fit
                 args.add(arg);
             }
-            return Typer.emitCall(fn, args, new ExprType(
+            return CallNodes.mint(t.ctx().implementations(), fn, args, new ExprType(
                     t.kernel().resolve(fn.returnType(), b), fn.returnMultiplicity()));
         }
     }

@@ -5,7 +5,7 @@ package com.legend.generators;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.legend.compiler.spec.typed.Feature;
+import com.legend.platform.Feature;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;

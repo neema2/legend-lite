@@ -356,6 +356,13 @@ public interface ModelContext extends StoreLookups {
      * of every class. */
     java.util.Set<String> subtree(String baseFqn);
 
+    /** THE DECLARATIONS this context compiles against: the catalog and the
+     *  model's functions, one per id (platform architecture untangle). */
+    com.legend.platform.DeclarationTable declarations();
+
+    /** WHAT EXECUTES each declaration — the pick every call node is minted by. */
+    com.legend.platform.ImplementationTable implementations();
+
     default boolean isSubtype(String childFqn, String parentFqn) {
         return isSubtype(childFqn, parentFqn, new java.util.HashSet<>());
     }

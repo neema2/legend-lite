@@ -72,7 +72,7 @@ class JoinTortureTest {
     }
 
     private String sqlOf(String query) {
-        SqlQuery q = new Lowerer().lower(Compiler.compileQuery(MODEL, query));
+        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.compileQuery(MODEL, query));
         return new DuckDb().render(q);
     }
 

@@ -57,7 +57,7 @@ final class GroupByChecker {
             // native call against its verbatim signature; over a spelled
             // collection the inliner folds it to newMap(pairs)
             Application a = t.checkGeneric(af, env);
-            return Typer.emitCall(a.chosen(), a.args(), a.out());
+            return CallNodes.mint(t.ctx().implementations(), a.chosen(), a.args(), a.out());
         }
         // the group-lambda aggregate form (~c : g | $g->joinStrings(…)): desugared
         // to map / reduce before the generic check, its sort keys typed after

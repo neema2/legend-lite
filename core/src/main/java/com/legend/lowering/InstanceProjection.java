@@ -90,7 +90,7 @@ final class InstanceProjection {
                 // body has no relational cell shape (bare to-many paths
                 // explode via unnest; a computed one must be loud, never a
                 // silent list-in-a-cell).
-                TypedSpec bodyLast = Lowerer.last(col.fn());
+                TypedSpec bodyLast = LambdaBinding.last(col.fn());
                 if (bodyLast.info().multiplicity().isMany()) {
                     throw new NotImplementedException(
                             "instance-literal project: computed column '" + col.name()
@@ -98,7 +98,7 @@ final class InstanceProjection {
                                     + " property paths explode");
                 }
                 String param = col.fn().parameters().get(0);
-                SqlExpr computed = scalar.apply(Lowerer.last(col.fn()), (v, name) -> {
+                SqlExpr computed = scalar.apply(LambdaBinding.last(col.fn()), (v, name) -> {
                     if (!param.equals(v)) {
                         throw new IllegalStateException("instance-literal project:"
                                 + " unresolved variable $" + v);

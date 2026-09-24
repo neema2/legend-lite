@@ -4,8 +4,7 @@
 package com.legend.platform;
 
 import com.legend.builtin.NativeFn;
-import com.legend.compiler.spec.CoreFn;
-import com.legend.compiler.spec.typed.Feature;
+import com.legend.model.ClassMember;
 import com.legend.model.Function;
 import com.legend.model.FunctionDefinition;
 import com.legend.model.NativeFunctionDefinition;
@@ -103,6 +102,22 @@ public final class ImplementationTable {
             }
         }
 
+        // the class members a family implements: a lifted derived-property
+        // declaration whose PROVENANCE names a registered member. Verified
+        // against class declarations, not here — a table without lifted
+        // functions (the catalog alone) simply has no such rows
+        for (FunctionId id : declarations.ids()) {
+            if (declarations.get(id) instanceof FunctionDefinition fd && fd.synthesizedFrom() != null
+                    && fd.synthesizedFrom().hat() == com.legend.model.SynthHat.PROP) {
+                ClassMember member = new ClassMember(fd.synthesizedFrom().ownerFqn(), fd.synthesizedFrom().memberName());
+                for (var family : registrations.members().entrySet()) {
+                    if (family.getValue().contains(member)) {
+                        families.computeIfAbsent(id, k -> new LinkedHashSet<>()).add(family.getKey());
+                    }
+                }
+            }
+        }
+
         // the language forms: every overload at each FQN a form owns
         Map<FunctionId, CoreFn> forms = new LinkedHashMap<>();
         for (var e : registrations.forms().entrySet()) {
@@ -193,6 +208,24 @@ public final class ImplementationTable {
     /** The implementation of the declaration {@code id}, or null if the table does not declare it. */
     public @com.legend.Nullable Implementation of(FunctionId id) {
         return rows.get(id);
+    }
+
+    /** The row for {@code declaration}, or — for one outside this table — the
+     *  default of its kind: {@code Body} for a body, {@code Unimplemented} for a
+     *  native. A lowering with no model behind it meets such declarations. */
+    public Implementation rowOf(Function declaration) {
+        Implementation row = of(FunctionId.of(declaration));
+        if (row != null) {
+            return row;
+        }
+        return declaration instanceof FunctionDefinition ? new Implementation.Body()
+                : new Implementation.Unimplemented();
+    }
+
+    /** Whether the platform runs {@code declaration} by its own rule or form
+     *  (never by the declaration's body); false for null or an undeclared one. */
+    public boolean runsByRule(com.legend.model.@com.legend.Nullable Function declaration) {
+        return declaration != null && Implementation.byRule(of(FunctionId.of(declaration)));
     }
 
     /** Every row, in declaration order. */

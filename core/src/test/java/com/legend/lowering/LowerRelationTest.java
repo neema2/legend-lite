@@ -75,7 +75,7 @@ class LowerRelationTest {
     }
 
     private String sqlOf(String query) {
-        SqlQuery q = new Lowerer().lower(Compiler.compileQuery(MODEL, query));
+        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.compileQuery(MODEL, query));
         return new DuckDb().render(q);
     }
 
@@ -85,7 +85,7 @@ class LowerRelationTest {
         var body = new com.legend.compiler.spec.SpecCompiler(ctx).typeQueryBody(
                 com.legend.compiler.NameResolver.resolveQuery(
                         com.legend.testing.Own.spec(query)));
-        return new DuckDb().render(new Lowerer().lower(body));
+        return new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(body));
     }
 
     /** Execute; return rows as "cell|cell" strings. */
@@ -657,7 +657,7 @@ class LowerRelationTest {
                   Table T_ORDERS (ID INTEGER NOT NULL, ITEMS SEMISTRUCTURED)
                 )
                 """;
-        SqlQuery q = new Lowerer().lower(Compiler.compileQuery(model,
+        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.compileQuery(model,
                 "#>{test::DB.T_ORDERS}#->flatten(~ITEMS)"));
         String sql = new DuckDb().render(q);
         assertEquals(1, count(sql, "SELECT"), "flatten folds: " + sql);
@@ -714,7 +714,7 @@ class LowerRelationTest {
                   Table T_DOCS (ID INTEGER NOT NULL, PAYLOAD SEMISTRUCTURED)
                 )
                 """;
-        SqlQuery q = new Lowerer().lower(Compiler.compileQuery(model,
+        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.compileQuery(model,
                 "#>{test::DB.T_DOCS}#->extend(~sku : x |"
                         + " $x.PAYLOAD->get('items')->get(0)->get('sku')->to(@String))"));
         String sql = new DuckDb().render(q);
@@ -741,7 +741,7 @@ class LowerRelationTest {
                   Table T_CARTS (ID INTEGER NOT NULL, NUMS SEMISTRUCTURED)
                 )
                 """;
-        SqlQuery q = new Lowerer().lower(Compiler.compileQuery(model,
+        SqlQuery q = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.compileQuery(model,
                 "#>{test::DB.T_CARTS}#->extend(~total : x | $x.NUMS->toMany(@Variant)"
                         + "->map(i | $i->to(@Integer)->toOne())"
                         + "->fold({e, a | $e + $a}, 0))"));
@@ -759,7 +759,7 @@ class LowerRelationTest {
                 "sum of each row's JSON array");
 
         // toMany(@Integer): the TYPED-array cast branch.
-        String typed = new DuckDb().render(new Lowerer().lower(Compiler.compileQuery(model,
+        String typed = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.compileQuery(model,
                 "#>{test::DB.T_CARTS}#->extend(~first : x |"
                         + " $x.NUMS->toMany(@Integer)->fold({e, a | $e + $a}, 0))")));
         assertTrue(typed.contains("CAST(t0.NUMS AS BIGINT[])"),
@@ -768,7 +768,7 @@ class LowerRelationTest {
                 exec("SELECT ID, first FROM (" + typed + ")\nORDER BY ID"));
 
         // to(@String) on a BARE variant column (no get to swap): plain CAST.
-        String bare = new DuckDb().render(new Lowerer().lower(Compiler.compileQuery(model,
+        String bare = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.compileQuery(model,
                 "#>{test::DB.T_CARTS}#->extend(~txt : x | $x.NUMS->to(@String))")));
         assertTrue(bare.contains("CAST(t0.NUMS AS VARCHAR) AS txt"), bare);
         assertEquals(List.of("1|[1, 2, 3]", "2|[10]"),

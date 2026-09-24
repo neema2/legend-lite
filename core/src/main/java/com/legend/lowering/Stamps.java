@@ -56,6 +56,11 @@ final class Stamps {
     }
 
     /** Exactly [1..1] — a value that is always present. */
+    /** An upper bound above one. */
+    static boolean isMany(TypedSpec spec) {
+        return spec.info().multiplicity().requireBounded("lowering").isMany();
+    }
+
     static boolean exactlyOne(TypedSpec spec) {
         return spec.info().multiplicity() instanceof Multiplicity.Bounded b
                 && b.lower() == 1 && Integer.valueOf(1).equals(b.upper());

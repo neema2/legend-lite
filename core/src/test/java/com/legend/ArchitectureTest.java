@@ -567,6 +567,10 @@ final class ArchitectureTest {
                                     "com.legend.compiler.element.type",
                                     "com.legend.builtin", "com.legend.sql..",
                                     "com.legend.values",
+                                    // the declaration/implementation tables and
+                                    // the registration vocabularies (untangle
+                                    // step 4a): lowering registers INTO them
+                                    "com.legend.platform",
                                     "com.legend.error", "java..")
                             // SourceInfo rides typed nodes (the span
                             // component, Phase 4) — the ONE protocol type
@@ -919,7 +923,7 @@ final class ArchitectureTest {
                 "com.legend.lowering.Scalars.RULES",
                 "com.legend.lowering.FeatureRules.UNDER",
                 "com.legend.lowering.Aggregates.REDUCERS",
-                "com.legend.compiler.spec.CoreFn.BY_NAME",
+                "com.legend.platform.CoreFn.BY_NAME",
                 "com.legend.builtin.Pure.ALL_CLASSES",
                 "com.legend.builtin.Pure.ALL_ENUMS",
                 "com.legend.builtin.Pure.ALL",
@@ -930,9 +934,9 @@ final class ArchitectureTest {
                 "com.legend.builtin.Pure$Index.KEYS_BY_NAME",
                 "com.legend.builtin.Pure$Index.FN_BY_ID",
                 // the step-3 shadow diff's sinks (a probe, deleted at step 4)
-                "com.legend.platform.Shadow.SEEN",
-                "com.legend.platform.Shadow.TABLES",
-                "com.legend.platform.Shadow.ROWS",
+                "com.legend.probe.Shadow.SEEN",
+                "com.legend.probe.Shadow.TABLES",
+                "com.legend.probe.Shadow.ROWS",
                 "com.legend.compiler.NameResolver.PRELUDE_TYPES",
                 "com.legend.compiler.NameResolver.PRELUDE_COLLISIONS",
                 "com.legend.parser.SectionGrammarRegistry.REGISTRY",

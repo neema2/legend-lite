@@ -66,16 +66,16 @@ final class ConcatenateChecker {
                     return positional(left, right);
                 }
             }
-            return generic(t.checkGenericTyped(af, List.of(left, right)));
+            return generic(t, t.checkGenericTyped(af, List.of(left, right)));
         }
-        return generic(t.checkGeneric(af, env));
+        return generic(t, t.checkGeneric(af, env));
     }
 
     /** The COLLECTION overload (set1:T[*], set2:T[*]) is a plain value
      * operation (SQL list concat), not the relation set-op node. */
-    private static TypedSpec generic(Application a) {
+    private static TypedSpec generic(Typer t, Application a) {
         if (!Type.isRelation(a.out().type())) {
-            return Typer.emitCall(a.chosen(), a.args(), a.out());
+            return CallNodes.mint(t.ctx().implementations(), a.chosen(), a.args(), a.out());
         }
         return new TypedConcatenate(a.args().get(0), a.args().get(1), a.out());
     }

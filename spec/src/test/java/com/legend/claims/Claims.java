@@ -5,7 +5,7 @@ package com.legend.claims;
 
 import com.legend.builtin.NativeFn;
 import com.legend.builtin.Pure;
-import com.legend.compiler.spec.CoreFn;
+import com.legend.platform.CoreFn;
 import com.legend.lowering.RegistryKeys;
 import com.legend.model.NativeFunctionDefinition;
 

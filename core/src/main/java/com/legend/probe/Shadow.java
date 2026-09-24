@@ -1,11 +1,16 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.platform;
+package com.legend.probe;
 
 import com.legend.builtin.DecisionProbe;
+import com.legend.platform.Registrations;
+import com.legend.platform.ImplementationTable;
+import com.legend.platform.Implementation;
+import com.legend.platform.FunctionId;
+import com.legend.platform.DeclarationTable;
 import com.legend.builtin.Pure;
-import com.legend.compiler.spec.CoreFn;
+import com.legend.platform.CoreFn;
 import com.legend.model.Function;
 import com.legend.model.FunctionDefinition;
 
@@ -63,7 +68,7 @@ public final class Shadow implements DecisionProbe {
     static final Map<FunctionId, Implementation> ROWS = new ConcurrentHashMap<>();
 
     private static final class Sink {
-        static final Registrations REGISTRATIONS = Registrations.current();
+        static final Registrations REGISTRATIONS = com.legend.lowering.PlatformRegistrations.current();
         static final ImplementationTable CATALOG =
                 ImplementationTable.build(DeclarationTable.of(Pure.all()), REGISTRATIONS);
         static final Map<String, CoreFn> FORM_AT = formAt();
@@ -101,15 +106,14 @@ public final class Shadow implements DecisionProbe {
     @Override
     public void onOverloads(String fqn, List<Function> today, Object model,
             Stream<Function> modelFunctions) {
-        DeclarationTable table;
-        try {
-            table = TABLES.computeIfAbsent(model, k -> DeclarationTable.of(
-                    Stream.concat(Pure.all().stream(), modelFunctions).toList()));
-        } catch (IllegalStateException refused) {
-            write("TABLE-REFUSED", String.valueOf(System.identityHashCode(model)), "",
-                    String.valueOf(refused.getMessage()), "");
-            return;
-        }
+        DeclarationTable table = TABLES.computeIfAbsent(model, k -> {
+            DeclarationTable t = DeclarationTable.of(Stream.concat(Pure.all().stream(), modelFunctions).toList());
+            if (!t.duplicates().isEmpty()) {
+                write("DUPLICATES", String.valueOf(System.identityHashCode(model)),
+                        String.valueOf(t.duplicates().size()), String.join(",", t.duplicates()), "");
+            }
+            return t;
+        });
         Set<String> todayIds = new TreeSet<>();
         for (Function f : today) {
             todayIds.add(FunctionId.of(f).qualified());
@@ -146,7 +150,10 @@ public final class Shadow implements DecisionProbe {
             });
         }
         String kind = definition instanceof FunctionDefinition ? "body" : "native";
-        write("PICK", id.qualified(), today, describe(row) + " <" + kind + ">", agree(today, row) ? "agree" : "DIFFER");
+        // a family-implemented native reaching the scalar funnel is the WRONG
+        // SITE — the table and today agree on the family, not on the dispatch
+        String verdict = today.equals("FAMILY") ? "WRONG-SITE" : agree(today, row) ? "agree" : "DIFFER";
+        write("PICK", id.qualified(), today, describe(row) + " <" + kind + ">", verdict);
     }
 
     /** A form dispatched on the spelled name {@code name}. */
@@ -162,8 +169,7 @@ public final class Shadow implements DecisionProbe {
             case Implementation.Form f -> today.startsWith("FORM")
                     || f.alsoLowered().stream().anyMatch(p -> p.name().equals(today));
             case Implementation.Intrinsic in -> in.positions().stream().anyMatch(p -> p.name().equals(today))
-                    || (today.equals("SCALAR-FEATURE") && in.positions().contains(Implementation.Position.SCALAR))
-                    || (today.equals("FAMILY") && !in.families().isEmpty());
+                    || (today.equals("SCALAR-FEATURE") && in.positions().contains(Implementation.Position.SCALAR));
             case Implementation.Body b -> today.equals("BODY");
             case Implementation.Unimplemented u -> today.equals("UNIMPLEMENTED");
             case Implementation.Refused r -> today.equals("WALLED-BODY") || today.equals("WALLED-NATIVE")

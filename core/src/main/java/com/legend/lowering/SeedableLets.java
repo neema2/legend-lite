@@ -36,7 +36,7 @@ public final class SeedableLets {
                     qe.getValue().info());
             try {
                 new Lowerer(t -> ClassLayouts.layoutOf(ctx, t),
-                        f -> ctx.findClass(f).isPresent())
+                        f -> ctx.findClass(f).isPresent(), ctx.implementations())
                         .lower(List.of(let, qe.getValue()));
                 out.add(let);
             } catch (RuntimeException notScalar) {

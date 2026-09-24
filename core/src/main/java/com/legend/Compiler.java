@@ -235,7 +235,8 @@ public final class Compiler {
         // owner, parsed elements, no parallel lane)
         Layer layer = normalizeWithSystem(NameResolver.resolveAlongside(parsed,
                 bootFqns(), null), null);
-        return PureModelContext.from(layer.model(), layer.index(), null, boot().checked());
+        return PureModelContext.from(layer.model(), layer.index(), null, boot().checked(),
+                com.legend.lowering.PlatformRegistrations.current());
     }
 
     /** A normalized layer with THE index its Phase E read (T4.1 step 2):
@@ -300,7 +301,8 @@ public final class Compiler {
             // prepared elements enter every graph's index at that graph's gate
             Layer layer = normalizeLayer(NameResolver.resolve(boot), null);
             return new Boot(layer.model(),
-                    PureModelContext.checkLayer(layer.model(), layer.index()));
+                    PureModelContext.checkLayer(layer.model(), layer.index(),
+                            com.legend.lowering.PlatformRegistrations.current()));
         });
     }
 
@@ -425,7 +427,7 @@ public final class Compiler {
         Layer layer = normalizeWithSystem(NameResolver.resolveAlongside(parsed,
                 bootFqns(), walls), walls);
         PureModelContext ctx = PureModelContext.from(layer.model(), layer.index(), walls,
-                boot().checked());
+                boot().checked(), com.legend.lowering.PlatformRegistrations.current());
         return new BuiltModule(ctx, walls);
     }
 
@@ -520,7 +522,7 @@ public final class Compiler {
         TypedSpec root = body.get(body.size() - 1);
         com.legend.lowering.Lowerer planLw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent());
+                f -> ctx.findClass(f).isPresent(), ctx.implementations());
         if (!temporalRoot) {
             planLw = planLw.withEngineExistsJoinForm();
         }
@@ -1075,7 +1077,7 @@ public final class Compiler {
         }
         com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent());
+                f -> ctx.findClass(f).isPresent(), ctx.implementations());
         if (!temporalRoot) {
             lw = lw.withEngineExistsJoinForm();
         }

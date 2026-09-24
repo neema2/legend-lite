@@ -4,8 +4,6 @@
 package com.legend.platform;
 
 import com.legend.builtin.NativeFn;
-import com.legend.compiler.spec.CoreFn;
-import com.legend.compiler.spec.typed.Feature;
 
 import java.util.Objects;
 import java.util.Set;
@@ -61,6 +59,12 @@ public sealed interface Implementation {
             Objects.requireNonNull(reason, "reason");
             Objects.requireNonNull(why, "why");
         }
+    }
+
+    /** Whether {@code row} runs the declaration by the platform's own rule or
+     *  form — never by the declaration's body. Null (undeclared) is not. */
+    static boolean byRule(@com.legend.Nullable Implementation row) {
+        return row instanceof Intrinsic || row instanceof Form;
     }
 
     /** Where a registered lowering applies. */

@@ -75,7 +75,7 @@ class ResolveM2mTest {
         List<TypedSpec> body = specs.typeQueryBody(
                 NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, "m::RT");
-        return new DuckDb().render(new Lowerer().lower(resolved));
+        return new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved));
     }
 
     private List<String> exec(String sql) throws SQLException {
@@ -142,7 +142,7 @@ class ResolveM2mTest {
         List<TypedSpec> body = specs.typeQueryBody(NameResolver.resolveQuery(
                 com.legend.testing.Own.spec("m::Person.all()->project(~[full: p|$p.fullName])")));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, "m::RT");
-        String sql = new DuckDb().render(new Lowerer().lower(resolved));
+        String sql = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved));
         assertEquals(1, count(sql, "SELECT"), sql);
         assertEquals(List.of("Bob Bay"), exec(sql),
                 "the mapping's ~filter composes through the upstream bindings");
@@ -179,9 +179,9 @@ class ResolveM2mTest {
             StoreResolver one = new StoreResolver(ctx, specs);
             String q = "m::Person.all()->project(~[l: p|$p.label])";
             var b1 = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.testing.Own.spec(q)));
-            String sql1 = new DuckDb().render(new Lowerer().lower(one.resolve(b1, "m::RT1")));
+            String sql1 = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(one.resolve(b1, "m::RT1")));
             var b2 = specs.typeQueryBody(NameResolver.resolveQuery(com.legend.testing.Own.spec(q)));
-            String sql2 = new DuckDb().render(new Lowerer().lower(one.resolve(b2, "m::RT2")));
+            String sql2 = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(one.resolve(b2, "m::RT2")));
             assertTrue(sql1.contains("FROM A"), sql1);
             assertTrue(sql2.contains("FROM B"),
                     "the SAME resolver instance under a different runtime must"

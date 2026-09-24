@@ -64,7 +64,7 @@ final class ListEncodings {
         }
         SqlExpr src = lw.scalar(sb.source(), columns);
         String param = sb.key().parameters().get(0);
-        SqlExpr keyBody = lw.scalar(Lowerer.last(sb.key()),
+        SqlExpr keyBody = lw.scalar(LambdaBinding.last(sb.key()),
                 LambdaBinding.mapElemResolver(param, src, false,
                         LambdaBinding.lambdaResolver(
                                 sb.key().parameters(), columns)));

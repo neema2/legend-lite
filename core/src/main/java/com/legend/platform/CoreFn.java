@@ -1,4 +1,4 @@
-package com.legend.compiler.spec;
+package com.legend.platform;
 
 import java.util.HashMap;
 import java.util.Map;

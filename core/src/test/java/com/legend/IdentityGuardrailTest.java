@@ -83,7 +83,11 @@ class IdentityGuardrailTest {
 
     /** The measured counts, 2026-09-24 — SHRINK-ONLY. A site leaves when the
      * code dispatches on the resolved declaration (or a registered lang item)
-     * instead; lower the pin in the same commit. */
+     * instead; lower the pin in the same commit.
+     * 4a (2026-09-24, the pick by table): CATALOG_LOOKUP_BY_NAME 180 -> 179
+     * (Scalars' no-rule branch reads the table), FAMILY_LOOKUP_BY_NAME 89 -> 87
+     * (the inliner's and StoreEscapees' derived-member checks), FUNCTION_CATEGORY_CHECK
+     * 19 -> 16 (isPlatformImplementedDerived and its two readers). */
     private static final Map<String, Integer> PINS = Map.of(
             "NAME_COMPARE", 214,
             "NAME_COMPARE_REVERSED", 94,
@@ -91,9 +95,9 @@ class IdentityGuardrailTest {
             "NAME_AFFIX_TEST", 53,
             "NAME_CUTTING", 106,
             "SIGNATURE_ID_CUTTING", 1,
-            "CATALOG_LOOKUP_BY_NAME", 180,
-            "FAMILY_LOOKUP_BY_NAME", 89,
-            "FUNCTION_CATEGORY_CHECK", 19);
+            "CATALOG_LOOKUP_BY_NAME", 179,
+            "FAMILY_LOOKUP_BY_NAME", 87,
+            "FUNCTION_CATEGORY_CHECK", 16);
 
     @Test
     void stringIdentityAndCategoryChecksOnlyShrink() throws IOException {

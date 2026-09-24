@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.compiler.spec.typed;
+package com.legend.platform;
 
 /**
  * The engine's execution FEATURE FLAGS — {@code meta::pure::executionPlan::features::Feature}

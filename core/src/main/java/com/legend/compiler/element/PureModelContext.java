@@ -38,6 +38,10 @@ import java.util.Optional;
 public final class PureModelContext implements ModelContext {
 
     private final ModelBuilder model;
+    /** The platform's registrations — the implementation table's input beside the declarations. */
+    private final com.legend.platform.Registrations registrations;
+    private com.legend.platform.@com.legend.Nullable DeclarationTable declarations;
+    private com.legend.platform.@com.legend.Nullable ImplementationTable implementations;
     private final TypeClassifier classifier;
     private final FunctionCompiler functions;
     private final ClassCompiler classes;
@@ -54,22 +58,25 @@ public final class PureModelContext implements ModelContext {
     private final com.legend.model.@com.legend.Nullable RuntimeDefinition overlayRuntime;
     private final com.legend.model.@com.legend.Nullable ConnectionDefinition overlayConnection;
 
-    public PureModelContext(ModelBuilder model) {
-        this(model, null);
+    public PureModelContext(ModelBuilder model, com.legend.platform.Registrations registrations) {
+        this(model, null, registrations);
     }
 
     /** TOLERANT integrity (module compile): a non-null {@code wallSink}
      * collects EVERY failing element in one pass; the caller drops them
      * and rebuilds — the strict form throws on the first. */
     public PureModelContext(ModelBuilder model,
-            java.util.@com.legend.Nullable Map<String, String> wallSink) {
-        this(model, wallSink, null);
+            java.util.@com.legend.Nullable Map<String, String> wallSink,
+            com.legend.platform.Registrations registrations) {
+        this(model, wallSink, null, registrations);
     }
 
     private PureModelContext(ModelBuilder model,
             java.util.@com.legend.Nullable Map<String, String> wallSink,
-            @com.legend.Nullable CheckedLayer prior) {
+            @com.legend.Nullable CheckedLayer prior,
+            com.legend.platform.Registrations registrations) {
         this.model = Objects.requireNonNull(model, "model");
+        this.registrations = Objects.requireNonNull(registrations, "registrations");
         this.classifier = new TypeClassifier(model);
         this.functions = new FunctionCompiler(model, classifier);
         this.classes = new ClassCompiler(classifier, functions);
@@ -109,8 +116,8 @@ public final class PureModelContext implements ModelContext {
     /** Check {@code normalized}'s layer on its own, STRICTLY (a failure is a
      * platform bug and throws), over the index Phase E built for it. */
     public static CheckedLayer checkLayer(com.legend.model.NormalizedModel normalized,
-            ModelBuilder index) {
-        PureModelContext alone = from(normalized, index);
+            ModelBuilder index, com.legend.platform.Registrations registrations) {
+        PureModelContext alone = from(normalized, index, registrations);
         CheckedLayer out = new CheckedLayer();
         alone.model.classes().forEach(out.elements::add);
         alone.model.functions().forEach(f -> {
@@ -132,20 +139,21 @@ public final class PureModelContext implements ModelContext {
      * {@code ParsedModel} cannot reach element compilation.
      */
     public static PureModelContext from(com.legend.model.NormalizedModel normalized,
-            ModelBuilder index) {
-        return from(normalized, index, null);
+            ModelBuilder index, com.legend.platform.Registrations registrations) {
+        return from(normalized, index, null, null, registrations);
     }
 
     /** {@link #from} with a tolerant integrity wall sink (module compile). */
     public static PureModelContext from(com.legend.model.NormalizedModel normalized,
-            ModelBuilder index, java.util.@com.legend.Nullable Map<String, String> wallSink) {
-        return from(normalized, index, wallSink, null);
+            ModelBuilder index, java.util.@com.legend.Nullable Map<String, String> wallSink,
+            com.legend.platform.Registrations registrations) {
+        return from(normalized, index, wallSink, null, registrations);
     }
 
     /** {@link #from} over a graph that includes an already-checked layer. */
     public static PureModelContext from(com.legend.model.NormalizedModel normalized,
             ModelBuilder index, java.util.@com.legend.Nullable Map<String, String> wallSink,
-            @com.legend.Nullable CheckedLayer prior) {
+            @com.legend.Nullable CheckedLayer prior, com.legend.platform.Registrations registrations) {
         // THE Phase-E -> Phase-F gate (T4.1 step 2): the index Phase E read
         // gains Phase E's products — the compiled mappings (their facts
         // stamped on them), the lifted functions — and the boot layer's
@@ -156,7 +164,7 @@ public final class PureModelContext implements ModelContext {
         // (static lineage #44) — F+ compilation never reads them
         normalized.legacySurfaces().values()
                 .forEach(index::retainLegacySurface);
-        return new PureModelContext(index, wallSink, prior);
+        return new PureModelContext(index, wallSink, prior, registrations);
     }
 
     @Override
@@ -537,6 +545,7 @@ public final class PureModelContext implements ModelContext {
         this.derivedCache = base.derivedCache;
         this.overlayRuntime = Objects.requireNonNull(runtime, "runtime");
         this.overlayConnection = Objects.requireNonNull(connection, "connection");
+        this.registrations = base.registrations;
     }
 
     /**
@@ -569,6 +578,27 @@ public final class PureModelContext implements ModelContext {
             }
         }
         return new PureModelContext(this, runtime, connection);
+    }
+
+    @Override
+    public com.legend.platform.DeclarationTable declarations() {
+        com.legend.platform.DeclarationTable d = declarations;
+        if (d == null) {
+            d = com.legend.platform.DeclarationTable.of(java.util.stream.Stream.concat(
+                    com.legend.builtin.Pure.all().stream(), model.functions()).toList());
+            declarations = d;
+        }
+        return d;
+    }
+
+    @Override
+    public com.legend.platform.ImplementationTable implementations() {
+        com.legend.platform.ImplementationTable t = implementations;
+        if (t == null) {
+            t = com.legend.platform.ImplementationTable.build(declarations(), registrations);
+            implementations = t;
+        }
+        return t;
     }
 
     @Override

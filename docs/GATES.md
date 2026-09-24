@@ -5363,3 +5363,33 @@ switch's own defect. Step 4's order follows: pick-by-table before overload-set-b
 **Test.** The probe is a no-op unless installed (`DecisionProbe.INSTALLED` null); the sweep is the
 receipt. `ObservabilityGuardrailTest` registers `LL_SHADOW` (and Bazel's `TEST_UNDECLARED_OUTPUTS_DIR`);
 `ArchitectureTest` registers the three sinks. Rule tests green: identity pins unchanged.
+
+## 2026-09-24 — The untangle, step 4a: the pick by table (the first switch, the checkpoint)
+
+**What.** A call node's kind was decided by the declaration's kind — native ⇒ native call,
+body ⇒ user call, then inlined — which is why an admitted bodied overload the catalog lacked
+(`max(Float[1..*])`) inlined its Pure fold instead of lowering by the MAX rule. Now
+`CallNodes.mint`, the one place a resolved overload becomes a node, asks the model context's
+`ImplementationTable` (`runsByRule`): Intrinsic or Form ⇒ native call whatever the declaration is;
+Body ⇒ user call. The inliner asks the same table (Intrinsic/Form stand as native calls, Refused
+throws its reason, MOOT stays opaque, Body inlines) and the scalar funnel explains a missing rule by
+the row (`NoRule`: refused / unimplemented / family-owned / registration bug). To let the compiler
+and the lowering import the tables without a package cycle, `CoreFn`, `Feature` and `WalledBodies`
+moved below them into `platform`, the lowering assembles the platform's `Registrations`
+(`PlatformRegistrations` — it owns the registries, so it registers INTO the tables), and
+`ModelContext` owns `declarations()`/`implementations()` per model (boot layer included). Class
+members a family implements (the row accessors, the routines standing in for a qualified property)
+are `Registrations.members`, matched to a lifted declaration's provenance, never its spelled name.
+Deleted: `PlatformTypes.isPlatformImplementedDerived` and its readers, the inliner's
+`WalledBodies.reason`/`Subsumed.of`, `Scalars`' `Pure.walledNativeReason`/`nativeFunctionsAt`.
+`DeclarationTable` reports two different bodies under one id (first kept) rather than refusing:
+spec records already compare span-blind, so the census's refusal was a real prelude-vs-upstream
+textual difference — recorded, pinned at zero over parsed declarations, to become a model-builder
+refusal like upstream's. Three files at the 3,500-line guard: the mint to `CallNodes`, the no-rule
+explanation to `NoRule`, the many-stamp reader to `Stamps` (beside `many`, which tolerates a variable stamp — different semantics, not merged) and the lambda-last reader to `LambdaBinding`.
+
+**Test.** `PickByTableTest`: a user body under a catalog native's id is Intrinsic[SCALAR] and mints
+a native call; a plain body mints a user call; the row accessors are Intrinsic[RowGetter] by
+provenance and mint native; the boot layer's respelled native is declared and Unimplemented.
+`DeclarationTableTest`: duplicates reported, first kept. Identity pins ratcheted 180→179, 89→87,
+19→16. Every rule test green; the planner builds. Shadow after-sweep (9 suites): PICK disagreements 11 → 0 (the `$prop$` member row and the five family natives now agree on the row); the five family natives still REACH the scalar funnel by trial dispatch — recorded as WRONG-SITE, a 4c/5 item, not counted as agreement. Overload sets unchanged (363 bare / 30 table-more / 0 today-more — 4b/4c own them). One DUPLICATES line (the spec census model).

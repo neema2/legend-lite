@@ -33,7 +33,7 @@ final class DistinctChecker {
         // the plain-call path, not the relop.
         if (!com.legend.compiler.element.type.Type
                 .relationValued(a.args().get(0).info())) {
-            return Typer.emitCall(a.chosen(), a.args(), a.out());
+            return CallNodes.mint(t.ctx().implementations(), a.chosen(), a.args(), a.out());
         }
         java.util.List<String> columns = Args.outputColumns(a);
         // ~[] is legal where zero columns MEAN something (groupBy's

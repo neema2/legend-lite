@@ -84,7 +84,7 @@ class ResolveOtherwiseTest {
         List<TypedSpec> body = specs.typeQueryBody(
                 NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
-        return new DuckDb().render(new Lowerer().lower(resolved));
+        return new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved));
     }
 
     private List<String> exec(String sql) throws SQLException {

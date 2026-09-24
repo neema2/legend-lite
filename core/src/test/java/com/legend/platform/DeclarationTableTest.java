@@ -16,7 +16,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /** The declaration table's identity and merge rules. */
 class DeclarationTableTest {
@@ -63,9 +62,12 @@ class DeclarationTableTest {
     }
 
     @Test
-    void twoDifferentBodiesUnderOneIdAreRefused() {
+    void twoDifferentBodiesUnderOneIdAreReportedAndTheFirstKept() {
         List<Function> fs = new ArrayList<>(declare("function my::pkg::one(x:Integer[1]):Integer[1] { $x }"));
         fs.addAll(declare("function my::pkg::one(x:Integer[1]):Integer[1] { 1 }"));
-        assertThrows(IllegalStateException.class, () -> DeclarationTable.of(fs));
+        DeclarationTable t = DeclarationTable.of(fs);
+        assertEquals(List.of("my::pkg::one_Integer_1__Integer_1_"), t.duplicates());
+        assertEquals(fs.get(0), t.get(new FunctionId("my::pkg::one_Integer_1__Integer_1_")));
+        assertEquals(1, t.size());
     }
 }

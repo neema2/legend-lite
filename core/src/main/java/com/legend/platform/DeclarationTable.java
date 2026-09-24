@@ -23,16 +23,21 @@ import java.util.Map;
  * declarations id for id (CatalogUpstreamDiffTest pins DIVERGENT at zero), so a
  * catalog native and upstream's declaration of that id are one declaration:
  * the one WITH a body is kept, since it is the upstream reference and the
- * signature is identical. Two bodies under one id cannot both be kept — that is
- * a conflict, refused by name.
+ * signature is identical. Two DIFFERENT bodies under one id cannot both be kept:
+ * the first is, and the id is reported in {@link #duplicates()} — upstream
+ * refuses a duplicate definition at compile; here the model builder still
+ * admits one (a harness loading the prelude's copy beside upstream's original),
+ * so the table reports rather than refuses, and a census pins the count.
  */
 public final class DeclarationTable {
 
     private final Map<FunctionId, Function> byId;
     private final Map<String, List<Function>> byFqn;
+    private final List<String> duplicates;
 
-    private DeclarationTable(Map<FunctionId, Function> byId) {
+    private DeclarationTable(Map<FunctionId, Function> byId, List<String> duplicates) {
         this.byId = Collections.unmodifiableMap(byId);
+        this.duplicates = List.copyOf(duplicates);
         Map<String, List<Function>> fqns = new LinkedHashMap<>();
         for (Function f : byId.values()) {
             fqns.computeIfAbsent(f.qualifiedName(), k -> new ArrayList<>()).add(f);
@@ -44,7 +49,7 @@ public final class DeclarationTable {
     /** The table over {@code declarations}, merged by id. */
     public static DeclarationTable of(Collection<? extends Function> declarations) {
         Map<FunctionId, Function> byId = new LinkedHashMap<>();
-        List<String> conflicts = new ArrayList<>();
+        List<String> duplicates = new ArrayList<>();
         for (Function f : declarations) {
             FunctionId id = FunctionId.of(f);
             Function prior = byId.get(id);
@@ -52,15 +57,13 @@ public final class DeclarationTable {
                 byId.put(id, f);
             } else if (f instanceof FunctionDefinition && prior instanceof FunctionDefinition
                     && !f.equals(prior)) {
-                conflicts.add(id.qualified());
+                duplicates.add(id.qualified());
             } else if (f instanceof FunctionDefinition) {
                 byId.put(id, f);   // the bodied declaration is upstream's reference
             }
         }
-        if (!conflicts.isEmpty()) {
-            throw new IllegalStateException("two different bodies declare one function id: " + conflicts);
-        }
-        return new DeclarationTable(byId);
+
+        return new DeclarationTable(byId, duplicates);
     }
 
     /** The declaration with exactly this id, or null. */
@@ -71,6 +74,11 @@ public final class DeclarationTable {
     /** Every declaration at {@code fqn} (its overloads), in insertion order. */
     public List<Function> at(String fqn) {
         return byFqn.getOrDefault(fqn, List.of());
+    }
+
+    /** Ids declared by two different bodies (the first kept). */
+    public List<String> duplicates() {
+        return duplicates;
     }
 
     /** Every id, in insertion order. */

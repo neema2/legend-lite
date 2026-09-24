@@ -16,7 +16,7 @@ import java.util.Optional;
  * by the code that IMPLEMENTS them, each family a CLOSED TYPE: an enum whose
  * constants carry their catalog overloads and whose owning switch is a
  * switch EXPRESSION with no default, so a new member does not COMPILE until
- * it is handled. The sibling of {@link com.legend.compiler.spec.CoreFn}
+ * it is handled. The sibling of {@link com.legend.platform.CoreFn}
  * (language forms with their own checker): {@code CoreFn} = a form, {@code
  * NativeFn} = a native with an implementer. The registry
  * ({@code com.legend.claims.Claims}) reads {@link #families()}: the enum is
@@ -771,6 +771,8 @@ public final class NativeFn {
             this.overloads = List.of(overloads);
             this.implementedDerived = derivedOwner == null || derivedProperty == null ? null
                     : com.legend.model.DerivedPropertyNames.lifted(derivedOwner, derivedProperty);
+            this.implementedMember = derivedOwner == null || derivedProperty == null ? null
+                    : new com.legend.model.ClassMember(derivedOwner, derivedProperty);
         }
 
         @Override
@@ -781,6 +783,13 @@ public final class NativeFn {
         @Override
         public List<NativeFunctionDefinition> overloads() {
             return overloads;
+        }
+
+        private final com.legend.model.@com.legend.Nullable ClassMember implementedMember;
+
+        /** The class member (a qualified property) this routine implements, if any. */
+        public Optional<com.legend.model.ClassMember> implementedMember() {
+            return Optional.ofNullable(implementedMember);
         }
 
         /** The lifted qualified property this routine implements, if any. */
@@ -1118,6 +1127,11 @@ public final class NativeFn {
             this.owner = owner;
             this.property = property;
             this.typedCell = typedCell;
+        }
+
+        /** The class member (the row class's qualified property) this accessor implements. */
+        public com.legend.model.ClassMember member() {
+            return new com.legend.model.ClassMember(owner, property);
         }
 
         /** The declaring class. */

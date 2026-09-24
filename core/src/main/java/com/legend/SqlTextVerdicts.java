@@ -1508,9 +1508,9 @@ final class SqlTextVerdicts {
             }
             // the RECEIVER form: SQLResult's qualified property, implemented
             // by the toSQLString routine (NativeFn.JavaRoutine.implementedDerived)
-            if (cur instanceof com.legend.compiler.spec.typed.TypedUserCall uc
-                    && com.legend.builtin.NativeFn.JavaRoutine.ofDerived(uc.callee().qualifiedName()).isPresent()) {
-                return com.legend.compiler.spec.NativeDispatch.RoutineCall.of(uc);
+            if (cur instanceof TypedNativeCall dc
+                    && com.legend.builtin.NativeFn.JavaRoutine.ofDerived(dc.callee().qualifiedName()).isPresent()) {
+                return com.legend.compiler.spec.NativeDispatch.RoutineCall.of(dc);
             }
             if (cur instanceof com.legend.compiler.spec.typed
                     .TypedVariable tv && seenVars.add(tv.name())) {

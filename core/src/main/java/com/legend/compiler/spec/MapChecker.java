@@ -34,7 +34,7 @@ final class MapChecker {
         // lowerer's TypedNativeCall wall.
         if (!(a.args().get(1)
                 instanceof com.legend.compiler.spec.typed.TypedLambda)) {
-            return Typer.emitCall(a.chosen(), a.args(), out);
+            return CallNodes.mint(t.ctx().implementations(), a.chosen(), a.args(), out);
         }
         return new TypedMap(a.args().get(0), Args.lambda(a, 1), out);
     }

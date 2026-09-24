@@ -216,7 +216,7 @@ public final class ChannelB {
             Compiler.ParsedModule module, ModelContext ctx) {
         String fqn = fd.qualifiedName();
         com.legend.lowering.StampCensus.CONTEXT.set(fqn);
-        com.legend.platform.Shadow.CONTEXT.set(fqn);
+        com.legend.probe.Shadow.CONTEXT.set(fqn);
         com.legend.exec.SqlTypeCensus.CONTEXT.set(fqn);
         // dual-verdict attribution: name the test that grows the
         // disagreement census (the alarm's diagnosis needs the WHO) —
@@ -268,7 +268,7 @@ public final class ChannelB {
             // B's identity adapter carries it the same way
             Compiler.executeResolved(resolved, ctx, null, conn, null, null,
                     com.legend.ExecuteOptions.NONE.withFeatures(java.util.Set.of(
-                            com.legend.compiler.spec.typed.Feature.CORRECT_SQL_SUBSTRING_INDEXING)));
+                            com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING)));
             return new Outcome(fqn, Status.PASS, "");
         } catch (java.sql.SQLException e) {
             // an assert failure arrives as the database's error() — a

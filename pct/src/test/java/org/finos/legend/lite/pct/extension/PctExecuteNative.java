@@ -164,7 +164,7 @@ public class PctExecuteNative extends NativeFunction {
             // one flag selects between them.
             ExecutionResult result = new QueryService().execute(model, pureExpression,
                     null, connection, com.legend.ExecuteOptions.PCT_RENDER.withFeatures(
-                            java.util.Set.of(com.legend.compiler.spec.typed.Feature
+                            java.util.Set.of(com.legend.platform.Feature
                                     .CORRECT_SQL_SUBSTRING_INDEXING)));
             return switch (result) {
                 case ExecutionResult.TdsText t -> {

@@ -3,6 +3,8 @@
 
 package com.legend.compiler.spec;
 
+
+import com.legend.platform.CoreFn;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
 import com.legend.protocol.spec.CString;

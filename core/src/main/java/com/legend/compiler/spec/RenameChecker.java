@@ -1,5 +1,7 @@
 package com.legend.compiler.spec;
 
+
+import com.legend.platform.CoreFn;
 import com.legend.compiler.spec.typed.TypedRename;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.protocol.spec.AppliedFunction;

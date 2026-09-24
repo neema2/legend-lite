@@ -2,7 +2,7 @@ package com.legend.lowering;
 
 import com.legend.builtin.NativeFn;
 import com.legend.compiler.spec.typed.TypedCString;
-import com.legend.compiler.spec.typed.TypedUserCall;
+import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.sql.SqlExpr;
 
@@ -20,14 +20,14 @@ final class RowGetters {
 
     /** The family is the closed type {@link NativeFn.RowGetter}: membership by
      *  the enum over the lifted callee, never a string set. */
-    static boolean isRowGetter(TypedUserCall g) {
+    static boolean isRowGetter(TypedNativeCall g) {
         return NativeFn.RowGetter.ofLifted(g.callee().qualifiedName()).isPresent()
                 && g.args().size() == 2
                 && g.args().get(0) instanceof TypedVariable
                 && g.args().get(1) instanceof TypedCString;
     }
 
-    static SqlExpr read(TypedUserCall g, Resolvers.ColumnResolver columns) {
+    static SqlExpr read(TypedNativeCall g, Resolvers.ColumnResolver columns) {
         String row = ((TypedVariable) g.args().get(0)).name();
         String column = ((TypedCString) g.args().get(1)).value();
         SqlExpr r = columns.resolve(row, column);

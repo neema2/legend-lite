@@ -2778,7 +2778,7 @@ public final class MappingNormalizer {
                 v = booleanizeCaseLiterals(v);
             }
             boolean exempt = v instanceof AppliedFunction af
-                    && (com.legend.compiler.spec.CoreFn.of(af.function()).orElseGet(MissProbe::miss) == com.legend.compiler.spec.CoreFn.NAVIGATE
+                    && (com.legend.platform.CoreFn.of(af.function()).orElseGet(MissProbe::miss) == com.legend.platform.CoreFn.NAVIGATE
                         || af.function().equals(Pure.Lite.LEGACY_NAVIGATE)
                         || af.function().equals(Pure.Lite.OTHERWISE)
                         || AppliedFunction.isNew(af));

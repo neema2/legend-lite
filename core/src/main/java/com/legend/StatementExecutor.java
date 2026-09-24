@@ -572,7 +572,7 @@ final class StatementExecutor {
         // the query's feature flags: a LOWERING concern (Lowerer.withFeatures)
         com.legend.lowering.Lowerer lw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(env.ctx(), t),
-                f -> env.ctx().findClass(f).isPresent())
+                f -> env.ctx().findClass(f).isPresent(), env.ctx().implementations())
                 .withFeatures(featuresOf(env, body));
         if (!temporalRoot) {
             lw = lw.withEngineExistsJoinForm();
@@ -586,7 +586,7 @@ final class StatementExecutor {
         // context carries PUSH_DOWN_ENUM_TRANSFORM (pureToSQLQuery
         // pushDownEnumTransformations): then the decode stays in the SQL
         if (!featuresOf(env, body).contains(
-                        com.legend.compiler.spec.typed.Feature.PUSH_DOWN_ENUM_TRANSFORM)
+                        com.legend.platform.Feature.PUSH_DOWN_ENUM_TRANSFORM)
                 && plan instanceof com.legend.sql.SqlSelect sel
                 && com.legend.compiler.element.type.Type.relationSchema(
                         body.get(body.size() - 1).info().type())
@@ -730,15 +730,15 @@ final class StatementExecutor {
         // (an ExecutionOptionContext) and withFeatureFlags calls in the query
         // itself — read into the frame's options, the ONE ambient channel the
         // lowering entries consult
-        java.util.Set<com.legend.compiler.spec.typed.Feature> flags =
-                java.util.EnumSet.noneOf(com.legend.compiler.spec.typed.Feature.class);
+        java.util.Set<com.legend.platform.Feature> flags =
+                java.util.EnumSet.noneOf(com.legend.platform.Feature.class);
         flags.addAll(com.legend.compiler.spec.typed.ExecutionContext.treeFeatures(lam.body()));
         // the MAPPING-LESS plan form (the query carries ->from): the engine's
         // executionPlan(f, context, extensions) adds PUSH_DOWN_ENUM_TRANSFORM
         // before routing (executionPlan_generation.pure contextWithEnumPushDown)
         // — enum decodes stay in the SQL, the TDS tuple carries no mapping id
         if (!(ep.args().get(1) instanceof com.legend.compiler.spec.typed.TypedPackageableRef)) {
-            flags.add(com.legend.compiler.spec.typed.Feature.PUSH_DOWN_ENUM_TRANSFORM);
+            flags.add(com.legend.platform.Feature.PUSH_DOWN_ENUM_TRANSFORM);
         }
         if (com.legend.builtin.Pure.EXECUTION_PLAN__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__EXTENSION_MANY
                 .signatureKey().equals(ep.callee().signatureKey()) && ep.args().size() == 5) {
@@ -1140,13 +1140,13 @@ final class StatementExecutor {
      *  enum-tuple form follows it). */
     static boolean pushDownEnums(ExecEnv env, java.util.List<TypedSpec> body) {
         return featuresOf(env, body).contains(
-                com.legend.compiler.spec.typed.Feature.PUSH_DOWN_ENUM_TRANSFORM);
+                com.legend.platform.Feature.PUSH_DOWN_ENUM_TRANSFORM);
     }
 
-    static java.util.Set<com.legend.compiler.spec.typed.Feature> featuresOf(ExecEnv env,
+    static java.util.Set<com.legend.platform.Feature> featuresOf(ExecEnv env,
             java.util.List<TypedSpec> body) {
-        java.util.Set<com.legend.compiler.spec.typed.Feature> all =
-                java.util.EnumSet.noneOf(com.legend.compiler.spec.typed.Feature.class);
+        java.util.Set<com.legend.platform.Feature> all =
+                java.util.EnumSet.noneOf(com.legend.platform.Feature.class);
         if (env.frame() != null) {
             all.addAll(env.frame().features());
         }
@@ -2194,7 +2194,7 @@ final class StatementExecutor {
         com.legend.lowering.Lowerer lowerer = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.layoutOf(ctx, t,
                         identity),
-                f -> ctx.findClass(f).isPresent()).withEngineExistsJoinForm()
+                f -> ctx.findClass(f).isPresent(), ctx.implementations()).withEngineExistsJoinForm()
                 .withDbTimeZone(env.timeZone());
         // D91: the <<equality.Key>> resolver rides EVERY lane — equal()
         // over keyed instances is the key relation on the execute path

@@ -1,5 +1,7 @@
 package com.legend.compiler.spec;
 
+
+import com.legend.platform.CoreFn;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedSpec;

@@ -176,9 +176,8 @@ public class SpecBodyCensusTest {
             }
             for (TypedFunction fn : overloads) {
                 if (fn.isNative() || fn.body().isEmpty()
-                        || com.legend.compiler.element.type.PlatformTypes
-                                .isPlatformImplementedDerived(fn.qualifiedName())) {
-                    natives++;   // a platform-IMPLEMENTED accessor (the row getters) is Java, like a native
+                        || ctx.implementations().runsByRule(fn.definition())) {
+                    natives++;   // a body the platform runs by its own rule (the row getters) is Java, like a native
                     continue;
                 }
                 String id = fn.qualifiedName() + "(" + fn.parameters().stream()

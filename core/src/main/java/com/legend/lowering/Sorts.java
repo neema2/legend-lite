@@ -109,7 +109,7 @@ final class Sorts {
         // One isolate retry on an unfoldable key ref (a computed projection
         // column): behind the subselect it is a plain output column.
         SqlSelect fin1 = base;
-        if (Resolution.attempt(() -> lw.scalar(Lowerer.last(sb.key()),
+        if (Resolution.attempt(() -> lw.scalar(LambdaBinding.last(sb.key()),
                 (v, name) -> lw.resolveOrThrow(fin1, name)))
                 instanceof Resolution.Resolved r) {
             // TDS/collection sortBy = the engine-drop-in surface: NO null
@@ -118,7 +118,7 @@ final class Sorts {
                     new SqlSelect.SortKey(r.expr(), sb.ascending(), null, null)));
         }
         SqlSelect iso = lw.isolate(base);
-        SqlExpr key = lw.scalar(Lowerer.last(sb.key()),
+        SqlExpr key = lw.scalar(LambdaBinding.last(sb.key()),
                 (v, name) -> lw.resolveOrThrow(iso, name));
         return iso.withOrderBy(List.of(
                 new SqlSelect.SortKey(key, sb.ascending(), null, null)));

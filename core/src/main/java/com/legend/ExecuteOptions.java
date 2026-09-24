@@ -17,7 +17,7 @@ package com.legend;
 public record ExecuteOptions(boolean pctRender,
         com.legend.sql.dialect.RawSqlBoundary.@com.legend.Nullable Recorder recorder,
         java.util.function.@com.legend.Nullable Function<String, String> resources,
-        java.util.Set<com.legend.compiler.spec.typed.Feature> features,
+        java.util.Set<com.legend.platform.Feature> features,
         JudgeMode judgeMode) {
 
     /** The assert judge of a RUN (docs/JUDGING_TWO_MODES): HOST — the
@@ -31,7 +31,7 @@ public record ExecuteOptions(boolean pctRender,
     public ExecuteOptions(boolean pctRender,
             com.legend.sql.dialect.RawSqlBoundary.@com.legend.Nullable Recorder recorder,
             java.util.function.@com.legend.Nullable Function<String, String> resources,
-            java.util.Set<com.legend.compiler.spec.typed.Feature> features) {
+            java.util.Set<com.legend.platform.Feature> features) {
         this(pctRender, recorder, resources, features, JudgeMode.HOST);
     }
 
@@ -45,7 +45,7 @@ public record ExecuteOptions(boolean pctRender,
     /** The runner's DEFAULT feature flags — merged into every execute
      *  call's own ({@code ExecutionContext.features}); the one ambient
      *  source (the engine's testable runner has the same knob). */
-    public ExecuteOptions withFeatures(java.util.Set<com.legend.compiler.spec.typed.Feature> f) {
+    public ExecuteOptions withFeatures(java.util.Set<com.legend.platform.Feature> f) {
         return new ExecuteOptions(pctRender, recorder, resources, java.util.Set.copyOf(f), judgeMode);
     }
 

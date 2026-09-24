@@ -110,7 +110,7 @@ class ResolveUnionChainTest {
         List<TypedSpec> body = specs.typeQueryBody(
                 NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
-        SqlQuery plan = new Lowerer().lower(resolved);
+        SqlQuery plan = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved);
         return new DuckDb().render(plan);
     }
 

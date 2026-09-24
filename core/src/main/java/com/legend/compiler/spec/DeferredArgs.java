@@ -1,5 +1,7 @@
 package com.legend.compiler.spec;
 
+
+import com.legend.platform.CoreFn;
 import com.legend.compiler.element.TypedFunction;
 import com.legend.compiler.element.type.Type;
 import com.legend.protocol.spec.AppliedFunction;

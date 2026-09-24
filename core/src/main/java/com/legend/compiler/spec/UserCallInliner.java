@@ -1,5 +1,7 @@
 package com.legend.compiler.spec;
 
+
+import com.legend.platform.WalledBodies;
 import com.legend.compiler.spec.typed.TypedAggCol;
 import com.legend.compiler.spec.typed.TypedCBoolean;
 import com.legend.compiler.spec.typed.TypedEval;
@@ -276,24 +278,28 @@ public final class UserCallInliner {
     // WalledBodies.REASONS — ONE list with reasons, batch 173)
 
     private TypedSpec inlineCall(TypedUserCall call, Map<String, TypedSpec> env) {
-        // a platform-IMPLEMENTED derived property (TDSRow.getString(colName) —
-        // upstream's qualified property; the lifted body reads the m3 row
-        // reflectively): the call stands with its arguments rewritten, and
-        // RowGetters lowers it by name — before any wall or budget
-        if (com.legend.compiler.element.type.PlatformTypes.isPlatformImplementedDerived(
-                call.callee().qualifiedName())) {
-            com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "PLATFORM-DERIVED");
+        // THE PICK (untangle step 4a): the implementation table says what runs
+        // this declaration. A rule or a form: the call stands as a NATIVE call
+        // with its arguments rewritten (the typer mints these; one reaches here
+        // only through a program hand-off). A refusal: the wall, by its reason.
+        // A subsumed program: an opaque typed value. A body: inlined below.
+        com.legend.platform.Implementation row = call.callee().definition() == null ? null
+                : specs.ctx().implementations().of(
+                        com.legend.platform.FunctionId.of(call.callee().definition()));
+        if (row instanceof com.legend.platform.Implementation.Intrinsic
+                || row instanceof com.legend.platform.Implementation.Form) {
             List<TypedSpec> pargs = new ArrayList<>(call.args().size());
             for (TypedSpec a : call.args()) {
                 pargs.add(rewrite(a, env));
             }
-            return new TypedUserCall(call.callee(), pargs, call.info());
+            return NormalizeFolds.foldReflection(
+                    new TypedNativeCall(call.callee(), pargs, call.info(), null));
         }
-        String wall = WalledBodies.reason(call.callee().qualifiedName());
-        if (wall != null) {
+        if (row instanceof com.legend.platform.Implementation.Refused refused
+                && refused.reason() != com.legend.platform.Implementation.Reason.MOOT) {
             com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "WALLED-BODY");
             throw new com.legend.error.WalledBodyException("walled body '" + call.callee().qualifiedName()
-                    + "': " + wall);
+                    + "': " + refused.why());
         }
         if (budget.exceeded()) {
             List<String> path = new ArrayList<>(names);
@@ -309,10 +315,10 @@ public final class UserCallInliner {
         if (configMode || isStoreElementIdentity(call.callee().qualifiedName(), args)) {
             return new TypedUserCall(call.callee(), args, call.info());
         }
-        // a SUBSUMED ENGINE PROGRAM (com.legend.builtin.Subsumed): the body is
+        // a SUBSUMED ENGINE PROGRAM (Refused(MOOT) in the table): the body is
         // never spliced — the call stays a typed opaque value, typed by
         // upstream's own declaration; its value is dead by governance test
-        if (com.legend.builtin.Subsumed.of(call.callee().qualifiedName()).isPresent()) {
+        if (row instanceof com.legend.platform.Implementation.Refused) {
             com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "SUBSUMED");
             return new TypedUserCall(call.callee(), args, call.info());
         }

@@ -4,7 +4,7 @@
 package com.legend.lowering;
 
 import com.legend.builtin.Pure;
-import com.legend.compiler.spec.typed.Feature;
+import com.legend.platform.Feature;
 import com.legend.error.NotImplementedException;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;

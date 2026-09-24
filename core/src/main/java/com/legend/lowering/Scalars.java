@@ -9,7 +9,7 @@ import com.legend.compiler.spec.typed.TypedCDate;
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedCollection;
-import com.legend.compiler.spec.typed.Feature;
+import com.legend.platform.Feature;
 import com.legend.compiler.spec.typed.TypedEnumValue;
 import com.legend.compiler.spec.typed.TypedLambda;
 import com.legend.compiler.spec.typed.TypedCast;
@@ -2547,7 +2547,8 @@ final class Scalars {
     /** The lowering for {@code call}'s resolved overload under the query's
      *  feature flags (a flagged rule, {@link FeatureRules}, wins over the
      *  plain one for its key); loud error when unregistered. */
-    static SqlExpr lower(TypedNativeCall call, List<SqlExpr> loweredArgs, Set<Feature> features) {
+    static SqlExpr lower(TypedNativeCall call, List<SqlExpr> loweredArgs, Set<Feature> features,
+            com.legend.platform.ImplementationTable implementations) {
         String key = call.callee().signatureKey();
         Rule rule = FeatureRules.select(key, features);
         if (rule != null) {
@@ -2574,29 +2575,8 @@ final class Scalars {
                         + call.callee().qualifiedName()
                         + "' in scalar position (aggregation machinery owns it)");
             }
-            // a native WALLED by decision (Pure.WALLED_NATIVES): the named wall,
-            // never the registration bug below (batch 171, the native rule)
-            String wall = com.legend.builtin.Pure.walledNativeReason(call.callee().qualifiedName());
-            if (wall != null) {
-                com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "WALLED-NATIVE");
-                throw new com.legend.error.NotImplementedException("walled native '"
-                        + call.callee().qualifiedName() + "': " + wall);
-            }
-            // a native the PRELUDE declares (upstream's `native function`,
-            // respelled — upstream boundary batch 4): it resolves and
-            // type-checks because upstream declares it; the platform has no
-            // lowering for it. The truth, named — never "unknown function",
-            // never the registration bug below (which is for CATALOG natives)
-            if (com.legend.builtin.Pure.nativeFunctionsAt(call.callee().qualifiedName()).isEmpty()) {
-                com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "UNIMPLEMENTED");
-                throw new com.legend.error.NotImplementedException("upstream native '"
-                        + call.callee().qualifiedName() + "' is declared by the spec and not"
-                        + " implemented by the platform");
-            }
-            com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "UNREGISTERED");
-            throw new IllegalStateException("no scalar lowering registered for resolved overload '"
-                    + call.callee().qualifiedName() + "' with " + call.callee().parameters().size()
-                    + " parameter(s)");
+            // no rule here: the implementation table says why (untangle step 4a)
+            throw NoRule.explain(call, implementations);
         }
         return rule.apply(call, loweredArgs);
     }

@@ -119,13 +119,6 @@ public final class PlatformTypes {
                 ? Type.RelationType.lateBound() : t;
     }
 
-    /** Whether a LIFTED derived-property function ({@code <owner>$prop$<name>})
-     *  is one the platform IMPLEMENTS (the row accessors — RowGetters): its
-     *  lifted definition types the call, its body is never spliced. */
-    public static boolean isPlatformImplementedDerived(String liftedFqn) {
-        return com.legend.builtin.NativeFn.RowGetter.ofLifted(liftedFqn).isPresent()
-                || com.legend.builtin.NativeFn.JavaRoutine.ofDerived(liftedFqn).isPresent();
-    }
     /** The mapping METACLASS (platform_dsl_mapping mapping.pure:26) — a prelude
      * module class since batch 165 (mapping leg B); Java names it, the boot
      * layer defines it. */
@@ -559,7 +552,7 @@ public final class PlatformTypes {
             "meta::pure::executionPlan::ExecutionOptionContext";
     public static final String FEATURE_FLAG_OPTION =
             "meta::pure::executionPlan::featureFlag::FeatureFlagOption";
-    public static final String FEATURE = com.legend.compiler.spec.typed.Feature.FQN;
+    public static final String FEATURE = com.legend.platform.Feature.FQN;
     /** A sort key's explicit null placement (sort.pure, 4.145.0) — the
      *  two-argument ascending/descending overloads' enum argument. */
     public static final String NULL_ORDER = "meta::pure::functions::relation::NullOrder";

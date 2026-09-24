@@ -197,7 +197,7 @@ final class LambdaBinding {
             case FoldStrategy.SameType st ->
                     new SqlExpr.FoldCall(source,
                             new SqlExpr.Lambda(ps,
-                                    lw.scalar(Lowerer.last(f.reducer()),
+                                    lw.scalar(LambdaBinding.last(f.reducer()),
                                             foldResolver(ps.get(0), source,
                                                     ps.get(1), init,
                                                     lambdaResolver(ps, columns)))),
@@ -209,7 +209,7 @@ final class LambdaBinding {
                 // consistent between binder and body by construction
                 String elem = mr.transform().parameters().get(0);
                 SqlExpr.Lambda transform = new SqlExpr.Lambda(List.of(elem),
-                        lw.scalar(Lowerer.last(mr.transform()),
+                        lw.scalar(LambdaBinding.last(mr.transform()),
                                 mapElemResolver(elem, source, false,
                                         lambdaResolver(List.of(elem), columns))));
                 SqlExpr transformed = new SqlExpr.Call(
@@ -219,7 +219,7 @@ final class LambdaBinding {
                 List<String> rps = mr.reducer().parameters();
                 yield new SqlExpr.FoldCall(transformed,
                         new SqlExpr.Lambda(rps,
-                                lw.scalar(Lowerer.last(mr.reducer()),
+                                lw.scalar(LambdaBinding.last(mr.reducer()),
                                         foldResolver(rps.get(0), transformed,
                                                 rps.get(1), init,
                                                 lambdaResolver(rps, columns)))),
@@ -228,7 +228,7 @@ final class LambdaBinding {
             case FoldStrategy.CollectionBuild cb ->
                     new SqlExpr.FoldCall(source,
                             new SqlExpr.Lambda(ps,
-                                    lw.scalar(Lowerer.last(f.reducer()),
+                                    lw.scalar(LambdaBinding.last(f.reducer()),
                                             foldResolver(ps.get(0), source,
                                                     ps.get(1), init,
                                                     lambdaResolver(ps, columns)))),
@@ -250,7 +250,7 @@ final class LambdaBinding {
         if (m.mapper() instanceof TypedLambda mml
                 && mml.parameters().size() == 1) {
             return new SqlExpr.Lambda(mml.parameters(),
-                    lw.scalar(Lowerer.last(mml),
+                    lw.scalar(LambdaBinding.last(mml),
                             mapElemResolver(mml.parameters().get(0),
                                     mSrc, mToOne,
                                     lambdaResolver(mml.parameters(),
@@ -317,7 +317,7 @@ final class LambdaBinding {
                                 ? SqlExpr.Column.param(var, coll)
                                 : inner.resolve(var, prop);
                 out.add(new SqlExpr.Lambda(ps,
-                        scalarFn.apply(Lowerer.last(l), stamped)));
+                        scalarFn.apply(LambdaBinding.last(l), stamped)));
                 continue;
             }
             if (a instanceof com.legend.compiler.spec.typed.TypedCollection run
@@ -345,5 +345,10 @@ final class LambdaBinding {
             }
         }
         return null;
+    }
+
+    /** A lambda's last expression — its value. */
+    static TypedSpec last(TypedLambda lambda) {
+        return lambda.body().get(lambda.body().size() - 1);
     }
 }

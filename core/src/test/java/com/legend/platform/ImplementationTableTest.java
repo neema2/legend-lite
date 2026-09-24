@@ -5,8 +5,6 @@ package com.legend.platform;
 
 import com.legend.builtin.NativeFn;
 import com.legend.builtin.Pure;
-import com.legend.compiler.spec.CoreFn;
-import com.legend.compiler.spec.WalledBodies;
 import com.legend.model.Function;
 import com.legend.model.NativeFunctionDefinition;
 import com.legend.model.PackageableElement;
@@ -45,7 +43,7 @@ class ImplementationTableTest {
 
     /** No registrations: bodied declarations default to Body, natives to Unimplemented. */
     private static Registrations none(List<NativeFunctionDefinition> catalog) {
-        return new Registrations(catalog, Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Set.of());
+        return new Registrations(catalog, Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Set.of(), Map.of());
     }
 
     @Test
@@ -65,7 +63,7 @@ class ImplementationTableTest {
         NativeFunctionDefinition upper = catalog(UPPER_ID);
         Registrations r = new Registrations(List.of(upper),
                 Map.of(Implementation.Position.SCALAR, Set.of(upper.signatureKey())),
-                Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Set.of());
+                Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Set.of(), Map.of());
         ImplementationTable t = ImplementationTable.build(DeclarationTable.of(List.of(upper)), r);
         Implementation row = t.of(new FunctionId(UPPER_ID));
         assertInstanceOf(Implementation.Intrinsic.class, row);
@@ -77,7 +75,7 @@ class ImplementationTableTest {
         NativeFunctionDefinition upper = catalog(UPPER_ID);
         Registrations r = new Registrations(List.of(upper),
                 Map.of(Implementation.Position.SCALAR, Set.of("no::such::function(String[1])")),
-                Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Set.of());
+                Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Set.of(), Map.of());
         ImplementationTable t = ImplementationTable.build(DeclarationTable.of(List.of(upper)), r);
         assertEquals(1, t.dangling().size());
         assertTrue(t.dangling().get(0).contains("no::such::function"));
@@ -90,7 +88,7 @@ class ImplementationTableTest {
         Registrations r = new Registrations(List.of(upper, lower), Map.of(), Map.of(),
                 Map.of(NativeFn.Verdict.class, List.of(upper)),
                 Map.of(CoreFn.FILTER, Set.of(lower.qualifiedName())),
-                Map.of(), Map.of(), Set.of());
+                Map.of(), Map.of(), Set.of(), Map.of());
         ImplementationTable t = ImplementationTable.build(DeclarationTable.of(List.of(upper, lower)), r);
         Implementation u = t.of(new FunctionId(UPPER_ID));
         assertInstanceOf(Implementation.Intrinsic.class, u);
@@ -106,7 +104,7 @@ class ImplementationTableTest {
         NativeFunctionDefinition upper = catalog(UPPER_ID);
         Registrations r = new Registrations(List.of(upper),
                 Map.of(Implementation.Position.SCALAR, Set.of(upper.signatureKey())), Map.of(), Map.of(),
-                Map.of(CoreFn.MAP, Set.of(upper.qualifiedName())), Map.of(), Map.of(), Set.of());
+                Map.of(CoreFn.MAP, Set.of(upper.qualifiedName())), Map.of(), Map.of(), Set.of(), Map.of());
         ImplementationTable t = ImplementationTable.build(DeclarationTable.of(List.of(upper)), r);
         Implementation.Form f = (Implementation.Form) t.of(new FunctionId(UPPER_ID));
         assertEquals(Set.of(Implementation.Position.SCALAR), f.alsoLowered());
@@ -118,7 +116,7 @@ class ImplementationTableTest {
         NativeFunctionDefinition upper = catalog(UPPER_ID);
         Registrations r = new Registrations(List.of(upper),
                 Map.of(Implementation.Position.SCALAR, Set.of(upper.signatureKey())), Map.of(), Map.of(),
-                Map.of(), Map.of(upper.qualifiedName(), "an effect"), Map.of(), Set.of());
+                Map.of(), Map.of(upper.qualifiedName(), "an effect"), Map.of(), Set.of(), Map.of());
         ImplementationTable t = ImplementationTable.build(DeclarationTable.of(List.of(upper)), r);
         assertEquals(1, t.conflicts().size());
         assertInstanceOf(Implementation.Refused.class, t.of(new FunctionId(UPPER_ID)));
@@ -129,7 +127,7 @@ class ImplementationTableTest {
         NativeFunctionDefinition upper = catalog(UPPER_ID);
         Registrations r = new Registrations(List.of(upper), Map.of(), Map.of(), Map.of(),
                 Map.of(CoreFn.MAP, Set.of(upper.qualifiedName()), CoreFn.FILTER, Set.of(upper.qualifiedName())),
-                Map.of(), Map.of(), Set.of());
+                Map.of(), Map.of(), Set.of(), Map.of());
         ImplementationTable t = ImplementationTable.build(DeclarationTable.of(List.of(upper)), r);
         assertEquals(1, t.conflicts().size());
     }
@@ -143,7 +141,7 @@ class ImplementationTableTest {
                 Map.of(upper.qualifiedName(), "an effect"),
                 Map.of("my::pkg::printer", new WalledBodies.Wall(WalledBodies.Kind.ENGINE_MACHINERY, "the printer"),
                         "my::pkg::Cls$prop$derived", new WalledBodies.Wall(WalledBodies.Kind.CANNOT_IMPLEMENT, "x")),
-                Set.of());
+                Set.of(), Map.of());
         ImplementationTable t = ImplementationTable.build(DeclarationTable.of(ds), r);
         Implementation.Refused walledNative = (Implementation.Refused) t.of(new FunctionId(UPPER_ID));
         assertEquals(Implementation.Reason.CANNOT_IMPLEMENT, walledNative.reason());
@@ -157,7 +155,7 @@ class ImplementationTableTest {
     void aSubsumedFqnNoDeclarationHasIsDangling() {
         NativeFunctionDefinition upper = catalog(UPPER_ID);
         Registrations r = new Registrations(List.of(upper), Map.of(), Map.of(), Map.of(), Map.of(), Map.of(),
-                Map.of(), Set.of("no::such::program"));
+                Map.of(), Set.of("no::such::program"), Map.of());
         ImplementationTable t = ImplementationTable.build(DeclarationTable.of(List.of(upper)), r);
         assertEquals(List.of("subsumed no::such::program"), t.dangling());
     }

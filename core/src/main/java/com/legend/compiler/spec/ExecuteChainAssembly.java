@@ -356,7 +356,7 @@ public final class ExecuteChainAssembly {
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException(
                         "no registered " + fqn + "/" + args.size()));
-        return Typer.emitCall(callee, args, out);
+        return CallNodes.mint(model.implementations(), callee, args, out);
     }
 
     private static TypedSpec concatenateFold(TypedNativeCall cq,

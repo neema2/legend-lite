@@ -3,6 +3,8 @@
 
 package com.legend.compiler.spec.typed;
 
+
+import com.legend.platform.Feature;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.protocol.spec.ValueSpecification;
 

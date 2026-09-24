@@ -104,7 +104,7 @@ class ResolveSimpleClassTest {
         // Context comes from the query's ->from(...); the driver-runtime
         // path is exercised by driverSeamNoFrom through Compiler.execute.
         List<TypedSpec> resolved = new StoreResolver(ctx, specs).resolve(body, null);
-        SqlQuery plan = new Lowerer().lower(resolved);
+        SqlQuery plan = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved);
         return new DuckDb().render(plan);
     }
 

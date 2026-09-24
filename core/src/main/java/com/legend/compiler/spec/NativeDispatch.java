@@ -51,9 +51,8 @@ public final class NativeDispatch {
          *  the one implementing the qualified property; empty otherwise. */
         public static java.util.Optional<com.legend.builtin.NativeFn.JavaRoutine> routineOf(TypedSpec n) {
             return switch (n) {
-                case TypedNativeCall nc -> com.legend.builtin.NativeFn.JavaRoutine.of(nc.callee().qualifiedName());
-                case com.legend.compiler.spec.typed.TypedUserCall uc ->
-                        com.legend.builtin.NativeFn.JavaRoutine.ofDerived(uc.callee().qualifiedName());
+                case TypedNativeCall nc -> com.legend.builtin.NativeFn.JavaRoutine.of(nc.callee().qualifiedName())
+                        .or(() -> com.legend.builtin.NativeFn.JavaRoutine.ofDerived(nc.callee().qualifiedName()));
                 default -> java.util.Optional.empty();
             };
         }

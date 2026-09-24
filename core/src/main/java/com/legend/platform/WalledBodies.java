@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.compiler.spec;
+package com.legend.platform;
 
 import java.util.LinkedHashMap;
 import java.util.Map;

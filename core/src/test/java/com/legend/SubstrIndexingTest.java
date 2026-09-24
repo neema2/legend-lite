@@ -3,7 +3,7 @@
 
 package com.legend;
 
-import com.legend.compiler.spec.typed.Feature;
+import com.legend.platform.Feature;
 import com.legend.exec.ExecutionResult;
 import com.legend.server.QueryService;
 import org.junit.jupiter.api.DisplayName;

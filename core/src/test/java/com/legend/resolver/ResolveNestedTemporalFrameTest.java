@@ -63,7 +63,7 @@ class ResolveNestedTemporalFrameTest {
                 NameResolver.resolveQuery(com.legend.testing.Own.spec(query)));
         List<TypedSpec> resolved = new StoreResolver(ctx, specs)
                 .resolve(body, "q::RT");
-        SqlQuery plan = new Lowerer().lower(resolved);
+        SqlQuery plan = new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved);
         return new DuckDb().render(plan);
     }
 

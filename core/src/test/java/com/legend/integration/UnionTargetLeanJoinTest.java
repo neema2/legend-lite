@@ -104,7 +104,7 @@ class UnionTargetLeanJoinTest {
         var body = specs.typeQueryBody(com.legend.compiler.NameResolver.resolveQuery(
                 com.legend.testing.Own.spec(query + "->from(ul::m, ul::rt)")));
         var resolved = new com.legend.resolver.StoreResolver(ctx, specs).resolve(body, null);
-        return new com.legend.sql.dialect.DuckDb().render(new com.legend.lowering.Lowerer().lower(resolved));
+        return new com.legend.sql.dialect.DuckDb().render(new com.legend.lowering.Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(resolved));
     }
 
     /**

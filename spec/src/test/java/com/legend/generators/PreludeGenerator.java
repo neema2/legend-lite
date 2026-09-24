@@ -477,7 +477,7 @@ public final class PreludeGenerator {
                 // ^Class(...) in the corpus: 2,436 tests red)
                 if (!com.legend.builtin.Pure.nativeFunctionsAt(pf.fqn()).isEmpty()
                         || claimedNames.contains(simple)
-                        || com.legend.compiler.spec.CoreFn.of(simple).isPresent()) {
+                        || com.legend.platform.CoreFn.of(simple).isPresent()) {
                     platformOwnedNames.add(pf.fqn());
                     continue;
                 }
@@ -486,7 +486,7 @@ public final class PreludeGenerator {
                 continue;
             }
             if (claimedNames.contains(simple)
-                    || com.legend.compiler.spec.CoreFn.of(simple).isPresent()) {
+                    || com.legend.platform.CoreFn.of(simple).isPresent()) {
                 platformOwnedNames.add(pf.fqn());
                 continue;
             }
@@ -504,7 +504,7 @@ public final class PreludeGenerator {
             String simple = pf.fqn().substring(pf.fqn().lastIndexOf(':') + 1);
             if (!com.legend.builtin.Pure.nativeFunctionsAt(pf.fqn()).isEmpty()
                     || claimedNames.contains(simple)
-                    || com.legend.compiler.spec.CoreFn.of(simple).isPresent()) {
+                    || com.legend.platform.CoreFn.of(simple).isPresent()) {
                 platformOwnedNames.add(pf.fqn());
                 continue;
             }

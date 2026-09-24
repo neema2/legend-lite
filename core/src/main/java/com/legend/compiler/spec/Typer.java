@@ -1,5 +1,7 @@
 package com.legend.compiler.spec;
 
+
+import com.legend.platform.CoreFn;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.builtin.Pure;
 import com.legend.compiler.element.ModelContext;
@@ -1497,7 +1499,7 @@ final class Typer {
         if (shadow != null) {
             return shadow;
         }
-        return rawGridOrSelf(emitCall(a.chosen(), a.args(), a.out(), af.pos()));
+        return rawGridOrSelf(CallNodes.mint(ctx.implementations(), a.chosen(), a.args(), a.out(), af.pos()));
     }
 
     /** Leg 6a — the receiver's OWN qualified property SHADOWS an
@@ -1879,19 +1881,9 @@ final class Typer {
         return out;
     }
 
-    /** Build the call node for the chosen overload &mdash; the resolved callee rides the node, never a name. */
-    static TypedSpec emitCall(TypedFunction chosen, List<TypedSpec> args, ExprType out) {
-        return emitCall(chosen, args, out, null);
-    }
-
-    /** The parsed-call form: the source span (the call-NAME token, the parser's
-     * named-call convention) rides the native node — the raise-emission
-     * provenance channel (leg 2). */
-    static TypedSpec emitCall(TypedFunction chosen, List<TypedSpec> args, ExprType out,
-            com.legend.protocol.@com.legend.Nullable SourceInfo pos) {
-        return chosen.isNative()
-                ? NormalizeFolds.foldReflection(new TypedNativeCall(chosen, args, out, pos))
-                : new TypedUserCall(chosen, args, out);
+    /** The context's tables — the checkers mint call nodes by them. */
+    ModelContext ctx() {
+        return ctx;
     }
 
     /**
@@ -2705,7 +2697,7 @@ final class Typer {
                 ftParams.add(new Type.FunctionType.Param(fp.type(), fp.multiplicity()));
             }
             ExprType out = new ExprType(fn.returnType(), fn.returnMultiplicity());
-            TypedSpec body = Typer.emitCall(fn, argRefs, out);
+            TypedSpec body = CallNodes.mint(ctx.implementations(), fn, argRefs, out);
             var ft = new Type.FunctionType(ftParams,
                     new Type.FunctionType.Param(fn.returnType(), fn.returnMultiplicity()));
             // The eta-expanded VALUE is a lambda, but the reference's m3

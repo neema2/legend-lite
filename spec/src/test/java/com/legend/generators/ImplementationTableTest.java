@@ -45,11 +45,11 @@ class ImplementationTableTest {
         for (NativeFunctionDefinition n : Pure.all()) {
             registeredFqns.add(n.qualifiedName());
         }
-        for (com.legend.compiler.spec.CoreFn form : com.legend.compiler.spec.CoreFn.values()) {
+        for (com.legend.platform.CoreFn form : com.legend.platform.CoreFn.values()) {
             registeredFqns.addAll(form.ownedFqns());
         }
         registeredFqns.addAll(Pure.walledNativeFqns());
-        registeredFqns.addAll(com.legend.compiler.spec.WalledBodies.reasons().keySet());
+        registeredFqns.addAll(com.legend.platform.WalledBodies.reasons().keySet());
         for (com.legend.builtin.Subsumed sub : com.legend.builtin.Subsumed.values()) {
             registeredFqns.add(sub.fqn());
         }
@@ -66,7 +66,8 @@ class ImplementationTableTest {
             }
         }
         DeclarationTable table = DeclarationTable.of(declarations);
-        ImplementationTable impl = ImplementationTable.build(table, com.legend.platform.Registrations.current());
+        assertEquals(List.of(), table.duplicates(), "two different bodies under one id");
+        ImplementationTable impl = ImplementationTable.build(table, com.legend.lowering.PlatformRegistrations.current());
 
         Map<String, Integer> kinds = new LinkedHashMap<>();
         List<String> rows = new ArrayList<>();

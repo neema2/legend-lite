@@ -1,5 +1,7 @@
 package com.legend.compiler.spec;
 
+
+import com.legend.platform.CoreFn;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.compiler.element.Property;
 import com.legend.compiler.element.type.Type;
