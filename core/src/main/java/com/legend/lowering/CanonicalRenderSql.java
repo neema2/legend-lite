@@ -446,7 +446,6 @@ public final class CanonicalRenderSql {
             plan = Fold.conformValueEgress(ps,
                     LiteralSpelling.ValueLane.GRID_FETCH);
         }
-        SqlExpr row = null;
         // leg 3.1b: every cell's canon is ALSO projected on its own
         // (__cell<i>) so the database-mode cell-pool verdict reads cells
         // without splitting the row canon (no string_split on any dialect)
@@ -522,37 +521,76 @@ public final class CanonicalRenderSql {
                                         new SqlExpr.IntLit(0)),
                                 new SqlExpr.NullLit())), cell);
             }
-            // NULL propagates through CONCAT — one poisoned cell nulls
-            // the whole row canon, exactly the decline we want
-            row = row == null ? cell
-                    : SqlExpr.Call.of(SqlFn.CONCAT,
-                            SqlExpr.Call.of(SqlFn.CONCAT, row,
-                                    new SqlExpr.StringLit(TDS_CELL_SEP)),
-                            cell);
             cellCanons.add(cell);
         }
-        List<com.legend.sql.SqlSelect.Projection> projections =
-                new java.util.ArrayList<>();
+        // TWO levels: the inner select spells each cell canon ONCE (__cell<i>);
+        // the outer passes everything through and joins the row canon from
+        // those COLUMNS. Spelled in one select, the row canon repeated every
+        // cell expression (a Float cell's canon is ~4 KB): the wrap carried
+        // each cell twice (2026-09-23, columnValueDifferenceTest).
+        List<com.legend.sql.SqlSelect.Projection> inner = new java.util.ArrayList<>();
+        List<com.legend.sql.OutputCol> innerOuts = new java.util.ArrayList<>();
         for (com.legend.sql.OutputCol col : plan.outputs()) {
-            projections.add(new com.legend.sql.SqlSelect.Projection(
+            inner.add(new com.legend.sql.SqlSelect.Projection(
                     SqlExpr.Column.of(null, col), col.name(), col));
+            innerOuts.add(col);
         }
         for (int i = 0; i < cellCanons.size(); i++) {
+            com.legend.sql.OutputCol out = new com.legend.sql.OutputCol(CELL_CANON + i,
+                    SqlType.Scalar.VARCHAR, true);
+            inner.add(new com.legend.sql.SqlSelect.Projection(
+                    cellCanons.get(i), CELL_CANON + i, out));
+            innerOuts.add(out);
+        }
+        com.legend.sql.SqlSelect cells = new com.legend.sql.SqlSelect(inner,
+                false,
+                new com.legend.sql.SqlSource.Subselect(plan, "side", null),
+                null, List.of(), null, null, List.of(), null, null,
+                List.copyOf(innerOuts));
+        List<com.legend.sql.SqlSelect.Projection> projections =
+                new java.util.ArrayList<>();
+        for (com.legend.sql.OutputCol col : innerOuts) {
             projections.add(new com.legend.sql.SqlSelect.Projection(
-                    cellCanons.get(i), CELL_CANON + i,
-                    new com.legend.sql.OutputCol(CELL_CANON + i,
-                            SqlType.Scalar.VARCHAR, true)));
+                    SqlExpr.Column.of("cells", innerOuts, col.name()), col.name(), col));
+        }
+        // NULL propagates through CONCAT — one poisoned cell (NULL) nulls
+        // the whole row canon, exactly the decline we want
+        SqlExpr rowCanon = null;
+        for (int i = 0; i < cellCanons.size(); i++) {
+            SqlExpr cell = SqlExpr.Column.of("cells", innerOuts, CELL_CANON + i);
+            rowCanon = rowCanon == null ? cell
+                    : SqlExpr.Call.of(SqlFn.CONCAT,
+                            SqlExpr.Call.of(SqlFn.CONCAT, rowCanon,
+                                    new SqlExpr.StringLit(TDS_CELL_SEP)),
+                            cell);
         }
         projections.add(new com.legend.sql.SqlSelect.Projection(
-                Objects.requireNonNull(row, "grid canon over 0 columns"),
+                Objects.requireNonNull(rowCanon, "grid canon over 0 columns"),
                 ROW_CANON,
                 new com.legend.sql.OutputCol(ROW_CANON,
                         SqlType.Scalar.VARCHAR, true)));
         return new TdsWrap(new com.legend.sql.SqlSelect(projections,
                 false,
-                new com.legend.sql.SqlSource.Subselect(plan, "side", null),
+                new com.legend.sql.SqlSource.Subselect(cells, "cells", null),
                 null, List.of(), null, null, List.of(), null, null,
                 List.of()), null);
+    }
+
+    /** The plan a {@link #wrapTdsCanon} wrap was built over: its rows, with
+     * none of the canon spelled. What only COUNTS rows (assertSize,
+     * assertEmpty on a grid) reads this — formatting every cell to count
+     * the rows put a whole grid's canon text in the statement for nothing
+     * (2026-09-23). The wrap's shape is this class's own. */
+    public static com.legend.sql.SqlQuery unwrapTdsCanon(com.legend.sql.SqlQuery wrapped) {
+        if (wrapped instanceof com.legend.sql.SqlSelect outer
+                && outer.from() instanceof com.legend.sql.SqlSource.Subselect c
+                && "cells".equals(c.alias())
+                && c.inner() instanceof com.legend.sql.SqlSelect cells
+                && cells.from() instanceof com.legend.sql.SqlSource.Subselect side
+                && "side".equals(side.alias())) {
+            return side.inner();
+        }
+        throw new IllegalStateException("not a tds-canon wrap: " + wrapped.getClass().getSimpleName());
     }
 
     /** F13 — the IDENTITY canon of an instance whose layout carries the

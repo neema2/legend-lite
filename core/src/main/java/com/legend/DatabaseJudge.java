@@ -539,7 +539,7 @@ final class DatabaseJudge {
         com.legend.sql.SqlQuery countRows() {
             var r = java.util.Objects.requireNonNull(rider);
             var w = java.util.Objects.requireNonNull(side);
-            return r.tdsWrapped() ? rows(false)
+            return r.tdsWrapped() ? com.legend.lowering.VerdictSql.gridCountRows(w.plan())
                     : com.legend.lowering.VerdictSql.countRows(w.plan());
         }
         /** The environment a statement over this side runs in: the side's own

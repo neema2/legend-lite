@@ -67,6 +67,10 @@ public final class VerdictSql {
 
     private static final String C = "__c";
     private static final String RN = "__rn";
+    /** The NAMED wrapped grid(s) a grid verdict reads (see {@link #over}). */
+    private static final String GRID = "__wg";
+    private static final String GRID_E = "__we";
+    private static final String GRID_A = "__wa";
     private static final String V = "__v";
 
     /** The equality verdict statement over two framed sides. */
@@ -133,7 +137,7 @@ public final class VerdictSql {
      * which side the grid is. */
     public static SqlQuery gridRows(GridSide grid, PeerSide peer,
             boolean gridIsExpected, boolean multiset) {
-        SqlQuery g = gridRowCanons(grid);
+        SqlQuery g = gridRowCanons(grid, GRID);
         SqlQuery p = peerRowCanons(peer, grid.width());
         SqlExpr divisible = SqlExpr.Call.of(SqlFn.NOT_EQUAL,
                 SqlExpr.Call.of(SqlFn.MOD,
@@ -142,11 +146,12 @@ public final class VerdictSql {
                                 "__n", SqlType.Scalar.BIGINT, null),
                         new SqlExpr.IntLit(grid.width())),
                 new SqlExpr.IntLit(0));
-        List<SqlWith.Cte> extra = List.of(new SqlWith.Cte("__peer", peerCells(peer)));
+        List<SqlWith.Cte> extra = List.of(new SqlWith.Cte(GRID, grid.wrapped()),
+                new SqlWith.Cte("__peer", peerCells(peer)));
         List<SqlExpr.Case.When> more = List.of(new SqlExpr.Case.When(divisible,
                 new SqlExpr.StringLit("tds-peer: cells not divisible by width "
                         + grid.width())));
-        SqlQuery gc = gridCellsRowMajor(grid);
+        SqlQuery gc = gridCellsRowMajor(grid, GRID);
         SqlQuery pc = peerCells(peer);
         return gridIsExpected
                 ? statement(g, p, true, true, multiset, more, extra, gc, pc)
@@ -157,11 +162,12 @@ public final class VerdictSql {
      * cell of every row) against the peer's cells, as a multiset. */
     public static SqlQuery gridCells(GridSide grid, PeerSide peer,
             boolean gridIsExpected) {
-        SqlQuery g = gridCellCanons(grid);
+        SqlQuery g = gridCellCanons(grid, GRID);
         SqlQuery p = peerCells(peer);
+        List<SqlWith.Cte> named = List.of(new SqlWith.Cte(GRID, grid.wrapped()));
         return gridIsExpected
-                ? statement(g, p, true, true, true, List.of())
-                : statement(p, g, true, true, true, List.of());
+                ? statement(g, p, true, true, true, List.of(), named)
+                : statement(p, g, true, true, true, List.of(), named);
     }
 
     // ── the ONE-LINE families (leg 3.1c): size / empty / contains / a boolean
@@ -424,8 +430,8 @@ public final class VerdictSql {
      * (both grids share the schema — the names were checked statically). */
     public static SqlQuery gridTolerance(GridSide one, GridSide two, List<Type> kinds,
             SqlQuery deltaRows, SqlQuery timeDeltaRows) {
-        SqlQuery e = toleranceCells(one, kinds);
-        SqlQuery a = toleranceCells(two, kinds);
+        SqlQuery e = toleranceCells(one, kinds, GRID_E);
+        SqlQuery a = toleranceCells(two, kinds, GRID_A);
         SqlExpr delta = new SqlExpr.Cast(scalarOver("__d", col("__d", C), "__one",
                 SqlType.Scalar.VARCHAR, 1L), SqlType.Scalar.DOUBLE);
         SqlExpr timeDelta = new SqlExpr.Cast(scalarOver("__t", col("__t", C), "__one",
@@ -458,7 +464,8 @@ public final class VerdictSql {
                 List.of(), null, null, List.of(), null, null, List.of(rnOut));
         SqlExpr sameCount = SqlExpr.Call.of(SqlFn.EQUAL, count("__e"), count("__a"));
         SqlExpr noBad = SqlExpr.Call.of(SqlFn.EQUAL, count("__p"), new SqlExpr.IntLit(0));
-        return predicate(List.of(new SqlWith.Cte("__e", e), new SqlWith.Cte("__a", a),
+        return predicate(List.of(new SqlWith.Cte(GRID_E, one.wrapped()), new SqlWith.Cte(GRID_A, two.wrapped()),
+                        new SqlWith.Cte("__e", e), new SqlWith.Cte("__a", a),
                         new SqlWith.Cte("__d", deltaRows), new SqlWith.Cte("__t", timeDeltaRows),
                         new SqlWith.Cte("__p", bad)),
                 SqlExpr.Call.of(SqlFn.AND, sameCount, noBad),
@@ -468,8 +475,7 @@ public final class VerdictSql {
 
     /** A grid's cells row-major with a NUMERIC value ({@code __n}, any
      * numeric kind) and a TEMPORAL value in epoch seconds ({@code __s}). */
-    private static SqlQuery toleranceCells(GridSide grid, List<Type> kinds) {
-        List<SqlQuery> branches = new ArrayList<>();
+    private static SqlQuery toleranceCells(GridSide grid, List<Type> kinds, String named) {
         OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
         OutputCol nOut = new OutputCol("__n", SqlType.Scalar.DOUBLE, true);
@@ -477,16 +483,11 @@ public final class VerdictSql {
         List<SqlSelect.Projection> values = grid.wrapped() instanceof SqlSelect ws
                 ? ws.projections().subList(0, Math.min(grid.width(), ws.projections().size()))
                 : List.of();
+        List<SqlExpr> cells = new ArrayList<>();
+        List<SqlExpr> ns = new ArrayList<>();
+        List<SqlExpr> secs = new ArrayList<>();
         for (int i = 0; i < grid.width(); i++) {
-            SqlExpr cell = gridCell(grid, i);
-            SqlExpr rowNo = new SqlExpr.WindowCall(
-                    new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
-                    List.of(), List.of(), null);
-            SqlExpr ord = SqlExpr.Call.of(SqlFn.PLUS,
-                    SqlExpr.Call.of(SqlFn.TIMES,
-                            SqlExpr.Call.of(SqlFn.MINUS, rowNo, new SqlExpr.IntLit(1)),
-                            new SqlExpr.IntLit(grid.width())),
-                    new SqlExpr.IntLit(i + 1));
+            cells.add(gridCell(grid, i));
             Type k = i < kinds.size() ? kinds.get(i) : null;
             String alias = i < values.size() ? values.get(i).alias() : null;
             SqlExpr raw = alias != null
@@ -498,25 +499,23 @@ public final class VerdictSql {
                     || k instanceof Type.PrecisionDecimal;
             boolean temporal = k == Type.Primitive.DATE_TIME || k == Type.Primitive.STRICT_DATE
                     || k == Type.Primitive.DATE;
-            SqlExpr n = raw != null && numeric ? new SqlExpr.Cast(raw, SqlType.Scalar.DOUBLE)
-                    : new SqlExpr.NullLit();
+            ns.add(raw != null && numeric ? new SqlExpr.Cast(raw, SqlType.Scalar.DOUBLE)
+                    : new SqlExpr.NullLit());
             // the grid's cells arrive DECODED as text (the fetch conformance:
             // nine-digit temporals) — a temporal cell casts back to a
             // timestamp for its epoch
-            SqlExpr sec = raw != null && temporal
+            secs.add(raw != null && temporal
                     ? new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.EPOCH_SECONDS,
                             new SqlExpr.Cast(raw, SqlType.Scalar.TIMESTAMP)), SqlType.Scalar.DOUBLE)
-                    : new SqlExpr.NullLit();
-            branches.add(new SqlSelect(List.of(
-                            new SqlSelect.Projection(cell, C, cOut),
-                            new SqlSelect.Projection(ord, RN, rnOut),
-                            new SqlSelect.Projection(n, "__n", nOut),
-                            new SqlSelect.Projection(sec, "__s", sOut)),
-                    false, new SqlSource.Subselect(grid.wrapped(), "w", null), null,
-                    List.of(), null, null, List.of(), null, null, List.of(cOut, rnOut, nOut, sOut)));
+                    : new SqlExpr.NullLit());
         }
-        return branches.size() == 1 ? branches.get(0)
-                : new com.legend.sql.SqlUnion(branches, true, List.of(cOut, rnOut, nOut, sOut));
+        return new SqlSelect(List.of(
+                        new SqlSelect.Projection(pick(cells), C, cOut),
+                        new SqlSelect.Projection(position(grid.width()), RN, rnOut),
+                        new SqlSelect.Projection(pick(ns), "__n", nOut),
+                        new SqlSelect.Projection(pick(secs), "__s", sOut)),
+                false, unpivot(grid, named), null,
+                List.of(), null, null, List.of(), null, null, List.of(cOut, rnOut, nOut, sOut));
     }
 
     /** The JSON verdict (bucket 3): the document the database built (its
@@ -733,6 +732,13 @@ public final class VerdictSql {
         return rowsOf(new SqlExpr.NullLit(), new SqlExpr.NullLit(), plan, where);
     }
 
+    /** A GRID's rows for counting: every row counts (a grid row is never
+     * dropped), over the plan BEFORE the canon wrap — no cell is spelled. */
+    public static SqlQuery gridCountRows(SqlQuery wrapped) {
+        return rowsOf(new SqlExpr.NullLit(), new SqlExpr.NullLit(),
+                CanonicalRenderSql.unwrapTdsCanon(wrapped), null);
+    }
+
     /** Two grids: row canons against row canons. */
     public static SqlQuery gridPair(SqlQuery e, SqlQuery a, boolean multiset) {
         return statement(gridRowCanons(e), gridRowCanons(a), true, true, multiset, List.of());
@@ -743,8 +749,9 @@ public final class VerdictSql {
      * positionally for the declared-Float leniency, each side's empty-is-NULL
      * columns read as the sentinel. */
     public static SqlQuery gridPair(GridSide e, GridSide a, boolean multiset) {
-        return statement(gridRowCanons(e), gridRowCanons(a), true, true, multiset, List.of(),
-                List.of(), gridCellsRowMajor(e), gridCellsRowMajor(a));
+        return statement(gridRowCanons(e, GRID_E), gridRowCanons(a, GRID_A), true, true, multiset,
+                List.of(), List.of(new SqlWith.Cte(GRID_E, e.wrapped()), new SqlWith.Cte(GRID_A, a.wrapped())),
+                gridCellsRowMajor(e, GRID_E), gridCellsRowMajor(a, GRID_A));
     }
 
     private static SqlQuery statement(SqlQuery eRows, SqlQuery aRows,
@@ -1044,18 +1051,31 @@ public final class VerdictSql {
                 ctes.add(new SqlWith.Cte(f.getKey(), f.getValue(), true));
             }
         }
+        // A CTE whose body is IDENTICAL to one already hoisted (after the
+        // renames) is not hoisted again: its name maps to the first. The asserts
+        // of one body often read the same relation — each spelled its own copy
+        // of the formatted grid (a 30 KB canon each, 2026-09-23). Walking in
+        // order makes it compound: once two grids are one, the cell stacks over
+        // them are identical too. Frames stay as they are (named, materialized).
+        java.util.Map<SqlQuery, String> hoisted = new java.util.HashMap<>();
         List<SqlQuery> branches = new ArrayList<>(statements.size());
         for (int i = 0; i < statements.size(); i++) {
             SqlQuery st = statements.get(i);
             SqlQuery body = st;
             if (st instanceof SqlWith w) {
                 java.util.Map<String, String> names = new java.util.LinkedHashMap<>();
-                for (SqlWith.Cte c : w.ctes()) {
-                    names.put(c.name(), c.name() + "_" + i);
-                }
                 RenameCtes rename = new RenameCtes(names);
                 for (SqlWith.Cte c : w.ctes()) {
-                    ctes.add(new SqlWith.Cte(c.name() + "_" + i, rename.rewriteRoot(c.query())));
+                    SqlQuery q = rename.rewriteRoot(c.query());
+                    String same = hoisted.get(q);
+                    if (same != null && !c.materialized()) {
+                        names.put(c.name(), same);
+                        continue;
+                    }
+                    String name = c.name() + "_" + i;
+                    names.put(c.name(), name);
+                    hoisted.putIfAbsent(q, name);
+                    ctes.add(new SqlWith.Cte(name, q, c.materialized()));
                 }
                 body = rename.rewriteRoot(w.body());
             }
@@ -1338,9 +1358,11 @@ public final class VerdictSql {
     /** A grid's row canons; under a column's empty-is-NULL equivalence the
      * row canon is rebuilt from the cell canons ({@code __cell<i>} joined by
      * the cell separator, as the wrap builds {@code __rowcanon}). */
-    private static SqlQuery gridRowCanons(GridSide grid) {
+    private static SqlQuery gridRowCanons(GridSide grid, String named) {
         if (grid.emptyIsNull().stream().noneMatch(b -> b)) {
-            return gridRowCanons(grid.wrapped());
+            return rowsOf(new SqlExpr.Cast(
+                    SqlExpr.Column.of("w", grid.wrapped().outputs(), CanonicalRenderSql.ROW_CANON),
+                    SqlType.Scalar.VARCHAR), new SqlExpr.NullLit(), over(grid, named), null);
         }
         SqlExpr row = null;
         for (int i = 0; i < grid.width(); i++) {
@@ -1349,7 +1371,7 @@ public final class VerdictSql {
                     SqlExpr.Call.of(SqlFn.CONCAT, row,
                             new SqlExpr.StringLit(CanonicalRenderSql.TDS_CELL_SEP)), cell);
         }
-        return rowsOf(java.util.Objects.requireNonNull(row), grid.wrapped());
+        return rowsOf(java.util.Objects.requireNonNull(row), new SqlExpr.NullLit(), over(grid, named), null);
     }
 
     /** One cell canon of a grid, the empty String canon ({@code ''}) read as
@@ -1367,19 +1389,16 @@ public final class VerdictSql {
 
     /** A grid side's loose CELL pool: one row per cell of every row, the
      * per-cell canons the wrap projected ({@code __cell<i>}), stacked. */
-    private static SqlQuery gridCellCanons(GridSide grid) {
-        List<SqlQuery> branches = new ArrayList<>();
+    private static SqlQuery gridCellCanons(GridSide grid, String named) {
         OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
+        List<SqlExpr> cells = new ArrayList<>();
         for (int i = 0; i < grid.width(); i++) {
-            SqlExpr cell = new SqlExpr.Cast(SqlExpr.Column.of("w", grid.wrapped().outputs(),
-                    CanonicalRenderSql.CELL_CANON + i), SqlType.Scalar.VARCHAR);
-            branches.add(new SqlSelect(
-                    List.of(new SqlSelect.Projection(cell, C, cOut)),
-                    false, new SqlSource.Subselect(grid.wrapped(), "w", null), null,
-                    List.of(), null, null, List.of(), null, null, List.of(cOut)));
+            cells.add(new SqlExpr.Cast(SqlExpr.Column.of("w", grid.wrapped().outputs(),
+                    CanonicalRenderSql.CELL_CANON + i), SqlType.Scalar.VARCHAR));
         }
-        SqlQuery stacked = branches.size() == 1 ? branches.get(0)
-                : new com.legend.sql.SqlUnion(branches, true, List.of(cOut));
+        SqlQuery stacked = new SqlSelect(List.of(new SqlSelect.Projection(pick(cells), C, cOut)),
+                false, unpivot(grid, named), null,
+                List.of(), null, null, List.of(), null, null, List.of(cOut));
         // the pool's arrival order is meaningless (a multiset by definition);
         // __rn exists for the frame's count and the LIMIT 1 read only
         return rowsOf(SqlExpr.Column.of("w", List.of(cOut), C), stacked);
@@ -1443,6 +1462,22 @@ public final class VerdictSql {
 
     private static SqlQuery rowsOf(SqlExpr canon, SqlExpr value, SqlQuery source,
             @com.legend.Nullable SqlExpr where) {
+        return rowsOf(canon, value, new SqlSource.Subselect(source, "w", null), where);
+    }
+
+    /** A grid side read through its NAMED CTE, aliased {@code w} as every
+     * cell and row reference spells it. A grid's rows and each of its
+     * columns' cell branches read the one wrapped plan; inlined, the plan —
+     * every formatted cell and the row canon — was spelled once per reader:
+     * width + 1 copies per side (columnValueDifferenceTest, 8 columns: a
+     * 1.2 MB statement; H2's parser, which copies the token list per
+     * subquery, needed over 4 GB to read it — 2026-09-23). */
+    private static SqlSource over(GridSide grid, String named) {
+        return new SqlSource.Table(named, "w", grid.wrapped().outputs(), false);
+    }
+
+    private static SqlQuery rowsOf(SqlExpr canon, SqlExpr value, SqlSource source,
+            @com.legend.Nullable SqlExpr where) {
         SqlExpr rn = new SqlExpr.WindowCall(
                 new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
                 List.of(), List.of(), null);
@@ -1453,7 +1488,7 @@ public final class VerdictSql {
                         new SqlSelect.Projection(canon, C, cOut),
                         new SqlSelect.Projection(rn, RN, rnOut),
                         new SqlSelect.Projection(value, V, vOut)),
-                false, new SqlSource.Subselect(source, "w", null), where,
+                false, source, where,
                 List.of(), null, null, List.of(), null, null,
                 List.of(cOut, rnOut, vOut));
     }
@@ -1470,36 +1505,92 @@ public final class VerdictSql {
     /** A grid's cells ROW-MAJOR with their Float values: one row per cell,
      * {@code __rn = (row - 1) * width + i + 1} — the positional sequence
      * the leniency walks against the peer's cells. */
-    private static SqlQuery gridCellsRowMajor(GridSide grid) {
-        List<SqlQuery> branches = new ArrayList<>();
+    private static SqlQuery gridCellsRowMajor(GridSide grid, String named) {
         OutputCol cOut = new OutputCol(C, SqlType.Scalar.VARCHAR, true);
         OutputCol rnOut = new OutputCol(RN, SqlType.Scalar.BIGINT, false);
         OutputCol vOut = new OutputCol(V, SqlType.Scalar.DOUBLE, true);
         List<SqlSelect.Projection> values = grid.wrapped() instanceof SqlSelect ws
                 ? ws.projections().subList(0, Math.min(grid.width(), ws.projections().size()))
                 : List.of();
+        List<SqlExpr> cells = new ArrayList<>();
+        List<SqlExpr> vs = new ArrayList<>();
         for (int i = 0; i < grid.width(); i++) {
-            SqlExpr cell = gridCell(grid, i);
-            SqlExpr rowNo = new SqlExpr.WindowCall(
-                    new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
-                    List.of(), List.of(), null);
-            SqlExpr ord = SqlExpr.Call.of(SqlFn.PLUS,
-                    SqlExpr.Call.of(SqlFn.TIMES,
-                            SqlExpr.Call.of(SqlFn.MINUS, rowNo, new SqlExpr.IntLit(1)),
-                            new SqlExpr.IntLit(grid.width())),
-                    new SqlExpr.IntLit(i + 1));
+            cells.add(gridCell(grid, i));
             boolean isFloat = i < grid.floatColumns().size() && grid.floatColumns().get(i);
-            SqlExpr v = i < values.size() ? doubleValue(values.get(i), "w", isFloat)
-                    : new SqlExpr.NullLit();
-            branches.add(new SqlSelect(List.of(
-                            new SqlSelect.Projection(cell, C, cOut),
-                            new SqlSelect.Projection(ord, RN, rnOut),
-                            new SqlSelect.Projection(v, V, vOut)),
-                    false, new SqlSource.Subselect(grid.wrapped(), "w", null), null,
-                    List.of(), null, null, List.of(), null, null, List.of(cOut, rnOut, vOut)));
+            vs.add(i < values.size() ? doubleValue(values.get(i), "w", isFloat)
+                    : new SqlExpr.NullLit());
         }
-        return branches.size() == 1 ? branches.get(0)
-                : new com.legend.sql.SqlUnion(branches, true, List.of(cOut, rnOut, vOut));
+        return new SqlSelect(List.of(
+                        new SqlSelect.Projection(pick(cells), C, cOut),
+                        new SqlSelect.Projection(position(grid.width()), RN, rnOut),
+                        new SqlSelect.Projection(pick(vs), V, vOut)),
+                false, unpivot(grid, named), null,
+                List.of(), null, null, List.of(), null, null, List.of(cOut, rnOut, vOut));
+    }
+
+    // ── THE UNPIVOT (2026-09-23): a grid as one row per cell, reading the grid
+    // ONCE. It was one UNION ALL branch per column, each re-reading the grid
+    // and numbering its rows on its own: width references to the grid, which
+    // H2 re-expands per reference while planning (an 8-column grid needed
+    // gigabytes to plan), and width row numberings that had to agree on
+    // arrival order. Now: the grid's rows numbered once (__r), cross-joined
+    // with the column positions 1..width (k.__i); each output row picks its
+    // cell by position.
+
+    private static final String ROW = "__r";
+    private static final String POS = "__i";
+
+    /** {@code (SELECT w.*, ROW_NUMBER() OVER () AS __r FROM <grid> w) w
+     * CROSS JOIN (VALUES 1, …, width) k(__i)}. */
+    private static SqlSource unpivot(GridSide grid, String named) {
+        List<OutputCol> outs = new ArrayList<>(grid.wrapped().outputs());
+        List<SqlSelect.Projection> ps = new ArrayList<>();
+        for (OutputCol o : grid.wrapped().outputs()) {
+            ps.add(new SqlSelect.Projection(
+                    SqlExpr.Column.of("w", grid.wrapped().outputs(), o.name()), o.name(), o));
+        }
+        OutputCol r = new OutputCol(ROW, SqlType.Scalar.BIGINT, false);
+        ps.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
+                new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()),
+                List.of(), List.of(), null), ROW, r));
+        outs.add(r);
+        SqlSource rows = new SqlSource.Subselect(new SqlSelect(ps, false, over(grid, named), null,
+                List.of(), null, null, List.of(), null, null, List.copyOf(outs)), "w", null);
+        List<List<SqlExpr>> positions = new ArrayList<>();
+        for (int p = 1; p <= grid.width(); p++) {
+            positions.add(List.of(new SqlExpr.IntLit(p)));
+        }
+        SqlSource k = new SqlSource.Values(positions, List.of(POS), "k",
+                List.of(new OutputCol(POS, SqlType.Scalar.INTEGER, false)));
+        return new SqlSource.Join(rows, k, SqlSource.Join.Kind.CROSS, null);
+    }
+
+    private static SqlExpr pos() {
+        return SqlExpr.Column.of("k", List.of(new OutputCol(POS, SqlType.Scalar.INTEGER, false)), POS);
+    }
+
+    /** {@code CASE WHEN k.__i = 1 THEN e1 … END}: the cell at this row's position
+     * (NULL when every candidate is NULL). */
+    private static SqlExpr pick(List<SqlExpr> perColumn) {
+        if (perColumn.stream().allMatch(e -> e instanceof SqlExpr.NullLit)) {
+            return new SqlExpr.NullLit();
+        }
+        List<SqlExpr.Case.When> whens = new ArrayList<>();
+        for (int i = 0; i < perColumn.size(); i++) {
+            whens.add(new SqlExpr.Case.When(
+                    SqlExpr.Call.of(SqlFn.EQUAL, pos(), new SqlExpr.IntLit(i + 1)), perColumn.get(i)));
+        }
+        return new SqlExpr.Case(whens, null);
+    }
+
+    /** {@code (w.__r - 1) * width + k.__i}: the cell's row-major position. */
+    private static SqlExpr position(int width) {
+        SqlExpr r = SqlExpr.Column.of("w", ROW, SqlType.Scalar.BIGINT, false, OutputCol.Origin.DERIVED);
+        return SqlExpr.Call.of(SqlFn.PLUS,
+                SqlExpr.Call.of(SqlFn.TIMES,
+                        SqlExpr.Call.of(SqlFn.MINUS, r, new SqlExpr.IntLit(1)),
+                        new SqlExpr.IntLit(width)),
+                pos());
     }
 
     /** The declared 2-ULP Float leniency as ONE predicate over two cell

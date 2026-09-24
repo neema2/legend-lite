@@ -1,13 +1,10 @@
 WITH frame_r AS MATERIALIZED (SELECT frame_r__t0.ID AS id, frame_r__t0.NAME AS name
   FROM T AS frame_r__t0
-  ORDER BY frame_r__t0.ID NULLS LAST), __a_0 AS (SELECT CAST(w.__rowcanon AS VARCHAR) AS __c, ROW_NUMBER() OVER () AS __rn, CAST(NULL AS DOUBLE) AS __v
+  ORDER BY frame_r__t0.ID NULLS LAST), __a_0 AS (SELECT CAST(NULL AS VARCHAR) AS __c, ROW_NUMBER() OVER () AS __rn, CAST(NULL AS DOUBLE) AS __v
   FROM (
-    SELECT id AS id, name AS name, coalesce(CAST(CAST(id AS VARCHAR) AS VARCHAR), 'TDSNull') AS __cell0, CASE WHEN name IS NULL THEN 'TDSNull' WHEN strpos(name, '') > 0 THEN NULL ELSE coalesce(CAST(concat('''', replace(replace(name, '\', '\\'), '''', '\'''), '''') AS VARCHAR), 'TDSNull') END AS __cell1, concat(coalesce(CAST(CAST(id AS VARCHAR) AS VARCHAR), 'TDSNull'), '', CASE WHEN name IS NULL THEN 'TDSNull' WHEN strpos(name, '') > 0 THEN NULL ELSE coalesce(CAST(concat('''', replace(replace(name, '\', '\\'), '''', '\'''), '''') AS VARCHAR), 'TDSNull') END) AS __rowcanon
-    FROM (
-      SELECT frame_r_t0.id AS id, frame_r_t0.name AS name
-      FROM frame_r AS frame_r_t0
-      ORDER BY frame_r_t0.id NULLS LAST
-    ) AS side
+    SELECT frame_r_t0.id AS id, frame_r_t0.name AS name
+    FROM frame_r AS frame_r_t0
+    ORDER BY frame_r_t0.id NULLS LAST
   ) AS w), __p_0 AS (SELECT c.__n AS __c_n, n.__c AS __n_c, n.value AS __n_value
   FROM (
     SELECT COUNT(__a.__rn) AS __n

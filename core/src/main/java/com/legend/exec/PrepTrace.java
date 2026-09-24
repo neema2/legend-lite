@@ -41,7 +41,7 @@ public final class PrepTrace {
         if (FILE == null) {
             return;
         }
-        String kind = sql.contains(" AS __ix") ? "fused" : sql.contains(" AS __verdict") ? "verdict"
+        String kind = sql.contains(" AS __ix") || sql.contains(" AS \"__ix\"") ? "fused" : sql.contains(" AS __verdict") ? "verdict"
                 : sql.startsWith("WITH frame_") ? "frame" : "other";
         append(FILE, sql.length() + "\t" + prepareNanos + "\t" + executeNanos + "\t" + kind + "\n");
     }
