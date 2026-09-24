@@ -133,6 +133,19 @@ public final class UpstreamFiles {
             ("legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-pure/legend-engine-xt-relationalStore-sqlPlanning-pure/src/main/resources/core_external_store_relational_sql_planning/sqlPlanner.pure"),
             ("legend-engine-xts-service/legend-engine-language-pure-dsl-service-pure/src/main/resources/core_service/service/metamodel.pure"));
 
+    /** The engine half of the standard library (engine-relative): the five
+     *  core_functions_* repositories. With PLATFORM_ROOTS they are exactly
+     *  upstream's own "core" — every repository PureRuntime.loadAndCompileCore
+     *  loads as core (legend-pure PureRuntime.java:248: names starting
+     *  "platform" or "core_functions"). Each depends only on platform* and on
+     *  each other (their *.definition.json). */
+    public static final List<String> STDLIB_ENGINE_ROOTS = List.of(
+            "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-unclassified/legend-engine-pure-functions-unclassified-pure/src/main/resources",
+            "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-json/legend-engine-pure-functions-json-pure/src/main/resources",
+            "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-variant/legend-engine-pure-functions-variant-pure/src/main/resources",
+            "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-relation/legend-engine-pure-functions-relation-pure/src/main/resources",
+            "legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-functions-standard/legend-engine-pure-functions-standard-pure/src/main/resources");
+
     /** legend-pure's platform packages (pure-relative): the spec's own
      *  declaration files, typed by the census and scanned by the prelude. */
     public static final List<String> PLATFORM_ROOTS = List.of(

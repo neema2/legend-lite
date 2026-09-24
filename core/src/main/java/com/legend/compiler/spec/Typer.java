@@ -2530,7 +2530,7 @@ final class Typer {
         // a MANGLED engine id names ONE overload: the declarations under a
         // prefix of it are SPELLED and the exact match kept (a spelling this
         // platform cannot reproduce is a miss, never a redirect)
-        return SignatureMangle.resolve(name, ctx::findFunction, TypedFunction::definition).exact();
+        return com.legend.model.SignatureMangle.resolve(name, ctx::findFunction, TypedFunction::definition).exact();
     }
 
     /**
@@ -2677,7 +2677,7 @@ final class Typer {
         // spells differently, e.g. the TDS groupBy the checker desugars
         // at call sites, must still reference as an opaque Function).
         if (fns.size() != 1) {
-            var res = SignatureMangle.resolve(ref.fullPath(), ctx::findFunction,
+            var res = com.legend.model.SignatureMangle.resolve(ref.fullPath(), ctx::findFunction,
                     TypedFunction::definition);
             if (res.exact().size() == 1) {
                 fns = res.exact();

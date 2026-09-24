@@ -52,6 +52,12 @@ public class SpecBodyCensusTest {
 
     public static final List<String> PLATFORM_ROOTS = UpstreamFiles.PLATFORM_ROOTS;
 
+    /** The name prefix of an engine-half standard-library source. */
+    static final String STDLIB_PREFIX = "stdlib:";
+
+    /** The core_functions_* failure ceiling — shrink-only to zero. */
+    static final int STDLIB_FAILURES_MAX = 8;
+
     @Test
     @DisplayName("typing census: every Pure body in legend-pure's platform packages typed once, failures as rows")
     void census() throws IOException {
@@ -92,8 +98,27 @@ public class SpecBodyCensusTest {
                 }
             }
         }
+        // THE ENGINE HALF OF THE STANDARD LIBRARY (the five core_functions_*
+        // repositories, with the nine roots above upstream's own "core"): their
+        // sources ride the same model under a "stdlib:" name prefix, so a body's
+        // scope is known when its row is reported
+        Path engine = com.legend.testing.Upstream.engine();
+        for (String r : UpstreamFiles.STDLIB_ENGINE_ROOTS) {
+            Path root = engine.resolve(r);
+            org.junit.jupiter.api.Assertions.assertTrue(Files.isDirectory(root),
+                    "STDLIB_ENGINE_ROOTS missing under " + engine + ": " + r);
+            String repo = r.substring(0, r.indexOf("/src/main/resources"));
+            repo = repo.substring(repo.lastIndexOf('/') + 1);
+            try (Stream<Path> walk = Files.walk(root)) {
+                for (Path f : walk.filter(p -> p.toString().endsWith(".pure")).sorted(java.util.Comparator.comparing(SpecBodyCensusTest::slash)).toList()) {
+                    sources.add(new Compiler.ModelSource(STDLIB_PREFIX + repo + ":"
+                            + slash(root.relativize(f)), Files.readString(f, StandardCharsets.UTF_8)));
+                }
+            }
+        }
         List<String> loadWalls = new ArrayList<>();
         ModelContext ctx = null;
+        java.util.Map<String, String> elementSources = java.util.Map.of();
         int fileCount = sources.size();
         // the spec's NATIVE names (simple) — the running-world pass buckets
         // an unknown function by the spec's marking (native vs program)
@@ -121,6 +146,7 @@ public class SpecBodyCensusTest {
                     module.model().unclaimedSections());
             try {
                 ctx = Compiler.buildModel(pruned);
+                elementSources = module.model().elementSources();
                 loadWalls.addAll(parseWalls);
             } catch (com.legend.error.ModelException e) {
                 String el = e.element();
@@ -186,7 +212,19 @@ public class SpecBodyCensusTest {
         // the world it runs in (boot + platform packages + its own spec
         // file + the corpus's library files), then bucketed by the spec's
         // marking. A measurement: no arm, no registration.
-        Path engineRoot = com.legend.testing.Upstream.engine();
+        // the engine half's rows are their own scope: its own pin below, and the
+        // running-world pass (a boot-prelude instrument) sees platform rows only
+        Map<String, String> stdlibFailures = new TreeMap<>();
+        for (var it = failures.entrySet().iterator(); it.hasNext(); ) {
+            var row = it.next();
+            String fqn = row.getKey().contains("(") ? row.getKey().substring(0, row.getKey().indexOf('(')) : row.getKey();
+            String src = elementSources.get(fqn);
+            if (src != null && src.startsWith(STDLIB_PREFIX)) {
+                stdlibFailures.put(row.getKey(), row.getValue());
+                it.remove();
+            }
+        }
+        Path engineRoot = engine;
         CensusWorlds.Report worlds = CensusWorlds.run(sources, failures,
                 specNativeNames, engineRoot);
 
@@ -207,6 +245,9 @@ public class SpecBodyCensusTest {
         out.add("## typing failures (UNWALLED — must be zero)");
         failures.forEach((k, v) -> out.add(k + " :: " + v));
         out.add("");
+        out.add("## core_functions_* typing failures (shrink-only to zero): " + stdlibFailures.size());
+        stdlibFailures.forEach((k, v) -> out.add(k + " :: " + v));
+        out.add("");
         out.add("## running-world pass (COMPILE_EVERYTHING_HOMEWORK §6) — buckets: " + worlds.buckets());
         out.add("## running-world walls: " + worlds.worldWalls());
         for (CensusWorlds.Row r : worlds.rows()) {
@@ -218,7 +259,7 @@ public class SpecBodyCensusTest {
         System.out.println("[spec-census] files=" + fileCount + " loadWalls=" + loadWalls.size()
                 + " typedOK=" + ok.size() + " walled=" + walled.size() + " failed(UNWALLED)=" + failures.size()
                 + " nativesSkipped=" + natives);
-        System.out.println("[spec-census] byReason=" + byReason);
+        System.out.println("[spec-census] byReason=" + byReason + " stdlibFailed=" + stdlibFailures.size());
         // THE PIN (SYSTEM_PRELUDE_DESIGN §6: the typing work list trends to
         // ZERO — shrink-only). 22 (batch 151, prelude-as-module phase 1):
         // the 22 boot-body rows of SPEC_BODY_CENSUS §10 — engine-internal
@@ -255,6 +296,19 @@ public class SpecBodyCensusTest {
                 () -> "spec body census WALLED rows GREW: " + walled.size()
                         + " > 23 (shrink-only; a new wall needs its reason in WalledBodies):\n  "
                         + String.join("\n  ", walled.keySet()));
+        // THE STANDARD-LIBRARY PIN (platform architecture study, 2026-09-24):
+        // every body in the five core_functions_* repositories — library and PCT
+        // test functions alike — types, as the nine platform roots' already do.
+        // Shrink-only to zero. 558 at introduction: 548 PCT tests whose own type
+        // variables are named like eval's (<T|m>) — the kernel conflated the
+        // caller's T with the callee's; SignatureApart renames the callee's
+        // parameters apart — plus two signature-id references the resolver
+        // cut to the wrong package (function ids now join the name universe).
+        // 8 remain, five causes: variant get over a class, variant to/toMany
+        // at 4 arguments, wavg, relation::eval, relation::reduce.
+        org.junit.jupiter.api.Assertions.assertTrue(stdlibFailures.size() <= STDLIB_FAILURES_MAX,
+                () -> "core_functions_* typing failures GREW: " + stdlibFailures.size() + " > "
+                        + STDLIB_FAILURES_MAX + " (shrink-only):\n  " + String.join("\n  ", stdlibFailures.keySet()));
         org.junit.jupiter.api.Assertions.assertTrue(loadWalls.size() <= 1,
                 () -> "spec body census load walls GREW: " + loadWalls);
         System.out.println("[spec-census] runningWorld buckets=" + worlds.buckets()

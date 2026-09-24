@@ -288,7 +288,12 @@ public final class PureModelContext implements ModelContext {
             @Override
             public boolean contains(Object o) {
                 return o instanceof String s
-                        && (platform.contains(s) || extensions.contains(s) || model.hasElement(s));
+                        && (platform.contains(s) || extensions.contains(s) || model.hasElement(s)
+                                // a graph function's SIGNATURE ID is its element
+                                // name upstream: membership asks the declarations
+                                // under a prefix of it to spell it exactly
+                                || (s.indexOf('_') > 0 && !com.legend.model.SignatureMangle
+                                        .resolve(s, model::findFunction, f -> f).exact().isEmpty()));
             }
 
             @Override

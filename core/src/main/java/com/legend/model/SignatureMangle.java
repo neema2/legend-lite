@@ -1,9 +1,8 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.compiler.spec;
+package com.legend.model;
 
-import com.legend.model.Function;
 import com.legend.protocol.Multiplicity;
 import com.legend.protocol.TypeExpression;
 

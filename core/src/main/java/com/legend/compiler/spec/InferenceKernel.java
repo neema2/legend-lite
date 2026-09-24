@@ -1256,6 +1256,11 @@ public final class InferenceKernel {
     /** Unify the chosen overload's parameters against the args, then resolve its output. */
     private Resolution resolveChosen(TypedFunction c, List<ExprType> args, String name,
             @com.legend.Nullable Type expected) {
+        // the callee's own parameters RENAMED APART from the variables the
+        // arguments carry (the enclosing function's own T, m): bindings are
+        // keyed by name, and a coincident name is still another variable
+        TypedFunction chosen = c;
+        c = SignatureApart.of(c, args, expected);
         Bindings b = new Bindings();
         if (expected != null) {
             // the caller's expected type binds the declared return type's variables
@@ -1285,7 +1290,7 @@ public final class InferenceKernel {
                         + (i + 1) + ": " + e.getMessage(), e);
             }
         }
-        return new Resolution(c, resolveOutput(c.returnType(), c.returnMultiplicity(), b, args));
+        return new Resolution(chosen, resolveOutput(c.returnType(), c.returnMultiplicity(), b, args));
     }
 
     /** The chosen overload and the {@link ExprType} the call produces. */

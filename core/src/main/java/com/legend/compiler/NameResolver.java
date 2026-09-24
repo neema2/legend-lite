@@ -291,15 +291,6 @@ public final class NameResolver {
                         model.elementSources());
     }
 
-    /** The platform's TYPE universe: the catalog's hand shapes and enums and
-     * the generated prelude module's classes and enums — what an import, an
-     * own-package or a core-import candidate may resolve TO. Never a
-     * bare-name fallback (batch 153): a name no import makes visible is
-     * unresolved, as in the engine. */
-    private static List<String> platformTypeFqns() {
-        return PLATFORM_TYPE_FQNS;
-    }
-
     /** The platform's own type universe (native classes and enums, the
      * prelude's classes and enums): a constant of the platform, built
      * once — it was rebuilt on every query (leg 6e, the corpus lane's
@@ -321,15 +312,43 @@ public final class NameResolver {
         return PLATFORM_FQNS;
     }
 
-    private static final Set<String> PLATFORM_FQNS = Set.copyOf(PLATFORM_TYPE_FQNS);
+    private static final Set<String> PLATFORM_FQNS = platformNames();
+
+    /** A FUNCTION's element name upstream IS its signature id
+     * ({@code and_Boolean_1__Boolean_1__Boolean_1_}; legend-pure
+     * ConcreteFunctionDefinitionNameProcessor.getSignatureAndResolveImports):
+     * a reference by id is an ordinary element reference, resolved through the
+     * same import tiers as a class name — the first imported package holding
+     * an element of exactly that name. So every declaration's id joins the
+     * name universe: the platform's natives and prelude functions here, a
+     * graph's own functions in {@link #knownFqns}. */
+    private static Set<String> computePlatformFunctionIds() {
+        Set<String> ids = new HashSet<>();
+        Pure.all().forEach(f -> ids.add(com.legend.model.SignatureMangle.mangle(f)));
+        for (PackageableElement el : com.legend.builtin.Prelude.elements()) {
+            if (el instanceof com.legend.model.Function f) {
+                ids.add(com.legend.model.SignatureMangle.mangle(f));
+            }
+        }
+        return Set.copyOf(ids);
+    }
+
+    private static Set<String> platformNames() {
+        Set<String> all = new HashSet<>(PLATFORM_TYPE_FQNS);
+        all.addAll(computePlatformFunctionIds());
+        return Set.copyOf(all);
+    }
 
     /** Declared element FQNs + platform FQNs: the wildcard-disambiguation universe. */
     private static Set<String> knownFqns(List<PackageableElement> elements) {
         Set<String> known = new HashSet<>();
         for (PackageableElement el : elements) {
             known.add(el.qualifiedName());
+            if (el instanceof com.legend.model.Function f) {
+                known.add(com.legend.model.SignatureMangle.mangle(f));
+            }
         }
-        known.addAll(platformTypeFqns());
+        known.addAll(PLATFORM_FQNS);
         return known;
     }
 
@@ -474,7 +493,7 @@ public final class NameResolver {
      */
     public static ValueSpecification resolveQuery(ValueSpecification query,
             ImportScope imports, Set<String> modelFqns) {
-        Set<String> known = new HashSet<>(platformTypeFqns());
+        Set<String> known = new HashSet<>(PLATFORM_FQNS);
         known.addAll(modelFqns);
         return resolveQueryIn(query, imports, Set.copyOf(known));
     }
@@ -493,7 +512,7 @@ public final class NameResolver {
     private static final Scope QUERY_SCOPE = querycope();
 
     private static Scope querycope() {
-        Set<String> known = new HashSet<>(platformTypeFqns());
+        Set<String> known = new HashSet<>(PLATFORM_FQNS);
         return Scope.preludeOf(new ImportScope.Builder().build(), Set.copyOf(known));
     }
 
@@ -1645,33 +1664,14 @@ public final class NameResolver {
                     String q = base + ptr.fullPath().substring(tilde);
                     yield q.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(q);
                 }
+                // a function referenced BY ITS SIGNATURE ID
+                // (contains(x, comparator_A_1__A_1__Boolean_1_), PCT's
+                // and_Boolean_1__Boolean_1__Boolean_1_->eval(...)) resolves
+                // like any element name: every declaration's id is in the
+                // universe, so the import tiers find the one package whose
+                // declaration spells exactly this id (the Typer then takes
+                // that declaration — SignatureMangle)
                 String r = resolveName(ptr.fullPath(), scope);
-                // A BARE MANGLED function id in value position (leg 4:
-                // contains(x, comparator_A_1__A_1__Boolean_1_) — the
-                // reference tests pass same-package functions BY REFERENCE
-                // via their signature id): the id itself is never a known
-                // FQN (the catalog keys base names), so resolve the BASE
-                // through the same import/own-package tiers and re-attach
-                // the tail; the Typer's function-reference eta-expansion
-                // consumes the qualified id.
-                // The base is found by CUTTING, not by decoding the tail:
-                // every "_" is a candidate cut, the longest base the
-                // import tiers resolve wins (the Typer then spells each
-                // declaration's engine id and keeps the exact match —
-                // SignatureMangle; Phase 5 batch 147)
-                if (r.equals(ptr.fullPath()) && !r.contains("::")) {
-                    for (int i = r.length() - 1; i > 0; i--) {
-                        if (r.charAt(i) != '_') {
-                            continue;
-                        }
-                        String base = r.substring(0, i);
-                        String rb = resolveName(base, scope);
-                        if (!rb.equals(base)) {
-                            r = rb + r.substring(i);
-                            break;
-                        }
-                    }
-                }
                 yield r.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(r);
             }
             case EnumValue ev -> {
