@@ -1,5 +1,6 @@
 # native-membership.tsv — the platform's implemented surface (upstream boundary program, batch 5).
 # Membership is OURS; the signature text is generated from the pinned checkouts.
+# RETIRING at untangle step 5 (docs/UPSTREAM_BOUNDARY_PROGRAM.md §3 D): the implementation table (com.legend.platform, implementation-table.tsv) is the surface; kept until the switches land.
 # constant	fqn	signatureKey — sorted by fqn, then key.
 DECODE_OBJECT_REFERENCES__3	meta::alloy::objectReference::decodeObjectReferencesAndGetPkMap	meta::alloy::objectReference::decodeObjectReferencesAndGetPkMap(meta::pure::metamodel::type::String[1],meta::pure::metamodel::type::String[1],meta::pure::extension::Extension[*])
 GENERATE_OBJECT_REFERENCES__6	meta::alloy::objectReference::generateObjectReferences	meta::alloy::objectReference::generateObjectReferences(meta::pure::metamodel::type::String[1],meta::pure::metamodel::type::String[1],meta::pure::metamodel::type::String[1],meta::pure::metamodel::type::String[1],meta::pure::functions::collection::Map<meta::pure::metamodel::type::String, meta::pure::metamodel::type::Any>[*],meta::pure::extension::Extension[*])

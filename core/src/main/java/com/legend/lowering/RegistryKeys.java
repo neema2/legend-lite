@@ -40,4 +40,15 @@ public final class RegistryKeys {
     public static Set<String> windowAggregates() {
         return Collections.unmodifiableSet(Windows.aggregateKeys());
     }
+
+    /** {@code FeatureRules.UNDER} — per execution feature flag, the keys whose
+     *  scalar rule the flag replaces. */
+    public static java.util.Map<com.legend.compiler.spec.typed.Feature, Set<String>> featureOverrides() {
+        java.util.Map<com.legend.compiler.spec.typed.Feature, Set<String>> out =
+                new java.util.EnumMap<>(com.legend.compiler.spec.typed.Feature.class);
+        for (var e : FeatureRules.UNDER.entrySet()) {
+            out.put(e.getKey(), Set.copyOf(e.getValue().keySet()));
+        }
+        return Collections.unmodifiableMap(out);
+    }
 }

@@ -5308,3 +5308,29 @@ SQL source is not ported: no upstream text or wire can author an argument.
 **Test.** `TabularFunctionTest` on rows, against a DuckDB table macro: select, filter + groupBy,
 the call spelling, a plain table unchanged; with the `()` rendering removed it fails. Own-corpus
 parity 2551 -> 2554.
+
+## 2026-09-24 — The untangle, steps 0–2: identity guardrail, catalog census, declaration and implementation tables beside
+
+**What.** The platform-architecture study measured the tangle the boundary program's workstream D
+left: the catalog copies upstream faithfully (0 divergent) but incompletely (191 overloads at 77
+FQNs), FQN-level suppressions in the compiler hide the gaps, and 824 sites re-derive a resolved
+function's identity from a string. D is re-chartered as a strangler-fig over the two decision
+points (the typer's overload set, lowering's implementation pick) — UPSTREAM_BOUNDARY_PROGRAM.md
+§3 D. Landed: (0) `IdentityGuardrailTest`, nine shapes, shrink-only pins; (1) `CatalogUpstreamDiffTest`
+against the pinned trees — DIVERGENT pinned 0, NOT_UPSTREAM ≤43, MISSING ≤191; (2) `com.legend.platform`:
+`FunctionId` (upstream's signature id, compared whole), `DeclarationTable` (one declaration per id,
+bodied twin kept, different bodies refuse), sealed `Implementation`, `ImplementationTable.build(declarations,
+registrations)` total by construction with dangling/conflicts reported, `Registrations` as a value so
+every builder path is unit-tested with hand-written inputs. On the way: `SignatureApart` (callee
+type/multiplicity parameters renamed apart from the caller's — 548 PCT bodies were name-captured),
+`Multiplicity.ofArgument` (one reader of multiplicity-argument spellings; `@Column<Nil,Z|0..1>` args were
+dropped), symbolic `X⊆T` unification, function ids in the resolver universe (`and_Boolean_1__…` no
+longer mis-resolves once `core_functions` load), `WalledBodyException` typed (no message prefix test),
+`WalledBodies.Wall(kind, why)` typed, `CoreFn.OWNS` explicit. Census engine-half failures 558 → 6
+(pinned), all six calls to upstream overloads the catalog lacks — step 4's input, not a wall.
+
+**Test.** Core `ImplementationTableTest`: defaults, whole-key match, dangling key/family/form/subsumed,
+form+refusal and refusal+intrinsic conflicts, two forms on one id, refusal kinds, member walls apart.
+Spec `ImplementationTableTest` over the real registrations: 3,157 rows, dangling `[]`, conflicts `[]`.
+`DeclarationTableTest`: bodied twin kept, overloads distinct, same body twice is one, different bodies
+refuse. Own-corpus parity 2554 → 2565 (the tests' engine-dialect snippets are harvested).

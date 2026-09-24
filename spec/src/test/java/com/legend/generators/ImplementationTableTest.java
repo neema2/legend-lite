@@ -66,7 +66,7 @@ class ImplementationTableTest {
             }
         }
         DeclarationTable table = DeclarationTable.of(declarations);
-        ImplementationTable impl = ImplementationTable.build(table);
+        ImplementationTable impl = ImplementationTable.build(table, com.legend.platform.Registrations.current());
 
         Map<String, Integer> kinds = new LinkedHashMap<>();
         List<String> rows = new ArrayList<>();
@@ -106,8 +106,10 @@ class ImplementationTableTest {
     private static String detail(Implementation i) {
         return switch (i) {
             case Implementation.Form f -> f.form() + (f.alsoLowered().isEmpty() ? "" : " +" + f.alsoLowered())
-                    + (f.alsoFamilies().isEmpty() ? "" : " +" + f.alsoFamilies());
-            case Implementation.Intrinsic in -> in.positions() + " " + in.families();
+                    + (f.alsoFamilies().isEmpty() ? "" : " +" + f.alsoFamilies().stream().map(Class::getSimpleName).toList());
+            case Implementation.Intrinsic in -> in.positions()
+                    + (in.featureOverrides().isEmpty() ? "" : " under " + in.featureOverrides())
+                    + " " + in.families().stream().map(Class::getSimpleName).toList();
             case Implementation.Refused r -> r.reason() + ": " + r.why();
             case Implementation.Body b -> "";
             case Implementation.Unimplemented u -> "";

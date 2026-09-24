@@ -4,11 +4,8 @@
 package com.legend.platform;
 
 import com.legend.builtin.NativeFn;
-import com.legend.builtin.Pure;
-import com.legend.builtin.Subsumed;
 import com.legend.compiler.spec.CoreFn;
-import com.legend.compiler.spec.WalledBodies;
-import com.legend.lowering.RegistryKeys;
+import com.legend.compiler.spec.typed.Feature;
 import com.legend.model.Function;
 import com.legend.model.FunctionDefinition;
 import com.legend.model.NativeFunctionDefinition;
@@ -17,6 +14,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,11 +24,11 @@ import java.util.Set;
  * {@link FunctionId} of a {@link DeclarationTable}, total by construction
  * (platform architecture untangle, step 2).
  *
- * <p>Built ONLY from explicit registrations, each read exactly: a lowering
- * registry's key is matched to the catalog definition that generated it (whole
- * key, never parsed); a family member's overloads ARE definitions; a form, a
- * wall, a walled body and a subsumed program name exact FQNs, and apply to
- * every declaration there. A declaration no registration names takes the
+ * <p>Built ONLY from explicit {@link Registrations}, each read exactly: a
+ * lowering registry's key is matched to the catalog definition that generated
+ * it (whole key, never parsed); a family member's overloads ARE definitions; a
+ * form, a wall, a walled body and a subsumed program name exact FQNs, and apply
+ * to every declaration there. A declaration no registration names takes the
  * default of its kind — {@code Body} when it has a body, {@code Unimplemented}
  * when it is a native. The FQN-level suppressions the compiler applies today
  * (the PCT rule, the platform-owned list) are deliberately NOT inputs: they are
@@ -57,8 +55,8 @@ public final class ImplementationTable {
         this.memberWalls = List.copyOf(memberWalls);
     }
 
-    /** The table over {@code declarations}, from today's registrations. */
-    public static ImplementationTable build(DeclarationTable declarations) {
+    /** The table over {@code declarations}, from {@code registrations}. */
+    public static ImplementationTable build(DeclarationTable declarations, Registrations registrations) {
         List<String> dangling = new ArrayList<>();
         List<String> conflicts = new ArrayList<>();
         List<String> memberWalls = new ArrayList<>();
@@ -66,49 +64,57 @@ public final class ImplementationTable {
         // the catalog definition behind each lowering-registry key: the key IS
         // that definition's signatureKey(), so the match is the whole key
         Map<String, FunctionId> catalogKey = new LinkedHashMap<>();
-        for (NativeFunctionDefinition n : Pure.all()) {
+        for (NativeFunctionDefinition n : registrations.catalog()) {
             catalogKey.put(n.signatureKey(), FunctionId.of(n));
         }
         Map<FunctionId, Set<Implementation.Position>> positions = new LinkedHashMap<>();
-        registerKeys(RegistryKeys.scalarRules(), Implementation.Position.SCALAR, catalogKey, declarations,
-                positions, dangling);
-        registerKeys(RegistryKeys.reducers(), Implementation.Position.AGGREGATE, catalogKey, declarations,
-                positions, dangling);
-        registerKeys(RegistryKeys.windowFunctions(), Implementation.Position.WINDOW, catalogKey, declarations,
-                positions, dangling);
-        registerKeys(RegistryKeys.windowAggregates(), Implementation.Position.WINDOW_AGGREGATE, catalogKey,
-                declarations, positions, dangling);
+        for (var e : registrations.loweringKeys().entrySet()) {
+            for (String key : e.getValue()) {
+                FunctionId id = catalogKey.get(key);
+                if (id == null || declarations.get(id) == null) {
+                    dangling.add(e.getKey() + " " + key);
+                    continue;
+                }
+                positions.computeIfAbsent(id, k -> EnumSet.noneOf(Implementation.Position.class)).add(e.getKey());
+            }
+        }
+        Map<FunctionId, Set<Feature>> overrides = new LinkedHashMap<>();
+        for (var e : registrations.featureOverrides().entrySet()) {
+            for (String key : e.getValue()) {
+                FunctionId id = catalogKey.get(key);
+                if (id == null || declarations.get(id) == null) {
+                    dangling.add("feature " + e.getKey() + " " + key);
+                    continue;
+                }
+                overrides.computeIfAbsent(id, k -> EnumSet.noneOf(Feature.class)).add(e.getKey());
+            }
+        }
 
         // the implementer families: each member's overloads ARE definitions
-        Map<FunctionId, List<String>> families = new LinkedHashMap<>();
-        for (var family : NativeFn.families().entrySet()) {
-            for (NativeFn.Member m : family.getValue()) {
-                for (NativeFunctionDefinition o : m.overloads()) {
-                    FunctionId id = FunctionId.of(o);
-                    if (declarations.get(id) == null) {
-                        dangling.add("NativeFn." + family.getKey() + " " + id);
-                        continue;
-                    }
-                    List<String> fs = families.computeIfAbsent(id, k -> new ArrayList<>());
-                    if (!fs.contains(family.getKey())) {
-                        fs.add(family.getKey());
-                    }
+        Map<FunctionId, Set<Class<? extends NativeFn.Member>>> families = new LinkedHashMap<>();
+        for (var family : registrations.families().entrySet()) {
+            for (NativeFunctionDefinition o : family.getValue()) {
+                FunctionId id = FunctionId.of(o);
+                if (declarations.get(id) == null) {
+                    dangling.add(family.getKey().getSimpleName() + " " + id);
+                    continue;
                 }
+                families.computeIfAbsent(id, k -> new LinkedHashSet<>()).add(family.getKey());
             }
         }
 
         // the language forms: every overload at each FQN a form owns
         Map<FunctionId, CoreFn> forms = new LinkedHashMap<>();
-        for (CoreFn form : CoreFn.values()) {
-            for (String fqn : form.ownedFqns()) {
+        for (var e : registrations.forms().entrySet()) {
+            for (String fqn : e.getValue()) {
                 List<Function> at = declarations.at(fqn);
                 if (at.isEmpty()) {
-                    dangling.add("CoreFn." + form.name() + " " + fqn);
+                    dangling.add("CoreFn." + e.getKey().name() + " " + fqn);
                 }
                 for (Function f : at) {
-                    CoreFn prior = forms.put(FunctionId.of(f), form);
-                    if (prior != null && prior != form) {
-                        conflicts.add(FunctionId.of(f) + ": forms " + prior + " and " + form);
+                    CoreFn prior = forms.put(FunctionId.of(f), e.getKey());
+                    if (prior != null && prior != e.getKey()) {
+                        conflicts.add(FunctionId.of(f) + ": forms " + prior + " and " + e.getKey());
                     }
                 }
             }
@@ -116,12 +122,11 @@ public final class ImplementationTable {
 
         // the refusals, each with its reason
         Map<FunctionId, Implementation.Refused> refused = new LinkedHashMap<>();
-        for (String fqn : Pure.walledNativeFqns()) {
-            refuse(fqn, new Implementation.Refused(Implementation.Reason.CANNOT_IMPLEMENT,
-                    java.util.Objects.requireNonNull(Pure.walledNativeReason(fqn))), "Pure.WALLED_NATIVES",
-                    declarations, refused, dangling);
+        for (var e : registrations.walledNatives().entrySet()) {
+            refuse(e.getKey(), new Implementation.Refused(Implementation.Reason.CANNOT_IMPLEMENT, e.getValue()),
+                    "walled native", declarations, refused, dangling);
         }
-        for (var wall : WalledBodies.reasons().entrySet()) {
+        for (var wall : registrations.walledBodies().entrySet()) {
             if (declarations.at(wall.getKey()).isEmpty()) {
                 // a walled CLASS MEMBER body (a lifted derived property or
                 // constraint), not a function declaration: reported apart
@@ -132,12 +137,12 @@ public final class ImplementationTable {
                 case ENGINE_MACHINERY -> Implementation.Reason.ENGINE_MACHINERY;
                 case CANNOT_IMPLEMENT -> Implementation.Reason.CANNOT_IMPLEMENT;
             };
-            refuse(wall.getKey(), new Implementation.Refused(reason, wall.getValue().why()), "WalledBodies",
+            refuse(wall.getKey(), new Implementation.Refused(reason, wall.getValue().why()), "walled body",
                     declarations, refused, dangling);
         }
-        for (Subsumed s : Subsumed.values()) {
-            refuse(s.fqn(), new Implementation.Refused(Implementation.Reason.MOOT,
-                    "subsumed: its value is never needed on this platform"), "Subsumed",
+        for (String fqn : registrations.subsumed()) {
+            refuse(fqn, new Implementation.Refused(Implementation.Reason.MOOT,
+                    "subsumed: its value is never needed on this platform"), "subsumed",
                     declarations, refused, dangling);
         }
 
@@ -145,9 +150,11 @@ public final class ImplementationTable {
         Map<FunctionId, Implementation> rows = new LinkedHashMap<>();
         for (FunctionId id : declarations.ids()) {
             Set<Implementation.Position> ps = positions.getOrDefault(id, Set.of());
-            List<String> fs = families.getOrDefault(id, List.of());
+            Set<Feature> fo = overrides.getOrDefault(id, Set.of());
+            Set<Class<? extends NativeFn.Member>> fs = families.getOrDefault(id, Set.of());
             CoreFn form = forms.get(id);
             Implementation.Refused refusal = refused.get(id);
+            boolean implemented = !ps.isEmpty() || !fs.isEmpty();
             Implementation row;
             if (form != null) {
                 if (refusal != null) {
@@ -155,12 +162,12 @@ public final class ImplementationTable {
                 }
                 row = new Implementation.Form(form, ps, fs);
             } else if (refusal != null) {
-                if (!ps.isEmpty() || !fs.isEmpty()) {
-                    conflicts.add(id + ": refused (" + refusal.reason() + ") and implemented " + ps + fs);
+                if (implemented) {
+                    conflicts.add(id + ": refused (" + refusal.reason() + ") and implemented " + ps + " " + fs);
                 }
                 row = refusal;
-            } else if (!ps.isEmpty() || !fs.isEmpty()) {
-                row = new Implementation.Intrinsic(ps, fs);
+            } else if (implemented) {
+                row = new Implementation.Intrinsic(ps, fo, fs);
             } else if (declarations.get(id) instanceof FunctionDefinition) {
                 row = new Implementation.Body();
             } else {
@@ -169,19 +176,6 @@ public final class ImplementationTable {
             rows.put(id, row);
         }
         return new ImplementationTable(rows, dangling, conflicts, memberWalls);
-    }
-
-    private static void registerKeys(Set<String> keys, Implementation.Position position,
-            Map<String, FunctionId> catalogKey, DeclarationTable declarations,
-            Map<FunctionId, Set<Implementation.Position>> positions, List<String> dangling) {
-        for (String key : keys) {
-            FunctionId id = catalogKey.get(key);
-            if (id == null || declarations.get(id) == null) {
-                dangling.add(position + " " + key);
-                continue;
-            }
-            positions.computeIfAbsent(id, k -> EnumSet.noneOf(Implementation.Position.class)).add(position);
-        }
     }
 
     private static void refuse(String fqn, Implementation.Refused refusal, String source,

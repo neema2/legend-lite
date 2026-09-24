@@ -56,6 +56,13 @@ class DeclarationTableTest {
     }
 
     @Test
+    void theSameBodyTwiceIsOneDeclaration() {
+        List<Function> fs = new ArrayList<>(declare("function my::pkg::one(x:Integer[1]):Integer[1] { $x }"));
+        fs.addAll(declare("function my::pkg::one(x:Integer[1]):Integer[1] { $x }"));
+        assertEquals(1, DeclarationTable.of(fs).size());
+    }
+
+    @Test
     void twoDifferentBodiesUnderOneIdAreRefused() {
         List<Function> fs = new ArrayList<>(declare("function my::pkg::one(x:Integer[1]):Integer[1] { $x }"));
         fs.addAll(declare("function my::pkg::one(x:Integer[1]):Integer[1] { 1 }"));

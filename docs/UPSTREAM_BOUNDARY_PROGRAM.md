@@ -225,60 +225,53 @@ Every upstream fact in `core` becomes a generated resource with a parity test in
   `Type` methods; the 7 inline `meta::…::Any` literals are deleted.
 - Protocol — **no resource**: live differential in `parser-equivalence` (workstream F).
 
-### D — The implemented surface (the Pure.java clean-up)
+### D — The implemented surface: the untangle (rewritten 2026-09-24)
 
-This is the workstream the homework under-specified, and the one §0 governs.
+D as first written (claims registry, membership, generated text — batches 3, 4, 5 below)
+LANDED, and the platform-architecture study of 2026-09-23/24
+(`~/legend/platform-architecture/PLATFORM_ARCHITECTURE.md`) then measured what it left:
+the catalog is a faithful copy of upstream's declarations (787 EXACT, **0 DIVERGENT**) but
+an INCOMPLETE one (**191 overloads missing at 77 FQNs**, 185 of them bodied upstream), and
+the compiler papers over the gaps with FQN-level suppressions (the PCT-twin rule in
+`FunctionCompiler`, `isPlatformOwnedFunction`, `CORE_FUNCTION_PACKAGES`, `Scalars.KNOWN_ABSENT`,
+bare-name `nativeKeysAt` registrations, `CoreFn.of`'s name-tail dispatch) and then throws
+the resolved function away: **824 sites** re-derive identity from a string (`identity-sites.tsv`).
+The `indexOf` / `max` / `stdDev` channel-B regressions the first switch attempt caused were
+that incompleteness surfacing. D is therefore re-chartered as the **untangle**: a
+strangler-fig over the two decision points, with a differential at every step.
 
-**D1. One registry of claims.** Today an implementer is one of: a key in
-`Scalars.RULES` (455), `Windows.FNS` (18), `Windows.AGGREGATES` (2),
-`Aggregates.REDUCERS` (97); a `CoreFn` arm (61 members); a `WALLED_NATIVES` entry (6,
-with reasons); or one of **~80 files** that pattern-match a callee ad hoc (asserts,
-collection lanes, calendar aggregates, the desugar IR). Make every one of those a
-**claim** against a Pure.java overload — registry key, `CoreFn` arm, wall, or an explicit
-`claims(Pure.X)` from an ad-hoc site. One test: every Pure.java overload has **exactly
-one** claim; every claim names a Pure.java overload. The probe that motivates this is
-receipted in the homework §3n: 469 registry keys + 136 CoreFn overloads + 6 walls cover
-611 of 881 overloads; **270 overloads / 175 FQNs are claimed by no registry.** Classified
-against the ~80 ad-hoc sites, the 175 split three ways (§3n):
+**Rulings (standing, from the user).** No string identity for a resolved function — a
+function's identity is its `FunctionId` (upstream's own signature id), compared whole,
+never cut, affixed or prefix-tested; **no compiler reference to PCT or to any category of
+function** ("that just means we are hacking around our generic capability"); a string
+hack found on the path is FIXED as part of the slice, never left and never added to;
+probe before switching — every switch is preceded by a logged disagreement census;
+each slice goes to main on the full local chain, green; this program owns every file it
+needs — everything else is frozen until it finishes.
 
-| | FQNs | what it is |
-|---|---:|---|
-| **implemented off-registry** | **70** | a real lowering no registry sees — `CalendarAgg` handles 32 calendar dates, `AssertVerdicts` 14 asserts, `Lowerer`/`Lexicon`/`Fold`/`JoinChecker` the rest. These are the "scalar functions that DO get lowered"; the registry just cannot see them |
-| **grey — front-end only** | **35** | named only in `Typer`/`LiteralUnroll`/`ExecuteChainAssembly`/`ContextReading`/…: type-checked or desugared (`dynamicNew`, `enumValues`, `sourceInformation`, the three post-processors), possibly never lowered as a call. Each needs one look |
-| **certainly unimplemented** | **70** | 39 named nowhere + 31 named only as a `PlatformTypes`/`SystemMetamodel` constant: 13 reflection (`reactivate`, `pathToElement`, `openVariableValues`, …), 6 `toDDL`, 6 `execute::fetch*`/`loadCsv`, 4 `sqlstring::toSQL*`, 4 `lineage::scan*`, 3 `executionPlan`, `noDebug`, `resolveStore`, … (full list: homework §3n appendix) |
+**The two decision points.** Everything the tables replace is one of: (1) the overload
+set the typer chooses from (`FunctionCompiler.functionsAt`); (2) the implementation the
+lowering picks for a resolved function. Every suppression, list and string site is a
+proxy for one of those two. The untangle moves each decision onto the tables and deletes
+the proxy behind it.
 
-So the work is **both** things the question asks: make the 70 real implementations
-*claim* what they implement (so the registry can see them), and move the 70 that nothing
-implements out of Pure.java. The 35 grey are adjudicated one by one as part of D1. And
-the two 70s are a coincidence of counting, not a symmetry.
+| step | what | receipt | status |
+|---|---|---|---|
+| 0 | **Guardrail.** `IdentityGuardrailTest`: comment-stripped whole-file scan of nine string-identity shapes, shrink-only pins (NAME_COMPARE 214, REVERSED 94, LITERAL 65, AFFIX 53, CUTTING 106, SIGNATURE_ID_CUTTING 1, CATALOG_LOOKUP_BY_NAME 180, FAMILY_LOOKUP_BY_NAME 89, FUNCTION_CATEGORY_CHECK 19). The bleeding stops before the surgery | `identity-sites.tsv` | LANDED 2026-09-24 |
+| 1 | **Census.** `CatalogUpstreamDiffTest`: every catalog overload against the pinned trees' declaration of the same id. 787 EXACT / 0 DIVERGENT (pinned 0) / 43 NOT_UPSTREAM (`meta::legend::lite`) / 191 MISSING at 77 FQNs / 16 unreadable files (none stdlib). Pins shrink-only | `catalog-upstream-diff.tsv` | LANDED 2026-09-24 |
+| 2 | **Tables beside.** `com.legend.platform`: `FunctionId` (generated by `SignatureMangle.mangle`, compared whole); `DeclarationTable` (one declaration per id — a catalog native and upstream's bodied twin are ONE declaration, the bodied one kept; two different bodies refuse); `Implementation` (sealed: Form / Intrinsic / Body / Unimplemented / Refused(reason)); `ImplementationTable.build(declarations, registrations)` — total by construction, every registration read exactly (a lowering key matched whole to the catalog definition that generated it; a family member's overloads ARE definitions; forms, walls and subsumed programs name exact FQNs), dangling and conflicting registrations REPORTED never resolved; `Registrations` is a value (`current()` reads the registries; tests hand-write them). Over catalog + stdlib + upstream declarations: 3,157 rows, 0 dangling, 0 conflicts; 63 FQNs where an implemented row sits beside a Body/Unimplemented twin (146 rows) — the shadow targets | `implementation-table.tsv`; `ImplementationTableTest` (core: every builder path; spec: the real registrations) | LANDED 2026-09-24 |
+| 3 | **Shadow diff, narrowed.** Instrument the two decision points only: log the overload set `functionsAt` returns vs `DeclarationTable.at(fqn)`, and the implementation lowering picks vs `ImplementationTable.of(id)`, across every suite (corpus, PCT both channels, census, parity). Zero code paths change. Every disagreement is classified before step 4 touches anything; `indexOf`'s regression cause is named here | a disagreement census, per suite, per class | NEXT |
+| 4 | **Switch and delete, one consumer at a time.** Each switch deletes the proxy behind it in the same commit: the PCT-twin rule; `isPlatformOwnedFunction`; `CORE_FUNCTION_PACKAGES`; bare-name `nativeKeysAt`; `CoreFn.of`'s name-tail fallback (the explicit `OWNS` map replaces it); `Scalars.KNOWN_ABSENT`. The missing 191 overloads enter the declaration table as upstream's bodies (2b: whole stdlib resource vs library-only is decided HERE, by measurement). **CHECKPOINT: the first switch lands green with no new special case, or the program stops and the design is wrong** | corpus/PCT/census counts (expect PCT UP: suppressed bodies run); guardrail pins DOWN | |
+| 5 | **Carry the resolved function.** The typer's resolution result travels as the `Function` (its `FunctionId`) through lowering; each of the 824 string sites becomes a table lookup or a typed family check; the identity pins ratchet to **0** for identity dispatch (category checks and literal compares included). The last `SignatureMangle.resolve` site (`Typer`, function-reference arm) goes with it | `IdentityGuardrailTest` pins → 0; `native-membership.tsv` / `native-claims.tsv` retire (the table is the surface) | |
+| 6 | **Bazel follows the seams.** Packages and targets cut where the tables cut: declarations (parser + tables, java.base-only) / lowering / execution. Task #6/#8 territory — after 5, never before | `//tools/deps` guards | |
 
-**D2. Unclaimed entries leave Pure.java.** Whatever D1 leaves unclaimed (≥ 42, ≤ 175
-FQNs) is not implemented and must not claim to be. Each moves to the right column: if
-upstream has a Pure body, the prelude **carries the body** (114 of the 175 are
-upstream-bodied — we can *run* them); if upstream is native-only, the prelude carries a
-**respelled `native function`** (37 of the 175). Today **between 8 and 25** upstream
-Pure implementations are *suppressed* by the prelude's platform-owned rule because we
-declared a native we never lowered — those start working the day their signature leaves.
-
-**D3. The prelude's exclusion rule keys on the claim registry**, not on "Pure.java
-declares it". Once D2 lands the two coincide; the rule then stays correct by
-construction. The generator also **stops skipping upstream natives** (today it drops
-them by token position — `native` precedes `function`) and carries them respelled: the
-**44** upstream natives we do not declare at all — `lang::new`, `lang::copy`,
-`meta::newClass`, `meta::newProperty`, `meta::tag`, … — stop being "unknown function"
-and become "not implemented: X", which is the truth.
-
-**D4. Signature text verified, then generated.** Every remaining Pure.java FQN's
-signature is compared against upstream's declaration of the same FQN — native *or*
-bodied, the signature is identical either way. Three buckets: match; **same FQN,
-different signature** (the silent divergence nothing sees today); ours-only (must be
-`meta::legend::lite`). Then flip from verify to generate: the text comes from the
-checkout, the membership from the claim registry, and drift is impossible rather than
-detected.
-
-**D5. Delete the stale hand lists this exposes.** `Scalars.KNOWN_ABSENT` ("names known
-to be ABSENT from our catalog") has 39 entries of which **38 are now present** — 97%
-stale, harmless only because its branch is dead. It is the pattern in miniature.
+**What D's old text got wrong, kept for the record.** "Every overload has exactly one
+claim" was false (a function lowers differently by position — the table records POSITIONS,
+one implementation); "membership is our decision" was half right — membership of the
+*implementation* is ours, but the *declaration* universe is upstream's whole and the
+catalog must not be a subset of it that the compiler quietly completes with name rules.
+The 2b question (whole stdlib as a resource, or library-only) is still open and is decided
+at step 4 with the corpus and PCT numbers in hand, not before.
 
 ### E — Loud, not silent
 

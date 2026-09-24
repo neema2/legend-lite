@@ -3,9 +3,10 @@
 
 package com.legend.platform;
 
+import com.legend.builtin.NativeFn;
 import com.legend.compiler.spec.CoreFn;
+import com.legend.compiler.spec.typed.Feature;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -21,22 +22,25 @@ public sealed interface Implementation {
      * lowering registrations it delegates its generic shape to
      * ({@code collection::distinct} through a scalar rule), and families that
      * co-register the same function (recorded, so the co-ownership is visible). */
-    record Form(CoreFn form, Set<Position> alsoLowered, List<String> alsoFamilies)
+    record Form(CoreFn form, Set<Position> alsoLowered, Set<Class<? extends NativeFn.Member>> alsoFamilies)
             implements Implementation {
         public Form {
             Objects.requireNonNull(form, "form");
             alsoLowered = Set.copyOf(alsoLowered);
-            alsoFamilies = List.copyOf(alsoFamilies);
+            alsoFamilies = Set.copyOf(alsoFamilies);
         }
     }
 
     /** The platform's own implementation; any upstream body is not used. One
      * function may lower in several POSITIONS (max: a scalar rule over a
-     * collection, and a SQL aggregate inside a group) — one implementation. */
-    record Intrinsic(Set<Position> positions, List<String> families) implements Implementation {
+     * collection, and a SQL aggregate inside a group) — one implementation. A
+     * feature flag may select another scalar rule for it. */
+    record Intrinsic(Set<Position> positions, Set<Feature> featureOverrides,
+            Set<Class<? extends NativeFn.Member>> families) implements Implementation {
         public Intrinsic {
             positions = Set.copyOf(positions);
-            families = List.copyOf(families);
+            featureOverrides = Set.copyOf(featureOverrides);
+            families = Set.copyOf(families);
             if (positions.isEmpty() && families.isEmpty()) {
                 throw new IllegalArgumentException("an intrinsic registers at least one position or family");
             }
@@ -79,7 +83,7 @@ public sealed interface Implementation {
         /** a program whose value is never needed here: Subsumed */
         MOOT,
         /** a native the platform cannot implement (an effect with no database
-         *  meaning): Pure.WALLED_NATIVES */
+         *  meaning), or a capability it does not model (reflection) */
         CANNOT_IMPLEMENT
     }
 }
