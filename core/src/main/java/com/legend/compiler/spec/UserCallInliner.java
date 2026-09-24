@@ -290,7 +290,7 @@ public final class UserCallInliner {
         }
         String wall = WalledBodies.reason(call.callee().qualifiedName());
         if (wall != null) {
-            throw new NotImplementedException("walled body '" + call.callee().qualifiedName()
+            throw new com.legend.error.WalledBodyException("walled body '" + call.callee().qualifiedName()
                     + "': " + wall);
         }
         if (budget.exceeded()) {

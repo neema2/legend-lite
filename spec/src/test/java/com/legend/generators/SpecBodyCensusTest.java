@@ -52,11 +52,8 @@ public class SpecBodyCensusTest {
 
     public static final List<String> PLATFORM_ROOTS = UpstreamFiles.PLATFORM_ROOTS;
 
-    /** The name prefix of an engine-half standard-library source. */
-    static final String STDLIB_PREFIX = "stdlib:";
-
     /** The core_functions_* failure ceiling — shrink-only to zero. */
-    static final int STDLIB_FAILURES_MAX = 8;
+    static final int STDLIB_FAILURES_MAX = 6;
 
     @Test
     @DisplayName("typing census: every Pure body in legend-pure's platform packages typed once, failures as rows")
@@ -92,49 +89,45 @@ public class SpecBodyCensusTest {
             try (Stream<Path> walk = Files.walk(root)) {
                 for (Path f : walk.filter(p -> p.toString().endsWith(".pure")).sorted(java.util.Comparator.comparing(SpecBodyCensusTest::slash)).toList()) {
                     sources.add(new Compiler.ModelSource(
-                            r.substring(r.lastIndexOf('/') + 1) + ":"
-                                    + slash(root.relativize(f)),
+                            root.getFileName() + ":" + slash(root.relativize(f)),
                             Files.readString(f, StandardCharsets.UTF_8)));
                 }
             }
         }
         // THE ENGINE HALF OF THE STANDARD LIBRARY (the five core_functions_*
-        // repositories, with the nine roots above upstream's own "core"): their
-        // sources ride the same model under a "stdlib:" name prefix, so a body's
-        // scope is known when its row is reported
+        // repositories, with the nine roots above upstream's own "core"). A
+        // failing body's scope is its DECLARATION's: the signature ids of every
+        // function these files declare, generated from each declaration
+        // (SignatureMangle.mangle) — membership, never a test on a name
         Path engine = com.legend.testing.Upstream.engine();
+        java.util.Set<String> engineHalfIds = new java.util.HashSet<>();
         for (String r : UpstreamFiles.STDLIB_ENGINE_ROOTS) {
             Path root = engine.resolve(r);
             org.junit.jupiter.api.Assertions.assertTrue(Files.isDirectory(root),
                     "STDLIB_ENGINE_ROOTS missing under " + engine + ": " + r);
-            String repo = r.substring(0, r.indexOf("/src/main/resources"));
-            repo = repo.substring(repo.lastIndexOf('/') + 1);
+            // <repository>/src/main/resources: the repository directory names the source
+            Path repo = root.getParent().getParent().getParent().getFileName();
             try (Stream<Path> walk = Files.walk(root)) {
                 for (Path f : walk.filter(p -> p.toString().endsWith(".pure")).sorted(java.util.Comparator.comparing(SpecBodyCensusTest::slash)).toList()) {
-                    sources.add(new Compiler.ModelSource(STDLIB_PREFIX + repo + ":"
-                            + slash(root.relativize(f)), Files.readString(f, StandardCharsets.UTF_8)));
+                    String text = Files.readString(f, StandardCharsets.UTF_8);
+                    sources.add(new Compiler.ModelSource(repo + ":" + slash(root.relativize(f)), text));
+                    for (PackageableElement el : com.legend.parser.ElementParser.parse(text,
+                            com.legend.parser.Dialect.LEGEND_PLATFORM).elements()) {
+                        if (el instanceof com.legend.model.Function fn) {
+                            engineHalfIds.add(com.legend.model.SignatureMangle.mangle(fn));
+                        }
+                    }
                 }
             }
         }
         List<String> loadWalls = new ArrayList<>();
         ModelContext ctx = null;
-        java.util.Map<String, String> elementSources = java.util.Map.of();
         int fileCount = sources.size();
-        // the spec's NATIVE names (simple) — the running-world pass buckets
-        // an unknown function by the spec's marking (native vs program)
-        java.util.Set<String> specNativeNames = new java.util.HashSet<>();
         for (int round = 0; round < 400 && ctx == null; round++) {
             List<String> parseWalls = new ArrayList<>();
             Compiler.ParsedModule module = Compiler.parseSources(sources,
                     (name, err) -> parseWalls.add(name + ": PARSE " + first(err)),
                     com.legend.parser.Dialect.LEGEND_PLATFORM);
-            specNativeNames.clear();
-            for (PackageableElement e : module.model().elements()) {
-                if (e instanceof com.legend.model.NativeFunctionDefinition n) {
-                    String q = n.qualifiedName();
-                    specNativeNames.add(q.substring(q.lastIndexOf(':') + 1));
-                }
-            }
             // the spec's native declarations are the SPEC of natives the
             // registry defines — the registry is the definition; they drop
             List<PackageableElement> kept = module.model().elements().stream()
@@ -146,7 +139,6 @@ public class SpecBodyCensusTest {
                     module.model().unclaimedSections());
             try {
                 ctx = Compiler.buildModel(pruned);
-                elementSources = module.model().elementSources();
                 loadWalls.addAll(parseWalls);
             } catch (com.legend.error.ModelException e) {
                 String el = e.element();
@@ -169,6 +161,7 @@ public class SpecBodyCensusTest {
         SpecCompiler specs = new SpecCompiler(ctx);
         List<String> ok = new ArrayList<>();
         Map<String, String> failures = new TreeMap<>();
+        Map<String, String> stdlibFailures = new TreeMap<>();
         Map<String, String> walled = new TreeMap<>();   // WalledBodies: refused by decision, with a reason
         Map<String, Integer> byReason = new TreeMap<>();
         int natives = 0;
@@ -196,37 +189,20 @@ public class SpecBodyCensusTest {
                     ok.add(id);
                 } catch (RuntimeException e) {
                     String msg = first(e.getMessage());
-                    if (e instanceof com.legend.error.NotImplementedException
-                            && String.valueOf(e.getMessage()).startsWith("walled body '")) {
+                    if (e instanceof com.legend.error.WalledBodyException) {
                         walled.put(id, msg);   // WalledBodies: refused by decision
                         continue;
                     }
-                    failures.put(id, e.getClass().getSimpleName() + " " + msg + at(e));
+                    // the engine half's rows are their own scope, with their own pin
+                    boolean engineHalf = fn.definition() != null && engineHalfIds.contains(
+                            com.legend.model.SignatureMangle.mangle(fn.definition()));
+                    (engineHalf ? stdlibFailures : failures).put(id,
+                            e.getClass().getSimpleName() + " " + msg + at(e));
                     bump(byReason, reasonClass(msg));
                 }
             }
         }
 
-        // 2b. THE RUNNING WORLD (COMPILE_EVERYTHING_HOMEWORK §6): every
-        // failing body of a prelude class from an ENGINE file re-typed in
-        // the world it runs in (boot + platform packages + its own spec
-        // file + the corpus's library files), then bucketed by the spec's
-        // marking. A measurement: no arm, no registration.
-        // the engine half's rows are their own scope: its own pin below, and the
-        // running-world pass (a boot-prelude instrument) sees platform rows only
-        Map<String, String> stdlibFailures = new TreeMap<>();
-        for (var it = failures.entrySet().iterator(); it.hasNext(); ) {
-            var row = it.next();
-            String fqn = row.getKey().contains("(") ? row.getKey().substring(0, row.getKey().indexOf('(')) : row.getKey();
-            String src = elementSources.get(fqn);
-            if (src != null && src.startsWith(STDLIB_PREFIX)) {
-                stdlibFailures.put(row.getKey(), row.getValue());
-                it.remove();
-            }
-        }
-        Path engineRoot = engine;
-        CensusWorlds.Report worlds = CensusWorlds.run(sources, failures,
-                specNativeNames, engineRoot);
 
         // 3. REPORT
         List<String> out = new ArrayList<>();
@@ -248,12 +224,6 @@ public class SpecBodyCensusTest {
         out.add("## core_functions_* typing failures (shrink-only to zero): " + stdlibFailures.size());
         stdlibFailures.forEach((k, v) -> out.add(k + " :: " + v));
         out.add("");
-        out.add("## running-world pass (COMPILE_EVERYTHING_HOMEWORK §6) — buckets: " + worlds.buckets());
-        out.add("## running-world walls: " + worlds.worldWalls());
-        for (CensusWorlds.Row r : worlds.rows()) {
-            out.add(r.bucket() + " | " + r.id() + " | " + r.detail()
-                    + (r.runningMessage() == null ? "" : " | running: " + r.runningMessage()));
-        }
         Files.createDirectories(Repo.outDir());
         Files.write(Repo.out("spec-body-census.txt"), out);
         System.out.println("[spec-census] files=" + fileCount + " loadWalls=" + loadWalls.size()
@@ -304,33 +274,20 @@ public class SpecBodyCensusTest {
         // caller's T with the callee's; SignatureApart renames the callee's
         // parameters apart — plus two signature-id references the resolver
         // cut to the wrong package (function ids now join the name universe).
-        // 8 remain, five causes: variant get over a class, variant to/toMany
-        // at 4 arguments, wavg, relation::eval, relation::reduce.
+        // 8 -> 6: relation::eval (@Column<Nil,Z|0..1>'s multiplicity argument
+        // dropped in value position — TypeAnnotations) and relation::reduce (a
+        // generic caller's own X⊆T handed to sort — the kernel unifies the two
+        // symbolic constraints side by side). The 6 left are one cause: calls to
+        // upstream overloads the catalog does not declare (CatalogUpstreamDiffTest
+        // MISSING) — collection::get<T>(T[*], String[1]) twice, variant
+        // to/toMany with a type lookup three times, and wavg(Number[*], Number[*]),
+        // which upstream's wavg(RowMapper[*]) body calls. They leave when the
+        // declarations come from upstream whole (the untangle, steps 2-4).
         org.junit.jupiter.api.Assertions.assertTrue(stdlibFailures.size() <= STDLIB_FAILURES_MAX,
                 () -> "core_functions_* typing failures GREW: " + stdlibFailures.size() + " > "
                         + STDLIB_FAILURES_MAX + " (shrink-only):\n  " + String.join("\n  ", stdlibFailures.keySet()));
         org.junit.jupiter.api.Assertions.assertTrue(loadWalls.size() <= 1,
                 () -> "spec body census load walls GREW: " + loadWalls);
-        System.out.println("[spec-census] runningWorld buckets=" + worlds.buckets()
-                + " walls=" + worlds.worldWalls().size());
-        // THE BUCKET PINS (COMPILE_EVERYTHING_HOMEWORK §3, §6 — shrink-only,
-        // measured batch 168): B1 natives the registry lacks; B2 program
-        // functions in no loaded world (the census's world is wrong, or a
-        // file no program loads — D2); B3 walled by user decision (the SQL
-        // printer, D1); B4 typer/normalizer gaps. TYPED-IN-RUNNING-WORLD
-        // rows are closed rows, not failures.
-        java.util.Map<String, Integer> pins = java.util.Map.of(
-                "B1-NATIVE-UNREGISTERED", 1,
-                "B2-PROGRAM-NOT-LOADED", 5,
-                "B2b-NAME-FROZEN-AT-BOOT", 5,
-                "B3-WALLED-BY-DECISION", 7,
-                "B4-TYPER-GAP", 1);
-        for (var pin : pins.entrySet()) {
-            int n = worlds.buckets().getOrDefault(pin.getKey(), 0);
-            org.junit.jupiter.api.Assertions.assertTrue(n <= pin.getValue(),
-                    () -> "census bucket " + pin.getKey() + " GREW: " + n + " > "
-                            + pin.getValue() + " pinned (shrink-only)");
-        }
     }
 
     /** A coarse reason class for the summary — the rows carry the full text. */

@@ -84,7 +84,7 @@ public final class SpecCompiler {
         // a WALLED body (WalledBodies): never typed — the wall, named
         String wall = WalledBodies.reason(fn.qualifiedName());
         if (wall != null) {
-            throw new com.legend.error.NotImplementedException("walled body '"
+            throw new com.legend.error.WalledBodyException("walled body '"
                     + fn.qualifiedName() + "': " + wall);
         }
         CompiledFunction cf;
