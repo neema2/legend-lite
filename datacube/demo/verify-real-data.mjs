@@ -22,8 +22,9 @@ import { createServer } from 'node:http';
 import { open, readFile, stat } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const DATA = process.env.DATA ?? process.env.PARQUET;
 const FORMAT = process.env.FORMAT ?? 'parquet';
 if (!DATA) {

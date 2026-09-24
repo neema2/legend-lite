@@ -22,8 +22,9 @@ import { chromium } from 'playwright';
 
 import { gridInvariants } from './grid-invariants.mjs';
 import { sampleCsv } from '../src/samples.ts';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
 /**
  * THE SWEEP OPENS A FILE, ALWAYS.

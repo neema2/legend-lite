@@ -17,11 +17,12 @@ import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { chromium } from 'playwright';
+import { fileURLToPath } from 'node:url';
 
 // Serve the datacube/ directory, not demo/: index.html links its
 // stylesheets as ../src/*.css, so a demo-rooted server 404s them
 // and the page renders unstyled. The real demo is served from here.
-const ROOT = new URL('..', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TYPES = {
   '.html': 'text/html',
   '.js': 'text/javascript',

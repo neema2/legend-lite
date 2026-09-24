@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 
 import { PlanError } from '../src/planner.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import {
+  fileUrlToPath,
   PlannerUnavailableError,
   WasmPlanner,
 } from '../src/wasm-planner.ts';
@@ -277,4 +279,36 @@ describe('WasmPlanner', () => {
     await assert.rejects(() => p.plan('g', SNAPSHOT),
       PlannerUnavailableError);
   });
+});
+
+describe('fileUrlToPath', () => {
+  // Node's own fileURLToPath is the reference; WasmPlanner cannot import
+  // it (it is bundled for the browser too). Both platform modes are
+  // checked on every platform, so a Windows-only fault fails on a Mac.
+  const VALID = [
+    'file:///C:/users/runneradmin/_bazel/x/wasm/planner/classes.wasm',
+    'file:///c:/lower/drive.wasm',
+    'file:///D:/a%20space/%E6%97%A5%E6%9C%AC/classes.wasm',
+    'file://server/share/planner/classes.wasm',
+    'file:///tmp/wasm/planner/classes.wasm',
+    'file:///Users/me/a%20b/classes.wasm',
+  ];
+
+  for (const windows of [true, false]) {
+    for (const url of VALID) {
+      it(`matches node's fileURLToPath (windows: ${windows}) for ${url}`, () => {
+        let expected: string | Error;
+        try {
+          expected = fileURLToPath(url, { windows });
+        } catch (e) {
+          expected = e as Error;
+        }
+        if (expected instanceof Error) {
+          assert.throws(() => fileUrlToPath(url, windows));
+        } else {
+          assert.equal(fileUrlToPath(url, windows), expected);
+        }
+      });
+    }
+  }
 });

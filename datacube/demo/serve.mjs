@@ -20,8 +20,9 @@ import { createServer } from 'node:http';
 import { execFileSync } from 'node:child_process';
 import { open, readFile, stat } from 'node:fs/promises';
 import { basename, extname, join, normalize, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const HERE = new URL('.', import.meta.url).pathname;
+const HERE = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = resolve(HERE, '..');
 
 const args = process.argv.slice(2);

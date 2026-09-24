@@ -209,7 +209,7 @@ export class WasmPlanner implements Planner {
     // reads like a missing WASM-GC feature. Hand each the form it
     // actually takes.
     const wasmUrl = base.startsWith('file:')
-      ? decodeURIComponent(new URL(`${base}classes.wasm`).pathname)
+      ? fileUrlToPath(`${base}classes.wasm`, onWindows())
       : `${base}classes.wasm`;
     const importRuntime = this.#options.loadRuntime
       ?? ((url: string) => import(/* @vite-ignore */ url) as Promise<TeavmRuntime>);
@@ -384,3 +384,37 @@ export class WasmPlanner implements Planner {
     return this.#cache.size;
   }
 }
+
+/**
+ * A `file:` URL as the path Node's filesystem opens -- Node's own
+ * `url.fileURLToPath`, which this file cannot import: it is bundled for
+ * the browser too, where `node:url` does not resolve. It only runs
+ * under Node (a browser never hands the loader a `file:` URL).
+ *
+ * The URL's pathname alone is NOT the path on Windows: `/C:/x/y`
+ * opened there is `C:\C:\x\y` (CI, 2026-09-23 — every case of the
+ * WASM differential refused with that ENOENT). Pinned against
+ * `fileURLToPath(url, { windows })` in both modes by
+ * test/wasm-planner.test.ts, on every platform.
+ */
+export function fileUrlToPath(url: string, windows: boolean): string {
+  const u = new URL(url);
+  if (u.protocol !== 'file:') throw new TypeError(`not a file: URL: ${url}`);
+  const path = decodeURIComponent(u.pathname);
+  if (!windows) {
+    if (u.hostname !== '') throw new TypeError(`a file: URL with a host has no POSIX path: ${url}`);
+    return path;
+  }
+  // A host is a UNC share (\\server\share\...); otherwise the path
+  // must start with a drive letter, and loses the URL's leading slash.
+  if (u.hostname !== '') return `\\\\${u.hostname}${path.replace(/\//g, '\\')}`;
+  if (!/^\/[A-Za-z]:\//.test(path)) throw new TypeError(`a Windows file: URL needs a drive letter: ${url}`);
+  return path.slice(1).replace(/\//g, '\\');
+}
+
+/** Whether this is Node on Windows; false in a browser, which has no `process`. */
+function onWindows(): boolean {
+  const proc = (globalThis as { process?: { platform?: string } }).process;
+  return proc?.platform === 'win32';
+}
+

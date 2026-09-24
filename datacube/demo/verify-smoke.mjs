@@ -26,8 +26,9 @@ import { chromium } from 'playwright';
 
 import { SAMPLES } from '../src/samples.ts';
 import { gridInvariants } from './grid-invariants.mjs';
+import { fileURLToPath } from 'node:url';
 
-const ROOT = new URL('..', import.meta.url).pathname;
+const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const ONLY = process.env.ONLY;
 /**
  * Each sample's OWN size, capped for time -- not a flat small number.
