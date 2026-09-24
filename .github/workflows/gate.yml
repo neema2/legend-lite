@@ -30,7 +30,7 @@ on:
   workflow_dispatch:
     inputs:
       gates:
-        description: "Comma-separated lanes to run (empty = all): 1,checks,3,4,5,6,7,8,9,10,11."
+        description: "Comma-separated lanes to run (empty = all): 1,checks,3,4,5,6,7,8,9,10,app (4 includes the judge differential, once gate 11)."
         default: ""
         type: string
       platforms:

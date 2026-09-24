@@ -69,10 +69,23 @@ junit_test(
     upstream = True,
 )
 
-# Maven gate 4: the relational corpus against DuckDB.
+# Maven gates 4 and 11, ONE target: the relational corpus against DuckDB under
+# the HOST judge (gate 4) — run as the prerun, a child JVM, writing its per-assert
+# ledger — then under the DATABASE judge, which joins the two per assert in the
+# lane itself (MinimalCorpusTest.pinJudgeDifferential; gate 11). The host pass
+# carries every gate-4 assertion (the judge mode defaults to host; the ledger is a
+# write-only side effect), and a failing host pass fails the target before the
+# database pass runs. Until 2026-09-23 gate 4 was also its own target, so every
+# chain ran the host pass twice.
 junit_test(
     name = "corpus_duckdb",
     data = _INPUTS,
+    jvm_flags = [
+        "-Dlegend.prerun=legend.judge.mode=host,legend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
+        "-Dlegend.judge.mode=database",
+        "-Dlegend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-database.tsv",
+        "-Dlegend.judge.ledger.host=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
+    ],
     runtime_deps = [":spec_tests_lib"],
     select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
     upstream = True,
@@ -89,7 +102,7 @@ junit_test(
 )
 
 # the H2 corpus under the DATABASE judge (the fourth judge lane; DuckDB's is the
-# second pass of :judge_differential)
+# second pass of :corpus_duckdb)
 junit_test(
     name = "corpus_h2_database",
     data = _INPUTS,
@@ -121,26 +134,7 @@ test_suite(
         ":corpus_duckdb",
         ":corpus_h2",
         ":corpus_h2_database",
-        ":judge_differential",
     ],
-)
-
-# Maven gate 11: THE JUDGE DIFFERENTIAL. The DuckDB corpus under the HOST judge
-# writing its per-assert ledger (the prerun, a child JVM), then under the DATABASE
-# judge, which joins the two per assert in the lane itself
-# (MinimalCorpusTest.pinJudgeDifferential). Both passes are this target's own.
-junit_test(
-    name = "judge_differential",
-    data = _INPUTS,
-    jvm_flags = [
-        "-Dlegend.prerun=legend.judge.mode=host,legend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
-        "-Dlegend.judge.mode=database",
-        "-Dlegend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-database.tsv",
-        "-Dlegend.judge.ledger.host=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
-    ],
-    runtime_deps = [":spec_tests_lib"],
-    select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
-    upstream = True,
 )
 
 # ── THE GENERATORS ──────────────────────────────────────────────────────────────

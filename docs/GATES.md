@@ -13,14 +13,14 @@ commands (`mvn`, `tools/allgates.sh`, `-Dx.generate=1`) no longer exist.
 | 1 | `//core:core_tests` | the compiler suite + guardrails (NullAway runs on every compile) |
 | 2 | *(the build itself)* | NullAway is a compile error; the jar pools are one version each by construction; `//tools/deps:all` (below) |
 | 3 | `//spec:spec_tests` | spec parity: generators, census, manifest |
-| 4 | `//spec:corpus_duckdb` | the relational corpus on DuckDB |
+| 4 | `//spec:corpus_duckdb` | the relational corpus on DuckDB, host judge (the target's first pass) |
 | 5 | `//spec:corpus_h2` | the relational corpus on H2 |
 | 6 | `//pct:pct_duckdb` | the five PCT suites on DuckDB, one JVM (per suite: `//pct:pct_duckdb_<suite>`) |
 | 7 | `//pct:pct_h2` | PCT relation on H2 2.4.240: 469 tests, H2's 27 expected failures each pinned by message (`Test_LegendLite_H2_RelationFunctions_PCT`) |
 | 8 | `//parser-equivalence:parser_parity` | byte parity with legend-engine's parser |
 | 9 | `//pct:pct_channel_b` | Channel B dual-verdict suites |
 | 10 | `//core:stress_suites` | the stress corpus |
-| 11 | `//spec:judge_differential` | host judge, then database judge joined per assert |
+| 11 | `//spec:corpus_duckdb` | its second pass: the database judge, joined per assert to the host pass (one target with gate 4 since 2026-09-23 — the host pass ran twice before) |
 | app | `//datacube:tests`, `//wasm:all` | DataCube's suite and typecheck; the planner compiled to WebAssembly (TeaVM) and held to the JVM by differentials — its own corpus, DataCube's serialised cubes, the timezone database |
 
 Beside the gates, in `bazel test //...`:
