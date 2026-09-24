@@ -374,6 +374,15 @@ public final class InferenceKernel {
      * </ul>
      */
     private void unifyConstraint(Type.SchemaAlgebra sa, Type actual, Bindings b) {
+        // a GENERIC caller passing its OWN constrained value: the constraint is
+        // still symbolic on both sides (core_functions_relation reduce<T,V,U,X>'s
+        // sortInfo:SortInfo<X⊆T>[*] handed to sort<X,T>) — the two constraints
+        // unify side by side, never against a concrete row
+        if (actual instanceof Type.SchemaAlgebra asa && asa.op() == sa.op()) {
+            unify(sa.left(), asa.left(), b);
+            unify(sa.right(), asa.right(), b);
+            return;
+        }
         if (!(Type.schemaView(actual) instanceof Type.RelationType actualRow)) {
             throw new TypeInferenceException("expected a column specification (a row-struct), got "
                     + actual.typeName());

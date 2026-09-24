@@ -122,7 +122,7 @@ final class TypeClassifier {
                 List<com.legend.compiler.element.type.Multiplicity> margs =
                         new ArrayList<>(g.multiplicityArguments().size());
                 for (String ma : g.multiplicityArguments()) {
-                    margs.add(multArgument(ma));
+                    margs.add(com.legend.compiler.element.type.Multiplicity.ofArgument(ma));
                 }
                 yield new Type.GenericType(g.name(), args, margs);
             }
@@ -165,35 +165,6 @@ final class TypeClassifier {
 
     static Multiplicity multiplicity(com.legend.protocol.Multiplicity m) {
         return Multiplicity.from(m);
-    }
-
-    /** One multiplicity ARGUMENT spelling ({@code Result<T|m>}'s
-     * {@code m}, {@code Result<X|1>}'s {@code 1}, {@code |0..1},
-     * {@code |*}): a bare name is a VARIABLE, everything else is the
-     * ordinary bounds grammar. */
-    private static com.legend.compiler.element.type.Multiplicity
-            multArgument(String spelling) {
-        String s = spelling.strip();
-        if ("*".equals(s)) {
-            return com.legend.compiler.element.type.Multiplicity
-                    .Bounded.ZERO_MANY;
-        }
-        // the bounds grammar is fully decidable by SHAPE — no
-        // exception-as-control-flow (ErrorShape guard): digits, or
-        // digits..digits|*, else a VARIABLE name
-        if (s.matches("[0-9]+")) {
-            int n = Integer.parseInt(s);
-            return new com.legend.compiler.element.type.Multiplicity
-                    .Bounded(n, n);
-        }
-        if (s.matches("[0-9]+\\.\\.([0-9]+|\\*)")) {
-            int dots = s.indexOf("..");
-            String up = s.substring(dots + 2);
-            return new com.legend.compiler.element.type.Multiplicity
-                    .Bounded(Integer.parseInt(s.substring(0, dots)),
-                            "*".equals(up) ? null : Integer.valueOf(up));
-        }
-        return new com.legend.compiler.element.type.Multiplicity.Var(s);
     }
 
     private static Type.Op op(TypeExpression.Op op) {

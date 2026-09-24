@@ -214,4 +214,30 @@ public sealed interface Multiplicity permits Multiplicity.Bounded, Multiplicity.
             return "[" + name + "]";
         }
     }
+
+    /** One multiplicity ARGUMENT spelling ({@code Result<T|m>}'s {@code m},
+     * {@code Result<X|1>}'s {@code 1}, {@code Column<Nil,Z|0..1>}'s
+     * {@code 0..1}, {@code |*}): a bare name is a VARIABLE, everything else is
+     * the ordinary bounds grammar. The one reading of the spelling — the
+     * signature classifier and the value-position annotation both call it. */
+    public static Multiplicity ofArgument(String spelling) {
+        String s = spelling.strip();
+        if ("*".equals(s)) {
+            return Bounded.ZERO_MANY;
+        }
+        // the bounds grammar is fully decidable by SHAPE — no
+        // exception-as-control-flow (ErrorShape guard): digits, or
+        // digits..digits|*, else a VARIABLE name
+        if (s.matches("[0-9]+")) {
+            int n = Integer.parseInt(s);
+            return new Bounded(n, n);
+        }
+        if (s.matches("[0-9]+\\.\\.([0-9]+|\\*)")) {
+            int dots = s.indexOf("..");
+            String up = s.substring(dots + 2);
+            return new Bounded(Integer.parseInt(s.substring(0, dots)),
+                    "*".equals(up) ? null : Integer.valueOf(up));
+        }
+        return new Var(s);
+    }
 }

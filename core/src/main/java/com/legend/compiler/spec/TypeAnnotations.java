@@ -100,7 +100,11 @@ final class TypeAnnotations {
                 throw new TypeInferenceException(
                         "generic annotation over a non-class type: " + g.name());
             }
-            return new Type.GenericType(fqn, args);
+            // the MULTIPLICITY arguments ride too (@Column<Nil,Z|0..1> —
+            // relation::eval's own body): dropping them typed the column's
+            // eval at [*] where upstream's result is [0..1]
+            return new Type.GenericType(fqn, args, g.multiplicityArguments().stream()
+                    .map(Multiplicity::ofArgument).toList());
         }
         // FUNCTION-TYPE annotations (f:Function<{T[1]->R[*]}>[1] spelled
         // structurally — domainManagement/tds postprocessor library
