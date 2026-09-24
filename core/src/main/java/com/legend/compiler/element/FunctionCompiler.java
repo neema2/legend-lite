@@ -72,6 +72,7 @@ final class FunctionCompiler {
                     + "': " + model.findFunction(fqn).size()
                     + " user definition(s) suppressed (native is the definition)");
         }
+        com.legend.builtin.DecisionProbe.overloads(fqn, all, model, model.functions());
         return all;
     }
 

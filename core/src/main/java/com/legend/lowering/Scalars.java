@@ -2550,8 +2550,13 @@ final class Scalars {
     static SqlExpr lower(TypedNativeCall call, List<SqlExpr> loweredArgs, Set<Feature> features) {
         String key = call.callee().signatureKey();
         Rule rule = FeatureRules.select(key, features);
-        if (rule == null) {
+        if (rule != null) {
+            com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "SCALAR-FEATURE");
+        } else {
             rule = RULES.get(key);
+            if (rule != null) {
+                com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "SCALAR");
+            }
         }
         if (rule == null) {
             // A REDUCER reaching scalar rules always means WRONG CONTEXT —
@@ -2564,6 +2569,7 @@ final class Scalars {
             // belongs here, not to the accident (witness
             // testSubAggregationWithDeepAndOverlap).
             if (Aggregates.reducerOrNull(call.callee()) != null) {
+                com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "REDUCER-IN-SCALAR");
                 throw new Resolvers.UnfoldableRef("aggregate '"
                         + call.callee().qualifiedName()
                         + "' in scalar position (aggregation machinery owns it)");
@@ -2572,6 +2578,7 @@ final class Scalars {
             // never the registration bug below (batch 171, the native rule)
             String wall = com.legend.builtin.Pure.walledNativeReason(call.callee().qualifiedName());
             if (wall != null) {
+                com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "WALLED-NATIVE");
                 throw new com.legend.error.NotImplementedException("walled native '"
                         + call.callee().qualifiedName() + "': " + wall);
             }
@@ -2581,10 +2588,12 @@ final class Scalars {
             // lowering for it. The truth, named — never "unknown function",
             // never the registration bug below (which is for CATALOG natives)
             if (com.legend.builtin.Pure.nativeFunctionsAt(call.callee().qualifiedName()).isEmpty()) {
+                com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "UNIMPLEMENTED");
                 throw new com.legend.error.NotImplementedException("upstream native '"
                         + call.callee().qualifiedName() + "' is declared by the spec and not"
                         + " implemented by the platform");
             }
+            com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "UNREGISTERED");
             throw new IllegalStateException("no scalar lowering registered for resolved overload '"
                     + call.callee().qualifiedName() + "' with " + call.callee().parameters().size()
                     + " parameter(s)");

@@ -557,6 +557,7 @@ final class Typer {
         }
         Optional<CoreFn> core = CoreFn.of(af.function());
         if (core.isPresent()) {
+            com.legend.builtin.DecisionProbe.form(af.function(), core.get().name());
             // real pure resolves by TYPE: a model function of this name whose
             // first parameter is the receiver's CLASS (Database.join(name),
             // relational.pure) out-ranks the bare special form, which only

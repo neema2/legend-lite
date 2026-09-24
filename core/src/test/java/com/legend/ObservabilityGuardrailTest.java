@@ -50,6 +50,12 @@ class ObservabilityGuardrailTest {
             // retires. (LEGEND_LITE_STAMP_TRACE is a DIFFERENT stamp —
             // TemporalFrame's milestoning-date trace.)
             "LL_STAMP_COUNT", "LL_TDG_DEBUG",
+            // the untangle's step-3 SHADOW DIFF (UPSTREAM_BOUNDARY_PROGRAM.md
+            // §3 D, 2026-09-24): a counting probe at the two decision points
+            // the tables will own; retires with the step-4 switches.
+            // TEST_UNDECLARED_OUTPUTS_DIR is Bazel's own (the sink's home
+            // under a test), not a flag of ours
+            "LL_SHADOW", "TEST_UNDECLARED_OUTPUTS_DIR",
             "LL_TMP_DEBUG", "LL_TMP_SQL", "LL_TOL_COUNT",
             // deployment config for the HTTP server entrypoint (moved in
             // with the engine-module deletion) — not a debug flag

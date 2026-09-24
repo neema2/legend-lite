@@ -50,6 +50,7 @@ java_library(
     srcs = glob(["src/test/java/**/*.java"]),
     resources = glob(["src/test/resources/**"]),
     runtime_deps = [
+        "//core:shadow_binding",
         ":adapter",
         # the three function universes and their interpreted natives
         "@maven_upstream//:org_finos_legend_engine_legend_engine_pure_runtime_java_extension_interpreted_functions_relation",

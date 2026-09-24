@@ -160,6 +160,7 @@ public final class Aggregates {
                     "no aggregate lowering registered for resolved overload '"
                             + callee.qualifiedName() + "'");
         }
+        com.legend.builtin.DecisionProbe.pick(callee.definition(), "AGGREGATE");
         return name;
     }
 

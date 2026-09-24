@@ -216,6 +216,7 @@ public final class ChannelB {
             Compiler.ParsedModule module, ModelContext ctx) {
         String fqn = fd.qualifiedName();
         com.legend.lowering.StampCensus.CONTEXT.set(fqn);
+        com.legend.platform.Shadow.CONTEXT.set(fqn);
         com.legend.exec.SqlTypeCensus.CONTEXT.set(fqn);
         // dual-verdict attribution: name the test that grows the
         // disagreement census (the alarm's diagnosis needs the WHO) —

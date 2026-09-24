@@ -40,7 +40,10 @@ java_library(
         exclude = _GENERATOR_SRCS,
     ),
     resources = glob(["src/test/resources/**"]),
-    runtime_deps = ["//core:drivers"],
+    runtime_deps = [
+        "//core:drivers",
+        "//core:shadow_binding",
+    ],
     deps = [
         ":generators",
         "//core",

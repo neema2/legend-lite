@@ -929,6 +929,10 @@ final class ArchitectureTest {
                 "com.legend.builtin.Pure$Index.FN_BY_BARE",
                 "com.legend.builtin.Pure$Index.KEYS_BY_NAME",
                 "com.legend.builtin.Pure$Index.FN_BY_ID",
+                // the step-3 shadow diff's sinks (a probe, deleted at step 4)
+                "com.legend.platform.Shadow.SEEN",
+                "com.legend.platform.Shadow.TABLES",
+                "com.legend.platform.Shadow.ROWS",
                 "com.legend.compiler.NameResolver.PRELUDE_TYPES",
                 "com.legend.compiler.NameResolver.PRELUDE_COLLISIONS",
                 "com.legend.parser.SectionGrammarRegistry.REGISTRY",

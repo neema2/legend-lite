@@ -117,7 +117,12 @@ java_library(
     name = "core_tests_lib",
     testonly = True,
     srcs = glob(["src/test/java/**/*.java"]),
-    resources = glob(["src/test/resources/**"]),
+    resources = glob(
+        ["src/test/resources/**"],
+        # the shadow binding rides :shadow_binding, once
+        exclude = ["src/test/resources/META-INF/services/com.legend.builtin.DecisionProbe"],
+    ),
+    runtime_deps = [":shadow_binding"],
     deps = [
         ":core",
         "//testing",
@@ -130,6 +135,18 @@ java_library(
         "@maven_test//:org_junit_jupiter_junit_jupiter_params",
         "@maven_core//:org_xerial_sqlite_jdbc",
     ],
+)
+
+# The step-3 shadow diff's binding (untangle, docs/UPSTREAM_BOUNDARY_PROGRAM.md §3 D):
+# the ServiceLoader file that makes com.legend.platform.Shadow the DecisionProbe. A
+# test-lane resource on the suites' libraries — never the product jar's, so a planner
+# build (//wasm) carries no probe and its loader is empty. Deleted at step 4.
+java_library(
+    name = "shadow_binding",
+    testonly = True,
+    resources = ["src/test/resources/META-INF/services/com.legend.builtin.DecisionProbe"],
+    resource_strip_prefix = "core/src/test/resources",
+    visibility = ["//spec:__pkg__", "//pct:__pkg__"],
 )
 
 # Maven gate 1: every core BEHAVIOUR test — everything but the heavy and stress

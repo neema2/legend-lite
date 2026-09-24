@@ -282,6 +282,7 @@ public final class UserCallInliner {
         // RowGetters lowers it by name — before any wall or budget
         if (com.legend.compiler.element.type.PlatformTypes.isPlatformImplementedDerived(
                 call.callee().qualifiedName())) {
+            com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "PLATFORM-DERIVED");
             List<TypedSpec> pargs = new ArrayList<>(call.args().size());
             for (TypedSpec a : call.args()) {
                 pargs.add(rewrite(a, env));
@@ -290,6 +291,7 @@ public final class UserCallInliner {
         }
         String wall = WalledBodies.reason(call.callee().qualifiedName());
         if (wall != null) {
+            com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "WALLED-BODY");
             throw new com.legend.error.WalledBodyException("walled body '" + call.callee().qualifiedName()
                     + "': " + wall);
         }
@@ -311,8 +313,10 @@ public final class UserCallInliner {
         // never spliced — the call stays a typed opaque value, typed by
         // upstream's own declaration; its value is dead by governance test
         if (com.legend.builtin.Subsumed.of(call.callee().qualifiedName()).isPresent()) {
+            com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "SUBSUMED");
             return new TypedUserCall(call.callee(), args, call.info());
         }
+        com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "BODY");
         // signatureKey identifies the OVERLOAD — name/arity conflated two
         // same-arity overloads into a false recursion (audit).
         String key = call.callee().signatureKey();

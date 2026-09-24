@@ -91,12 +91,20 @@ final class Windows {
 
     /** The SQL reducer for a 4-arg window-aggregate callee, or null. */
     static com.legend.sql.SqlAgg.@com.legend.Nullable Fn aggregate(TypedFunction callee) {
-        return AGGREGATES.get(callee.signatureKey());
+        com.legend.sql.SqlAgg.Fn fn = AGGREGATES.get(callee.signatureKey());
+        if (fn != null) {
+            com.legend.builtin.DecisionProbe.pick(callee.definition(), "WINDOW_AGGREGATE");
+        }
+        return fn;
     }
 
     /** The window fn for a resolved overload, or null when it is not a window native. */
     static @com.legend.Nullable WindowFn lookup(TypedFunction callee) {
-        return FNS.get(callee.signatureKey());
+        WindowFn fn = FNS.get(callee.signatureKey());
+        if (fn != null) {
+            com.legend.builtin.DecisionProbe.pick(callee.definition(), "WINDOW");
+        }
+        return fn;
     }
     /**
      * Window position accepts COMPOSED aggregates (wavg = SUM(v*w)/SUM(w),

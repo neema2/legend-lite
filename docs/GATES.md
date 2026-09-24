@@ -5334,3 +5334,32 @@ form+refusal and refusal+intrinsic conflicts, two forms on one id, refusal kinds
 Spec `ImplementationTableTest` over the real registrations: 3,157 rows, dangling `[]`, conflicts `[]`.
 `DeclarationTableTest`: bodied twin kept, overloads distinct, same body twice is one, different bodies
 refuse. Own-corpus parity 2554 → 2565 (the tests' engine-dialect snippets are harvested).
+
+## 2026-09-24 — The untangle, step 3: the shadow diff at the two decision points
+
+**What.** Before any consumer switches to the tables, measure where today and the tables disagree.
+`DecisionProbe` (in `builtin`, an SPI the compiler and the lowering both already reach) reports the
+overload set `FunctionCompiler.functionsAt` returns, every lowering pick (`Scalars.lower` with its
+five outcomes, `Aggregates.reducerFor`, `Windows.aggregate/lookup`, `UserCallInliner`'s body /
+walled / subsumed / platform-derived arms) and every `CoreFn.of` dispatch; `Shadow` (in `platform`,
+bound by `ServiceLoader` because it reads the registries above both callers — the package layering
+stays acyclic, invariant 4) compares each with `DeclarationTable.at`, `ImplementationTable.of` and
+the forms' owned FQNs, writing one line per distinct decision to the test's undeclared outputs.
+Nothing is installed unless `LL_SHADOW` is set; all 15 suites pass with it on. The census
+(`~/legend/platform-architecture/shadow-census.txt`, 9 suites, 4,188 lines): picks 2,672 agree /
+11 differ — five family-implemented natives reaching the scalar funnel (today: "unregistered"
+thrown; table: Intrinsic[family]) and one `$prop$` member implemented by `isPlatformImplementedDerived`,
+an FQN list no registration names. Overload sets: 0 TODAY-MORE, 29 TABLE-MORE (every one a body
+today's PCT-twin rule or platform-owned list suppresses; the `max/min[1..*]`, `average/median`,
+`stdDev*`, `wavg`, comparison `[0..1]`, `date::max/min`, `timeBucket` rows are the catalog's missing
+overloads — the channel-B `max/min → 7.345D` regression's cause, named: an admitted bodied overload
+the catalog lacks is INLINED because the pick follows the declaration's kind, not a table), 357
+BARE-NAME (356 names: `NameResolver`'s universe holds native classes, enums and function ids but no
+platform function FQN, so no native call ever qualifies through `CORE_IMPORTS`; the typer qualifies
+by the catalog's bare index). Forms: 0 disagreements on qualified names. `indexOf`: no disagreement
+in any suite — upstream declares all three overloads native; that regression was the earlier
+switch's own defect. Step 4's order follows: pick-by-table before overload-set-by-table.
+
+**Test.** The probe is a no-op unless installed (`DecisionProbe.INSTALLED` null); the sweep is the
+receipt. `ObservabilityGuardrailTest` registers `LL_SHADOW` (and Bazel's `TEST_UNDECLARED_OUTPUTS_DIR`);
+`ArchitectureTest` registers the three sinks. Rule tests green: identity pins unchanged.
