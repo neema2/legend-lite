@@ -39,9 +39,19 @@ def _java_run_impl(ctx):
             s = s.replace("{OUT}", ctx.outputs.outs[0].path)
         return s
 
+    # Everything goes to `java` in an ARGUMENT FILE (java @file, JDK 9+): a class
+    # path can outrun Windows' 32,767-character command line (the harvest's, with
+    # the engine's test jars, did — CI, 2026-09-23). One argument per line; the
+    # launcher splits a line on whitespace, so none may contain any.
     args = ctx.actions.args()
-    args.add_all([expand(f) for f in ctx.attr.jvm_flags])
-    args.add_joined("-cp", jars, join_with = ctx.configuration.host_path_separator)
+    args.use_param_file("@%s", use_always = True)
+    args.set_param_file_format("multiline")
+    flat = [expand(f) for f in ctx.attr.jvm_flags] + ["-cp"]
+    for a in flat + [ctx.attr.main_class] + [expand(a) for a in ctx.attr.arguments]:
+        if " " in a or "\t" in a:
+            fail("java_run: an argument with whitespace cannot ride the argument file: %r" % a)
+    args.add_all(flat)
+    args.add_joined(jars, join_with = ctx.configuration.host_path_separator)
     args.add(ctx.attr.main_class)
     args.add_all([expand(a) for a in ctx.attr.arguments])
     ctx.actions.run(
