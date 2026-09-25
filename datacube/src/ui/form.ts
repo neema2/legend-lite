@@ -305,8 +305,19 @@ export function toggle(
   b.type = 'button';
   b.textContent = label;
   if (options.title !== undefined) b.title = options.title;
-  b.setAttribute('aria-pressed', String(Boolean(on)));
-  b.classList.toggle('dc-on', Boolean(on));
-  b.addEventListener('click', () => onChange(!on));
+  // The button keeps its OWN state: a panel does not rebuild on every
+  // change, and a toggle that remembered only its first value showed
+  // Bold off after turning it on, and sent "on" again when clicked.
+  let state = Boolean(on);
+  const paint = (): void => {
+    b.setAttribute('aria-pressed', String(state));
+    b.classList.toggle('dc-on', state);
+  };
+  paint();
+  b.addEventListener('click', () => {
+    state = !state;
+    paint();
+    onChange(state);
+  });
   return b;
 }

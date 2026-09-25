@@ -149,27 +149,27 @@ Upstream: `DataCubeGridMenuBuilder.tsx`. Ours: `src/ui/menu.ts`,
 | Entry / behaviour | Upstream | Ours | St | Ev |
 |---|---|---|---|---|
 | Same menu from a header (the header's own menu, `getMainMenuItems`) | ✓ | right-click anywhere in the grid, header included | ✅ | C |
-| **Every Export entry asks first**: "Confirm you want to proceed with export" + attestation text, Decline / Accept | ✓ | no confirmation | ❌ | C `menu.ts:365` |
+| **Every Export entry asks first**: "Confirm you want to proceed with export" + attestation text, Decline / Accept | ✓ | ✓ a warning alert (Decline focused first); ➕ Email asks too | ✅ | C `app.ts #confirmExport`, H |
 | Export › Excel (Grid) / CSV (Grid) | ✓ `.xlsx`, CSV of loaded rows | `.xls` SpreadsheetML, CSV of the view | ✅ | H |
 | Export › **CSV** (full result, engine `execute?serializationFormat=CSV`, streamed) | ✓ | ❌ only the rows on screen | ❌ | C |
 | Export › HTML / Plain Text / PDF / DataCube Specification | 🚫 | ➕ (the specification is OUR format, see headline 1) | ➕⚠️ | H |
-| Export file name `"<title> - EEE MMM dd yyyy HH_mm_ss.<ext>"` | ✓ | `<title>.<ext>` | ⚠️ | C `app.ts:1879` |
-| Email › Excel / CSV attachment (downloads `.eml`, no host needed) | ✓ | needs a host `email` callback; disabled in the demo | ⚠️ | C `app.ts:173`, `menu.ts:385` |
+| Export file name `"<title> - EEE MMM dd yyyy HH_mm_ss.<ext>"` | ✓ | ✓ `exportFileName` | ✅ | C `export.ts`, T |
+| Email › Excel / CSV attachment (downloads `.eml`, no host needed) | ✓ | ✓ unsent `.eml` draft when there is no host mailer (upstream's layout; not its doubled Excel name) | ✅ | C `export.ts toEml`, H |
 | Email › HTML / Plain Text / PDF / Specification | 🚫 | ➕ (same gate) | ➕ | C |
 | Copy › Plain Text / Selected Rows / Selected Column | ✓ (Rows disabled from a header) | ✓ | ✅ | H |
-| Sort › Ascending, Descending, Clear, Add Asc/Desc (disabled if already), Clear All | ✓ | ✓ (Add not disabled when already sorted that way) | ✅ | H |
-| Filter › "Add Filter: col = 'v'" (strings QUOTED), More Filters on col… (typed operator set), is null / is not null on a blank, Filters…, Clear All | ✓ | ✓ unquoted strings | ✅ | H |
+| Sort › Ascending, Descending, Clear, Add Asc/Desc (disabled if already), Clear All | ✓ | ✓ | ✅ | H, T |
+| Filter › "Add Filter: col = 'v'" (strings QUOTED), More Filters on col… (typed operator set), is null / is not null on a blank, Filters…, Clear All | ✓ | ✓ | ✅ | H, T |
 | Filter on the TREE column filters that level's group column | ✓ | ✓ (by path) | ✅ | C `app.ts:1266` |
 | Pivot › Vertical / Add / Remove / Clear All; Horizontal / Add / Clear All | ✓ (items only for dimension columns) | ✓ (shown disabled for measures) + ➕ Remove Horizontal | ✅ | H |
 | Pivot › Exclude Column X from / Include Column X in Horizontal Pivot | ✓ | ✓ | ✅ | H |
 | Extended Columns › Add New / Extend Column X / Edit / Delete | ✓ | ✓ | ✅ | H |
 | Resize › Auto-size, Minimize, Auto-size All, Minimize All, Size Grid to Fit | ✓ | ✓ | ✅ | H |
-| Pin › Pin Left / Right (each **checked** when active, disabled if already) / Unpin / Remove All | ✓ | ✓ no checkmark, not disabled | ⚠️ | C `menu.ts:592` |
+| Pin › Pin Left / Right (each **checked** when active, disabled if already) / Unpin / Remove All | ✓ | ✓ | ✅ | H, T |
 | Hide | ✓ | ✓ | ✅ | H |
 | Collapse All (tree column only) | ✓ | ✓ (everywhere; disabled when nothing is open) | ✅ | H |
 | Heatmap / Show Plot… / Show TreeMap… | 🚫 | ➕ working | ➕ | H |
 | **Properties…** from a header opens **Column Properties on that column** (pivot result → its measure); disabled while the editor is open | ✓ | opens the editor on its last tab | ⚠️ | C `app.ts:1371` |
-| Menu hidden while scrolling | ✓ | — | ❌ | C |
+| Menu hidden while scrolling | ✓ | ✓ when the grid's view moves (not on the right-click's own scroll) | ✅ | H, T |
 | Multidimensional menu: Zoom Out, Export, Email, Resize | ✓ WIP | — (Essbase mode, `FEATURE_CENSUS.md` §10) | ❌ | C |
 
 ## B. Grid rendering and interaction
@@ -199,13 +199,13 @@ Upstream: `DataCubeGridConfigurationBuilder.tsx`, `DataCubeGrid.tsx`,
 | Pivot result columns cannot be pinned or moved | ✓ | not enforced | ⚠️ | C |
 | **Pivot total column** per measure (name, left/right placement, per-measure function), per row including subtotals and the grand total | ❌ upstream BUG (config only) | ❌ fields removed in `4093e73fc` | ❌ | C |
 | Number format: scale (%, bp, k, m, b, t, auto) → grouping/decimals → parens → scale unit | ✓ | ✓ | ✅ | C `format.ts` |
-| **Unit**: glued to the value, or a **prefix when it starts with `_`** (`_$` → `$1,234`) | ✓ | always a suffix, with a space (`1,234 _$`) | ❌ | C `format.ts:294` |
+| **Unit**: glued to the value, or a **prefix when it starts with `_`** (`_$` → `$1,234`) | ✓ | ✓ (inside the parentheses, as our scale suffix) | ✅ | H, T |
 | Missing-value text on number AND text columns | ✓ | ✓ (`nullText`) | ✅ | C `format.ts:254` |
 | Zero / negative colours only on number cells; error colours on failed rows | ✓ | ✓ zero/negative; no error rows | ⚠️ | C |
 | Font case on text columns only | ✓ | ✓ | ✅ | C |
 | Blur, unblurred on hover | ✓ | ✓ | ✅ | C `grid.css` |
 | Link cells: http(s) URL → link, label from a URL parameter | ✓ | ✓ | ✅ | H |
-| Alternate rows: STANDARD (native odd-row stripe) vs CUSTOM (colour every N rows), mutually exclusive | ✓ | one checkbox plus colour and N | ⚠️ | C `panel-general.ts:333` |
+| Alternate rows: STANDARD (native odd-row stripe) vs CUSTOM (colour every N rows), mutually exclusive | ✓ | ✓ `alternateRowsStandardMode` + `alternateRows` | ✅ | H, T |
 | Pagination toggle (slice per page of 500), status-bar switch | ✓ default ON | ❌ (virtual windowing + row limit) | ⚠️ | C |
 | Large-dataset warning with pagination off (> 1000 rows: Enable Pagination / Dismiss) | ✓ | ❌ | ❌ | C |
 | Auto-size all columns after every fetch | ✓ | explicit only | ⚠️ | C |
@@ -279,24 +279,24 @@ Upstream: `DataCubeEditor*.tsx` + states. Ours: `src/ui/editor.ts`,
 | General › Row Limit + truncation warning | ✓ | ✓ | ✅ | H |
 | General › Show Selection Stats | 🚫 disabled | ➕ working | ➕ | H |
 | General › Grid lines H/V + colour | ✓ | ✓ | ✅ | H |
-| General › Highlight rows: Standard XOR Custom (colour every N) | ✓ | not exclusive (see B) | ⚠️ | C |
-| **Font family list**: Arial, Roboto, Roboto Condensed \| Georgia, Roboto Serif, Times New Roman \| JetBrains Mono, Roboto Mono, Ubuntu Mono | ✓ | Arial, Roboto, Helvetica, Verdana, Tahoma, Georgia, Times New Roman, Courier New, Monospace | ⚠️ (a saved spec's fonts won't match) | C `panel-general.ts:57` |
-| **Font size list** 4…72 (21 sizes) | ✓ | number field 6–48 | ⚠️ | C `:128` |
-| **Underline is a VARIANT** (solid, dashed, dotted, double, wavy); underline XOR strikethrough | ✓ | boolean underline; not exclusive | ⚠️ | C `:137` |
+| General › Highlight rows: Standard XOR Custom (colour every N) | ✓ | ✓ | ✅ | H |
+| **Font family list**: Arial, Roboto, Roboto Condensed \| Georgia, Roboto Serif, Times New Roman \| JetBrains Mono, Roboto Mono, Ubuntu Mono | ✓ | ✓ saved by upstream's names, rendered as stacks | ✅ | C `style.ts FONT_STACKS` |
+| **Font size list** 4…72 (21 sizes) | ✓ | ✓ | ✅ | H |
+| **Underline is a VARIANT** (solid, dashed, dotted, double, wavy); underline XOR strikethrough | ✓ | ✓ | ✅ | T |
 | Case (toggle + caret), alignment segmented buttons | ✓ | dropdown / toggle group | ✅ | C |
 | Default colours 4×2; Use Default Styling (disabled when already default) | ✓ | ✓ (always enabled) | ✅ | H |
 | ➕ Keep grouped columns in the grid; Show drag zones / title bar | — | ➕ | ➕ | C |
 | **Column Properties** › choose column (A–Z; type badge; Extended badges) | ✓ | ✓ (`Derived` badge) | ✅ | C |
 | Column › Show advanced settings? → Column Kind (ADV) | ✓ | ✓ kind always shown | ✅ | C |
-| Column › **kind locked while the column is a vertical or horizontal pivot** (tooltip) | ✓ | ❌ | ❌ | C `panel-column.ts:231` |
-| Column › switching kind resets exclusion from the pivot | ✓ | ❌ | ❌ | C |
-| Column › Display name; Aggregation (**only ops compatible with the type**); Exclude from horizontal pivot | ✓ | ✓ ops not filtered by type | ⚠️ | C `:258` |
+| Column › **kind locked while the column is a vertical or horizontal pivot** (tooltip) | ✓ | ✓ | ✅ | T |
+| Column › switching kind resets exclusion from the pivot | ✓ | ✓ (the pivot-total function stays the measure's own: ours, see §B) | ✅ | T |
+| Column › Display name; Aggregation (**only ops compatible with the type**); Exclude from horizontal pivot | ✓ | ✓ + ➕ min/max on dates and text | ✅ | T |
 | Column › aggregation parameters (join-strings delimiter) | ✗ not editable (TODO) | ➕ weight for weighted average | ➕ | C |
-| Column › number section only for NUMBER columns; link section only for TEXT | ✓ | shown for every column | ⚠️ | C |
+| Column › number section only for NUMBER columns; link section only for TEXT | ✓ | ✓ (Case and Missing Value for every type, as upstream) | ✅ | T |
 | Column › Decimals, commas, parens, Scale, Unit, Missing Value Format, Blur, Hide, Pin, Width (Any / Fixed / Range), fonts, colours, Use Default Styling | ✓ | ✓ | ✅ | H |
 | Column › per-column Pivot sort direction | via the H-Pivots tab | ➕ also here | ➕ | C |
 | Column › Heatmap | — | ➕ | ➕ | C |
-| **Default column config**: numeric = measure, decimals 0 (Integer) / 2, commas ON, **negative in parens ON**, right-aligned; others = dimension, unique, excluded from the pivot | ✓ | measure/dimension ✓; parens OFF by default | ⚠️ | C `format.ts:84` |
+| **Default column config**: numeric = measure, decimals 0 (Integer) / 2, commas ON, **negative in parens ON**, right-aligned; others = dimension, unique, excluded from the pivot | ✓ | ✓ rendered defaults (`renderFormats`), never saved | ✅ | T, H |
 | Dimensions tab (+ "Enable multidimensional grid mode", experimental notice, convert vertical pivots into a dimension) | ✓ WIP | named dimensions as presets; no grid mode | ⚠️ | C `panel-dimensions.ts` |
 
 ## F. Query semantics
@@ -305,7 +305,7 @@ Upstream: `DataCubeEditor*.tsx` + states. Ours: `src/ui/editor.ts`,
 |---|---|---|---|---|
 | Pipeline: extend → filter → select → [sort → pivot → cast] → [groupBy → sort] → extend → sort → limit | ✓ | ✓ | ✅ | C `serialize.ts` |
 | Filter ops: = != < <= > >= in, not in, null / not null, contains / starts / ends (± not, ± case-insensitive), `*_value in column` | ✓ | ✓ same set (+ ➕ ci in/not in) | ✅ | C |
-| TODAY only for date columns, NOW only for datetime columns | ✓ | both offered for any date | ⚠️ | C |
+| Date modes: Date / Date Time / Today / Now for any date-carrying column; a time-of-day column gets the picker alone | ✓ (CORRECTED 2026-09-25: the pinned code offers all four, `getDateValueModes`) | ✓ + a time picker | ✅ | C |
 | Aggregates: sum, avg, min, max, var / var-s, std / std-s, count (numeric only), unique, joinStrings | ✓ | ✓ + ➕ median, weighted avg | ✅ | C `panel-column.ts:65` |
 | Aggregates: first, last | ✓ | ❌ (planner: first → ANY_VALUE, no last) | ❌ | C |
 | **Carried columns after a pivot use their OWN aggregate** | ✓ | hard-coded `unique` | ❌ | C `serialize.ts:895` |

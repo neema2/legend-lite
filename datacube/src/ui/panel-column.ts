@@ -27,8 +27,13 @@ import {
   type Patch,
   type WidthMode,
 } from '../config.ts';
-import { withColumn } from '../config.ts';
-import { kindOf, type AggregateFn, type ColumnKind } from '../snapshot.ts';
+import { numberDefaults, withColumn } from '../config.ts';
+import {
+  kindOf,
+  rowColumns,
+  type AggregateFn,
+  type ColumnKind,
+} from '../snapshot.ts';
 import type { CellAppearance, ColourSet } from '../style.ts';
 import type { PinPlacement } from '../grid/columns.ts';
 import {
@@ -42,6 +47,7 @@ import {
   textInput,
 } from './form.ts';
 import { colourGrid, fontControls } from './panel-general.ts';
+import { dataTypeOf, type DataType } from './filter-editor.ts';
 import {
   SORT_DIRECTIONS,
   allColumns,
@@ -79,6 +85,32 @@ export const AGGREGATES: readonly { value: AggregateFn; label: string }[] = [
   // the group has exactly one, otherwise blank.
   { value: 'unique', label: 'unique value' },
 ];
+
+/**
+ * The aggregates a column of this type can take, as upstream's
+ * `isCompatibleWithColumn` decides them, plus min and max on dates and
+ * text (the database keeps their type, and "the latest trade date" is
+ * a question people ask). An aggregate must keep the column's type,
+ * which is why count and joinStrings are not offered everywhere they
+ * would run. Unknown type (a calculated column not yet run): all.
+ */
+export function aggregatesFor(
+  type: string | undefined,
+): readonly { value: AggregateFn; label: string }[] {
+  if (type === undefined) return AGGREGATES;
+  const allowed: ReadonlySet<AggregateFn> = new Set<AggregateFn>(
+    ({
+      number: ['sum', 'average', 'count', 'min', 'max', 'median',
+        'stdDevPopulation', 'stdDevSample', 'variancePopulation',
+        'varianceSample', 'wavg', 'unique'],
+      text: ['joinStrings', 'min', 'max', 'unique'],
+      date: ['min', 'max', 'unique'],
+      time: ['min', 'max', 'unique'],
+      boolean: ['unique'],
+    } satisfies Record<DataType, AggregateFn[]>)[dataTypeOf(type)],
+  );
+  return AGGREGATES.filter((a) => allowed.has(a.value));
+}
 
 /** Fails to compile when an aggregate is added and not offered above. */
 const _EVERY_AGGREGATE: Record<AggregateFn, true> = {
@@ -223,28 +255,49 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
   const c = cfg();
   const kind = c.kind ?? (spec ? kindOf(spec) : 'measure');
   const isMeasure = kind === 'measure';
+  // The type decides which sections apply; a calculated column's is
+  // learned from its first result, and until then every section shows.
+  const type = spec?.type
+    ?? [...rowColumns(draft.snapshot), ...(draft.snapshot.groupDerived ?? [])]
+      .find((x) => x.name === name)?.type;
+  const dataType = type === undefined ? undefined : dataTypeOf(type);
+  // Upstream: a pivot's kind is what makes it a pivot, so it cannot
+  // change while the column is one.
+  const pivoted = draft.snapshot.rows.includes(name)
+    || draft.snapshot.pivotOn.includes(name);
 
-  const identity = section(
+  const kindField = field(
     doc,
-    '',
-    chooser,
-    field(
-      doc,
-      'Column Kind:',
+    'Column Kind:',
+    lockedKind(
       dropdown(
         doc,
         kind,
         KINDS,
         (v) => {
           // Kind decides whether the column can be grouped and
-          // whether it is aggregated, so the form below changes with
-          // it.
-          patch({ kind: v });
+          // whether it is aggregated, so the form below changes
+          // with it. As upstream, a new kind resets the exclusion
+          // from the horizontal pivot: a dimension is out of it.
+          if (v === undefined || v === kind) return;
+          patch({
+            kind: v,
+            excludedFromPivot: v === 'dimension' ? true : undefined,
+          });
           ctx.refresh();
         },
-        { width: 160 },
+        { width: 160, disabled: pivoted },
       ),
+      pivoted,
     ),
+  );
+  const identity = section(
+    doc,
+    '',
+    chooser,
+    // Upstream's ADVANCED setting: the kind is set by the column's
+    // type, and changing it is a deliberate act.
+    ...(uiState.advanced ? [kindField] : []),
     field(
       doc,
       'Display Name:',
@@ -264,7 +317,7 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
       dropdown(
         doc,
         c.aggregateFn,
-        AGGREGATES,
+        withCurrent(aggregatesFor(type), c.aggregateFn),
         (aggregateFn) => {
           patch({ aggregateFn });
           ctx.refresh();
@@ -301,6 +354,7 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
         'Exclude from horizontal pivot',
         c.excludedFromPivot,
         (v) => patch({ excludedFromPivot: v ? true : undefined }),
+        { disabled: !isMeasure },
       ),
     ),
     field(
@@ -312,7 +366,8 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
       dropdown(
         doc,
         c.pivotStatisticColumnFunction,
-        AGGREGATES.filter((a) => a.value !== 'wavg'),
+        withCurrent(aggregatesFor(type).filter((a) => a.value !== 'wavg'),
+          c.pivotStatisticColumnFunction),
         (pivotStatisticColumnFunction) =>
           patch({ pivotStatisticColumnFunction }),
         { allowNone: true, width: 200, disabled: !isMeasure },
@@ -332,9 +387,14 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
   );
 
   const format = c.format ?? { kind: 'auto' };
-  const numbers = section(
+  // What an unset field SHOWS is what the grid renders: the type's
+  // defaults (upstream's), not a blank that reads as "none".
+  const defaults = numberDefaults(type);
+  // Upstream shows these for EVERY column: a text column has a
+  // missing value and a case too. Only the number section is by type.
+  const formatting = section(
     doc,
-    'Number Format',
+    'Format',
     field(
       doc,
       'Format:',
@@ -359,8 +419,32 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
     ),
     field(
       doc,
+      'Missing Value Format:',
+      textInput(doc, format.nullText, (nullText) => patchFormat({ nullText }), {
+        placeholder: '(blank)',
+        width: 150,
+      }),
+    ),
+    field(
+      doc,
+      'Case:',
+      dropdown(
+        doc,
+        format.fontCase,
+        FONT_CASES,
+        (fontCase) => patchFormat({ fontCase }),
+        { allowNone: true, width: 150 },
+      ),
+    ),
+  );
+
+  const numbers = section(
+    doc,
+    'Number Format',
+    field(
+      doc,
       'Decimals:',
-      numberInput(doc, format.decimals, (decimals) => patchFormat({ decimals }), {
+      numberInput(doc, format.decimals ?? defaults?.decimals, (decimals) => patchFormat({ decimals }), {
         min: 0,
         max: 10,
       }),
@@ -373,7 +457,7 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
       checkbox(
         doc,
         'Negative number in parens',
-        format.negativeParens,
+        format.negativeParens ?? defaults?.negativeParens,
         (v) => patchFormat({ negativeParens: v }),
       ),
     ),
@@ -394,25 +478,6 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
       textInput(doc, format.unit, (unit) => patchFormat({ unit }), {
         width: 110,
       }),
-    ),
-    field(
-      doc,
-      'Missing Value Format:',
-      textInput(doc, format.nullText, (nullText) => patchFormat({ nullText }), {
-        placeholder: '(blank)',
-        width: 150,
-      }),
-    ),
-    field(
-      doc,
-      'Case:',
-      dropdown(
-        doc,
-        format.fontCase,
-        FONT_CASES,
-        (fontCase) => patchFormat({ fontCase }),
-        { allowNone: true, width: 150 },
-      ),
     ),
   );
 
@@ -504,7 +569,7 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
   const colouring = section(
     doc,
     'Colors',
-    ...fontControls(doc, c.appearance ?? {}, patchAppearance),
+    ...fontControls(doc, c.appearance ?? {}, patchAppearance, () => ctx.refresh()),
     colourGrid(doc, (c.appearance ?? {}) as ColourSet, patchAppearance),
     field(
       doc,
@@ -532,11 +597,35 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
     }),
   );
 
-  const parts = [identity, aggregation, numbers, display, colouring];
-  if (uiState.advanced) parts.push(links);
+  // Upstream's sections by type: number formatting for a number,
+  // links for text; an untyped calculated column shows both.
+  const parts = [identity, aggregation, formatting];
+  if (dataType === undefined || dataType === 'number') parts.push(numbers);
+  parts.push(display, colouring);
+  if (dataType === undefined || dataType === 'text') parts.push(links);
 
   return panelShell(doc, 'Column Properties', head, ...parts);
 };
+
+/** The kind control, with upstream's reason when a pivot locks it. */
+function lockedKind(control: HTMLSelectElement, locked: boolean): HTMLSelectElement {
+  if (locked) control.title = 'Column kind cannot be changed while the column is used in pivot';
+  return control;
+}
+
+/**
+ * Choices, keeping a current value the type would not offer -- a cube
+ * saved elsewhere can carry one, and a dropdown showing blank would
+ * say the column has no aggregate when it has one.
+ */
+function withCurrent(
+  choices: readonly { value: AggregateFn; label: string }[],
+  current: AggregateFn | undefined,
+): readonly { value: AggregateFn; label: string }[] {
+  if (current === undefined || choices.some((c) => c.value === current)) return choices;
+  const known = AGGREGATES.find((a) => a.value === current);
+  return [...choices, { value: current, label: known?.label ?? current }];
+}
 
 function fieldColour(
   doc: Document,

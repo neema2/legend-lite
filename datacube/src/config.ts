@@ -26,6 +26,7 @@ import type {
   PivotTotal,
   SortDirection,
 } from './snapshot.ts';
+import { isNumericType, rowColumns } from './snapshot.ts';
 import type { CellAppearance, GridAppearance, HeatmapSpec } from './style.ts';
 
 /**
@@ -269,14 +270,15 @@ export const DEFAULT_CONFIGURATION: CubeConfiguration = {
     showHorizontalGridLines: false,
     showVerticalGridLines: true,
     gridLineColor: '#d4d4d4',
-    /* DataCube's own default here is OFF; this is a deliberate
-       departure, asked for directly. On a dense 20px grid the
-       banding is what lets the eye track a row across a wide pivot,
-       which is worth more than matching the default exactly. */
-    alternateRows: true,
+    /* Upstream's defaults: STANDARD banding on (every other row, in
+       DEFAULT_ROW_HIGHLIGHT_BACKGROUND_COLOR), Custom off. On a dense
+       20px grid the banding is what lets the eye track a row across a
+       wide pivot. */
+    alternateRowsStandardMode: true,
+    alternateRows: false,
     alternateRowsCount: 1,
     alternateRowsColor: '#d7e0eb',
-    fontFamily: 'Roboto, ui-sans-serif, system-ui, sans-serif',
+    fontFamily: 'Roboto',
     fontSize: 11,
     textAlign: 'left',
     normalForeground: '#000000',
@@ -482,6 +484,43 @@ export function toFormats(
   const out: Record<string, ColumnFormat> = {};
   for (const [name, c] of Object.entries(config.columns)) {
     if (c.format) out[name] = c.format;
+  }
+  return out;
+}
+
+/**
+ * What a NUMERIC column shows before anyone configures it: upstream's
+ * DataCubeConfigurationBuilder -- an Integer at 0 decimals, any other
+ * number at 2 fixed, negatives in parentheses. Undefined for anything
+ * else. Commas are already the formatter's default.
+ */
+export function numberDefaults(
+  type: string | undefined,
+): Pick<ColumnFormat, 'decimals' | 'negativeParens'> | undefined {
+  if (!isNumericType(type)) return undefined;
+  return { decimals: type === 'Integer' ? 0 : 2, negativeParens: true };
+}
+
+/**
+ * The formats the screen RENDERS: every column's own settings over
+ * its type's defaults (`numberDefaults`). Distinct from `toFormats`,
+ * which is what a cube SAVES -- a default written into a save is an
+ * opinion nobody held, and a later change to it could not reach the
+ * cubes that predate it.
+ */
+export function renderFormats(
+  config: CubeConfiguration,
+  snapshot: CubeSnapshot,
+): Record<string, ColumnFormat> {
+  const out = toFormats(config);
+  const typed = [
+    ...rowColumns(snapshot),
+    ...(snapshot.groupDerived ?? []),
+  ];
+  for (const { name, type } of typed) {
+    const defaults = numberDefaults(type);
+    if (!defaults) continue;
+    out[name] = { kind: 'auto', ...defaults, ...out[name] };
   }
   return out;
 }

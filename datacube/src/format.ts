@@ -76,7 +76,10 @@ export interface ColumnFormat {
   readonly numberScale?: NumberScale;
   /** Raw divisor, for a scale the named set does not cover. */
   readonly scale?: number;
-  /** A unit shown after the value, e.g. 'kg'. Distinct from a scale. */
+  /**
+   * A unit glued after the value ('kg' → "12.5kg"), or before it when
+   * it starts with `_` ('_$' → "$12.5"). Distinct from a scale.
+   */
   readonly unit?: string;
   /** Rendered for null. Empty string by default, never "null". */
   readonly nullText?: string;
@@ -291,14 +294,20 @@ export class FormatterCache {
     } else if (format.scale !== undefined && format.scale !== 0) {
       n = n / format.scale;
     }
-    if (format.unit) suffix += ` ${format.unit}`;
+    // DataCube's unit: glued on after the number ("12.5kg"), or --
+    // when it starts with `_` -- before it, without the `_` ("_$" is
+    // "$12.5"): the one field that spells a currency sign in a cube
+    // saved upstream.
+    let prefix = '';
+    if (format.unit?.startsWith('_')) prefix = format.unit.slice(1);
+    else if (format.unit) suffix += format.unit;
 
-    // Parentheses wrap the WHOLE rendering, suffix included: "($1.2m)"
+    // Parentheses wrap the WHOLE rendering, units included: "($1.2m)"
     // rather than "($1.2)m", which reads as a different number.
     const body =
       format.negativeParens && n < 0
-        ? `(${intl.format(Math.abs(n))}${suffix})`
-        : `${intl.format(n)}${suffix}`;
+        ? `(${prefix}${intl.format(Math.abs(n))}${suffix})`
+        : `${prefix}${intl.format(n)}${suffix}`;
     return applyCase(body, format.fontCase);
   }
 

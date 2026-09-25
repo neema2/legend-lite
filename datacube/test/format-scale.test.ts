@@ -82,11 +82,19 @@ describe('decimals and separators', () => {
 describe('unit and case', () => {
   const c = new FormatterCache();
 
-  it('appends a unit, which is not a scale', () => {
+  it('glues a unit on, which is not a scale', () => {
+    // Upstream's rendering exactly: no space.
     assert.equal(
       c.format(12.5, { kind: 'number', ...EN, decimals: 1, unit: 'kg' }),
-      '12.5 kg',
+      '12.5kg',
     );
+  });
+
+  it('puts a unit that starts with _ FIRST, without the _', () => {
+    const f = { kind: 'number', ...EN, decimals: 0, unit: '_$' } as const;
+    assert.equal(c.format(1234, f), '$1,234');
+    assert.equal(c.format(-1234, { ...f, negativeParens: true }), '($1,234)');
+    assert.equal(c.format(-1234, f), '$-1,234');
   });
 
   it('combines a scale and a unit', () => {
@@ -98,7 +106,7 @@ describe('unit and case', () => {
         decimals: 1,
         unit: 'bbl',
       }),
-      '1.5k bbl',
+      '1.5kbbl',
     );
   });
 

@@ -670,6 +670,17 @@
   color: var(--tw-neutral-500);
 }
 
+/* Upstream's check mark: a fixed gutter, so checked and unchecked
+   entries keep their labels in line. */
+.dc-menu-check {
+  flex: none;
+  width: 12px;
+}
+
+.dc-menu-check + .dc-menu-label {
+  margin-right: auto;
+}
+
 /* Nested INSIDE its parent, so it cannot outlive the menu. Opened
    on hover and on focus-within, so the keyboard reaches it too. */
 .dc-submenu {

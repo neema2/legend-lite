@@ -175,7 +175,7 @@ describe('the app', () => {
   };
   const menuItems = (): HTMLElement[] =>
     [
-      ...dom.window.document.querySelectorAll('.dc-menu [role="menuitem"]'),
+      ...dom.window.document.querySelectorAll('.dc-menu [role="menuitem"], .dc-menu [role="menuitemcheckbox"]'),
     ] as HTMLElement[];
   /** Click a menu entry by the words a user reads. */
   const pick = (label: string): void => {
@@ -407,6 +407,14 @@ describe('the app', () => {
     );
   });
 
+  /** Answer upstream's export warning. */
+  const answer = (label: 'Accept' | 'Decline'): void => {
+    const button = [...root.querySelectorAll('.dc-alert-action')]
+      .find((b) => b.textContent === label) as HTMLButtonElement | undefined;
+    if (!button) throw new Error('no export warning is open');
+    button.click();
+  };
+
   it('exports every format, from the right-click menu', () => {
     for (const label of [
       'HTML',
@@ -416,6 +424,9 @@ describe('the app', () => {
     ]) {
       rightClick();
       pick(label);
+      // The data leaves only after the attestation; the specification
+      // carries no rows and needs none.
+      if (label !== 'DataCube Specification') answer('Accept');
     }
     assert.deepEqual(
       downloads.map((d) => d[1]),
@@ -428,6 +439,50 @@ describe('the app', () => {
     );
     // SpreadsheetML rather than CSV, so numbers arrive as numbers.
     assert.ok(downloads[1]?.[2].includes('<Workbook'));
+    // Upstream's names: the title and the moment, so nothing is overwritten.
+    assert.match(downloads[0]?.[0] ?? '',
+      / - (Sun|Mon|Tue|Wed|Thu|Fri|Sat) [A-Z][a-z]{2} \d{2} \d{4} \d{2}_\d{2}_\d{2}\.html$/);
+  });
+
+  it('closes the right-click menu when the grid scrolls, as upstream', () => {
+    rightClick();
+    const scroller = root.querySelector('.dc-scroller') as HTMLElement;
+    // The right-click's OWN scroll (a cell brought into view) lands a
+    // frame after the menu opens, and must not close it.
+    scroller.dispatchEvent(new dom.window.Event('scroll'));
+    assert.ok(dom.window.document.querySelector('.dc-menu'), 'closed by its own scroll');
+    // Nor the header's, which follows the body sideways.
+    (root.querySelector('.dc-app-grid *') as HTMLElement)
+      .dispatchEvent(new dom.window.Event('scroll'));
+    assert.ok(dom.window.document.querySelector('.dc-menu'), 'closed by the header');
+    scroller.scrollTop = 40;
+    scroller.dispatchEvent(new dom.window.Event('scroll'));
+    assert.equal(dom.window.document.querySelector('.dc-menu'), null);
+  });
+
+  it('asks before any data leaves, and Decline sends nothing', () => {
+    rightClick();
+    pick('CSV (Grid)');
+    const warning = root.querySelector('.dc-alert-warning') as HTMLElement;
+    assert.match(warning.textContent ?? '', /Confirm you want to proceed with export/);
+    assert.match(warning.textContent ?? '', /I attest that I am aware/);
+    answer('Decline');
+    assert.deepEqual(downloads, []);
+    assert.equal(root.querySelector('.dc-alert'), null, 'the warning closed');
+  });
+
+  it('emails with no host mailer as upstream does: an unsent .eml draft', () => {
+    rightClick();
+    const email = menuItems().find((i) =>
+      i.querySelector('.dc-menu-label')?.textContent === 'Email') as HTMLElement;
+    ([...email.querySelectorAll('.dc-menu-item')].find((i) =>
+      i.querySelector('.dc-menu-label')?.textContent === 'CSV (Grid)') as HTMLElement).click();
+    answer('Accept');
+    const [name, mime, eml] = downloads[0] ?? [];
+    assert.match(name ?? '', /\.eml$/);
+    assert.equal(mime, 'message/rfc822');
+    assert.match(eml ?? '', /^From:\nTo:\nSubject:\nX-Unsent: 1\n/);
+    assert.match(eml ?? '', /Content-Disposition: attachment; filename=".* - .*\.csv"/);
   });
 
   it('opens the editor from the right-click menu, as DataCube does', () => {

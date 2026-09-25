@@ -48,6 +48,7 @@ import { toClipboard } from '../export.ts';
 import {
   cellStyle,
   gridVariables,
+  highlightBand,
   isAlternateRow,
   mergeAppearance,
   type CellAppearance,
@@ -976,10 +977,8 @@ export class DataGrid {
 
       // Banding is by absolute row, so it does not flicker as the
       // window scrolls past.
-      if (
-        this.#options.appearance?.alternateRows &&
-        isAlternateRow(abs, this.#options.appearance.alternateRowsCount ?? 1)
-      ) {
+      const band = highlightBand(this.#options.appearance ?? {});
+      if (band > 0 && isAlternateRow(abs, band)) {
         row.classList.add('dc-alt');
       }
 

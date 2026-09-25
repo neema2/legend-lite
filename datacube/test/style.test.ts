@@ -8,7 +8,9 @@ import {
   heatPosition,
   mixHex,
   coloursFor,
+  fontStack,
   gridVariables,
+  highlightBand,
   isAlternateRow,
   mergeAppearance,
   valueState,
@@ -117,8 +119,20 @@ describe('cellStyle', () => {
   });
 
   it('combines underline and strikethrough rather than replacing', () => {
-    const s = cellStyle({ underline: true, strikethrough: true }, 1);
+    // The controls exclude them; a cube saved elsewhere can hold both.
+    const s = cellStyle({ underline: 'solid', strikethrough: true }, 1);
     assert.equal(s['text-decoration'], 'underline line-through');
+  });
+
+  it("draws the underline's variant", () => {
+    assert.equal(cellStyle({ underline: 'wavy' }, 1)['text-decoration'], 'underline wavy');
+    assert.equal(cellStyle({ underline: 'solid' }, 1)['text-decoration'], 'underline');
+  });
+
+  it("renders upstream's family names as stacks, anything else as given", () => {
+    assert.equal(cellStyle({ fontFamily: 'Roboto Mono' }, 1)['font-family'],
+      '"Roboto Mono", ui-monospace, monospace');
+    assert.equal(fontStack('Inter'), 'Inter');
   });
 
   it('maps alignment onto the flex axis the cells use', () => {
@@ -154,6 +168,24 @@ describe('isAlternateRow', () => {
   });
 });
 
+describe('highlight rows, as upstream', () => {
+  it('Standard (the default) bands every other row; off is off', () => {
+    assert.equal(highlightBand({}), 1);
+    assert.equal(highlightBand({ alternateRowsStandardMode: false }), 0);
+  });
+
+  it('Custom bands by its count, in its colour, and wins over Standard', () => {
+    const custom = { alternateRows: true, alternateRowsCount: 3, alternateRowsColor: '#abcdef' };
+    assert.equal(highlightBand({ ...custom, alternateRowsStandardMode: true }), 3);
+    assert.equal(gridVariables(custom)['--dc-alt-row'], '#abcdef');
+  });
+
+  it("Standard uses the DEFAULT colour, not Custom's", () => {
+    const v = gridVariables({ alternateRowsStandardMode: true, alternateRowsColor: '#abcdef' });
+    assert.equal('--dc-alt-row' in v, false);
+  });
+});
+
 describe('gridVariables', () => {
   it('turns grid lines off explicitly rather than by omission', () => {
     // An omitted variable inherits the stylesheet's default, so "off"
@@ -166,6 +198,7 @@ describe('gridVariables', () => {
   it('carries colours and fonts through', () => {
     const v = gridVariables({
       gridLineColor: '#ddd',
+      alternateRows: true,
       alternateRowsColor: '#fafafa',
       fontFamily: 'Inter',
       fontSize: 13,

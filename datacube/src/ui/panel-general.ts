@@ -15,11 +15,13 @@
 
 import { SCALES } from '../format.ts';
 import type { FontCase } from '../format.ts';
-import type {
-  CellAppearance,
-  ColourSet,
-  GridAppearance,
-  TextAlign,
+import {
+  FONT_STACKS,
+  UNDERLINE_VARIANTS,
+  type CellAppearance,
+  type ColourSet,
+  type GridAppearance,
+  type TextAlign,
 } from '../style.ts';
 import {
   type CubeConfiguration,
@@ -47,23 +49,16 @@ import {
 } from './panel-kit.ts';
 
 /**
- * Font stacks, each named for its head.
- *
- * DataCube names a bare family. A bare family the viewer lacks falls
- * back to whatever the browser picks, silently, and a grid that has
- * measured its column widths against one metric then renders in
- * another. A stack makes the fallback a decision.
+ * Upstream's font families (DataCubeFont) in its order -- sans-serif,
+ * serif, monospace -- by the name a cube saves; `fontStack` renders
+ * each with a fallback.
  */
-export const FONT_FAMILIES: readonly { value: string; label: string }[] = [
-  { value: 'Arial, Helvetica, sans-serif', label: 'Arial' },
-  { value: 'Roboto, Arial, sans-serif', label: 'Roboto' },
-  { value: '"Helvetica Neue", Helvetica, Arial, sans-serif', label: 'Helvetica' },
-  { value: 'Verdana, Geneva, sans-serif', label: 'Verdana' },
-  { value: 'Tahoma, Geneva, sans-serif', label: 'Tahoma' },
-  { value: 'Georgia, "Times New Roman", serif', label: 'Georgia' },
-  { value: '"Times New Roman", Times, serif', label: 'Times New Roman' },
-  { value: '"Courier New", Courier, monospace', label: 'Courier New' },
-  { value: 'ui-monospace, "SF Mono", Menlo, monospace', label: 'Monospace' },
+export const FONT_FAMILIES: readonly { value: string; label: string }[] =
+  Object.keys(FONT_STACKS).map((name) => ({ value: name, label: name }));
+
+/** Upstream's font sizes: a list, not a free number. */
+export const FONT_SIZES: readonly number[] = [
+  4, 5, 6, 7, 8, 9, 10, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 32, 36, 48, 72,
 ];
 
 export const FONT_CASES: readonly { value: FontCase; label: string }[] = [
@@ -105,43 +100,73 @@ export function backgroundKey(slot: Slot): keyof ColourSet {
 /**
  * The font controls, shared by both property panels.
  *
- * Bold, italic, underline and strikethrough are INDEPENDENT toggles
- * and case and alignment are exclusive groups, which is why they are
- * different controls rather than one row of buttons: a user can want
- * bold italic, and cannot want left-aligned right-aligned.
+ * Bold and italic are INDEPENDENT toggles; underline (with its
+ * variant) and strikethrough EXCLUDE each other, as upstream; case and
+ * alignment are exclusive groups. `refresh` redraws the panel, for the
+ * one control that changes another.
  */
 export function fontControls(
   doc: Document,
   style: CellAppearance,
   patch: (change: Patch<CellAppearance>) => void,
+  refresh: () => void,
 ): HTMLElement[] {
   const bar = doc.createElement('div');
   bar.className = 'dc-font-bar';
+  const known = style.fontFamily === undefined
+    || FONT_FAMILIES.some((f) => f.value === style.fontFamily);
+  const sizes = FONT_SIZES.map((n) => ({ value: String(n), label: String(n) }));
+  const size = style.fontSize === undefined ? undefined : String(style.fontSize);
+  const underline = dropdown(
+    doc,
+    style.underline,
+    UNDERLINE_VARIANTS.map((v) => ({ value: v, label: v })),
+    (variant) => {
+      patch({ underline: variant, ...(variant ? { strikethrough: undefined } : {}) });
+      refresh();
+    },
+    { allowNone: true, width: 76 },
+  );
+  underline.title = 'Underline style';
+  underline.classList.add('dc-underline-variant');
   bar.append(
     dropdown(
       doc,
       style.fontFamily,
-      FONT_FAMILIES,
+      // A family a cube saved elsewhere names stays visible, not blank.
+      known ? FONT_FAMILIES
+        : [...FONT_FAMILIES, { value: style.fontFamily as string, label: style.fontFamily as string }],
       (fontFamily) => patch({ fontFamily }),
-      { allowNone: true, width: 180 },
+      { allowNone: true, width: 160 },
     ),
-    numberInput(doc, style.fontSize, (fontSize) => patch({ fontSize }), {
-      min: 6,
-      max: 48,
-      width: 60,
-    }),
+    dropdown(
+      doc,
+      size,
+      size === undefined || FONT_SIZES.includes(Number(size))
+        ? sizes : [...sizes, { value: size, label: size }],
+      (n) => patch({ fontSize: n === undefined ? undefined : Number(n) }),
+      { allowNone: true, width: 60 },
+    ),
     toggle(doc, 'B', style.bold, (bold) => patch({ bold }), { title: 'Bold' }),
     toggle(doc, 'I', style.italic, (italic) => patch({ italic }), {
       title: 'Italic',
     }),
-    toggle(doc, 'U', style.underline, (underline) => patch({ underline }), {
-      title: 'Underline',
-    }),
+    toggle(doc, 'U', style.underline !== undefined, (on) => {
+      patch({
+        underline: on ? 'solid' : undefined,
+        ...(on ? { strikethrough: undefined } : {}),
+      });
+      refresh();
+    }, { title: 'Underline' }),
+    underline,
     toggle(
       doc,
       'S',
       style.strikethrough,
-      (strikethrough) => patch({ strikethrough }),
+      (strikethrough) => {
+        patch({ strikethrough, ...(strikethrough ? { underline: undefined } : {}) });
+        refresh();
+      },
       { title: 'Strikethrough' },
     ),
     toggleGroup(
@@ -357,35 +382,50 @@ export const generalPropertiesPanel: PanelBuilder = (ctx) => {
     ),
   );
 
+  const custom = a.alternateRows === true;
+  const standard = !custom && a.alternateRowsStandardMode !== false;
   const highlight = section(
     doc,
     'Highlight Rows',
+    // Upstream's two modes, exclusive: ticking one clears the other,
+    // and both may be off.
     field(
       doc,
       '',
-      checkbox(doc, 'Standard mode', a.alternateRows, (v) =>
-        setAppearance({ alternateRows: v }),
-      ),
+      checkbox(doc, 'Standard mode', standard, (v) => {
+        setAppearance(v
+          ? { alternateRowsStandardMode: true, alternateRows: false }
+          : { alternateRowsStandardMode: false });
+        ctx.refresh();
+      }),
     ),
     field(
       doc,
       'Custom: Alternate color:',
-      colorPicker(doc, a.alternateRowsColor, (alternateRowsColor) =>
+      checkbox(doc, 'Custom', custom, (v) => {
+        setAppearance(v
+          ? { alternateRows: true, alternateRowsStandardMode: false }
+          : { alternateRows: false });
+        ctx.refresh();
+      }),
+      disable(colorPicker(doc, a.alternateRowsColor, (alternateRowsColor) =>
         setAppearance({ alternateRowsColor }),
-      ),
-      numberInput(
+      ), !custom),
+      label(doc, 'every:'),
+      disable(numberInput(
         doc,
         a.alternateRowsCount,
         (n) => setAppearance({ alternateRowsCount: n ?? 1 }),
         { min: 1, max: 100 },
-      ),
+      ), !custom),
+      label(doc, 'rows'),
     ),
   );
 
   const font = section(
     doc,
     'Default Font',
-    ...fontControls(doc, a, (change) => setAppearance(change)),
+    ...fontControls(doc, a, (change) => setAppearance(change), () => ctx.refresh()),
     field(
       doc,
       'Case:',
@@ -463,9 +503,25 @@ export const generalPropertiesPanel: PanelBuilder = (ctx) => {
 export const DEFAULT_APPEARANCE: GridAppearance = {
   showHorizontalGridLines: false,
   showVerticalGridLines: true,
-  alternateRows: true,
+  alternateRowsStandardMode: true,
+  alternateRows: false,
   alternateRowsCount: 1,
 };
+
+/** Disable every input a control holds (a picker is a wrapper). */
+function disable<T extends HTMLElement>(el: T, off: boolean): T {
+  if (!off) return el;
+  const inputs = el.matches('input, select, button') ? [el] : [...el.querySelectorAll('input, select, button')];
+  for (const i of inputs) (i as HTMLInputElement).disabled = true;
+  return el;
+}
+
+function label(doc: Document, text: string): HTMLElement {
+  const el = doc.createElement('span');
+  el.className = 'dc-inline-label';
+  el.textContent = text;
+  return el;
+}
 
 /** Re-exported so the column panel shows the same scale names. */
 export { SCALES };

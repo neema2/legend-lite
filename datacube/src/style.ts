@@ -20,12 +20,45 @@ export type ValueState = 'normal' | 'negative' | 'zero' | 'error';
 
 export type TextAlign = 'left' | 'center' | 'right';
 
+/** Upstream's DataCubeFontFormatUnderlineVariant: an underline has a style. */
+export type UnderlineVariant = 'solid' | 'dashed' | 'dotted' | 'double' | 'wavy';
+
+export const UNDERLINE_VARIANTS: readonly UnderlineVariant[] = [
+  'solid', 'dashed', 'dotted', 'double', 'wavy',
+];
+
+/**
+ * Upstream's font families (DataCubeFont), by the NAME a cube saves --
+ * so a cube saved upstream names a family this list knows -- each
+ * rendered as a stack, so a viewer without the face gets a decided
+ * fallback rather than whatever the browser picks. Grouped as upstream
+ * groups them: sans-serif, serif, monospace.
+ */
+export const FONT_STACKS: Readonly<Record<string, string>> = {
+  Arial: 'Arial, Helvetica, sans-serif',
+  Roboto: 'Roboto, Arial, sans-serif',
+  'Roboto Condensed': '"Roboto Condensed", Roboto, Arial, sans-serif',
+  'Times New Roman': '"Times New Roman", Times, serif',
+  Georgia: 'Georgia, "Times New Roman", serif',
+  'Roboto Serif': '"Roboto Serif", Georgia, serif',
+  'Jetbrains Mono': '"JetBrains Mono", ui-monospace, monospace',
+  'Roboto Mono': '"Roboto Mono", ui-monospace, monospace',
+  'Ubuntu Mono': '"Ubuntu Mono", ui-monospace, monospace',
+};
+
+/** The CSS for a family name: its stack, or the name as given. */
+export function fontStack(family: string): string {
+  return FONT_STACKS[family] ?? family;
+}
+
 export interface FontStyle {
   readonly fontFamily?: string;
   readonly fontSize?: number;
   readonly bold?: boolean;
   readonly italic?: boolean;
-  readonly underline?: boolean;
+  /** Upstream's `fontUnderline`: absent is no underline. */
+  readonly underline?: UnderlineVariant;
+  /** Never with an underline: the controls make them exclusive, as upstream. */
   readonly strikethrough?: boolean;
   readonly textAlign?: TextAlign;
   /**
@@ -54,7 +87,13 @@ export interface GridAppearance extends CellAppearance {
   readonly showHorizontalGridLines?: boolean;
   readonly showVerticalGridLines?: boolean;
   readonly gridLineColor?: string;
-  /** Shade every Nth row. */
+  /**
+   * Upstream's two exclusive highlight modes. STANDARD (the default,
+   * absent reads as on) shades every other row in the default colour;
+   * CUSTOM (`alternateRows`) shades bands of `alternateRowsCount` rows
+   * in `alternateRowsColor`, and wins when both are set.
+   */
+  readonly alternateRowsStandardMode?: boolean;
   readonly alternateRows?: boolean;
   readonly alternateRowsColor?: string;
   /** How many rows per band; 1 means every other row. */
@@ -148,7 +187,7 @@ export function cellStyle(
   const style: Record<string, string> = {};
   if (foreground) style['color'] = foreground;
   if (background) style['background-color'] = background;
-  if (appearance.fontFamily) style['font-family'] = appearance.fontFamily;
+  if (appearance.fontFamily) style['font-family'] = fontStack(appearance.fontFamily);
   if (appearance.fontSize !== undefined) {
     style['font-size'] = `${appearance.fontSize}px`;
   }
@@ -159,11 +198,14 @@ export function cellStyle(
 
   // Underline and strikethrough combine rather than replacing each
   // other, which a single assignment would get wrong.
+  // A cube saved elsewhere can hold both; both are drawn.
   const decorations: string[] = [];
   if (appearance.underline) decorations.push('underline');
   if (appearance.strikethrough) decorations.push('line-through');
   if (decorations.length > 0) {
-    style['text-decoration'] = decorations.join(' ');
+    style['text-decoration'] = decorations.join(' ')
+      + (appearance.underline && appearance.underline !== 'solid'
+        ? ` ${appearance.underline}` : '');
   }
   return style;
 }
@@ -188,6 +230,12 @@ export function isAlternateRow(index: number, count = 1): boolean {
   return Math.floor(index / size) % 2 === 1;
 }
 
+/** The band size the grid shades by, or 0 for none: Custom, else Standard. */
+export function highlightBand(a: GridAppearance): number {
+  if (a.alternateRows) return a.alternateRowsCount ?? 1;
+  return a.alternateRowsStandardMode === false ? 0 : 1;
+}
+
 /** CSS custom properties for the grid container. */
 export function gridVariables(a: GridAppearance): Record<string, string> {
   const vars: Record<string, string> = {};
@@ -199,8 +247,9 @@ export function gridVariables(a: GridAppearance): Record<string, string> {
   if (a.gridLineColor) vars['--dc-grid-line'] = a.gridLineColor;
   vars['--dc-hgrid'] = a.showHorizontalGridLines === false ? '0' : '1';
   vars['--dc-vgrid'] = a.showVerticalGridLines === false ? '0' : '1';
-  if (a.alternateRowsColor) vars['--dc-alt-row'] = a.alternateRowsColor;
-  if (a.fontFamily) vars['--dc-font'] = a.fontFamily;
+  // Standard mode is the DEFAULT colour, whatever Custom's is set to.
+  if (a.alternateRows && a.alternateRowsColor) vars['--dc-alt-row'] = a.alternateRowsColor;
+  if (a.fontFamily) vars['--dc-font'] = fontStack(a.fontFamily);
   if (a.fontSize !== undefined) vars['--dc-font-size'] = `${a.fontSize}px`;
   return vars;
 }

@@ -135,3 +135,78 @@ export function toClipboard(
     newline: '\n',
   });
 }
+
+// -- file names and email drafts, as upstream writes them --------------
+
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep',
+  'Oct', 'Nov', 'Dec'];
+
+/**
+ * Upstream's export name: `<title> - EEE MMM dd yyyy HH_mm_ss`, local
+ * time, so two exports of one cube never overwrite each other.
+ */
+export function exportFileName(title: string, at: Date): string {
+  const two = (n: number): string => String(n).padStart(2, '0');
+  return `${title} - ${DAYS[at.getDay()]} ${MONTHS[at.getMonth()]} ${two(at.getDate())}`
+    + ` ${at.getFullYear()} ${two(at.getHours())}_${two(at.getMinutes())}_${two(at.getSeconds())}`;
+}
+
+/** Base64 of a string's UTF-8 bytes, wrapped at 76 as MIME wants. */
+function base64Lines(text: string): string {
+  const bytes = new TextEncoder().encode(text);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
+  return btoa(binary).replace(/.{76}/g, '$&\n');
+}
+
+/**
+ * An UNSENT email with the file attached -- upstream's Email, which
+ * needs no mail host: the browser downloads the `.eml`, and opening it
+ * gives a draft (`X-Unsent: 1`) in the user's own mail client. The
+ * layout is upstream's, including no blank line before the headers,
+ * which some clients (Outlook) will not read.
+ */
+export function toEml(attachment: {
+  readonly name: string;
+  readonly mime: string;
+  readonly content: string;
+}): string {
+  const mixed = 'mixed_boundary';
+  const alternative = 'alternative_boundary';
+  return [
+    'From:',
+    'To:',
+    'Subject:',
+    'X-Unsent: 1',
+    `Content-Type: multipart/mixed; boundary="${mixed}"`,
+    '',
+    `--${mixed}`,
+    `Content-Type: multipart/alternative; boundary="${alternative}"`,
+    '',
+    `--${alternative}`,
+    'Content-Type: text/plain; charset="UTF-8"',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    '',
+    '',
+    `--${alternative}`,
+    'Content-Type: text/html; charset="UTF-8"',
+    'Content-Transfer-Encoding: 7bit',
+    '',
+    '<html><body><p></p><body></html>',
+    '',
+    `--${alternative}--`,
+    '',
+    `--${mixed}`,
+    `Content-Type: ${attachment.mime}; name="${attachment.name}"`,
+    'Content-Transfer-Encoding: base64',
+    `Content-Disposition: attachment; filename="${attachment.name}"`,
+    '',
+    base64Lines(attachment.content),
+    '',
+    `--${mixed}--`,
+  ].join('\n');
+}

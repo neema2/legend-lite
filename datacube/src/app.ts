@@ -31,6 +31,7 @@ import {
   labelFor,
   toColumnAppearance,
   toColumnLayout,
+  renderFormats,
   toFormats,
   DEFAULT_MAX_ROWS,
   renameColumnConfig,
@@ -43,7 +44,8 @@ import type { Dimension } from './dimensions.ts';
 import { availableDimensions, useDimension } from './dimensions.ts';
 import { drillQuery } from './drill.ts';
 import type { QueryEngine } from './engine.ts';
-import { toCsv } from './export.ts';
+import { exportFileName, toCsv, toEml } from './export.ts';
+import { ALERT_WINDOW, buildAlert, type AlertOptions } from './ui/alert.ts';
 import { toHtml, toSpreadsheetML } from './export-rich.ts';
 import { toPdf, toPlainText } from './export-doc.ts';
 import { toBarChart, toTreemap } from './chart.ts';
@@ -306,6 +308,10 @@ export class CubeApp {
   readonly #open = new Map<string, HTMLElement>();
   /** The z-index the most recently touched window was given. */
   #zTop = 20;
+  /** Where the grid was scrolled when the context menu opened. */
+  #menuScroll: { top: number; left: number } | null = null;
+  /** Alerts are many and untitled, so each gets its own window key. */
+  #alerts = 0;
   #snapshot: CubeSnapshot;
   #config: CubeConfiguration = DEFAULT_CONFIGURATION;
   #view: CubeView | null = null;
@@ -328,7 +334,7 @@ export class CubeApp {
     // cube can arrive from a saved view or a colleague's link, and
     // the editor must open on what is actually running.
     this.#config = fromSnapshot(snapshot, options.configuration);
-    Object.assign(this.#formats, toFormats(this.#config));
+    Object.assign(this.#formats, renderFormats(this.#config, this.#snapshot));
 
     root.classList.add('dc-app');
     this.#els = {
@@ -415,6 +421,25 @@ export class CubeApp {
     this.#menu = new MenuView(this.#doc, {
       onSelect: (item) => this.#onMenuAction(item),
     });
+    // Upstream's menu goes when the grid scrolls: it names the cell
+    // under the pointer, and a scroll moves another cell there. Scroll
+    // does not bubble, so this listens on the way down.
+    //
+    // Only when the grid's VIEW moved since the menu opened -- the
+    // body scroller's position, whatever element fired. The right-click
+    // that opened the menu can scroll on its own (a half-visible cell
+    // brought into view), and that event lands a frame AFTER the menu
+    // is up; the header, which follows the body sideways by setting
+    // its own scrollLeft, fires one more. Either closed the menu the
+    // user had just asked for (2026-09-25 harness, twice).
+    this.#els.grid.addEventListener('scroll', () => {
+      if (!this.#menu.open) return;
+      const at = this.#menuScroll;
+      const scroller = this.#els.grid.querySelector<HTMLElement>('.dc-scroller');
+      if (at && scroller && scroller.scrollTop === at.top
+        && scroller.scrollLeft === at.left) return;
+      this.#menu.close();
+    }, { capture: true });
 
     this.#grid = new DataGrid(this.#els.grid, this.#formatters, {
       // Their --ag-row-height. The CSS token said 20 and this said
@@ -692,7 +717,7 @@ export class CubeApp {
   /** Re-fill the format map in place. See `#formats`. */
   #refreshFormats(): void {
     for (const key of Object.keys(this.#formats)) delete this.#formats[key];
-    const byColumn = toFormats(this.#config);
+    const byColumn = renderFormats(this.#config, this.#snapshot);
     Object.assign(this.#formats, byColumn);
     // A pivoted leaf is named after its MEASURE, not its source
     // column, so a format set on `notional` has to be copied onto
@@ -1347,7 +1372,12 @@ export class CubeApp {
         hasHeatmap:
           column !== undefined && this.#heatmapFor(column) !== undefined,
         canGroup: column === undefined || this.#isDimension(column),
-        canEmail: this.#options.email !== undefined,
+        // A host mailer, or upstream's way: a .eml draft to download.
+        canEmail: this.#options.email !== undefined
+          || this.#options.download !== undefined,
+        ...(column !== undefined && this.#config.columns[column]?.pinned
+          ? { pinned: this.#config.columns[column]?.pinned as 'left' | 'right' }
+          : {}),
         ...(column !== undefined && isPivotTotalColumn(column)
           ? { pivotTotal: true }
           : {}),
@@ -1360,6 +1390,10 @@ export class CubeApp {
         ...(columnType !== undefined ? { columnType } : {}),
       });
       this.#menu.show(groups, event.clientX, event.clientY);
+      const scroller = this.#els.grid.querySelector<HTMLElement>('.dc-scroller');
+      this.#menuScroll = scroller
+        ? { top: scroller.scrollTop, left: scroller.scrollLeft }
+        : null;
     });
   }
 
@@ -1466,37 +1500,37 @@ export class CubeApp {
         if (column) this.#setHeatmap(column, false);
         return;
       case 'export.html':
-        this.#export('html');
+        this.#confirmExport(() => this.#export('html'));
         return;
       case 'export.csv':
-        this.#export('csv');
+        this.#confirmExport(() => this.#export('csv'));
         return;
       case 'export.excel':
-        this.#export('excel');
+        this.#confirmExport(() => this.#export('excel'));
         return;
       case 'export.text':
-        this.#export('text');
+        this.#confirmExport(() => this.#export('text'));
         return;
       case 'export.pdf':
-        this.#export('pdf');
+        this.#confirmExport(() => this.#export('pdf'));
         return;
       case 'export.specification':
         this.#export('specification');
         return;
       case 'email.html':
-        this.#email('html');
+        this.#confirmExport(() => void this.#email('html'));
         return;
       case 'email.excel':
-        this.#email('excel');
+        this.#confirmExport(() => void this.#email('excel'));
         return;
       case 'email.csv':
-        this.#email('csv');
+        this.#confirmExport(() => void this.#email('csv'));
         return;
       case 'email.text':
-        this.#email('text');
+        this.#confirmExport(() => void this.#email('text'));
         return;
       case 'email.pdf':
-        this.#email('pdf');
+        this.#confirmExport(() => void this.#email('pdf'));
         return;
       case 'chart.plot':
         this.#chart('plot');
@@ -1884,7 +1918,11 @@ export class CubeApp {
     }, { replace: true });
   }
 
-  /** One rendering, shared by download and email. */
+  /**
+   * One rendering, shared by download and email, named as upstream
+   * names an export: the title and the moment
+   * (`exportFileName`), so a second export never overwrites the first.
+   */
   #render(kind: 'csv' | 'excel' | 'html' | 'text' | 'pdf'): {
     name: string;
     mime: string;
@@ -1893,6 +1931,7 @@ export class CubeApp {
     const view = this.#view;
     if (!view) return null;
     const title = this.#config.reportTitle ?? 'cube';
+    const base = exportFileName(title, new Date());
     const doc = {
       title,
       formatters: this.#formatters,
@@ -1901,54 +1940,77 @@ export class CubeApp {
     };
     switch (kind) {
       case 'csv':
-        return {
-          name: `${title}.csv`,
-          mime: 'text/csv',
-          content: toCsv(view.rows),
-        };
+        return { name: `${base}.csv`, mime: 'text/csv', content: toCsv(view.rows) };
       case 'excel':
+        // SpreadsheetML rather than CSV so numbers arrive as numbers;
+        // a CSV of "1,234" opens as text in every locale that uses a
+        // comma for the decimal point.
         return {
-          name: `${title}.xls`,
+          name: `${base}.xls`,
           mime: 'application/vnd.ms-excel',
           content: toSpreadsheetML(view.rows, { title }),
         };
       case 'html':
-        return {
-          name: `${title}.html`,
-          mime: 'text/html',
-          content: toHtml(view.rows, { title }),
-        };
+        return { name: `${base}.html`, mime: 'text/html', content: toHtml(view.rows, { title }) };
       case 'text':
-        return {
-          name: `${title}.txt`,
-          mime: 'text/plain',
-          content: toPlainText(view.rows, doc),
-        };
+        // Formatted, not raw: plain text exists to be READ -- pasted
+        // into a message or a ticket -- so it should say what the
+        // screen says. CSV is the one that stays raw so it can be
+        // computed on again.
+        return { name: `${base}.txt`, mime: 'text/plain', content: toPlainText(view.rows, doc) };
       case 'pdf':
-        return {
-          name: `${title}.pdf`,
-          mime: 'application/pdf',
-          content: toPdf(view.rows, doc),
-        };
+        return { name: `${base}.pdf`, mime: 'application/pdf', content: toPdf(view.rows, doc) };
     }
   }
 
   /**
-   * Email the current view as an attachment.
-   *
-   * Refuses out loud when the host cannot send mail, rather than
-   * doing nothing -- the menu already disables the entry, and this
-   * is the second line of defence for a keyboard or scripted path
-   * that skips the menu.
+   * Upstream's warning before any data leaves the cube: the user
+   * attests to the leakage risk, and Decline (the default, focused
+   * first) does nothing. Upstream asks for exports; ours asks for an
+   * email too, which carries the same rows.
+   */
+  #confirmExport(onAccept: () => void): void {
+    this.#alert({
+      type: 'warning',
+      message: 'Confirm you want to proceed with export',
+      text: 'I attest that I am aware of the sensitive data leakage risk when'
+        + ' exporting queried data. The data I export will only be used by me.',
+      actions: [
+        { label: 'Decline', handler: () => {} },
+        { label: 'Accept', handler: onAccept },
+      ],
+    });
+  }
+
+  /** Open an alert window (upstream's DataCubeAlertService.alert). */
+  #alert(options: AlertOptions): void {
+    this.#alerts += 1;
+    this.#showOverlay(options.title ?? '', (host, close) => buildAlert(host, options, close), {
+      key: `alert:${this.#alerts}`,
+      size: ALERT_WINDOW,
+    });
+  }
+
+  /**
+   * Email the current view as an attachment: through the host's
+   * mailer when it has one, else upstream's way -- an unsent `.eml`
+   * draft, downloaded, that opens in the user's own mail client.
    */
   async #email(kind: 'csv' | 'excel' | 'html' | 'text' | 'pdf'): Promise<void> {
-    const send = this.#options.email;
-    if (!send) {
-      this.#status('this build cannot send email', 'warn');
-      return;
-    }
     const rendered = this.#render(kind);
     if (!rendered) return;
+    const send = this.#options.email;
+    const download = this.#options.download;
+    if (!send) {
+      if (!download) {
+        this.#status('this build cannot send email', 'warn');
+        return;
+      }
+      const draft = rendered.name.replace(/\.[^.]+$/, '.eml');
+      download(draft, 'message/rfc822', toEml(rendered));
+      this.#status(`email draft ${draft}`, 'ok');
+      return;
+    }
     const title = this.#config.reportTitle ?? 'cube';
     try {
       await send({
@@ -1967,78 +2029,36 @@ export class CubeApp {
   ): void {
     const view = this.#view;
     if (!view) return;
-    const title = this.#config.reportTitle ?? 'cube';
     const download = this.#options.download;
     if (!download) {
       this.#status('no download handler', 'error');
       return;
     }
-    switch (kind) {
-      case 'csv':
-        download(`${title}.csv`, 'text/csv', toCsv(view.rows));
-        return;
-      case 'excel':
-        // SpreadsheetML rather than CSV so numbers arrive as numbers;
-        // a CSV of "1,234" opens as text in every locale that uses a
-        // comma for the decimal point.
-        download(
-          `${title}.xls`,
-          'application/vnd.ms-excel',
-          toSpreadsheetML(view.rows, { title }),
-        );
-        return;
-      case 'html':
-        download(`${title}.html`, 'text/html', toHtml(view.rows, { title }));
-        return;
-      case 'text':
-        // Formatted, not raw: plain text exists to be READ -- pasted
-        // into a message or a ticket -- so it should say what the
-        // screen says. CSV is the one that stays raw so it can be
-        // computed on again.
-        download(
-          `${title}.txt`,
-          'text/plain',
-          toPlainText(view.rows, {
-            title,
-            formatters: this.#formatters,
-            formats: this.#formats,
-            labels: this.#labels(),
-          }),
-        );
-        return;
-      case 'pdf':
-        download(
-          `${title}.pdf`,
-          'application/pdf',
-          toPdf(view.rows, {
-            title,
-            formatters: this.#formatters,
-            formats: this.#formats,
-            labels: this.#labels(),
-          }),
-        );
-        return;
-      case 'specification':
-        download(
-          `${title}.json`,
-          'application/json',
-          toJson(
-            save({
-              name: title,
-              snapshot: view.snapshot,
-              tree: this.#controller.tree,
-              columns: {
-                ...(this.#config.columnOrder
-                  ? { order: this.#config.columnOrder }
-                  : {}),
-                formats: toFormats(this.#config),
-              },
-            }),
-          ),
-        );
-        return;
+    if (kind !== 'specification') {
+      const rendered = this.#render(kind);
+      if (rendered) download(rendered.name, rendered.mime, rendered.content);
+      return;
     }
+    const title = this.#config.reportTitle ?? 'cube';
+    download(
+      `${exportFileName(title, new Date())}.json`,
+      'application/json',
+      toJson(
+        save({
+          name: title,
+          snapshot: view.snapshot,
+          tree: this.#controller.tree,
+          columns: {
+            ...(this.#config.columnOrder
+              ? { order: this.#config.columnOrder }
+              : {}),
+            formats: toFormats(this.#config),
+          },
+        }),
+      ),
+    );
   }
+
 
   // -- saved views --------------------------------------------------------
 
@@ -2352,9 +2372,15 @@ export class CubeApp {
   #showOverlay(
     title: string,
     build: (host: HTMLElement, close: () => void) => void,
-    options: { readonly replace?: boolean; readonly size?: WindowOptions } = {},
+    options: {
+      readonly replace?: boolean;
+      readonly size?: WindowOptions;
+      /** What identifies the window, when its title does not: an alert. */
+      readonly key?: string;
+    } = {},
   ): HTMLElement {
-    const open = this.#open.get(title);
+    const key = options.key ?? title;
+    const open = this.#open.get(key);
     if (open && !options.replace) {
       this.#raise(open);
       return open;
@@ -2362,22 +2388,22 @@ export class CubeApp {
     const win = open ?? this.#doc.createElement('div');
     if (!open) {
       win.className = 'dc-app-overlay';
-      win.dataset['window'] = title;
+      win.dataset['window'] = key;
       this.#els.root.append(win);
-      this.#open.set(title, win);
+      this.#open.set(key, win);
       // Whichever window is touched comes to the front.
       win.addEventListener('pointerdown', () => this.#raise(win));
       // Escape closes the window it is pressed in, because a window a
       // keyboard user cannot dismiss is a trap; the panels inside stop
       // their own Escape from reaching here.
       win.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape') this.#closeWindow(title);
+        if (event.key === 'Escape') this.#closeWindow(key);
       });
     }
     win.hidden = false;
     win.replaceChildren();
     win.removeAttribute('style');
-    const close = (): void => this.#closeWindow(title);
+    const close = (): void => this.#closeWindow(key);
     const head = this.#div(win, 'dc-overlay-head');
     const h = this.#doc.createElement('span');
     h.textContent = title;
@@ -2393,13 +2419,13 @@ export class CubeApp {
     // Dragged by the header, resized from any edge, and REMEMBERED BY
     // TITLE: reopening Properties finds it where it was left, while
     // the Filter window keeps its own place.
-    const remembered = this.#windows.get(title);
+    const remembered = this.#windows.get(key);
     this.#windows.set(
-      title,
+      key,
       makeWindow(win, head, this.#els.root, {
         ...(options.size ?? {}),
         ...(remembered ? { spec: remembered } : {}),
-        onChange: (spec) => this.#windows.set(title, spec),
+        onChange: (spec) => this.#windows.set(key, spec),
       }),
     );
     this.#raise(win);
@@ -2413,12 +2439,14 @@ export class CubeApp {
   }
 
   /** Close one window, by its title. */
-  #closeWindow(title: string): void {
-    const win = this.#open.get(title);
+  #closeWindow(key: string): void {
+    const win = this.#open.get(key);
     if (!win) return;
     win.remove();
-    this.#open.delete(title);
-    if (title === 'Properties') this.#editor = null;
+    this.#open.delete(key);
+    // An alert's position is not worth remembering: each is new.
+    if (key.startsWith('alert:')) this.#windows.delete(key);
+    if (key === 'Properties') this.#editor = null;
   }
 
   // -- the toolbar ------------------------------------------------------------

@@ -330,6 +330,17 @@ const openMenu = () => page.evaluate(() =>
  *   only ever a speed hint: each check asserts its own outcome, so
  *   getting it wrong costs time, never correctness.
  */
+/** A negative as the grid shows it: a minus, or upstream's parentheses. */
+function isNegativeText(t) {
+  return typeof t === 'string' && (t.startsWith('-') || /^\(.*\)$/.test(t));
+}
+
+/** Press a button on upstream's export warning. */
+async function answerExport(label) {
+  const button = page.locator('.dc-alert-action', { hasText: label }).first();
+  await button.click({ timeout: 5000 });
+}
+
 async function menu(path, { row = 0, col = 0, requery = true } = {}) {
   await reset();
   const before = requery ? await statusNow() : undefined;
@@ -1522,6 +1533,8 @@ try {
     await check(`export ${label}`, async () => {
       const wait = page.waitForEvent('download', { timeout: 15_000 });
       await menu(['Export', label], { requery: false });
+      // Upstream's attestation first, for anything carrying rows.
+      if (ext !== 'json') await answerExport('Accept');
       const dl = await wait;
       const path = await dl.path();
       const body = await readFile(path);
@@ -1533,6 +1546,60 @@ try {
       return `${name}, ${body.length} bytes`;
     });
   }
+
+  await check('an export asks first, and Decline downloads nothing', async () => {
+    let downloaded = false;
+    const seen = () => { downloaded = true; };
+    page.on('download', seen);
+    try {
+      await menu(['Export', 'CSV (Grid)'], { requery: false });
+      const text = await page.locator('.dc-alert-warning').innerText({ timeout: 3000 });
+      if (!/Confirm you want to proceed with export/.test(text)) throw new Error(`warning read ${text}`);
+      await answerExport('Decline');
+      await page.waitForTimeout(400);
+      if (downloaded) throw new Error('Decline still downloaded');
+      if (await page.locator('.dc-alert').count()) throw new Error('the warning stayed open');
+      return 'warned, declined, nothing sent';
+    } finally {
+      page.off('download', seen);
+    }
+  });
+
+  await check('Email with no mail host downloads an unsent .eml draft', async () => {
+    const own = (text) =>
+      `.dc-menu-item:has(> .dc-menu-label:text-is(${JSON.stringify(text)}))`;
+    await reset();
+    await page.locator('.dc-row').first().locator('.dc-cell').first().click({ button: 'right' });
+    const email = page.locator(own('Email')).first();
+    await email.hover();
+    const wait = page.waitForEvent('download', { timeout: 15_000 });
+    await email.locator('.dc-submenu').locator(own('CSV (Grid)')).first().click();
+    await answerExport('Accept');
+    const dl = await wait;
+    const name = dl.suggestedFilename();
+    const body = String(await readFile(await dl.path()));
+    if (!name.endsWith('.eml')) throw new Error(`downloaded ${name}`);
+    if (!/^From:\nTo:\nSubject:\nX-Unsent: 1\n/.test(body)) throw new Error('not an unsent draft');
+    if (!/filename=".* - .*\.csv"/.test(body)) throw new Error('no timestamped CSV attached');
+    return name;
+  });
+
+  await check('Pin Left is checked once the column is pinned left', async () => {
+    await menu(['Pin', 'Pin Left'], { requery: false });
+    await page.waitForTimeout(250);
+    const own = (text) =>
+      `.dc-menu-item:has(> .dc-menu-label:text-is(${JSON.stringify(text)}))`;
+    await page.locator('.dc-row').first().locator('.dc-cell').first().click({ button: 'right' });
+    const pin = page.locator(own('Pin Left')).first();
+    const checked = await pin.getAttribute('aria-checked');
+    const disabled = await pin.getAttribute('aria-disabled');
+    await page.keyboard.press('Escape');
+    await menu(['Pin', 'Remove All Pinnings'], { requery: false });
+    if (checked !== 'true' || disabled !== 'true') {
+      throw new Error(`Pin Left checked=${checked} disabled=${disabled}`);
+    }
+    return 'checked, and disabled';
+  });
 
   await check('copy a column to the clipboard', async () => {
     await menu(['Copy', /^Column .* as Plain Text$/], { requery: false });
@@ -1860,6 +1927,9 @@ try {
     if (!want) throw new Error(`no integer column among ${opts.join(',')}`);
     await chooser.selectOption(want);
     await page.waitForTimeout(250);
+    // Upstream's one ADVANCED setting.
+    await page.locator('.dc-check', { hasText: 'Show advanced settings?' }).locator('input').check();
+    await page.waitForTimeout(150);
 
     const kind = page.locator('.dc-field', { hasText: 'Column Kind:' })
       .first().locator('select').first();
@@ -3936,11 +4006,16 @@ try {
     }), expect: (b, a) => (/255, 0, 0/.test(a.rowLine ?? '') ? null : `row line ${a.rowLine}`) });
     await control('Grid lines: vertical off', { act: general(() => boxOf('Vertical').uncheck()), expect: styleChanged('br') });
     await control('Highlight rows off', { act: general(() => boxOf('Standard mode').uncheck()), expect: changed('rowBg') });
-    await control('Highlight rows colour', { act: general(() => put(fieldOf('Custom: Alternate color:').locator('input[type=color]'), '#00ff00')),
+    await control('Highlight rows colour', { act: general(async () => {
+      // Custom and Standard exclude each other; the colour is Custom's.
+      await boxOf('Custom').check();
+      if (await boxOf('Standard mode').isChecked()) throw new Error('Standard stayed on beside Custom');
+      await put(fieldOf('Custom: Alternate color:').locator('input[type=color]'), '#00ff00');
+    }),
       expect: changed('rowBg') });
     const font = () => sectionOf('Default Font');
-    await control('Default font family', { act: general(() => font().locator('select').first().selectOption({ index: 2 })), expect: styleChanged('font') });
-    await control('Default font size', { act: general(() => put(font().locator('input[type=number]').first(), 18)), expect: styleChanged('size') });
+    await control('Default font family', { act: general(() => font().locator('select').first().selectOption('Georgia')), expect: styleChanged('font') });
+    await control('Default font size', { act: general(() => font().locator('select').nth(1).selectOption('18')), expect: styleChanged('size') });
     await control('Default font bold', { act: general(() => font().locator('button[title="Bold"]').click()), expect: styleChanged('weight') });
     await control('Default font italic', { act: general(() => font().locator('button[title="Italic"]').click()), expect: styleChanged('italic') });
     await control('Default font underline', { act: general(() => font().locator('button[title="Underline"]').click()), expect: styleChanged('deco') });
@@ -3950,7 +4025,7 @@ try {
     await control('Default normal foreground', { act: general(() => put(sectionOf('Default Colors').locator('input[title="Normal foreground"]'), '#aa00aa')),
       expect: (b, a) => (a.styles.some((x, i) => x?.color !== b.styles[i]?.color) ? null : 'no cell recoloured') });
     await control('Default negative foreground', { act: general(() => put(sectionOf('Default Colors').locator('input[title="Negative foreground"]'), '#aa00aa')),
-      expect: (b, a) => (a.styles.some((x, i) => a.texts[i]?.startsWith('-') && x?.color !== b.styles[i]?.color) ? null : 'no negative recoloured') });
+      expect: (b, a) => (a.styles.some((x, i) => isNegativeText(a.texts[i]) && x?.color !== b.styles[i]?.color) ? null : 'no negative recoloured') });
     await control('Default normal background', { act: general(() => put(sectionOf('Default Colors').locator('input[title="Normal background"]'), '#ffeeaa')),
       expect: (b, a) => (a.styles.some((x, i) => x?.bg !== b.styles[i]?.bg) ? null : 'no background') });
     await control('Show drag zones, off', { act: general(() => boxOf('Show drag zones').uncheck()),
@@ -3982,12 +4057,22 @@ try {
         await boxOf('Display commas').uncheck();
       }),
       expect: (b, a) => (a.texts.every((t) => !/,/.test(t ?? '')) ? null : `pnl ${a.texts}`) });
-    await control('Negative number in parens', { act: column('pnl', () => boxOf('Negative number in parens').check()),
-      expect: (b, a) => (a.texts.some((t) => /^\(.*\)$/.test(t ?? '')) ? null : `pnl ${a.texts}`) });
+    // Upstream's default for a number: parentheses ON, and the box says so.
+    await control('Negative number in parens: shown ticked, untick removes them', {
+      act: column('pnl', async () => {
+        if (!(await boxOf('Negative number in parens').isChecked())) throw new Error('unticked by default');
+        await boxOf('Negative number in parens').uncheck();
+      }),
+      expect: (b, a) => (b.texts.some((t) => /^\(.*\)$/.test(t ?? ''))
+        && a.texts.every((t) => !/^\(.*\)$/.test(t ?? '')) && a.texts.some((t) => /^-/.test(t ?? ''))
+        ? null : `pnl before ${b.texts} after ${a.texts}`) });
     await control('Scale', { act: column('pnl', () => fieldOf('Scale:').locator('select').selectOption('thousands')),
       expect: (b, a) => (a.texts.some((t) => /k$/.test(t ?? '')) ? null : `pnl ${a.texts}`) });
+    // Upstream's unit: glued on, or FIRST when it starts with `_`.
     await control('Unit', { act: column('pnl', () => put(fieldOf('Unit:').locator('input'), 'USD')),
-      expect: (b, a) => (a.texts.every((t) => / USD$/.test(t ?? '')) ? null : `pnl ${a.texts}`) });
+      expect: (b, a) => (a.texts.every((t) => /\dUSD\)?$/.test(t ?? '')) ? null : `pnl ${a.texts}`) });
+    await control('Unit starting with _ goes first', { act: column('pnl', () => put(fieldOf('Unit:').locator('input'), '_$')),
+      expect: (b, a) => (a.texts.every((t) => /^\(?\$[-\d]/.test(t ?? '')) ? null : `pnl ${a.texts}`) });
     await control('Case (column)', { col: 'region', act: column('region', () => fieldOf('Case:').locator('select').selectOption('lowercase')),
       expect: (b, a) => (a.texts.every((t) => t === t?.toLowerCase()) ? null : `region ${a.texts}`) });
     await control('Blur content', { act: column('pnl', () => boxOf('Blur content').check()), expect: styleChanged('filter') });
@@ -4004,7 +4089,7 @@ try {
     await control('Column font bold', { act: column('pnl', () => page.locator(`${O} button[title="Bold"]`).first().click()),
       expect: styleChanged('weight') });
     await control('Column negative foreground', { act: column('pnl', () => put(page.locator(`${O} input[title="Negative foreground"]`).first(), '#0000ff')),
-      expect: (b, a) => (a.styles.some((x, i) => a.texts[i]?.startsWith('-') && x?.color !== b.styles[i]?.color) ? null : 'no negative recoloured') });
+      expect: (b, a) => (a.styles.some((x, i) => isNegativeText(a.texts[i]) && x?.color !== b.styles[i]?.color) ? null : 'no negative recoloured') });
   }
 } catch (e) {
   record('the run itself', false, String(e.message ?? e).split('\n')[0]);

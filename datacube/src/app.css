@@ -730,6 +730,56 @@
   padding: var(--dc-pad-2);
 }
 
+/* An alert, as upstream's DataCubeAlert: a 40px icon in the type's
+   colour, the message, the text under it in grey, and the actions in
+   a 40px footer on the right. */
+.dc-overlay-body.dc-alert {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.dc-alert-body {
+  flex: 1 1 auto;
+  display: flex;
+  gap: 12px;
+  padding: 24px;
+  overflow: auto;
+}
+
+.dc-alert-icon {
+  flex: none;
+  font-size: 40px;
+  line-height: 1;
+}
+
+.dc-alert-error .dc-alert-icon { color: var(--tw-red-500, #ef4444); }
+.dc-alert-info .dc-alert-icon { color: var(--tw-sky-500, #0ea5e9); }
+.dc-alert-success .dc-alert-icon { color: var(--tw-green-500, #22c55e); }
+.dc-alert-warning .dc-alert-icon { color: var(--tw-amber-500, #f59e0b); }
+
+.dc-alert-message {
+  font-size: var(--dc-text-lg-size);
+  white-space: break-spaces;
+}
+
+.dc-alert-text {
+  margin-top: 4px;
+  color: var(--tw-neutral-500);
+  white-space: break-spaces;
+}
+
+.dc-alert-actions {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 8px;
+  border-top: 1px solid var(--tw-neutral-300);
+}
+
 .dc-drill {
   max-height: 320px;
   overflow: auto;

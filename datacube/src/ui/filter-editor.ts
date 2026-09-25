@@ -1079,6 +1079,15 @@ export class FilterEditor {
       }
       case 'date':
         return this.#dateEditor(c, type);
+      case 'time': {
+        // A time of day carries no date, so none of the date modes
+        // apply -- upstream shows the picker alone.
+        const input = this.#textInput(c.text, (text) => this.update(c.id, { text }),
+          'dc-filter-value dc-filter-time');
+        input.type = 'time';
+        input.step = '1';
+        return [input];
+      }
       default: {
         const input = this.#textInput(c.text, (text) => this.update(c.id, { text }),
           'dc-filter-value');

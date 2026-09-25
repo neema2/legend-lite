@@ -135,7 +135,7 @@ describe('buildMenu', () => {
       }),
     );
     assert.ok(
-      items.some((i) => i.label === 'Add Filter: region = EMEA'),
+      items.some((i) => i.label === "Add Filter: region = 'EMEA'"),
       items.map((i) => i.label).join(' | '),
     );
   });
@@ -482,6 +482,31 @@ describe('valueLabel', () => {
     assert.equal(valueLabel(new Date(2021, 1, 9)), '2021-02-09');
     assert.equal(valueLabel(new Date(2021, 1, 9, 12, 58)), '2021-02-09 12:58:00');
     assert.equal(valueLabel({ relative: 'today' }), 'TODAY');
-    assert.equal(valueLabel('EMEA'), 'EMEA');
+    // Text quoted, as upstream's labels are; numbers and booleans bare.
+    assert.equal(valueLabel('EMEA'), "'EMEA'");
+    assert.equal(valueLabel(12), '12');
+    assert.equal(valueLabel(true), 'true');
+  });
+});
+
+describe('the Pin and Sort entries report state, as upstream', () => {
+  const find = (groups: ReturnType<typeof buildMenu>, label: string) =>
+    menuItems(groups).find((i) => i.label === label);
+
+  it('checks, and disables, the placement that holds; Unpin needs a pin', () => {
+    const left = buildMenu({ snapshot: CUBE, column: 'region', pinned: 'left' });
+    assert.equal(find(left, 'Pin Left')?.checked, true);
+    assert.equal(find(left, 'Pin Left')?.disabled, true);
+    assert.equal(find(left, 'Pin Right')?.checked, false);
+    assert.equal(find(left, 'Pin Right')?.disabled, false);
+    const none = buildMenu({ snapshot: CUBE, column: 'region' });
+    assert.equal(find(none, 'Unpin')?.disabled, true);
+  });
+
+  it('disables an Add that would change nothing', () => {
+    const sorted = { ...CUBE, sorts: [{ column: 'region', direction: 'asc' as const }] };
+    const groups = buildMenu({ snapshot: sorted, column: 'region' });
+    assert.equal(find(groups, 'Add Ascending')?.disabled, true);
+    assert.equal(find(groups, 'Add Descending')?.disabled, false);
   });
 });

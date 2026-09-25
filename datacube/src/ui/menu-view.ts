@@ -38,7 +38,7 @@ export class MenuView {
   /** Items currently rendered, in order. For tests. */
   get items(): HTMLElement[] {
     return this.#el
-      ? [...this.#el.querySelectorAll<HTMLElement>('[role="menuitem"]')]
+      ? [...this.#el.querySelectorAll<HTMLElement>('[role="menuitem"], [role="menuitemcheckbox"]')]
       : [];
   }
 
@@ -131,6 +131,15 @@ export class MenuView {
     el.setAttribute('role', 'menuitem');
     el.tabIndex = -1;
 
+    if (item.checked !== undefined) {
+      // A check mark, and the role that lets a screen reader say it.
+      el.setAttribute('role', 'menuitemcheckbox');
+      el.setAttribute('aria-checked', String(item.checked));
+      const mark = doc.createElement('span');
+      mark.className = 'dc-menu-check';
+      mark.textContent = item.checked ? '✓' : '';
+      el.appendChild(mark);
+    }
     const label = doc.createElement('span');
     label.className = 'dc-menu-label';
     label.textContent = item.label;

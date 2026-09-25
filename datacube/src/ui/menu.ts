@@ -92,6 +92,8 @@ export interface MenuContext {
   readonly pivotTotal?: boolean;
   /** From a header: Properties... opens Column Properties on this. */
   readonly propertiesColumn?: string;
+  /** Where the column is pinned, if it is: the Pin entries say so. */
+  readonly pinned?: 'left' | 'right';
   /**
    * The value in the cell that was right-clicked, if any.
    *
@@ -237,6 +239,8 @@ export interface MenuItem {
    * so the menu keeps its shape and can be learned.
    */
   readonly disabled?: boolean;
+  /** A state the entry reports: upstream's check mark (Pin Left / Right). */
+  readonly checked?: boolean;
   readonly submenu?: readonly MenuItem[];
 }
 
@@ -329,6 +333,9 @@ const OPERATOR_LABEL: Readonly<Partial<Record<FilterOperator, string>>> = {
 export function valueLabel(value: FilterValue): string {
   if (isRelativeDate(value)) return value.relative === 'today' ? 'TODAY' : 'NOW';
   if (value instanceof Date) return temporalLiteral(value).slice(1).replace('T', ' ');
+  // Text QUOTED, as upstream's: "region = 'EMEA'", so a value that
+  // looks like a number or is blank still reads as the text it is.
+  if (typeof value === 'string') return `'${value}'`;
   return String(value);
 }
 
@@ -440,16 +447,17 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
           disabled: !column,
           ...(column ? { column, direction: 'desc' as const } : {}),
         },
+        // Upstream disables an Add that would change nothing.
         {
           id: 'sort.addAsc',
           label: 'Add Ascending',
-          disabled: !column,
+          disabled: !column || sorted?.direction === 'asc',
           ...(column ? { column, direction: 'asc' as const } : {}),
         },
         {
           id: 'sort.addDesc',
           label: 'Add Descending',
-          disabled: !column,
+          disabled: !column || sorted?.direction === 'desc',
           ...(column ? { column, direction: 'desc' as const } : {}),
         },
         {
@@ -602,22 +610,26 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
     {
       label: 'Pin',
       submenu: [
+        // Upstream: each placement CHECKED when it holds, and disabled
+        // then -- there is nothing to do -- as Unpin is when unpinned.
         {
           id: 'column.pinLeft',
           label: 'Pin Left',
-          disabled: !column,
+          disabled: !column || ctx.pinned === 'left',
+          checked: column !== undefined && ctx.pinned === 'left',
           ...(column ? { column } : {}),
         },
         {
           id: 'column.pinRight',
           label: 'Pin Right',
-          disabled: !column,
+          disabled: !column || ctx.pinned === 'right',
+          checked: column !== undefined && ctx.pinned === 'right',
           ...(column ? { column } : {}),
         },
         {
           id: 'column.unpin',
           label: 'Unpin',
-          disabled: !column,
+          disabled: !column || ctx.pinned === undefined,
           ...(column ? { column } : {}),
         },
         { id: 'column.unpinAll', label: 'Remove All Pinnings' },

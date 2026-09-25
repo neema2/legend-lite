@@ -372,15 +372,82 @@ describe('the editor', () => {
     assert.equal(again.value, '140', 'the typed number survived');
   });
 
-  it('hides the advanced block until asked', () => {
+  it('hides the column kind until advanced settings are asked for', () => {
+    // Upstream's one advanced setting.
     go('Column Properties');
     const label = (): Element | null =>
       [...root.querySelectorAll('.dc-field-label')].find(
-        (l) => l.textContent === 'Use parameter in link as label:',
+        (l) => l.textContent === 'Column Kind:',
       ) ?? null;
     assert.equal(label(), null);
     (root.querySelector('.dc-panel-head-row input') as HTMLInputElement).click();
     assert.notEqual(label(), null);
+  });
+
+  describe('Column Properties follows the column type', () => {
+    const choose = (name: string): void => {
+      go('Column Properties');
+      const chooser = fieldWithLabel('Choose Column:').querySelector(
+        'select',
+      ) as HTMLSelectElement;
+      chooser.value = name;
+      chooser.dispatchEvent(new dom.window.Event('change'));
+    };
+    const advanced = (): void =>
+      (root.querySelector('.dc-panel-head-row input') as HTMLInputElement).click();
+    const options = (label: string): string[] =>
+      [...(fieldWithLabel(label).querySelector('select') as HTMLSelectElement)
+        .options].map((o) => o.value).filter((v) => v !== '');
+
+    it('a number shows the number format, with its defaults, and no link', () => {
+      choose('notional');
+      const decimals = fieldWithLabel('Decimals:');
+      assert.equal((decimals.querySelector('input[type=number]') as HTMLInputElement).value, '2');
+      const parens = [...decimals.querySelectorAll('label')]
+        .find((l) => l.textContent?.includes('Negative number in parens'))
+        ?.querySelector('input') as HTMLInputElement;
+      assert.equal(parens.checked, true, 'parens are the default for a number');
+      assert.equal(fieldWithLabel('Use parameter in link as label:'), undefined);
+    });
+
+    it('text shows the link, and no number format', () => {
+      choose('desk');
+      assert.equal(fieldWithLabel('Decimals:'), undefined);
+      assert.ok(fieldWithLabel('Use parameter in link as label:'));
+      // Upstream's for every type: text has a case and a missing value
+      // (the 2026-09-25 harness caught Case hidden with the numbers).
+      assert.ok(fieldWithLabel('Case:'));
+      assert.ok(fieldWithLabel('Missing Value Format:'));
+    });
+
+    it('offers only the aggregates that keep the type', () => {
+      choose('desk');
+      assert.deepEqual(options('Aggregation:'), ['min', 'max', 'joinStrings', 'unique']);
+      choose('notional');
+      assert.ok(options('Aggregation:').includes('sum'));
+      assert.ok(!options('Aggregation:').includes('joinStrings'));
+    });
+
+    it('locks the kind of a column that is a pivot, and says why', () => {
+      choose('region');
+      advanced();
+      const kind = fieldWithLabel('Column Kind:').querySelector('select') as HTMLSelectElement;
+      assert.equal(kind.disabled, true);
+      assert.match(kind.title, /cannot be changed while the column is used in pivot/);
+    });
+
+    it('a new kind resets the exclusion from the pivot, as upstream', () => {
+      choose('desk');
+      advanced();
+      const kind = (): HTMLSelectElement =>
+        fieldWithLabel('Column Kind:').querySelector('select') as HTMLSelectElement;
+      kind().value = 'measure';
+      kind().dispatchEvent(new dom.window.Event('change'));
+      assert.equal(columnConfig(editor.draft.config, 'desk').excludedFromPivot, undefined);
+      kind().value = 'dimension';
+      kind().dispatchEvent(new dom.window.Event('change'));
+      assert.equal(columnConfig(editor.draft.config, 'desk').excludedFromPivot, true);
+    });
   });
 
   it('gives each editor its own panel state', () => {
