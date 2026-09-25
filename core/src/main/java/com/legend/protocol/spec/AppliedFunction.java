@@ -168,12 +168,6 @@ public record AppliedFunction(
         this(function, parameters, List.of());
     }
 
-    /** The parse-level {@code if} spelling — the single owner of the
-     * name compare (string-dispatch freeze). */
-    public static boolean isIf(AppliedFunction af) {
-        return af.function().equals("if");
-    }
-
     // -- PARSER CARRIERS: applied-function spellings the parser mints for
     // forms the language has no function for. Each string lives HERE once;
     // the parser emits and the checkers read through these owners.

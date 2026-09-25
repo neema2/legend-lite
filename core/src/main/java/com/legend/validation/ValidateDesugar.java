@@ -336,9 +336,8 @@ public final class ValidateDesugar {
         ValueSpecification body = c.expression();
         // engine negatedFunctionExpression: not(not(x)) collapses
         ValueSpecification negated = body instanceof AppliedFunction nf
-                && ("not".equals(nf.function())
-                        || "meta::pure::functions::boolean::not"
-                                .equals(nf.function()))
+                && com.legend.compiler.ResolvedNames.names(nf,
+                        com.legend.builtin.Pure.NOT__BOOLEAN_1.qualifiedName())
                 && nf.parameters().size() == 1
                 ? nf.parameters().get(0)
                 : new AppliedFunction("not", List.of(body));
@@ -401,7 +400,8 @@ public final class ValidateDesugar {
     private static String rootClassFqn(ValueSpecification n, ModelContext ctx,
             List<String> imports) {
         if (n instanceof AppliedFunction af) {
-            if ("getAll".equals(af.function()) && !af.parameters().isEmpty()
+            if (com.legend.compiler.ResolvedNames.names(af, com.legend.builtin.Pure.GET_ALL__CLASS_1.qualifiedName())
+                    && !af.parameters().isEmpty()
                     && af.parameters().get(0)
                             instanceof PackageableElementPtr ptr) {
                 String name = ptr.fullPath();

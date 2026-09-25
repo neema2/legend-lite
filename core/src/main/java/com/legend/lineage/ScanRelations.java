@@ -2512,7 +2512,8 @@ public final class ScanRelations {
 
     private static @com.legend.Nullable String rootClassFqn(ValueSpecification n) {
         if (n instanceof AppliedFunction af) {
-            if ("getAll".equals(af.function()) && !af.parameters().isEmpty()
+            if (com.legend.compiler.ResolvedNames.names(af, com.legend.builtin.Pure.GET_ALL__CLASS_1.qualifiedName())
+                    && !af.parameters().isEmpty()
                     && af.parameters().get(0)
                             instanceof PackageableElementPtr p) {
                 return p.fullPath();

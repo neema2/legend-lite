@@ -131,12 +131,46 @@ public final class ModelNormalizer {
         liftConstraints(parsed, lifted);        // E.3
         liftServiceQueries(parsed, lifted);     // E.4
         lifted.addAll(views.functions());       // E.5
-        if (lifted.isEmpty()) return normalized;
         List<PackageableElement> elements =
                 new ArrayList<>(normalized.elements().size() + lifted.size());
         elements.addAll(normalized.elements());
         elements.addAll(lifted);
-        return new NormalizedModel(elements, normalized.imports(), normalized.legacySurfaces());
+        return new NormalizedModel(resolveSynthesized(elements), normalized.imports(),
+                normalized.legacySurfaces());
+    }
+
+    /** E.6 — SYNTHESIZED PROGRAMS ARE RESOLVED LIKE TEXT (untangle 4b.1): a
+     *  realizer, a lifted property or constraint, a view body is a Pure program
+     *  this phase wrote, naming platform functions as a query does; it goes
+     *  through the resolver — the one place a call's candidates are decided —
+     *  before it joins the model, so no bare name reaches the typer that user
+     *  text would not. Parsed text inside a body is already resolved and
+     *  passes through unchanged (resolution is idempotent). */
+    private static List<PackageableElement> resolveSynthesized(List<PackageableElement> elements) {
+        java.util.Set<String> modelFqns = new java.util.HashSet<>();
+        for (PackageableElement el : elements) {
+            modelFqns.add(el.qualifiedName());
+        }
+        com.legend.model.ImportScope none = new com.legend.model.ImportScope.Builder().build();
+        List<PackageableElement> out = new ArrayList<>(elements.size());
+        for (PackageableElement el : elements) {
+            if (el instanceof FunctionDefinition fd && fd.synthesizedFrom() != null) {
+                List<com.legend.protocol.spec.ValueSpecification> body = new ArrayList<>(fd.body().size());
+                boolean changed = false;
+                for (var stmt : fd.body()) {
+                    var resolved = com.legend.compiler.NameResolver.resolveQuery(stmt, none, modelFqns);
+                    changed |= resolved != stmt;
+                    body.add(resolved);
+                }
+                out.add(changed ? new FunctionDefinition(fd.qualifiedName(), fd.typeParameters(),
+                        fd.multiplicityParameters(), fd.parameters(), fd.returnType(),
+                        fd.returnMultiplicity(), body, fd.stereotypes(), fd.taggedValues(),
+                        fd.synthesizedFrom()) : fd);
+            } else {
+                out.add(el);
+            }
+        }
+        return out;
     }
 
     /**

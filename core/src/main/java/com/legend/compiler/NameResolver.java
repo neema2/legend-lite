@@ -333,10 +333,54 @@ public final class NameResolver {
         return Set.copyOf(ids);
     }
 
+    /** Every platform function's FQN a user may name — the user-resolvable
+     *  catalog natives and the prelude's functions — so a bare call qualifies
+     *  through the file's imports and the core import group exactly like a
+     *  user function (untangle step 4b.1). */
+    private static Set<String> computePlatformFunctionFqns() {
+        Set<String> fqns = new HashSet<>(Pure.userResolvableFunctionFqns());
+        for (PackageableElement el : com.legend.builtin.Prelude.elements()) {
+            if (el instanceof com.legend.model.Function f) {
+                fqns.add(f.qualifiedName());
+            }
+        }
+        return Set.copyOf(fqns);
+    }
+
     private static Set<String> platformNames() {
         Set<String> all = new HashSet<>(PLATFORM_TYPE_FQNS);
         all.addAll(computePlatformFunctionIds());
+        all.addAll(computePlatformFunctionFqns());
         return Set.copyOf(all);
+    }
+
+    /** CALL position (real pure): the candidates are every function the name
+     *  denotes across the file's wildcards, its own package and the WHOLE core
+     *  import group — a function name in several core packages (collection::map,
+     *  relation::map) is every one of them, the signature picks; a type name
+     *  keeps the group's first-match rule. A qualified name is itself. */
+    private static List<String> resolveCallCandidates(String name, Scope scope) {
+        if (name == null || name.isEmpty() || scope.knownFqns().contains(name)
+                || scope.typeParams().contains(name)) {
+            return resolveNameMulti(name, scope);
+        }
+        List<String> out = new ArrayList<>(2);
+        for (String pkg : scope.imports().wildcards()) {
+            addKnown(out, pkg + "::" + name, scope);
+        }
+        if (scope.ownPackage() != null) {
+            addKnown(out, scope.ownPackage() + "::" + name, scope);
+        }
+        for (String pkg : CORE_IMPORTS) {
+            addKnown(out, pkg + "::" + name, scope);
+        }
+        return out.isEmpty() ? resolveNameMulti(name, scope) : out;
+    }
+
+    private static void addKnown(List<String> out, String candidate, Scope scope) {
+        if (scope.knownFqns().contains(candidate) && !out.contains(candidate)) {
+            out.add(candidate);
+        }
     }
 
     /** Declared element FQNs + platform FQNs: the wildcard-disambiguation universe. */
@@ -1679,7 +1723,10 @@ public final class NameResolver {
                 yield r.equals(ev.fullPath()) ? ev : new EnumValue(r, ev.value());
             }
             case AppliedFunction af -> {
-                List<String> matches = resolveNameMulti(af.function(), scope);
+                // IDEMPOTENT: a node already carrying candidates was resolved
+                // (its scope decided them); only its parameters resolve again
+                List<String> matches = af.candidateFqns().isEmpty()
+                        ? resolveCallCandidates(af.function(), scope) : af.candidateFqns();
                 // CALL position: several imported packages defining the name
                 // is NOT an error — the candidates travel on the node and
                 // the Typer unions their overloads (real pure's function
@@ -1716,7 +1763,7 @@ public final class NameResolver {
                 List<String> candidates = matches.size() > 1 ? matches : List.of();
                 List<ValueSpecification> params = resolveVsList(af.parameters(), scope);
                 yield (fn.equals(af.function()) && params == af.parameters()
-                        && candidates.isEmpty()) ? af
+                        && candidates.equals(af.candidateFqns())) ? af
                         // preserve pos + the spelling markers: infix is
                         // load-bearing downstream (the emitter's
                         // key-expression rule)

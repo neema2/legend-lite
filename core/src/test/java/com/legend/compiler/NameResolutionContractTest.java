@@ -157,6 +157,49 @@ class NameResolutionContractTest {
                         + " being shadowed");
     }
 
+    /** 4b.1: an engine native in a package the FILE imports qualifies through
+     *  that import — the universe now holds the platform's function FQNs. */
+    @Test
+    @DisplayName("a bare engine native qualifies through the file's own import")
+    void importedEngineNativeQualifies() {
+        var imports = new com.legend.model.ImportScope.Builder()
+                .add("meta::relational::metamodel::execute::*").build();
+        var call = new com.legend.protocol.spec.AppliedFunction("executeInDb",
+                List.of(new com.legend.protocol.spec.CString("select 1"),
+                        new com.legend.protocol.spec.Variable("conn")));
+        var resolved = (com.legend.protocol.spec.AppliedFunction)
+                com.legend.compiler.NameResolver.resolveQuery(call, imports, java.util.Set.of());
+        assertEquals("meta::relational::metamodel::execute::executeInDb", resolved.function());
+    }
+
+    /** 4b.1: CALL position collects EVERY core-group package a name lives in —
+     *  the candidates ride the node and the signature picks. */
+    @Test
+    @DisplayName("a core-group name in several packages carries every one as a candidate")
+    void coreGroupNameCarriesEveryPackage() {
+        var call = new com.legend.protocol.spec.AppliedFunction("map",
+                List.of(new com.legend.protocol.spec.Variable("xs"), new com.legend.protocol.spec.Variable("f")));
+        var resolved = (com.legend.protocol.spec.AppliedFunction)
+                com.legend.compiler.NameResolver.resolveQuery(call);
+        assertEquals("map", resolved.function(), "several packages: the spelling stays, the candidates ride");
+        assertTrue(resolved.candidateFqns().contains("meta::pure::functions::collection::map"), String.valueOf(resolved.candidateFqns()));
+        assertTrue(resolved.candidateFqns().contains("meta::pure::functions::relation::map"), String.valueOf(resolved.candidateFqns()));
+    }
+
+    /** 4b.1: a name in ONE core package qualifies, and the form that owns that
+     *  FQN still dispatches (CoreFn.of by the owned map). */
+    @Test
+    @DisplayName("a unique core-group name qualifies and keeps its form")
+    void uniqueCoreGroupNameQualifiesAndKeepsItsForm() {
+        var call = new com.legend.protocol.spec.AppliedFunction("extend",
+                List.of(new com.legend.protocol.spec.Variable("r"), new com.legend.protocol.spec.Variable("c")));
+        var resolved = (com.legend.protocol.spec.AppliedFunction)
+                com.legend.compiler.NameResolver.resolveQuery(call);
+        assertEquals("meta::pure::functions::relation::extend", resolved.function());
+        assertEquals(java.util.Optional.of(com.legend.platform.CoreFn.EXTEND),
+                com.legend.platform.CoreFn.of(resolved.function()));
+    }
+
     /** The prelude tier still serves names the user made no claim on. */
     @Test
     @DisplayName("prelude resolves when no user candidate exists")

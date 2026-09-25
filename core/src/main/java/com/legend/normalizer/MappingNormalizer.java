@@ -719,7 +719,8 @@ public final class MappingNormalizer {
         if (v instanceof AppliedFunction af) {
             List<ValueSpecification> ps = af.parameters().stream()
                     .map(x -> canonicalizeEqualOperands(x, srcVar)).toList();
-            if (("equal".equals(af.function()) || "==".equals(af.function()))
+            if ((com.legend.compiler.ResolvedNames.names(af, com.legend.builtin.Pure.EQUAL__ANY_MANY__ANY_MANY.qualifiedName())
+                    || "==".equals(af.function()))
                     && ps.size() == 2
                     && !rootedAt(ps.get(0), srcVar)
                     && rootedAt(ps.get(1), srcVar)) {
@@ -730,8 +731,10 @@ public final class MappingNormalizer {
             // crossMapping2); a deterministic operand order makes pure
             // commutation compare equal (the direction-specific wall stays
             // for genuinely different predicates)
-            if (("and".equals(af.function()) || "&&".equals(af.function())
-                    || "or".equals(af.function()) || "||".equals(af.function()))
+            if ((com.legend.compiler.ResolvedNames.names(af, com.legend.builtin.Pure.AND__BOOLEAN_1__BOOLEAN_1.qualifiedName())
+                    || "&&".equals(af.function())
+                    || com.legend.compiler.ResolvedNames.names(af, com.legend.builtin.Pure.OR__BOOLEAN_1__BOOLEAN_1.qualifiedName())
+                    || "||".equals(af.function()))
                     && ps.size() == 2
                     && ps.get(0).toString().compareTo(ps.get(1).toString()) > 0) {
                 ps = List.of(ps.get(1), ps.get(0));
@@ -2807,7 +2810,9 @@ public final class MappingNormalizer {
             }
             return v;
         }
-        if (v instanceof AppliedFunction af && AppliedFunction.isIf(af)
+        if (v instanceof AppliedFunction af
+                && com.legend.compiler.ResolvedNames.names(af,
+                        Pure.IF__BOOLEAN_1__FUNCTION_1__FUNCTION_1.qualifiedName())
                 && af.parameters().size() == 3) {
             List<ValueSpecification> ps = new ArrayList<>(af.parameters());
             for (int i = 1; i <= 2; i++) {
@@ -2819,7 +2824,7 @@ public final class MappingNormalizer {
                     ps.set(i, new LambdaFunction(lf.parameters(), b));
                 }
             }
-            return new AppliedFunction("if", ps);
+            return af.withParameters(ps);
         }
         return v;
     }

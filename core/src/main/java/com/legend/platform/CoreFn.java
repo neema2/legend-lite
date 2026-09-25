@@ -207,6 +207,21 @@ public enum CoreFn {
      * no function: {@code ^Class(...)} is syntax.
      */
     private static final Map<CoreFn, java.util.Set<String>> OWNS = owns();
+    /** The inverse: each owned FQN's form (no FQN is owned twice). */
+    private static final Map<String, CoreFn> OWNER_OF = ownerOf();
+
+    private static Map<String, CoreFn> ownerOf() {
+        Map<String, CoreFn> out = new HashMap<>();
+        for (var e : OWNS.entrySet()) {
+            for (String fqn : e.getValue()) {
+                CoreFn prior = out.put(fqn, e.getKey());
+                if (prior != null) {
+                    throw new IllegalStateException(fqn + " owned by " + prior + " and " + e.getKey());
+                }
+            }
+        }
+        return Map.copyOf(out);
+    }
 
     private static Map<CoreFn, java.util.Set<String>> owns() {
         Map<CoreFn, java.util.Set<String>> m = new java.util.EnumMap<>(CoreFn.class);
@@ -393,6 +408,12 @@ public enum CoreFn {
                 return Optional.empty();
             }
             return Optional.of(direct);
+        }
+        // a qualified name a form OWNS (the explicit map, untangle 4b.1)
+        // dispatches by it — every form the resolver can now qualify is here
+        CoreFn owner = OWNER_OF.get(parseName);
+        if (owner != null) {
+            return Optional.of(owner);
         }
         // FQN-keyed catalog era (FQN_MIGRATION step 1): a platform-qualified
         // call dispatches to the same core checker as its bare spelling —

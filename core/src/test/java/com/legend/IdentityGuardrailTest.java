@@ -97,18 +97,22 @@ class IdentityGuardrailTest {
      * 4b.0 (2026-09-25): two shapes ADDED so 4b's deferrals cannot quietly stay —
      * MINT_BY_NAME 145 (the compiler minting a call by a literal name; step 5
      * spells these by the declaration), FORM_DISPATCH_BY_NAME 21 (CoreFn.of on
-     * a spelled name; 4d dispatches by the form's owned declarations). */
+     * a spelled name; 4d dispatches by the form's owned declarations).
+     * 4b.1 (2026-09-25): 214 -> 209, 94 -> 84, 65 -> 64 (readers ask what a call
+     * REFERS TO: StaticFold's fold ops, the if-prune, ValidateDesugar, ScanRelations,
+     * MappingNormalizer, ContextReading; AppliedFunction.isIf deleted); MINT_BY_NAME
+     * 145 -> 144 (booleanizeCaseLiterals keeps the resolved node). */
     private static final Map<String, Integer> PINS = Map.ofEntries(
-            Map.entry("NAME_COMPARE", 214),
-            Map.entry("NAME_COMPARE_REVERSED", 94),
-            Map.entry("LITERAL_NAME_COMPARE", 65),
+            Map.entry("NAME_COMPARE", 209),
+            Map.entry("NAME_COMPARE_REVERSED", 84),
+            Map.entry("LITERAL_NAME_COMPARE", 64),
             Map.entry("NAME_AFFIX_TEST", 53),
             Map.entry("NAME_CUTTING", 106),
             Map.entry("SIGNATURE_ID_CUTTING", 1),
             Map.entry("CATALOG_LOOKUP_BY_NAME", 179),
             Map.entry("FAMILY_LOOKUP_BY_NAME", 87),
             Map.entry("FUNCTION_CATEGORY_CHECK", 16),
-            Map.entry("MINT_BY_NAME", 145),
+            Map.entry("MINT_BY_NAME", 144),
             Map.entry("FORM_DISPATCH_BY_NAME", 21));
 
     @Test

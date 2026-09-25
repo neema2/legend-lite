@@ -5417,3 +5417,52 @@ step 5), FORM_DISPATCH_BY_NAME 21 (`CoreFn.of` on a spelled name → 4d).
 collection map; the direct `register(…)` form is read (`not`, `equal`); an unregistered name is
 empty; the lite surface rides; names ≥ 404 and undeclared ids ≤ 169 pinned. Generator parity
 under `//core:update_generated`. Probe unchanged (nothing consumes the registry yet).
+
+## 2026-09-25 — The untangle, step 4b.1: the resolver qualifies platform functions; readers ask what a call refers to
+
+**What.** The resolver's universe holds the platform's function FQNs (the user-resolvable catalog
+natives and the prelude's functions), so a bare call qualifies through its file's imports and the
+core import group exactly like a user function. CALL position collects every core-group package a
+name lives in (`collection::map` and `relation::map` ride the node as candidates; the signature
+picks); a type name keeps the group's first-match rule; resolution is idempotent. `CoreFn.of`
+consults the explicit `OWNS` map for a qualified name, so a form keeps its dispatch when its name
+arrives qualified. Synthesized programs (realizers, lifted properties and constraints, view bodies)
+are resolved like text before they join the model (`ModelNormalizer` E.6), so the legacy and
+clean-sheet mapping paths converge on the resolved form. The readers that compared a call's name
+to a bare literal ask what the call REFERS TO (`ResolvedNames` against the catalog constant):
+`StaticFold`'s constant folding dispatches on the operation a call names (`FoldOp`, 26 operations
+by their declarations), likewise `ValidateDesugar`, `ScanRelations`, `MappingNormalizer`,
+`ContextReading`. `ValidateDesugar` runs before `StatementInline` (a call the platform implements
+is never inlined as the user's body).
+
+**What the corpus gate found — two folds keyed by a bare spelling, both fixed at root.**
+(1) The dead-branch prune of a static `if` (`StaticFold.foldCall`) keyed on
+`AppliedFunction.isIf` — `function().equals("if")` — and missed the now-qualified
+`meta::pure::functions::lang::if`, so `joinWithOptionalColumns`'s else-branch `join(…, []->toOneMany())`
+was typed for the first time and failed (iqrClassify and ~7 tds-extension tests). The prune keys on
+`FoldOp.IF`; `isIf` is deleted; `booleanizeCaseLiterals` keeps the resolved node. (2) The fold of
+`collection::removeAll` keyed on a bare spelling of a function the platform declares NOWHERE —
+upstream's is a bodied library function in the engine's `core/pure/corefunctions`, a ruled
+exclusion from the prelude (2026-09-09: the engine's bodies are not the platform library). A fold
+op must key on a declaration, so the prelude generator gains an explicit membership for engine
+library functions (`ENGINE_LIBRARY_FUNCTIONS`, the natives' contract: membership ours, spelling and
+body upstream's; one row, `removeAll`, both overloads, with its reason; a claimed name or a missing
+upstream declaration is a generator error). `PlatformTypes.REMOVE_ALL` names it; the spelling test
+verifies it upstream. Not adopted: "any engine function the platform's Java names" — measured 43
+such FQNs outside the catalog (forms, walls, test helpers), so a Java mention is not a demand.
+
+**Gate (probe, nine suites, before → after).** Bare spellings reaching the typer 502 names /
+1,554 sites → 246 / 599. The 4 outside names: `removeAllOptimized`, `generateObjectReferences`,
+`schema` qualified; `isLatestDate` stays bare carrying both candidates (`pure::milestoning` and
+`relational::milestoning`, a two-package tie — the `map` shape). The 14 core-group names all
+qualified. Candidate sets that shrank: 0. PICK disagreements 0 → 0; FORM disagreements 51 → 43
+(8 gone: asc, columns, deactivate, desc, getAllVersions, getAllVersionsInRange,
+groupByWithWindowSubset, toJSON — now dispatched through `OWNS`), none new. OVERLOADS rows
+1,320 → 285 (a qualified name's set is exact). Corpus: LOST 0 on both lanes against the committed
+rosters (DuckDB 2474 pass, H2 2232). Identity pins 214 → 209, 94 → 84, 65 → 64, MINT_BY_NAME
+145 → 144. `currentUserId` pick unchanged.
+
+**Test.** `NameResolutionContractTest`: an imported engine native (`executeInDb`) qualifies; a
+core-group name in several packages (`map`) stays bare with both candidates; a unique one
+(`extend`) qualifies and keeps its form. Prelude generator parity under `//core:update_generated`
+(the prelude carries `removeAll`'s two overloads with their provenance line).

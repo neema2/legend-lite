@@ -4026,6 +4026,16 @@ Class meta::pure::functions::collection::AggregateValue<T,V,U>
    aggregateFn : FunctionDefinition<{V[*]->U[0..1]}>[1];
 }
 
+function meta::pure::functions::collection::removeAll<T>(set:T[*], other:T[*]):T[*]
+{
+   $set->filter(e|!$other->contains($e));
+}
+
+function meta::pure::functions::collection::removeAll<T>(set:T[*], other:T[*], comparator:Function<{T[1],T[1]->Boolean[1]}>[1]):T[*]
+{
+   $set->filter(e|!$other->contains($e, $comparator));
+}
+
 
 ###Pure
 // legend-engine/legend-engine-core/legend-engine-core-pure/legend-engine-pure-code-compiled-core/src/main/resources/core/pure/corefunctions/testExtension.pure
@@ -6571,7 +6581,10 @@ Class meta::relational::functions::sqlstring::SQLResult
 
 }
 
-// 485 classes, 23 enums, 151 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+// 485 classes, 23 enums, 153 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+// ENGINE LIBRARY FUNCTIONS — 1 bodied declarations outside the platform roots, carried by membership
+// (PreludeGenerator.ENGINE_LIBRARY_FUNCTIONS, each with its reason), verbatim, every overload:
+//   meta::pure::functions::collection::removeAll (2 overloads) — StaticFold folds it over static column lists (PlatformTypes.REMOVE_ALL); the corpus's tds extensions (columnValueDifference) and the prelude's SchemaState bodies call it
 // RESPELLED NATIVES — 66 upstream `native function` declarations the platform does not implement (carried so they
 // resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').
 // ENGINE NATIVES NOT CARRIED — the signature names a type the platform does not carry

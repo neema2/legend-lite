@@ -546,7 +546,8 @@ final class ContextReading {
                 for (var p : af.parameters()) {
                     collectChainRaw(p, out, depth);
                 }
-                if (depth < 3 && !"letFunction".equals(af.function())) {
+                if (depth < 3 && !com.legend.compiler.ResolvedNames.names(af,
+                        com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())) {
                     var body = fnBody.apply(af.function());
                     if (body.isPresent()) {
                         for (var b : body.get()) {
@@ -691,7 +692,8 @@ final class ContextReading {
             List<ExecutionContext.CsvSetup> csv, @com.legend.Nullable String dbRef) {
         switch (v) {
             case com.legend.protocol.spec.AppliedFunction af -> {
-                if ("letFunction".equals(af.function())
+                if (com.legend.compiler.ResolvedNames.names(af,
+                        com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())
                         && af.parameters().size() == 2
                         && af.parameters().get(0)
                                 instanceof com.legend.protocol.spec.CString nm) {
@@ -700,7 +702,8 @@ final class ContextReading {
                 for (var p : af.parameters()) {
                     collectSetupsRaw(p, lets, out, depth, csv, dbRef);
                 }
-                if (depth < 3 && !"letFunction".equals(af.function())) {
+                if (depth < 3 && !com.legend.compiler.ResolvedNames.names(af,
+                        com.legend.builtin.Pure.LET_FUNCTION__STRING_1__T_m.qualifiedName())) {
                     var body = fnBody.apply(af.function());
                     if (body.isPresent()) {
                         Map<String, ValueSpecification> inner = new java.util.HashMap<>();

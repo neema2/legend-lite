@@ -157,6 +157,16 @@ public final class Shadow implements DecisionProbe {
     }
 
     /** A form dispatched on the spelled name {@code name}. */
+    /** Decision point 1, per CALL: the candidate set the typer considers for a
+     *  spelled name — recorded whole, so a resolver change is measured by the
+     *  sets it changes, call by call. */
+    @Override
+    public void onCandidates(String name, Stream<@com.legend.Nullable Function> candidates) {
+        Set<String> ids = new TreeSet<>();
+        candidates.filter(java.util.Objects::nonNull).forEach(f -> ids.add(FunctionId.of(f).qualified()));
+        write("CANDIDATES", name, String.valueOf(ids.size()), String.join(",", ids), "");
+    }
+
     @Override
     public void onForm(String name, String form) {
         CoreFn owner = Sink.FORM_AT.get(name);

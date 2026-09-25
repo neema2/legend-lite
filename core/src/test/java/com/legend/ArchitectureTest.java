@@ -933,6 +933,7 @@ final class ArchitectureTest {
                 "com.legend.builtin.Pure$Index.FN_BY_BARE",
                 "com.legend.builtin.Pure$Index.KEYS_BY_NAME",
                 "com.legend.builtin.Pure$Index.FN_BY_ID",
+                "com.legend.builtin.Pure$Index.USER_RESOLVABLE_FQNS",
                 // the step-3 shadow diff's sinks (a probe, deleted at step 4)
                 "com.legend.probe.Shadow.SEEN",
                 "com.legend.probe.Shadow.TABLES",

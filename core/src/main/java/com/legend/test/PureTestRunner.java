@@ -422,6 +422,9 @@ public final class PureTestRunner implements AutoCloseable {
         try {
             facts = Compiler.programFacts(resolved, ctx);
         } catch (RuntimeException e) {
+            if (System.getenv("LEGEND_LITE_STACKS") != null) {
+                e.printStackTrace();   // the typing phase, under the same flag as execution
+            }
             return new Result(t.fqn(), Status.FAIL, List.of(), "type: " + whole(e.getMessage()));
         }
         bodyShapes.put(t.fqn(), facts.shape());

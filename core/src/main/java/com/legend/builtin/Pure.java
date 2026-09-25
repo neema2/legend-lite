@@ -600,6 +600,8 @@ public final class Pure {
         static final java.util.Map<String, List<NativeFunctionDefinition>> FN_BY_BARE = new java.util.HashMap<>();
         /** name -> overload signature keys; nativeNamed's O(1) surface (re-audit M5). */
         static final java.util.Map<String, java.util.Set<String>> KEYS_BY_NAME = new java.util.HashMap<>();
+        /** The FQNs a USER may name: every non-lite native and the lite product surface. */
+        static final java.util.Set<String> USER_RESOLVABLE_FQNS = new java.util.LinkedHashSet<>();
         /** engine signature id -> the one overload that declares it (a function's
          *  element name upstream IS its id; the id is generated from the
          *  declaration, SignatureMangle.mangle) */
@@ -622,6 +624,7 @@ public final class Pure {
                         || LITE_SURFACE.contains(bare);
                 if (userResolvable) {
                     FN_BY_BARE.computeIfAbsent(bare, k -> new ArrayList<>()).add(nfd);
+                    USER_RESOLVABLE_FQNS.add(nfd.qualifiedName());
                 }
                 // keys index serves BOTH spellings (registration tables
                 // use bare) — the bare spelling under the same partition
@@ -747,6 +750,12 @@ public final class Pure {
      * the collection form the parser emits for 'a' + 'b'; IN) — parser records
      * stay behind this wall.
      */
+    /** The catalog natives a user may name — every non-lite native and the
+     *  lite product surface: the resolver's function universe (untangle 4b.1). */
+    public static java.util.Set<String> userResolvableFunctionFqns() {
+        return java.util.Collections.unmodifiableSet(Index.USER_RESOLVABLE_FQNS);
+    }
+
     public static String keyPlusString() {
         return STRING_PLUS__STRING_MANY.signatureKey();
     }

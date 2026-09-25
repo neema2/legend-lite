@@ -112,6 +112,16 @@ public final class PreludeGenerator {
             "meta::pure::metamodel::path::");
     /** Individual declarations left out, each with its reason. */
     private static final Map<String, String> EXCLUDED_CLASSES = Map.of();
+    /** ENGINE-declared bodied functions the platform carries as library
+     *  (the natives' contract, native-membership.tsv: membership is OURS, the
+     *  spelling and the body are UPSTREAM's). The engine's bodies are otherwise
+     *  not the platform library (USER 2026-09-09); a member is a function the
+     *  platform DISPATCHES ON, so its name must be a declaration, never a bare
+     *  spelling. Each row carries its reason. */
+    static final Map<String, String> ENGINE_LIBRARY_FUNCTIONS = Map.of(
+            "meta::pure::functions::collection::removeAll",
+            "StaticFold folds it over static column lists (PlatformTypes.REMOVE_ALL); the corpus's tds"
+                    + " extensions (columnValueDifference) and the prelude's SchemaState bodies call it");
     /** The protocol TEMPLATE package admitted out of the versioned exclusion. */
     private static final String PROTOCOL_TEMPLATE_M3 = "meta::protocols::pure::vX_X_X::metamodel::m3::";
 
@@ -153,17 +163,29 @@ public final class PreludeGenerator {
         roots.add(pure);
         Path corpus = engine.resolve(CORPUS_ROOT);
 
-        // 1. the spec index: every Class/Enum FQN -> its defining file
+        // 1. the spec index: every Class/Enum FQN -> its defining file; and,
+        // for the ENGINE roots only, every bodied `function` FQN -> its file
+        // (the platform roots' functions are carried whole below; an engine
+        // function enters by MEMBERSHIP, ENGINE_LIBRARY_FUNCTIONS)
         Map<String, Path> index = new TreeMap<>();
+        Map<String, Path> engineFunctionIndex = new TreeMap<>();
         for (Path root : roots) {
             if (!Files.isDirectory(root)) {
                 throw new IllegalStateException("spec root missing (upstream moved it?): " + root);
             }
+            boolean engineRoot = !root.startsWith(pure);
             try (Stream<Path> s = Files.walk(root)) {
                 for (Path f : s.filter(p -> p.toString().endsWith(".pure")).sorted().toList()) {
-                    Matcher m = DECL_HEADER.matcher(Files.readString(f, StandardCharsets.UTF_8));
+                    String text = Files.readString(f, StandardCharsets.UTF_8);
+                    Matcher m = DECL_HEADER.matcher(text);
                     while (m.find()) {
                         index.putIfAbsent(m.group(2), f);
+                    }
+                    if (engineRoot) {
+                        Matcher fh = FUNCTION_HEADER.matcher(text);
+                        while (fh.find()) {
+                            engineFunctionIndex.putIfAbsent(fh.group(1), f);
+                        }
                     }
                 }
             }
@@ -378,6 +400,52 @@ public final class PreludeGenerator {
         // over them like every other wanted shape (batch 4 §6.2, 2026-09-11)
         List<String> engineNativeWalls = new ArrayList<>();
         List<PlatformFunction> engineNativeDecls = engineNatives(engine, engineNativeWalls);
+        // ENGINE LIBRARY FUNCTIONS BY MEMBERSHIP: sliced verbatim from their
+        // files, every overload of the FQN. A member the engine no longer
+        // declares, or whose file is a parse wall, is a generator error, never
+        // a silent drop; a member whose NAME the platform claims contradicts
+        // the ownership rule and is refused the same way.
+        List<PlatformFunction> engineLibraryFunctions = new ArrayList<>();
+        {
+            Set<String> unknown = new TreeSet<>();
+            List<Path> memberFiles = new ArrayList<>();
+            for (String fqn : ENGINE_LIBRARY_FUNCTIONS.keySet()) {
+                Path f = engineFunctionIndex.get(fqn);
+                if (f == null) {
+                    unknown.add(fqn);
+                } else if (!memberFiles.contains(f)) {
+                    memberFiles.add(f);
+                }
+            }
+            if (!unknown.isEmpty()) {
+                throw new IllegalStateException("prelude generator: ENGINE_LIBRARY_FUNCTIONS names"
+                        + " functions the engine spec roots do not declare (upstream moved them?): " + unknown);
+            }
+            List<String> memberWalls = new ArrayList<>();
+            Set<String> found = new TreeSet<>();
+            Set<String> claimed = com.legend.claims.Claims.claimedBareNames();
+            for (PlatformFunction pf : functionsIn(memberFiles, memberWalls)) {
+                if (pf.nativeDecl() || !ENGINE_LIBRARY_FUNCTIONS.containsKey(pf.fqn())) {
+                    continue;
+                }
+                String simple = pf.fqn().substring(pf.fqn().lastIndexOf(':') + 1);
+                if (com.legend.builtin.SystemMetamodel.elementFqns().contains(pf.fqn())
+                        || !com.legend.builtin.Pure.nativeFunctionsAt(pf.fqn()).isEmpty()
+                        || claimed.contains(simple)
+                        || com.legend.platform.CoreFn.of(simple).isPresent()) {
+                    throw new IllegalStateException("prelude generator: ENGINE_LIBRARY_FUNCTIONS carries "
+                            + pf.fqn() + " but the platform owns that name — one of the two is wrong");
+                }
+                found.add(pf.fqn());
+                engineLibraryFunctions.add(pf);
+            }
+            Set<String> missing = new TreeSet<>(ENGINE_LIBRARY_FUNCTIONS.keySet());
+            missing.removeAll(found);
+            if (!missing.isEmpty()) {
+                throw new IllegalStateException("prelude generator: ENGINE_LIBRARY_FUNCTIONS members"
+                        + " could not be sliced " + missing + " (walls: " + memberWalls + ")");
+            }
+        }
         Map<String, List<String>> byBare = new HashMap<>();
         for (String fqn : index.keySet()) {
             byBare.computeIfAbsent(fqn.substring(fqn.lastIndexOf(':') + 1), k -> new ArrayList<>()).add(fqn);
@@ -386,7 +454,9 @@ public final class PreludeGenerator {
         // not to carry cannot be declared — listed in the module's header,
         // never dropped silently
         Map<String, String> engineNativesNotCarried = new TreeMap<>();
-        for (PlatformFunction pf : engineNativeDecls) {
+        List<PlatformFunction> engineDecls = new ArrayList<>(engineNativeDecls);
+        engineDecls.addAll(engineLibraryFunctions);
+        for (PlatformFunction pf : engineDecls) {
             String ownPkg = pf.fqn().substring(0, pf.fqn().lastIndexOf("::"));
             for (String name : referencedTypeNames(pf.text())) {
                 String resolved0 = name.contains("::") ? name : null;
@@ -411,6 +481,11 @@ public final class PreludeGenerator {
                 }
                 if (resolved0 != null && index.containsKey(resolved0)) {
                     if (owned.contains(resolved0) || excluded(resolved0)) {
+                        if (!pf.nativeDecl()) {
+                            throw new IllegalStateException("prelude generator: the engine library"
+                                    + " function " + pf.fqn() + " names the type " + resolved0
+                                    + ", which the platform owns or excludes");
+                        }
                         // a platform-OWNED name is reserved, not necessarily declared
                         // (meta::json::JSONDeserializationConfig is owned and absent)
                         engineNativesNotCarried.putIfAbsent(pf.fqn(), resolved0
@@ -512,6 +587,7 @@ public final class PreludeGenerator {
                 platformFunctions.add(pf);
             }
         }
+        platformFunctions.addAll(engineLibraryFunctions);
         functionWalls.addAll(engineNativeWalls);
         for (PlatformFunction pf : platformFunctions) {
             declText.put(pf.key(), pf.text());
@@ -623,6 +699,19 @@ public final class PreludeGenerator {
         sb.append("// ").append(classes).append(" classes, ").append(enums).append(" enums, ")
                 .append(functions).append(" functions (legend-pure's platform library, bodied and non-test;")
                 .append(functionWalls.size()).append(" files unparsed, the census's load walls).\n");
+        if (!engineLibraryFunctions.isEmpty()) {
+            Map<String, Integer> overloads = new TreeMap<>();
+            for (PlatformFunction pf : engineLibraryFunctions) {
+                overloads.merge(pf.fqn(), 1, Integer::sum);
+            }
+            sb.append("// ENGINE LIBRARY FUNCTIONS — ").append(overloads.size())
+                    .append(" bodied declarations outside the platform roots, carried by membership\n")
+                    .append("// (PreludeGenerator.ENGINE_LIBRARY_FUNCTIONS, each with its reason), verbatim, every overload:\n");
+            for (Map.Entry<String, Integer> e : overloads.entrySet()) {
+                sb.append("//   ").append(e.getKey()).append(" (").append(e.getValue()).append(" overloads) — ")
+                        .append(ENGINE_LIBRARY_FUNCTIONS.get(e.getKey())).append('\n');
+            }
+        }
         sb.append("// RESPELLED NATIVES — ").append(respelledNatives.size())
                 .append(" upstream `native function` declarations the platform does not implement (carried so they\n")
                 .append("// resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').\n");
@@ -1543,6 +1632,9 @@ public final class PreludeGenerator {
      * ({@code Class <<typemodifiers.abstract>>\n  meta::…::RoutedValueSpecification}). */
     static final Pattern DECL_HEADER = Pattern.compile(
             "(?m)^(Class|Enum)\\s+(?:<<[^>]*>>\\s*)*(?:\\{[^}]*\\}\\s*)?([A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)+)");
+    /** A bodied {@code function} declaration's header (natives start with {@code native}). */
+    static final Pattern FUNCTION_HEADER = Pattern.compile(
+            "(?m)^function\\s+(?:<<[^>]*>>\\s*)*(?:\\{[^}]*\\}\\s*)?([A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)+)\\s*[<(]");
     private static final Pattern DECL = Pattern.compile(
             "^(Class|Enum)\\s+(?:<<[^>]*>>\\s*)*(?:\\{[^}]*\\}\\s*)?([A-Za-z0-9_]+(?:::[A-Za-z0-9_]+)+)");
     /** An m3.pure bootstrap header: {@code ^Root.…children[Class] Name @Root.…children[pkg].children}. */

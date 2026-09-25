@@ -2534,6 +2534,14 @@ final class Typer {
      * scoring picks. Single-referent calls keep the plain name path.
      */
     List<TypedFunction> functionCandidates(AppliedFunction af) {
+        List<TypedFunction> found = candidatesOf(af);
+        if (com.legend.builtin.DecisionProbe.INSTALLED != null) {
+            com.legend.builtin.DecisionProbe.candidates(af.function(), found.stream().map(TypedFunction::definition));
+        }
+        return found;
+    }
+
+    private List<TypedFunction> candidatesOf(AppliedFunction af) {
         if (af.candidateFqns().isEmpty()) {
             return functionCandidates(af.function());
         }

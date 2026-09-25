@@ -31,6 +31,10 @@ public interface DecisionProbe {
     /** A language form dispatched on the spelled {@code name}. */
     void onForm(String name, String form);
 
+    /** The candidate declarations the typer considers for a call spelled {@code name}
+     *  (a null is a candidate with no source definition — a test convenience). */
+    void onCandidates(String name, Stream<@Nullable Function> candidates);
+
     /** The installed probe, or null. The binding (META-INF/services) is a TEST-LANE
      *  resource (//core:shadow_binding on the suites' libraries), never the product
      *  jar's: a planner build carries no probe, and its loader is empty. */
@@ -62,6 +66,12 @@ public interface DecisionProbe {
     static void form(String name, String form) {
         if (INSTALLED != null) {
             INSTALLED.onForm(name, form);
+        }
+    }
+
+    static void candidates(String name, Stream<@Nullable Function> candidates) {
+        if (INSTALLED != null) {
+            INSTALLED.onCandidates(name, candidates);
         }
     }
 }

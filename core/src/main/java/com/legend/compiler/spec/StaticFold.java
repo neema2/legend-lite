@@ -3,6 +3,7 @@
 
 package com.legend.compiler.spec;
 
+import com.legend.builtin.Pure;
 import com.legend.compiler.element.type.Type;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.AppliedProperty;
@@ -182,7 +183,7 @@ final class StaticFold {
             }
         }
         // if over a static condition: fold the taken branch's body
-        if (com.legend.protocol.spec.AppliedFunction.isIf(af) && ps.size() == 3
+        if (FoldOp.of(af) == FoldOp.IF && ps.size() == 3
                 && eval(ps.get(0), scope) instanceof Boolean cond
                 && ps.get(1) instanceof LambdaFunction thenL
                 && ps.get(2) instanceof LambdaFunction elseL) {
@@ -347,14 +348,71 @@ final class StaticFold {
         return null;
     }
 
+    /** THE OPERATIONS THE FOLD KNOWS, each by the declarations it names: a call
+     *  folds by what it REFERS TO ({@link com.legend.compiler.ResolvedNames#referents}),
+     *  never by its spelling — a qualified name and a bare one carrying
+     *  candidates fold alike (untangle 4b.1). */
+    enum FoldOp {
+        AND(Pure.AND__BOOLEAN_1__BOOLEAN_1.qualifiedName(), Pure.AND__BOOLEAN_MANY.qualifiedName()),
+        AT(Pure.AT__T_MANY__INTEGER_1.qualifiedName()),
+        CONCATENATE(Pure.CONCATENATE__RELATION_1__RELATION_1.qualifiedName(), Pure.CONCATENATE__T_MANY__T_MANY.qualifiedName()),
+        ELEMENT_TO_PATH(Pure.ELEMENT_TO_PATH__3.qualifiedName(), Pure.ELEMENT_TO_PATH__FUNCTION_1.qualifiedName(), Pure.ELEMENT_TO_PATH__PACKAGEABLEELEMENT_1.qualifiedName(), Pure.ELEMENT_TO_PATH__PACKAGEABLEELEMENT_1__BOOLEAN_1.qualifiedName(), Pure.ELEMENT_TO_PATH__PACKAGEABLEELEMENT_1__STRING_1.qualifiedName(), Pure.ELEMENT_TO_PATH__TYPE_1.qualifiedName(), Pure.ELEMENT_TO_PATH__TYPE_1__STRING_1.qualifiedName()),
+        EQUAL(Pure.EQUAL__ANY_MANY__ANY_MANY.qualifiedName()),
+        FILTER(Pure.FILTER__RELATION_1__FUNCTION_1.qualifiedName(), Pure.FILTER__T_MANY__FUNCTION_1.qualifiedName(), Pure.TDS_FILTER__TDS_1__FUNCTION_1.qualifiedName()),
+        IF(Pure.IF__BOOLEAN_1__FUNCTION_1__FUNCTION_1.qualifiedName(), Pure.IF__PAIR_MANY__FUNCTION_1.qualifiedName()),
+        IN(Pure.IN__ANY_0_1__ANY_MANY.qualifiedName(), Pure.IN__ANY_1__ANY_MANY.qualifiedName(), Pure.IN__U_0_1__RELATION_1.qualifiedName()),
+        INDEX_OF(Pure.INDEX_OF__STRING_1__STRING_1.qualifiedName(), Pure.INDEX_OF__STRING_1__STRING_1__INTEGER_1.qualifiedName(), Pure.INDEX_OF__T_MANY__T_1.qualifiedName()),
+        IS_EMPTY(Pure.IS_EMPTY__T_MANY.qualifiedName()),
+        IS_NOT_EMPTY(Pure.IS_NOT_EMPTY__ANY_0_1.qualifiedName(), Pure.IS_NOT_EMPTY__ANY_MANY.qualifiedName()),
+        JOIN_STRINGS(Pure.JOIN_STRINGS__RELATION_1__COL_SPEC_1__STRING_1.qualifiedName(), Pure.JOIN_STRINGS__RELATION_1__COL_SPEC_1__STRING_1__SORT_INFO_MANY.qualifiedName(), Pure.JOIN_STRINGS__RELATION_1__FUNCTION_1__STRING_1.qualifiedName(), Pure.JOIN_STRINGS__RELATION_1__FUNCTION_1__STRING_1__SORT_INFO_MANY.qualifiedName(), Pure.JOIN_STRINGS__STRING_MANY.qualifiedName(), Pure.JOIN_STRINGS__STRING_MANY__STRING_1.qualifiedName(), Pure.JOIN_STRINGS__STRING_MANY__STRING_1__STRING_1__STRING_1.qualifiedName()),
+        MAKE_STRING(Pure.MAKE_STRING__ANY_MANY.qualifiedName(), Pure.MAKE_STRING__ANY_MANY__STRING_1.qualifiedName(), Pure.MAKE_STRING__ANY_MANY__STRING_1__STRING_1__STRING_1.qualifiedName()),
+        MAP(Pure.MAP__RELATION_1__FUNCTION_1.qualifiedName(), Pure.MAP__T_0_1__FUNCTION_1.qualifiedName(), Pure.MAP__T_MANY__FUNCTION_1.qualifiedName(), Pure.MAP__T_M__FUNCTION_1.qualifiedName()),
+        MINUS(Pure.MINUS__DECIMAL_MANY.qualifiedName(), Pure.MINUS__FLOAT_MANY.qualifiedName(), Pure.MINUS__INTEGER_MANY.qualifiedName(), Pure.MINUS__NUMBER_MANY.qualifiedName()),
+        NOT(Pure.NOT__BOOLEAN_1.qualifiedName()),
+        OR(Pure.OR__BOOLEAN_1__BOOLEAN_1.qualifiedName(), Pure.OR__BOOLEAN_MANY.qualifiedName()),
+        PAIR(Pure.PAIR__U_1__V_1.qualifiedName()),
+        PLUS(Pure.PLUS__DECIMAL_MANY.qualifiedName(), Pure.PLUS__FLOAT_MANY.qualifiedName(), Pure.PLUS__INTEGER_MANY.qualifiedName(), Pure.PLUS__NUMBER_MANY.qualifiedName(), Pure.STRING_PLUS__STRING_MANY.qualifiedName()),
+        REMOVE_ALL(com.legend.compiler.element.type.PlatformTypes.REMOVE_ALL),
+        REMOVE_DUPLICATES(Pure.REMOVE_DUPLICATES__T_MANY.qualifiedName(), Pure.REMOVE_DUPLICATES__T_MANY__FUNCTION_0_1__FUNCTION_0_1.qualifiedName(), Pure.REMOVE_DUPLICATES__T_MANY__FUNCTION_1.qualifiedName()),
+        SORT_BY(Pure.SORT_BY__T_m__FUNCTION_0_1.qualifiedName()),
+        TO_ONE(Pure.TO_ONE__T_MANY.qualifiedName(), Pure.TO_ONE__T_MANY__STRING_1.qualifiedName()),
+        TO_ONE_MANY(Pure.TO_ONE_MANY__T_MANY.qualifiedName(), Pure.TO_ONE_MANY__T_MANY__STRING_1.qualifiedName()),
+        TO_STRING(Pure.TO_STRING__ANY_1.qualifiedName(), Pure.TO_STRING__RELATION.qualifiedName(), Pure.TO_STRING__RELATION_BOOL.qualifiedName()),
+        ZIP(Pure.ZIP__T_MANY__U_MANY.qualifiedName());
+
+        private final java.util.Set<String> fqns;
+
+        FoldOp(String... fqns) {
+            // several overload constants spell one FQN: copyOf tolerates the repeats
+            this.fqns = java.util.Set.copyOf(java.util.Arrays.asList(fqns));
+        }
+
+        /** The operation {@code af} names, or null when it names none of them. */
+        static @com.legend.Nullable FoldOp of(AppliedFunction af) {
+            java.util.List<String> referents = com.legend.compiler.ResolvedNames.referents(af);
+            for (FoldOp op : values()) {
+                for (String r : referents) {
+                    if (op.fqns.contains(r)) {
+                        return op;
+                    }
+                }
+            }
+            return null;
+        }
+    }
+
     private @com.legend.Nullable Object evalCall(AppliedFunction af, Map<String, Object> scope) {
         List<ValueSpecification> ps = af.parameters();
-        switch (af.function()) {
+        FoldOp op = FoldOp.of(af);
+        if (op == null) {
+            return null;
+        }
+        switch (op) {
             // arithmetic is VARIADIC (upstream's plus(Number[*]) & co.): the
             // infix run is the parser's one-collection carrier, whose
             // operands fold — sum / concatenation, left-fold subtraction
             // (one operand negates), product
-            case "plus" -> {
+            case PLUS -> {
                 List<Object> args = evalAll(operands(af), scope);
                 if (args == null) {
                     return null;
@@ -369,7 +427,7 @@ final class StaticFold {
                 }
                 return null;
             }
-            case "minus" -> {
+            case MINUS -> {
                 List<Object> args = evalAll(operands(af), scope);
                 if (args == null || !args.stream().allMatch(a -> a instanceof Long)) {
                     return null;
@@ -383,7 +441,7 @@ final class StaticFold {
                 }
                 return acc;
             }
-            case "pair" -> {
+            case PAIR -> {
                 List<Object> args = evalAll(ps, scope);
                 return args != null && args.size() == 2
                         ? new Pair(args.get(0), args.get(1)) : null;
@@ -392,7 +450,7 @@ final class StaticFold {
             // shorter length (the tdsExtension programs pair their column
             // lists with their output-column lists — iqrClassify/zScore:
             // `$cols->zip($outputCols)->map(colPair|…)`; batch 76)
-            case "zip" -> {
+            case ZIP -> {
                 if (ps.size() != 2) {
                     return null;
                 }
@@ -407,23 +465,23 @@ final class StaticFold {
                 }
                 return out;
             }
-            case "equal" -> {
+            case EQUAL -> {
                 List<Object> args = evalAll(ps, scope);
                 return args != null && args.size() == 2
                         ? staticEquals(args.get(0), args.get(1)) : null;
             }
-            case "not" -> {
+            case NOT -> {
                 Object a = ps.size() == 1 ? eval(ps.get(0), scope) : null;
                 return a instanceof Boolean b ? !b : null;
             }
             // ledger cluster 19 part (1) — the cheap-probe slice of the
             // NormalizeRequired fold vocabulary:
-            case "toOneMany" -> {
+            case TO_ONE_MANY -> {
                 // identity on the evaluated list (multiplicity assertion)
                 Object a = ps.size() == 1 ? eval(ps.get(0), scope) : null;
                 return a instanceof List<?> l && !l.isEmpty() ? a : null;
             }
-            case "toString" -> {
+            case TO_STRING -> {
                 Object a = ps.size() == 1 ? eval(ps.get(0), scope) : null;
                 return a instanceof String || a instanceof Long
                         || a instanceof Boolean || a instanceof Double
@@ -433,15 +491,15 @@ final class StaticFold {
             // condition is isEmpty([]) must fold so the DEAD branch never
             // reaches the Typer (adjudication ledger cluster 2 — joinWith-
             // OptionalColumns' else-branch is ill-typed when $cols is []).
-            case "isEmpty", "isNotEmpty" -> {
+            case IS_EMPTY, IS_NOT_EMPTY -> {
                 Object a = ps.size() == 1 ? eval(ps.get(0), scope) : null;
                 if (a == null) {
                     return null;
                 }
                 boolean empty = a instanceof List<?> l && l.isEmpty();
-                return af.function().equals("isEmpty") ? empty : !empty;
+                return op == FoldOp.IS_EMPTY ? empty : !empty;
             }
-            case "in" -> {
+            case IN -> {
                 if (ps.size() != 2) {
                     return null;
                 }
@@ -449,15 +507,15 @@ final class StaticFold {
                 List<Object> coll = evalList(ps.get(1), scope);
                 return x == null || coll == null ? null : coll.contains(x);
             }
-            case "concatenate" -> {
+            case CONCATENATE -> {
                 List<Object> args = evalAll(ps, scope);
                 return args;   // evalAll already flattens collections
             }
-            case "removeDuplicates" -> {
+            case REMOVE_DUPLICATES -> {
                 List<Object> coll = ps.size() == 1 ? evalList(ps.get(0), scope) : null;
                 return coll == null ? null : new ArrayList<>(new LinkedHashSet<>(coll));
             }
-            case "removeAll" -> {
+            case REMOVE_ALL -> {
                 if (ps.size() != 2) {
                     return null;
                 }
@@ -470,7 +528,7 @@ final class StaticFold {
                 out.removeAll(b);
                 return out;
             }
-            case "indexOf" -> {
+            case INDEX_OF -> {
                 if (ps.size() != 2) {
                     return null;
                 }
@@ -478,7 +536,7 @@ final class StaticFold {
                 Object x = eval(ps.get(1), scope);
                 return coll == null || x == null ? null : (long) coll.indexOf(x);
             }
-            case "map" -> {
+            case MAP -> {
                 if (ps.size() != 2 || !(ps.get(1) instanceof LambdaFunction lam)
                         || lam.parameters().size() != 1) {
                     return null;
@@ -497,7 +555,7 @@ final class StaticFold {
                 }
                 return out;
             }
-            case "filter" -> {
+            case FILTER -> {
                 if (ps.size() != 2 || !(ps.get(1) instanceof LambdaFunction lam)
                         || lam.parameters().size() != 1) {
                     return null;
@@ -518,7 +576,7 @@ final class StaticFold {
                 }
                 return out;
             }
-            case "sortBy" -> {
+            case SORT_BY -> {
                 if (ps.size() != 2 || !(ps.get(1) instanceof LambdaFunction lam)
                         || lam.parameters().size() != 1) {
                     return null;
@@ -541,7 +599,7 @@ final class StaticFold {
                 keyed.sort(cmp);
                 return keyed.stream().map(Map.Entry::getKey).toList();
             }
-            case "if" -> {
+            case IF -> {
                 if (ps.size() == 3 && eval(ps.get(0), scope) instanceof Boolean c
                         && ps.get(1) instanceof LambdaFunction thenL
                         && ps.get(2) instanceof LambdaFunction elseL) {
@@ -551,16 +609,16 @@ final class StaticFold {
                 }
                 return null;
             }
-            case "and", "or" -> {
+            case AND, OR -> {
                 List<Object> args = evalAll(ps, scope);
                 if (args == null || !args.stream().allMatch(a -> a instanceof Boolean)) {
                     return null;
                 }
-                boolean and = af.function().equals("and");
+                boolean and = op == FoldOp.AND;
                 return args.stream().map(a -> (Boolean) a)
                         .reduce(and, (x, y) -> and ? x && y : x || y);
             }
-            case "makeString", "joinStrings" -> {
+            case MAKE_STRING, JOIN_STRINGS -> {
                 if (ps.isEmpty() || ps.size() > 2) {
                     return null;
                 }
@@ -579,19 +637,19 @@ final class StaticFold {
                 }
                 return sb.toString();
             }
-            case "elementToPath" -> {
+            case ELEMENT_TO_PATH -> {
                 Object a = ps.size() == 1 ? eval(ps.get(0), scope) : null;
                 // primitives' path IS the simple name (Integer, String…)
                 return a instanceof TypeToken t ? t.simpleName() : null;
             }
-            case "toOne", "at" -> {
-                if (af.function().equals("toOne") && ps.size() == 1) {
+            case TO_ONE, AT -> {
+                if (op == FoldOp.TO_ONE && ps.size() == 1) {
                     Object a = eval(ps.get(0), scope);
                     return a instanceof List<?> l && l.size() == 1 ? l.get(0) : a;
                 }
                 // toOne(value, message): the ASSERTING spelling unwraps
                 // when statically singular (ledger cluster 19 part 1)
-                if (af.function().equals("toOne") && ps.size() == 2) {
+                if (op == FoldOp.TO_ONE && ps.size() == 2) {
                     Object a = eval(ps.get(0), scope);
                     if (a instanceof List<?> l) {
                         return l.size() == 1 ? l.get(0) : null;
