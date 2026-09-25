@@ -12,7 +12,10 @@ import {
   DEFAULT_MAX_ROWS,
   TREE_COLUMN,
   assemble,
+  fetchTree,
 } from '../src/treeview.ts';
+import { EpochGuard } from '../src/epoch.ts';
+import type { QueryRunner } from '../src/runner.ts';
 import { NULL_GROUP, serialize } from '../src/serialize.ts';
 
 const SNAPSHOT: CubeSnapshot = {
@@ -499,5 +502,63 @@ describe('Show leaf count', () => {
     assert.deepEqual(t.columns.find((c) => c.name === TREE_COLUMN)?.values,
       ['AMER (3)', 'EMEA (1234)']);
     assert.equal(t.columns.some((c) => c.name === LEAF_COUNT_COLUMN), false);
+  });
+});
+
+describe('detail rows under the deepest group', () => {
+  // Upstream: "when maximum level of drilldown is reached, we simply
+  // just need to filter the data to match drilldown values, no
+  // groupBy() is needed."
+  const CUBE: CubeSnapshot = {
+    source: { expression: 'trades' },
+    columns: [
+      { name: 'region', type: 'String' },
+      { name: 'pnl', type: 'Float' },
+      { name: 'notional', type: 'Float' },
+    ],
+    derived: [],
+    rows: ['region'],
+    pivotOn: [],
+    measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
+    // One on a source column, one on an aggregate-only name.
+    sorts: [{ column: 'pnl', direction: 'desc' }, { column: 'total', direction: 'asc' }],
+    epoch: 1,
+    leafCount: true,
+  };
+
+  it('fetches the group\'s own rows, filtered to its keys, and hangs them under it', async () => {
+    const sent: string[] = [];
+    const runner: QueryRunner = {
+      name: 'stub',
+      async run(pure) {
+        sent.push(pure);
+        const rows = pure.includes('groupBy')
+          ? table([
+            { name: 'region', values: ['EMEA'] },
+            { name: 'pnl', values: [9] },
+            { name: 'total', values: [60] },
+            { name: LEAF_COUNT_COLUMN, values: [3] },
+          ])
+          : table([
+            { name: 'region', values: ['EMEA', 'EMEA', 'EMEA'] },
+            { name: 'pnl', values: [5, 3, 1] },
+            { name: 'notional', values: [10, 20, 30] },
+          ]);
+        return { rows, sql: 'SELECT' };
+      },
+    };
+    const view = await fetchTree(CUBE, TreeState.empty().expand(['EMEA']), {
+      runner, guard: new EpochGuard(), epoch: 0,
+    });
+    const detail = sent.find((q) => !q.includes('groupBy'));
+    assert.ok(detail, `no detail query among ${sent.join(' | ')}`);
+    assert.match(detail!, /\$x\.region == 'EMEA'/);
+    assert.match(detail!, /pnl->descending\(\)/);
+    assert.doesNotMatch(detail!, /total/, 'a sort on an aggregate-only name was kept');
+    const tree = view.table.columns.find((c) => c.name === TREE_COLUMN)?.values;
+    assert.deepEqual(tree, ['EMEA (3)', null, null, null]);
+    assert.deepEqual(view.rows.map((r) => r.isDetail ?? false), [false, true, true, true]);
+    assert.deepEqual(view.table.columns.find((c) => c.name === 'notional')?.values,
+      [null, 10, 20, 30]);
   });
 });

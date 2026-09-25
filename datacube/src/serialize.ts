@@ -444,6 +444,43 @@ function parentConditions(
 }
 
 /**
+ * The cube for ONE group's detail rows: upstream's last drilldown level,
+ * where "no groupBy() is needed" -- the group's keys become a filter
+ * and the rows come back as they are, sorted and capped as the cube
+ * says. Group-level calculated columns still apply ("computed for each
+ * row in the table, no matter whether it's a leaf-level row or an
+ * aggregate"). Sorts on names only an aggregate has (a measure, a
+ * pivot column) are dropped: a source row has no such column.
+ *
+ * A PIVOTED cube keeps its pivot, grouped by every dimension -- the
+ * finest rows a pivot has, as upstream's pivot without its groupBy.
+ */
+export function detailSnapshot(s: CubeSnapshot, parent: RowPath): CubeSnapshot {
+  const keys = parentConditions(s, parent);
+  const all = [...(s.filter ? [s.filter] : []), ...keys];
+  const filter: FilterNode | undefined = all.length === 0 ? undefined
+    : all.length === 1 ? all[0] : { kind: 'and', children: all };
+  const { filter: _old, pivotCast, ...rest } = s;
+  void _old;
+  const visible = new Set([
+    ...detailColumns(s),
+    ...(s.groupDerived ?? []).map((d) => d.name),
+  ]);
+  const base: CubeSnapshot = {
+    ...rest,
+    ...(filter ? { filter } : {}),
+    sorts: s.sorts.filter((x) => visible.has(x.column)),
+    leafCount: false,
+  };
+  if (s.pivotOn.length === 0) return { ...base, rows: [], measures: [] };
+  const isOn = new Set(s.pivotOn);
+  const dims = rowColumns(s)
+    .filter((c) => c.kind === 'dimension' && !isOn.has(c.name))
+    .map((c) => c.name);
+  return { ...base, rows: dims, ...(pivotCast ? { pivotCast } : {}) };
+}
+
+/**
  * Serialize a snapshot to Pure relation grammar.
  *
  * The pipeline is emitted in the order legend-lite expects, and each

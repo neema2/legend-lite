@@ -30,6 +30,19 @@ export type RowPath = readonly string[];
  */
 const PATH_SEP = '\u0000';
 
+/**
+ * The last segment of a DETAIL row's path: its position under its
+ * group. A detail row has no key of its own -- it is a source row, not
+ * a group -- so its identity is its parent and its place. A control
+ * character, like PATH_SEP, so no value can forge one.
+ */
+export const DETAIL_ROW = '\u0001';
+
+/** Whether a path names a detail row rather than a group. */
+export function isDetailPath(path: RowPath): boolean {
+  return (path[path.length - 1] ?? '').startsWith(DETAIL_ROW);
+}
+
 /** Stable key for a path. */
 export function pathKey(path: RowPath): string {
   return path.join(PATH_SEP);
@@ -63,6 +76,8 @@ export interface TreeRow {
   readonly expanded: boolean;
   /** A subtotal or grand-total row rather than a leaf. */
   readonly isTotal: boolean;
+  /** A source row under the deepest group: no label, no expander. */
+  readonly isDetail?: boolean;
 }
 
 /** One fetch the tree needs: the children of `parent` at `level`. */
@@ -136,11 +151,15 @@ export class TreeState {
     return [...this.#open];
   }
 
-  isOpen(path: RowPath): boolean {
+  isOpen(path: RowPath, depth = Infinity): boolean {
     const key = pathKey(path);
     if (this.#open.has(key)) return true;
+    // The expand level never opens the DEEPEST groups: their children
+    // are detail rows, one query per group, and a setting that fired
+    // hundreds of them on every load would be a trap. The user opens
+    // those one at a time.
     return path.length > 0 && path.length <= this.#expandTo
-      && !this.#closed.has(key);
+      && path.length < depth && !this.#closed.has(key);
   }
 
   toggle(path: RowPath): TreeState {
@@ -219,7 +238,9 @@ export function requiredLevels(
     const children = knownChildren(parent);
     if (!children) return;
     for (const child of children) {
-      if (child.length >= depth || !state.isOpen(child)) continue;
+      if (!state.isOpen(child, depth)) continue;
+      // An open DEEPEST group asks for its detail rows: level depth+1,
+      // which has nothing beneath it to walk.
       out.push({ level: child.length + 1, parent: child });
       walk(child);
     }
@@ -258,8 +279,12 @@ export function flattenTree(
     const children = childrenOf(parent);
     if (!children) return;
     for (const child of children) {
-      const isGroup = child.length < depth;
-      const expanded = isGroup && state.isOpen(child);
+      // Every group opens, the deepest onto its detail rows (upstream:
+      // at the last level the groupBy is dropped); a detail row is a
+      // leaf.
+      const isDetail = child.length > depth;
+      const isGroup = !isDetail;
+      const expanded = isGroup && state.isOpen(child, depth);
       rows.push({
         path: child,
         level: child.length,
@@ -271,6 +296,7 @@ export function flattenTree(
         // beneath it, so it reads as a subtotal; closed, it is simply
         // the collapsed group.
         isTotal: isGroup && expanded,
+        ...(isDetail ? { isDetail: true } : {}),
       });
       if (expanded) walk(child);
     }
@@ -282,5 +308,6 @@ export function flattenTree(
 /** The label a tree row shows in the dimension column for its level. */
 export function rowLabel(row: TreeRow, totalsLabel = 'Total'): string {
   if (row.level === 0) return totalsLabel;
+  if (row.isDetail) return '';
   return row.path[row.path.length - 1] ?? '';
 }

@@ -998,27 +998,44 @@ try {
     return `${s.rows.length} rows`;
   });
 
-  await gap('the deepest group level expands to its detail rows',
-    'our tree marks the last dimension a leaf (`isGroup = child.length'
-    + ' < depth` in tree.ts), so the rows behind a bottom-level group'
-    + ' cannot be reached. Upstream drops the groupBy at that point'
-    + ' (DataCubeGridQueryBuilder: "when maximum level of drilldown is'
-    + ' reached ... no groupBy() is needed") and returns the group\'s'
-    + ' own rows, filtered to its keys.',
+  await check('the deepest group opens onto its rows, as many as its count says',
     async () => {
-      // Collapse to one dimension, so the top level IS the deepest.
+      // Upstream drops the groupBy at the last level and returns the
+      // group's own rows, filtered to its keys. The group's "(n)" --
+      // the leaf count, on by default as upstream's -- is the promise
+      // those rows keep.
       await menu(['Pivot', 'Clear All Vertical Pivots']).catch(() => {});
       const dims = await dimensionNames();
-      const on = ['region', 'desk', 'book'].find((n) => dims.includes(n));
+      const on = ['desk', 'book', 'region'].find((n) => dims.includes(n));
       if (!on) throw new Error(`no dimension to group by in ${dims}`);
-      await menu(['Pivot', /^Vertical Pivot on/],
-        { col: await needCol(on) });
-      const chev = await page.locator('.dc-row[aria-expanded]'
-        + ' .dc-chevron:not(.dc-chevron-empty)').count();
-      if (!chev) {
-        throw new Error('a bottom-level group offers no way to open it');
+      await menu(['Pivot', /^Vertical Pivot on/], { col: await needCol(on) });
+      const total = () => page.evaluate(() =>
+        Number(document.querySelector('[aria-rowcount]')?.getAttribute('aria-rowcount')));
+      const group = page.locator('.dc-row[aria-expanded=false]').first();
+      const label = (await group.locator('.dc-cell').first().innerText()).trim();
+      const n = Number(/\((\d+)\)$/.exec(label)?.[1]);
+      if (!Number.isFinite(n)) throw new Error(`no leaf count on "${label}"`);
+      const before = await total();
+      const settled = await statusNow();
+      await group.locator('.dc-chevron').click();
+      await settle(settled);
+      const opened = (await total()) - before;
+      const firstDetail = await page.locator('.dc-row[aria-expanded=true] + .dc-row')
+        .first().locator('.dc-cell').first().innerText();
+      // Shut again, and LEAVE THE CUBE GROUPED: the next check clears
+      // the grouping and needs one to clear.
+      const shut = await statusNow();
+      await page.locator('.dc-row[aria-expanded=true] .dc-chevron').first().click();
+      await settle(shut);
+      // Under the row cap every row comes; over it, the cap's worth.
+      const want = Math.min(n, 1000);
+      if (opened !== want) {
+        throw new Error(`"${label}" opened onto ${opened} rows, its count says ${n}`);
       }
-      return 'the bottom level can be opened';
+      if (firstDetail.trim() !== '') {
+        throw new Error(`a detail row names "${firstDetail}" in the tree column`);
+      }
+      return `${label} opened onto ${opened} detail rows`;
     });
 
   await check('clear all vertical pivots', async () => {
@@ -4075,9 +4092,15 @@ try {
     await control('Keep grouped columns in the grid', { setup: () => group('region'),
       act: general(() => boxOf('Keep grouped columns in the grid').check()),
       expect: (b, a) => (a.headers.some((h) => h.startsWith('region=')) ? null : 'no region column') });
-    await control('Show leaf count', { setup: () => group('region'),
-      act: general(() => boxOf('Show leaf count').check()),
-      expect: (b, a) => (/\(\d+\)$/.test(a.tree[0] ?? '') ? null : `tree ${a.tree[0]}`) });
+    // On by default, as upstream's: shown ticked, and unticking takes
+    // the counts away.
+    await control('Show leaf count: shown ticked, untick removes the counts', { setup: () => group('region'),
+      act: general(async () => {
+        if (!(await boxOf('Show leaf count').isChecked())) throw new Error('unticked by default');
+        await boxOf('Show leaf count').uncheck();
+      }),
+      expect: (b, a) => (/\(\d+\)$/.test(b.tree[0] ?? '') && !/\(\d+\)$/.test(a.tree[0] ?? '')
+        ? null : `tree before ${b.tree[0]} after ${a.tree[0]}`) });
     await control('Tree column sort', { setup: () => group('region'),
       act: general(() => fieldOf('Sort:').locator('select').selectOption('desc')),
       expect: changed('tree') });

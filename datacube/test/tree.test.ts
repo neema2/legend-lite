@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import {
+  DETAIL_ROW,
   TreeState,
   flattenTree,
   pathKey,
@@ -121,14 +122,22 @@ describe('requiredLevels', () => {
     assert.equal(keys.some((k) => k.includes('AMER')), false);
   });
 
-  it('never asks past the last dimension', () => {
+  it('an open DEEPEST group asks for its detail rows, and nothing past them', () => {
+    // Upstream: at the last level the groupBy is dropped and the group
+    // opens onto its rows. Level depth+1 is that, and it is the floor.
     const s = TreeState.empty(true).expand(['EMEA']).expand(['EMEA', 'Rates']);
     const keys = requiredLevels(s, 2, childrenOf).map(requestKey);
-    assert.equal(
-      keys.some((k) => k.startsWith('3:')),
-      false,
-      'depth 2 means level 3 does not exist',
-    );
+    assert.ok(keys.includes(`3:EMEA\u0000Rates`), keys.join(' | '));
+    assert.equal(keys.some((k) => k.startsWith('4:')), false);
+  });
+
+  it('the expand level never opens the deepest groups onto their detail', () => {
+    // One query per group on every load would be a trap: those open
+    // one at a time, by hand.
+    const s = TreeState.empty(true).withExpandTo(8);
+    const keys = requiredLevels(s, 2, childrenOf).map(requestKey);
+    assert.equal(keys.some((k) => k.startsWith('3:')), false, keys.join(' | '));
+    assert.ok(keys.some((k) => k.startsWith('2:')), 'the level above still opens');
   });
 
   it('asks for nothing when there are no row dimensions', () => {
@@ -200,13 +209,20 @@ describe('flattenTree', () => {
     );
   });
 
-  it('marks an open group as a subtotal and a leaf as neither', () => {
+  it('marks an open group as a subtotal; the deepest group opens onto detail rows', () => {
     const rows = flattenTree(TreeState.empty(true).expand(['EMEA']), 2, childrenOf);
     const emea = rows.find((r) => rowLabel(r) === 'EMEA');
     const rates = rows.find((r) => rowLabel(r) === 'Rates');
     assert.equal(emea?.isTotal, true, 'an open group shows a subtotal');
-    assert.equal(rates?.isGroup, false, 'a leaf cannot expand');
-    assert.equal(rates?.isTotal, false);
+    assert.equal(rates?.isGroup, true, 'the deepest group opens onto its rows');
+    assert.equal(rates?.isTotal, false, 'closed, it is simply the group');
+    const detail = ['EMEA', 'Rates', `${DETAIL_ROW}0`];
+    const opened = flattenTree(TreeState.empty(true).expand(['EMEA', 'Rates']), 2,
+      (p) => (pathKey(p) === pathKey(['EMEA', 'Rates']) ? [detail] : childrenOf(p)));
+    const leaf = opened.find((r) => pathKey(r.path) === pathKey(detail));
+    assert.equal(leaf?.isDetail, true);
+    assert.equal(leaf?.isGroup, false, 'a detail row is a leaf');
+    assert.equal(rowLabel(leaf!), '', 'a detail row names nothing in the tree');
   });
 
   it('omits the grand total when totals are off', () => {

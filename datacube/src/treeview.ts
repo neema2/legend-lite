@@ -15,6 +15,7 @@ import type { EpochGuard } from './epoch.ts';
 import type { QueryRunner } from './runner.ts';
 import {
   NULL_GROUP,
+  detailSnapshot,
   pivotTotalQuery,
   serialize,
   type LevelScope,
@@ -27,6 +28,7 @@ import {
   type CubeSnapshot,
 } from './snapshot.ts';
 import {
+  DETAIL_ROW,
   type LevelRequest,
   type RowPath,
   type TreeRow,
@@ -125,8 +127,14 @@ function groupValue(v: Scalar): string {
 function pathsOf(
   request: LevelRequest,
   table: ResultTable,
+  depth: number,
 ): RowPath[] {
   if (request.level === 0) return [[]];
+  // Detail rows have no key: their identity is their place.
+  if (request.level > depth) {
+    return Array.from({ length: table.rowCount },
+      (_v, i) => [...request.parent, `${DETAIL_ROW}${i}`]);
+  }
   const col = table.columns[request.level - 1];
   if (!col) return [];
   return col.values.map((v) => [...request.parent, groupValue(v)]);
@@ -174,7 +182,8 @@ export async function fetchTree(
 
   // Requests are recomputed after each round, because opening a branch
   // only becomes fetchable once its parent's rows are known.
-  for (let round = 0; round <= depth; round++) {
+  // One round per level, and one more for detail rows.
+  for (let round = 0; round <= depth + 1; round++) {
     const wanted = requiredLevels(state, depth, childrenOf).filter(
       (r) => !levels.has(requestKey(r)),
     );
@@ -183,21 +192,26 @@ export async function fetchTree(
     for (const request of wanted) {
       // Ask for one more than the cap: if it comes back there is more
       // data, which is cheaper than a second counting query.
-      const scoped = { ...request, limit: maxRows + 1 };
-      const grammar = serialize(snapshot, scoped);
+      // Below the deepest group: its detail rows, from their own query.
+      const detail = request.level > depth;
+      const target = detail ? detailSnapshot(snapshot, request.parent) : snapshot;
+      const scoped = detail
+        ? { level: target.rows.length, parent: [], limit: maxRows + 1 }
+        : { ...request, limit: maxRows + 1 };
+      const grammar = serialize(target, scoped);
       const { rows: full, sql } = await deps.runner.run(
-        grammar, { ...snapshot, epoch: deps.epoch }, scoped, deps.signal,
+        grammar, { ...target, epoch: deps.epoch }, scoped, deps.signal,
       );
       const truncated = full.rowCount > maxRows;
       const capped = truncated ? takeRows(full, maxRows) : full;
-      const table = await withPivotTotals(
-        snapshot, request, capped, pathsOf(request, capped), truncated,
+      const table = detail ? capped : await withPivotTotals(
+        snapshot, request, capped, pathsOf(request, capped, depth), truncated,
         { ...deps, snapshot: { ...snapshot, epoch: deps.epoch } },
       );
       levels.set(requestKey(request), {
         request,
         table,
-        paths: pathsOf(request, table),
+        paths: pathsOf(request, table, depth),
         truncated,
         pure: grammar,
         sql,
@@ -363,8 +377,9 @@ export function assemble(
   const valueTypes = new Map<string, string>();
 
   for (const data of levels.values()) {
-    // Grouping columns come first, so anything past them is a value.
-    const skip = Math.max(0, data.request.level);
+    // Grouping columns come first, so anything past them is a value --
+    // except on a detail level, which has no grouping of its own.
+    const skip = data.request.level > dims.length ? 0 : Math.max(0, data.request.level);
     data.table.columns.slice(skip).forEach((c) => {
       if (!valueTypes.has(c.name)) {
         valueNames.push(c.name);
@@ -401,6 +416,8 @@ export function assemble(
 
   const labelOf = (row: TreeRow, i: number): Scalar => {
     if (row.level === 0) return totalsLabel;
+    // A detail row is a source row: nothing to name in the tree.
+    if (row.isDetail) return null;
     const own = row.path[row.path.length - 1];
     // A group whose key is SQL NULL has no label of its own; showing
     // the sentinel would leak an internal string into the grid.

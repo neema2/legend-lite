@@ -257,7 +257,10 @@ export const DEFAULT_CONFIGURATION: CubeConfiguration = {
   showGroupedColumns: false,
   showDragZones: true,
   showTitleBar: true,
-  showLeafCount: false,
+  // Upstream's default (DataCubeConfiguration.showLeafCount = true):
+  // a group says how many rows it holds, which is what the detail rows
+  // beneath it then show.
+  showLeafCount: true,
   treeColumnSort: 'asc',
   showTruncationWarning: true,
   showSelectionStats: false,

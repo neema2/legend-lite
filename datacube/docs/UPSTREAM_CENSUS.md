@@ -190,11 +190,11 @@ Upstream: `DataCubeGridConfigurationBuilder.tsx`, `DataCubeGrid.tsx`,
 | "0 rows" and "Loading..." overlays; loading row; `#ERR` row on a failed fetch + error colours | ✓ | status line only | ⚠️ | C |
 | Cell range selection, copy (Ctrl+C) | ✓ | ✓ + keyboard, ARIA treegrid ➕ | ✅ | H |
 | Column selection by clicking a header (to copy a whole column) | ✓ | via the menu entry only | ⚠️ | C |
-| Tree column: pinned left, header blank, min 200, leaf count "(n)" when *Show leaf count* | ✓ | ✓ | ✅ | H |
+| Tree column: pinned left, header blank, min 200, leaf count "(n)" when *Show leaf count* (default ON) | ✓ | ✓ default ON as upstream; a group's (n) equals the detail rows it opens onto | ✅ | H |
 | Grand total (root aggregation) row, auto-expanded | ✓ | ✓ | ✅ | H |
 | Initial expand level; expanded paths SAVED and restored; user expand/collapse recorded | ✓ | ✓ live; ⚠️ not saved in a view beyond `expanded` | ⚠️ | C |
 | Lazy drill-down: each expand fetches only the next level, filtered to the group | ✓ | ✓ per level | ✅ | C `tree.ts` |
-| **Max depth → detail rows** (groupBy dropped at the leaf level) | ✓ | ❌ (known gap) | ❌ | H |
+| **Max depth → detail rows** (groupBy dropped at the leaf level) | ✓ | ✓ the deepest group opens onto its own rows (keys as a filter, no groupBy, group-level columns still applied; a pivot keeps its pivot); the expand level never opens them | ✅ | H, T, WASM differential |
 | Pivot: nested header groups, 5-colour rotation, leaves in configuration order, values ordered client-side by each key's direction | ✓ | ✓ | ✅ | H, C `grid.css:704` |
 | Pivot result columns cannot be pinned or moved | ✓ | not enforced | ⚠️ | C |
 | **Pivot total column** per measure (name, left/right placement, per-measure function), per row including subtotals and the grand total | ❌ upstream BUG (config only) | ❌ fields removed in `4093e73fc` | ❌ | C |

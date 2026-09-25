@@ -7,7 +7,7 @@
 // DataCube emits that the hand-written corpus (wasm/corpus) never
 // thought to.
 
-import { serialize } from '../../src/serialize.ts';
+import { detailSnapshot, serialize } from '../../src/serialize.ts';
 import type { LevelScope } from '../../src/serialize.ts';
 import type { CubeSnapshot } from '../../src/snapshot.ts';
 
@@ -211,7 +211,32 @@ export const CASES: { name: string; snapshot: CubeSnapshot; scope?: LevelScope }
     }),
     scope: { level: 3, parent: ['EMEA', 'Rates'], limit: 501 },
   },
+  // THE DETAIL ROWS under a deepest group, as fetchTree asks for them:
+  // the group's keys as a filter, no groupBy, the cube's sort on a
+  // source column kept and the one on an aggregate-only name dropped.
+  detailCase('tree-detail', snap({
+    rows: ['region', 'desk'],
+    measures: SUM_NOTIONAL,
+    sorts: [{ column: 'pnl', direction: 'desc' }],
+  }), ['EMEA', 'Rates']),
+  // ...and a PIVOTED cube's, which keep the pivot, grouped by every
+  // dimension.
+  detailCase('tree-detail-pivot', snap({
+    rows: ['region', 'desk'],
+    pivotOn: ['year'],
+    measures: SUM_NOTIONAL,
+  }), ['EMEA', 'Rates']),
 ];
+
+/** A detail level, exactly as `fetchTree` builds its query. */
+function detailCase(
+  name: string,
+  cube: CubeSnapshot,
+  parent: readonly string[],
+): { name: string; snapshot: CubeSnapshot; scope: LevelScope } {
+  const snapshot = detailSnapshot(cube, parent);
+  return { name, snapshot, scope: { level: snapshot.rows.length, parent: [], limit: 501 } };
+}
 
 /** Each case's Pure, as DataCube emits it. */
 export function grammars(): { name: string; grammar: string }[] {
