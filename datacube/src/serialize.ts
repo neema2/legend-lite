@@ -649,18 +649,42 @@ export function serialize(
    * Only with the pivot's own column names in hand, which arrive
    * from a result rather than from the snapshot the user built.
    */
-  const cast = pivoting && groupCols.length > 0
+  // A cast learned for a DIFFERENT set of measures is stale: it names
+  // columns this pivot no longer makes (a measure since excluded) or
+  // lacks ones it does (one since included), and a cast naming a
+  // column the pivot did not produce is a binder error. So it is used
+  // only when its measures are exactly the ones being spread;
+  // otherwise the first stage runs alone and the app learns it again.
+  const castFits = (): boolean => {
+    const spread = new Set(snapshot.measures.length > 0
+      ? snapshot.measures.map((m) => m.name)
+      : measureLike());
+    const named = new Set((snapshot.pivotCast ?? []).map((c) => c.measure));
+    return spread.size === named.size && [...spread].every((m) => named.has(m));
+  };
+  const cast = pivoting && groupCols.length > 0 && castFits()
     ? (snapshot.pivotCast ?? [])
     : [];
 
-  /** Columns a pivoted cube carries THROUGH to the outer groupBy. */
+  /**
+   * Columns a pivoted cube carries THROUGH to the outer groupBy.
+   *
+   * DIMENSIONS only. A measure the pivot does not spread -- excluded
+   * from it, or simply not a configured measure -- cannot be carried:
+   * the pivot groups by everything it selects, so summing it
+   * afterwards adds up the DISTINCT (row, value) pairs rather than the
+   * rows. Its figure comes from the unpivoted query instead, joined by
+   * key beside the pivot total (`pivotTotalQuery`).
+   */
   const carried = (): string[] => {
     const isKey = new Set([...groupCols, ...snapshot.pivotOn]);
     const isMeasure = new Set(snapshot.measures.length > 0
       ? snapshot.measures.map((m) => m.column)
       : measureLike());
+    const measureKind = new Set(rowColumns(snapshot)
+      .filter((c) => c.kind === 'measure').map((c) => c.name));
     return detailColumns(snapshot)
-      .filter((n) => !isKey.has(n) && !isMeasure.has(n));
+      .filter((n) => !isKey.has(n) && !isMeasure.has(n) && !measureKind.has(n));
   };
 
   const needed = cast.length > 0
@@ -891,8 +915,11 @@ export function serialize(
           ...(base.weight ? { weight: base.weight } : {}),
         }));
       }
+      // A carried dimension takes its OWN configured aggregate, as
+      // upstream's `_groupByAggCols` does; unique when none is set.
       for (const name of carried()) {
-        outer.push(aggregateSpec({ name, column: name, fn: 'unique' }));
+        outer.push(aggregateSpec(
+          defaultMeasure(name, specOfMeasure.get(name), 'unique')));
       }
       const by = groupCols.map(ident).join(', ');
       parts.push(`groupBy(~[${by}], ~[${outer.join(', ')}])`);
@@ -991,15 +1018,21 @@ export function pivotTotalQuery(
   snapshot: CubeSnapshot,
   scope: LevelScope | undefined,
   keys?: readonly string[],
-): { readonly pure: string; readonly measures: readonly string[] } | null {
+): {
+  readonly pure: string;
+  /** Measures whose pivot TOTAL this query computes. */
+  readonly measures: readonly string[];
+  /** Measure columns the pivot does not spread, on their own aggregate. */
+  readonly carried: readonly string[];
+} | null {
   const total = snapshot.pivotTotal;
-  if (total === undefined || snapshot.pivotOn.length === 0) return null;
+  if (snapshot.pivotOn.length === 0) return null;
   const excluded = new Set(
     snapshot.columns.filter((c) => c.excludedFromPivot).map((c) => c.name),
   );
   if (snapshot.pivotOn.every((c) => excluded.has(c))) return null;
 
-  const functions = total.functions ?? {};
+  const functions = total?.functions ?? {};
   const retarget = (m: Measure): Measure => {
     const fn = functions[m.column] ?? m.fn;
     const { weight: _w, ...rest } = m;
@@ -1017,7 +1050,15 @@ export function pivotTotalQuery(
       .filter((c) => !isOn.has(c.name) && !excluded.has(c.name)
         && c.kind === 'measure')
       .map((c) => defaultMeasure(c.name, specOf.get(c.name), 'sum'));
-  if (pivoted.length === 0) return null;
+  // Measure columns the pivot leaves alone: `carried` in `serialize`
+  // keeps them out of the pivot, and they are answered here.
+  const spread = new Set(pivoted.map((m) => m.column));
+  const carriedMeasures: Measure[] = rowColumns(snapshot)
+    .filter((c) => c.kind === 'measure' && !isOn.has(c.name)
+      && !spread.has(c.name) && !snapshot.rows.includes(c.name))
+    .map((c) => defaultMeasure(c.name, specOf.get(c.name), 'sum'));
+  const totals = total === undefined ? [] : pivoted;
+  if (totals.length === 0 && carriedMeasures.length === 0) return null;
 
   const conditions: FilterNode[] = [];
   if (snapshot.filter) conditions.push(snapshot.filter);
@@ -1059,15 +1100,16 @@ export function pivotTotalQuery(
   // because the grid shows them; the total shows only its measures).
   // Filters and row-stage calculations run before the projection, so
   // they still see every column.
+  const asked = [...totals.map(retarget), ...carriedMeasures];
   const keep = new Set([
     ...snapshot.rows,
-    ...pivoted.flatMap((m) => [m.column, ...(m.weight ? [m.weight] : [])]),
+    ...asked.flatMap((m) => [m.column, ...(m.weight ? [m.weight] : [])]),
   ]);
   const unpivoted: CubeSnapshot = {
     ...rest,
     columns: snapshot.columns.filter((c) => keep.has(c.name)),
     pivotOn: [],
-    measures: pivoted.map(retarget),
+    measures: asked,
     groupDerived: [],
     sorts: [],
     leafCount: false,
@@ -1082,6 +1124,7 @@ export function pivotTotalQuery(
     : { level: scope.level, parent: scope.parent };
   return {
     pure: serialize(unpivoted, levelScope),
-    measures: pivoted.map((m) => m.name),
+    measures: totals.map((m) => m.name),
+    carried: carriedMeasures.map((m) => m.name),
   };
 }

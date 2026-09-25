@@ -285,15 +285,18 @@ export async function withPivotTotals(
   }
 
   const added: ResultColumn[] = [];
-  for (const measure of query.measures) {
-    const source = totals.columns.find((c) => c.name === measure);
-    if (!source) continue;
+  const join = (from: string, as: string): void => {
+    const source = totals.columns.find((c) => c.name === from);
+    if (!source) return;
     added.push({
-      name: pivotTotalColumn(measure),
+      name: as,
       type: source.type,
       values: at.map((i) => (i < 0 ? null : (source.values[i] ?? null))),
     });
-  }
+  };
+  for (const measure of query.measures) join(measure, pivotTotalColumn(measure));
+  // The measures the pivot does not spread, under their own names.
+  for (const measure of query.carried) join(measure, measure);
   return { ...table, columns: [...table.columns, ...added] };
 }
 

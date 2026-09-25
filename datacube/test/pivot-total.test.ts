@@ -214,3 +214,55 @@ describe('the pivot total settings', () => {
       { label: 'Total', placement: 'right' });
   });
 });
+
+describe('measures a pivot does not spread', () => {
+  // `price` kept OUT of the pivot. A pivot groups by everything else it
+  // selects, so carrying `price` through it and summing afterwards adds
+  // up the DISTINCT (region, price) pairs, not the rows. Its figure is
+  // the unpivoted query's, joined by key like the total.
+  const EXCLUDED: CubeSnapshot = {
+    ...CUBE,
+    columns: CUBE.columns.map((c) => (c.name === 'price'
+      ? { ...c, excludedFromPivot: true } : c)),
+    pivotCast: [{ name: '2021__|__notional', measure: 'notional' }],
+  };
+
+  it('are not carried through the pivot', async () => {
+    const { serialize } = await import('../src/serialize.ts');
+    const pure = serialize(EXCLUDED, { level: 1, parent: [] });
+    const pivoted = pure.slice(pure.indexOf('->pivot('));
+    assert.doesNotMatch(pivoted, /price/);
+    assert.doesNotMatch(pure.slice(0, pure.indexOf('->pivot(')), /select\(~\[[^\]]*price/);
+  });
+
+  it('come from the unpivoted query, on their own aggregate', () => {
+    const q = pivotTotalQuery(EXCLUDED, { level: 1, parent: [] });
+    assert.deepEqual(q?.carried, ['price']);
+    assert.match(q?.pure ?? '', /price:x\|\$x\.price:y\|\$y->average\(\)/);
+  });
+
+  it('come even with no pivot total configured', () => {
+    const { pivotTotal: _t, ...noTotal } = EXCLUDED;
+    const q = pivotTotalQuery(noTotal, { level: 1, parent: [] });
+    assert.deepEqual(q?.measures, []);
+    assert.deepEqual(q?.carried, ['price']);
+  });
+
+  it('are joined in as plain columns', async () => {
+    const pivot = table([
+      { name: 'region', values: ['EMEA', 'AMER'] },
+      { name: '2021__|__notional', values: [1, 2] },
+    ]);
+    const totals = table([
+      { name: 'region', values: ['AMER', 'EMEA'] },
+      { name: 'notional', values: [20, 10] },
+      { name: 'price', values: [4, 3] },
+    ]);
+    const out = await withPivotTotals(
+      EXCLUDED, { level: 1, parent: [] }, pivot, [['EMEA'], ['AMER']], false,
+      { runner: { name: 'f', run: async () => ({ rows: totals, sql: '' }) },
+        snapshot: EXCLUDED },
+    );
+    assert.deepEqual(out.columns.find((c) => c.name === 'price')?.values, [3, 4]);
+  });
+});

@@ -2083,6 +2083,24 @@ export class CubeApp {
 
   #applyDraft(draft: CubeDraft): void {
     const wasRoot = this.#config.showRootAggregation;
+    // A REFUSED DRAFT PUTS EVERYTHING BACK. It used to stay: the
+    // refusal went to the status line and the draft remained the
+    // cube's snapshot and configuration, so every later query repeated
+    // it -- one Apply wedged the cube until a reload. Upstream compiles
+    // the whole query before publishing; running it and restoring on
+    // refusal gives the same guarantee.
+    const previous = this.#snapshot;
+    const previousConfig = this.#config;
+    const rollback = (error: unknown): void => {
+      this.#status(error instanceof Error ? error.message : String(error), 'error');
+      this.#snapshot = previous;
+      this.#config = previousConfig;
+      this.#renderChrome();
+      this.#refreshFormats();
+      this.#grid.setAppearance(this.#config.appearance,
+        toColumnAppearance(this.#config));
+      this.#refreshToolPanel();
+    };
     this.#snapshot = draft.snapshot;
     this.#config = draft.config;
     this.#renderChrome();
@@ -2101,10 +2119,14 @@ export class CubeApp {
         .setTree(tree
           .withTotals(draft.config.showRootAggregation)
           .withExpandTo(expandTo))
-        .then(() => this.#refresh());
+        .then(() => this.#refresh())
+        .catch((error: unknown) => {
+          this.#controller.adoptTree(tree);
+          rollback(error);
+        });
       return;
     }
-    this.#refreshOr(null);
+    this.#refresh().catch(rollback);
   }
 
   /**

@@ -1089,6 +1089,46 @@ try {
       return `${groupBy} x ${across}: total ${got} = unpivoted ${want}`;
     });
 
+  await check('a measure kept out of the pivot shows its real figure', async () => {
+    // A pivot groups by everything it selects, so a measure carried
+    // THROUGH it and summed afterwards adds up distinct values, not
+    // rows -- and before that it was aggregated as `unique`, which is
+    // blank for any group of two or more. Kept out of the pivot, its
+    // figure is the unpivoted cube's, exactly.
+    const cell = (name) => page.evaluate((n) => {
+      const c = [...document.querySelector('.dc-row')
+        ?.querySelectorAll('.dc-cell') ?? []]
+        .find((e) => e.dataset.column === n);
+      return c ? Number((c.textContent ?? '').replace(/[^0-9.-]/g, '')) : NaN;
+    }, name);
+    await menu(['Pivot', 'Clear All Vertical Pivots']).catch(() => {});
+    await menu(['Pivot', 'Clear All Horizontal Pivots']).catch(() => {});
+    const dims = await dimensionNames();
+    const groupBy = ['region', 'desk', 'book'].find((n) => dims.includes(n));
+    const across = ['year', 'quarter'].find((n) => dims.includes(n));
+    await menu(['Pivot', /^Vertical Pivot on/], { col: await needCol(groupBy) });
+    const want = await cell('pnl');
+    if (!Number.isFinite(want) || want === 0) {
+      throw new Error(`no grouped pnl to compare: ${want}`);
+    }
+    await menu(['Pivot', /^Horizontal Pivot on/], { col: await needCol(across) });
+    await page.waitForTimeout(800);
+    const pivotedPnl = await page.evaluate(() =>
+      [...document.querySelectorAll('.dc-th[data-column]')]
+        .map((e) => e.dataset.column)
+        .find((n) => /__\|__pnl$/.test(n) && !n.startsWith('__pivot_total__')));
+    if (!pivotedPnl) throw new Error('pnl was not pivoted to begin with');
+    await menu(['Pivot', /^Exclude Column pnl from Horizontal Pivot/],
+      { col: await needCol(pivotedPnl) });
+    await page.waitForTimeout(800);
+    const got = await cell('pnl');
+    if (Math.abs(got - want) > Math.max(0.01, Math.abs(want) * 0.0005)) {
+      throw new Error(`pnl kept out of the pivot reads ${got};`
+        + ` the unpivoted cube says ${want}`);
+    }
+    return `${groupBy} x ${across}, pnl excluded: ${got} = ${want}`;
+  });
+
   await check('clear all horizontal pivots', async () => {
     if (!/pivot\(/.test((await state()).pure)) {
       throw new Error('could not set up: nothing is pivoted');
