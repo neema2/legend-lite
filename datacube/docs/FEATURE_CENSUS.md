@@ -225,6 +225,68 @@ Tabs match upstream's `DataCubeEditorTab` order (`src/ui/editor.ts`): H
 | In-browser cache of a remote source | ✅ WIP toggle | ✅ snap mode (`snap.ts`) | C |
 | Execution planes | engine only (+ cache) | ➕ three: plan in the tab (WebAssembly), plan on a legend-lite server, run on legend-engine (`engine-remote.ts`, `runner.ts`) | C |
 
+## 8b. Saving, loading, and the other applications (added 2026-09-25)
+
+The first pass of this census read the application package for its
+menu labels only, and rated save/load one row. It is the biggest
+missing feature area, so here it is traced properly. Upstream sources:
+`legend-graph` (`PersistentDataCube`, `V1_EngineServerClient` §DataCube),
+`legend-application-data-cube` (builder store, sources, routes), and
+the DataCube entry points in `legend-application-query`,
+`legend-query-builder`, `legend-application-studio`,
+`legend-application-repl`, `legend-extension-dsl-data-product`,
+`legend-lego` (AI chat).
+
+**What a saved DataCube IS upstream.** A `PersistentDataCube` — id,
+name, description, owner, created / updated / last-opened — whose
+`content` is a `DataCubeSpecification`: the cube's `query` as Pure
+text, its `configuration`, a typed `source` (JSON with `_type`), and
+`options`. It lives in the engine's query store beside saved queries,
+`/pure/v1/query/dataCube`: search (term, mine-only, sorted), batch get,
+get, create, update, delete.
+
+| Upstream feature | Ours | Evidence |
+|---|---|---|
+| Save / Save As (name + description) to a shared server store | ⚠️ *Save View* writes ONE fixed `localStorage` slot (`VIEW_KEY`, `app.ts:1797`); each save overwrites the last | C |
+| Load DataCube: search by name, "mine only", recently viewed, copy id | ⚠️ *Load View* loads that one slot; no list, no search | C |
+| Update Info (rename, description), Delete DataCube, Reset to Latest Save | ❌ | C |
+| A saved cube has a URL (`/:dataCubeId`), so it can be shared as a link | ❌ | C |
+| New cube from a URL (`?sourceData=<source JSON>`) — how other apps open DataCube | ❌ (only `?remote=<file url>` in the demo) | C |
+| Owner, created / updated / last-opened timestamps | ❌ | C |
+| The saved record carries the SOURCE, so reopening it re-derives the data | ⚠️ the snapshot's source expression is saved; an uploaded file is not, and nothing asks for it again (upstream stores name + format and prompts for the file) | C |
+| View Source; Edit Source Query (jump to Legend Query); Edit Latest Saved Query | ❌ (the demo host menu has *Generated Pure & SQL…*) | C |
+| A server-side store to put any of this in | ❌ legend-lite's server serves `/lsp`, `/engine/{execute,plan,sql,diagram}`, `/health` only (`LegendHttpServer.java:47-56`); no query store, no DataCube store | C |
+
+**Sources a saved cube can be built on** (the typed `source`):
+
+| Upstream source | What it references | Ours |
+|---|---|---|
+| **Legend Query** | a saved query by `queryId` + parameter values; loads its lambda, mapping and runtime | ❌ — there is no saved-query store to reference |
+| **User-Defined Function** | a function returning a relation, by project/version + path | ❌ |
+| **Freeform TDS expression** | Pure text + runtime + model | ⚠️ equivalent in spirit: our cube's source IS a Pure expression over a model, but it is not a selectable, saved source kind |
+| **Local file** | CSV (upstream TODO: Parquet, Arrow, Excel) | ✅ CSV + Parquet (but not re-prompted on reload, above) |
+| **Lakehouse producer / consumer** | a data product's access point | ❌ |
+| Remote object storage (https / s3 Parquet, CSV, Iceberg) | — | ➕ |
+
+**Entry points from the other applications** (each opens DataCube on
+the query in hand):
+
+| Where | What the user gets | Ours |
+|---|---|---|
+| Legend Query app | Open an existing saved query in DataCube (embedded viewer, and a link into the DataCube app with `sourceData`) | ❌ |
+| Query Builder | a *Data Cube* button: the current query (lambda, mapping, runtime, parameters) in an embedded cube | ❌ |
+| Studio | *Data Cube (BETA)* on the Function editor, the Service execution editor, and the explorer's context menu | ❌ (Studio Lite has no such entry) |
+| REPL | *Publish*: saves the cube to the store and hands back a link and an id | ❌ |
+| Data products / marketplace, AI chat | *Open in DataCube* on an access point or a generated query | ❌ |
+
+**What this means for the plan.** Save/load is not a DataCube-page
+feature; it is a **server** feature with a page on top: a store (the
+query store's DataCube half, and the saved-query half that a Legend
+Query source points at), a URL scheme (`/:id`, `?sourceData=`), and
+typed sources. It belongs in the server phase, and it should be built
+on the same server as server-side DuckDB rather than as a second
+browser-only mechanism.
+
 ## 9. Ours beyond upstream
 
 Plain-text, HTML and PDF export; specification export; heatmaps; plot and
@@ -307,6 +369,8 @@ in §5 (Zoom In to the leaf needs detail rows).
 4. **Bottom-level detail rows** (H known gap) — also an Essbase
    prerequisite.
 5. **Essbase mode (§10).**
-6. **Server phase:** saved cubes in a shared catalogue, full-result
-   server CSV export, email wiring, source kinds — these belong with the
-   server-side DuckDB work rather than before it.
+6. **Server phase:** the store and URL scheme of §8b (saved DataCubes
+   and saved queries, `/:id`, `?sourceData=`), typed sources (Legend
+   Query, function, file, lakehouse), the entry points from the query
+   builder and Studio, full-result server CSV export, email — built on
+   the same server as the server-side DuckDB work.
