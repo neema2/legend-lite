@@ -23,13 +23,18 @@ import { describe, it } from 'node:test';
 
 const SRC = new URL('../src/', import.meta.url);
 
-function files(dir: URL): string[] {
-  const out: string[] = [];
+// URLs throughout, never `.pathname` handed to the file system: on
+// Windows a file URL's pathname is `/C:/...`, which `readFileSync`
+// reads as `C:\C:\...` -- this test failed on the Windows CI lane for
+// exactly that (2026-09-25). A URL is read the same on every platform,
+// and its pathname keeps `/` separators for the `/ui/` test below.
+function files(dir: URL): URL[] {
+  const out: URL[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     if (entry.isDirectory()) {
       out.push(...files(new URL(`${entry.name}/`, dir)));
     } else if (entry.name.endsWith('.ts')) {
-      out.push(new URL(entry.name, dir).pathname);
+      out.push(new URL(entry.name, dir));
     }
   }
   return out;
@@ -50,7 +55,7 @@ function fieldsOf(name: string): string[] {
 // one read was enough for this check to pass a setting nothing else
 // used (2026-09-25 sweep). Showing a setting is not honouring it.
 const readers = files(SRC)
-  .filter((f) => !/\/ui\//.test(f))
+  .filter((f) => !/\/ui\//.test(f.pathname))
   .map((f) => readFileSync(f, 'utf8'))
   .join('\n');
 
