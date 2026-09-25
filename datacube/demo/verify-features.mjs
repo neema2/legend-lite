@@ -546,6 +546,104 @@ try {
     return 'set, then cleared';
   });
 
+  await check('a header click sorts: up, down, off', async () => {
+    // Upstream sorts on a header click with multi-sort always on; the
+    // header shows the arrow. Three clicks walk a column through
+    // ascending, descending and back out of the sort.
+    await menu(['Sort', 'Clear All Sorts']).catch(() => {});
+    const name = await page.evaluate(() =>
+      document.querySelector('.dc-th.dc-sortable[data-column]')?.dataset.column);
+    if (!name) throw new Error('no sortable header');
+    const th = page.locator(`.dc-th[data-column="${name}"]`);
+    const click = async () => {
+      const before = await statusNow();
+      await th.click({ position: { x: 8, y: 8 } });
+      await settle(before);
+    };
+    const ident = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    await click();
+    let s = await state();
+    if (!new RegExp(`~'?${ident}'?->ascending`).test(s.pure)) {
+      throw new Error(`first click: no ascending sort on ${name}: ${s.pure.slice(-120)}`);
+    }
+    if ((await th.getAttribute('aria-sort')) !== 'ascending') {
+      throw new Error('the header does not say ascending');
+    }
+    await click();
+    s = await state();
+    if (!new RegExp(`~'?${ident}'?->descending`).test(s.pure)) {
+      throw new Error(`second click: no descending sort on ${name}`);
+    }
+    await click();
+    s = await state();
+    if (new RegExp(`~'?${ident}'?->(a|de)scending`).test(s.pure)) {
+      throw new Error(`third click left ${name} in the sort`);
+    }
+    return `${name}: asc → desc → off`;
+  });
+
+  await check('a header edge drags to a new width', async () => {
+    const name = await page.evaluate(() =>
+      [...document.querySelectorAll('.dc-th[data-column]')]
+        .find((e) => e.querySelector('.dc-col-resize'))?.dataset.column);
+    if (!name) throw new Error('no header carries a resize grip');
+    const th = page.locator(`.dc-th[data-column="${name}"]`);
+    const before = (await th.boundingBox()).width;
+    const grip = th.locator('.dc-col-resize');
+    const g = await grip.boundingBox();
+    await page.mouse.move(g.x + g.width / 2, g.y + g.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(g.x + g.width / 2 + 40, g.y + g.height / 2, { steps: 4 });
+    await page.mouse.move(g.x + g.width / 2 + 80, g.y + g.height / 2, { steps: 4 });
+    await page.mouse.up();
+    await page.waitForTimeout(600);
+    const after = (await page.locator(`.dc-th[data-column="${name}"]`)
+      .boundingBox()).width;
+    if (Math.abs(after - (before + 80)) > 6) {
+      throw new Error(`${name} went from ${before}px to ${after}px, not +80`);
+    }
+    // And the cells follow their header.
+    const cell = await page.locator(`.dc-row .dc-cell[data-column="${name}"]`)
+      .first().boundingBox();
+    if (Math.abs(cell.width - after) > 2) {
+      throw new Error(`the header is ${after}px, its cells ${cell.width}px`);
+    }
+    await menu(['Resize', 'Auto-size All Columns']).catch(() => {});
+    return `${name}: ${Math.round(before)}px → ${Math.round(after)}px`;
+  });
+
+  await check('cells and headers explain themselves on hover', async () => {
+    const t = await page.evaluate(() => ({
+      cell: document.querySelector('.dc-row .dc-cell:not(.dc-tree)')?.title,
+      head: document.querySelector('.dc-th[data-column]')?.title,
+    }));
+    if (!/^(Value = |Missing Value)/.test(t.cell ?? '')) {
+      throw new Error(`a cell's tooltip is "${t.cell}"`);
+    }
+    if (!/^Column = /.test(t.head ?? '')) {
+      throw new Error(`a header's tooltip is "${t.head}"`);
+    }
+    return `${t.cell} / ${t.head}`;
+  });
+
+  await check('scrolling shows which rows are on screen', async () => {
+    await page.evaluate(() => {
+      const sc = document.querySelector('.dc-scroller');
+      sc.scrollTop = 200;
+      sc.dispatchEvent(new Event('scroll'));
+    });
+    await page.waitForTimeout(100);
+    const hint = await page.evaluate(() => {
+      const h = document.querySelector('.dc-scroll-hint');
+      return h && !h.hidden ? h.textContent : null;
+    });
+    await page.evaluate(() => { document.querySelector('.dc-scroller').scrollTop = 0; });
+    if (!/^\d+-\d+\/\d+$/.test(hint ?? '')) {
+      throw new Error(`no start-end/total readout while scrolling: ${hint}`);
+    }
+    return hint;
+  });
+
   // ---- filtering ------------------------------------------------------
 
   await check('add filter from a cell', async () => {

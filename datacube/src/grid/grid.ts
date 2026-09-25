@@ -128,6 +128,43 @@ export interface GridOptions {
     absoluteRow: number,
     value: Scalar,
   ) => string | null;
+  /**
+   * A header was clicked: sort by it. Upstream sorts on a header click
+   * with multi-sort always on; the host decides what a click means.
+   */
+  readonly onHeaderSort?: (column: string) => void;
+  /** A column's right edge was dragged to a new width. */
+  readonly onResizeColumn?: (column: string, width: number) => void;
+  /**
+   * The tooltip of a header cell, from the header path above and
+   * including it; `leaf` names the column when the cell is one.
+   */
+  readonly headerTitle?: (path: readonly string[], leaf?: LeafColumn) => string;
+  /** The tooltip of a tree cell -- "Group Value = EMEA (12)". */
+  readonly treeTitle?: (absoluteRow: number, label: string) => string;
+}
+
+/** A sort as the header shows it. */
+export interface HeaderSort {
+  readonly column: string;
+  readonly direction: 'asc' | 'desc';
+}
+
+/** Upstream's DEFAULT_COLUMN_MIN_WIDTH: no drag makes a column narrower. */
+const RESIZE_MIN_WIDTH = 50;
+
+/**
+ * A cell's tooltip -- upstream's `tooltipValueGetter`: the raw value,
+ * so a formatted "1.2m" can be read as the number it is, and a blank
+ * cell says it is MISSING rather than empty.
+ */
+export function valueTitle(value: Scalar): string {
+  if (value === null || value === undefined) return 'Missing Value';
+  if (value === '') return "Value = ''";
+  if (value === true) return 'Value = TRUE';
+  if (value === false) return 'Value = FALSE';
+  if (value instanceof Date) return `Value = ${value.toISOString()}`;
+  return `Value = ${String(value)}`;
 }
 
 const DEFAULT_ROW_HEIGHT = 24;
@@ -171,6 +208,17 @@ export class DataGrid {
   #focus: Focus = { row: 0, col: 0 };
   #selection: CellRange | null = null;
   #frame = 0;
+  /** The sorts the header marks. */
+  #sorts: readonly HeaderSort[] = [];
+  /** Live widths while a column edge is being dragged. */
+  readonly #dragWidths = new Map<string, number>();
+  /** The scroll readout, and when it next hides. */
+  readonly #hint: HTMLElement;
+  #hintTimer: ReturnType<typeof setTimeout> | undefined;
+  /** "Loading..." / "0 rows", over the body. */
+  readonly #overlay: HTMLElement;
+  #busy = false;
+  #busyTimer: ReturnType<typeof setTimeout> | undefined;
 
   constructor(
     container: HTMLElement,
@@ -224,6 +272,19 @@ export class DataGrid {
     this.#scroller.appendChild(this.#spacer);
     this.#root.appendChild(this.#head);
     this.#root.appendChild(this.#scroller);
+
+    // Upstream's scroll readout: "start-end/total" while scrolling.
+    this.#hint = doc.createElement('div');
+    this.#hint.className = 'dc-scroll-hint';
+    this.#hint.setAttribute('aria-hidden', 'true');
+    this.#hint.hidden = true;
+    // Upstream's overlays: "Loading..." while a query runs, "0 rows"
+    // when one comes back empty.
+    this.#overlay = doc.createElement('div');
+    this.#overlay.className = 'dc-grid-overlay';
+    this.#overlay.setAttribute('role', 'status');
+    this.#overlay.hidden = true;
+    this.#root.append(this.#hint, this.#overlay);
 
     this.#scroller.addEventListener('scroll', this.#onScroll);
     // A RESIZE MOVES THE BODY WITHOUT A SCROLL EVENT.
@@ -306,6 +367,40 @@ export class DataGrid {
     this.#announceRowCount();
     this.#rendered = null;
     this.#render();
+    this.#paintOverlay();
+  }
+
+  /** The sorts to mark on the header: an arrow, and a position when several. */
+  setSorts(sorts: readonly HeaderSort[]): void {
+    this.#sorts = sorts;
+    this.#renderHeader();
+  }
+
+  /**
+   * A query is running. "Loading..." shows only if it takes a moment,
+   * so a fast answer does not flicker the grid.
+   */
+  setBusy(busy: boolean): void {
+    this.#busy = busy;
+    if (this.#busyTimer !== undefined) clearTimeout(this.#busyTimer);
+    this.#busyTimer = undefined;
+    if (busy) {
+      this.#busyTimer = setTimeout(() => {
+        this.#busyTimer = undefined;
+        this.#paintOverlay();
+      }, 250);
+    } else {
+      this.#paintOverlay();
+    }
+  }
+
+  #paintOverlay(): void {
+    const loading = this.#busy && this.#busyTimer !== undefined
+      ? false : this.#busy;
+    const empty = !this.#busy && this.#table !== null && this.#totalRows === 0;
+    this.#overlay.hidden = !(loading || empty);
+    this.#overlay.textContent = loading ? 'Loading...' : empty ? '0 rows' : '';
+    this.#overlay.classList.toggle('dc-loading', loading);
   }
 
   /**
@@ -417,7 +512,12 @@ export class DataGrid {
         // dragging it would have to mean four things at once.
         const leaf =
           cell.leafIndex !== undefined ? model.leaves[cell.leafIndex] : undefined;
+        const title = this.#options.headerTitle?.(
+          (model.leaves[cell.colStart]?.path ?? []).slice(0, level + 1), leaf);
+        if (title) el.title = title;
         if (leaf) {
+          this.#sortable(el, leaf);
+          this.#resizable(el, leaf);
           this.#reorderable(el, leaf, model);
           el.dataset['column'] = leaf.name;
           // A STICKY COLUMN'S HEADER HAS TO BE STICKY TOO.
@@ -596,6 +696,92 @@ export class DataGrid {
     });
   }
 
+  /**
+   * A header click sorts, and the header says how: an arrow, and the
+   * column's place in the sort when there are several.
+   */
+  #sortable(el: HTMLElement, leaf: LeafColumn): void {
+    const at = this.#sorts.findIndex((x) => x.column === leaf.name);
+    const sort = this.#sorts[at];
+    el.setAttribute('aria-sort', sort === undefined ? 'none'
+      : sort.direction === 'asc' ? 'ascending' : 'descending');
+    if (sort !== undefined) {
+      const mark = el.ownerDocument.createElement('span');
+      mark.className = 'dc-sort-mark';
+      mark.setAttribute('aria-hidden', 'true');
+      mark.textContent = (sort.direction === 'asc' ? '\u2191' : '\u2193')
+        + (this.#sorts.length > 1 ? String(at + 1) : '');
+      el.append(mark);
+    }
+    const onSort = this.#options.onHeaderSort;
+    if (!onSort) return;
+    el.classList.add('dc-sortable');
+    el.addEventListener('click', (event) => {
+      const target = event.target as { closest?: unknown } | null;
+      if (target && typeof target.closest === 'function'
+        && (target as Element).closest('.dc-col-resize')) return;
+      onSort(leaf.name);
+    });
+  }
+
+  /**
+   * A grip on the header's right edge resizes the column: live while
+   * dragging, committed on release. Never on a fixed width -- upstream
+   * makes those unresizable -- and never below upstream's minimum.
+   */
+  #resizable(el: HTMLElement, leaf: LeafColumn): void {
+    const onResize = this.#options.onResizeColumn;
+    if (!onResize || leaf.fixed === true) return;
+    const doc = el.ownerDocument;
+    const grip = doc.createElement('span');
+    grip.className = 'dc-col-resize';
+    grip.setAttribute('aria-hidden', 'true');
+    grip.draggable = false;
+    grip.addEventListener('mousedown', (e) => e.stopPropagation());
+    grip.addEventListener('click', (e) => e.stopPropagation());
+    grip.addEventListener('dragstart', (e) => { e.preventDefault(); e.stopPropagation(); });
+    grip.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const startX = event.clientX;
+      const from = Math.round(el.getBoundingClientRect().width);
+      const width = (e: PointerEvent): number => Math.max(
+        leaf.minWidth ?? RESIZE_MIN_WIDTH,
+        Math.min(leaf.maxWidth ?? Infinity, from + (e.clientX - startX)),
+      );
+      const move = (e: PointerEvent): void => {
+        this.#dragWidths.set(leaf.name, width(e));
+        this.#applyTemplate();
+      };
+      const up = (e: PointerEvent): void => {
+        grip.removeEventListener('pointermove', move);
+        grip.removeEventListener('pointerup', up);
+        grip.removeEventListener('pointercancel', up);
+        const final = this.#dragWidths.get(leaf.name) ?? width(e);
+        this.#dragWidths.delete(leaf.name);
+        if (final !== from) onResize(leaf.name, final);
+        else this.#applyTemplate();
+      };
+      grip.setPointerCapture?.(event.pointerId);
+      grip.addEventListener('pointermove', move);
+      grip.addEventListener('pointerup', up);
+      grip.addEventListener('pointercancel', up);
+    });
+    el.append(grip);
+  }
+
+  /** Re-lay the header and the rendered rows on the current widths. */
+  #applyTemplate(): void {
+    const model = this.#model;
+    if (!model) return;
+    const template = this.#templateColumns(model);
+    this.#headGrid.style.gridTemplateColumns = template;
+    for (const row of this.#body.querySelectorAll<HTMLElement>('.dc-row')) {
+      row.style.gridTemplateColumns = template;
+    }
+  }
+
   #clearDropMarks(): void {
     for (const e of this.#head.querySelectorAll('.dc-drop-before,'
       + ' .dc-drop-after')) {
@@ -660,7 +846,9 @@ export class DataGrid {
   #templateColumns(model: ColumnModel): string {
     return model.leaves
       .map((l) =>
-        l.width !== undefined
+        this.#dragWidths.has(l.name)
+          ? `${this.#dragWidths.get(l.name)}px`
+          : l.width !== undefined
           ? `${l.width}px`
           : l.isDimension
             ? 'var(--dc-dim-width)'
@@ -731,6 +919,7 @@ export class DataGrid {
     this.#frame = 1;
     requestAnimationFrame(() => {
       this.#frame = 0;
+      this.#showScrollHint();
       // Before the render, and OUTSIDE it: `#render` returns early
       // when the row window has not moved, which is exactly what a
       // purely horizontal scroll does.
@@ -738,6 +927,23 @@ export class DataGrid {
       this.#render();
     });
   };
+
+  /**
+   * Upstream's scroll readout: which rows are on screen, of how many,
+   * shown while scrolling and gone a moment after.
+   */
+  #showScrollHint(): void {
+    if (this.#totalRows === 0) return;
+    const rowHeight = this.#options.rowHeight ?? DEFAULT_ROW_HEIGHT;
+    const top = this.#scroller.scrollTop;
+    const first = Math.max(1, Math.ceil(top / rowHeight) + 1);
+    const last = Math.min(this.#totalRows,
+      Math.floor((top + this.#scroller.clientHeight) / rowHeight));
+    this.#hint.textContent = `${first}-${Math.max(first, last)}/${this.#totalRows}`;
+    this.#hint.hidden = false;
+    if (this.#hintTimer !== undefined) clearTimeout(this.#hintTimer);
+    this.#hintTimer = setTimeout(() => { this.#hint.hidden = true; }, 800);
+  }
 
   #render(): void {
     const model = this.#model;
@@ -829,6 +1035,9 @@ export class DataGrid {
           const heat = this.#options.cellBackground?.(leaf, abs, value);
           if (heat) cell.style.backgroundColor = heat;
 
+          cell.title = leaf.name === TREE_COLUMN
+            ? (this.#options.treeTitle?.(abs, text) ?? '')
+            : valueTitle(value);
           if (leaf.name === TREE_COLUMN) {
             // Depth is shown by indentation rather than by a column
             // per dimension, so the grid stays one width however deep

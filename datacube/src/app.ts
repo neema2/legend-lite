@@ -55,6 +55,7 @@ import {
   buildColumnModel,
   type ColumnLayout,
   type ColumnModel,
+  type LeafColumn,
 } from './grid/columns.ts';
 import { load, save, toJson, treeOf } from './persist.ts';
 import { isPivotTotalColumn, pivotTotalColumn } from './treeview.ts';
@@ -459,6 +460,12 @@ export class CubeApp {
       onActivateCell: (row) => {
         void this.#drillThrough(row);
       },
+      onHeaderSort: (column) => this.#sortByHeader(column),
+      // A dragged edge is a width like Auto-size's -- resizable again,
+      // unlike an explicit Fixed one.
+      onResizeColumn: (column, width) => this.#patchColumn(column, { width }),
+      headerTitle: (path, leaf) => this.#headerTitle(path, leaf),
+      treeTitle: (_row, label) => (label === '' ? '' : `Group Value = ${label}`),
       ...(options.writeClipboard
         ? { writeClipboard: options.writeClipboard }
         : {}),
@@ -471,6 +478,8 @@ export class CubeApp {
     const deps: CubeControllerOptions = {
       ...(options.snapTarget ? { snapTarget: options.snapTarget } : {}),
       onView: (view) => this.#onView(view),
+      // Upstream's "Loading..." overlay while a query runs.
+      onBusy: (busy) => this.#grid.setBusy(busy),
       onError: (e) =>
         this.#status(
           e instanceof Error ? e.message : String(e),
@@ -883,6 +892,7 @@ export class CubeApp {
     this.#refreshFormats();
     this.#refreshHeatmaps(view);
     this.#grid.setColumns(model);
+    this.#grid.setSorts(view.snapshot.sorts);
     this.#grid.setRows(view.rows, 0, view.rows.rowCount);
 
     this.#syncPivotCast(model);
@@ -1550,6 +1560,62 @@ export class CubeApp {
     this.#patchColumn(measure, {
       heatmap: on ? { from: '#ffffff', to: '#ff8a65' } : undefined,
     });
+  }
+
+  /**
+   * A header click: upstream's sort-on-click, with multi-sort always on.
+   * Off, ascending, descending, off again -- each column in its own
+   * place among the sorts. The tree column orders the GROUPS, so it
+   * flips the tree's direction; a pivot total is no query's column.
+   */
+  #sortByHeader(column: string): void {
+    if (isPivotTotalColumn(column)) {
+      this.#status('a pivot total cannot be sorted on', 'warn');
+      return;
+    }
+    if (column === TREE_COLUMN) {
+      void this.applyConfiguration({
+        treeColumnSort: this.#config.treeColumnSort === 'asc' ? 'desc' : 'asc',
+      });
+      return;
+    }
+    const sorts = this.#snapshot.sorts;
+    const at = sorts.findIndex((x) => x.column === column);
+    const now = sorts[at];
+    const next = now === undefined
+      ? [...sorts, { column, direction: 'asc' as const }]
+      : now.direction === 'asc'
+        ? sorts.map((x, i) => (i === at ? { column, direction: 'desc' as const } : x))
+        : sorts.filter((_x, i) => i !== at);
+    const previous = this.#snapshot;
+    this.#snapshot = { ...this.#snapshot, sorts: next };
+    this.#refreshOr(previous);
+  }
+
+  /**
+   * A header's tooltip, as upstream's: the column and its own name;
+   * under a pivot, the values it sits under.
+   */
+  #headerTitle(path: readonly string[], leaf?: LeafColumn): string {
+    const keys = this.#snapshot.pivotOn.map((k) => labelFor(this.#config, k));
+    const named = (name: string): string => {
+      const label = labelFor(this.#config, name);
+      return label === name ? name : `${label} (${name})`;
+    };
+    if (leaf?.name === TREE_COLUMN) return '';
+    if (leaf && isPivotTotalColumn(leaf.name)) {
+      const measure = leaf.path[leaf.path.length - 1] ?? leaf.name;
+      return `Column = ${named(measure)} ~ [ ${keys.join(', ')}: all values ]`;
+    }
+    if (leaf && leaf.path.length > 1) {
+      const measure = leaf.path[leaf.path.length - 1] ?? leaf.name;
+      const values = leaf.path.slice(0, -1);
+      return `Column = ${named(measure)} ~ [ ${values
+        .map((v, i) => `${keys[i] ?? '?'} = ${v}`).join(', ')} ]`;
+    }
+    if (leaf) return `Column = ${named(leaf.name)}`;
+    if (path[0] === (this.#config.pivotStatisticColumnName ?? 'Total')) return '';
+    return `[ ${path.map((v, i) => `${keys[i] ?? '?'} = ${v}`).join(', ')} ]`;
   }
 
   #patchColumn(

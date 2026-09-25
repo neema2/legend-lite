@@ -67,6 +67,11 @@ export interface LeafColumn {
   readonly width?: number;
   /** Frozen edge, if any. */
   readonly pinned?: PinPlacement;
+  /** A FIXED width: not resizable by dragging, as upstream's. */
+  readonly fixed?: boolean;
+  /** The bounds a drag-resize keeps within. */
+  readonly minWidth?: number;
+  readonly maxWidth?: number;
   /** Header text, which may differ from the column's name. */
   readonly label?: string;
   /** Rendered obscured until hovered. */
@@ -232,6 +237,8 @@ export interface ColumnLayout {
   readonly maxWidths?: Readonly<Record<string, number>>;
   /** Frozen columns, by edge. */
   readonly pinned?: Readonly<Record<string, PinPlacement>>;
+  /** Columns whose width is FIXED, which no drag may change. */
+  readonly fixed?: readonly string[];
   /** Header text, where it should differ from the column name. */
   readonly displayNames?: Readonly<Record<string, string>>;
   /**
@@ -480,6 +487,7 @@ export function buildColumnModel(
   const pinned = layout.pinned ?? {};
   const displayNames = layout.displayNames ?? {};
   const blurred = new Set(layout.blurred ?? []);
+  const fixed = new Set(layout.fixed ?? []);
   const links = layout.links ?? {};
 
   const sized: LeafColumn[] = ordered.map((l) => {
@@ -499,6 +507,9 @@ export function buildColumnModel(
     return {
       ...l,
       ...(width !== undefined ? { width } : {}),
+      ...(lo !== undefined ? { minWidth: lo } : {}),
+      ...(hi !== undefined ? { maxWidth: hi } : {}),
+      ...(fixed.has(l.name) ? { fixed: true } : {}),
       ...(pin ? { pinned: pin } : {}),
       ...(label !== undefined ? { label } : {}),
       ...(blurred.has(l.name) ? { blurred: true } : {}),

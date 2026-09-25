@@ -821,3 +821,61 @@
 
 .dc-filter-listdel { color: var(--tw-red-600); }
 .dc-filter-listdone { align-self: flex-end; }
+
+/* -- header sorting, resizing; the scroll readout; the overlays ----- */
+
+.dc-grid { position: relative; }
+.dc-th { position: relative; }
+.dc-th.dc-sortable { cursor: pointer; }
+.dc-th.dc-sortable:hover { background: var(--tw-neutral-200); }
+
+/* The arrow, and the column's place when several sort. */
+.dc-sort-mark {
+  margin-left: 3px;
+  font-size: 10px;
+  color: var(--tw-sky-600);
+  white-space: nowrap;
+}
+
+/* The grip on a header's right edge. */
+.dc-col-resize {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 7px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 3;
+  touch-action: none;
+}
+.dc-col-resize:hover { background: var(--tw-sky-600); opacity: 0.35; }
+
+/* Upstream's "start-end/total" bubble while scrolling. */
+.dc-scroll-hint {
+  position: absolute;
+  top: 30px;
+  right: 18px;
+  z-index: 5;
+  padding: 1px 6px;
+  border: 1px solid var(--tw-neutral-300);
+  border-radius: 2px;
+  background: var(--tw-neutral-100);
+  color: var(--tw-neutral-500);
+  font: 12px ui-monospace, "SF Mono", Menlo, monospace;
+  pointer-events: none;
+}
+
+/* "Loading..." and "0 rows", centred over the body. */
+.dc-grid-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  padding: 6px 10px;
+  border: 1.5px solid var(--tw-neutral-300);
+  background: var(--tw-white);
+  color: var(--tw-neutral-400);
+  font-weight: 500;
+  pointer-events: none;
+}

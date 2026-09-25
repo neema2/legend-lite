@@ -413,6 +413,8 @@ export interface ColumnLayoutProjection {
   keepGrouped?: boolean;
   /** The pivot total columns' header and edge. */
   pivotTotal?: { label: string; placement: 'left' | 'right' };
+  /** Columns whose width is fixed, so not drag-resizable. */
+  fixed?: readonly string[];
 }
 
 /**
@@ -427,6 +429,7 @@ export function toColumnLayout(
 ): ColumnLayoutProjection {
   const hidden: string[] = [];
   const blurred: string[] = [];
+  const fixed: string[] = [];
   const widths: Record<string, number> = {};
   const minWidths: Record<string, number> = {};
   const maxWidths: Record<string, number> = {};
@@ -443,6 +446,7 @@ export function toColumnLayout(
       links[name] = c.linkLabelParameter ?? DEFAULT_LINK_LABEL_PARAMETER;
     }
     if (c.pinned) pinned[name] = c.pinned;
+    if (c.widthMode === 'fixed') fixed.push(name);
     if (c.displayName !== undefined) displayNames[name] = c.displayName;
     const w = resolvedWidths(c);
     if (w.width !== undefined) widths[name] = w.width;
@@ -460,6 +464,7 @@ export function toColumnLayout(
   if (Object.keys(minWidths).length) out.minWidths = minWidths;
   if (Object.keys(maxWidths).length) out.maxWidths = maxWidths;
   if (Object.keys(pinned).length) out.pinned = pinned;
+  if (fixed.length) out.fixed = fixed;
   if (Object.keys(displayNames).length) out.displayNames = displayNames;
   if (config.pivotStatisticColumnPlacement !== undefined) {
     out.pivotTotal = {
