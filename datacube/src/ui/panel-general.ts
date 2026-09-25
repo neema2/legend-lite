@@ -47,6 +47,7 @@ import {
   type PanelBuilder,
   type PanelContext,
 } from './panel-kit.ts';
+import { docHint } from './docs.ts';
 
 /**
  * Upstream's font families (DataCubeFont) in its order -- sans-serif,
@@ -317,6 +318,7 @@ export const generalPropertiesPanel: PanelBuilder = (ctx) => {
         max: 1_000_000,
         width: 110,
       }),
+      docHint(doc, 'data-cube.grid-configuration.row-limit'),
       checkbox(
         doc,
         'Display warning when truncated',

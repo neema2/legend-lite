@@ -48,6 +48,7 @@ import {
 } from './form.ts';
 import { colourGrid, fontControls } from './panel-general.ts';
 import { dataTypeOf, type DataType } from './filter-editor.ts';
+import { docHint } from './docs.ts';
 import {
   SORT_DIRECTIONS,
   allColumns,
@@ -290,6 +291,7 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
       ),
       pivoted,
     ),
+    docHint(doc, 'data-cube.column-configuration.kind'),
   );
   const identity = section(
     doc,
@@ -424,6 +426,7 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
         placeholder: '(blank)',
         width: 150,
       }),
+      docHint(doc, 'data-cube.column-configuration.missing-value-format'),
     ),
     field(
       doc,
@@ -478,6 +481,7 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
       textInput(doc, format.unit, (unit) => patchFormat({ unit }), {
         width: 110,
       }),
+      docHint(doc, 'data-cube.column-configuration.unit'),
     ),
   );
 
@@ -552,6 +556,7 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
         patch({ displayAsLink: v ? true : undefined });
         ctx.refresh();
       }),
+      docHint(doc, 'data-cube.column-configuration.display-value-as-link'),
     ),
     field(
       doc,

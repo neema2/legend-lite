@@ -197,6 +197,8 @@ export class DataGrid {
   readonly #scroller: HTMLElement;
   readonly #formatters: FormatterCache;
   #options: GridOptions;
+  /** Rows drawn beyond the visible ones; the option, until a setting moves it. */
+  #overscan: number | undefined;
   /** The custom properties `gridVariables` last set on the root. */
   #vars: string[] = [];
 
@@ -229,6 +231,7 @@ export class DataGrid {
     this.#root = container;
     this.#formatters = formatters;
     this.#options = options;
+    this.#overscan = options.overscan;
 
     const doc = container.ownerDocument;
     this.#root.classList.add('dc-grid');
@@ -437,10 +440,15 @@ export class DataGrid {
       viewportHeight: this.#scroller.clientHeight,
       rowHeight: this.#options.rowHeight ?? DEFAULT_ROW_HEIGHT,
       totalRows: this.#totalRows,
-      ...(this.#options.overscan !== undefined
-        ? { overscan: this.#options.overscan }
-        : {}),
+      ...(this.#overscan !== undefined ? { overscan: this.#overscan } : {}),
     });
+  }
+
+  /** Settings > Row Buffer: rows drawn beyond the visible ones. */
+  setOverscan(rows: number): void {
+    this.#overscan = rows;
+    this.#rendered = null;
+    this.#render();
   }
 
   destroy(): void {

@@ -103,6 +103,11 @@ describe('Properties > Apply with a refused draft', () => {
   it('puts the cube back, and says why', async () => {
     await applyRowLimit('42');
     assert.equal(planner.refusals, 1);
+    // COMPILED before it was published, as upstream: the refusal is
+    // upstream's code-check alert, showing the query that was refused.
+    const alert = root.querySelector('.dc-alert-error') as HTMLElement;
+    assert.match(alert?.textContent ?? '', /Can't safely apply changes/);
+    assert.match(alert?.querySelector('.dc-alert-codecheck')?.textContent ?? '', /limit\(43\)/);
     assert.notEqual(app.snapshot.maxRows, 42, 'the refused snapshot stayed');
     assert.notEqual(app.configuration.maxRows, 42, 'the refused setting stayed');
     assert.ok(statuses.some(([t, k]) => k === 'error' && /refused/.test(t)));

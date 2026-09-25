@@ -81,10 +81,16 @@ export const DEFAULT_HISTORY_LIMIT = 50;
 export class History {
   #past: CubeState[] = [];
   #future: CubeState[] = [];
-  readonly #limit: number;
+  #limit: number;
 
   constructor(options: HistoryOptions = {}) {
     this.#limit = Math.max(1, options.limit ?? DEFAULT_HISTORY_LIMIT);
+  }
+
+  /** Settings > Max History Stack Size: the oldest steps go first. */
+  setLimit(limit: number): void {
+    this.#limit = Math.max(1, limit);
+    while (this.#past.length > this.#limit) this.#past.shift();
   }
 
   get canUndo(): boolean {

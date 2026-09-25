@@ -29,7 +29,7 @@ import {
   type RowPath,
   type TreeRow,
 } from './tree.ts';
-import { fetchTree, takeRows, withPivotTotals } from './treeview.ts';
+import { DEFAULT_MAX_ROWS, fetchTree, takeRows, withPivotTotals } from './treeview.ts';
 import { History, type CubeState } from './history.ts';
 
 /**
@@ -198,12 +198,16 @@ export class CubeController {
   }
 
   /**
-   * Compile a cube without running it -- the calculated-column
-   * editor's live check. The query is the cube's whole grouping (every
-   * row dimension), so a group-level column is in it. Resolves to the
-   * Pure it compiled and the compiler's refusal (null when it
-   * compiles), or undefined when this plane cannot compile without
-   * executing.
+   * Compile a cube without running it: the calculated-column editor's
+   * live check and the Properties editor's Apply. It compiles EXACTLY
+   * the queries a refresh would send -- the source this plane reads,
+   * each tree level (the grand total when the tree shows it) or the
+   * flat query, each with its row cap -- because a check of a
+   * different query passes a draft its own run then refuses (a Row
+   * Limit the planner refused sailed through a cap-less compile).
+   * Resolves to the first refused query and the refusal, the first
+   * query and null when all compile, or undefined when this plane
+   * cannot compile without executing.
    */
   async compile(
     snapshot: CubeSnapshot,
@@ -211,15 +215,31 @@ export class CubeController {
   ): Promise<{ readonly pure: string; readonly refusal: string | null } | undefined> {
     const runner = this.#runner;
     if (!runner.compile) return undefined;
-    const pure = serialize(snapshot);
-    try {
-      await runner.compile(pure, snapshot, signal);
-      return { pure, refusal: null };
-    } catch (error: unknown) {
-      if (signal?.aborted) throw error;
-      return { pure, refusal: error instanceof Error ? error.message : String(error) };
+    const s: CubeSnapshot = {
+      ...snapshot,
+      source: { ...snapshot.source, expression: this.#snaps.sourceFor(snapshot.source.expression) },
+    };
+    const scopes: (LevelScope | undefined)[] = [];
+    if (s.rows.length > 0) {
+      const limit = (s.maxRows ?? DEFAULT_MAX_ROWS) + 1;
+      for (let level = this.#tree.showTotals ? 0 : 1; level <= s.rows.length; level += 1) {
+        scopes.push({ level, parent: [], limit });
+      }
+    } else {
+      scopes.push(s.maxRows === undefined ? undefined : { level: 1, parent: [], limit: s.maxRows + 1 });
     }
+    const queries = scopes.map((scope) => serialize(s, scope));
+    for (const pure of queries) {
+      try {
+        await runner.compile(pure, s, signal);
+      } catch (error: unknown) {
+        if (signal?.aborted) throw error;
+        return { pure, refusal: error instanceof Error ? error.message : String(error) };
+      }
+    }
+    return { pure: queries[0] ?? '', refusal: null };
   }
+
 
   /**
    * One query, for a host that needs rows of its own.
@@ -577,6 +597,12 @@ export class CubeController {
     const next = this.#history.redo(this.#state());
     if (!next) return null;
     return this.#applyHistory(next, () => this.#history.rollbackRedo(next));
+  }
+
+  /** Settings > Max History Stack Size. */
+  setHistoryLimit(limit: number): void {
+    this.#history.setLimit(limit);
+    this.#announceHistory();
   }
 
   /** Drop the history, e.g. when a wholly different cube is opened. */

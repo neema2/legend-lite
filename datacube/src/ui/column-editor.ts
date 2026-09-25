@@ -18,6 +18,7 @@
 
 import { completionsFor, nameProblem, type CalcStage, type Completion } from '../calc.ts';
 import { ident } from '../serialize.ts';
+import { docHint } from './docs.ts';
 import {
   isNumericType,
   renameColumnReferences,
@@ -319,6 +320,7 @@ export class ColumnEditor {
       level.append(o);
     }
     level.value = this.#draft.level;
+    levelRow.append(docHint(doc, 'data-cube.extended-column.levels'));
     level.addEventListener('change', () => {
       this.#draft.level = level.value as ColumnLevel;
       this.#edited();

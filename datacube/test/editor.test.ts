@@ -81,7 +81,7 @@ describe('the editor', () => {
     applied = [];
     closed = 0;
     editor = new CubeEditor(root, draftFor(CUBE), {
-      onApply: (d) => applied.push(d),
+      onApply: (d) => { applied.push(d); return true; },
       onClose: () => (closed += 1),
     });
   });
@@ -156,12 +156,14 @@ describe('the editor', () => {
     assert.equal(closed, 0);
   });
 
-  it('OK applies and closes; Cancel discards', () => {
+  it('OK applies and closes; Cancel discards', async () => {
     (
       [...root.querySelectorAll('.dc-editor-footer button')].find(
         (b) => b.textContent === 'OK',
       ) as HTMLButtonElement
     ).click();
+    // The cube answers asynchronously: it compiles the draft first.
+    await new Promise((r) => setTimeout(r, 0));
     assert.equal(applied.length, 1);
     assert.equal(closed, 1);
 
@@ -384,6 +386,16 @@ describe('the editor', () => {
     assert.notEqual(label(), null);
   });
 
+  it('a draft the cube refuses stays open, unapplied', async () => {
+    const refused = new CubeEditor(root, draftFor(CUBE), {
+      onApply: () => false,
+      onClose: () => (closed += 1),
+    });
+    const took = await refused.apply({ close: true });
+    assert.equal(took, false);
+    assert.equal(closed, 0, 'OK closed an editor whose draft was refused');
+  });
+
   describe('Column Properties follows the column type', () => {
     const choose = (name: string): void => {
       go('Column Properties');
@@ -462,7 +474,7 @@ describe('the editor', () => {
 
     const other = dom.window.document.createElement('div');
     new CubeEditor(other, draftFor(CUBE), {
-      onApply: () => {},
+      onApply: () => true,
       onClose: () => {},
       initialTab: 'Column Properties',
     });

@@ -780,6 +780,53 @@
   border-top: 1px solid var(--tw-neutral-300);
 }
 
+/* The execution error: "Show debug info?" on the left, the buttons on
+   the right, as upstream's. */
+.dc-alert-actions-split {
+  justify-content: space-between;
+}
+
+.dc-alert-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.dc-alert-body {
+  flex: none;
+}
+
+.dc-alert-debug {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 16px 8px;
+  border-top: 1px solid var(--tw-neutral-300);
+}
+
+.dc-alert-prompt,
+.dc-alert-code-title {
+  margin-top: 6px;
+  color: var(--tw-neutral-600);
+}
+
+.dc-alert-code {
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  max-height: 160px;
+  overflow: auto;
+  font-family: var(--dc-mono, ui-monospace, monospace);
+  font-size: var(--dc-text-sm-size);
+  white-space: pre;
+  background: var(--tw-neutral-50);
+  border: 1px solid var(--tw-neutral-200);
+}
+
+.dc-alert-codecheck {
+  flex: 1 1 auto;
+  max-height: none;
+  margin: 0 16px 16px;
+}
+
 .dc-drill {
   max-height: 320px;
   overflow: auto;
@@ -1732,3 +1779,110 @@
   color: #b3261e;
 }
 
+
+/* ---- Settings (upstream's DataCubeSettingsPanel) -------------------- */
+.dc-overlay-body.dc-settings {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.dc-settings-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 12px;
+}
+
+.dc-settings-group {
+  margin: 8px 0 4px;
+  font-weight: 600;
+  color: var(--tw-neutral-600);
+  border-bottom: 1px solid var(--tw-neutral-200);
+}
+
+.dc-settings-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 0;
+}
+
+.dc-settings-title {
+  font-weight: 500;
+}
+
+.dc-settings-description {
+  color: var(--tw-neutral-500);
+  font-size: var(--dc-text-sm-size);
+}
+
+.dc-settings-number {
+  width: 80px;
+}
+
+.dc-settings-action {
+  align-self: flex-start;
+}
+
+.dc-settings-footer {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 40px;
+  padding: 0 8px;
+  border-top: 1px solid var(--tw-neutral-300);
+}
+
+.dc-settings-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---- documentation hints and their window --------------------------- */
+.dc-doc-hint {
+  width: 14px;
+  height: 14px;
+  margin-left: 4px;
+  padding: 0;
+  border: 1px solid var(--tw-neutral-400);
+  border-radius: 50%;
+  background: var(--tw-neutral-50);
+  color: var(--tw-neutral-600);
+  font-size: 9px;
+  line-height: 12px;
+  cursor: help;
+  flex: none;
+}
+
+.dc-doc-hint:hover {
+  background: var(--tw-sky-100, #e0f2fe);
+}
+
+.dc-overlay-body.dc-docs {
+  padding: 12px 16px;
+  overflow: auto;
+}
+
+.dc-docs-title {
+  font-size: var(--dc-text-lg-size);
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.dc-docs-heading {
+  margin: 10px 0 4px;
+}
+
+.dc-docs-text {
+  margin: 4px 0;
+  white-space: pre-line;
+}
+
+.dc-docs-note {
+  margin: 6px 0;
+  padding: 4px 8px;
+  border-left: 3px solid var(--tw-neutral-300);
+  color: var(--tw-neutral-600);
+}

@@ -76,7 +76,12 @@ export interface EditorOptions {
    * last applied): what the user CHANGED is the difference, and only
    * that should reach a cube other windows may have moved since.
    */
-  readonly onApply: (draft: CubeDraft, base: CubeDraft) => void;
+  /**
+   * Whether the cube TOOK the draft. Upstream compiles the whole query
+   * before publishing it; a refused draft applies nothing, and the
+   * editor stays open on it.
+   */
+  readonly onApply: (draft: CubeDraft, base: CubeDraft) => boolean | Promise<boolean>;
   readonly onClose: () => void;
   readonly initialTab?: EditorTab;
   /** Open Column Properties on this column (from its header's menu). */
@@ -164,12 +169,15 @@ export class CubeEditor {
    * column's kind, the row cap -- cannot be applied by one panel and
    * forgotten by another.
    */
-  apply(options: { close?: boolean } = {}): void {
+  async apply(options: { close?: boolean } = {}): Promise<boolean> {
     const snapshot = applyToSnapshot(this.#draft.snapshot, this.#draft.config);
     this.#draft = { ...this.#draft, snapshot };
-    this.#options.onApply(this.#draft, this.#opened);
+    const took = await this.#options.onApply(this.#draft, this.#opened);
+    // Refused: the draft stays in the editor, the editor stays open.
+    if (!took) return false;
     this.#opened = this.#draft;
     if (options.close) this.#options.onClose();
+    return true;
   }
 
   refresh(): void {
@@ -234,8 +242,8 @@ export class CubeEditor {
     bar.className = 'dc-editor-footer';
     bar.append(
       button(this.#doc, 'Cancel', () => this.cancel()),
-      button(this.#doc, 'Apply', () => this.apply()),
-      button(this.#doc, 'OK', () => this.apply({ close: true }), {
+      button(this.#doc, 'Apply', () => void this.apply()),
+      button(this.#doc, 'OK', () => void this.apply({ close: true }), {
         className: 'dc-primary',
       }),
     );

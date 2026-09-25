@@ -40,6 +40,33 @@ export interface RunOutcome {
   readonly sql: string;
 }
 
+/**
+ * A query that failed, with what was sent: upstream's
+ * DataCubeExecutionError (`queryCode`, `executeInput`). The message is
+ * the cause's own, so every existing reader of `.message` sees what it
+ * saw before; the alert's "Show debug info?" reads the rest.
+ */
+export class QueryFailure extends Error {
+  /** The Pure this product emitted. */
+  readonly pure: string;
+  /** The SQL, when planning got that far. */
+  readonly sql: string | undefined;
+
+  constructor(cause: unknown, pure: string, sql?: string) {
+    super(cause instanceof Error ? cause.message : String(cause), { cause });
+    this.name = 'QueryFailure';
+    this.pure = pure;
+    this.sql = sql;
+  }
+}
+
+/** Whether a failure carries its query (duck-typed: errors cross realms). */
+export function isQueryFailure(error: unknown): error is QueryFailure {
+  return typeof error === 'object' && error !== null
+    && (error as { name?: unknown }).name === 'QueryFailure'
+    && typeof (error as { pure?: unknown }).pure === 'string';
+}
+
 export interface QueryRunner {
   /** For diagnostics: which arrangement answered. */
   readonly name: string;
@@ -88,9 +115,20 @@ export class PlanThenRun implements QueryRunner {
     scope?: LevelScope,
     signal?: AbortSignal,
   ): Promise<RunOutcome> {
-    const sql = await this.planner.plan(pureGrammar, snapshot, scope, signal);
-    const rows = await this.engine.execute(sql, snapshot.epoch, signal);
-    return { rows, sql };
+    let sql: string;
+    try {
+      sql = await this.planner.plan(pureGrammar, snapshot, scope, signal);
+    } catch (error: unknown) {
+      if (signal?.aborted) throw error;
+      throw new QueryFailure(error, pureGrammar);
+    }
+    try {
+      const rows = await this.engine.execute(sql, snapshot.epoch, signal);
+      return { rows, sql };
+    } catch (error: unknown) {
+      if (signal?.aborted) throw error;
+      throw new QueryFailure(error, pureGrammar, sql);
+    }
   }
 
   /** Planning IS compiling here: the planner compiles, nothing runs. */
@@ -118,9 +156,14 @@ export class RemoteRun implements QueryRunner {
     scope?: LevelScope,
     signal?: AbortSignal,
   ): Promise<RunOutcome> {
-    const out = await this.executor.execute(
-      pureGrammar, snapshot, scope, signal,
-    );
-    return { rows: out.rows, sql: out.sql };
+    try {
+      const out = await this.executor.execute(
+        pureGrammar, snapshot, scope, signal,
+      );
+      return { rows: out.rows, sql: out.sql };
+    } catch (error: unknown) {
+      if (signal?.aborted) throw error;
+      throw new QueryFailure(error, pureGrammar);
+    }
   }
 }

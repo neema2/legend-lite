@@ -2949,6 +2949,44 @@ try {
       return '2 new windows together; Edit opens the column, Reset restores it';
     });
 
+  await check('Settings: from the title bar, and Row Buffer draws more rows', async () => {
+    await reset();
+    await flatten();
+    const drawn = () => page.locator('.dc-row').count();
+    const before = await drawn();
+    await page.click('.dc-titlebar-menu');
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Settings..."))').click();
+    await page.waitForSelector('[data-window="Settings"] .dc-settings', { timeout: 5000 });
+    const groups = await page.locator('.dc-settings-group').allTextContents();
+    const buffer = page.locator('[data-setting="dataCube.grid.rowBuffer"] input');
+    await buffer.fill('200');
+    await buffer.dispatchEvent('change');
+    await page.locator('.dc-settings-ok').click();
+    await page.waitForTimeout(300);
+    const after = await drawn();
+    // Back to the defaults, through the same window.
+    await page.click('.dc-titlebar-menu');
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Settings..."))').click();
+    await page.locator('.dc-settings-restore').click();
+    await page.locator('.dc-settings-ok').click();
+    if (groups.join(',') !== 'Grid,Editor,Debug') throw new Error(`groups ${groups}`);
+    if (after <= before) throw new Error(`rows drawn ${before} -> ${after} with a larger buffer`);
+    return `groups ${groups.join('/')}; rows drawn ${before} -> ${after}`;
+  });
+
+  await check('a (?) opens its documentation', async () => {
+    await reset();
+    await page.click('.dc-status-properties');
+    await page.locator('.dc-app-overlay .dc-editor-tab', { hasText: 'General Properties' }).click();
+    await page.locator('.dc-field:has(> .dc-field-label:text-is("Row Limit:")) .dc-doc-hint').click();
+    const text = await page.locator('[data-window="Documentation"]').innerText({ timeout: 5000 });
+    await reset();
+    if (!/Truncate result to the specified number of rows at every level/.test(text)) {
+      throw new Error(`the documentation read: ${text.slice(0, 120)}`);
+    }
+    return 'Row Limit: upstream\'s text';
+  });
+
   // -- the columns panel, which is a control and not a legend -------
 
   await gap('a panel reorder still reaches the grid after a long run',

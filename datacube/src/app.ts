@@ -15,7 +15,7 @@
 // decision it makes is about WHEN to call them, never about what
 // they mean.
 
-import type { QueryRunner } from './runner.ts';
+import { isQueryFailure, type QueryRunner } from './runner.ts';
 import {
   CubeController,
   type CubeControllerOptions,
@@ -45,7 +45,15 @@ import { availableDimensions, useDimension } from './dimensions.ts';
 import { drillQuery } from './drill.ts';
 import type { QueryEngine } from './engine.ts';
 import { exportFileName, toCsv, toEml } from './export.ts';
-import { ALERT_WINDOW, buildAlert, type AlertOptions } from './ui/alert.ts';
+import {
+  ALERT_WINDOW,
+  CODE_CHECK_WINDOW,
+  EXECUTION_ERROR_WINDOW,
+  buildAlert,
+  buildCodeCheckAlert,
+  buildExecutionErrorAlert,
+  type AlertOptions,
+} from './ui/alert.ts';
 import { toHtml, toSpreadsheetML } from './export-rich.ts';
 import { toPdf, toPlainText } from './export-doc.ts';
 import { toBarChart, toTreemap } from './chart.ts';
@@ -76,6 +84,15 @@ import { columnRange, heatColour } from './style.ts';
 import type { HeatmapRange, HeatmapSpec } from './style.ts';
 import { TreeState, parsePathKey, pathKey, type TreeRow } from './tree.ts';
 import { ColumnEditor, type ColumnEditorStart } from './ui/column-editor.ts';
+import {
+  booleanSetting,
+  numericSetting,
+  readSettings,
+  type SettingKey,
+  type SettingValues,
+} from './settings.ts';
+import { SETTINGS_WINDOW, buildSettingsPanel } from './ui/settings-panel.ts';
+import { buildDocumentation, isDocKey, type DocKey } from './ui/docs.ts';
 import { columnRef } from './calc.ts';
 import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
 import { FilterEditor } from './ui/filter-editor.ts';
@@ -183,6 +200,14 @@ export interface CubeAppBaseOptions {
       readonly content: string;
     };
   }) => void | Promise<void>;
+  /**
+   * Settings the host kept, by upstream's keys (`dataCube.grid.rowBuffer`
+   * and so on) -- upstream's `settingsData.values`. Unknown keys are
+   * ignored.
+   */
+  readonly settings?: Readonly<Record<string, unknown>>;
+  /** Settings were saved: upstream's `onSettingsChanged`, for a host to keep them. */
+  readonly onSettingsChanged?: (values: SettingValues) => void;
   /** Show the column drag zone. Off matches DataCube exactly. */
   readonly showColumnZone?: boolean;
   /**
@@ -310,6 +335,8 @@ export class CubeApp {
   #zTop = 20;
   /** Where the grid was scrolled when the context menu opened. */
   #menuScroll: { top: number; left: number } | null = null;
+  /** Settings > ...: defaults under what the host kept. */
+  #settings: SettingValues;
   /** The open calculated-column editors, by window key. */
   readonly #columnEditors = new Map<string, ColumnEditor>();
   #newColumns = 0;
@@ -337,6 +364,7 @@ export class CubeApp {
     // cube can arrive from a saved view or a colleague's link, and
     // the editor must open on what is actually running.
     this.#config = fromSnapshot(snapshot, options.configuration);
+    this.#settings = readSettings(options.settings);
     Object.assign(this.#formats, renderFormats(this.#config, this.#snapshot));
 
     root.classList.add('dc-app');
@@ -450,6 +478,7 @@ export class CubeApp {
       // -- so the grid rendered four pixels too tall per row while
       // the stylesheet claimed otherwise.
       rowHeight: DATACUBE_ROW_HEIGHT,
+      overscan: numericSetting(this.#settings, 'dataCube.grid.rowBuffer'),
       formats: this.#formats,
       appearance: this.#config.appearance,
       columnAppearance: toColumnAppearance(this.#config),
@@ -505,14 +534,11 @@ export class CubeApp {
     // nobody's plane exercised.
     const deps: CubeControllerOptions = {
       ...(options.snapTarget ? { snapTarget: options.snapTarget } : {}),
+      historyLimit: numericSetting(this.#settings, 'dataCube.editor.maxHistoryStackSize'),
       onView: (view) => this.#onView(view),
       // Upstream's "Loading..." overlay while a query runs.
       onBusy: (busy) => this.#grid.setBusy(busy),
-      onError: (e) =>
-        this.#status(
-          e instanceof Error ? e.message : String(e),
-          'error',
-        ),
+      onError: (e) => this.#reportFailure(e),
       // The configuration is the host's half of the undoable state.
       // Without this pair, undo reverts the query and leaves the
       // pins, widths, colours and row cap where they were -- and for
@@ -881,6 +907,8 @@ export class CubeApp {
     this.#view = view;
     this.#options.onView?.(view);
     this.#treeRows = view.treeRows;
+    this.#debug('query', { pure: view.pure, sql: view.sql, rows: view.rows.rowCount,
+      ms: view.rows.elapsedMs, snapshot: view.snapshot });
     const changed = this.#snapshot !== view.snapshot;
     this.#snapshot = view.snapshot;
     // Open column editors compile against the cube as it is now.
@@ -2233,7 +2261,7 @@ export class CubeApp {
     }
   }
 
-  #applyDraft(edited: CubeDraft, base: CubeDraft): void {
+  async #applyDraft(edited: CubeDraft, base: CubeDraft): Promise<boolean> {
     // ONLY WHAT THE EDITOR CHANGED. Other windows stay open beside the
     // editor now -- a filter applied, a column pinned from the menu,
     // a calculated column added -- and applying a draft taken before
@@ -2245,6 +2273,21 @@ export class CubeApp {
       base,
       edited,
     );
+    // COMPILED FIRST, as upstream's editor does: the whole query the
+    // draft makes, planned and not run. A refusal applies nothing,
+    // shows the query with the place the compiler named, and leaves the
+    // editor open on the draft. A plane that cannot compile without
+    // running falls to the run-and-restore below, never to a guess.
+    const checked = await this.#controller.compile(
+      applyToSnapshot(draft.snapshot, draft.config));
+    if (checked && checked.refusal !== null) {
+      const refusal = checked.refusal;
+      this.#status(refusal, 'error');
+      this.#codeCheckAlert(
+        "Query Validation Failure: Can't safely apply changes. Check the query code below for more details.",
+        refusal, checked.pure);
+      return false;
+    }
     const wasRoot = this.#config.showRootAggregation;
     // A REFUSED DRAFT PUTS EVERYTHING BACK. It used to stay: the
     // refusal went to the status line and the draft remained the
@@ -2278,18 +2321,91 @@ export class CubeApp {
     const expandTo = draft.config.initialExpandToLevel ?? 0;
     if (draft.config.showRootAggregation !== wasRoot
       || expandTo !== tree.expandTo) {
-      void this.#controller
-        .setTree(tree
+      try {
+        await this.#controller.setTree(tree
           .withTotals(draft.config.showRootAggregation)
-          .withExpandTo(expandTo))
-        .then(() => this.#refresh())
-        .catch((error: unknown) => {
-          this.#controller.adoptTree(tree);
-          rollback(error);
-        });
-      return;
+          .withExpandTo(expandTo));
+        await this.#refresh();
+        return true;
+      } catch (error: unknown) {
+        this.#controller.adoptTree(tree);
+        rollback(error);
+        return false;
+      }
     }
-    this.#refresh().catch(rollback);
+    try {
+      await this.#refresh();
+      return true;
+    } catch (error: unknown) {
+      rollback(error);
+      return false;
+    }
+  }
+
+  /**
+   * A failure where the user can see it: the status line, and -- for a
+   * query that was sent and failed -- upstream's execution-error alert,
+   * with the query behind "Show debug info?". One at a time: a tree
+   * whose every level fails is one problem, not a stack of windows.
+   */
+  #reportFailure(error: unknown): void {
+    const message = error instanceof Error ? error.message : String(error);
+    this.#status(message, 'error');
+    this.#debug('failure', error);
+    if (!isQueryFailure(error)) return;
+    const download = this.#options.download;
+    this.#showOverlay('Error', (host, close) => buildExecutionErrorAlert(host, {
+      message: "Data Fetch Failure: Can't execute query.",
+      text: `Error: ${message}`,
+      pure: error.pure,
+      ...(error.sql !== undefined ? { sql: error.sql } : {}),
+      ...(download ? { download } : {}),
+    }, close), { key: 'alert:execution', replace: true, size: EXECUTION_ERROR_WINDOW });
+  }
+
+  /** Upstream's documentation panel, on the entry a (?) named. */
+  openDocumentation(key: DocKey): void {
+    this.#showOverlay('Documentation', (host) => buildDocumentation(host, key), {
+      replace: true,
+      size: { width: 400, height: 300, minWidth: 200, minHeight: 150, center: true },
+    });
+  }
+
+  /** The Settings window (upstream's, from the title bar's menu). */
+  openSettings(): void {
+    this.#showOverlay('Settings', (host, close) => buildSettingsPanel(host, {
+      values: this.#settings,
+      onSave: (values) => this.#applySettings(values),
+      onAction: (key) => this.#settingAction(key),
+      onClose: close,
+    }), { size: SETTINGS_WINDOW });
+  }
+
+  /** The settings, in effect: each one reaches what it controls. */
+  #applySettings(values: SettingValues): void {
+    this.#settings = values;
+    this.#controller.setHistoryLimit(
+      numericSetting(values, 'dataCube.editor.maxHistoryStackSize'));
+    this.#grid.setOverscan(numericSetting(values, 'dataCube.grid.rowBuffer'));
+    this.#options.onSettingsChanged?.(values);
+  }
+
+  #settingAction(key: SettingKey): void {
+    if (key === 'dataCube.debugger.action.reload') this.#refreshOr(null);
+  }
+
+  /** Settings > Debug Mode: what ran, what it made, what failed. */
+  #debug(event: string, data: unknown): void {
+    if (!booleanSetting(this.#settings, 'dataCube.debugger.enableDebugMode')) return;
+    console.debug(`[DataCube] ${event}`, data);
+  }
+
+  /** Upstream's code-check alert: the refused query, the place marked. */
+  #codeCheckAlert(message: string, refusal: string, code: string): void {
+    this.#alerts += 1;
+    this.#showOverlay('Error', (host, close) => buildCodeCheckAlert(host, {
+      message, text: `Error: ${refusal}`, code,
+    }, close), { key: `alert:${this.#alerts}`, size: CODE_CHECK_WINDOW });
   }
 
   /**
@@ -2409,6 +2525,14 @@ export class CubeApp {
       this.#open.set(key, win);
       // Whichever window is touched comes to the front.
       win.addEventListener('pointerdown', () => this.#raise(win));
+      // A (?) in this window asks for its documentation. On the WINDOW,
+      // which this app owns, not on the host's element: a host that
+      // rebuilds the cube in the same element (opening a file does)
+      // kept the old app listening there, and both opened a window.
+      win.addEventListener('dc-doc', (event) => {
+        const key = (event as CustomEvent<unknown>).detail;
+        if (isDocKey(key)) this.openDocumentation(key);
+      });
       // Escape closes the window it is pressed in, because a window a
       // keyboard user cannot dismiss is a trap; the panels inside stop
       // their own Escape from reaching here.
@@ -2634,6 +2758,8 @@ export class CubeApp {
           label: 'Redo',
           ...(this.#controller.canRedo ? {} : { disabled: true }),
         },
+        // Upstream's hamburger: Undo, Redo, Settings..., then the rest.
+        { id: 'view.settings', label: 'Settings...' },
         { id: 'view.properties', label: 'Properties...' },
         {
           id: 'view.zones',
@@ -2744,6 +2870,9 @@ export class CubeApp {
         return true;
       case 'view.redo':
         void this.#redo();
+        return true;
+      case 'view.settings':
+        this.openSettings();
         return true;
       case 'view.save':
         this.saveView(this.#config.reportTitle ?? 'view');

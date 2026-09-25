@@ -270,7 +270,7 @@ Upstream: `DataCubeEditor*.tsx` + states. Ours: `src/ui/editor.ts`,
 | Feature | Upstream | Ours | St | Ev |
 |---|---|---|---|---|
 | Tabs: Columns, Horizontal Pivots, Vertical Pivots, Dimensions, Sorts, General Properties, Column Properties; Cancel / Apply / OK | ✓ | ✓ | ✅ | H |
-| **Apply compiles the whole query first**; failure = code-check alert, nothing applied | ✓ | runs it; a refusal leaves the refused draft in place | ❌ | C! `app.ts:2079` |
+| **Apply compiles the whole query first**; failure = code-check alert, nothing applied | ✓ | ✓ the exact queries a refresh would send; the editor stays open on the draft | ✅ | T |
 | Two-pane selector: search on both sides with count, multi-select, drag (multi-row), reorder, double-click, add/remove all | ✓ | ✓ | ✅ | H |
 | Columns tab: Show hidden columns?, hidden greyed, Extended badges | ✓ | ✓ | ✅ | C |
 | Horizontal Pivots: sort direction per key | ✓ | ✓ | ✅ | H |
@@ -322,15 +322,15 @@ Upstream: `DataCubeEditor*.tsx` + states. Ours: `src/ui/editor.ts`,
 | Title bar: title, host header slot, hamburger (Undo, Redo, Settings…, then host items) | ✓ | ✓ Undo, Redo, Properties, Zones, Title Bar, Save/Load View, dimensions, host items | ✅ | H |
 | Status bar: Properties, Filter (disabled in multidimensional mode), task progress with per-task tooltip, rows, truncation warning, Pagination / Cache switches | ✓ | ✓ Properties, Filter (on-state ➕), rows + timing ➕, truncation, selection stats; ❌ task progress, Pagination | ⚠️ | C `app.ts:898` |
 | **Floating windows**: drag, 8-edge resize, bring to front, remember place, **many at once** | ✓ | one at a time (drag, resize, remember ✓) | ⚠️ | C `app.ts:2159` |
-| **Settings window**: Debug mode, dev protocol version, Reload, cache warnings ×2, **Max history size**, large-dataset warning, **Row buffer**, **Refresh group node data**, **Retry failed data fetches**; Restore defaults; host-supplied settings and persistence | ✓ | ❌ | ❌ | C |
-| **Alerts**: typed windows (error / info / success / warning), action buttons | ✓ | status line | ❌ | C |
-| **Execution-error alert**: Show debug info → query code + execute input; Download Execute Input | ✓ | status line text | ❌ | C |
-| **Code-check alert**: the query, with the error range marked | ✓ | ❌ | ❌ | C |
-| Documentation panel + (?) hints (row limit, kind, unit, missing value, link, extended levels) | ✓ | ❌ | ❌ | C |
+| **Settings window**: Debug mode, dev protocol version, Reload, cache warnings ×2, **Max history size**, large-dataset warning, **Row buffer**, **Refresh group node data**, **Retry failed data fetches**; Restore defaults; host-supplied settings and persistence | ✓ | ✓ the ones with an effect here (Debug mode, Reload, Max history size, Row buffer) by upstream's keys; host `settings` + `onSettingsChanged`; the cache/pagination warnings wait for those features; every expand refetches, so "Refresh group node data" has nothing to switch | ✅ | H, T |
+| **Alerts**: typed windows (error / info / success / warning), action buttons | ✓ | ✓ | ✅ | T |
+| **Execution-error alert**: Show debug info → query code + execute input; Download Execute Input | ✓ | ✓ query code + the SQL it planned to; Download Debug Info (the engine execute input comes with the engine API, #22) | ✅ | T |
+| **Code-check alert**: the query, with the error range marked | ✓ | ✓ on Properties Apply, which now COMPILES the exact queries first and applies nothing on a refusal | ✅ | T |
+| Documentation panel + (?) hints (row limit, kind, unit, missing value, link, extended levels) | ✓ | ✓ upstream's six texts | ✅ | H, T |
 | Undo / redo with max history; patch changes grouped | ✓ | ✓ + keyboard ➕ | ✅ | H |
 | Colour picker: hex + ALPHA, palette of 18×11, transparent swatch, Reset / Cancel / OK | ✓ | native picker + clear | ⚠️ | C `form.ts:199` |
 | Number input: ↑/↓ step, Esc selects all, invalid reverts | ✓ | partial | ⚠️ | C |
-| Debug mode: log every snapshot diff, query, SQL, timings | ✓ | ❌ | ❌ | C |
+| Debug mode: log every snapshot diff, query, SQL, timings | ✓ | ✓ each query (Pure, SQL, rows, ms, snapshot) and each failure, to the console | ✅ | C |
 | Telemetry events | ✓ | ❌ (not needed) | — | — |
 | Embedding options: layout / task managers, host header and menu, settings + onSettingsChanged, onNameChanged, grid licence | ✓ | ✓ `hostMenu`, `hostStatus`, `storage`, `email`, `download`, `dimensions`, `configuration` | ⚠️ | C `app.ts:117` |
 

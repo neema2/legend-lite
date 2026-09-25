@@ -222,7 +222,8 @@ export type MenuActionId =
   | 'view.load'
   | 'view.dimension'
   | 'view.undo'
-  | 'view.redo';
+  | 'view.redo'
+  | 'view.settings';
 
 export interface MenuItem {
   /** Absent on a pure submenu parent, which does nothing itself. */

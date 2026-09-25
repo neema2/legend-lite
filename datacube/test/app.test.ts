@@ -324,7 +324,7 @@ describe('the app', () => {
     assert.equal(zoneBar().hidden, false);
   });
 
-  it('folds from the PROPERTIES editor, not only from the bars', () => {
+  it('folds from the PROPERTIES editor, not only from the bars', async () => {
     // The setting lives in General Properties, beside the rest of
     // "what is on screen" -- the chevrons are the in-passing way to
     // reach it. Applying the editor replaces the whole
@@ -353,6 +353,8 @@ describe('the app', () => {
         (b) => b.textContent === 'Apply',
       ) as HTMLButtonElement
     ).click();
+    // Apply compiles the draft first, so the cube answers a tick later.
+    for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
     assert.equal(app.configuration.showDragZones, false);
     assert.equal(zoneBar().hidden, true, 'the DOM and the flag disagree');
     // And the way back is on screen, as it is for every other fold.
@@ -901,6 +903,7 @@ describe('the app', () => {
         (b) => b.textContent === 'Apply',
       ) as HTMLButtonElement
     ).click();
+    for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
     assert.equal(app.snapshot.maxRows, 42);
   });
 });

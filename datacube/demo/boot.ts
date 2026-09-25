@@ -414,6 +414,18 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       },
       dimensions: dims,
       writeClipboard: (text) => navigator.clipboard?.writeText(text),
+      // Settings kept between visits, as upstream's hosts keep them
+      // (settingsData.values / onSettingsChanged). A browser that will
+      // not store them still runs, on the defaults.
+      ...(storedSettings() ? { settings: storedSettings() as Record<string, unknown> } : {}),
+      onSettingsChanged: (values) => {
+        try {
+          window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(values));
+        } catch {
+          // storage refused (private window, quota): the settings hold
+          // for this visit
+        }
+      },
       download: (name, mime, text) => {
         const url = URL.createObjectURL(new Blob([text], { type: mime }));
         const a = document.createElement('a');
@@ -640,3 +652,16 @@ export function must(id: string): HTMLElement {
   return el;
 }
 
+const SETTINGS_KEY = 'dataCube.settings';
+
+/** The settings this browser kept, or none. */
+function storedSettings(): Record<string, unknown> | undefined {
+  try {
+    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    const parsed: unknown = raw === null ? undefined : JSON.parse(raw);
+    return parsed !== null && typeof parsed === 'object'
+      ? (parsed as Record<string, unknown>) : undefined;
+  } catch {
+    return undefined;
+  }
+}
