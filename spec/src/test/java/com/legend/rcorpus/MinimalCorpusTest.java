@@ -44,9 +44,13 @@ import java.util.Set;
 @Tag("heavy")
 class MinimalCorpusTest {
 
-    /** Wall time one corpus test may take, setups included (2026-09-25: the
-     *  slowest legitimate test is ~1.5s; ten times that is the ceiling). */
-    static final long PER_TEST_CEILING_MS = 15_000L;
+    /** Wall time one corpus test may take, setups included. Set against the
+     *  RUNAWAY it exists to catch (a refused body inlined through the SQL
+     *  printer: 100s, 2026-09-25), not against this machine: CI's macOS runner
+     *  is ~3x slower and a test that opens a package session took 17.1s there
+     *  (1.5s here). 60s trips on the runaway with margin on the slowest runner
+     *  and never on a legitimate test. */
+    static final long PER_TEST_CEILING_MS = 60_000L;
 
 
     /** The roster files: one test FQN per line, sorted, no messages. */

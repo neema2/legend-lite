@@ -5636,9 +5636,18 @@ when there is no body to run; a refused body stays a user call and the inliner r
 suggestion for that site ("mint by the row alone") was wrong and I applied it without thinking it
 through; recorded as such.
 
-**The missing gate.** `MinimalCorpusTest` now fails any corpus test over a per-test ceiling of
-15s (the slowest legitimate test is ~1.5s; the probe lane is exempt). A slowdown of this shape is
-red, never a number in a log someone has to notice.
+**The missing gate.** `MinimalCorpusTest` now fails any corpus test over a per-test ceiling. First
+set at 15s from this machine's slowest test (~1.5s); CI's macOS runner, ~3x slower, then failed it
+on a test that opens a package session (17.1s), so the ceiling is 60s — set against the 100s
+runaway it exists to catch, with margin on the slowest runner. The probe lane is exempt. A slowdown
+of this shape is red, never a number in a log someone has to notice.
+
+**The lane's curve over the program (receipts: study dir `receipts/untangle-4b/corpus-curve-*.txt`,
+alone, uncached).** DuckDB 73.9s at the program's start → 86.5s at 4b.2 (host pass 32 → 36s,
+database pass 37 → 40s, boot ~1.8 → ~4.8s per JVM); H2 80.5s → 90.5s (19 → 22s, 55 → 57s). The
+burn: 319s / 329s. HEAD after the fix: 83.8s / 87.4s. The drift is ours — 4b.1 (boot: the
+resolver's universe and the larger prelude) and 4b.2 (the bare-name rule's 33 candidate lookups per
+bare call) — and is task #46, fixed at the algorithm and then pinned per pass.
 
 **Measured after the fix (alone on the machine, no probe):** DuckDB lane 59s / 64s in-lane
 (host and database passes), H2 34s / 85s; slowest test 1.5s; rosters unchanged; core tests green.
