@@ -55,7 +55,7 @@ function fieldsOf(name: string): string[] {
 // one read was enough for this check to pass a setting nothing else
 // used (2026-09-25 sweep). Showing a setting is not honouring it.
 const readers = files(SRC)
-  .filter((f) => !/\/ui\//.test(f.pathname))
+  .filter((f) => !/\/ui\//.test(f.href))
   .map((f) => readFileSync(f, 'utf8'))
   .join('\n');
 

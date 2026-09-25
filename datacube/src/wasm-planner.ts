@@ -180,10 +180,14 @@ export class WasmPlanner implements Planner {
     const raw = this.#options.assetBaseUrl ?? './vendor/';
     const withSlash = raw.endsWith('/') ? raw : `${raw}/`;
     const doc = (globalThis as { document?: { baseURI?: string } }).document;
+    const cwd = (globalThis as { process?: { cwd(): string } }).process?.cwd();
     const against = doc?.baseURI
       ?? (globalThis as { location?: { href?: string } }).location?.href
-      ?? `file://${(globalThis as { process?: { cwd(): string } })
-        .process?.cwd() ?? ''}/`;
+      // A DIRECTORY URL for the working directory. Spelled by
+      // `pathToFileUrl`, not `file://${cwd}`: on Windows that gives
+      // `file://C:\x\y/`, a URL whose HOST is `c` -- the base every
+      // asset then resolved against.
+      ?? (cwd === undefined ? 'file:///' : pathToFileUrl(`${cwd}/`, onWindows()));
     try {
       return new URL(withSlash, against).href;
     } catch {
@@ -410,6 +414,36 @@ export function fileUrlToPath(url: string, windows: boolean): string {
   if (u.hostname !== '') return `\\\\${u.hostname}${path.replace(/\//g, '\\')}`;
   if (!/^\/[A-Za-z]:\//.test(path)) throw new TypeError(`a Windows file: URL needs a drive letter: ${url}`);
   return path.slice(1).replace(/\//g, '\\');
+}
+
+/**
+ * A filesystem path as a `file:` URL -- Node's `url.pathToFileURL`, for
+ * the same reason `fileUrlToPath` exists: this file cannot import
+ * `node:url`. A trailing separator is kept, so a directory stays a
+ * directory to resolve against. Pinned against Node's own in both
+ * platform modes by test/wasm-planner.test.ts.
+ */
+export function pathToFileUrl(path: string, windows: boolean): string {
+  // Node's own steps: escape what `pathname` would not, then let URL
+  // encode the rest.
+  const url = new URL('file://');
+  let p = path;
+  if (windows) {
+    p = p.replace(/\\/g, '/');
+    if (p.startsWith('//')) {
+      // A UNC path (\\server\share\...) is a URL with a host.
+      const [host = '', ...rest] = p.slice(2).split('/');
+      url.hostname = host;
+      p = `/${rest.join('/')}`;
+    } else {
+      p = `/${p}`;
+    }
+  }
+  p = p.replace(/%/g, '%25');
+  if (!windows) p = p.replace(/\\/g, '%5C');
+  url.pathname = p.replace(/\n/g, '%0A').replace(/\r/g, '%0D')
+    .replace(/\t/g, '%09').replace(/#/g, '%23').replace(/\?/g, '%3F');
+  return url.href;
 }
 
 /** Whether this is Node on Windows; false in a browser, which has no `process`. */

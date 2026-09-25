@@ -17,12 +17,13 @@
 import { createServer } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { extname, join, normalize } from 'node:path';
+import { extname, join } from 'node:path';
 import { chromium } from 'playwright';
 
 import { gridInvariants } from './grid-invariants.mjs';
 import { sampleCsv } from '../src/samples.ts';
 import { fileURLToPath } from 'node:url';
+import { servedPath } from './static-files.ts';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -75,13 +76,12 @@ const TYPES = {
   '.pure': 'text/plain', '.css': 'text/css', '.csv': 'text/csv',
 };
 const server = createServer(async (req, res) => {
-  const p = (req.url ?? '/').split('?')[0];
-  const rel = normalize(p === '/' ? '/demo/index.html' : p)
-    .replace(/^(\.\.[/])+/, '');
+  const file = servedPath(ROOT, req.url);
   try {
-    const body = await readFile(join(ROOT, rel));
+    if (!file) throw new Error('not under the root');
+    const body = await readFile(file);
     res.writeHead(200, {
-      'Content-Type': TYPES[extname(rel)] ?? 'application/octet-stream',
+      'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
     });
     res.end(body);
   } catch { res.writeHead(404).end('not found'); }

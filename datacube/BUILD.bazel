@@ -33,6 +33,16 @@ _EXTRA_DATA = {
         "test/wasm-differential/compare.ts",
         "//wasm:differential",
     ],
+    # the Windows guardrail scans every script this package runs, and
+    # tests the demo servers' one URL -> file mapping
+    "portability": glob([
+        "bench/**/*",
+        "demo/**/*.mjs",
+        "demo/**/*.ts",
+        "test/**/*.mjs",
+        "test/**/*.ts",
+        "tools/**/*",
+    ], exclude = ["test/strict-reporter.mjs"]),
 }
 
 # node:test files run TypeScript directly (--experimental-strip-types), from the
@@ -268,8 +278,15 @@ filegroup(
 # `bazel run //datacube:serve [-- --data FILE] [-- --open]`: the site, on loopback.
 js_binary(
     name = "serve",
-    data = [":site"],
+    data = [
+        "demo/static-files.ts",
+        ":site",
+    ],
     entry_point = "demo/serve.mjs",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
 )
 
 # `bazel build //datacube:dist`: the site as a folder for any static host — no
@@ -296,6 +313,7 @@ js_run_binary(
 # hand, not tests: several need a live engine as well (the script says which).
 _HARNESS_HELPERS = [
     "demo/engine-cases.mjs",
+    "demo/static-files.ts",
     "demo/grid-invariants.mjs",
     "demo/stress-corpus.ts",
     "demo/torture.pure",

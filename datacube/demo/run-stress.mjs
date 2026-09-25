@@ -1,9 +1,10 @@
 // Drive the stress page and report what broke.
 import { createServer } from 'node:http';
 import { readFile, writeFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { extname, join } from 'node:path';
 import { chromium } from 'playwright';
 import { fileURLToPath } from 'node:url';
+import { servedPath } from './static-files.ts';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TYPES = {
@@ -11,12 +12,12 @@ const TYPES = {
   '.pure': 'text/plain', '.css': 'text/css',
 };
 const server = createServer(async (req, res) => {
-  const rel = normalize((req.url ?? '/').split('?')[0])
-    .replace(/^(\.\.[/])+/, '');
+  const file = servedPath(ROOT, req.url);
   try {
-    const body = await readFile(join(ROOT, rel));
+    if (!file) throw new Error('not under the root');
+    const body = await readFile(file);
     res.writeHead(200, {
-      'Content-Type': TYPES[extname(rel)] ?? 'application/octet-stream',
+      'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
     });
     res.end(body);
   } catch { res.writeHead(404).end('not found'); }

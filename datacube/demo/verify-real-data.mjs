@@ -20,9 +20,10 @@
 
 import { createServer } from 'node:http';
 import { open, readFile, stat } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { extname } from 'node:path';
 import { chromium } from 'playwright';
 import { fileURLToPath } from 'node:url';
+import { servedPath } from './static-files.ts';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const DATA = process.env.DATA ?? process.env.PARQUET;
@@ -78,12 +79,12 @@ const server = createServer(async (req, res) => {
     return;
   }
 
-  const rel = normalize(path === '/' ? '/demo/index.html' : path)
-    .replace(/^(\.\.[/])+/, '');
+  const file = servedPath(ROOT, req.url);
   try {
-    const body = await readFile(join(ROOT, rel));
+    if (!file) throw new Error('not under the root');
+    const body = await readFile(file);
     res.writeHead(200, {
-      'Content-Type': TYPES[extname(rel)] ?? 'application/octet-stream',
+      'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
     });
     res.end(body);
   } catch { res.writeHead(404).end('not found'); }

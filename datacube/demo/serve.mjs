@@ -19,8 +19,9 @@
 import { createServer } from 'node:http';
 import { execFileSync } from 'node:child_process';
 import { open, readFile, stat } from 'node:fs/promises';
-import { basename, extname, join, normalize, resolve } from 'node:path';
+import { basename, extname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { servedPath } from './static-files.ts';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const ROOT = resolve(HERE, '..');
@@ -128,8 +129,9 @@ const server = createServer(async (req, res) => {
       res.end();
       return;
     }
-    const rel = normalize(path).replace(/^(\.\.[/])+/, '');
-    await sendFile(res, join(ROOT, rel), req.headers.range);
+    const file = servedPath(ROOT, path);
+    if (!file) throw new Error('not under the root');
+    await sendFile(res, file, req.headers.range);
   } catch {
     res.writeHead(404, { 'Content-Type': 'text/plain' }).end('not found');
   }

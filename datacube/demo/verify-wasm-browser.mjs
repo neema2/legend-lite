@@ -15,9 +15,10 @@
 
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { extname } from 'node:path';
 import { chromium } from 'playwright';
 import { fileURLToPath } from 'node:url';
+import { servedPath } from './static-files.ts';
 
 // Serve the datacube/ directory, not demo/: index.html links its
 // stylesheets as ../src/*.css, so a demo-rooted server 404s them
@@ -34,12 +35,12 @@ const TYPES = {
 };
 
 const server = createServer(async (req, res) => {
-  const path = (req.url ?? '/').split('?')[0];
-  const rel = normalize(path === '/' ? '/demo/index.html' : path).replace(/^(\.\.[/])+/, '');
+  const file = servedPath(ROOT, req.url);
   try {
-    const body = await readFile(join(ROOT, rel));
+    if (!file) throw new Error('not under the root');
+    const body = await readFile(file);
     res.writeHead(200, {
-      'Content-Type': TYPES[extname(rel)] ?? 'application/octet-stream',
+      'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
       // duckdb-wasm wants these for its threaded build; harmless here.
       'Cross-Origin-Opener-Policy': 'same-origin',
       'Cross-Origin-Embedder-Policy': 'require-corp',
@@ -61,7 +62,7 @@ const page = await browser.newPage();
 const problems = [];
 const missing = [];
 page.on('response', (r) => {
-  if (r.status() === 404) missing.push(new URL(r.url()).pathname);
+  if (r.status() === 404) missing.push(new URL(r.url()).pathname); // portable: an HTTP path, reported
 });
 page.on('console', (m) => {
   // A 404 is reported separately, by PATH: "Failed to load resource"

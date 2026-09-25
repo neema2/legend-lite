@@ -9,9 +9,10 @@
 //   bazel run //datacube:measure_startup
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { extname } from 'node:path';
 import { chromium } from 'playwright';
 import { fileURLToPath } from 'node:url';
+import { servedPath } from './static-files.ts';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript',
@@ -20,13 +21,12 @@ const PAGE = process.env.PAGE ?? 'index.html';
 const RUNS = Number(process.env.RUNS ?? 5);
 
 const server = createServer(async (req, res) => {
-  const p = (req.url ?? '/').split('?')[0];
-  const rel = normalize(p === '/' ? '/demo/index.html' : p)
-    .replace(/^(\.\.[/])+/, '');
+  const file = servedPath(ROOT, req.url);
   try {
-    const body = await readFile(join(ROOT, rel));
+    if (!file) throw new Error('not under the root');
+    const body = await readFile(file);
     res.writeHead(200, {
-      'Content-Type': TYPES[extname(rel)] ?? 'application/octet-stream',
+      'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
       // No caching: every run is a first visit, which is the case
       // worth optimising. A warm cache flatters the numbers.
       'Cache-Control': 'no-store',

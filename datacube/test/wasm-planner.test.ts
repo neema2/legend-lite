@@ -1,11 +1,12 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 import { PlanError } from '../src/planner.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import {
   fileUrlToPath,
+  pathToFileUrl,
   PlannerUnavailableError,
   WasmPlanner,
 } from '../src/wasm-planner.ts';
@@ -310,5 +311,27 @@ describe('fileUrlToPath', () => {
         }
       });
     }
+  }
+});
+
+describe('pathToFileUrl', () => {
+  // Node's own pathToFileURL is the reference, in both platform modes
+  // on every platform -- the working directory is turned into the base
+  // every WASM asset resolves against, and `file://${cwd}` was wrong
+  // on Windows.
+  const CASES: [string, boolean][] = [
+    ['C:\\Users\\runneradmin\\work\\', true],
+    ['C:\\a space\\\u65e5\u672c\\x.wasm', true],
+    ['d:\\lower\\', true],
+    ['\\\\server\\share\\planner\\', true],
+    ['/Users/me/a b/', false],
+    ['/home/runner/work/x#y?z/', false],
+    ['/odd/100%@$=+,;\\name/', false],
+    ['C:\\odd\\100%@$=+,;\\', true],
+  ];
+  for (const [path, windows] of CASES) {
+    it(`matches node's pathToFileURL (windows: ${windows}) for ${path}`, () => {
+      assert.equal(pathToFileUrl(path, windows), pathToFileURL(path, { windows }).href);
+    });
   }
 });

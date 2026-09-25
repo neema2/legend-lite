@@ -15,9 +15,10 @@
 import { createRequire } from 'node:module';
 import { createServer } from 'node:http';
 import { readFile, rm } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { extname } from 'node:path';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { servedPath } from './static-files.ts';
 
 import { chromium } from 'playwright';
 
@@ -102,7 +103,7 @@ const server = createServer(async (req, res) => {
     'Cross-Origin-Resource-Policy': 'cross-origin',
   };
 
-  if (url.pathname === '/data/trades.parquet') {
+  if (url.pathname === '/data/trades.parquet') { // portable: an HTTP route
     // Object storage serves ranges, and DuckDB relies on it: it reads
     // the footer first to find the row groups. A server without range
     // support forces a whole-file download, which is the difference
@@ -132,12 +133,12 @@ const server = createServer(async (req, res) => {
   }
 
   try {
-    const rel = normalize(decodeURIComponent(url.pathname))
-      .replace(/^(\.\.[/\\])+/, '');
-    const body = await readFile(join(ROOT, rel));
+    const file = servedPath(ROOT, req.url, '');
+    if (!file) throw new Error('not under the root');
+    const body = await readFile(file);
     res.writeHead(200, {
       ...cors,
-      'Content-Type': TYPES[extname(rel)] ?? 'application/octet-stream',
+      'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
     });
     res.end(body);
   } catch {

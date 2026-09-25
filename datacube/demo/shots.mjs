@@ -12,8 +12,9 @@
 // Run: bazel run //datacube:shots
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { extname, join, normalize } from 'node:path';
+import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { servedPath } from './static-files.ts';
 
 import { chromium } from 'playwright';
 
@@ -33,12 +34,8 @@ const TYPES = {
 
 const server = createServer(async (req, res) => {
   try {
-    const url = new URL(req.url ?? '/', 'http://x');
-    const rel = normalize(decodeURIComponent(url.pathname)).replace(
-      /^(\.\.[/\\])+/,
-      '',
-    );
-    const file = join(ROOT, rel === '/' ? 'demo/index.html' : rel);
+    const file = servedPath(ROOT, req.url);
+    if (!file) throw new Error('not under the root');
     const body = await readFile(file);
     res.writeHead(200, {
       'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
