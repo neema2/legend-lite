@@ -398,6 +398,21 @@ if (editorOpened) {
       await t.click({ timeout: 1500 });
       await t.click({ timeout: 1500 });
     }],
+    // Nothing runs until Apply (upstream's Filter window), so the
+    // storm has to press it -- rapidly, over whatever half-built
+    // filter the other actions left.
+    ['apply-spam', async () => {
+      const a = page.locator('.dc-filter-apply');
+      for (let i = 0; i < 3 && await a.count(); i++) {
+        await a.first().click({ timeout: 1500 });
+      }
+    }],
+    ['ok-then-reopen', async () => {
+      const ok = page.locator('.dc-filter-ok');
+      if (!(await ok.count())) return;
+      await ok.first().click({ timeout: 1500 });
+      await tolerant(openFilters);
+    }],
     ['close-and-reopen', async () => {
       await page.locator('.dc-overlay-close').first().click({ timeout: 1500 });
       await openFilters();

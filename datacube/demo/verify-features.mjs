@@ -575,23 +575,32 @@ try {
   });
 
   await check('the filter dialog opens and lists the filter', async () => {
+    // A filter IN FORCE, so there is something to list: opening on an
+    // empty editor over a filtered cube would drop it on Apply.
+    await menu(['Filter', /^Add Filter: .* = /]);
     await menu(['Filter', 'Filters...'], { requery: false });
     const open = await page.evaluate(() =>
       !document.querySelector('.dc-app-overlay')?.hidden);
     if (!open) throw new Error('the overlay never opened');
-    const text = await page.textContent('.dc-app-overlay');
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(200);
-    return `${(text ?? '').trim().slice(0, 40)}...`;
+    const conditions = await page.locator('.dc-filter-row:not(.dc-filter-group)')
+      .count();
+    const value = await page.locator('.dc-filter-value').first()
+      .inputValue().catch(() => '');
+    await page.locator('.dc-filter-cancel').click();
+    await menu(['Filter', 'Clear All Filters']);
+    if (conditions !== 1 || !value) {
+      throw new Error(`the dialog showed ${conditions} condition(s),`
+        + ` value "${value}", for a cube filtered on one`);
+    }
+    return `lists the condition in force (= ${value})`;
   });
 
   // ---- the filter editor -------------------------------------------------
   //
-  // Opening the dialog was all that was ever checked. This builds a
-  // COMPOUND filter in it -- two conditions, then the connective
-  // flipped from all-of to any-of -- and the editor applies live
-  // (`openFilters` wires `onChange` straight to `#setFilter`), so
-  // there is no Apply button and each edit re-queries.
+  // This builds a COMPOUND filter in the editor -- two conditions,
+  // then the connective flipped from all-of to any-of. Nothing runs
+  // until Apply, as upstream's Filter window: each step applies and
+  // reads the result.
 
   await check('the filter editor builds a compound filter', async () => {
     await menu(['Filter', 'Clear All Filters']).catch(() => {});
@@ -624,7 +633,15 @@ try {
     if (!firstValue) throw new Error(`no value to filter ${first} by`);
     await page.locator('.dc-filter-value').first().fill(firstValue);
     await page.locator('.dc-filter-value').first().press('Tab');
-    await settle(await statusNow());
+    // NOTHING RUNS UNTIL APPLY, as upstream's Filter window: an edit
+    // is a draft.
+    const drafted = await statusNow();
+    await page.waitForTimeout(300);
+    if ((await statusNow()) !== drafted) {
+      throw new Error('an edit re-queried before Apply');
+    }
+    await page.locator('.dc-filter-apply').click();
+    await settle(drafted);
 
     const andRows = await resultRows();
     const andSql = (await state()).sql;
@@ -648,7 +665,9 @@ try {
     }, second);
     await page.locator('.dc-filter-value').nth(1).fill(secondValue);
     await page.locator('.dc-filter-value').nth(1).press('Tab');
-    await settle(await statusNow());
+    const before2 = await statusNow();
+    await page.locator('.dc-filter-apply').click();
+    await settle(before2);
 
     const both = await state();
     if (!/ AND /i.test(both.sql)) {
@@ -663,7 +682,9 @@ try {
       throw new Error('two conditions but no all-of/any-of control');
     }
     await joinSel.selectOption('or');
-    await settle(await statusNow());
+    const before3 = await statusNow();
+    await page.locator('.dc-filter-apply').click();
+    await settle(before3);
 
     const either = await state();
     if (!/ OR /i.test(either.sql)) {
@@ -691,6 +712,81 @@ try {
     await page.keyboard.press('Escape');
     await menu(['Filter', 'Clear All Filters']);
     return `all-of ${andRows} rows, any-of ${orRows}, unfiltered ${all}`;
+  });
+
+  await check('the filter editor\'s TYPED values reach the planner', async () => {
+    // Each column type gets its own value editor, as upstream's: a
+    // date with Today/Now, a number that evaluates arithmetic, a
+    // checkbox, a list of entries. Every one has to become a literal
+    // the planner accepts for that column's type.
+    await menu(['Filter', 'Clear All Filters']).catch(() => {});
+    const all = await resultRows();
+    await menu(['Filter', 'Filters...'], { requery: false });
+    const create = page.locator('button', { hasText: 'Create New Filter' });
+    if (await create.count()) await create.first().click();
+    const names = await page.locator('.dc-filter-column').first()
+      .evaluate((e) => [...e.options].map((o) => o.value));
+    const apply = async () => {
+      const before = await statusNow();
+      await page.locator('.dc-filter-apply').click();
+      await settle(before);
+      const problem = await page.locator('.dc-filter-problem').textContent();
+      if (problem) throw new Error(`refused: ${problem}`);
+    };
+    const done = [];
+
+    if (names.includes('notional')) {
+      await page.locator('.dc-filter-column').first().selectOption('notional');
+      await page.locator('.dc-filter-op').first().selectOption('greaterThan');
+      const n = page.locator('.dc-filter-number').first();
+      await n.fill('2.5e3 * 2');
+      await n.press('Enter');
+      if ((await n.inputValue()) !== '5000') {
+        throw new Error(`arithmetic gave ${await n.inputValue()}`);
+      }
+      await apply();
+      if (!/5000/.test((await state()).sql)) throw new Error('no 5000 in the SQL');
+      done.push('notional > 2.5e3*2');
+    }
+    const date = ['trade_date', 'booked_at'].find((c) => names.includes(c));
+    if (date) {
+      await page.locator('.dc-filter-column').first().selectOption(date);
+      await page.locator('.dc-filter-op').first().selectOption('lessThan');
+      await page.locator('.dc-filter-date-mode').first().selectOption('today');
+      await apply();
+      done.push(`${date} < Today`);
+    }
+    if (names.includes('settled')) {
+      await page.locator('.dc-filter-column').first().selectOption('settled');
+      await page.locator('.dc-filter-bool').first().check();
+      await apply();
+      done.push('settled = true');
+    }
+    const text = ['region', 'desk'].find((c) => names.includes(c));
+    if (text) {
+      await page.locator('.dc-filter-column').first().selectOption(text);
+      await page.locator('.dc-filter-op').first().selectOption('in');
+      await page.locator('.dc-filter-list').first().click();
+      const value = await page.evaluate((col) => {
+        const cell = [...document.querySelector('.dc-row')?.querySelectorAll('.dc-cell') ?? []]
+          .find((e) => e.dataset.column === col);
+        return cell?.textContent?.trim() ?? '';
+      }, text);
+      for (const v of [value, 'NO-SUCH-VALUE']) {
+        await page.locator('.dc-filter-listadd').fill(v);
+        await page.locator('.dc-filter-listadd').press('Enter');
+      }
+      await apply();
+      const rows = await resultRows();
+      if (!(rows > 0 && rows < all)) {
+        throw new Error(`${text} in [${value}] kept ${rows} of ${all}`);
+      }
+      done.push(`${text} in [${value}, …] → ${rows} of ${all}`);
+    }
+    await page.locator('.dc-filter-cancel').click();
+    await menu(['Filter', 'Clear All Filters']);
+    if (!done.length) throw new Error(`no typed column among ${names}`);
+    return done.join('; ');
   });
 
   // ---- grouping and pivots --------------------------------------------

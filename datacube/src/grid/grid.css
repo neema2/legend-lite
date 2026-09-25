@@ -739,3 +739,85 @@
   color: var(--tw-blue-600, #2563eb);
   text-decoration: underline;
 }
+
+/* -- the Filter window: body, footer, typed values ------------------ */
+
+.dc-filters {
+  height: 100%;
+  min-height: 0;
+}
+
+.dc-filter-body {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Cancel / Apply / OK, right-aligned, as every upstream window. The
+   reason a publish was refused sits at the left, in the window that
+   asked. */
+.dc-filter-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  height: 36px;
+}
+
+.dc-filter-problem {
+  flex: 1;
+  color: var(--tw-red-600);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dc-filter-number { width: 9em; font-variant-numeric: tabular-nums; }
+.dc-filter-date-mode { width: 7em; }
+.dc-filter-bool { min-width: 0; width: 14px; height: 14px; }
+
+.dc-filter-listwrap { position: relative; display: inline-block; }
+
+.dc-filter-list {
+  min-width: 9em;
+  text-align: left;
+  font: inherit;
+  padding: 2px 4px;
+  border: 1px solid var(--tw-neutral-400);
+  border-radius: 4px;
+  background: var(--tw-white);
+  cursor: pointer;
+}
+
+/* The entries of an `in` list, below its summary. */
+.dc-filter-listpop {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 2px);
+  left: 0;
+  width: 15rem;
+  padding: 8px;
+  border: 1px solid var(--tw-neutral-300);
+  background: var(--tw-white);
+  box-shadow: 0 4px 12px rgb(0 0 0 / 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dc-filter-listnone { color: var(--tw-neutral-600); }
+.dc-filter-listitem,
+.dc-filter-listaddrow { display: flex; gap: 6px; align-items: center; }
+.dc-filter-listitem input,
+.dc-filter-listaddrow input { flex: 1; min-width: 0; }
+
+.dc-filter-listdel,
+.dc-filter-listplus {
+  font: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+.dc-filter-listdel { color: var(--tw-red-600); }
+.dc-filter-listdone { align-self: flex-end; }

@@ -20,7 +20,13 @@ import {
 import { filterExpression } from '../src/serialize.ts';
 import type { FilterNode } from '../src/snapshot.ts';
 
-const COLUMNS = ['region', 'desk', 'notional'];
+const COLUMNS = [
+  { name: 'region', type: 'String' },
+  { name: 'desk', type: 'String' },
+  { name: 'notional', type: 'Float' },
+  { name: 'trade_date', type: 'StrictDate' },
+  { name: 'settled', type: 'Boolean' },
+];
 
 describe('operator table', () => {
   it('covers all 31 operators exactly once', () => {
@@ -147,8 +153,9 @@ describe('FilterEditor DOM', () => {
     last = 'unset';
     editor = new FilterEditor(host, {
       columns: COLUMNS,
-      onChange: (f) => {
+      onApply: (f) => {
         last = f;
+        return null;
       },
     });
   });
@@ -264,8 +271,8 @@ describe('FilterEditor DOM', () => {
     );
 
     editor.update(id, { operator: 'in' });
-    const input = host.querySelector('input.dc-filter-value');
-    assert.equal(input?.getAttribute('placeholder'), 'a, b, c');
+    assert.ok(host.querySelector('button.dc-filter-value.dc-filter-list'),
+      'a list operator takes a list of entries');
   });
 
   it('indents the tree: root, its children, their children', () => {
@@ -295,29 +302,38 @@ describe('FilterEditor DOM', () => {
     editor.addCondition();
     editor.addCondition();
     const first = editor.tree.children[0]!.id;
+    editor.update(first, { text: 'EMEA' });
     editor.insertAfter(first);
     assert.equal(editor.tree.children.length, 3);
     assert.equal(editor.tree.children[1]!.id !== first, true);
     assert.equal(editor.tree.children[0]!.id, first);
+    // A COPY, as upstream's `+` inserts: the match is unchanged until
+    // the copy is edited.
+    const copy = editor.tree.children[1] as { column: string; text: string };
+    assert.equal(copy.column, 'region');
+    assert.equal(copy.text, 'EMEA');
   });
 
-  it('the group button wraps a node in place, keeping its meaning', () => {
+  it('the group button makes an OR of the node and a copy, keeping its meaning', () => {
     // The only way to get from A AND B to A AND (B OR C) without
-    // deleting and retyping B.
+    // deleting and retyping B. Upstream's layer: OR, because a
+    // sub-group is for relaxing, and a copy, because x OR x is x.
     editor.addCondition();
     editor.update(editor.tree.children[0]!.id, { text: 'EMEA', not: true });
     const before = editor.filter;
     editor.layer(editor.tree.children[0]!.id);
 
-    const wrapped = editor.tree.children[0]!;
+    const wrapped = editor.tree.children[0]! as {
+      kind: string; join: string; children: readonly { text?: string; not: boolean }[];
+    };
     assert.equal(wrapped.kind, 'group');
-    assert.equal(wrapped.not, true, 'the NOT moved out to the wrapper');
-    assert.deepEqual(
-      (wrapped as { children: readonly { not: boolean }[] }).children[0]?.not,
-      false,
-      'and off the child, so the meaning is unchanged',
-    );
-    assert.deepEqual(editor.filter, before);
+    assert.equal(wrapped.join, 'or');
+    assert.equal(wrapped.children.length, 2);
+    assert.equal(wrapped.children[1]?.text, 'EMEA');
+    assert.equal(wrapped.children[1]?.not, true);
+    const after = editor.filter as { kind: string };
+    assert.equal(after.kind, 'or');
+    assert.ok(before);
   });
 
   it('will not layer the root, which IS the outermost group', () => {
@@ -353,17 +369,23 @@ describe('FilterEditor DOM', () => {
     assert.equal(not()?.getAttribute('aria-pressed'), 'true');
   });
 
-  it('emits the filter on every edit, and undefined when cleared', () => {
+  it('publishes only on APPLY, and undefined when cleared', async () => {
     editor.addCondition();
     const id = editor.tree.children[0]!.id;
     editor.update(id, { text: 'EMEA' });
+    assert.equal(last, 'unset', 'an edit reached the cube before Apply');
+    await editor.apply();
     assert.deepEqual(last, {
       kind: 'condition',
       column: 'region',
       operator: 'equal',
       value: 'EMEA',
     });
+    last = 'unset';
+    await editor.apply();
+    assert.equal(last, 'unset', 'an unchanged Apply published again');
     editor.clear();
+    await editor.apply();
     assert.equal(last, undefined);
   });
 
@@ -374,6 +396,140 @@ describe('FilterEditor DOM', () => {
     editor.remove(first);
     assert.equal(editor.tree.children.length, 1);
     assert.notEqual(editor.tree.children[0]!.id, first);
+  });
+});
+
+describe('the editor follows the column TYPE', () => {
+  let dom: JSDOM;
+  let host: HTMLElement;
+  let editor: FilterEditor;
+  let refusal: string | null;
+  let closed: boolean;
+  let last: unknown;
+
+  beforeEach(() => {
+    dom = new JSDOM('<!doctype html><div id="f"></div>');
+    host = dom.window.document.getElementById('f') as unknown as HTMLElement;
+    refusal = null;
+    closed = false;
+    last = 'unset';
+    editor = new FilterEditor(host, {
+      columns: COLUMNS,
+      onApply: (f) => { last = f; return refusal; },
+      onClose: () => { closed = true; },
+    });
+    editor.addCondition();
+  });
+  const id = (): string => editor.tree.children[0]!.id;
+  const ops = (): string[] =>
+    [...(host.querySelector('.dc-filter-op') as HTMLSelectElement).options]
+      .map((o) => o.value);
+
+  it('offers only the operators the column\'s type takes', () => {
+    assert.ok(ops().includes('contains'));
+    editor.setColumn(id(), 'notional');
+    assert.ok(!ops().includes('contains'), 'contains offered on a number');
+    assert.ok(ops().includes('lessThan'));
+    editor.setColumn(id(), 'settled');
+    assert.deepEqual(ops().filter((o) => o.startsWith('less')), []);
+    assert.ok(ops().includes('equal'));
+  });
+
+  it('switching column keeps a compatible operator, else takes the first, and resets the value', () => {
+    editor.setOperator(id(), 'contains');
+    editor.update(id(), { text: 'EM' });
+    editor.setColumn(id(), 'desk');
+    let node = editor.tree.children[0] as { operator: string; text: string };
+    assert.equal(node.operator, 'contains');
+    assert.equal(node.text, '');
+    editor.setColumn(id(), 'notional');
+    node = editor.tree.children[0] as { operator: string; text: string };
+    assert.equal(node.operator, 'equal');
+    assert.equal(node.text, '0', 'a number starts at zero, as upstream');
+  });
+
+  it('a number field evaluates arithmetic', () => {
+    editor.setColumn(id(), 'notional');
+    const input = host.querySelector('.dc-filter-number') as HTMLInputElement;
+    input.value = '1e6 * 3';
+    input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter' }));
+    assert.deepEqual((editor.filter as { value: unknown }).value, 3_000_000);
+  });
+
+  it('a boolean is a checkbox', () => {
+    editor.setColumn(id(), 'settled');
+    const box = host.querySelector('.dc-filter-bool') as HTMLInputElement;
+    assert.ok(box);
+    box.checked = true;
+    box.dispatchEvent(new dom.window.Event('change'));
+    assert.equal((editor.filter as { value: unknown }).value, true);
+  });
+
+  it('a date offers Date, Date Time, Today and Now', () => {
+    editor.setColumn(id(), 'trade_date');
+    const mode = host.querySelector('.dc-filter-date-mode') as HTMLSelectElement;
+    assert.deepEqual([...mode.options].map((o) => o.textContent),
+      ['Date', 'Date Time', 'Today', 'Now']);
+    assert.ok((editor.filter as { value: unknown }).value instanceof Date,
+      'an absolute date is a Date, so it is written as a date literal');
+    mode.value = 'today';
+    mode.dispatchEvent(new dom.window.Event('change'));
+    assert.deepEqual((editor.filter as { value: unknown }).value, { relative: 'today' });
+    assert.equal(host.querySelector('.dc-filter-date'), null, 'no picker for Today');
+  });
+
+  it('a list is typed entries, added and removed', () => {
+    editor.setOperator(id(), 'in');
+    (host.querySelector('.dc-filter-list') as HTMLButtonElement).click();
+    const add = (v: string): void => {
+      const input = host.querySelector('.dc-filter-listadd') as HTMLInputElement;
+      input.value = v;
+      input.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter' }));
+    };
+    add('EMEA');
+    add('APAC');
+    assert.deepEqual((editor.filter as { value: unknown }).value, ['EMEA', 'APAC']);
+    (host.querySelector('.dc-filter-listdel') as HTMLButtonElement).click();
+    assert.deepEqual((editor.filter as { value: unknown }).value, ['APAC']);
+  });
+
+  it('compares with a column OF THE SAME TYPE only', () => {
+    editor.setColumn(id(), 'notional');
+    editor.setOperator(id(), 'lessThanColumn');
+    const pick = host.querySelector('.dc-filter-rightcolumn') as HTMLSelectElement;
+    assert.deepEqual([...pick.options].map((o) => o.value), ['', 'notional']);
+  });
+
+  it('removing a node flattens a group left with one child', () => {
+    editor.update(id(), { text: 'EMEA' });
+    editor.layer(id());
+    const group = editor.tree.children[0] as { id: string;
+      children: readonly { id: string }[] };
+    editor.remove(group.children[1]!.id);
+    assert.equal(editor.tree.children[0]!.kind, 'condition',
+      'a one-child group stayed a group');
+  });
+
+  it('a refused Apply keeps the window open and says why IN it', async () => {
+    editor.update(id(), { text: 'EMEA' });
+    refusal = 'the planner refused';
+    (host.querySelector('.dc-filter-ok') as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(closed, false);
+    assert.match(host.querySelector('.dc-filter-problem')?.textContent ?? '',
+      /refused/);
+    refusal = null;
+    (host.querySelector('.dc-filter-ok') as HTMLButtonElement).click();
+    await new Promise((r) => setTimeout(r, 0));
+    assert.equal(closed, true);
+    assert.ok(last !== 'unset');
+  });
+
+  it('Cancel closes without publishing', () => {
+    editor.update(id(), { text: 'EMEA' });
+    (host.querySelector('.dc-filter-cancel') as HTMLButtonElement).click();
+    assert.equal(closed, true);
+    assert.equal(last, 'unset');
   });
 });
 

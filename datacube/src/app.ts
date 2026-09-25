@@ -1249,14 +1249,6 @@ export class CubeApp {
     }
   }
 
-  #setFilter(filter: FilterNode | undefined): void {
-    const previous = this.#snapshot;
-    this.#snapshot = filter
-      ? { ...this.#snapshot, filter }
-      : (({ filter: _drop, ...rest }) => rest)(this.#snapshot);
-    this.#refreshOr(previous);
-  }
-
   // -- the context menu ------------------------------------------------
 
   #wireContextMenu(): void {
@@ -2073,12 +2065,38 @@ export class CubeApp {
   openFilters(): void {
     this.#showOverlay('Filters', (host) => {
       new FilterEditor(host, {
-        // Row-stage calculated columns filter like any other.
-        columns: rowColumns(this.#snapshot).map((c) => c.name),
+        // Row-stage calculated columns filter like any other, and each
+        // column brings its TYPE: it decides the operators offered and
+        // the value editor shown.
+        columns: rowColumns(this.#snapshot).map((c) => ({
+          name: c.name,
+          type: c.type ?? 'String',
+        })),
         ...(this.#snapshot.filter ? { value: this.#snapshot.filter } : {}),
-        onChange: (filter) => this.#setFilter(filter),
+        onApply: (filter) => this.#applyFilter(filter),
+        onClose: () => this.#closeOverlay(),
       });
     });
+  }
+
+  /**
+   * The Filter window's Apply: run it, and on a refusal put the cube
+   * back and hand the reason to the window that asked.
+   */
+  async #applyFilter(filter: FilterNode | undefined): Promise<string | null> {
+    const previous = this.#snapshot;
+    this.#snapshot = filter
+      ? { ...this.#snapshot, filter }
+      : (({ filter: _drop, ...rest }) => rest)(this.#snapshot);
+    try {
+      await this.#refresh();
+      return null;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.#status(message, 'error');
+      this.#snapshot = previous;
+      return message;
+    }
   }
 
   #applyDraft(draft: CubeDraft): void {
