@@ -125,7 +125,11 @@ describe('projections', () => {
   it('emits nothing for settings nobody set', () => {
     // An empty object per consumer, not an object of empty objects:
     // a saved view must not record opinions nobody held.
-    assert.deepEqual(toColumnLayout(DEFAULT_CONFIGURATION), {});
+    // One deliberate opinion: a new cube shows its pivot total, on the
+    // right (upstream draws none -- a bug, by the user's ruling
+    // 2026-09-25). Nothing else.
+    assert.deepEqual(toColumnLayout(DEFAULT_CONFIGURATION),
+      { pivotTotal: { label: 'Total', placement: 'right' } });
     assert.deepEqual(toFormats(DEFAULT_CONFIGURATION), {});
     assert.deepEqual(toColumnAppearance(DEFAULT_CONFIGURATION), {});
   });

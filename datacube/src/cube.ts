@@ -29,7 +29,7 @@ import {
   type RowPath,
   type TreeRow,
 } from './tree.ts';
-import { fetchTree, takeRows } from './treeview.ts';
+import { fetchTree, takeRows, withPivotTotals } from './treeview.ts';
 import { History, type CubeState } from './history.ts';
 
 /**
@@ -352,7 +352,12 @@ export class CubeController {
           signal,
         );
         const cut = maxRows !== undefined && full.rowCount > maxRows;
-        const rows = cut ? takeRows(full, maxRows) : full;
+        // A flat pivot is one row across the pivot's values; its total
+        // is the grand total, from the unpivoted query.
+        const rows = await withPivotTotals(
+          withEpoch, undefined, cut ? takeRows(full, maxRows) : full, [[]],
+          false, { runner: this.#runner, snapshot: withEpoch, signal },
+        );
         const columns = buildColumnModel(
           rows,
           withEpoch.rows,

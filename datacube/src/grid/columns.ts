@@ -34,6 +34,7 @@
 
 import { PIVOT_SEPARATOR } from '../generated/lite-facts.ts';
 import type { ResultTable } from '../result.ts';
+import { PIVOT_TOTAL_KEY } from '../snapshot.ts';
 import { TREE_COLUMN } from '../treeview.ts';
 
 export { TREE_COLUMN };
@@ -248,6 +249,14 @@ export interface ColumnLayout {
    * across the header. Horizontal Pivots > sort direction.
    */
   readonly pivotDirections?: readonly ('asc' | 'desc')[];
+  /**
+   * The pivot total columns' header and edge: upstream's
+   * `pivotStatisticColumnName` and `pivotStatisticColumnPlacement`.
+   */
+  readonly pivotTotal?: {
+    readonly label: string;
+    readonly placement: 'left' | 'right';
+  };
 }
 
 export function buildColumnModel(
@@ -279,10 +288,15 @@ export function buildColumnModel(
     ? dimensions.join(' / ')
     : '';
 
+  const totalPrefix = `${PIVOT_TOTAL_KEY}${PIVOT_SEPARATOR}`;
   const leaves: LeafColumn[] = table.columns.map((c, index) => {
     const display = layout.displayNames?.[c.name];
     const path = c.name === TREE_COLUMN
       ? [treeLabel]
+      // A pivot total spans ONE header level whatever the pivot's
+      // depth: its name over its measure, the name cell reaching down.
+      : c.name.startsWith(totalPrefix)
+        ? [layout.pivotTotal?.label ?? 'Total', c.name.slice(totalPrefix.length)]
       : display !== undefined
         ? [display]
         : dimensions.includes(c.name)
@@ -439,6 +453,22 @@ export function buildColumnModel(
         return desc ? vb.localeCompare(va) : va.localeCompare(vb);
       });
     }
+    const reseated = [...ordered];
+    seats.forEach((seatAt, i) => { reseated[seatAt] = moving[i] as LeafColumn; });
+    ordered.splice(0, ordered.length, ...reseated);
+  }
+
+  // THE PIVOT TOTAL at its edge of the pivot: before every value block
+  // or after the last, keeping the measures in the order they had.
+  const isTotal = (l: LeafColumn): boolean => l.name.startsWith(totalPrefix);
+  if (ordered.some(isTotal)) {
+    const seats = ordered.flatMap((l, i) => (pivoted(l) ? [i] : []));
+    const inSeats = seats.map((i) => ordered[i] as LeafColumn);
+    const totals = inSeats.filter(isTotal);
+    const values = inSeats.filter((l) => !isTotal(l));
+    const moving = layout.pivotTotal?.placement === 'left'
+      ? [...totals, ...values]
+      : [...values, ...totals];
     const reseated = [...ordered];
     seats.forEach((seatAt, i) => { reseated[seatAt] = moving[i] as LeafColumn; });
     ordered.splice(0, ordered.length, ...reseated);

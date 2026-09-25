@@ -1022,6 +1022,73 @@ try {
       + ` ${stillTrailing.join(',')}`;
   });
 
+  await check('a column pivot shows each row\'s TOTAL, from the database',
+    async () => {
+      // Upstream stores the pivot total's settings and draws nothing;
+      // the user ruled that a bug (2026-09-25). The total of a row is
+      // its measure with the pivot key dropped -- the very figure the
+      // UNPIVOTED cube shows for that row -- so that is the witness,
+      // and the pivot's own cells must add up to it as well.
+      const byPosition = () => page.evaluate(() =>
+        [...document.querySelectorAll('.dc-th[data-column]')]
+          .map((e) => ({
+            name: e.dataset.column,
+            x: Math.round(e.getBoundingClientRect().left),
+          }))
+          .sort((a, b) => a.x - b.x)
+          .map((c) => c.name));
+      const firstRow = async () => (await page.locator('.dc-row').first()
+        .locator('.dc-cell').allTextContents())
+        .map((t) => Number(t.replace(/[^0-9.-]/g, '')));
+
+      await menu(['Pivot', 'Clear All Vertical Pivots']).catch(() => {});
+      await menu(['Pivot', 'Clear All Horizontal Pivots']).catch(() => {});
+      const dims = await dimensionNames();
+      const groupBy = ['region', 'desk', 'book'].find((n) => dims.includes(n));
+      const across = ['year', 'quarter'].find((n) => dims.includes(n));
+      if (!groupBy || !across) throw new Error(`need dimensions, have ${dims}`);
+      await menu(['Pivot', /^Vertical Pivot on/], { col: await needCol(groupBy) });
+      const flat = await byPosition();
+      const want = (await firstRow())[flat.indexOf('notional')];
+      if (!(want > 0)) throw new Error(`no grouped notional to compare: ${want}`);
+
+      await menu(['Pivot', /^Horizontal Pivot on/], { col: await needCol(across) });
+      await page.waitForTimeout(1200);
+      const cols = await byPosition();
+      const total = '__pivot_total____|__notional';
+      const at = cols.indexOf(total);
+      if (at < 0) throw new Error(`no total column: ${cols.join(', ')}`);
+      const header = await page.evaluate(() =>
+        [...document.querySelectorAll('.dc-th')]
+          .map((e) => e.textContent?.trim()));
+      if (!header.includes('Total')) {
+        throw new Error(`the total's header is not "Total": ${header.join('|')}`);
+      }
+      // On the RIGHT of the pivot, the default: every total after every
+      // value block.
+      const isTotal = (c) => c.startsWith('__pivot_total__');
+      const lastValue = cols.map((c, i) => (c.includes('__|__') && !isTotal(c)
+        ? i : -1)).filter((i) => i >= 0).at(-1);
+      const firstTotal = cols.findIndex(isTotal);
+      if (!(firstTotal > lastValue)) {
+        throw new Error(`a total sits inside the pivot: ${cols.join(', ')}`);
+      }
+      const row = await firstRow();
+      const got = row[at];
+      if (Math.abs(got - want) / want > 0.0005) {
+        throw new Error(`total ${got} is not the unpivoted ${want}`);
+      }
+      const cells = cols
+        .map((c, i) => (c.endsWith('__|__notional') && c !== total ? row[i] : 0))
+        .reduce((a, b) => a + (Number.isFinite(b) ? b : 0), 0);
+      if (Math.abs(cells - got) / got > 0.001) {
+        throw new Error(`the pivot's cells add to ${cells}, the total says ${got}`);
+      }
+      const s = await state();
+      if (/Error|refus/i.test(s.status)) throw new Error(`status: ${s.status}`);
+      return `${groupBy} x ${across}: total ${got} = unpivoted ${want}`;
+    });
+
   await check('clear all horizontal pivots', async () => {
     if (!/pivot\(/.test((await state()).pure)) {
       throw new Error('could not set up: nothing is pivoted');

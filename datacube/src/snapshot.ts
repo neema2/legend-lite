@@ -48,6 +48,33 @@ export type ColumnKind = 'dimension' | 'measure';
  */
 export const LEAF_COUNT_COLUMN = '__leafCount';
 
+/**
+ * The pivot total's own key, where a pivot VALUE would sit in a
+ * generated name: `__pivot_total____|__notional` is the total of
+ * `notional` across every value of the pivot. Its header reads the
+ * configured name (upstream's `pivotStatisticColumnName`, "Total"),
+ * never this. A key rather than the name itself, so a pivot value that
+ * happens to be spelled "Total" cannot be mistaken for the total.
+ */
+export const PIVOT_TOTAL_KEY = '__pivot_total__';
+
+/**
+ * The pivot total column (upstream's pivot statistic column).
+ *
+ * Upstream carries the settings -- `pivotStatisticColumnPlacement`
+ * and a per-measure `pivotStatisticColumnFunction` -- and renders
+ * nothing for them; the user ruled that a bug (2026-09-25). Here it is
+ * computed in the DATABASE: each row's total is its measure over the
+ * row's whole slice with the pivot key dropped -- the same query as
+ * the row subtotals -- so it is right for an average or a count, where
+ * adding up the pivot's cells is not.
+ */
+export interface PivotTotal {
+  readonly placement: 'left' | 'right';
+  /** Per measure COLUMN: the aggregate its total uses. Absent = its own. */
+  readonly functions?: Readonly<Record<string, AggregateFn>>;
+}
+
 /** A column available from the source, with the type the engine reports. */
 export interface ColumnSpec {
   readonly name: string;
@@ -434,6 +461,8 @@ export interface CubeSnapshot {
    */
   readonly pivotCast?: readonly { readonly name: string;
     readonly measure: string }[];
+  /** The pivot total column; absent means none. See `PivotTotal`. */
+  readonly pivotTotal?: PivotTotal;
   /**
    * Keep a row dimension as a column of its own, beside the tree.
    *

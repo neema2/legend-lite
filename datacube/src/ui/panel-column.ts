@@ -305,6 +305,21 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
     ),
     field(
       doc,
+      // Upstream's `pivotStatisticColumnFunction`: the aggregate this
+      // measure's pivot TOTAL takes. Unset, the total uses the
+      // measure's own aggregate -- a true total for an average too.
+      'Pivot total function:',
+      dropdown(
+        doc,
+        c.pivotStatisticColumnFunction,
+        AGGREGATES.filter((a) => a.value !== 'wavg'),
+        (pivotStatisticColumnFunction) =>
+          patch({ pivotStatisticColumnFunction }),
+        { allowNone: true, width: 200, disabled: !isMeasure },
+      ),
+    ),
+    field(
+      doc,
       'Pivot sort direction:',
       dropdown(
         doc,

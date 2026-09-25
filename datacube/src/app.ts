@@ -57,6 +57,7 @@ import {
   type ColumnModel,
 } from './grid/columns.ts';
 import { load, save, toJson, treeOf } from './persist.ts';
+import { isPivotTotalColumn, pivotTotalColumn } from './treeview.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
 import type { Scalar } from './result.ts';
 import {
@@ -654,8 +655,11 @@ export class CubeApp {
     // describes the shape of the ANSWER, and reading it off the grid
     // made hiding a pivot column narrow the next query -- which took
     // the column out of the data, where nothing could get it back.
+    // Not the pivot TOTAL: it is joined in from a second query, and the
+    // pivot does not produce it -- a cast naming it is refused.
     const cast = model.all
-      .filter((l) => !l.isDimension && l.path.length > 1)
+      .filter((l) => !l.isDimension && l.path.length > 1
+        && !isPivotTotalColumn(l.name))
       .map((l) => ({
         name: l.name,
         measure: l.path[l.path.length - 1] ?? l.name,
@@ -764,8 +768,14 @@ export class CubeApp {
       const column = sourceOf(m);
       perColumn.set(column, (perColumn.get(column) ?? 0) + 1);
     }
-    const childrenOf = (column: string): ColumnsPanelChild[] =>
-      cast
+    // Each measure's pivot TOTAL is one more of its columns on screen,
+    // listed last so it can be hidden like any other.
+    const totalsShown = new Set((this.#view?.columns.all ?? [])
+      .filter((l) => isPivotTotalColumn(l.name))
+      .map((l) => l.name));
+    const totalLabel = this.#config.pivotStatisticColumnName ?? 'Total';
+    const childrenOf = (column: string): ColumnsPanelChild[] => [
+      ...cast
         .filter((c) => sourceOf(c.measure) === column)
         .map((c) => {
           const suffix = `${PIVOT_SEPARATOR}${c.measure}`;
@@ -785,7 +795,18 @@ export class CubeApp {
               : values,
             visible: columnConfig(this.#config, c.name).hidden !== true,
           };
-        });
+        }),
+      ...[...new Set(cast.map((c) => c.measure))]
+        .filter((m) => sourceOf(m) === column
+          && totalsShown.has(pivotTotalColumn(m)))
+        .map((m) => ({
+          name: pivotTotalColumn(m),
+          label: (perColumn.get(column) ?? 1) > 1
+            ? `${totalLabel} \u00b7 ${m}`
+            : totalLabel,
+          visible: columnConfig(this.#config, pivotTotalColumn(m)).hidden !== true,
+        })),
+    ];
 
     // THE COLUMNS SECTION IS THE GRID'S COLUMNS, and the axes have
     // sections of their own now.
@@ -1283,6 +1304,10 @@ export class CubeApp {
               : (this.#view.rows.columns[leaf.index]?.values[abs] ?? null);
           value = raw as FilterValue | null;
         }
+        // A pivot TOTAL is not a column any query can filter on.
+        if (column !== undefined && isPivotTotalColumn(column)) {
+          value = undefined;
+        }
         if (column !== undefined) {
           columnType = rowColumns(this.#snapshot).find(
             (c) => c.name === column,
@@ -1308,6 +1333,9 @@ export class CubeApp {
           column !== undefined && this.#heatmapFor(column) !== undefined,
         canGroup: column === undefined || this.#isDimension(column),
         canEmail: this.#options.email !== undefined,
+        ...(column !== undefined && isPivotTotalColumn(column)
+          ? { pivotTotal: true }
+          : {}),
         ...(column !== undefined && this.#kindOf(column) !== undefined
           ? { extendable: true }
           : {}),

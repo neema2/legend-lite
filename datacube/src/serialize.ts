@@ -962,3 +962,126 @@ export function serialize(
 
   return parts.join('->');
 }
+
+/**
+ * The PIVOT TOTAL for one level: the level's own query with the pivot
+ * key dropped.
+ *
+ * A row's total is its measure over the row's whole slice -- every
+ * value of the pivot at once -- which is exactly what the unpivoted
+ * query for the same level computes. So it comes from the database and
+ * is right for every aggregate: an average of the slice, not a sum of
+ * the pivot's averages; a count of rows, not of cells.
+ *
+ * Each measure takes its own aggregate unless its column configures a
+ * different one for the total (upstream's
+ * `pivotStatisticColumnFunction`).
+ *
+ * The rows it must cover are the pivot query's rows, and the two
+ * queries may order differently (a sort on a pivot column exists only
+ * in one of them), so it is never capped: `keys`, when given, names
+ * the groups to fetch instead -- the pivot level's own, for a level
+ * that was truncated. Group-stage calculated columns and sorts are
+ * dropped: they may name pivot columns this query does not produce,
+ * and the result is joined by key, not by position.
+ *
+ * Returns null when the cube has no pivot or no total.
+ */
+export function pivotTotalQuery(
+  snapshot: CubeSnapshot,
+  scope: LevelScope | undefined,
+  keys?: readonly string[],
+): { readonly pure: string; readonly measures: readonly string[] } | null {
+  const total = snapshot.pivotTotal;
+  if (total === undefined || snapshot.pivotOn.length === 0) return null;
+  const excluded = new Set(
+    snapshot.columns.filter((c) => c.excludedFromPivot).map((c) => c.name),
+  );
+  if (snapshot.pivotOn.every((c) => excluded.has(c))) return null;
+
+  const functions = total.functions ?? {};
+  const retarget = (m: Measure): Measure => {
+    const fn = functions[m.column] ?? m.fn;
+    const { weight: _w, ...rest } = m;
+    return fn === 'wavg' && m.weight !== undefined
+      ? { ...rest, fn, weight: m.weight }
+      : { ...rest, fn };
+  };
+  // The same measures the pivot spreads: the configured ones, or the
+  // measure-kind columns the pivot synthesises when none are.
+  const isOn = new Set(snapshot.pivotOn);
+  const specOf = columnSpecs(snapshot);
+  const pivoted: Measure[] = snapshot.measures.length > 0
+    ? [...snapshot.measures]
+    : rowColumns(snapshot)
+      .filter((c) => !isOn.has(c.name) && !excluded.has(c.name)
+        && c.kind === 'measure')
+      .map((c) => defaultMeasure(c.name, specOf.get(c.name), 'sum'));
+  if (pivoted.length === 0) return null;
+
+  const conditions: FilterNode[] = [];
+  if (snapshot.filter) conditions.push(snapshot.filter);
+  // Pinned pivot values pre-filter the pivot's source; the total must
+  // add up the same rows.
+  const on = snapshot.pivotOn[0];
+  if (snapshot.pivotValues && snapshot.pivotValues.length > 0
+    && snapshot.pivotOn.length === 1 && on !== undefined) {
+    conditions.push({
+      kind: 'or',
+      children: snapshot.pivotValues.map((value) => ({
+        kind: 'condition' as const, column: on, operator: 'equal' as const, value,
+      })),
+    });
+  }
+  const level = scope?.level ?? 0;
+  const groupColumn = level > 0 ? snapshot.rows[level - 1] : undefined;
+  if (keys !== undefined && groupColumn !== undefined) {
+    const typeOf = new Map(rowColumns(snapshot).map((c) => [c.name, c.type]));
+    conditions.push({
+      kind: 'or',
+      children: keys.map((key): FilterNode => (key === NULL_GROUP
+        ? { kind: 'condition', column: groupColumn, operator: 'isEmpty' }
+        : {
+            kind: 'condition',
+            column: groupColumn,
+            operator: 'equal',
+            value: keyValue(typeOf.get(groupColumn), key),
+          })),
+    });
+  }
+
+  const {
+    pivotValues: _v, pivotCast: _c, pivotTotal: _t, window: _win,
+    filter: _f, ...rest
+  } = snapshot;
+  // Only the group keys and what the measures read: every other source
+  // column would be aggregated for nothing (the grouped path keeps them
+  // because the grid shows them; the total shows only its measures).
+  // Filters and row-stage calculations run before the projection, so
+  // they still see every column.
+  const keep = new Set([
+    ...snapshot.rows,
+    ...pivoted.flatMap((m) => [m.column, ...(m.weight ? [m.weight] : [])]),
+  ]);
+  const unpivoted: CubeSnapshot = {
+    ...rest,
+    columns: snapshot.columns.filter((c) => keep.has(c.name)),
+    pivotOn: [],
+    measures: pivoted.map(retarget),
+    groupDerived: [],
+    sorts: [],
+    leafCount: false,
+    ...(conditions.length === 1
+      ? { filter: conditions[0]! }
+      : conditions.length > 1
+        ? { filter: { kind: 'and', children: conditions } }
+        : {}),
+  };
+  const levelScope = scope === undefined
+    ? undefined
+    : { level: scope.level, parent: scope.parent };
+  return {
+    pure: serialize(unpivoted, levelScope),
+    measures: pivoted.map((m) => m.name),
+  };
+}

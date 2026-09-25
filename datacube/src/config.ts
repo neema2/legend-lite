@@ -23,6 +23,7 @@ import type {
   ColumnKind,
   ColumnSpec,
   CubeSnapshot,
+  PivotTotal,
   SortDirection,
 } from './snapshot.ts';
 import type { CellAppearance, GridAppearance, HeatmapSpec } from './style.ts';
@@ -78,9 +79,11 @@ export interface ColumnConfiguration {
   readonly excludedFromPivot?: boolean;
   /** Direction this column's values take as pivot headers. */
   readonly pivotSortDirection?: SortDirection;
-  // No pivot statistic function: the pivot's total column does not
-  // exist yet, so the setting configured nothing (census §2). It
-  // returns with that column.
+  /**
+   * The aggregate this measure's PIVOT TOTAL uses -- upstream's
+   * `pivotStatisticColumnFunction`. Absent: the measure's own.
+   */
+  readonly pivotStatisticColumnFunction?: AggregateFn;
 
   readonly displayAsLink?: boolean;
   /** Query parameter whose value labels the link instead of the URL. */
@@ -152,8 +155,14 @@ export interface CubeConfiguration {
   readonly appearance: GridAppearance;
   readonly showSelectionStats: boolean;
 
-  // No pivot total column name, for the same reason as the function
-  // above.
+  /**
+   * The pivot total column (upstream's pivot statistic column): its
+   * header, and which edge of the pivot it sits on. Placement UNSET
+   * means no total, which is how upstream reads a specification that
+   * does not mention one; a new cube shows it on the right.
+   */
+  readonly pivotStatisticColumnName?: string;
+  readonly pivotStatisticColumnPlacement?: 'left' | 'right';
 
   // No grid mode: "Dimensional" was offered and read by nothing
   // (census §2). It returns with Essbase mode, which gives it a meaning.
@@ -251,6 +260,11 @@ export const DEFAULT_CONFIGURATION: CubeConfiguration = {
   treeColumnSort: 'asc',
   showTruncationWarning: true,
   showSelectionStats: false,
+  // Upstream leaves this unset, and renders no total whatever it says
+  // -- a bug by the user's ruling (2026-09-25). A pivot reads across a
+  // row, and the first question about a row is its total.
+  pivotStatisticColumnName: 'Total',
+  pivotStatisticColumnPlacement: 'right',
   appearance: {
     showHorizontalGridLines: false,
     showVerticalGridLines: true,
@@ -397,6 +411,8 @@ export interface ColumnLayoutProjection {
   links?: Record<string, string>;
   /** Keep a row dimension as a data column as well as in the tree. */
   keepGrouped?: boolean;
+  /** The pivot total columns' header and edge. */
+  pivotTotal?: { label: string; placement: 'left' | 'right' };
 }
 
 /**
@@ -445,6 +461,12 @@ export function toColumnLayout(
   if (Object.keys(maxWidths).length) out.maxWidths = maxWidths;
   if (Object.keys(pinned).length) out.pinned = pinned;
   if (Object.keys(displayNames).length) out.displayNames = displayNames;
+  if (config.pivotStatisticColumnPlacement !== undefined) {
+    out.pivotTotal = {
+      label: config.pivotStatisticColumnName ?? 'Total',
+      placement: config.pivotStatisticColumnPlacement,
+    };
+  }
   return out;
 }
 
@@ -503,7 +525,8 @@ export function applyToSnapshot(
     ...withoutAggregate(d),
     ...aggregateOf(columnConfig(config, d.name)),
   }));
-  const { maxRows: _previousLimit, ...unlimited } = snapshot;
+  const { maxRows: _previousLimit, pivotTotal: _previousTotal, ...unlimited }
+    = snapshot;
   return {
     ...unlimited,
     ...(config.maxRows !== undefined ? { maxRows: config.maxRows } : {}),
@@ -511,6 +534,7 @@ export function applyToSnapshot(
     // Clear it as well as set it, so unticking the box takes the count
     // back out of the query.
     ...(config.showLeafCount ? { leafCount: true } : { leafCount: false }),
+    ...pivotTotalOf(config),
     columns,
     derived,
     treeColumnSort: config.treeColumnSort,
@@ -536,6 +560,16 @@ export function fromSnapshot(
     ...(limit !== undefined ? { maxRows: limit } : {}),
     treeColumnSort: snapshot.treeColumnSort ?? base.treeColumnSort,
   };
+  // The pivot total, when the snapshot carries one. A snapshot without
+  // it leaves the base's setting alone rather than switching it off:
+  // most snapshots predate the field.
+  const total = snapshot.pivotTotal;
+  if (total) {
+    config = { ...config, pivotStatisticColumnPlacement: total.placement };
+    for (const [name, fn] of Object.entries(total.functions ?? {})) {
+      config = withColumn(config, name, { pivotStatisticColumnFunction: fn });
+    }
+  }
   for (const spec of snapshot.columns) {
     const patch: ColumnConfiguration = {
       ...(spec.kind !== undefined ? { kind: spec.kind } : {}),
@@ -553,6 +587,27 @@ export function fromSnapshot(
     if (Object.keys(patch).length > 0) config = withColumn(config, d.name, patch);
   }
   return config;
+}
+
+/**
+ * The pivot total, as the query reads it: where it sits and, per
+ * measure column, the aggregate its total takes.
+ */
+function pivotTotalOf(config: CubeConfiguration): { pivotTotal?: PivotTotal } {
+  const placement = config.pivotStatisticColumnPlacement;
+  if (placement === undefined) return {};
+  const functions: Record<string, AggregateFn> = {};
+  for (const [name, c] of Object.entries(config.columns)) {
+    if (c.pivotStatisticColumnFunction !== undefined) {
+      functions[name] = c.pivotStatisticColumnFunction;
+    }
+  }
+  return {
+    pivotTotal: {
+      placement,
+      ...(Object.keys(functions).length > 0 ? { functions } : {}),
+    },
+  };
 }
 
 /**

@@ -85,6 +85,12 @@ export interface MenuContext {
    */
   readonly canEmail?: boolean;
   /**
+   * The column is a pivot TOTAL. It exists only in the grid -- joined
+   * in from a second query -- so no query can sort, filter or pivot
+   * by it.
+   */
+  readonly pivotTotal?: boolean;
+  /**
    * The value in the cell that was right-clicked, if any.
    *
    * This is what turns the Filter submenu from a door to a dialog
@@ -347,7 +353,10 @@ function filterItem(
  * separated blocks their menu draws rules between.
  */
 export function buildMenu(ctx: MenuContext): MenuGroup[] {
-  const { snapshot: s, column } = ctx;
+  const { snapshot: s } = ctx;
+  // A pivot total offers the column-free entries only: nothing the
+  // query can do is ABOUT a column no query produces.
+  const column = ctx.pivotTotal ? undefined : ctx.column;
   const groups: MenuGroup[] = [];
   const push = (label: string, items: (MenuItem | null)[]): void => {
     const present = items.filter((i): i is MenuItem => i !== null);

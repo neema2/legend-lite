@@ -301,6 +301,39 @@ export const generalPropertiesPanel: PanelBuilder = (ctx) => {
     ),
   );
 
+  // THE PIVOT TOTAL: where it sits, and what its header says. Upstream
+  // stores both and draws nothing (a bug, by the user's ruling); the
+  // column exists here, so the settings have somewhere to live.
+  const total = section(
+    doc,
+    'Pivot Total',
+    field(
+      doc,
+      'Placement:',
+      dropdown(
+        doc,
+        c.pivotStatisticColumnPlacement,
+        [
+          { value: 'left' as const, label: 'Left of the pivot' },
+          { value: 'right' as const, label: 'Right of the pivot' },
+        ],
+        (pivotStatisticColumnPlacement) =>
+          setConfig({ pivotStatisticColumnPlacement }),
+        { allowNone: true, width: 190 },
+      ),
+    ),
+    field(
+      doc,
+      'Column Name:',
+      textInput(
+        doc,
+        c.pivotStatisticColumnName,
+        (pivotStatisticColumnName) => setConfig({ pivotStatisticColumnName }),
+        { placeholder: 'Total', width: 180 },
+      ),
+    ),
+  );
+
   const a = appearance();
   const lines = section(
     doc,
@@ -417,6 +450,7 @@ export const generalPropertiesPanel: PanelBuilder = (ctx) => {
     title,
     tree,
     rows,
+    total,
     lines,
     highlight,
     font,
