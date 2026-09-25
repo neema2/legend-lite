@@ -1,5 +1,12 @@
 # DataCube feature census — 2026-09-25
 
+> **Superseded as the gap list by [`UPSTREAM_CENSUS.md`](UPSTREAM_CENSUS.md)**
+> (the full file-by-file pass over every upstream package). This file
+> keeps the fix history. Two claims here were wrong: upstream renders NO
+> pivot total column (the statistic fields are configuration only -- an
+> upstream BUG by user ruling; ours must ship the column), and
+> upstream Email needs no host (it downloads an `.eml`).
+
 What upstream Legend DataCube has, what ours has, and what stands between
 ours and a shippable product. Every row carries its evidence; nothing
 here is from memory.
