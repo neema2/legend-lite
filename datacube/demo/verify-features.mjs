@@ -461,13 +461,23 @@ async function freshCube() {
   await page.goto(`${URL_BASE}/demo/index.html`);
   await page.waitForSelector('.dc-row', { timeout: 90_000 });
   if (!DATA) return;
+  // THE FILE'S answer, not the built-in cube's. The built-in cube's
+  // status line already reads "… rows …", so waiting for /rows/ alone
+  // passed before the file had loaded -- and on a slow run the checks
+  // read a grid mid-swap: "0 rows, 0 headers", the whole sweep red for
+  // a page that was fine (2026-09-25). Wait for the line to CHANGE,
+  // and for rows to be on screen.
+  const before = await statusNow();
   await page.setInputFiles('input[type=file]', DATA);
   await page.waitForFunction(
-    () => /rows/.test(
-      document.querySelector('.dc-status-timing')?.textContent ?? '')
-      || /could not|error/i.test(
-        document.getElementById('status')?.textContent ?? ''),
-    undefined, { timeout: 90_000 },
+    (was) => {
+      const line = document.querySelector('.dc-status-timing')?.textContent ?? '';
+      return (line !== was && /rows/.test(line)
+        && document.querySelectorAll('.dc-row').length > 0)
+        || /could not|error/i.test(
+          document.getElementById('status')?.textContent ?? '');
+    },
+    before, { timeout: 90_000 },
   );
   await settle();
 }

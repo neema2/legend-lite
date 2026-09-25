@@ -78,16 +78,14 @@ export interface ColumnConfiguration {
   readonly excludedFromPivot?: boolean;
   /** Direction this column's values take as pivot headers. */
   readonly pivotSortDirection?: SortDirection;
-  /** Aggregate used for this column's pivot statistic (total) column. */
-  readonly pivotStatisticColumnFunction?: AggregateFn;
+  // No pivot statistic function: the pivot's total column does not
+  // exist yet, so the setting configured nothing (census §2). It
+  // returns with that column.
 
   readonly displayAsLink?: boolean;
   /** Query parameter whose value labels the link instead of the URL. */
   readonly linkLabelParameter?: string;
 }
-
-/** The grid mode: the ordinary cube, or the dimensional tree. */
-export type GridMode = 'standard' | 'dimensional';
 
 export interface CubeConfiguration {
   readonly reportTitle?: string;
@@ -148,10 +146,11 @@ export interface CubeConfiguration {
   readonly appearance: GridAppearance;
   readonly showSelectionStats: boolean;
 
-  // --- pivot ---
-  readonly pivotStatisticColumnName?: string;
+  // No pivot total column name, for the same reason as the function
+  // above.
 
-  readonly gridMode: GridMode;
+  // No grid mode: "Dimensional" was offered and read by nothing
+  // (census §2). It returns with Essbase mode, which gives it a meaning.
 
   /** Per column, by column name. */
   readonly columns: Readonly<Record<string, ColumnConfiguration>>;
@@ -247,7 +246,6 @@ export const DEFAULT_CONFIGURATION: CubeConfiguration = {
   maxRows: DEFAULT_MAX_ROWS,
   showTruncationWarning: true,
   showSelectionStats: false,
-  gridMode: 'standard',
   appearance: {
     showHorizontalGridLines: false,
     showVerticalGridLines: true,
@@ -390,9 +388,17 @@ export interface ColumnLayoutProjection {
   pinned?: Record<string, PinPlacement>;
   displayNames?: Record<string, string>;
   blurred?: readonly string[];
+  /** Columns shown as links: name -> the URL parameter naming the label. */
+  links?: Record<string, string>;
   /** Keep a row dimension as a data column as well as in the tree. */
   keepGrouped?: boolean;
 }
+
+/**
+ * The URL parameter a link's label is read from when a column does not
+ * name one: upstream's DEFAULT_URL_LABEL_QUERY_PARAM.
+ */
+export const DEFAULT_LINK_LABEL_PARAMETER = 'dataCube.linkLabel';
 
 /** The `ColumnLayout` the grid's column model wants. */
 export function toColumnLayout(
@@ -405,11 +411,16 @@ export function toColumnLayout(
   const maxWidths: Record<string, number> = {};
   const pinned: Record<string, PinPlacement> = {};
   const displayNames: Record<string, string> = {};
+  const links: Record<string, string> = {};
   const keepGrouped = config.showGroupedColumns;
 
   for (const [name, c] of Object.entries(config.columns)) {
     if (c.hidden) hidden.push(name);
     if (c.blurred) blurred.push(name);
+    // Upstream's DEFAULT_URL_LABEL_QUERY_PARAM when none is given.
+    if (c.displayAsLink) {
+      links[name] = c.linkLabelParameter ?? DEFAULT_LINK_LABEL_PARAMETER;
+    }
     if (c.pinned) pinned[name] = c.pinned;
     if (c.displayName !== undefined) displayNames[name] = c.displayName;
     const w = resolvedWidths(c);
@@ -423,6 +434,7 @@ export function toColumnLayout(
   if (config.columnOrder) out.order = config.columnOrder;
   if (hidden.length) out.hidden = hidden;
   if (blurred.length) out.blurred = blurred;
+  if (Object.keys(links).length) out.links = links;
   if (Object.keys(widths).length) out.widths = widths;
   if (Object.keys(minWidths).length) out.minWidths = minWidths;
   if (Object.keys(maxWidths).length) out.maxWidths = maxWidths;
@@ -471,18 +483,29 @@ export function applyToSnapshot(
   const columns: ColumnSpec[] = snapshot.columns.map((spec) => {
     const c = columnConfig(config, spec.name);
     const next: ColumnSpec = {
-      ...spec,
+      ...withoutAggregate(spec),
       ...(c.kind !== undefined ? { kind: c.kind } : {}),
       ...(c.excludedFromPivot !== undefined
         ? { excludedFromPivot: c.excludedFromPivot }
         : {}),
+      ...aggregateOf(c),
     };
     return next;
   });
+  // A calculated column aggregates like any other: the same Column
+  // Properties setting, carried onto the column the query reads.
+  const derived = snapshot.derived.map((d) => ({
+    ...withoutAggregate(d),
+    ...aggregateOf(columnConfig(config, d.name)),
+  }));
   return {
     ...snapshot,
     ...(config.showGroupedColumns ? { keepGroupedColumns: true } : {}),
+    // Clear it as well as set it, so unticking the box takes the count
+    // back out of the query.
+    ...(config.showLeafCount ? { leafCount: true } : { leafCount: false }),
     columns,
+    derived,
     maxRows: config.maxRows,
     treeColumnSort: config.treeColumnSort,
   };
@@ -512,12 +535,61 @@ export function fromSnapshot(
       ...(spec.excludedFromPivot !== undefined
         ? { excludedFromPivot: spec.excludedFromPivot }
         : {}),
+      ...aggregateBack(spec),
     };
     if (Object.keys(patch).length > 0) {
       config = withColumn(config, spec.name, patch);
     }
   }
+  for (const d of snapshot.derived) {
+    const patch = aggregateBack(d);
+    if (Object.keys(patch).length > 0) config = withColumn(config, d.name, patch);
+  }
   return config;
+}
+
+/**
+ * Column Properties > Aggregation, as the query reads it.
+ *
+ * The weight rides only with `wavg`, the one aggregate that takes a
+ * parameter; kept on any other it would be a setting the query
+ * silently ignores.
+ */
+function aggregateOf(
+  c: ColumnConfiguration,
+): { aggregate?: AggregateFn; aggregateWeight?: string } {
+  if (c.aggregateFn === undefined) return {};
+  const weight = c.aggregationParameters?.[0];
+  return {
+    aggregate: c.aggregateFn,
+    ...(c.aggregateFn === 'wavg' && weight !== undefined
+      ? { aggregateWeight: weight }
+      : {}),
+  };
+}
+
+/** The inverse of `aggregateOf`, for `fromSnapshot`. */
+function aggregateBack(
+  c: { aggregate?: AggregateFn; aggregateWeight?: string },
+): ColumnConfiguration {
+  if (c.aggregate === undefined) return {};
+  return {
+    aggregateFn: c.aggregate,
+    ...(c.aggregateWeight !== undefined
+      ? { aggregationParameters: [c.aggregateWeight] }
+      : {}),
+  };
+}
+
+/**
+ * A column with its aggregate taken OFF, so the configuration is the
+ * only source of it: clearing Aggregation in the panel must clear it
+ * on the snapshot too, not leave the last choice behind.
+ */
+function withoutAggregate<T extends { aggregate?: AggregateFn;
+  aggregateWeight?: string }>(c: T): T {
+  const { aggregate: _a, aggregateWeight: _w, ...rest } = c;
+  return rest as T;
 }
 
 /** The header text for a column: its display name, or its name. */

@@ -102,6 +102,21 @@ against the lip.
 
 ## 2. Controls that do nothing
 
+> **Update 2026-09-25 — CLOSED.** Wired: Aggregation + its weight
+> (grouping, pivot, calculated columns, read back into the editor),
+> Initially expand to level (upstream's open-by-default, a user's
+> close sticks, and a host's startup configuration now applies),
+> Display as link + label parameter (http/https only). Found by the
+> new guardrail and wired: **Show leaf count** ("EMEA (1234)", not yet
+> under a column pivot). Removed until their feature exists: grid mode
+> (returns with Essbase mode) and the pivot total name/function (our
+> pivot has no total column — a feature, with an open decision:
+> upstream applies a function ACROSS the row's pivot cells client-side;
+> our subtotals are the measure with the key dropped, in the database;
+> they differ for average and count). Guardrail:
+> `test/config-readers.test.ts` fails when a configuration field has no
+> reader outside the panels that write it.
+
 Found by listing every `CubeConfiguration` field and its readers outside
 `config.ts` and the editor panels, then reading `applyToSnapshot`
 (`config.ts:467`) — the one place configuration reaches the query. It

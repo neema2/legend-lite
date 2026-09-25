@@ -21,6 +21,7 @@
 
 import {
   CubeRefusal,
+  LEAF_COUNT_COLUMN,
   columnType,
   isNumericType,
   referencedColumns,
@@ -463,11 +464,16 @@ function isDetail(s: CubeSnapshot): boolean {
  * Source columns win a name collision, which cannot happen anyway --
  * `nameProblem` refuses it in the editor.
  */
-function columnSpecs(
-  s: CubeSnapshot,
-): Map<string, { name: string; type?: string; kind?: ColumnKind }> {
-  const out = new Map<string,
-    { name: string; type?: string; kind?: ColumnKind }>();
+interface SpecLike {
+  readonly name: string;
+  readonly type?: string;
+  readonly kind?: ColumnKind;
+  readonly aggregate?: AggregateFn;
+  readonly aggregateWeight?: string;
+}
+
+function columnSpecs(s: CubeSnapshot): Map<string, SpecLike> {
+  const out = new Map<string, SpecLike>();
   for (const d of [...s.derived, ...(s.groupDerived ?? [])]) {
     // The DECLARED kind wins over the type, exactly as it does for a
     // source column: `kindOf` reads an explicit kind first, and a
@@ -477,10 +483,34 @@ function columnSpecs(
       name: d.name,
       ...(d.type === undefined ? {} : { type: d.type }),
       ...(d.kind === undefined ? {} : { kind: d.kind }),
+      ...(d.aggregate === undefined ? {} : { aggregate: d.aggregate }),
+      ...(d.aggregateWeight === undefined
+        ? {}
+        : { aggregateWeight: d.aggregateWeight }),
     });
   }
   for (const c of s.columns) out.set(c.name, c);
   return out;
+}
+
+/**
+ * The aggregate a column takes when nothing configured a MEASURE for
+ * it: Column Properties > Aggregation when set (census §2 -- the
+ * dropdown reached no query before), else the kind's default.
+ */
+function defaultMeasure(
+  name: string,
+  spec: SpecLike | undefined,
+  fallback: AggregateFn,
+): Measure {
+  return {
+    name,
+    column: name,
+    fn: spec?.aggregate ?? fallback,
+    ...(spec?.aggregateWeight !== undefined
+      ? { weight: spec.aggregateWeight }
+      : {}),
+  };
 }
 
 /**
@@ -691,11 +721,13 @@ export function serialize(
       // An explicit kind wins over the type it is carried in.
       const measures = spec?.kind === 'measure'
         || (isNumericType(spec?.type) && spec?.kind === undefined);
-      specs.push(aggregateSpec(configured ?? {
-        name,
-        column: name,
-        fn: measures ? 'sum' : 'unique',
-      }));
+      specs.push(aggregateSpec(configured
+        ?? defaultMeasure(name, spec, measures ? 'sum' : 'unique')));
+    }
+    // "Show leaf count": the rows under each group, beside its label.
+    // Only where there IS a group -- the grand total has no label.
+    if (snapshot.leafCount === true && keys.length > 0) {
+      specs.push(`${ident(LEAF_COUNT_COLUMN)}:x|1:y|$y->count()`);
     }
     return specs.length > 0
       ? specs.join(', ')
@@ -758,7 +790,7 @@ export function serialize(
       const isMeasure = spec?.kind === 'measure'
         || (isNumericType(spec?.type) && spec?.kind === undefined);
       if (!isMeasure) continue;
-      specs.push(aggregateSpec({ name, column: name, fn: 'sum' }));
+      specs.push(aggregateSpec(defaultMeasure(name, spec, 'sum')));
     }
     return specs.length > 0
       ? specs.join(', ')
@@ -830,13 +862,18 @@ export function serialize(
       parts.push(`cast(@Relation<(${decls.join(', ')})>)`);
 
       const outer: string[] = [];
+      const specOfMeasure = columnSpecs(snapshot);
       for (const c of cast) {
-        const base = byMeasure.get(c.measure);
+        const base = byMeasure.get(c.measure)
+          // A pivot result re-applies its measure's OWN aggregate, as
+          // upstream's `_groupByAggCols` does -- configured in Column
+          // Properties when there is no explicit measure.
+          ?? defaultMeasure(c.measure, specOfMeasure.get(c.measure), 'sum');
         outer.push(aggregateSpec({
           name: c.name,
           column: c.name,
-          fn: base?.fn ?? 'sum',
-          ...(base?.weight ? { weight: base.weight } : {}),
+          fn: base.fn,
+          ...(base.weight ? { weight: base.weight } : {}),
         }));
       }
       for (const name of carried()) {

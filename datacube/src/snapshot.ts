@@ -41,6 +41,13 @@ export class CubeRefusal extends Error {
 
 export type ColumnKind = 'dimension' | 'measure';
 
+/**
+ * The leaf count's column in a group query's result ("Show leaf
+ * count"). Internal, like the tree column's `__tree`: `assemble` folds
+ * it into the group's label and never shows it as a column.
+ */
+export const LEAF_COUNT_COLUMN = '__leafCount';
+
 /** A column available from the source, with the type the engine reports. */
 export interface ColumnSpec {
   readonly name: string;
@@ -53,6 +60,14 @@ export interface ColumnSpec {
    * otherwise be carried into it.
    */
   readonly excludedFromPivot?: boolean;
+  /**
+   * The aggregate this column takes when the cube groups or pivots
+   * it -- Column Properties > Aggregation. Absent: the kind decides
+   * (a measure sums, a dimension takes its unique value), as before.
+   */
+  readonly aggregate?: AggregateFn;
+  /** The weight column, for `wavg` only. */
+  readonly aggregateWeight?: string;
 }
 
 /**
@@ -252,6 +267,9 @@ export interface DerivedColumn {
    * saved before this field existed still behaves as it did.
    */
   readonly kind?: ColumnKind;
+  /** As on `ColumnSpec`: Column Properties > Aggregation. */
+  readonly aggregate?: AggregateFn;
+  readonly aggregateWeight?: string;
 }
 
 export type SortDirection = 'asc' | 'desc';
@@ -412,6 +430,13 @@ export interface CubeSnapshot {
    * snapshot. `treeColumnSort` reaches it the same way.
    */
   readonly keepGroupedColumns?: boolean;
+  /**
+   * Count the rows under each group and show it beside the group's
+   * label -- General Properties > "Show leaf count", upstream's
+   * `suppressCount: !showLeafCount` over a count aggregate its group
+   * queries carry. It changes the query, which is why it lives here.
+   */
+  readonly leafCount?: boolean;
   readonly measures: readonly Measure[];
   readonly sorts: readonly SortSpec[];
   readonly window?: RowWindow;

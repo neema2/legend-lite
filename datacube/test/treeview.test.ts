@@ -5,7 +5,7 @@ import { after, before, describe, it } from 'node:test';
 
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import type { ResultTable } from '../src/result.ts';
-import type { CubeSnapshot } from '../src/snapshot.ts';
+import { LEAF_COUNT_COLUMN, type CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState, flattenTree, requestKey } from '../src/tree.ts';
 import type { LevelData } from '../src/treeview.ts';
 import {
@@ -13,7 +13,7 @@ import {
   TREE_COLUMN,
   assemble,
 } from '../src/treeview.ts';
-import { NULL_GROUP } from '../src/serialize.ts';
+import { NULL_GROUP, serialize } from '../src/serialize.ts';
 
 const SNAPSHOT: CubeSnapshot = {
   source: { expression: 'trades' },
@@ -449,5 +449,55 @@ describe('subtotals against a real engine', () => {
     }
     assert.equal(num(grand, 0), sum);
     assert.equal(num(grand, 0), 5000);
+  });
+});
+
+describe('Show leaf count', () => {
+  // General Properties > "Show leaf count" was written to the
+  // configuration and read by nothing (the no-reader guardrail found
+  // it). Upstream's group queries carry a count and the group cell
+  // shows it beside the label.
+  const FLAT: CubeSnapshot = {
+    source: { expression: 'trades' },
+    columns: [
+      { name: 'region', type: 'String' },
+      { name: 'notional', type: 'Float' },
+    ],
+    derived: [],
+    rows: ['region'],
+    pivotOn: [],
+    measures: [],
+    sorts: [],
+    epoch: 1,
+    leafCount: true,
+  };
+
+  it('a grouped level counts its rows; the grand total does not', () => {
+    const q1 = serialize(FLAT, { level: 1, parent: [] });
+    assert.match(q1, /__leafCount:x\|1:y\|\$y->count\(\)/);
+    const q0 = serialize(FLAT, { level: 0, parent: [] });
+    assert.doesNotMatch(q0, /__leafCount/);
+    assert.doesNotMatch(serialize({ ...FLAT, leafCount: false },
+      { level: 1, parent: [] }), /__leafCount/);
+  });
+
+  it('shows the count on the label, never as a column', () => {
+    const levels = new Map<string, LevelData>();
+    levels.set(requestKey({ level: 1, parent: [] }), {
+      request: { level: 1, parent: [] },
+      table: table([
+        { name: 'region', values: ['AMER', 'EMEA'] },
+        { name: 'notional', values: [10, 20] },
+        { name: LEAF_COUNT_COLUMN, values: [3, 1234] },
+      ]),
+      paths: [['AMER'], ['EMEA']],
+      truncated: false,
+    });
+    const rows = flattenTree(TreeState.empty(), 1, (p) =>
+      levels.get(requestKey({ level: p.length + 1, parent: p }))?.paths);
+    const t = assemble(FLAT, rows, levels);
+    assert.deepEqual(t.columns.find((c) => c.name === TREE_COLUMN)?.values,
+      ['AMER (3)', 'EMEA (1234)']);
+    assert.equal(t.columns.some((c) => c.name === LEAF_COUNT_COLUMN), false);
   });
 });

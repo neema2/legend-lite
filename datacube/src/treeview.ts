@@ -15,7 +15,7 @@ import type { EpochGuard } from './epoch.ts';
 import type { QueryRunner } from './runner.ts';
 import { NULL_GROUP, serialize } from './serialize.ts';
 import type { ResultColumn, ResultTable, Scalar } from './result.ts';
-import type { CubeSnapshot } from './snapshot.ts';
+import { LEAF_COUNT_COLUMN, type CubeSnapshot } from './snapshot.ts';
 import {
   type LevelRequest,
   type RowPath,
@@ -298,12 +298,25 @@ export function assemble(
     if (index >= 0) source.set(i, { data, index });
   });
 
-  const labelOf = (row: TreeRow): Scalar => {
+  // "Show leaf count": the count each group query carried, read by
+  // display row, and rendered after the label as upstream's group cell
+  // does -- `EMEA (1234)`.
+  const countOf = (i: number): Scalar => {
+    const hit = source.get(i);
+    const col = hit?.data.table.columns.find((c) => c.name === LEAF_COUNT_COLUMN);
+    return hit && col ? (col.values[hit.index] ?? null) : null;
+  };
+  const counted = (label: Scalar, i: number): Scalar => {
+    const n = countOf(i);
+    return n === null || label === null ? label : `${String(label)} (${String(n)})`;
+  };
+
+  const labelOf = (row: TreeRow, i: number): Scalar => {
     if (row.level === 0) return totalsLabel;
     const own = row.path[row.path.length - 1];
     // A group whose key is SQL NULL has no label of its own; showing
     // the sentinel would leak an internal string into the grid.
-    return own === undefined || own === NULL_GROUP ? null : own;
+    return counted(own === undefined || own === NULL_GROUP ? null : own, i);
   };
 
   /**
@@ -342,7 +355,7 @@ export function assemble(
             // dimension's value at every level, so it has no single
             // type. DataCube marks its own tree column the same way.
             type: 'Any',
-            values: rows.map(labelOf),
+            values: rows.map((row, i) => labelOf(row, i)),
           },
         ]
       : dims.map((name, d) => ({
@@ -355,9 +368,9 @@ export function assemble(
           // The grand total has no dimension value at all, so it takes
           // its label in the first column rather than rendering as a
           // blank row of numbers.
-          values: rows.map((row) => {
+          values: rows.map((row, i) => {
             if (row.level === 0) return d === 0 ? totalsLabel : null;
-            return row.level === d + 1 ? (row.path[d] ?? null) : null;
+            return row.level === d + 1 ? counted(row.path[d] ?? null, i) : null;
           }),
         }));
 
@@ -368,7 +381,8 @@ export function assemble(
   // name, one blank, is worse than either alone.
   const kept = new Set(keptDims.map((c) => c.name));
   const valueColumns: ResultColumn[] = valueNames
-    .filter((name) => !kept.has(name))
+    // The leaf count is part of the label, not a column of its own.
+    .filter((name) => !kept.has(name) && name !== LEAF_COUNT_COLUMN)
     .map((name) => ({
     name,
     type: valueTypes.get(name) ?? 'Unknown',

@@ -314,18 +314,6 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
         { allowNone: true, width: 140 },
       ),
     ),
-    field(
-      doc,
-      'Pivot statistic function:',
-      dropdown(
-        doc,
-        c.pivotStatisticColumnFunction,
-        AGGREGATES,
-        (pivotStatisticColumnFunction) =>
-          patch({ pivotStatisticColumnFunction }),
-        { allowNone: true, width: 200 },
-      ),
-    ),
   );
 
   const format = c.format ?? { kind: 'auto' };

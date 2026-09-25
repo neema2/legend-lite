@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
   TREE_COLUMN,
   buildColumnModel,
+  linkFor,
   type ColumnModel,
   splitPath,
   valueColumns,
@@ -666,6 +667,15 @@ describe('buildColumnModel', () => {
     assert.equal(m.leaves[0]?.blurred, true);
   });
 
+  it('marks a column a LINK, with the parameter its label comes from', () => {
+    // Column Properties > "Display as link" reached no cell before
+    // (census §2).
+    const m = buildColumnModel(table(['doc']), [], [], {
+      links: { doc: 'dataCube.linkLabel' },
+    });
+    assert.equal(m.leaves[0]?.linkLabelParameter, 'dataCube.linkLabel');
+  });
+
   it('separates dimensions from value columns', () => {
     const m = buildColumnModel(
       table(['region', '2023__|__total']),
@@ -675,5 +685,25 @@ describe('buildColumnModel', () => {
       valueColumns(m).map((l) => l.name),
       ['2023__|__total'],
     );
+  });
+});
+
+describe('linkFor: what a "display as link" cell shows', () => {
+  it('a URL, labelled by its own label parameter when it has one', () => {
+    assert.deepEqual(
+      linkFor('https://x.io/r?id=7&dataCube.linkLabel=Report%207',
+        'dataCube.linkLabel'),
+      { href: 'https://x.io/r?id=7&dataCube.linkLabel=Report%207',
+        label: 'Report 7' },
+    );
+    assert.deepEqual(linkFor('http://x.io/a', 'dataCube.linkLabel'),
+      { href: 'http://x.io/a', label: 'http://x.io/a' });
+  });
+
+  it('plain text for anything that is not an http(s) URL', () => {
+    for (const v of ['not a url', 'javascript:alert(1)',
+      'data:text/html,x', 42, null]) {
+      assert.equal(linkFor(v, 'dataCube.linkLabel'), null, String(v));
+    }
   });
 });

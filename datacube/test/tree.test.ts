@@ -222,3 +222,44 @@ describe('flattenTree', () => {
     assert.deepEqual(rows.map((r) => rowLabel(r)), ['Total', 'EMEA', 'AMER', 'FX']);
   });
 });
+
+describe('Initially expand to level', () => {
+  // General Properties > "Initially expand to level" was written to the
+  // configuration and read by nothing (census §2). Upstream opens a
+  // group whose level is within the setting as it loads
+  // (isServerSideGroupOpenByDefault); a close by the user sticks.
+  const two = (parent: RowPath): readonly RowPath[] | undefined =>
+    parent.length === 0 ? [['EMEA'], ['APAC']]
+      : parent.length === 1 ? [[...parent, 'FX'], [...parent, 'Rates']]
+        : undefined;
+
+  it('opens every group at or above the level, and none below', () => {
+    const t = TreeState.empty().withExpandTo(1);
+    assert.equal(t.isOpen(['EMEA']), true);
+    assert.equal(t.isOpen(['EMEA', 'FX']), false);
+    assert.deepEqual(
+      requiredLevels(t, 3, two).map((r) => `${r.level}:${r.parent.join('/')}`),
+      ['1:', '2:EMEA', '2:APAC'],
+    );
+  });
+
+  it('a group the user closes stays closed, and reopens on request', () => {
+    const closed = TreeState.empty().withExpandTo(1).collapse(['EMEA']);
+    assert.equal(closed.isOpen(['EMEA']), false);
+    assert.equal(closed.isOpen(['APAC']), true);
+    assert.equal(closed.expand(['EMEA']).isOpen(['EMEA']), true);
+  });
+
+  it('a new level keeps what the user opened and forgets old closes', () => {
+    const t = TreeState.empty().withExpandTo(1)
+      .collapse(['EMEA']).expand(['APAC', 'FX']).withExpandTo(2);
+    assert.equal(t.isOpen(['EMEA']), true);
+    assert.equal(t.isOpen(['APAC', 'FX']), true);
+  });
+
+  it('Collapse All closes the level too', () => {
+    const t = TreeState.empty().withExpandTo(2).collapseAll();
+    assert.equal(t.isOpen(['EMEA']), false);
+    assert.equal(t.expandTo, 0);
+  });
+});

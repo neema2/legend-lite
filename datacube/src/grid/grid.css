@@ -733,3 +733,9 @@
 .dc-th.dc-pivot-group-4 {
   background: linear-gradient(#fef08a, #fefce8);
 }
+
+/* "Display as link": upstream's LinkRenderer, `text-blue-600 underline`. */
+.dc-cell .dc-link {
+  color: var(--tw-blue-600, #2563eb);
+  text-decoration: underline;
+}

@@ -86,10 +86,26 @@ export function requestKey(r: LevelRequest): string {
 export class TreeState {
   readonly #open: ReadonlySet<string>;
   readonly #showTotals: boolean;
+  /**
+   * Groups at this depth or shallower are open unless the user closed
+   * them: General Properties > "Initially expand to level", upstream's
+   * `isServerSideGroupOpenByDefault` (a group whose level is within
+   * `initialExpandLevel` opens when it loads). 0 opens nothing.
+   */
+  readonly #expandTo: number;
+  /** Groups the user closed that `#expandTo` would otherwise open. */
+  readonly #closed: ReadonlySet<string>;
 
-  private constructor(open: ReadonlySet<string>, showTotals: boolean) {
+  private constructor(
+    open: ReadonlySet<string>,
+    showTotals: boolean,
+    expandTo = 0,
+    closed: ReadonlySet<string> = new Set(),
+  ) {
     this.#open = open;
     this.#showTotals = showTotals;
+    this.#expandTo = expandTo;
+    this.#closed = closed;
   }
 
   /**
@@ -111,13 +127,20 @@ export class TreeState {
     return this.#showTotals;
   }
 
+  get expandTo(): number {
+    return this.#expandTo;
+  }
+
   /** Open paths, for persisting a saved view. */
   get openPaths(): string[] {
     return [...this.#open];
   }
 
   isOpen(path: RowPath): boolean {
-    return this.#open.has(pathKey(path));
+    const key = pathKey(path);
+    if (this.#open.has(key)) return true;
+    return path.length > 0 && path.length <= this.#expandTo
+      && !this.#closed.has(key);
   }
 
   toggle(path: RowPath): TreeState {
@@ -126,13 +149,16 @@ export class TreeState {
 
   expand(path: RowPath): TreeState {
     const next = new Set(this.#open);
+    const closed = new Set(this.#closed);
     // Opening a deep path implies its ancestors are open, otherwise the
     // row would be unreachable -- which is what restoring a saved view
     // needs.
     for (let i = 1; i <= path.length; i++) {
-      next.add(pathKey(path.slice(0, i)));
+      const key = pathKey(path.slice(0, i));
+      next.add(key);
+      closed.delete(key);
     }
-    return new TreeState(next, this.#showTotals);
+    return new TreeState(next, this.#showTotals, this.#expandTo, closed);
   }
 
   collapse(path: RowPath): TreeState {
@@ -144,15 +170,28 @@ export class TreeState {
       // down.
       if (k !== key && !k.startsWith(key + PATH_SEP)) next.add(k);
     }
-    return new TreeState(next, this.#showTotals);
+    // A group the expand level opens stays shut once the user shuts it.
+    const closed = new Set(this.#closed);
+    if (path.length <= this.#expandTo) closed.add(key);
+    return new TreeState(next, this.#showTotals, this.#expandTo, closed);
   }
 
+  /** Collapse All closes everything, the expand level's groups too. */
   collapseAll(): TreeState {
     return new TreeState(new Set(), this.#showTotals);
   }
 
   withTotals(show: boolean): TreeState {
-    return new TreeState(this.#open, show);
+    return new TreeState(this.#open, show, this.#expandTo, this.#closed);
+  }
+
+  /**
+   * A new expand level, as the setting changed: what the user opened
+   * stays open, and their closes are forgotten -- they were closes of
+   * groups the OLD level opened.
+   */
+  withExpandTo(level: number): TreeState {
+    return new TreeState(this.#open, this.#showTotals, Math.max(0, level));
   }
 }
 

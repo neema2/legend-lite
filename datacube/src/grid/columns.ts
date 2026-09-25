@@ -70,6 +70,11 @@ export interface LeafColumn {
   readonly label?: string;
   /** Rendered obscured until hovered. */
   readonly blurred?: boolean;
+  /**
+   * Rendered as a link when the value is an http(s) URL; the label is
+   * this parameter of the URL, else the URL. DataCube's displayAsLink.
+   */
+  readonly linkLabelParameter?: string;
   /** Full generated name, e.g. '2023__|__total'. */
   readonly name: string;
   /** Path segments, e.g. ['2023', 'total']. */
@@ -236,6 +241,8 @@ export interface ColumnLayout {
    * requirement rather than a novelty.
    */
   readonly blurred?: readonly string[];
+  /** Columns shown as links: name -> the URL parameter naming the label. */
+  readonly links?: Readonly<Record<string, string>>;
 }
 
 export function buildColumnModel(
@@ -414,6 +421,7 @@ export function buildColumnModel(
   const pinned = layout.pinned ?? {};
   const displayNames = layout.displayNames ?? {};
   const blurred = new Set(layout.blurred ?? []);
+  const links = layout.links ?? {};
 
   const sized: LeafColumn[] = ordered.map((l) => {
     // A width is clamped by its own bounds rather than applied raw,
@@ -435,6 +443,9 @@ export function buildColumnModel(
       ...(pin ? { pinned: pin } : {}),
       ...(label !== undefined ? { label } : {}),
       ...(blurred.has(l.name) ? { blurred: true } : {}),
+      ...(links[l.name] !== undefined
+        ? { linkLabelParameter: links[l.name] }
+        : {}),
     };
   });
 
@@ -517,4 +528,27 @@ function samePrefix(
 /** Leaf columns that carry values rather than row dimensions. */
 export function valueColumns(model: ColumnModel): LeafColumn[] {
   return model.leaves.filter((l) => !l.isDimension);
+}
+
+/**
+ * What a "display as link" cell shows, or null for plain text.
+ *
+ * Upstream's LinkRenderer: a value that is a URL becomes a link that
+ * opens in a new tab, labelled by the URL's own `labelParameter` query
+ * parameter when it has one. Only http and https: a `javascript:` or
+ * `data:` value in the data must never become something to click.
+ */
+export function linkFor(
+  value: unknown,
+  labelParameter: string,
+): { href: string; label: string } | null {
+  if (typeof value !== 'string') return null;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+  return { href: value, label: url.searchParams.get(labelParameter) ?? value };
 }

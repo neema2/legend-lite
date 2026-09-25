@@ -22,7 +22,12 @@
 // rowindex a screen reader announces positions within the band and the
 // user has no idea where they are.
 
-import { TREE_COLUMN, type ColumnModel, type LeafColumn } from './columns.ts';
+import {
+  TREE_COLUMN,
+  linkFor,
+  type ColumnModel,
+  type LeafColumn,
+} from './columns.ts';
 import { computeRowWindow, isCovered, type RowWindow } from './viewport.ts';
 import {
   currentHeaderDrag,
@@ -814,7 +819,20 @@ export class DataGrid {
             label.textContent = text;
             cell.appendChild(label);
           } else {
-            cell.textContent = text;
+            const link = leaf.linkLabelParameter === undefined
+              ? null
+              : linkFor(value, leaf.linkLabelParameter);
+            if (link) {
+              const a = doc.createElement('a');
+              a.className = 'dc-link';
+              a.href = link.href;
+              a.target = '_blank';
+              a.rel = 'noreferrer noopener';
+              a.textContent = link.label;
+              cell.appendChild(a);
+            } else {
+              cell.textContent = text;
+            }
           }
         } else {
           // Not fetched yet. Rendered as a placeholder rather than

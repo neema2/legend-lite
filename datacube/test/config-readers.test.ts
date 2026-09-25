@@ -1,0 +1,62 @@
+// Every setting the editor can write must be READ by something.
+//
+// Eight shipped that were not (census §2): Column Properties >
+// Aggregation, its weight, the pivot total's function and name,
+// "Initially expand to level", grid mode and the two link settings.
+// Each was a control the panels wrote into the configuration and
+// nothing between the configuration and the query or the grid ever
+// looked at -- so the dropdown moved, the query stayed byte-identical,
+// and no test noticed, because tests of the panels prove they WRITE
+// and tests of the query prove what it does with the fields it knows.
+//
+// So this reads source, like `menu-ids.test.ts`: a field of
+// `ColumnConfiguration` or `CubeConfiguration` passes when some file
+// outside the editor panels accesses it as a property (`.field`). The
+// panels are excluded because they are the writers; the declarations
+// and defaults are excluded because they are not property accesses.
+
+import assert from 'node:assert/strict';
+import { readdirSync, readFileSync } from 'node:fs';
+import { describe, it } from 'node:test';
+
+const SRC = new URL('../src/', import.meta.url);
+
+function files(dir: URL): string[] {
+  const out: string[] = [];
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    if (entry.isDirectory()) {
+      out.push(...files(new URL(`${entry.name}/`, dir)));
+    } else if (entry.name.endsWith('.ts')) {
+      out.push(new URL(entry.name, dir).pathname);
+    }
+  }
+  return out;
+}
+
+const CONFIG = readFileSync(new URL('config.ts', SRC), 'utf8');
+
+/** The `readonly` fields of one exported interface in config.ts. */
+function fieldsOf(name: string): string[] {
+  const start = CONFIG.indexOf(`export interface ${name} {`);
+  assert.ok(start >= 0, `no interface ${name} in config.ts`);
+  const body = CONFIG.slice(start, CONFIG.indexOf('\n}', start));
+  return [...body.matchAll(/^\s+readonly (\w+)\??:/gm)].map((m) => m[1] as string);
+}
+
+const readers = files(SRC)
+  .filter((f) => !/\/ui\/panel-[\w-]+\.ts$/.test(f))
+  .map((f) => readFileSync(f, 'utf8'))
+  .join('\n');
+
+describe('every configuration field has a reader', () => {
+  for (const iface of ['ColumnConfiguration', 'CubeConfiguration']) {
+    it(iface, () => {
+      const fields = fieldsOf(iface);
+      assert.ok(fields.length > 10, `only ${fields.length} fields found`);
+      const unread = fields.filter(
+        (f) => !new RegExp(`\\.${f}\\b`).test(readers));
+      assert.deepEqual(unread, [],
+        `written by the editor and read by nothing: ${unread.join(', ')}`);
+    });
+  }
+});

@@ -67,7 +67,7 @@ import {
 } from './snapshot.ts';
 import { columnRange, heatColour } from './style.ts';
 import type { HeatmapRange, HeatmapSpec } from './style.ts';
-import { parsePathKey, pathKey, type TreeRow } from './tree.ts';
+import { TreeState, parsePathKey, pathKey, type TreeRow } from './tree.ts';
 import { CalcEditor, type CalcStart } from './ui/calc-editor.ts';
 import { columnRef } from './calc.ts';
 import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
@@ -490,6 +490,11 @@ export class CubeApp {
         options.planner as Planner,
         deps,
       );
+    // The tree starts as the CONFIGURATION says, not as the defaults:
+    // a host that asks for the root total or an expand level got
+    // neither until the editor was applied once.
+    this.#controller.adoptTree(TreeState.empty(this.#config.showRootAggregation)
+      .withExpandTo(this.#config.initialExpandToLevel ?? 0));
 
     this.#wireContextMenu();
     this.#buildToolbar();
@@ -1913,9 +1918,17 @@ export class CubeApp {
     // Properties, and it decides whether the level-0 query is issued
     // at all. It was never connected to the tree, so the checkbox
     // moved and the grand total stayed exactly where it was.
-    if (draft.config.showRootAggregation !== wasRoot) {
+    // "Initially expand to level" decides which groups open as they
+    // load (upstream's isServerSideGroupOpenByDefault). It was written
+    // to the configuration and read by nothing (census §2).
+    const tree = this.#controller.tree;
+    const expandTo = draft.config.initialExpandToLevel ?? 0;
+    if (draft.config.showRootAggregation !== wasRoot
+      || expandTo !== tree.expandTo) {
       void this.#controller
-        .setTree(this.#controller.tree.withTotals(draft.config.showRootAggregation))
+        .setTree(tree
+          .withTotals(draft.config.showRootAggregation)
+          .withExpandTo(expandTo))
         .then(() => this.#refresh());
       return;
     }

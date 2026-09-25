@@ -395,16 +395,6 @@ export const generalPropertiesPanel: PanelBuilder = (ctx) => {
     'Miscellaneous',
     field(
       doc,
-      'Pivot Statistic Column Name:',
-      textInput(
-        doc,
-        c.pivotStatisticColumnName,
-        (pivotStatisticColumnName) => setConfig({ pivotStatisticColumnName }),
-        { placeholder: 'Total', width: 180 },
-      ),
-    ),
-    field(
-      doc,
       '',
       checkbox(doc, 'Show selection statistics', c.showSelectionStats, (v) =>
         setConfig({ showSelectionStats: v }),
@@ -425,23 +415,6 @@ export const generalPropertiesPanel: PanelBuilder = (ctx) => {
       ),
       checkbox(doc, 'Show title bar', c.showTitleBar, (v) =>
         setConfig({ showTitleBar: v }),
-      ),
-    ),
-    field(
-      doc,
-      'Grid Mode:',
-      dropdown(
-        doc,
-        c.gridMode,
-        [
-          { value: 'standard' as const, label: 'Standard' },
-          { value: 'dimensional' as const, label: 'Dimensional' },
-        ],
-        (gridMode) => {
-          setConfig({ gridMode: gridMode ?? 'standard' });
-          ctx.refresh();
-        },
-        { width: 150 },
       ),
     ),
   );

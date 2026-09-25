@@ -3,6 +3,7 @@ import { describe, it } from 'node:test';
 
 import {
   DEFAULT_CONFIGURATION,
+  DEFAULT_LINK_LABEL_PARAMETER,
   applyToSnapshot,
   columnConfig,
   fromSnapshot,
@@ -16,6 +17,7 @@ import {
   type CubeConfiguration,
 } from '../src/config.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
+import { serialize } from '../src/serialize.ts';
 
 const CUBE: CubeSnapshot = {
   source: { expression: 't' },
@@ -262,5 +264,79 @@ describe('folding a reorder into the order of every column', () => {
     const out = mergeColumnOrder(full, ['e', 'c', 'a']);
     assert.deepEqual([...out].sort(), [...full].sort());
     assert.equal(new Set(out).size, out.length);
+  });
+});
+
+describe('Column Properties > Aggregation reaches the query', () => {
+  // The dropdown wrote `aggregateFn` into the configuration and nothing
+  // between the configuration and the query read it: with notional set
+  // to max, the query was byte-identical to the default and still
+  // summed (census §2).
+  const FLAT: CubeSnapshot = {
+    source: { expression: 't' },
+    columns: [
+      { name: 'region', type: 'String' },
+      { name: 'year', type: 'Integer', kind: 'dimension' },
+      { name: 'notional', type: 'Float' },
+      { name: 'qty', type: 'Integer', kind: 'measure' },
+    ],
+    derived: [],
+    rows: ['region'],
+    pivotOn: [],
+    measures: [],
+    sorts: [],
+    epoch: 1,
+  };
+  const withAgg = (
+    name: string,
+    aggregateFn: 'max' | 'wavg' | 'count',
+    weight?: string,
+  ): CubeConfiguration => withColumn(DEFAULT_CONFIGURATION, name, {
+    aggregateFn,
+    ...(weight ? { aggregationParameters: [weight] } : {}),
+  });
+
+  it('in a grouped cube', () => {
+    const q = serialize(applyToSnapshot(FLAT, withAgg('notional', 'max')));
+    assert.match(q, /notional:x\|\$x\.notional:y\|\$y->max\(\)/);
+  });
+
+  it('in a column pivot', () => {
+    const q = serialize(applyToSnapshot({ ...FLAT, rows: [], pivotOn: ['year'] },
+      withAgg('notional', 'max')));
+    assert.match(q, /pivot\(~\[year\], ~\[[^\]]*notional:x\|\$x\.notional:y\|\$y->max\(\)/);
+  });
+
+  it('a weighted average carries its weight column', () => {
+    const q = serialize(applyToSnapshot(FLAT, withAgg('notional', 'wavg', 'qty')));
+    assert.match(q, /notional:x\|\$x\.notional->wavgRowMapper\(\$x\.qty\):y\|\$y->wavg\(\)/);
+  });
+
+  it('on a calculated column too', () => {
+    const q = serialize(applyToSnapshot({
+      ...FLAT,
+      derived: [{ name: 'uplift', expression: '$x.notional * 1.1', kind: 'measure' }],
+    }, withAgg('uplift', 'max')));
+    assert.match(q, /uplift:x\|\$x\.uplift:y\|\$y->max\(\)/);
+  });
+
+  it('reads back, so the editor opens on what is running', () => {
+    const running = applyToSnapshot(FLAT, withAgg('notional', 'wavg', 'qty'));
+    const cfg = fromSnapshot(running);
+    assert.equal(columnConfig(cfg, 'notional').aggregateFn, 'wavg');
+    assert.deepEqual(columnConfig(cfg, 'notional').aggregationParameters, ['qty']);
+  });
+});
+
+describe('Column Properties > Display as link reaches the grid', () => {
+  it("names the label parameter, upstream's default when unset", () => {
+    let c = withColumn(DEFAULT_CONFIGURATION, 'doc', { displayAsLink: true });
+    c = withColumn(c, 'wiki', { displayAsLink: true, linkLabelParameter: 'title' });
+    c = withColumn(c, 'plain', { linkLabelParameter: 'ignored' });
+    assert.deepEqual(toColumnLayout(c).links, {
+      doc: DEFAULT_LINK_LABEL_PARAMETER,
+      wiki: 'title',
+    });
+    assert.equal(DEFAULT_LINK_LABEL_PARAMETER, 'dataCube.linkLabel');
   });
 });
