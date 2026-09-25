@@ -67,6 +67,9 @@ class SkipCensusTest {
             // in the chain by design — its numbers are the step's work list,
             // pinned only when the corpus loader switches to the manifests
             "ManifestWorldCensusTest.java",
+            // our side of the reference differential (2026-09-25): a MEASUREMENT
+            // program, opt-in by -Dour.resolutions=<module>; skips in the chain
+            "OurResolutionsTest.java",
             // the dynafunction registry (upstream boundary batch 5 audit,
             // 2026-09-11): skips only when the legend-engine checkout is
             // absent — the enum is compared EXHAUSTIVELY with the engine's

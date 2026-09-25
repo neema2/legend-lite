@@ -5651,3 +5651,33 @@ bare call) — and is task #46, fixed at the algorithm and then pinned per pass.
 
 **Measured after the fix (alone on the machine, no probe):** DuckDB lane 59s / 64s in-lane
 (host and database passes), H2 34s / 85s; slowest test 1.5s; rosters unchanged; core tests green.
+
+## 2026-09-25 — The reference differential: what the real Pure compiler resolved, against what we resolve
+
+**What.** `tools/reference/RefResolutions.java` runs the real Pure compiler (the interpreted runtime
+inside the engine's shaded jar, 4.138.5, over the jar's own sources and manifests) and dumps one row
+per call in every function body: spelling, resolved declaration (name and signature id), enclosing
+function. `OurResolutionsTest` (opt-in) dumps the same shape from our typer over the manifest world.
+`tools/reference/join.py` joins them by enclosing function and spelling. Receipts under the study
+directory's `receipts/reference-differential/`.
+
+**Numbers (2026-09-25).** 10,161 function bodies both compilers type. Reference calls resolved to
+exactly the overload we chose: 66,608. To a function in a different package: 28 (`sort`/`distinct`
+on relations and TDS, `size` of a relation, `plus` strings vs numbers, `contains` strings vs
+collections). To a different overload of the same function: 799 — 507 are `isEmpty`, where the
+reference picks the `[0..1]` overload and we pick `[*]`; the rest are the same shape (`max`/`min`
+over `[1..*]`, `average`/`median`/`sum` over the closest numeric type, `between` over the closest
+date type, comparisons over `[1]` vs `[0..1]`). Absent on our side: 104,399 — property reads, `let`,
+`new`, `cast`, `if`, `match` and the forms are typed as nodes, not calls, so a form's resolution
+cannot yet be checked (plan steps A and B make it checkable).
+
+**The rule, read from the reference.** `FunctionMatch` scores every parameter's type match and
+multiplicity match; candidates compare parameter by parameter on type first, then multiplicity;
+the smallest wins; a tie is "Too many matches". Ours does not prefer the closer multiplicity or the
+closer numeric type. That one rule is the 799.
+
+**What this changes.** The binder and the overload choice now have an oracle: the differential at
+zero (package and overload) is their acceptance test, and step D's first item is this rule
+reproduced with both match orderings. Every earlier slice was checked against our own previous
+behaviour and against tests most overloads pass either way; this is the first check against the
+reference itself.
