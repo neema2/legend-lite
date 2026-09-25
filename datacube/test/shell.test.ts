@@ -197,6 +197,24 @@ describe('the app', () => {
     assert.equal(root.querySelector('[data-window="Settings"]'), null);
   });
 
+  it("the status bar shows upstream's task progress while a query runs", async () => {
+    const { app: cube, engine } = app();
+    await cube.open();
+    let release: () => void = () => {};
+    const held = new Promise<void>((r) => { release = r; });
+    const execute = engine.execute.bind(engine);
+    engine.execute = async (sql, epoch) => { await held; return execute(sql, epoch); };
+    cube.openSettings();
+    click(buttonNamed('Reload'));
+    await flush();
+    const progress = root.querySelector('.dc-status-progress') as HTMLElement;
+    assert.equal(progress.classList.contains('dc-busy'), true, 'no progress while fetching');
+    assert.equal(progress.title, 'Fetching data...');
+    release();
+    await flush();
+    assert.equal(root.querySelector('.dc-status-progress')?.classList.contains('dc-busy'), false);
+  });
+
   it('a failed query opens the execution-error alert, with the query behind it', async () => {
     const { app: cube, engine } = app();
     await cube.open();

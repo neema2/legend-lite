@@ -503,6 +503,12 @@ describe('the Pin and Sort entries report state, as upstream', () => {
     assert.equal(find(none, 'Unpin')?.disabled, true);
   });
 
+  it('a pivot result column cannot be pinned, as upstream', () => {
+    const groups = buildMenu({ snapshot: CUBE, column: '2021__|__notional', pivotBase: 'notional' });
+    assert.equal(find(groups, 'Pin Left')?.disabled, true);
+    assert.equal(find(groups, 'Pin Right')?.disabled, true);
+  });
+
   it('disables an Add that would change nothing', () => {
     const sorted = { ...CUBE, sorts: [{ column: 'region', direction: 'asc' as const }] };
     const groups = buildMenu({ snapshot: sorted, column: 'region' });

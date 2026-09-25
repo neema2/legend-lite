@@ -180,7 +180,7 @@ Upstream: `DataCubeGridConfigurationBuilder.tsx`, `DataCubeGrid.tsx`,
 
 | Feature | Upstream | Ours | St | Ev |
 |---|---|---|---|---|
-| **Click a header to sort**; multi-sort always on; sort arrow + index in the header | ✓ | ❌ (sort only from the menu / editor) | ❌ | C `grid.ts` has no header click handler |
+| **Alt+click a header to sort** (column selection is on, so a plain click selects — ag-grid's rule); multi-sort always on; sort arrow + index in the header | ✓ | ✓ | ✅ | H, T |
 | **Drag a column edge to resize** (unless fixed width) | ✓ | ❌ (width from the editor / Resize menu) | ❌ | C no resize handle in `grid/` |
 | Drag a header to reorder, persisted | ✓ | ✓ | ✅ | H |
 | Drag to the row-group panel ("drag here to group") | ✓ ag-grid panel always shown | ✓ drag zones (can be folded) | ✅ | H |
@@ -189,14 +189,14 @@ Upstream: `DataCubeGridConfigurationBuilder.tsx`, `DataCubeGrid.tsx`,
 | Scroll readout `start-end/total` above the grid while scrolling | ✓ | ❌ | ❌ | C |
 | "0 rows" and "Loading..." overlays; loading row; `#ERR` row on a failed fetch + error colours | ✓ | status line only | ⚠️ | C |
 | Cell range selection, copy (Ctrl+C) | ✓ | ✓ + keyboard, ARIA treegrid ➕ | ✅ | H |
-| Column selection by clicking a header (to copy a whole column) | ✓ | via the menu entry only | ⚠️ | C |
+| Column selection by clicking a header (to copy a whole column): Shift extends, Ctrl deselects, headers highlighted | ✓ | ✓ one rectangle: Ctrl takes a column off an EDGE (the middle would need two selections) | ✅ | H, T |
 | Tree column: pinned left, header blank, min 200, leaf count "(n)" when *Show leaf count* (default ON) | ✓ | ✓ default ON as upstream; a group's (n) equals the detail rows it opens onto | ✅ | H |
 | Grand total (root aggregation) row, auto-expanded | ✓ | ✓ | ✅ | H |
 | Initial expand level; expanded paths SAVED and restored; user expand/collapse recorded | ✓ | ✓ live; ⚠️ not saved in a view beyond `expanded` | ⚠️ | C |
 | Lazy drill-down: each expand fetches only the next level, filtered to the group | ✓ | ✓ per level | ✅ | C `tree.ts` |
 | **Max depth → detail rows** (groupBy dropped at the leaf level) | ✓ | ✓ the deepest group opens onto its own rows (keys as a filter, no groupBy, group-level columns still applied; a pivot keeps its pivot); the expand level never opens them | ✅ | H, T, WASM differential |
 | Pivot: nested header groups, 5-colour rotation, leaves in configuration order, values ordered client-side by each key's direction | ✓ | ✓ | ✅ | H, C `grid.css:704` |
-| Pivot result columns cannot be pinned or moved | ✓ | not enforced | ⚠️ | C |
+| Pivot result columns cannot be pinned or moved | ✓ | cannot be pinned ✓; dragging one MOVES ITS MEASURE in every value block — kept by USER RULING 2026-09-25 (upstream locks them) | ✅➕ | T |
 | **Pivot total column** per measure (name, left/right placement, per-measure function), per row including subtotals and the grand total | ❌ upstream BUG (config only) | ❌ fields removed in `4093e73fc` | ❌ | C |
 | Number format: scale (%, bp, k, m, b, t, auto) → grouping/decimals → parens → scale unit | ✓ | ✓ | ✅ | C `format.ts` |
 | **Unit**: glued to the value, or a **prefix when it starts with `_`** (`_$` → `$1,234`) | ✓ | ✓ (inside the parentheses, as our scale suffix) | ✅ | H, T |
@@ -208,7 +208,7 @@ Upstream: `DataCubeGridConfigurationBuilder.tsx`, `DataCubeGrid.tsx`,
 | Alternate rows: STANDARD (native odd-row stripe) vs CUSTOM (colour every N rows), mutually exclusive | ✓ | ✓ `alternateRowsStandardMode` + `alternateRows` | ✅ | H, T |
 | Pagination toggle (slice per page of 500), status-bar switch | ✓ default ON | ❌ (virtual windowing + row limit) | ⚠️ | C |
 | Large-dataset warning with pagination off (> 1000 rows: Enable Pagination / Dismiss) | ✓ | ❌ | ❌ | C |
-| Auto-size all columns after every fetch | ✓ | explicit only | ⚠️ | C |
+| Auto-size all columns after every fetch | ✓ | ✓ at run time, once per query, measured by content; a width the user set stays (upstream re-fits those too) | ✅ | H |
 | Refetch only when a data-affecting part changes (styling and reorder never refetch) | ✓ | every configuration change goes through `#refresh` | ⚠️ | C `app.ts:1555` |
 | Cache toggle (whole source into the in-browser DuckDB, with a warning) | ✓ WIP | ➕ snap mode | ✅ | C `snap.ts` |
 | Drill-through (the rows behind a number, on double-click) | — | ➕ | ➕ | H |
@@ -320,7 +320,7 @@ Upstream: `DataCubeEditor*.tsx` + states. Ours: `src/ui/editor.ts`,
 | Feature | Upstream | Ours | St | Ev |
 |---|---|---|---|---|
 | Title bar: title, host header slot, hamburger (Undo, Redo, Settings…, then host items) | ✓ | ✓ Undo, Redo, Properties, Zones, Title Bar, Save/Load View, dimensions, host items | ✅ | H |
-| Status bar: Properties, Filter (disabled in multidimensional mode), task progress with per-task tooltip, rows, truncation warning, Pagination / Cache switches | ✓ | ✓ Properties, Filter (on-state ➕), rows + timing ➕, truncation, selection stats; ❌ task progress, Pagination | ⚠️ | C `app.ts:898` |
+| Status bar: Properties, Filter (disabled in multidimensional mode), task progress with per-task tooltip, rows, truncation warning, Pagination / Cache switches | ✓ | ✓ Properties, Filter (on-state ➕), rows + timing ➕, truncation, selection stats, task progress (Fetching data... / Validating query...); ❌ Pagination switch (pagination not decided) | ⚠️ | T |
 | **Floating windows**: drag, 8-edge resize, bring to front, remember place, **many at once** | ✓ | one at a time (drag, resize, remember ✓) | ⚠️ | C `app.ts:2159` |
 | **Settings window**: Debug mode, dev protocol version, Reload, cache warnings ×2, **Max history size**, large-dataset warning, **Row buffer**, **Refresh group node data**, **Retry failed data fetches**; Restore defaults; host-supplied settings and persistence | ✓ | ✓ the ones with an effect here (Debug mode, Reload, Max history size, Row buffer) by upstream's keys; host `settings` + `onSettingsChanged`; the cache/pagination warnings wait for those features; every expand refetches, so "Refresh group node data" has nothing to switch | ✅ | H, T |
 | **Alerts**: typed windows (error / info / success / warning), action buttons | ✓ | ✓ | ✅ | T |

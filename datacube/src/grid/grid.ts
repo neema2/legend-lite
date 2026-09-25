@@ -38,6 +38,7 @@ import type { ColumnFormat, FormatterCache } from '../format.ts';
 import { DEFAULT_FORMAT } from '../format.ts';
 import type { ResultTable, Scalar } from '../result.ts';
 import {
+  bounds,
   contains,
   extend as extendRange,
   selectionTable,
@@ -69,6 +70,13 @@ export interface GridRowMeta {
 export interface GridOptions {
   readonly rowHeight?: number;
   readonly overscan?: number;
+  /**
+   * Fit every column without a width of its own to its content, each
+   * time a query's rows land -- upstream's autoSizeAllColumns after
+   * every fetch. At RUN TIME, never into the configuration: a width the
+   * user set (dragged, typed, Fixed) is theirs and stays.
+   */
+  readonly autoFit?: boolean;
   /** Per-column display format, by leaf column name. */
   readonly formats?: Readonly<Record<string, ColumnFormat>>;
   /** Grid-wide appearance: fonts, grid lines, alternating rows. */
@@ -152,6 +160,14 @@ export interface HeaderSort {
 }
 
 /** Upstream's DEFAULT_COLUMN_MIN_WIDTH: no drag makes a column narrower. */
+/** Auto-fit's bounds: a floor to grab, a ceiling so free text cannot push every other column off screen. */
+const FIT_MIN_WIDTH = 50;
+const FIT_MAX_WIDTH = 480;
+/** Upstream's tree column minimum. */
+const TREE_MIN_WIDTH = 200;
+/** Room beside the content for the sort mark and the resize grip. */
+const FIT_PADDING = 12;
+
 const RESIZE_MIN_WIDTH = 50;
 
 /**
@@ -215,6 +231,10 @@ export class DataGrid {
   #sorts: readonly HeaderSort[] = [];
   /** Live widths while a column edge is being dragged. */
   readonly #dragWidths = new Map<string, number>();
+  /** Widths fitted to content, for columns with none of their own. */
+  readonly #fitWidths = new Map<string, number>();
+  /** The query (epoch) whose rows were last fitted. */
+  #fittedEpoch: number | null = null;
   /** The scroll readout, and when it next hides. */
   readonly #hint: HTMLElement;
   #hintTimer: ReturnType<typeof setTimeout> | undefined;
@@ -372,7 +392,64 @@ export class DataGrid {
     this.#rendered = null;
     this.#render();
     this.#paintOverlay();
+    // Once per query, not per scroll: a column that re-fits while the
+    // user scrolls moves under their pointer.
+    if (this.#options.autoFit && table.epoch !== this.#fittedEpoch) {
+      this.#fittedEpoch = table.epoch;
+      requestAnimationFrame(() => this.#fit());
+    }
   }
+
+  /** Fit the columns that have no width of their own to what is on screen. */
+  #fit(): void {
+    const model = this.#model;
+    if (!model) return;
+    let changed = false;
+    const measured = this.contentWidths();
+    for (const leaf of model.leaves) {
+      if (leaf.width !== undefined || this.#dragWidths.has(leaf.name)) continue;
+      const content = measured.get(leaf.name) ?? 0;
+      if (content <= 0) continue;
+      const min = leaf.minWidth ?? (leaf.name === TREE_COLUMN ? TREE_MIN_WIDTH : FIT_MIN_WIDTH);
+      const width = Math.round(Math.min(leaf.maxWidth ?? FIT_MAX_WIDTH,
+        Math.max(min, content + FIT_PADDING)));
+      if (this.#fitWidths.get(leaf.name) !== width) {
+        this.#fitWidths.set(leaf.name, width);
+        changed = true;
+      }
+    }
+    if (changed) this.#applyTemplate();
+  }
+
+  /**
+   * The widest content each column shows -- its header and its rendered
+   * cells -- measured as CONTENT, by a Range over it: a cell's own
+   * scrollWidth is never less than its column, so it can grow a column
+   * and never shrink one. One pass over the cells; a column with
+   * nothing rendered (or no layout) is absent.
+   */
+  contentWidths(): Map<string, number> {
+    const doc = this.#root.ownerDocument;
+    const view = doc.defaultView;
+    const out = new Map<string, number>();
+    for (const el of this.#root.querySelectorAll<HTMLElement>('[data-column]')) {
+      const name = el.dataset['column'];
+      if (name === undefined) continue;
+      const range = doc.createRange();
+      // No layout engine (a test DOM): nothing has a width to measure.
+      if (typeof range.getBoundingClientRect !== 'function') return out;
+      range.selectNodeContents(el);
+      const content = range.getBoundingClientRect().width;
+      if (!(content > 0)) continue;
+      const style = view?.getComputedStyle(el);
+      const pad = style
+        ? (parseFloat(style.paddingLeft) || 0) + (parseFloat(style.paddingRight) || 0)
+        : 0;
+      out.set(name, Math.max(out.get(name) ?? 0, content + pad));
+    }
+    return out;
+  }
+
 
   /** The sorts to mark on the header: an arrow, and a position when several. */
   setSorts(sorts: readonly HeaderSort[]): void {
@@ -525,7 +602,8 @@ export class DataGrid {
           (model.leaves[cell.colStart]?.path ?? []).slice(0, level + 1), leaf);
         if (title) el.title = title;
         if (leaf) {
-          this.#sortable(el, leaf);
+          el.dataset['col'] = String(cell.leafIndex);
+          this.#sortable(el, leaf, cell.leafIndex as number);
           this.#resizable(el, leaf);
           this.#reorderable(el, leaf, model);
           el.dataset['column'] = leaf.name;
@@ -555,6 +633,7 @@ export class DataGrid {
       this.#headGrid.appendChild(row);
     });
 
+    this.#paintHeaderSelection();
   }
 
   /**
@@ -706,10 +785,15 @@ export class DataGrid {
   }
 
   /**
-   * A header click sorts, and the header says how: an arrow, and the
-   * column's place in the sort when there are several.
+   * A header click SELECTS the column and Alt+click sorts -- ag-grid's
+   * rule once column selection is on, as upstream turns it on
+   * (`cellSelection.enableColumnSelection`): "clicking a column header
+   * selects the column"; sorting "requires holding down the Alt key".
+   * Shift extends the selection to another column, Ctrl (Cmd) takes one
+   * off its edge. The header says how the column sorts: an arrow, and
+   * its place in the sort when there are several.
    */
-  #sortable(el: HTMLElement, leaf: LeafColumn): void {
+  #sortable(el: HTMLElement, leaf: LeafColumn, col: number): void {
     const at = this.#sorts.findIndex((x) => x.column === leaf.name);
     const sort = this.#sorts[at];
     el.setAttribute('aria-sort', sort === undefined ? 'none'
@@ -723,14 +807,52 @@ export class DataGrid {
       el.append(mark);
     }
     const onSort = this.#options.onHeaderSort;
-    if (!onSort) return;
     el.classList.add('dc-sortable');
     el.addEventListener('click', (event) => {
       const target = event.target as { closest?: unknown } | null;
       if (target && typeof target.closest === 'function'
         && (target as Element).closest('.dc-col-resize')) return;
-      onSort(leaf.name);
+      if (event.altKey) {
+        onSort?.(leaf.name);
+        return;
+      }
+      this.#selectColumn(col, event);
     });
+  }
+
+  /** A header click on column `col`: select it, extend to it, or drop it. */
+  #selectColumn(col: number, event: MouseEvent): void {
+    const last = this.#totalRows - 1;
+    if (last < 0) return;
+    const whole = (a: number, b: number): CellRange =>
+      ({ anchor: { row: 0, col: a }, focus: { row: last, col: b } });
+    const current = this.#selection;
+    const b = current ? bounds(current) : null;
+    const columns = b !== null && b.top === 0 && b.bottom === last;
+    if (event.shiftKey && current && columns) {
+      this.select(whole(current.anchor.col, col));
+      return;
+    }
+    if ((event.ctrlKey || event.metaKey) && b !== null && columns
+      && col >= b.left && col <= b.right) {
+      // One rectangle: a column comes off an EDGE. Taking one from the
+      // middle would need two selections, which this grid does not
+      // hold, so that click does nothing rather than something else.
+      if (b.left === b.right) this.select(null);
+      else if (col === b.left) this.select(whole(b.left + 1, b.right));
+      else if (col === b.right) this.select(whole(b.left, b.right - 1));
+      return;
+    }
+    this.select(whole(col, col));
+  }
+
+  /** Headers of selected columns are highlighted (upstream's enableHeaderHighlight). */
+  #paintHeaderSelection(): void {
+    const b = this.#selection ? bounds(this.#selection) : null;
+    for (const th of this.#headGrid.querySelectorAll<HTMLElement>('.dc-th[data-col]')) {
+      const col = Number(th.dataset['col']);
+      th.classList.toggle('dc-th-selected', b !== null && col >= b.left && col <= b.right);
+    }
   }
 
   /**
@@ -817,13 +939,11 @@ export class DataGrid {
     if (!model) return {};
     const want = names ? new Set(names) : null;
     const out: Record<string, number> = {};
+    // By CONTENT, so Auto-size can shrink a column as well as grow it.
+    const measured = this.contentWidths();
     for (const leaf of model.leaves) {
       if (want && !want.has(leaf.name)) continue;
-      let max = 0;
-      const cells = this.#root.querySelectorAll<HTMLElement>(
-        `[data-column="${CSS.escape(leaf.name)}"]`,
-      );
-      for (const cell of cells) max = Math.max(max, cell.scrollWidth);
+      const max = measured.get(leaf.name) ?? 0;
       if (max > 0) out[leaf.name] = max;
     }
     return out;
@@ -859,6 +979,8 @@ export class DataGrid {
           ? `${this.#dragWidths.get(l.name)}px`
           : l.width !== undefined
           ? `${l.width}px`
+          : this.#fitWidths.has(l.name)
+          ? `${this.#fitWidths.get(l.name)}px`
           : l.isDimension
             ? 'var(--dc-dim-width)'
             : 'var(--dc-col-width)',
@@ -899,6 +1021,7 @@ export class DataGrid {
             : single(abs, col);
         this.#focus = { row: abs, col };
         this.#options.onSelectionChange?.(this.#selection);
+        this.#paintHeaderSelection();
         this.#rendered = null;
         this.#render();
       }
@@ -1203,6 +1326,7 @@ export class DataGrid {
           ? extendRange(this.#selection, { row, col })
           : single(row, col);
       this.#options.onSelectionChange?.(this.#selection);
+      this.#paintHeaderSelection();
     }
     this.#scrollFocusIntoView();
     this.#rendered = null;
@@ -1247,6 +1371,7 @@ export class DataGrid {
     this.#options.onSelectionChange?.(range);
     this.#rendered = null;
     this.#render();
+    this.#paintHeaderSelection();
   }
 
   /**

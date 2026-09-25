@@ -333,6 +333,10 @@ export class CubeApp {
   readonly #open = new Map<string, HTMLElement>();
   /** The z-index the most recently touched window was given. */
   #zTop = 20;
+  /** What is running, for the status bar's progress (upstream's TaskService). */
+  readonly #tasks: { readonly description: string }[] = [];
+  #endFetch: (() => void) | null = null;
+  readonly #progress: HTMLElement;
   /** Where the grid was scrolled when the context menu opened. */
   #menuScroll: { top: number; left: number } | null = null;
   /** Settings > ...: defaults under what the host kept. */
@@ -358,6 +362,9 @@ export class CubeApp {
     options: CubeAppOptions,
   ) {
     this.#doc = root.ownerDocument;
+    this.#progress = this.#doc.createElement('div');
+    this.#progress.className = 'dc-status-progress';
+    this.#progress.setAttribute('role', 'progressbar');
     this.#options = options;
     this.#snapshot = snapshot;
     // Read the snapshot back rather than starting from defaults: a
@@ -479,6 +486,8 @@ export class CubeApp {
       // the stylesheet claimed otherwise.
       rowHeight: DATACUBE_ROW_HEIGHT,
       overscan: numericSetting(this.#settings, 'dataCube.grid.rowBuffer'),
+      // Upstream fits every column to its content after each fetch.
+      autoFit: true,
       formats: this.#formats,
       appearance: this.#config.appearance,
       columnAppearance: toColumnAppearance(this.#config),
@@ -537,7 +546,15 @@ export class CubeApp {
       historyLimit: numericSetting(this.#settings, 'dataCube.editor.maxHistoryStackSize'),
       onView: (view) => this.#onView(view),
       // Upstream's "Loading..." overlay while a query runs.
-      onBusy: (busy) => this.#grid.setBusy(busy),
+      onBusy: (busy) => {
+        this.#grid.setBusy(busy);
+        // Upstream's own task, beside the readouts.
+        if (busy && !this.#endFetch) this.#endFetch = this.#startTask('Fetching data...');
+        if (!busy) {
+          this.#endFetch?.();
+          this.#endFetch = null;
+        }
+      },
       onError: (e) => this.#reportFailure(e),
       // The configuration is the host's half of the undoable state.
       // Without this pair, undo reverts the query and leaves the
@@ -1066,8 +1083,33 @@ export class CubeApp {
     this.#statsSlot = stats;
     this.#renderSelectionStats();
 
+    // Upstream's task progress: a bar while anything runs, and what is
+    // running in its tooltip. The same element every rebuild, so a
+    // task that outlives a view keeps showing.
+    right.append(this.#statusSeparator(), this.#progress);
+
     // The host's own readout, last.
     this.#adoptHostStatus();
+  }
+
+  /** A task on the status bar's progress, until the returned end is called. */
+  #startTask(description: string): () => void {
+    const task = { description };
+    this.#tasks.push(task);
+    this.#paintProgress();
+    return () => {
+      const at = this.#tasks.indexOf(task);
+      if (at >= 0) this.#tasks.splice(at, 1);
+      this.#paintProgress();
+    };
+  }
+
+  #paintProgress(): void {
+    const tasks = this.#tasks;
+    this.#progress.classList.toggle('dc-busy', tasks.length > 0);
+    this.#progress.title = tasks.length > 1
+      ? tasks.map((t, i) => `Task ${i + 1}/${tasks.length}: ${t.description}`).join('\n')
+      : tasks[0]?.description ?? '';
   }
 
   /**
@@ -2278,8 +2320,9 @@ export class CubeApp {
     // shows the query with the place the compiler named, and leaves the
     // editor open on the draft. A plane that cannot compile without
     // running falls to the run-and-restore below, never to a guess.
+    const endValidate = this.#startTask('Validating query...');
     const checked = await this.#controller.compile(
-      applyToSnapshot(draft.snapshot, draft.config));
+      applyToSnapshot(draft.snapshot, draft.config)).finally(endValidate);
     if (checked && checked.refusal !== null) {
       const refusal = checked.refusal;
       this.#status(refusal, 'error');

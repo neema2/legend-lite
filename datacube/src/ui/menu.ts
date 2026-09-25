@@ -613,17 +613,20 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
       submenu: [
         // Upstream: each placement CHECKED when it holds, and disabled
         // then -- there is nothing to do -- as Unpin is when unpinned.
+        // A PIVOT RESULT column cannot be pinned, as upstream's
+        // (lockPinned): it is one cell of a value block, and pinning it
+        // would tear it out of the block it belongs to.
         {
           id: 'column.pinLeft',
           label: 'Pin Left',
-          disabled: !column || ctx.pinned === 'left',
+          disabled: !column || ctx.pinned === 'left' || ctx.pivotBase !== undefined,
           checked: column !== undefined && ctx.pinned === 'left',
           ...(column ? { column } : {}),
         },
         {
           id: 'column.pinRight',
           label: 'Pin Right',
-          disabled: !column || ctx.pinned === 'right',
+          disabled: !column || ctx.pinned === 'right' || ctx.pivotBase !== undefined,
           checked: column !== undefined && ctx.pinned === 'right',
           ...(column ? { column } : {}),
         },

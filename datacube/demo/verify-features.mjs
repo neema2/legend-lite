@@ -557,10 +557,11 @@ try {
     return 'set, then cleared';
   });
 
-  await check('a header click sorts: up, down, off', async () => {
-    // Upstream sorts on a header click with multi-sort always on; the
-    // header shows the arrow. Three clicks walk a column through
-    // ascending, descending and back out of the sort.
+  await check('an Alt+click on a header sorts: up, down, off', async () => {
+    // Upstream turns on ag-grid's column selection, which makes a plain
+    // header click SELECT and sorting "require holding down the Alt
+    // key". Multi-sort is always on; the header shows the arrow. Three
+    // Alt+clicks walk a column through ascending, descending and out.
     await menu(['Sort', 'Clear All Sorts']).catch(() => {});
     const name = await page.evaluate(() =>
       document.querySelector('.dc-th.dc-sortable[data-column]')?.dataset.column);
@@ -568,7 +569,7 @@ try {
     const th = page.locator(`.dc-th[data-column="${name}"]`);
     const click = async () => {
       const before = await statusNow();
-      await th.click({ position: { x: 8, y: 8 } });
+      await th.click({ position: { x: 8, y: 8 }, modifiers: ['Alt'] });
       await settle(before);
     };
     const ident = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -591,6 +592,42 @@ try {
       throw new Error(`third click left ${name} in the sort`);
     }
     return `${name}: asc → desc → off`;
+  });
+
+  await check('a header click selects its column; Shift+click extends; no sort', async () => {
+    await reset();
+    const heads = await page.evaluate(() =>
+      [...document.querySelectorAll('.dc-th.dc-sortable[data-column]')].map((e) => e.dataset.column));
+    const [a, b] = heads;
+    if (!a || !b) throw new Error(`need two headers, have ${heads}`);
+    const before = (await state()).pure;
+    await page.locator(`.dc-th[data-column="${a}"]`).click({ position: { x: 8, y: 8 } });
+    await page.locator(`.dc-th[data-column="${b}"]`).click({ position: { x: 8, y: 8 }, modifiers: ['Shift'] });
+    await page.waitForTimeout(150);
+    const marked = await page.evaluate(() =>
+      [...document.querySelectorAll('.dc-th.dc-th-selected')].map((e) => e.dataset.column));
+    const selectedCells = await page.locator('.dc-cell.dc-selected').count();
+    const rendered = await page.locator('.dc-row').count();
+    const after = (await state()).pure;
+    await page.keyboard.press('Escape');
+    if (after !== before) throw new Error('a plain header click changed the query (sorted?)');
+    if (marked.join() !== [a, b].join()) throw new Error(`headers marked ${marked}`);
+    if (selectedCells < rendered * 2) {
+      throw new Error(`${selectedCells} cells selected over ${rendered} rendered rows in two columns`);
+    }
+    return `${a}..${b} selected: ${selectedCells} cells, headers highlighted`;
+  });
+
+  await check('columns fit their content after each fetch', async () => {
+    // Upstream's autoSizeAllColumns after every fetch: a column of
+    // short values comes out narrow, not at the 300px default.
+    await reset();
+    const widths = await page.evaluate(() =>
+      [...document.querySelectorAll('.dc-th[data-column]')].map((e) =>
+        [e.dataset.column, Math.round(e.getBoundingClientRect().width)]));
+    const narrow = widths.filter(([, w]) => w < 200);
+    if (narrow.length === 0) throw new Error(`every column is wide: ${JSON.stringify(widths)}`);
+    return `${narrow.length} of ${widths.length} fitted under 200px (e.g. ${narrow[0].join(' ')}px)`;
   });
 
   await check('a header edge drags to a new width', async () => {

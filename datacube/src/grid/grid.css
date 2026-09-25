@@ -602,6 +602,12 @@
  * draws a grid inside the selection instead of an outline around it.
  */
 
+/* A column in the selection says so in its header, as upstream's
+   enableHeaderHighlight. */
+.dc-th.dc-th-selected {
+  background: var(--dc-selection-head, #cfe2f7);
+}
+
 .dc-cell.dc-selected {
   background: var(--tw-sky-50);
 }

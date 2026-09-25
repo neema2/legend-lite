@@ -1886,3 +1886,28 @@
   border-left: 3px solid var(--tw-neutral-300);
   color: var(--tw-neutral-600);
 }
+
+/* Upstream's task progress: a 192 x 14 box, a green indeterminate bar
+   while anything runs, the tasks in its tooltip. */
+.dc-status-progress {
+  position: relative;
+  width: 192px;
+  height: 14px;
+  overflow: hidden;
+  border: 0.5px solid var(--tw-neutral-300);
+}
+
+.dc-status-progress.dc-busy::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 40%;
+  background: var(--tw-green-500, #22c55e);
+  animation: dc-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes dc-indeterminate {
+  from { left: -40%; }
+  to { left: 100%; }
+}
