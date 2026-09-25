@@ -75,7 +75,7 @@ import {
 import { columnRange, heatColour } from './style.ts';
 import type { HeatmapRange, HeatmapSpec } from './style.ts';
 import { TreeState, parsePathKey, pathKey, type TreeRow } from './tree.ts';
-import { CalcEditor, type CalcStart } from './ui/calc-editor.ts';
+import { ColumnEditor, type ColumnEditorStart } from './ui/column-editor.ts';
 import { columnRef } from './calc.ts';
 import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
 import { FilterEditor } from './ui/filter-editor.ts';
@@ -310,6 +310,9 @@ export class CubeApp {
   #zTop = 20;
   /** Where the grid was scrolled when the context menu opened. */
   #menuScroll: { top: number; left: number } | null = null;
+  /** The open calculated-column editors, by window key. */
+  readonly #columnEditors = new Map<string, ColumnEditor>();
+  #newColumns = 0;
   /** Alerts are many and untitled, so each gets its own window key. */
   #alerts = 0;
   #snapshot: CubeSnapshot;
@@ -878,7 +881,10 @@ export class CubeApp {
     this.#view = view;
     this.#options.onView?.(view);
     this.#treeRows = view.treeRows;
+    const changed = this.#snapshot !== view.snapshot;
     this.#snapshot = view.snapshot;
+    // Open column editors compile against the cube as it is now.
+    if (changed) for (const editor of this.#columnEditors.values()) editor.recheck();
     if (this.#syncCalcTypes(view)) return;
 
     const model = buildColumnModel(
@@ -1470,19 +1476,18 @@ export class CubeApp {
       // column with a reference to the one clicked and inherits its
       // kind, as DataCubeNewColumnState does.
       case 'calc.add':
-        this.openCalcColumns({ stage: 'row' });
+        this.openColumnEditor({});
         return;
       case 'calc.extend':
         if (column) {
-          this.openCalcColumns({
-            stage: 'row',
+          this.openColumnEditor({
             expression: columnRef(column),
-            kind: this.#kindOf(column) ?? 'measure',
+            level: this.#kindOf(column) ?? 'measure',
           });
         }
         return;
       case 'calc.edit':
-        if (column) this.openCalcColumns({ edit: column });
+        if (column) this.openColumnEditor({ edit: column });
         return;
       case 'calc.delete':
         if (column) this.#deleteCalc(column);
@@ -2149,20 +2154,31 @@ export class CubeApp {
   }
 
   /**
-   * The calculated-column editor.
-   *
-   * Both stages in one window, because choosing between them IS the
-   * decision the user is making and splitting them into two places
-   * would hide it -- see `src/ui/calc-editor.ts`.
+   * A calculated column's editor, ONE PER WINDOW as upstream's: any
+   * number of "Add New Column" windows, and one "Edit Column" per
+   * column -- editing a column already open brings its window forward.
+   * Each compiles its draft as it is typed (compile only, never run) and
+   * compiles again whenever the cube changes under it.
    */
-  openCalcColumns(start?: CalcStart): void {
-    this.#showOverlay('Calculated Columns', (host) => {
-      new CalcEditor(host, {
-        snapshot: this.#snapshot,
-        onChange: (row, group, rename) => this.#setCalc(row, group, rename),
-        ...(start ? { start } : {}),
-      });
-    }, { replace: start !== undefined });
+  openColumnEditor(start: ColumnEditorStart): void {
+    const editing = 'edit' in start ? start.edit : undefined;
+    const key = editing !== undefined
+      ? `column:${editing}`
+      : `column:new:${(this.#newColumns += 1)}`;
+    this.#showOverlay(editing !== undefined ? 'Edit Column' : 'Add New Column', (host, close) => {
+      this.#columnEditors.set(key, new ColumnEditor(host, {
+        snapshot: () => this.#snapshot,
+        start,
+        compile: (candidate, signal) => this.#controller.compile(candidate, signal),
+        apply: (row, group, rename) => this.#setCalc(row, group, rename),
+        onClose: close,
+      }));
+    }, {
+      key,
+      // Upstream's column editor window, a little taller for our
+      // completion list.
+      size: { x: 50, y: 50, width: 500, height: 420, minWidth: 300, minHeight: 200, center: false },
+    });
   }
 
   /** Take one calculated column out, whichever stage it is in. */
@@ -2446,6 +2462,8 @@ export class CubeApp {
     this.#open.delete(key);
     // An alert's position is not worth remembering: each is new.
     if (key.startsWith('alert:')) this.#windows.delete(key);
+    this.#columnEditors.get(key)?.dispose();
+    this.#columnEditors.delete(key);
     if (key === 'Properties') this.#editor = null;
   }
 

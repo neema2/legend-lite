@@ -2322,33 +2322,48 @@ try {
 
   // -- calculated columns -------------------------------------------
 
-  /** Open the editor from the title-bar menu. */
-  /** Shut the editor the way `reset` does: the BUTTON, not Escape. */
+  /** Shut every window the way `reset` does: the BUTTON, not Escape. */
   const closeCalc = async () => {
     const shut = page.locator(
       '.dc-app-overlay:not([hidden]) .dc-overlay-close');
-    if (await shut.count()) {
+    for (let i = 0; i < 6 && await shut.count(); i += 1) {
       await shut.first().click().catch(() => {});
-      await page.waitForTimeout(150);
+      await page.waitForTimeout(120);
     }
   };
 
+  /**
+   * Open an "Add New Column" window from the GRID's menu, where
+   * upstream keeps it: Extended Columns > Add New Column...
+   */
   const openCalc = async () => {
-    // CLOSE FIRST, and with the button. The editor stays open after a
-    // save and the title-bar menu sits behind it, so a second open in
-    // one check clicks a covered element and waits thirty seconds.
-    // Escape does not do it: as `reset` says, Escape reaches the
-    // overlay only while focus is still inside it.
     await closeCalc();
-    // From the GRID's menu, where upstream keeps it: Extended Columns
-    // > Add New Column... opens the editor with a new-column form,
-    // which the callers replace with the stage they want.
     await menu(['Extended Columns', 'Add New Column...'], { requery: false });
-    await page.waitForSelector('.dc-calc', { timeout: 10_000 });
+    await page.waitForSelector('.dc-coleditor', { timeout: 10_000 });
+  };
+
+  /** The live compile has answered: compiled, refused, or unavailable. */
+  const compiledCheck = async () => {
+    await page.waitForFunction(() => {
+      const c = document.querySelector('.dc-coleditor .dc-calc-check');
+      return c && c.getAttribute('data-state') !== 'compiling';
+    }, undefined, { timeout: 15_000 });
+    return page.evaluate(() => {
+      const c = document.querySelector('.dc-coleditor .dc-calc-check');
+      return { state: c?.getAttribute('data-state'), text: c?.textContent ?? '' };
+    });
+  };
+
+  /** The calculated columns the running query extends with. */
+  const calcNames = async () => {
+    const { pure } = await state();
+    return [...pure.matchAll(/extend\(~\[([^:\]]+):/g)].map((m) => m[1].replace(/^'|'$/g, ''));
   };
 
   /**
-   * Remove every calculated column.
+   * Remove every calculated column, through the product's own path:
+   * Extended Columns > Delete Column X on each. The cube goes flat
+   * first, so every one of them is a column in the grid to right-click.
    *
    * `reset` shuts windows; it does not touch the snapshot. Without
    * this a column outlives its own check -- and `uplift` surviving
@@ -2357,35 +2372,42 @@ try {
    * whichever check ran next.
    */
   const clearCalcs = async () => {
-    await openCalc();
-    for (let i = 0; i < 8; i += 1) {
-      const del = page.locator('.dc-calc-del');
-      if (!await del.count()) break;
-      await del.first().click();
-      await page.waitForTimeout(250);
-    }
     await closeCalc();
+    if ((await calcNames()).length === 0) return;
+    await flatten();
+    for (let i = 0; i < 8; i += 1) {
+      const [name] = await calcNames();
+      if (name === undefined) break;
+      await menu(['Extended Columns', `Delete Column ${name}`], { col: await needCol(name) });
+    }
     await settle();
   };
 
-  /** Add one, at `stage` (0 = per row, 1 = per group). */
+  /**
+   * Add one, at `stage` (0 = leaf level, 1 = group level), as a user
+   * does: name, kind, expression, wait for the compile, OK. A draft
+   * the compiler refuses leaves its window open, OK disabled.
+   */
   const addCalc = async (stage, name, expression, kind = 'measure') => {
     await openCalc();
-    await page.locator('.dc-calc-stage').nth(stage)
-      .locator('.dc-calc-add').click();
-    await page.waitForSelector('.dc-calc-form');
-    await page.fill('.dc-calc-input-name', name);
-    // The ROW stage asks whether the column sums. It defaults to
-    // dimension -- a wrongly-summed column gives a plausible wrong
-    // number, a wrongly-un-summed one gives a blank -- so a check
-    // that wants a total has to say so, exactly as a user would.
+    await page.fill('.dc-coleditor .dc-calc-input-name', name);
     // `kind === null` leaves the editor's own default alone, which is
-    // what a user who never touches the radio gets.
-    if (stage === 0 && kind !== null) {
-      await page.locator(`.dc-calc-kind-input[value="${kind}"]`).check();
+    // what a user who never touches the kind gets.
+    const level = stage === 1 ? 'group' : kind;
+    if (level !== null) {
+      await page.locator('.dc-coleditor .dc-calc-level').selectOption(level);
     }
-    await page.fill('.dc-calc-input-expr', expression);
-    await page.locator('.dc-calc-save').click();
+    await page.fill('.dc-coleditor .dc-calc-input-expr', expression);
+    const check = await compiledCheck();
+    if (check.state === 'refused') return check;
+    const ok = page.locator('.dc-coleditor .dc-calc-ok');
+    if (await ok.isDisabled()) {
+      // Say WHY rather than wait thirty seconds on a disabled button.
+      const problem = await page.locator('.dc-coleditor .dc-calc-problem').textContent();
+      throw new Error(`OK is disabled adding ${name}: ${problem || check.text}`);
+    }
+    await ok.click();
+    return check;
   };
 
   await check('a calculated column computes, and its arithmetic is right',
@@ -2494,72 +2516,66 @@ try {
       // renders blank rather than failing.
       await addCalc(0, 'uplift', '$x.notional * 1.1');
       await settle();
-      await openCalc();
-      const types = await page.locator('.dc-calc-item').evaluateAll(
-        (els) => els.map((e) => [
-          e.querySelector('.dc-calc-name')?.textContent,
-          e.querySelector('.dc-calc-type')?.textContent]));
-      const mine = types.find(([n]) => n === 'uplift');
-      if (!mine) throw new Error(`not listed: ${JSON.stringify(types)}`);
-      // The line reads "<kind> · <type>" now that the kind is
-      // declared, so the type is the last field.
-      const type = (mine[1] ?? '').split('·').pop()?.trim();
-      if (type !== 'Float') {
-        throw new Error(`type is ${JSON.stringify(type)}, expected Float`
-          + ' — an Arrow name here (Float64) would mean the driver'
-          + ' stopped normalising to the Pure vocabulary');
+      try {
+      // The type the result reported, as Column Properties shows it: a
+      // Float shows the number section with upstream's 2 decimals.
+      await page.click('.dc-status-properties');
+      await page.locator('.dc-app-overlay .dc-editor-tab', { hasText: 'Column Properties' }).click();
+      await page.locator('.dc-app-overlay .dc-field:has(> .dc-field-label:text-is("Choose Column:")) select')
+        .selectOption('uplift');
+      // The Decimals field holds the number AND the commas and parens
+      // boxes, so the number input by its type.
+      const decimalsField = page.locator('.dc-app-overlay .dc-field:has(> .dc-field-label:text-is("Decimals:")) input[type=number]');
+      const fields = await decimalsField.count();
+      if (fields > 1) {
+        const windows = await page.locator('.dc-app-overlay').evaluateAll((ws) =>
+          ws.map((w) => w.dataset.window));
+        throw new Error(`${fields} Decimals fields: windows open ${windows.join(', ')}`);
       }
-      // The DECLARED kind is on the line too, and it is what actually
-      // decides the aggregate now -- the type only seeds the cast.
-      if (!/measure/.test(mine[1] ?? '')) {
-        throw new Error(`the declared kind is missing: ${mine[1]}`);
+      const decimals = fields
+        ? await decimalsField.inputValue()
+        : `(no Decimals field; sections: ${(await page.locator('.dc-app-overlay .dc-section-title').allTextContents()).join(', ')})`;
+      if (decimals !== '2') {
+        throw new Error(`uplift shows no Float number format (decimals ${decimals}) —`
+          + ' the type never came back from the result');
       }
-      await clearCalcs();
-      return `uplift: ${mine[1]}`;
+      return 'uplift: Float, 2 decimals';
+      } finally {
+        // A failure here must not leave `uplift` for the next check.
+        await closeCalc();
+        await clearCalcs();
+      }
     });
 
   await check("a bad expression shows the PLANNER's own refusal",
     async () => {
-      await addCalc(0, 'bogus', '$x.notional->nosuchfunction()');
-      await settle();
-      const s2 = await state();
-      if (!/nosuchfunction/.test(s2.status)) {
-        throw new Error(`the refusal did not name the function:`
-          + ` ${s2.status.slice(0, 160)}`);
+      // Compiled as it is typed, as upstream's: the refusal is in the
+      // window, OK stays disabled, and the running cube is never touched.
+      const before = await state();
+      const check = await addCalc(0, 'bogus', '$x.notional->nosuchfunction()');
+      const ok = await page.locator('.dc-coleditor .dc-calc-ok').isDisabled();
+      await closeCalc();
+      if (check.state !== 'refused' || !/nosuchfunction/.test(check.text)) {
+        throw new Error(`the compile did not refuse by name: ${check.state} ${check.text.slice(0, 120)}`);
       }
-      // ...and the cube is still usable: the snapshot went back.
-      if ((await gridColumns()).length === 0) {
-        throw new Error('the grid emptied instead of reverting');
-      }
-      const refusal = s2.status.replace(/\s+/g, ' ').slice(0, 70);
-      // RECOVER, and assert the recovery. A deliberate error would
-      // otherwise sit on the status line and fail this suite's
-      // standing "nothing failed" invariant for every later check --
-      // and proving the cube comes back is the better assertion
-      // anyway.
-      await addCalc(0, 'recovered', '$x.notional * 1');
-      await settle();
-      await page.keyboard.press('Escape');
+      if (!ok) throw new Error('OK stayed enabled on a refused draft');
       const after = await state();
-      if (/nosuchfunction/.test(after.status)) {
-        throw new Error('the refusal outlived a later successful query');
-      }
-      await clearCalcs();
-      return `${refusal} … then recovered`;
+      if (after.pure !== before.pure) throw new Error('a refused draft reached the cube');
+      return `${check.text.replace(/\s+/g, ' ').slice(0, 70)} … the cube untouched`;
     });
 
   await check('a duplicate name is refused before the planner sees it',
     async () => {
       await openCalc();
-      await page.locator('.dc-calc-stage').first().locator('.dc-calc-add')
-        .click();
-      await page.fill('.dc-calc-input-name', 'region');
-      await page.fill('.dc-calc-input-expr', '1');
-      const problem = await page.locator('.dc-calc-problem').textContent();
+      await page.fill('.dc-coleditor .dc-calc-input-name', 'region');
+      await page.fill('.dc-coleditor .dc-calc-input-expr', '1');
+      const problem = await page.locator('.dc-coleditor .dc-calc-problem').textContent();
+      const mark = await page.locator('.dc-coleditor .dc-calc-namemark').textContent();
+      if (mark !== '✗') throw new Error(`the name shows ${mark}, not ✗`);
       if (!/already a column/.test(problem ?? '')) {
         throw new Error(`no complaint about the name: ${problem}`);
       }
-      if (!await page.locator('.dc-calc-save').isDisabled()) {
+      if (!await page.locator('.dc-coleditor .dc-calc-ok').isDisabled()) {
         throw new Error('Add stayed enabled on a duplicate name');
       }
       await page.keyboard.press('Escape');
@@ -2572,10 +2588,8 @@ try {
     // the planner refuses, and the user could not tell whose fault
     // that was.
     await openCalc();
-    await page.locator('.dc-calc-stage').nth(1).locator('.dc-calc-add')
-      .click();
-    await page.waitForSelector('.dc-calc-form[data-stage="group"]');
-    const offered = await page.locator('.dc-calc-item-column'
+    await page.locator('.dc-coleditor .dc-calc-level').selectOption('group');
+    const offered = await page.locator('.dc-coleditor .dc-calc-item-column'
       + ' .dc-calc-item-label').allTextContents();
     const leaked = ['pnl', 'qty', 'book'].filter((n) => offered.includes(n)
       && !offered.slice(0, 0).includes(n));
@@ -2597,10 +2611,16 @@ try {
     async () => {
       await addCalc(0, 'uplift', '$x.notional * 1.1');
       await settle();
-      await openCalc();
-      await page.locator('.dc-calc-del').first().click();
-      await settle();
-      await page.keyboard.press('Escape');
+      // From its own window, as upstream: Edit Column uplift... > Delete.
+      await menu(['Extended Columns', 'Edit Column uplift...'],
+        { col: await needCol('uplift'), requery: false });
+      await page.waitForSelector('.dc-coleditor .dc-calc-delete', { timeout: 5000 });
+      const before = await statusNow();
+      await page.locator('.dc-coleditor .dc-calc-delete').click();
+      await settle(before);
+      if (await page.locator('.dc-coleditor').count()) {
+        throw new Error('the window stayed open after its column was deleted');
+      }
       const s2 = await state();
       if (/extend\(~\[uplift/.test(s2.pure)) {
         throw new Error('the extend survived the removal');
@@ -2819,17 +2839,13 @@ try {
       // the column and its text were gone, and the reason was on the
       // status line, away from the form it was about.
       await addCalc(0, 'bogus', '$x.nope * 2', 'measure');
-      await settle();
       const form = await page.evaluate(() => ({
-        open: document.querySelectorAll('.dc-calc-form').length,
-        name: document.querySelector('.dc-calc-input-name')?.value ?? null,
-        expr: document.querySelector('.dc-calc-input-expr')?.value ?? null,
-        problem: document.querySelector('.dc-calc-problem')?.textContent ?? '',
+        open: document.querySelectorAll('.dc-coleditor').length,
+        name: document.querySelector('.dc-coleditor .dc-calc-input-name')?.value ?? null,
+        expr: document.querySelector('.dc-coleditor .dc-calc-input-expr')?.value ?? null,
+        problem: document.querySelector('.dc-coleditor .dc-calc-check')?.textContent ?? '',
       }));
-      // Recover before asserting, so a failure here cannot leave an
-      // error on the status line for every later check.
-      await addCalc(0, 'recovered', '$x.notional * 1');
-      await settle();
+      await closeCalc();
       await clearCalcs();
       if (!form.open) throw new Error('the form closed on a refusal');
       if (form.name !== 'bogus' || form.expr !== '$x.nope * 2') {
@@ -2870,16 +2886,17 @@ try {
       // EXTEND prefills the reference and inherits the column's kind.
       await menu(['Extended Columns', 'Extend Column notional...'],
         { col: await needCol('notional'), requery: false });
-      await page.waitForSelector('.dc-calc-form', { timeout: 5000 });
+      await page.waitForSelector('.dc-coleditor', { timeout: 5000 });
       const seeded = await page.evaluate(() => ({
-        expr: document.querySelector('.dc-calc-input-expr')?.value,
-        kind: document.querySelector('.dc-calc-kind-input:checked')?.value,
+        expr: document.querySelector('.dc-coleditor .dc-calc-input-expr')?.value,
+        kind: document.querySelector('.dc-coleditor .dc-calc-level')?.value,
       }));
       if (seeded.expr !== '$x.notional' || seeded.kind !== 'measure') {
         throw new Error(`Extend seeded ${JSON.stringify(seeded)}`);
       }
-      await page.fill('.dc-calc-input-name', 'n2');
-      await page.locator('.dc-calc-save').click();
+      await page.fill('.dc-coleditor .dc-calc-input-name', 'n2');
+      await compiledCheck();
+      await page.locator('.dc-coleditor .dc-calc-ok').click();
       await settle();
       await closeCalc();
       const onCalc = (await menuAt(await needCol('n2'))).map((i) => i.label);
@@ -2893,6 +2910,43 @@ try {
       const s2 = await state();
       if (/extend\(~\[n2/.test(s2.pure)) throw new Error('Delete left n2 in the query');
       return 'Add / Extend (seeded) / Edit / Delete, none in the hamburger';
+    });
+
+  await check('a window per column: two new at once, and Edit brings its own forward',
+    async () => {
+      await clearCalcs();
+      await flatten();
+      // Two Add New Column windows, side by side, as upstream allows.
+      // Not through `menu`, which closes every window first: a
+      // right-click on a cell the first window does not cover.
+      await closeCalc();
+      const openNew = async () => {
+        await page.locator('.dc-row').nth(3).locator('.dc-cell').nth(1).click({ button: 'right' });
+        const own = (t) => `.dc-menu-item:has(> .dc-menu-label:text-is(${JSON.stringify(t)}))`;
+        await page.locator(own('Extended Columns')).first().hover();
+        await page.locator(own('Add New Column...')).first().click();
+      };
+      await openNew();
+      await page.locator('.dc-coleditor').first().evaluate((e) => {
+        e.closest('.dc-app-overlay').style.left = '700px';
+      });
+      await openNew();
+      const both = await page.locator('.dc-coleditor').count();
+      await closeCalc();
+      if (both !== 2) throw new Error(`${both} editor windows, expected 2`);
+      await addCalc(0, 'uplift', '$x.notional * 1.1');
+      await settle();
+      const edit = async () => menu(['Extended Columns', 'Edit Column uplift...'],
+        { col: await needCol('uplift'), requery: false });
+      await edit();
+      await page.fill('.dc-coleditor .dc-calc-input-expr', '$x.notional * 9');
+      // Reset, as upstream's: back to what the column had.
+      await page.locator('.dc-coleditor .dc-calc-reset').click();
+      const expr = await page.inputValue('.dc-coleditor .dc-calc-input-expr');
+      await closeCalc();
+      await clearCalcs();
+      if (expr !== '$x.notional * 1.1') throw new Error(`Reset left ${expr}`);
+      return '2 new windows together; Edit opens the column, Reset restores it';
     });
 
   // -- the columns panel, which is a control and not a legend -------

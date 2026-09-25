@@ -1585,94 +1585,71 @@
 }
 
 /* ---- the calculated-column editor --------------------------------
-   Two stages, one window: choosing between them IS the decision the
-   user is making (a per-row value vs a ratio of aggregates), so
-   splitting them into two places would hide it. */
-.dc-calc {
+   One column per window, as upstream's: the form scrolls, the footer
+   (Cancel / Delete / Reset / OK) stays put. */
+.dc-overlay-body.dc-coleditor {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  min-width: 460px;
+  padding: 0;
 }
 
-.dc-calc-stage {
-  border: 1px solid var(--tw-neutral-200);
-  border-radius: 3px;
-  padding: 8px 10px;
-}
-
-.dc-calc-stage-head {
+.dc-coleditor-form {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
 }
 
-.dc-calc-stage-title {
+.dc-coleditor-code {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Upstream's live mark beside the name. */
+.dc-calc-namemark {
+  margin-left: 4px;
+  color: var(--tw-green-500, #22c55e);
   font-weight: 600;
 }
 
-.dc-calc-help,
-.dc-calc-none {
-  margin: 4px 0 0;
+.dc-calc-namemark.dc-bad {
+  color: var(--tw-red-500, #ef4444);
+}
+
+/* What the compiler said about the draft, and where. */
+.dc-calc-check {
+  min-height: 1.4em;
   font-size: var(--dc-text-sm-size);
   color: var(--tw-neutral-500);
-  max-width: 60ch;
 }
 
-.dc-calc-list {
-  list-style: none;
-  margin: 8px 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+.dc-calc-check[data-state="ok"] {
+  color: var(--tw-green-600, #16a34a);
 }
 
-/* Name, type, expression, then the two buttons. The expression takes
-   the slack and TRUNCATES rather than wrapping, so a long one cannot
-   push the buttons out of reach. */
-.dc-calc-item {
-  display: grid;
-  grid-template-columns: minmax(6em, auto) auto 1fr auto auto;
-  gap: 8px;
-  align-items: center;
+.dc-calc-check[data-state="refused"] {
+  color: #b3261e;
 }
 
-.dc-calc-name { font-weight: 500; }
-
-.dc-calc-type {
-  font-size: var(--dc-text-sm-size);
-  color: var(--tw-neutral-400);
-  white-space: nowrap;
-}
-
-.dc-calc-expr {
+.dc-calc-caret {
+  margin: 2px 0 0;
   font-family: var(--dc-mono, ui-monospace, monospace);
-  font-size: var(--dc-text-sm-size);
-  color: var(--tw-neutral-600);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: pre;
+  overflow-x: auto;
 }
 
-.dc-calc-form {
-  border: 1px solid var(--tw-neutral-300);
-  border-radius: 3px;
-  padding: 10px;
+.dc-calc-footer {
+  flex: none;
   display: flex;
-  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
   gap: 8px;
-  background: var(--tw-neutral-50);
-}
-
-.dc-calc-form-head { font-weight: 600; }
-
-.dc-calc-field {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: var(--dc-text-sm-size);
+  height: 40px;
+  padding: 0 8px;
+  border-top: 1px solid var(--tw-neutral-300);
 }
 
 .dc-calc-input-name,
@@ -1755,37 +1732,3 @@
   color: #b3261e;
 }
 
-.dc-calc-actions {
-  display: flex;
-  gap: 6px;
-}
-
-/* The kind is a CHOICE, not a guess: what the column does when a
-   group collapses. Worded as behaviour rather than as the cube's
-   vocabulary, because "measure" and "dimension" are our words. */
-.dc-calc-kind-label {
-  font-size: var(--dc-text-sm-size);
-}
-
-.dc-calc-kinds {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 2px;
-}
-
-.dc-calc-kind {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
-  font-size: var(--dc-text-sm-size);
-  cursor: pointer;
-}
-
-.dc-calc-kind-input {
-  margin: 0;
-}
-
-.dc-calc-kind-text {
-  color: var(--tw-neutral-600);
-}

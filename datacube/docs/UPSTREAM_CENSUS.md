@@ -249,17 +249,17 @@ Upstream: `DataCubeExtendManagerState.tsx`, `DataCubeColumnEditorState.tsx`,
 |---|---|---|---|---|
 | Leaf level (measure / dimension) and group level | ✓ | ✓ row and group stages + kind | ✅ | H |
 | Entry points: Extended Columns in the menu | ✓ | ✓ | ✅ | H |
-| **One window per column, several open at once**; Edit on a column already open focuses its window | ✓ | one window listing every calculated column | ⚠️ | C `app.ts:2027` |
-| Name defaults to `col_{N+1}`; a live ✓/✗ for uniqueness | ✓ | ✓ default; checked on save | ⚠️ | C |
-| **Value Type** (Text / Number / Date) declared; OK disabled unless the compiled type matches | ✓ | ❌ (the type is learned after running) | ❌ | C |
-| **Live compile** (500 ms debounce) with **error markers in the editor** (offset for the hidden prefix) | ✓ | validated on Save; message shown in the form | ⚠️ | C, `calc-editor.test.ts` |
+| **One window per column, several open at once**; Edit on a column already open focuses its window | ✓ | ✓ "Add New Column" / "Edit Column" windows | ✅ | H, T |
+| Name defaults to `col_{N+1}`; a live ✓/✗ for uniqueness | ✓ | ✓ | ✅ | H, T |
+| **Value Type** (Text / Number / Date) declared; OK disabled unless the compiled type matches | ✓ | ❌ WAITS for the compiler's type API (engine `lambdaRelationType`, #22) — USER 2026-09-25: never a type found by running | ❌ | C |
+| **Live compile** (500 ms debounce) with **error markers in the editor** (offset for the hidden prefix) | ✓ | ✓ compile only (planned, never run); a caret under the position when the compiler names one; a remote engine checks on OK until `lambdaRelationType` | ✅ | H, T |
 | Pure syntax highlighting (Monaco) | ✓ | plain textarea | ⚠️ | C |
 | Engine autocomplete | ✓ | ➕ our own in-scope completion list (engine completion skipped by ruling) | ➕ | C |
-| Reset (for an existing column) | ✓ | ❌ | ❌ | C |
+| Reset (for an existing column) | ✓ | ✓ | ✅ | H, T |
 | Delete from the editor | ✓ | ✓ Remove | ✅ | C |
 | Update / delete check the WHOLE query first; refused → nothing changes | ✓ | ✓ run, and revert on refusal | ✅ | C `app.ts:1219` |
 | Rename carries through the cube | ✓ | ✓ | ✅ | H |
-| Open editors recompile when the cube changes | ✓ | — (one editor) | ⚠️ | C |
+| Open editors recompile when the cube changes | ✓ | ✓ | ✅ | C `app.ts #onView` |
 | Window (`over()`) and reducing extends accepted from a query | ✓ | ❌ | ❌ | C |
 
 ## E. Properties editor

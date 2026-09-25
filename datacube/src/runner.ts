@@ -49,6 +49,18 @@ export interface QueryRunner {
     scope?: LevelScope,
     signal?: AbortSignal,
   ): Promise<RunOutcome>;
+  /**
+   * Compile WITHOUT running: resolves when the query compiles, throws
+   * the compiler's refusal when it does not. Absent where this plane
+   * has no compile-only call -- a remote engine, until legend-lite
+   * serves upstream's `lambdaRelationType` -- and then a caller says
+   * so; it never executes to find out.
+   */
+  compile?(
+    pureGrammar: string,
+    snapshot: CubeSnapshot,
+    signal?: AbortSignal,
+  ): Promise<void>;
 }
 
 /**
@@ -79,6 +91,15 @@ export class PlanThenRun implements QueryRunner {
     const sql = await this.planner.plan(pureGrammar, snapshot, scope, signal);
     const rows = await this.engine.execute(sql, snapshot.epoch, signal);
     return { rows, sql };
+  }
+
+  /** Planning IS compiling here: the planner compiles, nothing runs. */
+  async compile(
+    pureGrammar: string,
+    snapshot: CubeSnapshot,
+    signal?: AbortSignal,
+  ): Promise<void> {
+    await this.planner.plan(pureGrammar, snapshot, undefined, signal);
   }
 }
 

@@ -198,6 +198,30 @@ export class CubeController {
   }
 
   /**
+   * Compile a cube without running it -- the calculated-column
+   * editor's live check. The query is the cube's whole grouping (every
+   * row dimension), so a group-level column is in it. Resolves to the
+   * Pure it compiled and the compiler's refusal (null when it
+   * compiles), or undefined when this plane cannot compile without
+   * executing.
+   */
+  async compile(
+    snapshot: CubeSnapshot,
+    signal?: AbortSignal,
+  ): Promise<{ readonly pure: string; readonly refusal: string | null } | undefined> {
+    const runner = this.#runner;
+    if (!runner.compile) return undefined;
+    const pure = serialize(snapshot);
+    try {
+      await runner.compile(pure, snapshot, signal);
+      return { pure, refusal: null };
+    } catch (error: unknown) {
+      if (signal?.aborted) throw error;
+      return { pure, refusal: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
+  /**
    * One query, for a host that needs rows of its own.
    *
    * Drill-through is the case: it asks for the rows behind a cell,
