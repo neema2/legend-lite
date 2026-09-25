@@ -101,7 +101,11 @@ class IdentityGuardrailTest {
      * 4b.1 (2026-09-25): 214 -> 209, 94 -> 84, 65 -> 64 (readers ask what a call
      * REFERS TO: StaticFold's fold ops, the if-prune, ValidateDesugar, ScanRelations,
      * MappingNormalizer, ContextReading; AppliedFunction.isIf deleted); MINT_BY_NAME
-     * 145 -> 144 (booleanizeCaseLiterals keeps the resolved node). */
+     * 145 -> 144 (booleanizeCaseLiterals keeps the resolved node).
+     * 4b.2 (2026-09-25): CATALOG_LOOKUP_BY_NAME 179 -> 172 (the catalog refuses a
+     * bare name; resolution asks BareNames, the courtesy loop and the bare
+     * readers are gone), FUNCTION_CATEGORY_CHECK 16 -> 13 (CORE_FUNCTION_PACKAGES
+     * deleted), MINT_BY_NAME 144 -> 143 (the TDSNull funnel spells sqlNull's FQN). */
     private static final Map<String, Integer> PINS = Map.ofEntries(
             Map.entry("NAME_COMPARE", 209),
             Map.entry("NAME_COMPARE_REVERSED", 84),
@@ -109,10 +113,10 @@ class IdentityGuardrailTest {
             Map.entry("NAME_AFFIX_TEST", 53),
             Map.entry("NAME_CUTTING", 106),
             Map.entry("SIGNATURE_ID_CUTTING", 1),
-            Map.entry("CATALOG_LOOKUP_BY_NAME", 179),
+            Map.entry("CATALOG_LOOKUP_BY_NAME", 172),
             Map.entry("FAMILY_LOOKUP_BY_NAME", 87),
-            Map.entry("FUNCTION_CATEGORY_CHECK", 16),
-            Map.entry("MINT_BY_NAME", 144),
+            Map.entry("FUNCTION_CATEGORY_CHECK", 13),
+            Map.entry("MINT_BY_NAME", 143),
             Map.entry("FORM_DISPATCH_BY_NAME", 21));
 
     @Test

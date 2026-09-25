@@ -242,10 +242,12 @@ final class GroupBySynthesis {
         if (d.isEmpty() || d.get().resolution() != com.legend.builtin.DynaFn.Resolution.PURE) {
             return false;
         }
-        for (var native_ : Pure.nativeFunctionsAt(fc.name())) {
-            if (!native_.parameters().isEmpty()
-                    && isCollection(native_.parameters().get(0).multiplicity())) {
-                return true;
+        for (String fqn : d.get().fqns()) {
+            for (var native_ : Pure.nativeFunctionsAt(fqn)) {
+                if (!native_.parameters().isEmpty()
+                        && isCollection(native_.parameters().get(0).multiplicity())) {
+                    return true;
+                }
             }
         }
         return false;

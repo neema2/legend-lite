@@ -254,8 +254,7 @@ final class ProjectChecker {
                 // comment claimed it, the code lacked it): a CATALOG
                 // native in this shape is a computed column, never a
                 // dated property function
-                if (!com.legend.builtin.Pure
-                        .nativeKeysAt(laf.function()).isEmpty()) {
+                if (!com.legend.compiler.ResolvedNames.declaredNatives(laf).isEmpty()) {
                     throw new TypeInferenceException("a name-less project"
                             + " column whose leaf calls the native '"
                             + laf.function() + "' is a computed column —"

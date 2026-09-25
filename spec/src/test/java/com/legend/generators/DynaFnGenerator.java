@@ -89,24 +89,47 @@ public final class DynaFnGenerator {
         return out;
     }
 
+    /** The catalog FQNs a PURE dynafunction name resolves to, spelled as the
+     *  member's list literal: every user-resolvable native of that bare name. */
+    static String pureFqns(String dynaName) {
+        List<String> out = new ArrayList<>();
+        for (String fqn : com.legend.builtin.Pure.userResolvableFunctionFqns()) {
+            if (fqn.substring(fqn.lastIndexOf(':') + 1).equals(dynaName) && !out.contains(fqn)) {
+                out.add(fqn);
+            }
+        }
+        StringBuilder sb = new StringBuilder();
+        for (String f : out) {
+            sb.append(sb.length() == 0 ? "" : ", ").append('"').append(f).append('"');
+        }
+        return sb.toString();
+    }
+
     /** DynaFn.java's text with its member block rewritten from {@code up},
      *  keeping each existing member's resolution and Lite constant. */
     public static String generate(TreeMap<String, Upstream> up, String text) {
         Map<String, String[]> existing = new TreeMap<>();
-        Matcher m = Pattern.compile("^    ([A-Z_0-9]+)\\(\"(\\w+)\", Resolution\\.(\\w+), (null|Pure\\.Lite\\.\\w+), Inference\\.\\w+", Pattern.MULTILINE).matcher(text);
+        Matcher m = Pattern.compile("^    ([A-Z_0-9]+)\\(\"(\\w+)\", Resolution\\.(\\w+), List\\.of\\(([^)]*)\\), Inference\\.\\w+", Pattern.MULTILINE).matcher(text);
         while (m.find()) {
             existing.put(m.group(2), new String[] {m.group(3), m.group(4)});
         }
         List<String> lines = new ArrayList<>();
         for (Map.Entry<String, Upstream> e : up.entrySet()) {
-            String[] keep = existing.getOrDefault(e.getKey(), new String[] {"UNSUPPORTED", "null"});
+            String[] kept = existing.getOrDefault(e.getKey(), new String[] {"UNSUPPORTED", ""});
+            // the FQN column: a PURE name's declarations are DERIVED from the
+            // catalog (every user-resolvable native of that bare name — the
+            // engine's operator IS pure's function, wherever the platform
+            // declares it); a SHIM keeps its spelled Lite constant; the rest none
+            String[] keep = kept[0].equals("PURE")
+                    ? new String[] {kept[0], pureFqns(e.getKey())}
+                    : new String[] {kept[0], kept[0].equals("SHIM") ? kept[1] : ""};
             String member = e.getKey().replaceAll("([a-z0-9])([A-Z])", "$1_$2").toUpperCase();
             StringBuilder ds = new StringBuilder();
             for (String d : e.getValue().dialects()) {
                 ds.append(", Dialect.").append(d);
             }
-            lines.add("    " + member + "(\"" + e.getKey() + "\", Resolution." + keep[0] + ", " + keep[1]
-                    + ", Inference." + (e.getValue().inferred() ? "MAPPED" : "NONE") + ds + "),");
+            lines.add("    " + member + "(\"" + e.getKey() + "\", Resolution." + keep[0] + ", List.of(" + keep[1]
+                    + "), Inference." + (e.getValue().inferred() ? "MAPPED" : "NONE") + ds + "),");
         }
         String last = lines.get(lines.size() - 1);
         lines.set(lines.size() - 1, last.substring(0, last.length() - 1) + ";");

@@ -549,7 +549,7 @@ final class RelOpTranslator {
             // lowering's erasure keeps SQL identical, and [1] args are
             // unaffected).
             case RelationalOperation.FunctionCall call -> operatorCall(
-                    dynaFnName(call),
+                    dynaFnName(call), dynaFnCandidates(call),
                     toOneAll(translateArgs(call, tableScope, targetVarOrNull,
                             rowBindOrNull, pipeline)));
             case RelationalOperation.Comparison cmp -> {
@@ -723,15 +723,27 @@ final class RelOpTranslator {
     /** The engine's dynaFn call {@code plus(a, b)} names a VARIADIC pure
      *  native ({@code Pure.isVariadicRun}): the arguments ARE its one
      *  collection — the parser's n-ary carrier. */
-    static List<ValueSpecification> variadicRun(String fn, List<ValueSpecification> args) {
-        return args.size() >= 2 && Pure.isVariadicRun(fn)
+    static List<ValueSpecification> variadicRun(String fn, List<String> fqns, List<ValueSpecification> args) {
+        return args.size() >= 2 && Pure.isVariadicRun(fqns)
                 ? List.of(new PureCollection(args)) : args;
     }
 
+    /** The declarations a dynafunction's PURE spelling names — the registry
+     *  row's FQNs (generated from the catalog); a name the engine registers as
+     *  no dynafunction, or one respelled to a Lite FQN, carries none: the
+     *  call resolves like any other. */
+    static List<String> dynaFnCandidates(RelationalOperation.FunctionCall call) {
+        DynaFn d = dyna(call);
+        return d != null && d.resolution() == DynaFn.Resolution.PURE ? d.fqns() : List.of();
+    }
+
     /** The engine's arithmetic dynaFn IS the infix operator: its call is
-     *  spelled exactly as the parser spells {@code a + b}. */
-    private static AppliedFunction operatorCall(String fn, List<ValueSpecification> args) {
-        List<ValueSpecification> shaped = variadicRun(fn, args);
-        return shaped == args ? new AppliedFunction(fn, args) : AppliedFunction.infixRun(fn, args);
+     *  spelled exactly as the parser spells {@code a + b}. A PURE dynafunction
+     *  rides with the declarations its registry row names, the shape the
+     *  resolver leaves on an import-resolved call. */
+    private static AppliedFunction operatorCall(String fn, List<String> candidates, List<ValueSpecification> args) {
+        List<ValueSpecification> shaped = variadicRun(fn, candidates, args);
+        return shaped == args ? new AppliedFunction(fn, args, candidates)
+                : new AppliedFunction(fn, List.of(new PureCollection(args)), candidates, null, false, false, true);
     }
 }

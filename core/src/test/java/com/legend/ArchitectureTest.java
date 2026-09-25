@@ -930,7 +930,7 @@ final class ArchitectureTest {
                 "com.legend.builtin.Pure$Index.CLASS_BY_FQN",
                 "com.legend.builtin.Pure$Index.ENUM_BY_FQN",
                 "com.legend.builtin.Pure$Index.FN_BY_FQN",
-                "com.legend.builtin.Pure$Index.FN_BY_BARE",
+                "com.legend.builtin.Pure$Index.REGISTERED_BY_BARE",
                 "com.legend.builtin.Pure$Index.KEYS_BY_NAME",
                 "com.legend.builtin.Pure$Index.FN_BY_ID",
                 "com.legend.builtin.Pure$Index.USER_RESOLVABLE_FQNS",

@@ -32,25 +32,24 @@ final class FunctionCompiler {
 
     /** THE native+user overload merge — every "functions at this FQN" question routes here. */
     List<Function> functionsAt(String fqn) {
-        List<Function> all = new ArrayList<>(Pure.nativeFunctionsAt(fqn));
-        // DEFAULT-IMPORT parity for USER functions in the pure core
-        // packages: real pure's implicit imports put meta::pure::functions
-        // ::collection/::string/... in every section's scope, so the
-        // corpus calls uniqueValueOnly(...) BARE. Natives already resolve
-        // bare via the catalog index; user-defined (shared-source) core
-        // functions get the same courtesy — SCOPED to meta::pure:: FQNs
-        // so user-model bare names never resolve accidentally.
         if (!fqn.contains("::")) {
-            for (String pkg : CORE_FUNCTION_PACKAGES) {
-                // the SAME platform-owned gate as the FQN path below —
-                // the bare-name courtesy must not smuggle a suppressed
-                // definition back in (assertInstanceOf, 2026-08-19)
-                if (!com.legend.compiler.element.type.PlatformTypes
-                        .isPlatformOwnedFunction(pkg + "::" + fqn)) {
-                    addModelOverloads(all, model, pkg + "::" + fqn);
+            // A BARE name the resolver could not qualify: THE RULE (BareNames,
+            // untangle 4b.2) names the declarations it may denote — engine
+            // surface, core group, the form's own — and each is looked up
+            // exactly like a qualified call, natives and model alike, under
+            // the same platform-owned gate. No bare index, no courtesy list.
+            List<Function> all = new ArrayList<>();
+            for (String candidate : com.legend.compiler.BareNames.fqns(fqn)) {
+                for (Function f : functionsAt(candidate)) {
+                    if (!all.contains(f)) {
+                        all.add(f);
+                    }
                 }
             }
+            com.legend.builtin.DecisionProbe.overloads(fqn, all, model, model.functions());
+            return all;
         }
+        List<Function> all = new ArrayList<>(Pure.nativeFunctionsAt(fqn));
         // (the on-demand lift of NATIVE-CATALOG classes' derived properties
         // is GONE — batch 167, HAND_SHAPE_DIVERGENCE §4 step 5: the catalog
         // holds the primitives alone, every class with a body is a module
@@ -88,7 +87,6 @@ final class FunctionCompiler {
      * platform-owned rule. */
     private static void addModelOverloads(
             List<Function> all, ModelBuilder model, String fqn) {
-        String bare = fqn.substring(fqn.lastIndexOf(':') + 1);
         for (Function def : model.findFunction(fqn)) {
             boolean pctFunction = def
                     instanceof com.legend.model.FunctionDefinition fd
@@ -98,9 +96,7 @@ final class FunctionCompiler {
                             && com.legend.compiler.element.type.PlatformTypes.isProfile(
                                     st.profileName(),
                                     com.legend.compiler.element.type.PlatformTypes.PCT_PROFILE));
-            if (pctFunction
-                    && com.legend.builtin.Pure.nativeKeysAt(bare).stream()
-                            .anyMatch(k -> k.startsWith(fqn + "("))) {
+            if (pctFunction && !com.legend.builtin.Pure.nativeFunctionsAt(fqn).isEmpty()) {
                 if (SUPPRESSED_ONCE.add(fqn)) {
                     System.err.println("[legend-lite] PCT.function '" + fqn
                             + "' suppressed (native is the definition)");
@@ -111,30 +107,13 @@ final class FunctionCompiler {
         }
     }
 
-    /** Real pure's implicit-import packages (m3 default imports) whose
-     * USER-defined functions resolve bare. */
-    private static final List<String> CORE_FUNCTION_PACKAGES = List.of(
-            "meta::pure::functions::collection",
-            "meta::pure::functions::string",
-            "meta::pure::functions::math",
-            "meta::pure::functions::date",
-            "meta::pure::functions::boolean",
-            "meta::pure::functions::lang",
-            "meta::pure::functions::multiplicity",
-            // real pure's implicit imports include the assert family —
-            // PCT sources call assertFalse/assertEquals BARE with no
-            // asserts import (Phase 4 channel B verified the spec fact)
-            "meta::pure::functions::asserts",
-            "meta::pure::tds",
-            "meta::pure::tds::extensions");
-
     private static final java.util.Set<String> SUPPRESSED_ONCE =
             java.util.Collections.newSetFromMap(
                     new java.util.concurrent.ConcurrentHashMap<>());
 
     /** Pure existence check — symbol-table lookup only, no compilation. */
     boolean exists(String fqn) {
-        return !Pure.nativeFunctionsAt(fqn).isEmpty() || !model.findFunction(fqn).isEmpty();
+        return !functionsAt(fqn).isEmpty();
     }
 
     /** Compile every overload at {@code fqn} to its typed signature. */

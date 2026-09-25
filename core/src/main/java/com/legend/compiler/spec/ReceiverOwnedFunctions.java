@@ -52,7 +52,7 @@ final class ReceiverOwnedFunctions {
         // cast…) is the platform's definition outright; only an operator
         // FAMILY with natives (filter, join, sort) can yield to a model
         // function over a class its natives never take
-        if (Pure.nativeFunctionsAt(af.function()).isEmpty()) {
+        if (com.legend.compiler.ResolvedNames.declaredNatives(af).isEmpty()) {
             return null;
         }
         List<TypedFunction> cands = t.functionCandidates(af);

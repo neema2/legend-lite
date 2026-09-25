@@ -365,13 +365,13 @@ final class MatchChecker {
         throw new TypeInferenceException("match expects a collection of branch lambdas");
     }
 
-    /** The call names a REGISTERED native of that bare name (the name is
-     * resolved against the native registry, never compared to a spelling
-     * the registry does not know). */
+    /** The call names a DECLARED native of that bare name (the spelling is
+     * resolved through the bare-name rule or its own FQN, never compared to
+     * a name the catalog does not declare). */
     private static boolean nativeNamed(AppliedFunction af, String bare) {
         String n = af.function();
         String simple = n.substring(n.lastIndexOf(':') + 1);
-        return simple.equals(bare) && !com.legend.builtin.Pure.nativeKeysAt(bare).isEmpty();
+        return simple.equals(bare) && !com.legend.compiler.ResolvedNames.declaredNatives(af).isEmpty();
     }
 
     /** The spelled lambda collection inside the engine's

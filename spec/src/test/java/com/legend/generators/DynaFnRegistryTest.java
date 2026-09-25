@@ -74,8 +74,21 @@ class DynaFnRegistryTest {
         for (DynaFn d : DynaFn.values()) {
             switch (d.resolution()) {
                 case PURE -> {
-                    if (Pure.nativeFunctionsAt(d.dynaName()).isEmpty()) {
+                    // the row's declarations are the catalog's user-resolvable
+                    // natives of that bare name, generated — every package
+                    if (d.fqns().isEmpty()) {
                         bad.add(d.dynaName() + ": PURE but no catalog native of that name");
+                    }
+                    String expected = DynaFnGenerator.pureFqns(d.dynaName()).replace("\"", "");
+                    String actual = String.join(", ", d.fqns());
+                    if (!expected.equals(actual)) {
+                        bad.add(d.dynaName() + ": PURE declarations drifted — row " + actual
+                                + " vs catalog " + expected);
+                    }
+                    for (String fqn : d.fqns()) {
+                        if (Pure.nativeFunctionsAt(fqn).isEmpty()) {
+                            bad.add(d.dynaName() + ": PURE names " + fqn + ", not a catalog native");
+                        }
                     }
                 }
                 case SHIM -> {

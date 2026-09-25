@@ -33,7 +33,7 @@ public interface DecisionProbe {
 
     /** The candidate declarations the typer considers for a call spelled {@code name}
      *  (a null is a candidate with no source definition — a test convenience). */
-    void onCandidates(String name, Stream<@Nullable Function> candidates);
+    void onCandidates(String name, String source, Stream<@Nullable Function> candidates);
 
     /** The installed probe, or null. The binding (META-INF/services) is a TEST-LANE
      *  resource (//core:shadow_binding on the suites' libraries), never the product
@@ -69,9 +69,11 @@ public interface DecisionProbe {
         }
     }
 
-    static void candidates(String name, Stream<@Nullable Function> candidates) {
+    /** {@code source}: {@code node} when the resolver left the candidates on the
+     *  call, {@code bare} when the typer's bare-name rule supplied them. */
+    static void candidates(String name, String source, Stream<@Nullable Function> candidates) {
         if (INSTALLED != null) {
-            INSTALLED.onCandidates(name, candidates);
+            INSTALLED.onCandidates(name, source, candidates);
         }
     }
 }

@@ -5502,3 +5502,46 @@ recorded in charter step 7 / D7: 27 modules, 1,772 files, 32 walls, 15,736 / 1,4
 
 **Test.** Both corpus rosters LOST 0 (DuckDB 2474, H2 2232); core, guardrails, spec green; the
 protocol-node construction pin unchanged (the two inliners share one body wrapper).
+
+## 2026-09-25 — The untangle, step 4b.2 + 4b.3: one rule for a bare name; the catalog refuses bare lookups
+
+**What.** A call the resolver could not qualify used to be served by `FN_BY_BARE` — every catalog
+native by short name from any package, unverified — plus a courtesy loop over ten hand-listed
+packages for model functions. Now `com.legend.compiler.BareNames` is the one rule, three tiers,
+each a declaration the platform can point at: the ENGINE SURFACE (`EngineHandlers`, generated from
+the pinned `Handlers.java`), the CORE IMPORT GROUP (`NameResolver.CORE_IMPORTS`, generated from the
+engine's `CompileContext`), and the FORM's OWNED DECLARATIONS spelled like the call
+(`CoreFn.ownedFqns`). `FunctionCompiler.functionsAt(bare)` asks it and looks each FQN up exactly like
+a qualified call (natives and model, the same platform-owned gate); `Pure.nativeFunctionsAt` refuses
+a bare name outright, so no reader can fall back to the index by accident; the index survives only as
+the lowering's registration surface (`REGISTERED_BY_BARE` behind `nativeKeysAt` — 4d registers by id
+and deletes it). `CORE_FUNCTION_PACKAGES` is deleted. `ResolvedNames`, `ReceiverOwnedFunctions`,
+`MatchChecker`, `ProjectChecker`, `GroupBySynthesis` and the resolver's captured-name union ask the
+rule or the call's resolved referents. The dynafunction registry's fourth column is now THE
+DECLARATIONS a name resolves to — a PURE row's catalog FQNs, GENERATED from the catalog by
+`DynaFnGenerator` (232 rows) and verified by `DynaFnRegistryTest`; a SHIM's Lite FQN — and the
+translator mints a PURE operator call carrying them as candidates, the shape the resolver leaves on
+an import-resolved call, so `sqlNull`, `sqlTrue`, `sqlFalse` and every other operator reach the
+typer resolved (4b.3: the TDSNull funnel spells `Pure.SQL_NULL`).
+
+**Measured before switching** (the probe gained a `bare`/`node` source column so a node-carried
+candidate is never mistaken for bare demand): 227 truly bare names / 451 sites in nine suites; 138
+names find nothing under any rule (property and form probes: `name`, `getString`, `agg`, `restrict`);
+of the 89 with candidates the three tiers cover every candidate FQN but 6, each traced — the
+`meta::core::runtime` twins of `currentUserId`/`connectionByElement`, one `execute` overload no
+4-argument shape uses, and the three sql constants (the dynafunction column).
+
+**Gate (before → after).** Bare names 227 → 223 (sites 451 → 445); zero-candidate names 138 → 139
+(`connectionByElement`, served by its derived property); PICK disagreements 0 → 0 (8 new agreeing
+rows); FORM 43 → 43, none new; OVERLOADS 0 → 0 disagreements; both corpus rosters LOST 0 (DuckDB
+2474, H2 2232); nine suites green. Identity pins: CATALOG_LOOKUP_BY_NAME 179 → 172,
+FUNCTION_CATEGORY_CHECK 16 → 13, MINT_BY_NAME 144 → 143; the boot census unchanged (26 walled, 0
+unwalled); the stdlib pin at 5. One slip the census caught and the rule corrected: tier 3 first
+admitted every FQN a form owns, so bare `select` tied with `newTDSRelationAccessor`; a form's owned
+declarations join only under their own name.
+
+**Test.** `BareNamesTest`: a handler name is served by the engine surface (`from`); a core-group name
+carries every package (`map`); the lite partition holds (`joinSlot` unreachable, `joinWithPrefix`
+reachable); an undeclared name has no candidates; the catalog is FQN-keyed; a form's owned
+declarations join only under their own name. `NativeCatalogGovernanceTest` and `DynaFnRegistryTest`
+re-pointed to the rule; the registry's PURE declarations pinned to the generator's derivation.

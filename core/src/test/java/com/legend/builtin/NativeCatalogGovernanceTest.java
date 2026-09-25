@@ -149,7 +149,7 @@ class NativeCatalogGovernanceTest {
         // their real overloads and lose only the lite-package ones.
         var leaks = new TreeSet<String>();
         for (String bare : union(Pure.INTERNAL_DESUGAR, Pure.ENGINE_VOCAB_SHIMS)) {
-            for (var def : Pure.nativeFunctionsAt(bare)) {
+            for (var def : com.legend.compiler.BareNames.catalog(bare)) {
                 if (def.qualifiedName().startsWith(Pure.Lite.PKG)) {
                     leaks.add(def.qualifiedName());
                 }
@@ -162,7 +162,7 @@ class NativeCatalogGovernanceTest {
     @Test
     void liteSurfaceStaysResolvable() {
         for (String bare : Pure.LITE_SURFACE) {
-            assertTrue(!Pure.nativeFunctionsAt(bare).isEmpty(),
+            assertTrue(!com.legend.compiler.BareNames.catalog(bare).isEmpty(),
                     bare + " is user-facing lite product surface"
                             + " — it must stay bare-name resolvable");
         }

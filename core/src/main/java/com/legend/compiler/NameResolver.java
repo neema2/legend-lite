@@ -1742,8 +1742,7 @@ public final class NameResolver {
                 if (captured && scope.prelude()
                         && !af.function().contains("::")) {
                     List<String> merged = null;
-                    for (var nf : com.legend.builtin.Pure
-                            .nativeFunctionsAt(af.function())) {
+                    for (var nf : BareNames.catalog(af.function())) {
                         String nfq = nf.qualifiedName();
                         if (!matches.contains(nfq)
                                 && (merged == null || !merged.contains(nfq))) {

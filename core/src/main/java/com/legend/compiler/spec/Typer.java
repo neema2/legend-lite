@@ -221,7 +221,7 @@ final class Typer {
             case PackageableElementPtr ref
                     when ref.fullPath().equals("TDSNull")
                     || ref.fullPath().equals("meta::pure::tds::TDSNull") ->
-                    synth(new AppliedFunction("sqlNull", List.of()), env);
+                    synth(new AppliedFunction(com.legend.builtin.Pure.SQL_NULL.qualifiedName(), List.of()), env);
             case PackageableElementPtr ref -> classReference(ref);
             case NewInstance ni -> {
                 // ^TDSNull() — the TDS null-cell INSTANCE (engine
@@ -2536,7 +2536,8 @@ final class Typer {
     List<TypedFunction> functionCandidates(AppliedFunction af) {
         List<TypedFunction> found = candidatesOf(af);
         if (com.legend.builtin.DecisionProbe.INSTALLED != null) {
-            com.legend.builtin.DecisionProbe.candidates(af.function(), found.stream().map(TypedFunction::definition));
+            com.legend.builtin.DecisionProbe.candidates(af.function(),
+                    af.candidateFqns().isEmpty() ? "bare" : "node", found.stream().map(TypedFunction::definition));
         }
         return found;
     }

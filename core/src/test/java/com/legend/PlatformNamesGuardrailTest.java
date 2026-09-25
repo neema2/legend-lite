@@ -90,7 +90,12 @@ class PlatformNamesGuardrailTest {
             // the language forms' ownership registry (untangle step 2,
             // 2026-09-24): each form names the exact FQNs whose overloads it
             // owns — a registration, like a NativeFn member's
-            "CoreFn.java");
+            "CoreFn.java",
+            // the engine's dynafunction registry (untangle 4b.2, 2026-09-25):
+            // each PURE row names the catalog declarations it resolves to —
+            // GENERATED from the catalog by DynaFnGenerator and verified by
+            // DynaFnRegistryTest, never hand-spelled
+            "DynaFn.java");
 
     /** A function FQN literal: {@code "meta::…::lowerCamel"} (a class or enum
      *  FQN ends in an upper-case segment and is a TYPE spelling, not dispatch). */

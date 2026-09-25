@@ -589,15 +589,15 @@ public final class Pure {
         static final java.util.Map<String, ClassDefinition> CLASS_BY_FQN = new java.util.HashMap<>();
         static final java.util.Map<String, EnumDefinition> ENUM_BY_FQN = new java.util.HashMap<>();
         static final java.util.Map<String, List<NativeFunctionDefinition>> FN_BY_FQN = new java.util.HashMap<>();
-        /** bare name -> the USER-RESOLVABLE overloads across packages
-         *  (filter ∈ collection+relation, ...). A bare name is a QUERY
-         *  against the user's namespace, so this index holds exactly
-         *  that namespace: lite-internal defs (desugar IR + engine-vocab
-         *  shims) are excluded — internal producers and consumers spell
-         *  {@link Pure#lite} and resolve through FN_BY_FQN. LITE_SURFACE
-         *  names (user-facing product natives that happen to live in the
-         *  lite package) stay. */
-        static final java.util.Map<String, List<NativeFunctionDefinition>> FN_BY_BARE = new java.util.HashMap<>();
+        /** bare name -> the USER-RESOLVABLE overloads across packages, in
+         *  catalog order — THE LOWERING'S REGISTRATION SURFACE ONLY
+         *  ({@link Pure#nativeKeysAt}: a rule table registers "every overload
+         *  named X"; untangle 4d registers by id and deletes this). Name
+         *  RESOLUTION never reads it (4b.2, 2026-09-25): a bare call is
+         *  served by {@code com.legend.compiler.BareNames}, and
+         *  {@link Pure#nativeFunctionsAt} refuses a bare name. The lite
+         *  partition: lite-internal defs are excluded, LITE_SURFACE names stay. */
+        static final java.util.Map<String, List<NativeFunctionDefinition>> REGISTERED_BY_BARE = new java.util.HashMap<>();
         /** name -> overload signature keys; nativeNamed's O(1) surface (re-audit M5). */
         static final java.util.Map<String, java.util.Set<String>> KEYS_BY_NAME = new java.util.HashMap<>();
         /** The FQNs a USER may name: every non-lite native and the lite product surface. */
@@ -623,12 +623,12 @@ public final class Pure {
                 boolean userResolvable = !nfd.qualifiedName().startsWith(Lite.PKG)
                         || LITE_SURFACE.contains(bare);
                 if (userResolvable) {
-                    FN_BY_BARE.computeIfAbsent(bare, k -> new ArrayList<>()).add(nfd);
+                    REGISTERED_BY_BARE.computeIfAbsent(bare, k -> new ArrayList<>()).add(nfd);
                     USER_RESOLVABLE_FQNS.add(nfd.qualifiedName());
                 }
                 // keys index serves BOTH spellings (registration tables
                 // use bare) — the bare spelling under the same partition
-                // rule as FN_BY_BARE.
+                // rule as REGISTERED_BY_BARE.
                 KEYS_BY_NAME.computeIfAbsent(nfd.qualifiedName(), k -> new java.util.HashSet<>())
                         .add(nfd.signatureKey());
                 if (userResolvable) {
@@ -697,7 +697,7 @@ public final class Pure {
      */
     public static List<String> nativeKeysAt(String name) {
         List<String> keys = new ArrayList<>();
-        for (var f : nativeFunctionsAt(name)) {
+        for (var f : registeredAt(name)) {
             keys.add(f.signatureKey());
         }
         return keys;
@@ -712,7 +712,7 @@ public final class Pure {
      */
     public static List<String> nativeKeysAt(String name, int arity) {
         List<String> keys = new ArrayList<>();
-        for (var f : nativeFunctionsAt(name)) {
+        for (var f : registeredAt(name)) {
             if (f.parameters().size() == arity) {
                 keys.add(f.signatureKey());
             }
@@ -728,7 +728,7 @@ public final class Pure {
      */
     public static List<String> nativeKeysAt(String name, String paramClassFqn) {
         List<String> keys = new ArrayList<>();
-        for (var f : nativeFunctionsAt(name)) {
+        for (var f : registeredAt(name)) {
             for (var prm : f.parameters()) {
                 String head = switch (prm.type()) {
                     case com.legend.protocol.TypeExpression.NameRef nr -> nr.name();
@@ -780,8 +780,11 @@ public final class Pure {
      *  upstream's arithmetic): its infix spelling {@code a + b} is the parser's
      *  n-ary carrier, one collection argument. Read off the registered
      *  signatures, never a name set. */
-    public static boolean isVariadicRun(String name) {
-        List<NativeFunctionDefinition> overloads = nativeFunctionsAt(name);
+    public static boolean isVariadicRun(List<String> fqns) {
+        List<NativeFunctionDefinition> overloads = new ArrayList<>();
+        for (String fqn : fqns) {
+            overloads.addAll(nativeFunctionsAt(fqn));
+        }
         if (overloads.isEmpty()) {
             return false;
         }
@@ -796,14 +799,22 @@ public final class Pure {
         return true;
     }
 
-    public static List<NativeFunctionDefinition> nativeFunctionsAt(String name) {
-        // FQN-keyed catalog with a BARE-NAME secondary index: a qualified
-        // lookup resolves its exact package; a bare lookup returns the union
-        // of overloads across packages (overload resolution picks by shape).
-        if (name.contains("::")) {
-            return Index.FN_BY_FQN.getOrDefault(name, List.of());
+    /** The catalog's overloads at an exact FQN — a DECLARATION lookup. A bare
+     *  name is refused: resolution asks {@code com.legend.compiler.BareNames}
+     *  (untangle 4b.2), registration asks {@link #nativeKeysAt}. */
+    public static List<NativeFunctionDefinition> nativeFunctionsAt(String fqn) {
+        if (!fqn.contains("::")) {
+            throw new IllegalArgumentException("'" + fqn + "' is a bare name, not a declaration:"
+                    + " resolution goes through BareNames, registration through nativeKeysAt");
         }
-        return Index.FN_BY_BARE.getOrDefault(name, List.of());
+        return Index.FN_BY_FQN.getOrDefault(fqn, List.of());
+    }
+
+    /** The overloads a rule table registers under {@code name} — bare names on
+     *  the registration index, qualified ones at their declaration. */
+    private static List<NativeFunctionDefinition> registeredAt(String name) {
+        List<NativeFunctionDefinition> exact = Index.FN_BY_FQN.get(name);
+        return exact != null ? exact : Index.REGISTERED_BY_BARE.getOrDefault(name, List.of());
     }
 
     /** All native class FQNs — the resolver's prelude / known-FQN universe. */
