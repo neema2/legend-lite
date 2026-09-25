@@ -37,7 +37,8 @@ public interface DecisionProbe {
 
     /** The installed probe, or null. The binding (META-INF/services) is a TEST-LANE
      *  resource (//core:shadow_binding on the suites' libraries), never the product
-     *  jar's: a planner build carries no probe, and its loader is empty. */
+     *  jar's: a planner build carries this interface and the Shadow class, never
+     *  the binding, so its loader is empty. */
     @Nullable DecisionProbe INSTALLED = installed();
 
     private static @Nullable DecisionProbe installed() {

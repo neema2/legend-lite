@@ -54,6 +54,11 @@ public enum CoreFn {
     MAY_EXECUTE_LEGEND_TEST("mayExecuteLegendTest"),
     /** {@code if(cond, |then, |else)} &mdash; thunk branches + branch-type join. */
     IF("if"),
+    /** {@code validate(query, mapping, runtime)} — implemented as a RAW-SPACE
+     *  desugar before typing ({@code ValidateDesugar}); registered so the
+     *  implementation table says the platform owns it (StatementInline never
+     *  inlines the corpus's body) and the typer refuses one that slipped past. */
+    VALIDATE("validate"),
     /** {@code ^Class(prop=value, &hellip;)} &mdash; instance construction ({@code new}). */
     NEW("new"),
     /** {@code #>{db.TABLE}#} &mdash; a physical table reference resolved through the store. */
@@ -243,6 +248,8 @@ public enum CoreFn {
                 "meta::legend::test::mayExecuteLegendTest"));
         m.put(IF, java.util.Set.of(
                 "meta::pure::functions::lang::if"));
+        m.put(VALIDATE, java.util.Set.of(
+                "meta::relational::validation::validate"));
         m.put(TABLE_REFERENCE, java.util.Set.of(
                 "meta::relational::functions::database::tableReference"));
         m.put(TABLE_TO_TDS, java.util.Set.of(
@@ -409,47 +416,11 @@ public enum CoreFn {
             }
             return Optional.of(direct);
         }
-        // a qualified name a form OWNS (the explicit map, untangle 4b.1)
-        // dispatches by it — every form the resolver can now qualify is here
-        CoreFn owner = OWNER_OF.get(parseName);
-        if (owner != null) {
-            return Optional.of(owner);
-        }
-        // FQN-keyed catalog era (FQN_MIGRATION step 1): a platform-qualified
-        // call dispatches to the same core checker as its bare spelling —
-        // ONLY when the FQN is an actual CATALOG NATIVE (a USER function
-        // living under meta::pure::* — perfectly legal — must not hijack a
-        // checker; the pin that caught this: meta::pure::custom::map).
-        if (parseName.contains("::")
-                && !com.legend.builtin.Pure.nativeFunctionsAt(parseName).isEmpty()) {
-            int sep = parseName.lastIndexOf("::");
-            return Optional.ofNullable(BY_NAME.get(parseName.substring(sep + 2)));
-        }
-        // relation::eval(~col, $row) — the ColSpec accessor (real relation
-        // eval.pure) — routes to the EVAL checker whose ColSpec shape-arm
-        // desugars it to $row.col. A CURATED alias, not a registration: its
-        // ⊆-colspec signature would pollute the shared bare-name 'eval'
-        // overload set that variableEval resolves against (audit: five
-        // higher-order corpus tests broke).
-        // meta::pure::tds::distinct (engine tds.pure:471, TabularDataSet
-        // surface) — CURATED alias for the same reason as relation::eval:
-        // registering the FQN as a native TIES with relation::distinct in
-        // the shared bare-name overload set (ambiguous-overload on every
-        // plain ->distinct()).
-        // meta::pure::tds::extend (engine tds.pure, the TabularDataSet
-        // surface a TDS-typed receiver resolves the bare spelling to) —
-        // CURATED alias for the same reason: the ExtendChecker owns the
-        // legacy col() normalization; the generic path would type the
-        // col() collection standalone (the TDG applied-functions witness).
-        if (parseName.equals("meta::pure::tds::extend")) {
-            return Optional.of(EXTEND);
-        }
-        if (parseName.equals("meta::pure::tds::distinct")) {
-            return Optional.of(DISTINCT);
-        }
-        if (parseName.equals("meta::pure::functions::relation::eval")) {
-            return Optional.of(EVAL);
-        }
-        return Optional.empty();
+        // a qualified name dispatches by the form that OWNS it (OWNS, the
+        // explicit map) — and by nothing else: FormOwnershipTest pins that
+        // every catalog native spelled like a form's parse name is owned, so
+        // no name-tail fallback is needed (deleted 2026-09-25 with its three
+        // alias arms, all of which OWNS already covered)
+        return Optional.ofNullable(OWNER_OF.get(parseName));
     }
 }

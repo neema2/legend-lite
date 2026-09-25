@@ -51,7 +51,12 @@ java_library(
     srcs = glob(["src/main/java/**/*.java"]),
     javacopts = NULLAWAY_OPTS,
     plugins = [":nullaway"],
-    resources = glob(["src/main/resources/**"]),
+    # native-claims.tsv is generated here under the drift test but READ only by
+    # the spec module's claim tests: it is not product data (retiring at step 5)
+    resources = glob(
+        ["src/main/resources/**"],
+        exclude = ["src/main/resources/com/legend/builtin/native-claims.tsv"],
+    ),
 )
 
 # THE JDBC DRIVERS, as their own target. core never compiles against a driver: it

@@ -76,6 +76,16 @@ class IdentityGuardrailTest {
         // a language form dispatched on a spelled name — 4d dispatches by the
         // form's owned declarations
         SHAPES.put("FORM_DISPATCH_BY_NAME", Pattern.compile("\\bCoreFn\\.of\\("));
+        // BLIND SPOTS closed by the 2026-09-25 audit: a name held in a LOCAL
+        // string compared to a bare or platform literal (fn.equals("agg")),
+        // a switch label that is a name, and a form/registry map asked by a
+        // spelled name — none of the shapes above saw them; the agg capture
+        // (D7) walked through this gap
+        SHAPES.put("LOCAL_NAME_COMPARE", Pattern.compile(
+                "\\b[a-z][A-Za-z0-9]*\\s*\\.\\s*equals\\(\\s*\"(meta::|[a-z][A-Za-z0-9]*\")"));
+        SHAPES.put("CASE_NAME_LABEL", Pattern.compile("\\bcase\\s+\"meta::"));
+        SHAPES.put("PARSE_NAME_LOOKUP", Pattern.compile(
+                "parseNames\\(\\)\\s*\\.\\s*get\\(|\\bBY_NAME\\s*\\.\\s*get\\("));
         // an implementer family, a language form or a legacy vocabulary looked up by name text
         SHAPES.put("FAMILY_LOOKUP_BY_NAME", Pattern.compile(
                 "NativeFn\\s*\\.\\s*[A-Z][A-Za-z]*\\s*\\.\\s*of(Lifted|Derived)?\\(|\\bCoreFn\\s*\\.\\s*of\\("
@@ -105,19 +115,31 @@ class IdentityGuardrailTest {
      * 4b.2 (2026-09-25): CATALOG_LOOKUP_BY_NAME 179 -> 172 (the catalog refuses a
      * bare name; resolution asks BareNames, the courtesy loop and the bare
      * readers are gone), FUNCTION_CATEGORY_CHECK 16 -> 13 (CORE_FUNCTION_PACKAGES
-     * deleted), MINT_BY_NAME 144 -> 143 (the TDSNull funnel spells sqlNull's FQN). */
+     * deleted), MINT_BY_NAME 144 -> 143 (the TDSNull funnel spells sqlNull's FQN).
+     * Audit burn (2026-09-25): three BLIND-SPOT shapes added at measured values —
+     * LOCAL_NAME_COMPARE 90, CASE_NAME_LABEL 4, PARSE_NAME_LOOKUP 3 (the parser
+     * and wire emitters excluded: parse products); CoreFn.of's name-tail fallback
+     * and three alias arms deleted (NAME_CUTTING 106 -> 105, CATALOG_LOOKUP 172 ->
+     * 170, NAME_AFFIX 53 -> 51), Typer.aliasNormalized deleted, MappingNormalizer's
+     * dead infix arms deleted (NAME_COMPARE 209 -> 207, REVERSED 84 -> 81). */
+    private static final java.util.Set<String> LOCAL_SHAPES =
+            java.util.Set.of("LOCAL_NAME_COMPARE", "CASE_NAME_LABEL", "PARSE_NAME_LOOKUP");
+
     private static final Map<String, Integer> PINS = Map.ofEntries(
-            Map.entry("NAME_COMPARE", 209),
-            Map.entry("NAME_COMPARE_REVERSED", 84),
+            Map.entry("NAME_COMPARE", 207),
+            Map.entry("NAME_COMPARE_REVERSED", 81),
             Map.entry("LITERAL_NAME_COMPARE", 64),
-            Map.entry("NAME_AFFIX_TEST", 53),
-            Map.entry("NAME_CUTTING", 106),
+            Map.entry("NAME_AFFIX_TEST", 51),
+            Map.entry("NAME_CUTTING", 105),
             Map.entry("SIGNATURE_ID_CUTTING", 1),
-            Map.entry("CATALOG_LOOKUP_BY_NAME", 172),
+            Map.entry("CATALOG_LOOKUP_BY_NAME", 170),
             Map.entry("FAMILY_LOOKUP_BY_NAME", 87),
             Map.entry("FUNCTION_CATEGORY_CHECK", 13),
             Map.entry("MINT_BY_NAME", 143),
-            Map.entry("FORM_DISPATCH_BY_NAME", 21));
+            Map.entry("FORM_DISPATCH_BY_NAME", 21),
+            Map.entry("LOCAL_NAME_COMPARE", 90),
+            Map.entry("CASE_NAME_LABEL", 4),
+            Map.entry("PARSE_NAME_LOOKUP", 3));
 
     @Test
     void stringIdentityAndCategoryChecksOnlyShrink() throws IOException {
@@ -130,6 +152,13 @@ class IdentityGuardrailTest {
                 String code = withoutComments(Files.readString(f));
                 String rel = Repo.rel(MAIN, f);
                 for (var shape : SHAPES.entrySet()) {
+                    // the parser and the wire emitters compare PARSE PRODUCTS
+                    // (grammar keywords, protocol tags), never a resolved name
+                    // (study §14.8): the local-compare shapes skip them
+                    if (LOCAL_SHAPES.contains(shape.getKey())
+                            && (rel.contains("/parser/") || rel.contains("/protocol/"))) {
+                        continue;
+                    }
                     Matcher m = shape.getValue().matcher(code);
                     while (m.find()) {
                         counts.merge(shape.getKey(), 1, Integer::sum);

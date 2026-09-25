@@ -569,8 +569,7 @@ final class Typer {
                 return applyGeneric(new AppliedFunction(owned.qualifiedName(),
                         af.parameters()), env);
             }
-            return applyCore(core.get(),
-                    aliasNormalized(core.get(), af), env);
+            return applyCore(core.get(), af, env);
         }
         // instanceOf(cell, TDSNull): the null-cell type test IS the SQL
         // null test (the engine materializes ^TDSNull() for null cells;
@@ -1298,16 +1297,6 @@ final class Typer {
         return new TypedEnumValue(et.fqn(), nm.value(), ExprType.one(et));
     }
 
-    /** CURATED-alias spellings (tds::distinct, relation::eval) have no
-     * FQN-registered native — dispatch under the bare parse name so the
-     * checker's checkGeneric resolves candidates. */
-    private static AppliedFunction aliasNormalized(CoreFn core, AppliedFunction af) {
-        return !af.function().equals(core.parseName())
-                && af.function().contains("::")
-                && com.legend.builtin.Pure.nativeFunctionsAt(af.function()).isEmpty()
-                ? new AppliedFunction(core.parseName(), af.parameters()) : af;
-    }
-
     /**
      * The core-construct dispatch &mdash; exhaustive over {@link CoreFn} (a new
      * construct cannot be added without a rule here), one line per construct: the
@@ -1338,6 +1327,8 @@ final class Typer {
                                 "meta::pure::metamodel::valuespecification::ValueSpecification")));
             }
             case IF -> IfChecker.check(this, af, env);
+            case VALIDATE -> throw new TypeInferenceException("validate is desugared before typing"
+                    + " (ValidateDesugar): a validate call reached the typer");
             // TDG lane S1: compile-time reflection (C1.6, the DEACTIVATE
             // sibling) — the census FOLDS to instance literals here
             case GET_RELATIONAL_CSV_DATA -> CsvCensusChecker.check(this, af, env);

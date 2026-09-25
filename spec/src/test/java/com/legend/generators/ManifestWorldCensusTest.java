@@ -340,6 +340,14 @@ public class ManifestWorldCensusTest {
         System.out.println("[manifest-census] " + target + ": modules=" + world.size() + " files=" + fileCount
                 + " loadWalls=" + loadWalls.size() + " ok=" + ok + " failed=" + failures.size()
                 + " walled=" + walled.size() + " byReason=" + byReason);
+        // SHRINK-ONLY when it runs (charter step 7 / D7, measured 2026-09-25 at
+        // engine 4.145.0): the walls and the failing bodies only fall
+        if (target.equals("core_relational")) {
+            org.junit.jupiter.api.Assertions.assertTrue(loadWalls.size() <= 32,
+                    "manifest-world load walls grew: " + loadWalls.size() + " > 32");
+            org.junit.jupiter.api.Assertions.assertTrue(failures.size() <= 1447,
+                    "manifest-world failing bodies grew: " + failures.size() + " > 1447");
+        }
     }
 
     /** A message with its specifics blanked, so the same kind of failure counts once. */

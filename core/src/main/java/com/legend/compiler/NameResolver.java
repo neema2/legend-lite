@@ -613,26 +613,6 @@ public final class NameResolver {
                 : new TypeExpression.Column(c.name(), nn(t), c.multiplicity());
     }
 
-    /**
-     * Platform-qualified native calls normalize to the catalog's BARE name at
-     * RESOLUTION time (real Pure writes {@code meta::pure::functions::date::
-     * adjust(...)}; our catalog registers natives bare — an engine-lite
-     * convention). This is the INVERSE of the eventual fix (an FQN-keyed
-     * catalog with prelude function imports, LEGEND_SQL_VISION-adjacent);
-     * until then, ONE normalization here keeps every later stage a dumb
-     * lookup. Only {@code meta::pure::}-prefixed names with a registered bare
-     * native normalize — user FQNs are untouched.
-     */
-    private static String normalizePlatformFunction(String fn) {
-        // FQN-keyed catalog era (FQN_MIGRATION step 1c): both spellings
-        // resolve DIRECTLY against the catalog (FQN via the primary index,
-        // bare via the bare-name union index) — the old blind prefix-strip
-        // silently CAPTURED user functions whose last segment collided with
-        // a native (meta::pure::custom::map -> native map). A non-catalog
-        // platform FQN now resolves (or fails loudly) as a user function.
-        return fn;
-    }
-
     /** Core lookup. Private; callers go through {@link #resolveType} etc. */
     private static String resolveName(String name, Scope scope) {
         List<String> matches = resolveNameMulti(name, scope);
@@ -1756,9 +1736,7 @@ public final class NameResolver {
                         matches = merged;
                     }
                 }
-                String fn = matches.size() == 1
-                        ? normalizePlatformFunction(matches.get(0))
-                        : af.function();
+                String fn = matches.size() == 1 ? matches.get(0) : af.function();
                 List<String> candidates = matches.size() > 1 ? matches : List.of();
                 List<ValueSpecification> params = resolveVsList(af.parameters(), scope);
                 yield (fn.equals(af.function()) && params == af.parameters()

@@ -771,17 +771,16 @@ public final class Compiler {
                 com.legend.compiler.NameResolver.resolveQueryIn(
                         new com.legend.protocol.spec.LambdaFunction(java.util.List.of(), statements),
                         imports, ctx.resolutionUniverse())).body();
-        // THE PLATFORM'S OWN IMPLEMENTATION OF validate (ValidateDesugar) is applied
-        // BEFORE user programs are inlined at statement level: a call the platform
-        // implements is never inlined as the user's body (4a's rule — the pick
-        // follows the implementation, not the declaration's kind)
+        // a call the platform implements (validate: a Form row) is never inlined
+        // as the user's body — StatementInline asks the implementation table, so
+        // the two passes may run in either order
+        statements = com.legend.compiler.StatementInline.rewrite(statements, imports, ctx);
         java.util.List<com.legend.protocol.spec.ValueSpecification> desugared =
                 new java.util.ArrayList<>(statements.size());
         for (com.legend.protocol.spec.ValueSpecification st : statements) {
             desugared.add(com.legend.validation.ValidateDesugar
                     .rewrite(st, ctx, imports.wildcards()));
         }
-        desugared = com.legend.compiler.StatementInline.rewrite(desugared, imports, ctx);
         // a statement-root map over spelled bound names unrolls to its
         // element statements (batch 72a — the element asserts become
         // statement-root verdicts)

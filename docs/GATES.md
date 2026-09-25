@@ -5545,3 +5545,74 @@ carries every package (`map`); the lite partition holds (`joinSlot` unreachable,
 reachable); an undeclared name has no candidates; the catalog is FQN-keyed; a form's owned
 declarations join only under their own name. `NativeCatalogGovernanceTest` and `DynaFnRegistryTest`
 re-pointed to the rule; the registry's PURE declarations pinned to the generator's derivation.
+
+## 2026-09-25 — The untangle audited (steps 0–4b) and the findings burned before 4c
+
+**The audit.** Three read-throughs of the program's code (platform tables and 4a; the resolution
+and typer path; generators, tests, probe and docs), each judged against the program's own rulings
+and each finding re-verified by hand. Verdict: the direction and the discipline were real (whole-string
+ids, immutable tables that report instead of resolving, pins only ever lowered at measured values, a
+test-lane probe bound in Bazel), and the program had hacked in three places, left dead proxies
+behind two of its own switches, and kept its gate numbers in prose. Everything below was fixed at
+root, deleting what it replaced; what was NOT done is listed last with its owner.
+
+**Fixed.**
+- *The pass order was a workaround.* `StatementInline` decided "the platform owns this call" by
+  asking the catalog for a native; `validate` is not one, so ValidateDesugar had to run first. Now
+  `validate` is a registered form (`CoreFn.VALIDATE` owning `meta::relational::validation::validate`;
+  the typer refuses one that reaches it), `StatementInline` asks the implementation table
+  (`runsByRule` / the row), and the original pass order is restored. `CallNodes.mint` decides by
+  the row alone (a declaration with any row but Body is a native call), not by the declaration's
+  kind first.
+- *The dynafunction column was the deleted bare index reborn as data.* PURE rows are now derived
+  from the ENGINE SURFACE (`EngineHandlers.fqnsOf`, the same tier a bare call gets) with a declared
+  residue of three (`sqlNull`, `sqlTrue`, `sqlFalse`, each by its catalog constant); a PURE name
+  neither declares is a generator error. 154 rows unchanged; `currentUserId` loses its
+  `meta::core::runtime` twin (the §14.9 tie), `toString` its relation twin; `max`/`min` in mapping
+  expressions now pick the math overload (the table agrees either way).
+- *Dead proxies deleted:* `CoreFn.of`'s FQN name-tail fallback and its three alias arms (all
+  covered by `OWNS`; `FormOwnershipTest` pins that every catalog native spelled like a form's parse
+  name is owned, so no fallback is needed); `Typer.aliasNormalized` (it de-resolved a qualified
+  call); `NameResolver.normalizePlatformFunction` (an identity function with a history comment);
+  `MappingNormalizer`'s `"=="`/`"&&"`/`"||"` arms (the parser never spells those).
+- *One callee selection* for the folder's two inliners (`StaticFold.bodiedCallee`), by the call's
+  own candidates (`functionCandidates(af)`), never a bare re-lookup.
+- *Synthesized bodies resolve under their OWNER's imports* (`ModelNormalizer.resolveSynthesized`
+  reads `elementImports` for the owner), not an empty scope — DbConfig's lifted properties now
+  resolve and type where they stopped before (80 new zero-candidate property probes in the corpus
+  sweep, rosters unchanged).
+- *Probe hygiene:* the merge point builds the probe's argument only when a probe is installed.
+- *The claims ledger leaves the product jar* (generated and drift-tested still; read only by the
+  spec module's claim tests; retiring at step 5).
+- *Guardrail blind spots closed:* three shapes at measured values — `LOCAL_NAME_COMPARE` 90 (a
+  local string compared to a bare or platform literal: the `agg` gap), `CASE_NAME_LABEL` 4,
+  `PARSE_NAME_LOOKUP` 3; the parser and wire emitters excluded (parse products, study §14.8).
+  Existing pins lowered by the deletions: NAME_COMPARE 209 → 207, REVERSED 84 → 81, AFFIX 53 → 51,
+  CUTTING 106 → 105, CATALOG_LOOKUP 172 → 170; Typer's construction row 127 → 126.
+- *Tests with substance:* `EngineHandlersTest` pins 404 names / 836 ids / 169 undeclared EXACTLY;
+  the spec `ImplementationTableTest` pins the kinds exactly (Intrinsic 664, Form 217, Refused 20,
+  Body 2194, Unimplemented 71 — Form 208 → 217: validate's nine overloads owned);
+  `PreludeGeneratorTest` pins the engine-library membership at its one row; the manifest census
+  asserts shrink-only (32 walls, 1,447 bodies) when it runs; `DynaFnRegistryTest` checks each PURE
+  FQN is a catalog native and equals the surface-derived row.
+- *Receipts:* the 4b.1 and 4b.2 probe sweeps (before/after, nine suites), the gate script and
+  the manifest census report are saved under `~/legend/platform-architecture/receipts/untangle-4b/`.
+- *Docs drift corrected:* `Shadow` is in the product jar (`com.legend.probe`) with a test-lane
+  binding, not "in platform"; `Scalars.KNOWN_ABSENT` no longer exists; 4d's row restated.
+
+**Gate (probe, nine suites, before → after the burn).** PICK disagreements 0 → 0 (rows differ
+only by set-printing order and the `max`/`min` package move, all agreeing); FORM 43 → 43, none
+new; OVERLOADS 0 → 0 disagreements (four bare rows gone: dynafunction calls now carry candidates);
+both corpus rosters LOST 0 (DuckDB 2474, H2 2232); nine suites green; boot census unchanged.
+
+**Not done, with owner.** The overload set is still a name list plus a category gate at the merge
+point (`isPlatformOwnedFunction`, the PCT stereotype) — that is 4c itself, pinned by
+FUNCTION_CATEGORY_CHECK 13. The lowering dispatches by string key from 158 bare registrations —
+4d (CATALOG_LOOKUP_BY_NAME 170). `JoinChecker`'s canonicalisation and `GroupByChecker`'s `agg`
+compare — 4d, now COUNTED by the new shapes. Ownership held in a dozen mechanisms (owned list,
+walls, lite sets, forms, legacy TDS vocabulary, subsumed, handlers, members, claims, dynafunction
+column) — step 5 collapses them into the registrations; `native-claims.tsv` retires there.
+`Typer`/`Lowerer`/`Scalars` at 3,498/3,494/3,476 lines were kept under the 3,500 guard by carving
+helpers, not by splitting — the real split is its own slice (charter step 6 territory). The five
+family natives reaching the scalar funnel by trial (WRONG-SITE) — 4c/5, visible only under the
+probe. `ENGINE_LIBRARY_FUNCTIONS`'s one row — the namespace rule, step 7 / D7.

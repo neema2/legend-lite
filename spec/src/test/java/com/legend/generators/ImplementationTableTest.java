@@ -102,6 +102,12 @@ class ImplementationTableTest {
         // every registration names something declared; none contradicts another
         assertEquals(List.of(), impl.dangling(), "registrations naming nothing declared");
         assertEquals(List.of(), impl.conflicts(), "contradicting registrations");
+        // THE KINDS, pinned EXACTLY (audit 2026-09-25: totality alone lets an empty
+        // registration set pass) — engine 4.145.0 / pure 5.99.0; a registration
+        // that lands moves a row from Body/Unimplemented to Intrinsic/Form, and the
+        // pin follows with its reason (Form 208 -> 217: validate owned, 9 overloads)
+        assertEquals(Map.of("Intrinsic", 664, "Form", 217, "Refused", 20, "Body", 2194, "Unimplemented", 71),
+                kinds, "implementation kinds");
     }
 
     private static String detail(Implementation i) {

@@ -48,13 +48,15 @@ class EngineHandlersTest {
         assertTrue(!EngineHandlers.fqnsOf("joinWithPrefix").isEmpty());
     }
 
-    /** Pinned 2026-09-25, engine 4.145.0: 404 names; 169 engine ids the platform
-     *  declares nowhere — the census of what it does not carry, SHRINK-ONLY
-     *  (a declaration lands, the number falls, the pin follows). */
+    /** Pinned EXACTLY (audit 2026-09-25: a floor and a ceiling let a stale or
+     *  half-read registry pass), engine 4.145.0: 404 names over 836 ids, 169
+     *  engine ids the platform declares nowhere. A bump moves the numbers with
+     *  its dated reason; a declaration landing lowers the undeclared count. */
     @Test
     void theSurfaceAndItsGapArePinned() {
-        assertTrue(EngineHandlers.names().size() >= 404, "names: " + EngineHandlers.names().size());
-        assertTrue(EngineHandlers.undeclaredIds().size() <= 169,
-                "undeclared engine ids grew: " + EngineHandlers.undeclaredIds().size());
+        int ids = EngineHandlers.names().stream().mapToInt(n -> EngineHandlers.idsOf(n).size()).sum();
+        assertEquals(404, EngineHandlers.names().size(), "names");
+        assertEquals(836, ids, "engine ids");
+        assertEquals(169, EngineHandlers.undeclaredIds().size(), "undeclared engine ids");
     }
 }

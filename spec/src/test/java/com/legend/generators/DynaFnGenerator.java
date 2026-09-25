@@ -89,14 +89,27 @@ public final class DynaFnGenerator {
         return out;
     }
 
-    /** The catalog FQNs a PURE dynafunction name resolves to, spelled as the
-     *  member's list literal: every user-resolvable native of that bare name. */
+    /** The three engine operators no handler names: the platform's own
+     *  relational constants, each spelled by its catalog declaration. A PURE
+     *  name that is neither on the engine surface nor here is a generator
+     *  error — membership is a decision, never a by-name match. */
+    static final java.util.Map<String, List<String>> RESIDUE = java.util.Map.of(
+            "sqlNull", List.of(com.legend.builtin.Pure.SQL_NULL.qualifiedName()),
+            "sqlTrue", List.of(com.legend.builtin.Pure.SQL_TRUE.qualifiedName()),
+            "sqlFalse", List.of(com.legend.builtin.Pure.SQL_FALSE.qualifiedName()));
+
+    /** The declarations a PURE dynafunction name resolves to, spelled as the
+     *  member's list literal: the FQNs the ENGINE SURFACE gives the name
+     *  ({@code EngineHandlers}, generated from the pinned Handlers.java — the
+     *  same tier a bare call gets), else the declared residue. */
     static String pureFqns(String dynaName) {
-        List<String> out = new ArrayList<>();
-        for (String fqn : com.legend.builtin.Pure.userResolvableFunctionFqns()) {
-            if (fqn.substring(fqn.lastIndexOf(':') + 1).equals(dynaName) && !out.contains(fqn)) {
-                out.add(fqn);
-            }
+        List<String> out = com.legend.builtin.EngineHandlers.fqnsOf(dynaName);
+        if (out.isEmpty()) {
+            out = RESIDUE.get(dynaName);
+        }
+        if (out == null || out.isEmpty()) {
+            throw new IllegalStateException("dynafunction '" + dynaName + "' is PURE but neither the engine"
+                    + " surface nor DynaFnGenerator.RESIDUE declares what it resolves to");
         }
         StringBuilder sb = new StringBuilder();
         for (String f : out) {

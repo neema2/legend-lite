@@ -74,8 +74,9 @@ class DynaFnRegistryTest {
         for (DynaFn d : DynaFn.values()) {
             switch (d.resolution()) {
                 case PURE -> {
-                    // the row's declarations are the catalog's user-resolvable
-                    // natives of that bare name, generated — every package
+                    // the row's declarations are the engine surface's FQNs for
+                    // the name (or the declared residue), generated; each a
+                    // catalog native
                     if (d.fqns().isEmpty()) {
                         bad.add(d.dynaName() + ": PURE but no catalog native of that name");
                     }

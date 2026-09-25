@@ -46,7 +46,9 @@ final class FunctionCompiler {
                     }
                 }
             }
-            com.legend.builtin.DecisionProbe.overloads(fqn, all, model, model.functions());
+            if (com.legend.builtin.DecisionProbe.INSTALLED != null) {
+                com.legend.builtin.DecisionProbe.overloads(fqn, all, model, model.functions());
+            }
             return all;
         }
         List<Function> all = new ArrayList<>(Pure.nativeFunctionsAt(fqn));
@@ -71,7 +73,9 @@ final class FunctionCompiler {
                     + "': " + model.findFunction(fqn).size()
                     + " user definition(s) suppressed (native is the definition)");
         }
-        com.legend.builtin.DecisionProbe.overloads(fqn, all, model, model.functions());
+        if (com.legend.builtin.DecisionProbe.INSTALLED != null) {
+            com.legend.builtin.DecisionProbe.overloads(fqn, all, model, model.functions());
+        }
         return all;
     }
 

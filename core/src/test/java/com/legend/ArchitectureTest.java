@@ -1219,7 +1219,8 @@ final class ArchitectureTest {
                     java.util.Map.entry("com.legend.compiler.spec.StaticFold", 13),
                     java.util.Map.entry("com.legend.compiler.spec.TdsNullForms", 1),
                     java.util.Map.entry("com.legend.compiler.spec.TypeAnnotations", 1),
-                    java.util.Map.entry("com.legend.compiler.spec.Typer", 127),
+                    // 127 -> 126 (audit burn 2026-09-25): aliasNormalized's respelling mint deleted
+                    java.util.Map.entry("com.legend.compiler.spec.Typer", 126),
                     java.util.Map.entry("com.legend.lineage.ScanRelations", 2),
                     java.util.Map.entry("com.legend.model.MappingFromProtocol", 4),
                     java.util.Map.entry("com.legend.test.PureTestRunner", 2),

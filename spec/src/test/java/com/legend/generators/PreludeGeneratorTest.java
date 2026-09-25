@@ -34,6 +34,14 @@ class PreludeGeneratorTest {
 
     @Test
     @DisplayName("prelude.pure is the generator's current output (regenerate: bazel run //:update_generated)")
+    void engineLibraryMembershipIsTheOneInterimRow() {
+        // the membership list is the declared INTERIM for the namespace rule
+        // (charter D7); it grows only with that rule's own work, never a row at a time
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Set.of("meta::pure::functions::collection::removeAll"),
+                PreludeGenerator.ENGINE_LIBRARY_FUNCTIONS.keySet());
+    }
+
+    @org.junit.jupiter.api.Test
     void preludeIsCurrent() throws Exception {
         Path census = "1".equals(System.getProperty("prelude.census")) ? Repo.out("prelude-census.tsv") : null;
         String generated = PreludeGenerator.generate(engineRoot(), pureRoot(),

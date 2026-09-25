@@ -203,15 +203,24 @@ public final class StatementInline {
                     ? List.of(af.function()) : af.candidateFqns();
             FunctionDefinition found = null;
             for (String fqn : names) {
-                // a native registered under the name is the platform's — the
-                // catalog's FQN index answers without compiling anything
-                if (!com.legend.builtin.Pure.nativeFunctionsAt(fqn).isEmpty()) {
-                    return null;
+                // THE PLATFORM'S OWN: a declaration the implementation table runs
+                // by its rule or form is never inlined as the user's body — a
+                // catalog native at the FQN, or a bodied declaration the platform
+                // implements otherwise (validate: a raw-space desugar). Asked of
+                // the table, so no pass order carries this fact.
+                for (var n : com.legend.builtin.Pure.nativeFunctionsAt(fqn)) {
+                    if (!(ctx.implementations().of(com.legend.platform.FunctionId.of(n))
+                            instanceof com.legend.platform.Implementation.Body)) {
+                        return null;
+                    }
                 }
                 FunctionDefinition d = null;
                 for (FunctionDefinition fd : ctx.findFunctionDefinitions(fqn)) {
                     if (fd.parameters().size() != af.parameters().size()) {
                         continue;
+                    }
+                    if (ctx.implementations().runsByRule(fd)) {
+                        return null;
                     }
                     if (d != null) {
                         return null;

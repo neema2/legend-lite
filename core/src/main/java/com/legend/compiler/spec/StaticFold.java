@@ -207,19 +207,28 @@ final class StaticFold {
      * never terminates statically — leave it to the ordinary path). */
     private final java.util.ArrayDeque<String> inlining = new java.util.ArrayDeque<>();
 
-    private @com.legend.Nullable ValueSpecification inlineUserCall(AppliedFunction af,
-            Map<String, Object> scope) {
-        List<ValueSpecification> ps = af.parameters();
+    /** THE callee a call may be inlined as: the one bodied candidate of the
+     * call's arity — among the call's OWN candidates (the resolver's, or the
+     * bare-name rule's), never a bare re-lookup — and not already on the
+     * fold's stack (a recursive program never terminates statically). */
+    private com.legend.compiler.element.@com.legend.Nullable TypedFunction bodiedCallee(AppliedFunction af) {
         List<com.legend.compiler.element.TypedFunction> bodied = new ArrayList<>();
-        for (var f : typer.functionCandidates(af.function())) {
-            if (f.body().isPresent() && f.parameters().size() == ps.size()) {
+        for (var f : typer.functionCandidates(af)) {
+            if (f.body().isPresent() && f.parameters().size() == af.parameters().size()) {
                 bodied.add(f);
             }
         }
-        if (bodied.size() != 1 || inlining.contains(bodied.get(0).signatureKey())) {
+        return bodied.size() == 1 && !inlining.contains(bodied.get(0).signatureKey())
+                ? bodied.get(0) : null;
+    }
+
+    private @com.legend.Nullable ValueSpecification inlineUserCall(AppliedFunction af,
+            Map<String, Object> scope) {
+        List<ValueSpecification> ps = af.parameters();
+        var callee = bodiedCallee(af);
+        if (callee == null) {
             return null;
         }
-        var callee = bodied.get(0);
         Map<String, Object> inner = new LinkedHashMap<>(scope);
         Map<String, ValueSpecification> subst = new LinkedHashMap<>();
         boolean anyStatic = false;
@@ -266,16 +275,10 @@ final class StaticFold {
      * a recursive program and is left to the ordinary path. */
     private @com.legend.Nullable Object evalUserCall(AppliedFunction af, Map<String, Object> scope) {
         List<ValueSpecification> ps = af.parameters();
-        List<com.legend.compiler.element.TypedFunction> bodied = new ArrayList<>();
-        for (var f : typer.functionCandidates(af.function())) {
-            if (f.body().isPresent() && f.parameters().size() == ps.size()) {
-                bodied.add(f);
-            }
-        }
-        if (bodied.size() != 1 || inlining.contains(bodied.get(0).signatureKey())) {
+        var callee = bodiedCallee(af);
+        if (callee == null) {
             return null;
         }
-        var callee = bodied.get(0);
         Map<String, Object> inner = new LinkedHashMap<>(scope);
         for (int i = 0; i < ps.size(); i++) {
             Object v = eval(ps.get(i), inner);

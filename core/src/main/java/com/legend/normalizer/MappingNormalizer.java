@@ -719,8 +719,7 @@ public final class MappingNormalizer {
         if (v instanceof AppliedFunction af) {
             List<ValueSpecification> ps = af.parameters().stream()
                     .map(x -> canonicalizeEqualOperands(x, srcVar)).toList();
-            if ((com.legend.compiler.ResolvedNames.names(af, com.legend.builtin.Pure.EQUAL__ANY_MANY__ANY_MANY.qualifiedName())
-                    || "==".equals(af.function()))
+            if (com.legend.compiler.ResolvedNames.names(af, com.legend.builtin.Pure.EQUAL__ANY_MANY__ANY_MANY.qualifiedName())
                     && ps.size() == 2
                     && !rootedAt(ps.get(0), srcVar)
                     && rootedAt(ps.get(1), srcVar)) {
@@ -732,9 +731,7 @@ public final class MappingNormalizer {
             // commutation compare equal (the direction-specific wall stays
             // for genuinely different predicates)
             if ((com.legend.compiler.ResolvedNames.names(af, com.legend.builtin.Pure.AND__BOOLEAN_1__BOOLEAN_1.qualifiedName())
-                    || "&&".equals(af.function())
-                    || com.legend.compiler.ResolvedNames.names(af, com.legend.builtin.Pure.OR__BOOLEAN_1__BOOLEAN_1.qualifiedName())
-                    || "||".equals(af.function()))
+                    || com.legend.compiler.ResolvedNames.names(af, com.legend.builtin.Pure.OR__BOOLEAN_1__BOOLEAN_1.qualifiedName()))
                     && ps.size() == 2
                     && ps.get(0).toString().compareTo(ps.get(1).toString()) > 0) {
                 ps = List.of(ps.get(1), ps.get(0));

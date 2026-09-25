@@ -135,7 +135,7 @@ public final class ModelNormalizer {
                 new ArrayList<>(normalized.elements().size() + lifted.size());
         elements.addAll(normalized.elements());
         elements.addAll(lifted);
-        return new NormalizedModel(resolveSynthesized(elements), normalized.imports(),
+        return new NormalizedModel(resolveSynthesized(parsed, elements), normalized.imports(),
                 normalized.legacySurfaces());
     }
 
@@ -146,7 +146,8 @@ public final class ModelNormalizer {
      *  before it joins the model, so no bare name reaches the typer that user
      *  text would not. Parsed text inside a body is already resolved and
      *  passes through unchanged (resolution is idempotent). */
-    private static List<PackageableElement> resolveSynthesized(List<PackageableElement> elements) {
+    private static List<PackageableElement> resolveSynthesized(ParsedModel parsed,
+            List<PackageableElement> elements) {
         java.util.Set<String> modelFqns = new java.util.HashSet<>();
         for (PackageableElement el : elements) {
             modelFqns.add(el.qualifiedName());
@@ -155,10 +156,14 @@ public final class ModelNormalizer {
         List<PackageableElement> out = new ArrayList<>(elements.size());
         for (PackageableElement el : elements) {
             if (el instanceof FunctionDefinition fd && fd.synthesizedFrom() != null) {
+                // the body was written in its OWNER's section: it resolves under
+                // the owner's imports, as the owner's own text did
+                com.legend.model.ImportScope scope = parsed.elementImports()
+                        .getOrDefault(fd.synthesizedFrom().ownerFqn(), none);
                 List<com.legend.protocol.spec.ValueSpecification> body = new ArrayList<>(fd.body().size());
                 boolean changed = false;
                 for (var stmt : fd.body()) {
-                    var resolved = com.legend.compiler.NameResolver.resolveQuery(stmt, none, modelFqns);
+                    var resolved = com.legend.compiler.NameResolver.resolveQuery(stmt, scope, modelFqns);
                     changed |= resolved != stmt;
                     body.add(resolved);
                 }
