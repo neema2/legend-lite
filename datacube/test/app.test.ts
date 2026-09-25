@@ -300,22 +300,28 @@ describe('the app', () => {
     assert.notEqual(root.querySelector('.dc-titlebar-menu'), null);
   });
 
-  it("restores either bar from the GRID's menu, with both folded", () => {
+  it('restores both bars with both folded, WITHOUT the grid menu', () => {
+    // Layout left the grid's menu by the user's direction
+    // (2026-09-25): that menu is about the data. With both bars folded
+    // the way back is the title bar's lip, then its hamburger -- and
+    // the grid's menu offers neither toggle.
     press('.dc-zone-fold');
     press('.dc-titlebar-fold');
-    // No title bar, therefore no hamburger. The grid's own menu is
-    // the second way back, and the entries say what they will do
-    // rather than what state they are in.
     rightClick();
+    const offered = [...root.querySelectorAll('.dc-menu-label')]
+      .map((e) => e.textContent ?? '');
+    assert.equal(offered.some((l) => /Drag Zones|Title Bar|^Layout$/.test(l)),
+      false, offered.join(', '));
+    // Dismissed the way a user would; left open, the hamburger's
+    // press would SHUT this menu rather than open its own.
+    dom.window.document.dispatchEvent(
+      new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    assert.equal(menuItems().length, 0, 'the grid menu did not close');
+    press('.dc-titlebar-lip');
+    assert.notEqual(root.querySelector('.dc-titlebar-menu'), null);
+    hamburger();
     pick('Show Drag Zones');
     assert.equal(zoneBar().hidden, false);
-    rightClick();
-    pick('Show Title Bar');
-    assert.notEqual(root.querySelector('.dc-titlebar-menu'), null);
-    assert.equal(
-      root.querySelector('.dc-titlebar')?.classList.contains('dc-collapsed'),
-      false,
-    );
   });
 
   it('folds from the PROPERTIES editor, not only from the bars', () => {

@@ -12,7 +12,7 @@
 // appends its next column. That keeps one tree implementation instead
 // of a second "dimensional mode" with its own bugs.
 
-import type { CubeSnapshot } from './snapshot.ts';
+import { rowColumns, type CubeSnapshot } from './snapshot.ts';
 
 export interface Dimension {
   readonly name: string;
@@ -100,7 +100,7 @@ export function availableDimensions(
   s: CubeSnapshot,
   dimensions: readonly Dimension[],
 ): Dimension[] {
-  const have = new Set(s.columns.map((c) => c.name));
+  const have = new Set(rowColumns(s).map((c) => c.name));
   return dimensions.filter(
     (d) => d.columns.length > 0 && d.columns.every((c) => have.has(c)),
   );

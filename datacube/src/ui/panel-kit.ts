@@ -10,7 +10,7 @@ import {
   columnConfig,
   type CubeConfiguration,
 } from '../config.ts';
-import { kindOf, type CubeSnapshot, type SortDirection } from '../snapshot.ts';
+import { rowColumns, type CubeSnapshot, type SortDirection } from '../snapshot.ts';
 import { ColumnsSelector, type SelectorColumn } from './columns-selector.ts';
 
 /** Everything the editor edits, as one value. */
@@ -92,9 +92,16 @@ export function allColumns(draft: CubeDraft): SelectorColumn[] {
  */
 export function groupableColumns(draft: CubeDraft): SelectorColumn[] {
   const out: SelectorColumn[] = [];
-  for (const spec of draft.snapshot.columns) {
-    const kind = columnConfig(draft.config, spec.name).kind ?? kindOf(spec);
-    if (kind === 'dimension') out.push({ name: spec.name, type: spec.type });
+  // Row-stage calculated dimensions are groupable like any other. Their
+  // kind is the one declared in the calculated-column editor; the
+  // configuration's override applies to source columns only.
+  for (const c of rowColumns(draft.snapshot)) {
+    const kind = c.derived
+      ? c.kind
+      : columnConfig(draft.config, c.name).kind ?? c.kind;
+    if (kind === 'dimension') {
+      out.push({ name: c.name, type: c.type ?? 'Derived' });
+    }
   }
   return out;
 }

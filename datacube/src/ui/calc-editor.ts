@@ -15,10 +15,11 @@
 //
 // THE EXPRESSION IS NOT VALIDATED HERE. It goes to the planner, which
 // is the only thing that knows whether it compiles and what type it
-// has; a refusal comes back as a message on the cube's status line and
-// the snapshot reverts. Writing a second, weaker checker here would
-// mean two opinions about what is valid, and the weaker one would be
-// the one the user met first.
+// has. The editor WAITS for that answer: a refusal comes back from
+// `onChange`, the running cube reverts, and the form stays open with
+// the user's text and the planner's own message in it. Writing a
+// second, weaker checker here would mean two opinions about what is
+// valid, and the weaker one would be the one the user met first.
 
 import {
   completionsFor,
@@ -26,19 +27,38 @@ import {
   type CalcStage,
   type Completion,
 } from '../calc.ts';
-import type {
-  ColumnKind,
-  CubeSnapshot,
-  DerivedColumn,
+import {
+  isNumericType,
+  type ColumnKind,
+  type CubeSnapshot,
+  type DerivedColumn,
 } from '../snapshot.ts';
+
+/**
+ * What the editor opens on: a new column (optionally seeded, as
+ * "Extend Column X..." does) or an existing one to edit.
+ */
+export type CalcStart =
+  | {
+    readonly stage: CalcStage;
+    readonly expression?: string;
+    readonly kind?: ColumnKind;
+  }
+  | { readonly edit: string };
 
 export interface CalcEditorOptions {
   readonly snapshot: CubeSnapshot;
-  /** Both stages at once: the editor writes whichever the user chose. */
+  /**
+   * Both stages at once: the editor writes whichever the user chose.
+   *
+   * Resolves to the planner's refusal, or null when the cube took the
+   * change. The editor commits its own lists only on null.
+   */
   readonly onChange: (
     row: readonly DerivedColumn[],
     group: readonly DerivedColumn[],
-  ) => void;
+  ) => Promise<string | null>;
+  readonly start?: CalcStart;
 }
 
 interface Editing {
@@ -72,6 +92,14 @@ export class CalcEditor {
   #row: DerivedColumn[];
   #group: DerivedColumn[];
   #editing: Editing | null = null;
+  /**
+   * The planner's refusal of the last save, shown in the form until
+   * the user changes something. Saving the same text again would only
+   * be refused again, so Save stays disabled while it stands.
+   */
+  #refusal: string | null = null;
+  /** A save or removal waiting on the planner. */
+  #busy = false;
 
   constructor(container: HTMLElement, options: CalcEditorOptions) {
     this.#root = container;
@@ -79,7 +107,43 @@ export class CalcEditor {
     this.#options = options;
     this.#row = [...options.snapshot.derived];
     this.#group = [...(options.snapshot.groupDerived ?? [])];
+    const start = options.start;
+    if (start && 'edit' in start) {
+      this.#editing = this.#editingOf(start.edit);
+    } else if (start) {
+      this.#editing = this.#fresh(start.stage, start.expression ?? '',
+        start.kind);
+    }
     this.#render();
+  }
+
+  /**
+   * A new column's form.
+   *
+   * MEASURE by default, as upstream (DataCubeNewColumnState): a
+   * dimension default made the first thing anyone typed --
+   * `$x.notional * 1.1` -- render blank in any grouped cube, which
+   * reads as "calculated columns do not work". The radio sits right
+   * above the expression for the column that is a key rather than a
+   * quantity. The name is upstream's `col_N`, unique here.
+   */
+  #fresh(stage: CalcStage, expression: string, kind?: ColumnKind): Editing {
+    const s = this.#pending();
+    let n = s.columns.length + this.#row.length + this.#group.length + 1;
+    while (nameProblem(s, stage, `col_${n}`) !== null) n += 1;
+    return { stage, name: `col_${n}`, expression, kind: kind ?? 'measure' };
+  }
+
+  /** The form for an existing column, or none if it has gone. */
+  #editingOf(name: string): Editing | null {
+    for (const stage of ['row', 'group'] as const) {
+      const d = this.#listFor(stage).find((x) => x.name === name);
+      if (d) {
+        return { stage, original: d.name, name: d.name,
+          expression: d.expression, kind: effectiveKind(d) };
+      }
+    }
+    return null;
   }
 
   // -- state ----------------------------------------------------------
@@ -88,24 +152,51 @@ export class CalcEditor {
     return stage === 'row' ? this.#row : this.#group;
   }
 
-  #commit(): void {
-    this.#options.onChange(this.#row, this.#group);
+  /**
+   * Offer new lists to the cube, and keep them only if it takes them.
+   *
+   * On a refusal the lists stay as they were -- the cube reverted, so
+   * the editor must too, or it would list a column that is not
+   * running -- and the message is returned for the form to show.
+   */
+  async #propose(
+    row: DerivedColumn[],
+    group: DerivedColumn[],
+  ): Promise<string | null> {
+    this.#busy = true;
+    try {
+      const refusal = await this.#options.onChange(row, group);
+      if (refusal === null) {
+        this.#row = row;
+        this.#group = group;
+      }
+      return refusal;
+    } finally {
+      this.#busy = false;
+    }
   }
 
-  #remove(stage: CalcStage, name: string): void {
-    const list = this.#listFor(stage);
+  async #remove(stage: CalcStage, name: string): Promise<void> {
+    if (this.#busy) return;
+    const row = [...this.#row];
+    const group = [...this.#group];
+    const list = stage === 'row' ? row : group;
     const at = list.findIndex((d) => d.name === name);
     if (at < 0) return;
     list.splice(at, 1);
-    this.#editing = null;
+    // A removal can be refused too -- another column may refer to
+    // this one -- and then the list keeps it and says why.
+    this.#refusal = await this.#propose(row, group);
+    if (this.#refusal === null) this.#editing = null;
     this.#render();
-    this.#commit();
   }
 
-  #save(): void {
+  async #save(): Promise<void> {
     const e = this.#editing;
-    if (!e) return;
-    const list = this.#listFor(e.stage);
+    if (!e || this.#busy) return;
+    const row = [...this.#row];
+    const group = [...this.#group];
+    const list = e.stage === 'row' ? row : group;
     // The type is DROPPED on an edit: the expression changed, so the
     // type it used to have is no longer a fact about it. The next
     // landed result supplies the new one.
@@ -125,9 +216,17 @@ export class CalcEditor {
     } else {
       list.push(next);
     }
+    const refusal = await this.#propose(row, group);
+    if (refusal !== null) {
+      // THE FORM STAYS, with what the user typed and why it failed.
+      this.#refusal = refusal;
+      const form = this.#root.querySelector('.dc-calc-form');
+      if (form) this.#refreshProblem(form);
+      return;
+    }
+    this.#refusal = null;
     this.#editing = null;
     this.#render();
-    this.#commit();
   }
 
   /** The snapshot as the editor's own pending state, for scoping. */
@@ -150,7 +249,7 @@ export class CalcEditor {
     if (e.expression.trim().length === 0) {
       return 'an expression is required — e.g. $x.notional * 1.05';
     }
-    return null;
+    return this.#refusal;
   }
 
   // -- rendering ------------------------------------------------------
@@ -173,14 +272,8 @@ export class CalcEditor {
     add.type = 'button';
     add.textContent = '+ Add';
     add.addEventListener('click', () => {
-      // DIMENSION by default, and deliberately. The harm is
-      // asymmetric -- the reasoning `infer.ts` already writes down:
-      // summing an id, a year or a postcode gives a plausible number
-      // that is meaningless and says nothing about being wrong, while
-      // leaving a quantity un-summed gives a blank that reads as "no
-      // aggregate chosen". The selector is right there either way.
-      this.#editing = { stage, name: '', expression: '',
-        kind: 'dimension' };
+      this.#refusal = null;
+      this.#editing = this.#fresh(stage, '');
       this.#render();
     });
 
@@ -210,15 +303,16 @@ export class CalcEditor {
       edit.type = 'button';
       edit.textContent = 'Edit';
       edit.addEventListener('click', () => {
+        this.#refusal = null;
         this.#editing = { stage, original: d.name, name: d.name,
-          expression: d.expression, kind: d.kind ?? 'dimension' };
+          expression: d.expression, kind: effectiveKind(d) };
         this.#render();
       });
       const del = this.#el('button', 'dc-calc-del', li) as HTMLButtonElement;
       del.type = 'button';
       del.textContent = 'Remove';
       del.setAttribute('aria-label', `Remove ${d.name}`);
-      del.addEventListener('click', () => this.#remove(stage, d.name));
+      del.addEventListener('click', () => void this.#remove(stage, d.name));
     }
   }
 
@@ -242,6 +336,7 @@ export class CalcEditor {
     name.placeholder = 'margin';
     name.addEventListener('input', () => {
       e.name = name.value;
+      this.#refusal = null;
       this.#refreshProblem(form);
     });
 
@@ -260,6 +355,8 @@ export class CalcEditor {
         radio.checked = e.kind === kind;
         radio.addEventListener('change', () => {
           if (radio.checked) e.kind = kind;
+          this.#refusal = null;
+          this.#refreshProblem(form);
         });
         const text = this.#el('span', 'dc-calc-kind-text', option);
         // Say what it DOES, not what it is called: "measure" and
@@ -283,6 +380,7 @@ export class CalcEditor {
       : '$x.profit / $x.revenue';
     expr.addEventListener('input', () => {
       e.expression = expr.value;
+      this.#refusal = null;
       this.#refreshProblem(form);
     });
 
@@ -321,12 +419,13 @@ export class CalcEditor {
       actions) as HTMLButtonElement;
     save.type = 'button';
     save.textContent = e.original === undefined ? 'Add' : 'Save';
-    save.addEventListener('click', () => this.#save());
+    save.addEventListener('click', () => void this.#save());
     const cancel = this.#el('button', 'dc-calc-cancel',
       actions) as HTMLButtonElement;
     cancel.type = 'button';
     cancel.textContent = 'Cancel';
     cancel.addEventListener('click', () => {
+      this.#refusal = null;
       this.#editing = null;
       this.#render();
     });
@@ -391,4 +490,12 @@ export class CalcEditor {
     parent.append(el);
     return el;
   }
+}
+
+/**
+ * The kind a column behaves as: the declared one, or -- for a column
+ * saved before kinds were declared -- the type default the query uses.
+ */
+function effectiveKind(d: DerivedColumn): ColumnKind {
+  return d.kind ?? (isNumericType(d.type) ? 'measure' : 'dimension');
 }

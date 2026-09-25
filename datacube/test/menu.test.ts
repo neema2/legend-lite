@@ -88,8 +88,8 @@ describe('buildMenu', () => {
     const withSub = top.filter((i) => i.submenu);
     assert.deepEqual(
       withSub.map((i) => i.label),
-      ['Export', 'Email', 'Copy', 'Sort', 'Filter', 'Pivot', 'Resize', 'Pin',
-        'Heatmap', 'Layout'],
+      ['Export', 'Email', 'Copy', 'Sort', 'Filter', 'Pivot',
+        'Extended Columns', 'Resize', 'Pin', 'Heatmap'],
     );
     // A submenu parent does nothing itself.
     assert.ok(withSub.every((i) => i.id === undefined));
@@ -206,15 +206,31 @@ describe('buildMenu', () => {
     const items = menuItems(
       buildMenu({
         snapshot: CUBE,
-        column: 'flag',
-        columnType: 'Boolean',
-        value: true,
+        column: 'payload',
+        columnType: 'Variant',
+        value: 'x',
       }),
     );
     assert.equal(
       items.some((i) => i.id === 'filter.add'),
       false,
     );
+  });
+
+  it('filters a BOOLEAN by = and != only, as upstream does', () => {
+    // Upstream's Equal and NotEqual are the only operations that
+    // accept BOOLEAN. This arm was missing, so a Boolean column --
+    // a source flag or a calculated one -- got no value filter.
+    const labels = menuItems(
+      buildMenu({
+        snapshot: CUBE,
+        column: 'flag',
+        columnType: 'Boolean',
+        value: true,
+      }),
+    ).filter((i) => i.id === 'filter.add').map((i) => i.label);
+    assert.deepEqual(labels,
+      ['Add Filter: flag = true', 'Add Filter: flag != true']);
   });
 
   it('still offers LAYOUT actions on a column it cannot group by', () => {

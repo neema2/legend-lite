@@ -58,7 +58,8 @@ import { load, save, toJson, treeOf } from './persist.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
 import type { Scalar } from './result.ts';
 import {
-  kindOf,
+  rowColumns,
+  type ColumnKind,
   type CubeSnapshot,
   type DerivedColumn,
   type FilterNode,
@@ -67,10 +68,16 @@ import {
 import { columnRange, heatColour } from './style.ts';
 import type { HeatmapRange, HeatmapSpec } from './style.ts';
 import { parsePathKey, pathKey, type TreeRow } from './tree.ts';
-import { CalcEditor } from './ui/calc-editor.ts';
+import { CalcEditor, type CalcStart } from './ui/calc-editor.ts';
+import { columnRef } from './calc.ts';
 import { CubeEditor, draftFor, type CubeDraft } from './ui/editor.ts';
 import { FilterEditor } from './ui/filter-editor.ts';
-import { applyMenuAction, buildMenu, type MenuItem } from './ui/menu.ts';
+import {
+  applyMenuAction,
+  buildMenu,
+  calcStageOf,
+  type MenuItem,
+} from './ui/menu.ts';
 import { MenuView } from './ui/menu-view.ts';
 import { makeWindow, type WindowSpec } from './ui/window.ts';
 import {
@@ -547,10 +554,24 @@ export class CubeApp {
   }
 
   #isDimension(column: string): boolean {
-    const spec = this.#snapshot.columns.find((c) => c.name === column);
-    if (!spec) return false;
-    return (columnConfig(this.#config, column).kind ?? kindOf(spec)) ===
-      'dimension';
+    return this.#kindOf(column) === 'dimension';
+  }
+
+  /**
+   * A column's kind, over source AND row-stage calculated columns.
+   *
+   * Undefined for anything that does not exist before aggregation --
+   * a group-stage calculated column, a pivot's generated column --
+   * which is therefore neither groupable nor extendable. A calculated
+   * column's kind is the one declared in its editor; the
+   * configuration's override is for source columns.
+   */
+  #kindOf(column: string): ColumnKind | undefined {
+    const c = rowColumns(this.#snapshot).find((x) => x.name === column);
+    if (!c) return undefined;
+    return c.derived
+      ? c.kind
+      : columnConfig(this.#config, column).kind ?? c.kind;
   }
 
   async #refresh(): Promise<void> {
@@ -686,8 +707,18 @@ export class CubeApp {
     // rule the grid uses: what the order names comes first, in that
     // order, and anything it does not keeps declared order behind.
     const order = this.#config.columnOrder;
+    // Calculated columns are columns: listed so they can be ticked,
+    // dragged into a zone, and found. A group-stage one is listed too
+    // -- it is on screen -- and `#isDimension` keeps it out of the
+    // zones, since it only exists after the groupBy.
+    const known = [
+      ...rowColumns(this.#snapshot).map((c) => ({
+        name: c.name, type: c.type ?? 'Derived' })),
+      ...(this.#snapshot.groupDerived ?? []).map((d) => ({
+        name: d.name, type: d.type ?? 'Derived' })),
+    ];
     const listed = order
-      ? [...this.#snapshot.columns].sort((a, b) => {
+      ? [...known].sort((a, b) => {
           const ia = order.indexOf(a.name);
           const ib = order.indexOf(b.name);
           if (ia === -1 && ib === -1) return 0;
@@ -695,7 +726,7 @@ export class CubeApp {
           if (ib === -1) return -1;
           return ia - ib;
         })
-      : this.#snapshot.columns;
+      : known;
     // THE PIVOT'S OWN COLUMNS, under the measure they came from.
     //
     // A pivoted measure is not one column in the grid: it is one per
@@ -1138,10 +1169,10 @@ export class CubeApp {
    * cannot render, and the error the user sees is the planner's own
    * rather than a paraphrase.
    */
-  #setCalc(
+  async #setCalc(
     row: readonly DerivedColumn[],
     group: readonly DerivedColumn[],
-  ): void {
+  ): Promise<string | null> {
     const previous = this.#snapshot;
     this.#snapshot = {
       ...this.#snapshot,
@@ -1150,7 +1181,20 @@ export class CubeApp {
         ? { groupDerived: [...group] }
         : { groupDerived: [] }),
     };
-    this.#refreshOr(previous);
+    // AWAITED, and the refusal RETURNED, rather than `#refreshOr`'s
+    // fire-and-forget: the editor has to know. Reverting the snapshot
+    // alone took the user's column -- and the text they typed -- with
+    // it, and put the reason on the status line, away from the form
+    // it was about. The editor keeps the form open and shows it there.
+    try {
+      await this.#refresh();
+      return null;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.#status(message, 'error');
+      this.#snapshot = previous;
+      return message;
+    }
   }
 
   #setFilter(filter: FilterNode | undefined): void {
@@ -1209,9 +1253,16 @@ export class CubeApp {
           value = raw as FilterValue | null;
         }
         if (column !== undefined) {
-          columnType = this.#snapshot.columns.find(
+          columnType = rowColumns(this.#snapshot).find(
             (c) => c.name === column,
           )?.type;
+        }
+        // A group-stage calculated column exists only AFTER the
+        // groupBy, and every filter runs before it -- so a value
+        // filter on one could only ever be refused.
+        if (column !== undefined
+          && (this.#snapshot.groupDerived ?? []).some((d) => d.name === column)) {
+          value = undefined;
         }
       }
       const groups = buildMenu({
@@ -1226,8 +1277,10 @@ export class CubeApp {
           column !== undefined && this.#heatmapFor(column) !== undefined,
         canGroup: column === undefined || this.#isDimension(column),
         canEmail: this.#options.email !== undefined,
-        zonesHidden: !this.#config.showDragZones,
-        titleBarHidden: !this.#config.showTitleBar,
+        ...(column !== undefined && this.#kindOf(column) !== undefined
+          ? { extendable: true }
+          : {}),
+        ...(column !== undefined ? calcStageOf(this.#snapshot, column) : {}),
         ...(value !== undefined ? { value } : {}),
         ...(columnType !== undefined ? { columnType } : {}),
       });
@@ -1286,13 +1339,31 @@ export class CubeApp {
       case 'view.properties':
         this.openEditor();
         return;
-      case 'view.calc':
-        this.openCalcColumns();
+      // Upstream's Extended Columns entries. EXTEND seeds the new
+      // column with a reference to the one clicked and inherits its
+      // kind, as DataCubeNewColumnState does.
+      case 'calc.add':
+        this.openCalcColumns({ stage: 'row' });
         return;
-      case 'layout.zones':
+      case 'calc.extend':
+        if (column) {
+          this.openCalcColumns({
+            stage: 'row',
+            expression: columnRef(column),
+            kind: this.#kindOf(column) ?? 'measure',
+          });
+        }
+        return;
+      case 'calc.edit':
+        if (column) this.openCalcColumns({ edit: column });
+        return;
+      case 'calc.delete':
+        if (column) this.#deleteCalc(column);
+        return;
+      case 'view.zones':
         this.#setChrome({ showDragZones: !this.#config.showDragZones });
         return;
-      case 'layout.titleBar':
+      case 'view.titleBar':
         this.#setChrome({ showTitleBar: !this.#config.showTitleBar });
         return;
       case 'heatmap.add':
@@ -1804,19 +1875,29 @@ export class CubeApp {
    * decision the user is making and splitting them into two places
    * would hide it -- see `src/ui/calc-editor.ts`.
    */
-  openCalcColumns(): void {
+  openCalcColumns(start?: CalcStart): void {
     this.#showOverlay('Calculated Columns', (host) => {
       new CalcEditor(host, {
         snapshot: this.#snapshot,
         onChange: (row, group) => this.#setCalc(row, group),
+        ...(start ? { start } : {}),
       });
     });
+  }
+
+  /** Take one calculated column out, whichever stage it is in. */
+  #deleteCalc(name: string): void {
+    void this.#setCalc(
+      this.#snapshot.derived.filter((d) => d.name !== name),
+      (this.#snapshot.groupDerived ?? []).filter((d) => d.name !== name),
+    );
   }
 
   openFilters(): void {
     this.#showOverlay('Filters', (host) => {
       new FilterEditor(host, {
-        columns: this.#snapshot.columns.map((c) => c.name),
+        // Row-stage calculated columns filter like any other.
+        columns: rowColumns(this.#snapshot).map((c) => c.name),
         ...(this.#snapshot.filter ? { value: this.#snapshot.filter } : {}),
         onChange: (filter) => this.#setFilter(filter),
       });
@@ -2140,14 +2221,13 @@ export class CubeApp {
           ...(this.#controller.canRedo ? {} : { disabled: true }),
         },
         { id: 'view.properties', label: 'Properties...' },
-        { id: 'view.calc', label: 'Calculated Columns...' },
         {
-          id: 'layout.zones',
+          id: 'view.zones',
           label: this.#config.showDragZones
             ? 'Hide Drag Zones'
             : 'Show Drag Zones',
         },
-        { id: 'layout.titleBar', label: 'Hide Title Bar' },
+        { id: 'view.titleBar', label: 'Hide Title Bar' },
       ];
       if (this.#options.storage) {
         items.push(

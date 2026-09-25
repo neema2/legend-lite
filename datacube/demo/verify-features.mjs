@@ -1933,10 +1933,10 @@ try {
     // Escape does not do it: as `reset` says, Escape reaches the
     // overlay only while focus is still inside it.
     await closeCalc();
-    await page.click('.dc-titlebar-menu');
-    await page.waitForSelector('.dc-menu', { timeout: 10_000 });
-    await page.locator('.dc-menu-item:has(> .dc-menu-label'
-      + ':text-is("Calculated Columns..."))').click();
+    // From the GRID's menu, where upstream keeps it: Extended Columns
+    // > Add New Column... opens the editor with a new-column form,
+    // which the callers replace with the stage they want.
+    await menu(['Extended Columns', 'Add New Column...'], { requery: false });
     await page.waitForSelector('.dc-calc', { timeout: 10_000 });
   };
 
@@ -1972,7 +1972,9 @@ try {
     // dimension -- a wrongly-summed column gives a plausible wrong
     // number, a wrongly-un-summed one gives a blank -- so a check
     // that wants a total has to say so, exactly as a user would.
-    if (stage === 0) {
+    // `kind === null` leaves the editor's own default alone, which is
+    // what a user who never touches the radio gets.
+    if (stage === 0 && kind !== null) {
       await page.locator(`.dc-calc-kind-input[value="${kind}"]`).check();
     }
     await page.fill('.dc-calc-input-expr', expression);
@@ -2263,6 +2265,227 @@ try {
       }
       return `${flat.length} flat, ${pivoted.length} pivoted,`
         + ` ${after.length} after clearing — none lost`;
+    });
+
+  // -- calculated columns, as a user meets them ----------------------
+  //
+  // The checks above prove each stage computes. These prove the flows
+  // around it: the default a user gets without touching the kind, a
+  // calculated column used like any other column, a refusal that
+  // leaves the user's text alone, and the right-click entry points.
+  // Each was a defect in the census (datacube/docs/FEATURE_CENSUS.md
+  // §1, C1-C6) before it was a check.
+
+  /** Right-click a body cell and list every entry the menu offers. */
+  const menuAt = async (col) => {
+    await reset();
+    await page.evaluate(() => {
+      const sc = document.querySelector('.dc-scroller');
+      if (sc) sc.scrollLeft = 0;
+    });
+    await page.locator('.dc-row').first().locator('.dc-cell').nth(col)
+      .click({ button: 'right', timeout: 8000 });
+    await page.waitForSelector('.dc-menu', { timeout: 5000 });
+    const items = await openMenu();
+    await page.keyboard.press('Escape');
+    return items;
+  };
+
+  await check('a NEW calculated column sums in a grouped cube by default',
+    async () => {
+      // A check that failed earlier cannot leave its columns behind.
+      await clearCalcs();
+      // C1. Upstream defaults a new column to MEASURE; a dimension
+      // default made `$x.notional * 1.1` render blank under any row
+      // group -- the query took its uniqueValueOnly() -- which is the
+      // first thing anyone trying the feature sees.
+      await flatten();
+      await menu(['Pivot', /^Vertical Pivot on/],
+        { col: await needCol('region') });
+      await addCalc(0, 'uplift', '$x.notional * 1.1', null);
+      await settle();
+      await closeCalc();
+      const s2 = await state();
+      if (!/uplift:x\|\$x\.uplift:y\|\$y->sum\(\)/.test(s2.pure)) {
+        throw new Error('the new column does not sum: '
+          + (s2.pure.match(/uplift:x\|[^,\]]*/)?.[0] ?? s2.pure.slice(0, 160)));
+      }
+      const cols = await gridColumns();
+      const at = cols.indexOf('uplift');
+      const cells = await page.locator('.dc-row').first()
+        .locator('.dc-cell').allTextContents();
+      if (at < 0 || !(cells[at] ?? '').trim()) {
+        throw new Error(`uplift is blank in the grouped grid: ${cells.join(' | ')}`);
+      }
+      const detail = `uplift under region = ${cells[at]}`;
+      await flatten();
+      await clearCalcs();
+      return detail;
+    });
+
+  await check('a calculated DIMENSION can be grouped on', async () => {
+    // A check that failed earlier cannot leave its columns behind.
+    await clearCalcs();
+    // C2. The kind lookup read the SOURCE columns only, so a
+    // calculated column was never a dimension: "Vertical Pivot" came
+    // up disabled and the drag zones refused it.
+    await flatten();
+    await addCalc(0, 'big', '$x.notional > 500000', 'dimension');
+    await settle();
+    await closeCalc();
+    const listed = await page.evaluate(() =>
+      [...document.querySelectorAll('.dc-tool-panel-row')]
+        .map((r) => r.dataset.column));
+    if (!listed.includes('big')) {
+      throw new Error(`the columns panel does not list it: ${listed.join(', ')}`);
+    }
+    await menu(['Pivot', 'Vertical Pivot on big'], { col: await needCol('big') });
+    const s2 = await state();
+    if (!/groupBy\(~\[big/.test(s2.pure)) {
+      throw new Error(`not grouped on big: ${s2.pure.slice(0, 200)}`);
+    }
+    if (/error|refus|unknown/i.test(s2.status)) {
+      throw new Error(s2.status.replace(/\s+/g, ' ').slice(0, 160));
+    }
+    const groups = await resultRows();
+    await flatten();
+    await clearCalcs();
+    if (groups < 2) throw new Error(`${groups} groups, expected true and false`);
+    return `${groups} groups on a calculated Boolean`;
+  });
+
+  await check('a column pivot carries calculated measures', async () => {
+    // A check that failed earlier cannot leave its columns behind.
+    await clearCalcs();
+    // C3. The pivot's measure set was built from the source columns,
+    // so a calculated measure vanished from a pivoted cube with no
+    // error -- the query was the same as with no calculated column.
+    await flatten();
+    await addCalc(0, 'uplift', '$x.notional * 1.1', 'measure');
+    await settle();
+    await closeCalc();
+    await menu(['Pivot', 'Horizontal Pivot on year'],
+      { col: await needCol('year') });
+    const s2 = await state();
+    const pivot = s2.pure.match(/pivot\([^\n]*/)?.[0] ?? '';
+    const cols = await gridColumns();
+    await flatten();
+    await clearCalcs();
+    if (!/uplift/.test(pivot)) {
+      throw new Error(`the pivot aggregates no uplift: ${pivot.slice(0, 200)}`);
+    }
+    const shown = cols.filter((c) => /uplift/.test(c));
+    if (shown.length === 0) {
+      throw new Error(`no pivoted uplift column: ${cols.join(', ')}`);
+    }
+    return `${shown.length} pivoted uplift columns`;
+  });
+
+  await check("the filter menu uses a calculated column's own type",
+    async () => {
+      // A check that failed earlier cannot leave its columns behind.
+      await clearCalcs();
+      // C4. With no type found, the menu fell back to String and
+      // offered "big contains true" on a Boolean.
+      await flatten();
+      await addCalc(0, 'big', '$x.notional > 500000', 'dimension');
+      await settle();
+      await closeCalc();
+      const items = await menuAt(await needCol('big'));
+      await clearCalcs();
+      const filters = items.map((i) => i.label)
+        .filter((l) => /^Add Filter: big/.test(l));
+      if (filters.length === 0) throw new Error('no filter entries for big');
+      const textual = filters.filter((l) =>
+        /contains|starts with|ends with|<|>/.test(l));
+      if (textual.length > 0) {
+        throw new Error(`text or ordering operators on a Boolean: ${textual.join(' / ')}`);
+      }
+      return filters.join(' / ');
+    });
+
+  await check('a refused expression keeps what the user typed, and says why',
+    async () => {
+      // A check that failed earlier cannot leave its columns behind.
+      await clearCalcs();
+      // C5. The refusal reverted the snapshot and the editor with it:
+      // the column and its text were gone, and the reason was on the
+      // status line, away from the form it was about.
+      await addCalc(0, 'bogus', '$x.nope * 2', 'measure');
+      await settle();
+      const form = await page.evaluate(() => ({
+        open: document.querySelectorAll('.dc-calc-form').length,
+        name: document.querySelector('.dc-calc-input-name')?.value ?? null,
+        expr: document.querySelector('.dc-calc-input-expr')?.value ?? null,
+        problem: document.querySelector('.dc-calc-problem')?.textContent ?? '',
+      }));
+      // Recover before asserting, so a failure here cannot leave an
+      // error on the status line for every later check.
+      await addCalc(0, 'recovered', '$x.notional * 1');
+      await settle();
+      await clearCalcs();
+      if (!form.open) throw new Error('the form closed on a refusal');
+      if (form.name !== 'bogus' || form.expr !== '$x.nope * 2') {
+        throw new Error(`the typed text was lost: ${JSON.stringify(form)}`);
+      }
+      if (!/nope/.test(form.problem)) {
+        throw new Error(`the form does not say why: ${JSON.stringify(form.problem)}`);
+      }
+      return form.problem.replace(/\s+/g, ' ').slice(0, 80);
+    });
+
+  await check('calculated columns live in the grid menu, not the hamburger',
+    async () => {
+      // A check that failed earlier cannot leave its columns behind.
+      await clearCalcs();
+      // C6, and upstream's own entries: Extended Columns > Add New
+      // Column..., Extend Column X..., Edit Column X..., Delete
+      // Column X.
+      await flatten();
+      await page.click('.dc-titlebar-menu');
+      await page.waitForSelector('.dc-menu', { timeout: 5000 });
+      const burgerItems = (await openMenu()).map((i) => i.label);
+      await page.keyboard.press('Escape');
+      if (burgerItems.some((l) => /Calculated Columns/.test(l))) {
+        throw new Error('the hamburger still offers Calculated Columns');
+      }
+      const onSource = (await menuAt(await needCol('notional')))
+        .map((i) => i.label);
+      for (const want of ['Extended Columns', 'Add New Column...',
+        'Extend Column notional...']) {
+        if (!onSource.includes(want)) {
+          throw new Error(`no "${want}"; offered ${onSource.join(' / ')}`);
+        }
+      }
+      if (onSource.some((l) => /^(Edit|Delete) Column/.test(l))) {
+        throw new Error('Edit/Delete offered on a source column');
+      }
+      // EXTEND prefills the reference and inherits the column's kind.
+      await menu(['Extended Columns', 'Extend Column notional...'],
+        { col: await needCol('notional'), requery: false });
+      await page.waitForSelector('.dc-calc-form', { timeout: 5000 });
+      const seeded = await page.evaluate(() => ({
+        expr: document.querySelector('.dc-calc-input-expr')?.value,
+        kind: document.querySelector('.dc-calc-kind-input:checked')?.value,
+      }));
+      if (seeded.expr !== '$x.notional' || seeded.kind !== 'measure') {
+        throw new Error(`Extend seeded ${JSON.stringify(seeded)}`);
+      }
+      await page.fill('.dc-calc-input-name', 'n2');
+      await page.locator('.dc-calc-save').click();
+      await settle();
+      await closeCalc();
+      const onCalc = (await menuAt(await needCol('n2'))).map((i) => i.label);
+      for (const want of ['Edit Column n2...', 'Delete Column n2']) {
+        if (!onCalc.includes(want)) {
+          throw new Error(`no "${want}"; offered ${onCalc.join(' / ')}`);
+        }
+      }
+      await menu(['Extended Columns', 'Delete Column n2'],
+        { col: await needCol('n2') });
+      const s2 = await state();
+      if (/extend\(~\[n2/.test(s2.pure)) throw new Error('Delete left n2 in the query');
+      return 'Add / Extend (seeded) / Edit / Delete, none in the hamburger';
     });
 
   // -- the columns panel, which is a control and not a legend -------
@@ -3071,14 +3294,16 @@ try {
       throw new Error(`opened with ${onOpen.join(', ')} already unfurled`);
     }
     // And ONE opens when asked, so the fix did not simply break them.
-    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Layout"))')
+    // Pivot: always present. (This hovered Layout until Layout left
+    // the grid's menu, 2026-09-25.)
+    await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Pivot"))')
       .hover();
     await page.waitForTimeout(250);
     const hovered = await showing();
     await page.keyboard.press('Escape');
     await page.waitForTimeout(150);
-    if (hovered.length !== 1 || hovered[0] !== 'Layout') {
-      throw new Error(`hovering Layout showed ${hovered.length}:`
+    if (hovered.length !== 1 || hovered[0] !== 'Pivot') {
+      throw new Error(`hovering Pivot showed ${hovered.length}:`
         + ` ${hovered.join(', ')}`);
     }
     return 'none on open, exactly one on hover';
@@ -3150,23 +3375,20 @@ try {
     return `grid ${before} -> ${after}px, lip ${lipHeight}px`;
   });
 
-  await check("the grid's menu restores a bar the hamburger went with",
-    async () => {
-      // THE SAFETY NET. The hamburger lives in the title bar, so
-      // hiding that bar from the hamburger would be a one-way door
-      // if the grid's own menu did not carry the same toggle.
-      await page.click('.dc-titlebar-fold');
-      await page.waitForTimeout(200);
-      if (await page.locator('.dc-titlebar-menu').count()) {
-        throw new Error('the title bar did not fold');
-      }
-      await menu(['Layout', 'Show Title Bar']);
-      await page.waitForTimeout(300);
-      if (!(await page.locator('.dc-titlebar-menu').count())) {
-        throw new Error('the grid menu could not restore the title bar');
-      }
-      return 'restored from the grid, with no title bar to click';
-    });
+  await check("the grid's menu carries no Layout entries", async () => {
+    // Layout left the right-click menu by the user's direction
+    // (2026-09-25): the grid's menu is about the data. It used to be
+    // the safety net for a title bar folded from the hamburger; the
+    // lip a folded bar leaves is that net now, and "folding the title
+    // bar leaves a lip that restores it" checks it.
+    const labels = (await menuAt(0)).map((i) => i.label);
+    const layout = labels.filter((l) =>
+      /^Layout$|Drag Zones|Title Bar/.test(l));
+    if (layout.length > 0) {
+      throw new Error(`still offered: ${layout.join(' / ')}`);
+    }
+    return `${labels.length} entries, none about layout`;
+  });
 
   await check('a column drag brings the folded zones back', async () => {
     // Folding them must take nothing away: a drag needs somewhere to

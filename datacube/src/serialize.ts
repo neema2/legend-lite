@@ -24,6 +24,7 @@ import {
   columnType,
   isNumericType,
   referencedColumns,
+  rowColumns,
   totalOrderSorts,
   type AggregateFn,
   type ColumnKind,
@@ -420,7 +421,8 @@ function parentConditions(
   parent: RowPath,
 ): FilterNode[] {
   const out: FilterNode[] = [];
-  const typeOf = new Map(snapshot.columns.map((c) => [c.name, c.type]));
+  // Calculated columns too: a group on one has keys of its own type.
+  const typeOf = new Map(rowColumns(snapshot).map((c) => [c.name, c.type]));
   parent.forEach((value, i) => {
     const column = snapshot.rows[i];
     if (column === undefined) return;
@@ -564,12 +566,11 @@ export function serialize(
    */
   const measureLike = (): string[] => {
     const isOn = new Set(snapshot.pivotOn);
-    return snapshot.columns
-      .filter((c) => {
-        if (isOn.has(c.name) || c.excludedFromPivot) return false;
-        return c.kind === 'measure'
-          || (isNumericType(c.type) && c.kind === undefined);
-      })
+    // Row-stage calculated measures included: reading the source
+    // columns alone dropped them from every column pivot, silently.
+    return rowColumns(snapshot)
+      .filter((c) => !isOn.has(c.name) && !c.excludedFromPivot
+        && c.kind === 'measure')
       .map((c) => c.name);
   };
 

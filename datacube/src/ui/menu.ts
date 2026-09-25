@@ -38,6 +38,7 @@ import type {
   FilterValue,
   SortDirection,
 } from '../snapshot.ts';
+import type { CalcStage } from '../calc.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 
 /**
@@ -94,15 +95,30 @@ export interface MenuContext {
   /** The type of the column that value belongs to. */
   readonly columnType?: string;
   /**
-   * Which bars are hidden, so the entries can offer the way back.
-   *
-   * THIS MENU IS THE SAFETY NET. The title bar's hamburger is the
-   * other place these toggles live, and it is in the bar one of them
-   * hides -- so without them here, hiding the title bar would be a
-   * one-way door for anyone who did not find the lip it leaves.
+   * Whether a new calculated column can be seeded from this one:
+   * true for a column that exists before aggregation, source or
+   * calculated. A pivot's generated column or a group-stage one is
+   * not something a row-stage expression can see.
    */
-  readonly zonesHidden?: boolean;
-  readonly titleBarHidden?: boolean;
+  readonly extendable?: boolean;
+  /** The stage, when the column is itself a calculated one. */
+  readonly calcStage?: CalcStage;
+}
+
+/**
+ * Whether a column is a calculated one, and at which stage.
+ *
+ * Spread into the menu context, so an ordinary column adds nothing.
+ */
+export function calcStageOf(
+  s: CubeSnapshot,
+  column: string,
+): { calcStage?: CalcStage } {
+  if (s.derived.some((d) => d.name === column)) return { calcStage: 'row' };
+  if ((s.groupDerived ?? []).some((d) => d.name === column)) {
+    return { calcStage: 'group' };
+  }
+  return {};
 }
 
 export type MenuActionId =
@@ -160,12 +176,17 @@ export type MenuActionId =
   | 'chart.plot'
   | 'chart.treemap'
   | 'view.properties'
-  | 'view.calc'
-  // The chrome, toggled from either menu. Not a snapshot change and
-  // not a column operation: what is on SCREEN, which is why these
-  // sit beside Properties rather than in any column group.
-  | 'layout.zones'
-  | 'layout.titleBar'
+  // Upstream's Extended Columns submenu.
+  | 'calc.add'
+  | 'calc.extend'
+  | 'calc.edit'
+  | 'calc.delete'
+  // The chrome, toggled from the title bar's menu. Not a snapshot
+  // change and not a column operation: what is on SCREEN. It left the
+  // grid's menu by the user's direction (2026-09-25); a folded title
+  // bar leaves a lip that restores it.
+  | 'view.zones'
+  | 'view.titleBar'
   // Host-level entries, which live in the title bar's menu rather
   // than the grid's. DataCube reserves that menu for the embedding
   // application the same way.
@@ -237,6 +258,11 @@ export function filterOperatorsFor(type: string): FilterOperator[] {
         'greaterThan',
         'greaterThanEqual',
       ];
+    // Upstream's Equal and NotEqual are the only operations that
+    // accept BOOLEAN. Without this arm a Boolean column -- `settled`,
+    // or any calculated flag -- got no value filter from the menu.
+    case 'Boolean':
+      return ['equal', 'notEqual'];
     default:
       return [];
   }
@@ -457,6 +483,33 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
     },
   ]);
 
+  // ---- Extended Columns -----------------------------------------------
+  //
+  // Upstream's entries and wording (DataCubeGridMenuBuilder): add one,
+  // seed one from the column under the pointer, and edit or delete
+  // the one under the pointer when it is itself calculated.
+  const named = column === undefined ? '' : columnLabel(column);
+  push('', [
+    {
+      label: 'Extended Columns',
+      submenu: [
+        { id: 'calc.add', label: 'Add New Column...' },
+        ...(column !== undefined && ctx.extendable
+          ? [{ id: 'calc.extend' as const, label: `Extend Column ${named}...`,
+            column }]
+          : []),
+        ...(column !== undefined && ctx.calcStage !== undefined
+          ? [
+            { id: 'calc.edit' as const, label: `Edit Column ${named}...`,
+              column },
+            { id: 'calc.delete' as const, label: `Delete Column ${named}`,
+              column },
+          ]
+          : []),
+      ],
+    },
+  ]);
+
   // ---- Resize / Pin / Hide / Collapse / Heatmap -----------------------
   push('', [
     {
@@ -535,22 +588,7 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
     { id: 'chart.treemap', label: 'Treemap' },
   ]);
 
-  push('', [
-    {
-      label: 'Layout',
-      submenu: [
-        {
-          id: 'layout.zones',
-          label: ctx.zonesHidden ? 'Show Drag Zones' : 'Hide Drag Zones',
-        },
-        {
-          id: 'layout.titleBar',
-          label: ctx.titleBarHidden ? 'Show Title Bar' : 'Hide Title Bar',
-        },
-      ],
-    },
-    { id: 'view.properties', label: 'Properties...' },
-  ]);
+  push('', [{ id: 'view.properties', label: 'Properties...' }]);
 
   return groups;
 }

@@ -12,6 +12,7 @@ import {
 } from '../src/ui/editor.ts';
 import { DEFAULT_CONFIGURATION, columnConfig } from '../src/config.ts';
 import { freshName } from '../src/ui/panel-dimensions.ts';
+import { groupableColumns } from '../src/ui/panel-kit.ts';
 import { AGGREGATES } from '../src/ui/panel-column.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 
@@ -23,7 +24,9 @@ const CUBE: CubeSnapshot = {
     { name: 'year', type: 'Integer', kind: 'dimension' },
     { name: 'notional', type: 'Float' },
   ],
-  derived: [{ name: 'margin', expression: '$x.a / $x.b' }],
+  // A ratio, so a measure -- declared, as the calculated-column
+  // editor always declares a row-stage column's kind now.
+  derived: [{ name: 'margin', expression: '$x.a / $x.b', kind: 'measure' }],
   rows: ['region'],
   pivotOn: [],
   measures: [{ name: 'total', column: 'notional', fn: 'sum' }],
@@ -433,6 +436,22 @@ describe('the editor', () => {
       ) as HTMLButtonElement
     ).click();
     assert.deepEqual(rows('available'), ['region', 'desk', 'year']);
+  });
+});
+
+describe('groupableColumns', () => {
+  it('offers a calculated DIMENSION, and never a calculated measure', () => {
+    // Reading the source columns alone, a calculated column could
+    // never be grouped on, whatever kind it declared.
+    const names = groupableColumns(draftFor({
+      ...CUBE,
+      derived: [
+        { name: 'margin', expression: '$x.a / $x.b', kind: 'measure' },
+        { name: 'big', expression: '$x.notional > 1', kind: 'dimension' },
+      ],
+      groupDerived: [{ name: 'share', expression: '$x.total / 2' }],
+    })).map((c) => c.name);
+    assert.deepEqual(names, ['region', 'desk', 'year', 'big']);
   });
 });
 

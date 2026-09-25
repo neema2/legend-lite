@@ -68,6 +68,50 @@ export function kindOf(column: ColumnSpec): ColumnKind {
   return isNumericType(column.type) ? 'measure' : 'dimension';
 }
 
+/** A column that exists BEFORE aggregation, source or calculated. */
+export interface RowColumn {
+  readonly name: string;
+  /** Absent for a calculated column whose first result has not landed. */
+  readonly type?: string;
+  readonly kind: ColumnKind;
+  /** True for a row-stage calculated column. */
+  readonly derived: boolean;
+  readonly excludedFromPivot?: boolean;
+}
+
+/**
+ * Every column a cube can group, filter or pivot by: the source's,
+ * then the row-stage calculated ones.
+ *
+ * THE lookup, because reading `snapshot.columns` alone was the one
+ * defect behind four: a calculated column was never a dimension (so
+ * it could not be grouped), had no type (so the filter menu offered
+ * `contains` on a Boolean), and was never a measure (so a column
+ * pivot dropped it). `groupDerived` is absent on purpose -- those
+ * exist only after the groupBy, so nothing before it can use them.
+ *
+ * A calculated column's kind is its own declared one; the type
+ * default applies only to a snapshot saved before kinds were
+ * declared, exactly as `kindOf` does for a source column.
+ */
+export function rowColumns(s: CubeSnapshot): RowColumn[] {
+  return [
+    ...s.columns.map((c): RowColumn => ({
+      name: c.name,
+      type: c.type,
+      kind: kindOf(c),
+      derived: false,
+      ...(c.excludedFromPivot ? { excludedFromPivot: true } : {}),
+    })),
+    ...s.derived.map((d): RowColumn => ({
+      name: d.name,
+      ...(d.type === undefined ? {} : { type: d.type }),
+      kind: d.kind ?? (isNumericType(d.type) ? 'measure' : 'dimension'),
+      derived: true,
+    })),
+  ];
+}
+
 /**
  * Whether a Pure type name is one a cube can sum.
  *
