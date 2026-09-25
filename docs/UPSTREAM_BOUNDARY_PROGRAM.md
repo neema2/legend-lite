@@ -227,6 +227,11 @@ Every upstream fact in `core` becomes a generated resource with a parity test in
 
 ### D — The implemented surface: the untangle (rewritten 2026-09-24)
 
+> **Ordering superseded 2026-09-25 from step 4c on** by `docs/REAL_PLAN_2026_09_25.md`: bind the
+> tree first (A1 the overload set as declarations, A2 the pick carried through lowering, A3 mints by
+> declaration), then forms by declaration (B), one evaluator (C), the kernel (D), one ownership
+> registry (E), load by manifest (F), the seams as packages (G). The rulings in this section stand.
+
 D as first written (claims registry, membership, generated text — batches 3, 4, 5 below)
 LANDED, and the platform-architecture study of 2026-09-23/24
 (`~/legend/platform-architecture/PLATFORM_ARCHITECTURE.md`) then measured what it left:
