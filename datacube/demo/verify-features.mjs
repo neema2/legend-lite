@@ -3465,6 +3465,220 @@ try {
     }
     return `row ${before.row} -> ${after.row} (${after.text})`;
   });
+
+  // -- every editor control has its effect -----------------------------
+  //
+  // A sweep of General and Column Properties found half the controls
+  // doing nothing (2026-09-25): every font, colour, grid-line and
+  // highlight setting (the grid took its appearance once, at
+  // construction), pivot sort direction, the flat cube's row limit --
+  // and "Show root aggregation" put the FIRST TRADE in the Total row.
+  // The reader guardrail cannot see "read once at startup"; only
+  // setting each control in the real editor and looking can. Each
+  // check starts from a fresh cube, sets ONE control, presses OK, and
+  // asserts the specific effect the control promises.
+  {
+    const O = '.dc-app-overlay:not([hidden])';
+    const fieldOf = (label) => page.locator(
+      `${O} .dc-field:has(> .dc-field-label:text-is(${JSON.stringify(label)}))`).first();
+    const boxOf = (label) => page.locator(
+      `${O} .dc-check:has(.dc-check-label:text-is(${JSON.stringify(label)})) input`).first();
+    const sectionOf = (title) => page.locator(
+      `${O} .dc-section:has(> .dc-section-title:text-is(${JSON.stringify(title)}))`).first();
+    const put = async (loc, value) => {
+      await loc.fill(String(value));
+      await loc.dispatchEvent('change');
+      await page.waitForTimeout(80);
+    };
+    const properties = async (tab, column) => {
+      await reset();
+      await page.click('.dc-status-properties');
+      await page.waitForSelector(`${O} .dc-editor`, { timeout: 5000 });
+      await page.locator(`${O} .dc-editor-tab`, { hasText: tab }).first().click();
+      if (column) {
+        await fieldOf('Choose Column:').locator('select').selectOption(column);
+        const adv = boxOf('Show advanced settings?');
+        if (await adv.count() && !(await adv.isChecked())) await adv.check();
+      }
+    };
+    const okEditor = async () => {
+      const before = await statusNow();
+      await page.locator(`${O} .dc-editor-footer button`, { hasText: 'OK' }).click();
+      await settle(before);
+      await page.waitForTimeout(150);
+    };
+    const general = (fn) => async () => { await properties('General Properties'); await fn(); await okEditor(); };
+    const column = (name, fn) => async () => {
+      await properties('Column Properties', name); await fn(); await okEditor();
+    };
+    const group = async (...cols) => {
+      for (const c of cols) {
+        await menu(['Pivot', `Add Vertical Pivot on ${c}`], { col: await needCol(c) });
+      }
+    };
+    /** What the page shows, for one column's first cells and the chrome. */
+    const look = (col = 'pnl') => page.evaluate((name) => {
+      const cells = [...document.querySelectorAll('.dc-row')].slice(0, 6).map((r) =>
+        [...r.querySelectorAll('.dc-cell')].find((c) =>
+          (c.dataset.column ?? c.closest('[data-column]')?.dataset.column) === name));
+      const style = (el) => {
+        if (!el) return null;
+        const x = getComputedStyle(el);
+        return { font: x.fontFamily, size: x.fontSize, weight: x.fontWeight,
+          italic: x.fontStyle, deco: x.textDecorationLine, transform: x.textTransform,
+          color: x.color, bg: x.backgroundColor, justify: x.justifyContent,
+          bb: `${x.borderBottomWidth} ${x.borderBottomStyle} ${x.borderBottomColor}`,
+          br: `${x.borderRightWidth} ${x.borderRightStyle}`,
+          width: Math.round(el.getBoundingClientRect().width), filter: x.filter,
+          cls: el.className };
+      };
+      return {
+        texts: cells.map((c) => c?.textContent?.trim() ?? null),
+        styles: cells.map(style),
+        rowBg: [...document.querySelectorAll('.dc-row')].slice(0, 4)
+          .map((r) => getComputedStyle(r).backgroundColor),
+        // Horizontal grid lines are the ROW's bottom border, not a cell's.
+        rowLine: (() => {
+          const r = document.querySelector('.dc-row');
+          if (!r) return null;
+          const x = getComputedStyle(r);
+          return `${x.borderBottomWidth} ${x.borderBottomStyle} ${x.borderBottomColor}`;
+        })(),
+        tree: [...document.querySelectorAll('.dc-row')].slice(0, 8)
+          .map((r) => r.querySelector('.dc-tree')?.textContent?.trim() ?? null),
+        headers: [...document.querySelectorAll('.dc-th[data-column]')]
+          .map((h) => `${h.dataset.column}=${h.textContent.trim()}`),
+        title: document.querySelector('.dc-titlebar')?.textContent?.trim() ?? '',
+        titleFolded: document.querySelector('.dc-titlebar')?.classList.contains('dc-collapsed') ?? false,
+        zonesHidden: document.querySelector('.dc-zone-bar')?.hidden ?? false,
+        timing: document.querySelector('.dc-status-timing')?.textContent ?? '',
+        warning: document.querySelector('.dc-status-warning')?.textContent ?? null,
+        stats: document.querySelector('.dc-status-stats')?.textContent ?? '',
+        pure: document.getElementById('pure')?.textContent ?? '',
+      };
+    }, col);
+    /** One control: fresh cube, optional setup, the action, the promise. */
+    const control = (name, { setup, act, col, expect }) => check(`control: ${name}`, async () => {
+      await freshCube();
+      if (setup) await setup();
+      const before = await look(col);
+      await act();
+      const after = await look(col);
+      const why = expect(before, after);
+      if (why) throw new Error(why);
+      return 'effect seen';
+    });
+    const changed = (key) => (b, a) =>
+      JSON.stringify(b[key]) !== JSON.stringify(a[key]) ? null
+        : `${key} unchanged: ${JSON.stringify(a[key]).slice(0, 120)}`;
+    const styleChanged = (prop) => (b, a) =>
+      a.styles[0]?.[prop] !== b.styles[0]?.[prop] ? null
+        : `${prop} unchanged: ${a.styles[0]?.[prop]}`;
+
+    // ---- General Properties ----
+    await control('Report Title', { act: general(() => put(fieldOf('Report Title:').locator('input'), 'Sweep Report')),
+      expect: (b, a) => (a.title.includes('Sweep Report') ? null : `title "${a.title}"`) });
+    await control('Show root aggregation: a real TOTAL, no false warning', {
+      setup: () => group('region'), act: general(() => boxOf('Show root aggregation').check()),
+      expect: (b, a) => (a.tree[0] !== 'Total' ? `first row "${a.tree[0]}"`
+        : a.warning ? `warning "${a.warning}"`
+          : a.texts[0] === b.texts[0] ? `total pnl ${a.texts[0]} equals the first group's` : null) });
+    await control('Keep grouped columns in the grid', { setup: () => group('region'),
+      act: general(() => boxOf('Keep grouped columns in the grid').check()),
+      expect: (b, a) => (a.headers.some((h) => h.startsWith('region=')) ? null : 'no region column') });
+    await control('Show leaf count', { setup: () => group('region'),
+      act: general(() => boxOf('Show leaf count').check()),
+      expect: (b, a) => (/\(\d+\)$/.test(a.tree[0] ?? '') ? null : `tree ${a.tree[0]}`) });
+    await control('Tree column sort', { setup: () => group('region'),
+      act: general(() => fieldOf('Sort:').locator('select').selectOption('desc')),
+      expect: changed('tree') });
+    await control('Initially expand to level', { setup: () => group('region', 'desk'),
+      act: general(() => put(fieldOf('Initially expand to level:').locator('input'), 1)),
+      expect: (b, a) => (a.tree.filter(Boolean).length > b.tree.filter(Boolean).length ? null : 'no child rows') });
+    await control('Row Limit, flat cube, with its warning', {
+      act: general(() => put(fieldOf('Row Limit:').locator('input[type=number]').first(), 10)),
+      expect: (b, a) => (/\b10 rows/.test(a.timing) && a.warning ? null : `timing "${a.timing}" warning ${a.warning}`) });
+    await control('Display warning when truncated, off', {
+      setup: general(() => put(fieldOf('Row Limit:').locator('input[type=number]').first(), 10)),
+      act: general(() => boxOf('Display warning when truncated').uncheck()),
+      expect: (b, a) => (b.warning && !a.warning ? null : `warning ${b.warning} -> ${a.warning}`) });
+    await control('Grid lines: horizontal', { act: general(() => boxOf('Horizontal').check()), expect: changed('rowLine') });
+    await control('Grid line colour', { act: general(async () => {
+      await boxOf('Horizontal').check();
+      await put(fieldOf('Color:').locator('input[type=color]'), '#ff0000');
+    }), expect: (b, a) => (/255, 0, 0/.test(a.rowLine ?? '') ? null : `row line ${a.rowLine}`) });
+    await control('Grid lines: vertical off', { act: general(() => boxOf('Vertical').uncheck()), expect: styleChanged('br') });
+    await control('Highlight rows off', { act: general(() => boxOf('Standard mode').uncheck()), expect: changed('rowBg') });
+    await control('Highlight rows colour', { act: general(() => put(fieldOf('Custom: Alternate color:').locator('input[type=color]'), '#00ff00')),
+      expect: changed('rowBg') });
+    const font = () => sectionOf('Default Font');
+    await control('Default font family', { act: general(() => font().locator('select').first().selectOption({ index: 2 })), expect: styleChanged('font') });
+    await control('Default font size', { act: general(() => put(font().locator('input[type=number]').first(), 18)), expect: styleChanged('size') });
+    await control('Default font bold', { act: general(() => font().locator('button[title="Bold"]').click()), expect: styleChanged('weight') });
+    await control('Default font italic', { act: general(() => font().locator('button[title="Italic"]').click()), expect: styleChanged('italic') });
+    await control('Default font underline', { act: general(() => font().locator('button[title="Underline"]').click()), expect: styleChanged('deco') });
+    await control('Default alignment', { act: general(() => font().locator('button[title="Align Right"]').click()), expect: styleChanged('justify') });
+    await control('Default case (cube-wide)', { col: 'region',
+      act: general(() => fieldOf('Case:').locator('select').selectOption('uppercase')), expect: styleChanged('transform') });
+    await control('Default normal foreground', { act: general(() => put(sectionOf('Default Colors').locator('input[title="Normal foreground"]'), '#aa00aa')),
+      expect: (b, a) => (a.styles.some((x, i) => x?.color !== b.styles[i]?.color) ? null : 'no cell recoloured') });
+    await control('Default negative foreground', { act: general(() => put(sectionOf('Default Colors').locator('input[title="Negative foreground"]'), '#aa00aa')),
+      expect: (b, a) => (a.styles.some((x, i) => a.texts[i]?.startsWith('-') && x?.color !== b.styles[i]?.color) ? null : 'no negative recoloured') });
+    await control('Default normal background', { act: general(() => put(sectionOf('Default Colors').locator('input[title="Normal background"]'), '#ffeeaa')),
+      expect: (b, a) => (a.styles.some((x, i) => x?.bg !== b.styles[i]?.bg) ? null : 'no background') });
+    await control('Show drag zones, off', { act: general(() => boxOf('Show drag zones').uncheck()),
+      expect: (b, a) => (a.zonesHidden ? null : 'zones still shown') });
+    await control('Show title bar, off', { act: general(() => boxOf('Show title bar').uncheck()),
+      expect: (b, a) => (a.titleFolded ? null : 'title bar still shown') });
+
+    // ---- Column Properties (pnl carries negatives) ----
+    await control('Column kind', { setup: () => group('region'),
+      act: column('pnl', () => fieldOf('Column Kind:').locator('select').selectOption('dimension')),
+      expect: (b, a) => (/pnl:y\|\$y->uniqueValueOnly/.test(a.pure) ? null : 'pnl still sums') });
+    await control('Aggregation', { setup: () => group('region'),
+      act: column('pnl', () => fieldOf('Aggregation:').locator('select').selectOption('max')),
+      expect: (b, a) => (/pnl:y\|\$y->max\(\)/.test(a.pure) && a.texts[0] !== b.texts[0] ? null : 'no max') });
+    await control('Aggregation: weighted average', { setup: () => group('region'),
+      act: column('pnl', async () => {
+        await fieldOf('Aggregation:').locator('select').selectOption('wavg');
+        await fieldOf('Weight column:').locator('select').selectOption('quantity');
+      }),
+      expect: (b, a) => (/wavgRowMapper\(\$x\.quantity\)/.test(a.pure) ? null : 'no wavg') });
+    await control('Pivot sort direction', { setup: async () => menu(['Pivot', 'Horizontal Pivot on year'], { col: await needCol('year') }),
+      act: column('year', () => fieldOf('Pivot sort direction:').locator('select').selectOption('desc')),
+      expect: (b, a) => (a.headers[0] !== b.headers[0] ? null : `headers ${a.headers.slice(0, 3)}`) });
+    await control('Decimals', { act: column('pnl', () => put(fieldOf('Decimals:').locator('input[type=number]').first(), 0)),
+      expect: (b, a) => (a.texts.every((t) => !/\.\d/.test(t ?? '')) ? null : `pnl ${a.texts}`) });
+    await control('Display commas: shown ticked, untick removes them', {
+      act: column('pnl', async () => {
+        if (!(await boxOf('Display commas').isChecked())) throw new Error('unticked while commas show');
+        await boxOf('Display commas').uncheck();
+      }),
+      expect: (b, a) => (a.texts.every((t) => !/,/.test(t ?? '')) ? null : `pnl ${a.texts}`) });
+    await control('Negative number in parens', { act: column('pnl', () => boxOf('Negative number in parens').check()),
+      expect: (b, a) => (a.texts.some((t) => /^\(.*\)$/.test(t ?? '')) ? null : `pnl ${a.texts}`) });
+    await control('Scale', { act: column('pnl', () => fieldOf('Scale:').locator('select').selectOption('thousands')),
+      expect: (b, a) => (a.texts.some((t) => /k$/.test(t ?? '')) ? null : `pnl ${a.texts}`) });
+    await control('Unit', { act: column('pnl', () => put(fieldOf('Unit:').locator('input'), 'USD')),
+      expect: (b, a) => (a.texts.every((t) => / USD$/.test(t ?? '')) ? null : `pnl ${a.texts}`) });
+    await control('Case (column)', { col: 'region', act: column('region', () => fieldOf('Case:').locator('select').selectOption('lowercase')),
+      expect: (b, a) => (a.texts.every((t) => t === t?.toLowerCase()) ? null : `region ${a.texts}`) });
+    await control('Blur content', { act: column('pnl', () => boxOf('Blur content').check()), expect: styleChanged('filter') });
+    await control('Hide from view', { act: column('pnl', () => boxOf('Hide from view').check()),
+      expect: (b, a) => (!a.headers.some((h) => h.startsWith('pnl=')) ? null : 'pnl still shown') });
+    await control('Pin', { act: column('pnl', () => fieldOf('Pin:').locator('select').selectOption('left')),
+      expect: (b, a) => (/dc-pin-left/.test(a.styles[0]?.cls ?? '') ? null : 'not pinned') });
+    await control('Width, fixed', { act: column('pnl', async () => {
+      await fieldOf('Width:').locator('select').selectOption('fixed');
+      await put(fieldOf('Width:').locator('input[type=number]').first(), 300);
+    }), expect: (b, a) => (Math.abs((a.styles[0]?.width ?? 0) - 300) <= 2 ? null : `width ${a.styles[0]?.width}`) });
+    await control('Heatmap', { act: column('pnl', () => sectionOf('Colors').locator('.dc-check:has(.dc-check-label:text-is("On")) input').check()),
+      expect: styleChanged('bg') });
+    await control('Column font bold', { act: column('pnl', () => page.locator(`${O} button[title="Bold"]`).first().click()),
+      expect: styleChanged('weight') });
+    await control('Column negative foreground', { act: column('pnl', () => put(page.locator(`${O} input[title="Negative foreground"]`).first(), '#0000ff')),
+      expect: (b, a) => (a.styles.some((x, i) => a.texts[i]?.startsWith('-') && x?.color !== b.styles[i]?.color) ? null : 'no negative recoloured') });
+  }
 } catch (e) {
   record('the run itself', false, String(e.message ?? e).split('\n')[0]);
 } finally {

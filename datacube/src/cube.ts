@@ -29,7 +29,7 @@ import {
   type RowPath,
   type TreeRow,
 } from './tree.ts';
-import { fetchTree } from './treeview.ts';
+import { fetchTree, takeRows } from './treeview.ts';
 import { History, type CubeState } from './history.ts';
 
 /**
@@ -333,13 +333,26 @@ export class CubeController {
           } satisfies CubeView;
         }
 
-        const grammar = serialize(withEpoch);
-        const { rows, sql } = await this.#runner.run(
+        // THE ROW LIMIT, on a flat cube too. General Properties > Row
+        // Limit capped every level of a tree and nothing here: a flat
+        // cube fetched all its rows whatever the setting said (2026-09-25
+        // sweep). Upstream limits every query. One more than the cap is
+        // asked for, as the tree does, so "there is more" costs no
+        // second query and the truncation warning can say so.
+        // Only a limit the USER set: unset means none, as upstream.
+        const maxRows = withEpoch.maxRows;
+        const scope = maxRows === undefined
+          ? undefined
+          : ({ level: 1, parent: [], limit: maxRows + 1 } as const);
+        const grammar = serialize(withEpoch, scope);
+        const { rows: full, sql } = await this.#runner.run(
           grammar,
           withEpoch,
-          undefined,
+          scope,
           signal,
         );
+        const cut = maxRows !== undefined && full.rowCount > maxRows;
+        const rows = cut ? takeRows(full, maxRows) : full;
         const columns = buildColumnModel(
           rows,
           withEpoch.rows,
@@ -352,7 +365,7 @@ export class CubeController {
           columns,
           rows,
           treeRows: [],
-          truncated: [],
+          truncated: cut ? [{ level: 1, parent: [] }] : [],
           pure: grammar,
           sql,
         } satisfies CubeView;

@@ -139,7 +139,13 @@ export interface CubeConfiguration {
   readonly initialExpandToLevel?: number;
 
   // --- rows ---
-  readonly maxRows: number;
+  /**
+   * General Properties > Row Limit. UNSET means no limit, as upstream
+   * (`DataCubeSnapshot.limit` starts undefined). A tree still caps each
+   * level at DEFAULT_MAX_ROWS without it -- that is a guard on how
+   * many groups one query may return, not the user's limit.
+   */
+  readonly maxRows?: number;
   readonly showTruncationWarning: boolean;
 
   // --- appearance ---
@@ -243,7 +249,6 @@ export const DEFAULT_CONFIGURATION: CubeConfiguration = {
   showTitleBar: true,
   showLeafCount: false,
   treeColumnSort: 'asc',
-  maxRows: DEFAULT_MAX_ROWS,
   showTruncationWarning: true,
   showSelectionStats: false,
   appearance: {
@@ -498,15 +503,16 @@ export function applyToSnapshot(
     ...withoutAggregate(d),
     ...aggregateOf(columnConfig(config, d.name)),
   }));
+  const { maxRows: _previousLimit, ...unlimited } = snapshot;
   return {
-    ...snapshot,
+    ...unlimited,
+    ...(config.maxRows !== undefined ? { maxRows: config.maxRows } : {}),
     ...(config.showGroupedColumns ? { keepGroupedColumns: true } : {}),
     // Clear it as well as set it, so unticking the box takes the count
     // back out of the query.
     ...(config.showLeafCount ? { leafCount: true } : { leafCount: false }),
     columns,
     derived,
-    maxRows: config.maxRows,
     treeColumnSort: config.treeColumnSort,
   };
 }
@@ -524,9 +530,10 @@ export function fromSnapshot(
   snapshot: CubeSnapshot,
   base: CubeConfiguration = DEFAULT_CONFIGURATION,
 ): CubeConfiguration {
+  const limit = snapshot.maxRows ?? base.maxRows;
   let config: CubeConfiguration = {
     ...base,
-    maxRows: snapshot.maxRows ?? base.maxRows,
+    ...(limit !== undefined ? { maxRows: limit } : {}),
     treeColumnSort: snapshot.treeColumnSort ?? base.treeColumnSort,
   };
   for (const spec of snapshot.columns) {
@@ -612,3 +619,23 @@ export const SCALE_LABELS: Readonly<Record<NumberScale, string>> = {
   billions: 'Billions (b)',
   trillions: 'Trillions (t)',
 };
+
+/**
+ * A column's settings, moved to its new name: its entry in `columns`
+ * and its place in `columnOrder`. Upstream's `updateColumn` does the
+ * same for a renamed calculated column.
+ */
+export function renameColumnConfig(
+  config: CubeConfiguration,
+  from: string,
+  to: string,
+): CubeConfiguration {
+  const { [from]: moved, ...others } = config.columns;
+  return {
+    ...config,
+    columns: moved === undefined ? config.columns : { ...others, [to]: moved },
+    ...(config.columnOrder
+      ? { columnOrder: config.columnOrder.map((n) => (n === from ? to : n)) }
+      : {}),
+  };
+}

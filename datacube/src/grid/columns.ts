@@ -243,6 +243,11 @@ export interface ColumnLayout {
   readonly blurred?: readonly string[];
   /** Columns shown as links: name -> the URL parameter naming the label. */
   readonly links?: Readonly<Record<string, string>>;
+  /**
+   * Per pivot key, in `pivotOn` order: the direction its VALUES run
+   * across the header. Horizontal Pivots > sort direction.
+   */
+  readonly pivotDirections?: readonly ('asc' | 'desc')[];
 }
 
 export function buildColumnModel(
@@ -414,6 +419,30 @@ export function buildColumnModel(
         return ma - mb;
       })
     : visible;
+
+  // THE PIVOT'S VALUES in the configured direction, per key. Upstream's
+  // rule exactly (DataCubeGridConfigurationBuilder): a stable sort from
+  // the LAST pivot key to the first, localeCompare, reversed for desc.
+  // Only the pivoted leaves move, and only among the seats they already
+  // hold, so each value block stays whole and the plain columns stay
+  // where the order above put them.
+  const directions = layout.pivotDirections ?? [];
+  if (directions.length > 0) {
+    const values = (l: LeafColumn): string[] => l.path.slice(0, -1);
+    const seats = ordered.flatMap((l, i) => (pivoted(l) ? [i] : []));
+    const moving = seats.map((i) => ordered[i] as LeafColumn);
+    for (let k = directions.length - 1; k >= 0; k--) {
+      const desc = directions[k] === 'desc';
+      moving.sort((a, b) => {
+        const va = values(a)[k] ?? '';
+        const vb = values(b)[k] ?? '';
+        return desc ? vb.localeCompare(va) : va.localeCompare(vb);
+      });
+    }
+    const reseated = [...ordered];
+    seats.forEach((seatAt, i) => { reseated[seatAt] = moving[i] as LeafColumn; });
+    ordered.splice(0, ordered.length, ...reseated);
+  }
 
   const widths = layout.widths ?? {};
   const minWidths = layout.minWidths ?? {};

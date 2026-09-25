@@ -158,7 +158,9 @@ export class DataGrid {
   readonly #spacer: HTMLElement;
   readonly #scroller: HTMLElement;
   readonly #formatters: FormatterCache;
-  readonly #options: GridOptions;
+  #options: GridOptions;
+  /** The custom properties `gridVariables` last set on the root. */
+  #vars: string[] = [];
 
   #model: ColumnModel | null = null;
   #table: ResultTable | null = null;
@@ -184,9 +186,7 @@ export class DataGrid {
     // Appearance rides CSS custom properties rather than per-cell
     // styles wherever it can: one declaration for the whole grid
     // instead of a style attribute on every cell.
-    for (const [k, v] of Object.entries(gridVariables(options.appearance ?? {}))) {
-      this.#root.style.setProperty(k, v);
-    }
+    this.#applyVariables(options.appearance ?? {});
     this.#root.setAttribute('role', 'treegrid');
     this.#root.tabIndex = 0;
 
@@ -306,6 +306,32 @@ export class DataGrid {
     this.#announceRowCount();
     this.#rendered = null;
     this.#render();
+  }
+
+  /**
+   * New appearance, because the cube's settings changed.
+   *
+   * The grid took its appearance once, at construction, and had no way
+   * to take another -- so every font, colour, grid-line and highlight
+   * setting changed the configuration and left the screen as it was
+   * (found by the 2026-09-25 controls sweep). Number formats never had
+   * the problem: the app mutates the one object the grid holds.
+   */
+  setAppearance(
+    appearance: GridAppearance,
+    columnAppearance: Readonly<Record<string, CellAppearance>>,
+  ): void {
+    this.#options = { ...this.#options, appearance, columnAppearance };
+    this.#applyVariables(appearance);
+    this.#rendered = null;
+    this.#render();
+  }
+
+  #applyVariables(appearance: GridAppearance): void {
+    for (const k of this.#vars) this.#root.style.removeProperty(k);
+    const vars = gridVariables(appearance);
+    for (const [k, v] of Object.entries(vars)) this.#root.style.setProperty(k, v);
+    this.#vars = Object.keys(vars);
   }
 
   /** Current window, for tests and for deciding what to fetch. */
@@ -606,6 +632,21 @@ export class DataGrid {
       if (max > 0) out[leaf.name] = max;
     }
     return out;
+  }
+
+  /** Each shown column's width as rendered, by its header. */
+  renderedWidths(): Record<string, number> {
+    const out: Record<string, number> = {};
+    for (const th of this.#root.querySelectorAll<HTMLElement>('.dc-th[data-column]')) {
+      const name = th.dataset['column'];
+      if (name !== undefined) out[name] = Math.round(th.getBoundingClientRect().width);
+    }
+    return out;
+  }
+
+  /** The width the columns have to share. */
+  get viewportWidth(): number {
+    return this.#scroller.clientWidth;
   }
 
   /**

@@ -707,3 +707,33 @@ describe('linkFor: what a "display as link" cell shows', () => {
     }
   });
 });
+
+describe('Horizontal Pivots > sort direction', () => {
+  // Written by the editor and read by nothing (2026-09-25 sweep).
+  // Upstream sorts the pivot's result columns by their values, per
+  // key, from the last key to the first.
+  const names = ['region', '2021__|__notional', '2021__|__pnl',
+    '2022__|__notional', '2022__|__pnl', '2023__|__notional', '2023__|__pnl'];
+  const leaves = (dirs: ('asc' | 'desc')[]) =>
+    buildColumnModel(table(names), ['region'], [], {
+      order: ['region', 'notional', 'pnl'], pivotDirections: dirs,
+    }).leaves.map((l) => l.name);
+
+  it('descending runs the values backwards, each block whole', () => {
+    assert.deepEqual(leaves(['desc']), ['region',
+      '2023__|__notional', '2023__|__pnl', '2022__|__notional',
+      '2022__|__pnl', '2021__|__notional', '2021__|__pnl']);
+  });
+
+  it('ascending sorts by value whatever order the engine returned', () => {
+    const shuffled = ['region', '2022__|__notional', '2022__|__pnl',
+      '2021__|__notional', '2021__|__pnl'];
+    assert.deepEqual(
+      buildColumnModel(table(shuffled), ['region'], [], {
+        order: ['region', 'notional', 'pnl'], pivotDirections: ['asc'],
+      }).leaves.map((l) => l.name),
+      ['region', '2021__|__notional', '2021__|__pnl',
+        '2022__|__notional', '2022__|__pnl'],
+    );
+  });
+});

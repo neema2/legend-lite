@@ -12,8 +12,10 @@
 // So this reads source, like `menu-ids.test.ts`: a field of
 // `ColumnConfiguration` or `CubeConfiguration` passes when some file
 // outside the editor panels accesses it as a property (`.field`). The
-// panels are excluded because they are the writers; the declarations
-// and defaults are excluded because they are not property accesses.
+// editor (everything under src/ui/) is excluded because it is the
+// writer and its display of a value is not the value taking effect;
+// the declarations and defaults are excluded because they are not
+// property accesses.
 
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
@@ -43,8 +45,12 @@ function fieldsOf(name: string): string[] {
   return [...body.matchAll(/^\s+readonly (\w+)\??:/gm)].map((m) => m[1] as string);
 }
 
+// The whole EDITOR is excluded, not only its panels: `editor.ts` read
+// `pivotSortDirection` to show it in the Horizontal Pivots tab, and that
+// one read was enough for this check to pass a setting nothing else
+// used (2026-09-25 sweep). Showing a setting is not honouring it.
 const readers = files(SRC)
-  .filter((f) => !/\/ui\/panel-[\w-]+\.ts$/.test(f))
+  .filter((f) => !/\/ui\//.test(f))
   .map((f) => readFileSync(f, 'utf8'))
   .join('\n');
 

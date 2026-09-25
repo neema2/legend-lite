@@ -1007,3 +1007,33 @@ describe('a calculated column aggregates as DECLARED', () => {
       'the group-stage extend must come after the groupBy');
   });
 });
+
+describe('the GRAND TOTAL of a cube with no explicit measures', () => {
+  // Every uploaded file has no measures configured. Its level-0 query
+  // was `t->limit(1001)` -- raw rows -- so "Show root aggregation"
+  // put the FIRST TRADE's values in the Total row and raised a false
+  // truncation warning (found by the 2026-09-25 controls sweep).
+  const q = serialize(snap({ pivotOn: [], measures: [] }),
+    { level: 0, parent: [], limit: 1001 });
+
+  it('aggregates, as one group over everything', () => {
+    assert.match(q, /extend\(~\[__root__: x\|'\[ROOT\]'\]\)->groupBy\(~\[__root__\]/);
+    assert.match(q, /notional:x\|\$x\.notional:y\|\$y->sum\(\)/);
+  });
+
+  it('is one row, so it carries no row cap', () => {
+    assert.doesNotMatch(q, /limit\(/);
+  });
+});
+
+describe('C3: a column pivot carries CALCULATED measures', () => {
+  // The pivot's measure set read the source columns only, so a
+  // calculated measure vanished from a pivoted cube with no error.
+  it('aggregates a row-stage calculated measure in the pivot', () => {
+    const q = serialize(snap({
+      rows: [], measures: [],
+      derived: [{ name: 'uplift', expression: '$x.notional * 1.1', kind: 'measure' }],
+    }));
+    assert.match(q, /pivot\(~\[year\], ~\[[^\]]*uplift:x\|\$x\.uplift:y\|\$y->sum\(\)/);
+  });
+});

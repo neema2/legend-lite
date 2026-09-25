@@ -239,3 +239,12 @@ describe('heatmap', () => {
     assert.equal(heatColour(50, spec, { min: 49, max: 51 }), '#808080');
   });
 });
+
+describe('cube-wide Case (General Properties)', () => {
+  // A disabled control ("Per column") until 2026-09-25; upstream has
+  // DataCubeConfiguration.fontCase for the whole cube.
+  it('renders as text-transform on every cell', () => {
+    assert.equal(cellStyle({ fontCase: 'uppercase' }, 'emea')['text-transform'], 'uppercase');
+    assert.equal(cellStyle({}, 'emea')['text-transform'], undefined);
+  });
+});

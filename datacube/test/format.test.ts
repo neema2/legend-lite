@@ -98,3 +98,13 @@ describe('FormatterCache', () => {
     assert.deepEqual(c.stats, { hits: 0, misses: 0, size: 0 });
   });
 });
+
+describe('negative zero', () => {
+  // -0.0012 at two places read "-0" (a group-stage ratio, 2026-09-25).
+  it('a value that rounds to zero shows no minus', () => {
+    const f = new FormatterCache();
+    assert.equal(f.format(-0.0012, { kind: 'number', locale: 'en-US', decimals: 2 }), '0.00');
+    assert.equal(f.format(-0.0012, { kind: 'auto', locale: 'en-US' }), '0');
+    assert.equal(f.format(-1.5, { kind: 'number', locale: 'en-US', decimals: 2 }), '-1.50');
+  });
+});

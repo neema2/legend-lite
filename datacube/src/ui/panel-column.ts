@@ -349,7 +349,10 @@ export const columnPropertiesPanel: PanelBuilder = (ctx) => {
         min: 0,
         max: 10,
       }),
-      checkbox(doc, 'Display commas', format.displayCommas, (v) =>
+      // Ticked when UNSET: the formatter groups digits unless told
+      // `displayCommas: false`, so an unticked box beside "85,034.3"
+      // was the setting contradicting the screen (2026-09-25 sweep).
+      checkbox(doc, 'Display commas', format.displayCommas !== false, (v) =>
         patchFormat({ displayCommas: v }),
       ),
       checkbox(

@@ -335,7 +335,23 @@ export interface FilterCondition {
   readonly rightColumn?: string;
 }
 
-export type FilterValue = string | number | boolean | Date;
+/**
+ * A date relative to when the query RUNS: upstream's TODAY and NOW
+ * advanced values (DataCubeOperationAdvancedValueType). Rendered as
+ * `today()` / `now()`, so a saved view filtered to "before today" means
+ * today whenever it is opened, not the day it was saved.
+ */
+export interface RelativeDate {
+  readonly relative: 'today' | 'now';
+}
+
+export type FilterValue = string | number | boolean | Date | RelativeDate;
+
+export function isRelativeDate(v: unknown): v is RelativeDate {
+  return typeof v === 'object' && v !== null && !(v instanceof Date)
+    && ((v as { relative?: unknown }).relative === 'today'
+      || (v as { relative?: unknown }).relative === 'now');
+}
 
 export interface FilterGroup {
   readonly kind: 'and' | 'or';
@@ -566,4 +582,60 @@ export function totalOrderSorts(
     }
   }
   return out;
+}
+
+/**
+ * Every reference to a column, renamed: rows, pivot keys, sorts,
+ * measures and filters.
+ *
+ * For renaming a CALCULATED column that is in use. Upstream moves the
+ * column's configuration to the new name and then refuses the change
+ * if anything else still names the old one (its compile check fails);
+ * this carries the rename through instead, so renaming a column you
+ * have grouped by is a rename rather than an error. Expressions of
+ * other calculated columns are NOT rewritten -- that would be editing
+ * Pure text -- so one that refers to the old name is refused by the
+ * planner, and the editor says so.
+ */
+export function renameColumnReferences(
+  s: CubeSnapshot,
+  from: string,
+  to: string,
+): CubeSnapshot {
+  const one = (n: string): string => (n === from ? to : n);
+  const inFilter = (node: FilterNode): FilterNode => {
+    switch (node.kind) {
+      case 'condition':
+        return {
+          ...node,
+          column: one(node.column),
+          ...(node.rightColumn !== undefined
+            ? { rightColumn: one(node.rightColumn) }
+            : {}),
+        };
+      case 'and':
+      case 'or':
+        return { ...node, children: node.children.map(inFilter) };
+      case 'not':
+        return { ...node, child: inFilter(node.child) };
+    }
+  };
+  const { pivotCast, ...rest } = s;
+  // A cast built on the old name describes a relation that no longer
+  // exists; dropping it makes the pivot learn its columns again.
+  const keepCast = pivotCast !== undefined
+    && !pivotCast.some((c) => c.measure === from);
+  return {
+    ...rest,
+    ...(keepCast ? { pivotCast } : {}),
+    rows: s.rows.map(one),
+    pivotOn: s.pivotOn.map(one),
+    sorts: s.sorts.map((x) => ({ ...x, column: one(x.column) })),
+    measures: s.measures.map((m) => ({
+      ...m,
+      column: one(m.column),
+      ...(m.weight !== undefined ? { weight: one(m.weight) } : {}),
+    })),
+    ...(s.filter ? { filter: inFilter(s.filter) } : {}),
+  };
 }

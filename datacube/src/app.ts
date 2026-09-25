@@ -32,6 +32,8 @@ import {
   toColumnAppearance,
   toColumnLayout,
   toFormats,
+  DEFAULT_MAX_ROWS,
+  renameColumnConfig,
   withColumn,
   withSettings,
   type CubeConfiguration,
@@ -58,6 +60,7 @@ import { load, save, toJson, treeOf } from './persist.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
 import type { Scalar } from './result.ts';
 import {
+  renameColumnReferences,
   rowColumns,
   type ColumnKind,
   type CubeSnapshot,
@@ -228,6 +231,8 @@ const AUTO_SIZE_PAD = 8;
 const AUTO_SIZE_MIN = 48;
 /** One long free-text column must not push the rest off screen. */
 const AUTO_SIZE_MAX = 480;
+/** Upstream's DEFAULT_COLUMN_MIN_WIDTH: what Minimize shrinks to. */
+const MINIMIZED_WIDTH = 50;
 
 /**
  * What the result is and what it cost, in one line.
@@ -588,6 +593,9 @@ export class CubeApp {
     this.#pivots.setColumns(next.rows, next.pivotOn);
     this.#sideZones.setColumns(next.rows, next.pivotOn);
     this.#refreshFormats();
+    // Fonts, colours, grid lines and row highlights: the grid held the
+    // appearance it was built with until this existed.
+    this.#grid.setAppearance(this.#config.appearance, toColumnAppearance(this.#config));
     this.#refreshToolPanel();
     await this.#controller.update({ ...next, epoch: next.epoch + 1 });
   }
@@ -839,6 +847,11 @@ export class CubeApp {
         // is the default here, and an explicit reorder still wins.
         order: this.#config.columnOrder
           ?? view.snapshot.columns.map((c) => c.name),
+        // Horizontal Pivots > each key's sort direction: the order of
+        // that key's VALUES across the header. Written by the editor
+        // and read by nothing until the 2026-09-25 sweep found it.
+        pivotDirections: view.snapshot.pivotOn.map((name) =>
+          columnConfig(this.#config, name).pivotSortDirection ?? 'asc'),
       },
       view.snapshot.pivotOn.length,
     );
@@ -864,7 +877,7 @@ export class CubeApp {
       // Saying WHICH level was cut matters: "some rows are missing"
       // sends someone hunting through the whole cube.
       this.#status(
-        `${base} — showing the first ${this.#config.maxRows.toLocaleString()} of ` +
+        `${base} — showing the first ${(this.#config.maxRows ?? DEFAULT_MAX_ROWS).toLocaleString()} of ` +
           `${view.truncated.length} level${view.truncated.length > 1 ? 's' : ''}`,
         'warn',
       );
@@ -951,7 +964,7 @@ export class CubeApp {
       warn.className = 'dc-status-warning';
       warn.textContent =
         `⚠ Results truncated to fit within row limit ` +
-        `(${this.#config.maxRows.toLocaleString()})`;
+        `(${(this.#config.maxRows ?? DEFAULT_MAX_ROWS).toLocaleString()})`;
       right.append(warn);
     }
 
@@ -1177,15 +1190,27 @@ export class CubeApp {
   async #setCalc(
     row: readonly DerivedColumn[],
     group: readonly DerivedColumn[],
+    rename?: { readonly from: string; readonly to: string },
   ): Promise<string | null> {
     const previous = this.#snapshot;
-    this.#snapshot = {
+    const previousConfig = this.#config;
+    const next: CubeSnapshot = {
       ...this.#snapshot,
       derived: [...row],
       ...(group.length > 0
         ? { groupDerived: [...group] }
         : { groupDerived: [] }),
     };
+    // A RENAME carries through: grouped, pivoted, sorted or filtered
+    // by the old name, and its settings (format, width, display name)
+    // follow it. Before, the rename left those naming a column that
+    // no longer existed, and the planner refused it.
+    this.#snapshot = rename
+      ? renameColumnReferences(next, rename.from, rename.to)
+      : next;
+    if (rename) {
+      this.#config = renameColumnConfig(this.#config, rename.from, rename.to);
+    }
     // AWAITED, and the refusal RETURNED, rather than `#refreshOr`'s
     // fire-and-forget: the editor has to know. Reverting the snapshot
     // alone took the user's column -- and the text they typed -- with
@@ -1198,6 +1223,7 @@ export class CubeApp {
       const message = error instanceof Error ? error.message : String(error);
       this.#status(message, 'error');
       this.#snapshot = previous;
+      this.#config = previousConfig;
       return message;
     }
   }
@@ -1286,6 +1312,7 @@ export class CubeApp {
           ? { extendable: true }
           : {}),
         ...(column !== undefined ? calcStageOf(this.#snapshot, column) : {}),
+        ...(column !== undefined ? this.#columnFacts(column) : {}),
         ...(value !== undefined ? { value } : {}),
         ...(columnType !== undefined ? { columnType } : {}),
       });
@@ -1343,6 +1370,24 @@ export class CubeApp {
         return;
       case 'view.properties':
         this.openEditor();
+        return;
+      case 'copy.rows':
+        this.#copy(this.#rowsCsv());
+        return;
+      case 'column.minimize':
+        if (column) this.#minimize([column]);
+        return;
+      case 'column.minimizeAll':
+        this.#minimize(null);
+        return;
+      case 'grid.sizeToFit':
+        this.#sizeToFit();
+        return;
+      case 'pivot.exclude':
+        if (column) this.#patchColumn(column, { excludedFromPivot: true });
+        return;
+      case 'pivot.include':
+        if (column) this.#patchColumn(column, { excludedFromPivot: false });
         return;
       // Upstream's Extended Columns entries. EXTEND seeds the new
       // column with a reference to the one clicked and inherits its
@@ -1560,6 +1605,105 @@ export class CubeApp {
       epoch: view.rows.epoch,
       elapsedMs: 0,
     });
+  }
+
+  /**
+   * Every shown column across the selected ROWS: upstream's "Selected
+   * Rows as Plain Text". Through the column model, so hidden columns
+   * and the tree's machinery stay out.
+   */
+  #rowsCsv(): string {
+    const view = this.#view;
+    const sel = this.#selection;
+    if (!view || !sel) return '';
+    const top = Math.min(sel.anchor.row, sel.focus.row);
+    const bottom = Math.max(sel.anchor.row, sel.focus.row);
+    const columns = view.columns.leaves.flatMap((l) => {
+      const c = view.rows.columns[l.index];
+      return c ? [{ ...c, values: c.values.slice(top, bottom + 1) }] : [];
+    });
+    return toCsv({
+      columns,
+      rowCount: bottom - top + 1,
+      epoch: view.rows.epoch,
+      elapsedMs: 0,
+    });
+  }
+
+  /**
+   * What the menu needs to know about the column under the pointer:
+   * the measure a pivot result came from, whether it is a measure,
+   * whether it is kept out of the pivot, and whether its width is
+   * fixed (Minimize leaves a fixed width alone, as upstream does).
+   */
+  #columnFacts(column: string): {
+    pivotBase?: string;
+    isMeasure?: boolean;
+    excludedFromPivot?: boolean;
+    fixedWidth?: boolean;
+  } {
+    const leaf = this.#view?.columns.leaves.find((l) => l.name === column);
+    const measure = leaf && leaf.path.length > 1
+      ? leaf.path[leaf.path.length - 1]
+      : undefined;
+    const base = measure === undefined
+      ? column
+      : (this.#snapshot.measures.find((m) => m.name === measure)?.column
+        ?? measure);
+    const excluded = columnConfig(this.#config, base).excludedFromPivot === true
+      || this.#snapshot.columns.some((c) => c.name === base && c.excludedFromPivot);
+    return {
+      ...(measure !== undefined ? { pivotBase: base } : {}),
+      ...(this.#kindOf(base) === 'measure' ? { isMeasure: true } : {}),
+      ...(excluded ? { excludedFromPivot: true } : {}),
+      ...(columnConfig(this.#config, column).widthMode === 'fixed'
+        ? { fixedWidth: true }
+        : {}),
+    };
+  }
+
+  /**
+   * Resize > Minimize: a column to its own minimum width, or upstream's
+   * DEFAULT_COLUMN_MIN_WIDTH (50). `null` minimizes every shown column.
+   * A column whose width is FIXED keeps it.
+   */
+  #minimize(columns: readonly string[] | null): void {
+    const names = columns
+      ?? (this.#view?.columns.leaves ?? [])
+        .map((l) => l.name)
+        .filter((n) => n !== TREE_COLUMN);
+    let config = this.#config;
+    for (const name of names) {
+      const c = columnConfig(config, name);
+      if (c.widthMode === 'fixed') continue;
+      config = withColumn(config, name, { width: c.minWidth ?? MINIMIZED_WIDTH });
+    }
+    void this.#setConfiguration(config);
+  }
+
+  /**
+   * Resize > Size Grid to Fit Screen: every shown column scaled by the
+   * same factor so together they fill the grid's width -- ag-Grid's
+   * `sizeColumnsToFit`, which is what upstream calls. A fixed width
+   * keeps its size and the rest share what is left.
+   */
+  #sizeToFit(): void {
+    const widths = this.#grid.renderedWidths();
+    const viewport = this.#grid.viewportWidth;
+    const fixed = Object.keys(widths)
+      .filter((n) => columnConfig(this.#config, n).widthMode === 'fixed');
+    const flexible = Object.keys(widths).filter((n) => !fixed.includes(n));
+    const taken = fixed.reduce((sum, n) => sum + (widths[n] ?? 0), 0);
+    const current = flexible.reduce((sum, n) => sum + (widths[n] ?? 0), 0);
+    if (viewport <= 0 || current <= 0 || flexible.length === 0) return;
+    const factor = Math.max(0, viewport - taken) / current;
+    let config = this.#config;
+    for (const name of flexible) {
+      config = withColumn(config, name, {
+        width: Math.max(MINIMIZED_WIDTH, Math.floor((widths[name] ?? 0) * factor)),
+      });
+    }
+    void this.#setConfiguration(config);
   }
 
   #copy(text: string): void {
@@ -1884,7 +2028,7 @@ export class CubeApp {
     this.#showOverlay('Calculated Columns', (host) => {
       new CalcEditor(host, {
         snapshot: this.#snapshot,
-        onChange: (row, group) => this.#setCalc(row, group),
+        onChange: (row, group, rename) => this.#setCalc(row, group, rename),
         ...(start ? { start } : {}),
       });
     });

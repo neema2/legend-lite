@@ -7,6 +7,7 @@ import type { QueryEngine } from '../src/engine.ts';
 import type { ResultTable } from '../src/result.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import type { RemoteExecutor, RemoteResult } from '../src/engine-remote.ts';
+import { isStale } from '../src/epoch.ts';
 
 const SNAPSHOT: CubeSnapshot = {
   source: { expression: '$trades' },
@@ -137,5 +138,57 @@ describe('a controller on a remote engine', () => {
       },
     );
     assert.equal(controller.snaps.isSnapped, false);
+  });
+});
+
+describe('Row Limit on a FLAT cube', () => {
+  // A flat cube fetched every row whatever General Properties > Row
+  // Limit said: only tree levels were capped (2026-09-25 sweep).
+  class ManyRows implements RemoteExecutor {
+    readonly pure: string[] = [];
+    async execute(pureGrammar: string, snapshot: CubeSnapshot): Promise<RemoteResult> {
+      this.pure.push(pureGrammar);
+      const n = 5;
+      return {
+        rows: {
+          columns: [
+            { name: 'region', type: 'String', values: Array.from({ length: n }, (_, i) => `R${i}`) },
+            { name: 'notional', type: 'Float', values: Array.from({ length: n }, (_, i) => i) },
+          ],
+          rowCount: n,
+          epoch: snapshot.epoch,
+          elapsedMs: 0,
+        },
+        sql: 'select',
+      };
+    }
+  }
+
+  it('asks for one more than the limit, shows the limit, and says so', async () => {
+    const executor = new ManyRows();
+    const controller = new CubeController(new RemoteRun(executor));
+    const v = await controller.update({ ...SNAPSHOT, maxRows: 3 });
+    if (isStale(v)) throw new Error('stale');
+    assert.match(executor.pure.at(-1) ?? '', /limit\(4\)/);
+    assert.equal(v.rows.rowCount, 3);
+    assert.equal(v.truncated.length, 1);
+  });
+
+  it('UNSET means no limit, as upstream', async () => {
+    const executor = new ManyRows();
+    const controller = new CubeController(new RemoteRun(executor));
+    const v = await controller.update({ ...SNAPSHOT });
+    if (isStale(v)) throw new Error('stale');
+    assert.doesNotMatch(executor.pure.at(-1) ?? '', /limit\(/);
+    assert.equal(v.rows.rowCount, 5);
+    assert.equal(v.truncated.length, 0);
+  });
+
+  it('reports nothing when the rows fit', async () => {
+    const controller = new CubeController(new RemoteRun(new ManyRows()));
+    const v = await controller.update({ ...SNAPSHOT, maxRows: 10 });
+    if (isStale(v)) throw new Error('stale');
+    assert.equal(v.rows.rowCount, 5);
+    assert.equal(v.truncated.length, 0);
   });
 });

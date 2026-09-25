@@ -21,11 +21,12 @@
 //    controller decides what to do with it, so there is no second
 //    copy of the filter to drift from the snapshot.
 
-import type {
-  FilterCondition,
-  FilterNode,
-  FilterOperator,
-  FilterValue,
+import {
+  isRelativeDate,
+  type FilterCondition,
+  type FilterNode,
+  type FilterOperator,
+  type FilterValue,
 } from '../snapshot.ts';
 
 /** What kind of value input an operator needs. */
@@ -143,6 +144,10 @@ export function parseValue(text: string): FilterValue {
   }
   if (t === 'true') return true;
   if (t === 'false') return false;
+  // Upstream's TODAY / NOW: a date relative to when the query runs.
+  // Only the exact call spelling, so a text value "today" is still text.
+  if (t === 'today()') return { relative: 'today' };
+  if (t === 'now()') return { relative: 'now' };
   if (t !== '' && Number.isFinite(Number(t))) return Number(t);
   return t;
 }
@@ -392,6 +397,7 @@ function textOf(value: FilterValue | readonly FilterValue[] | undefined): string
 }
 
 function scalarText(value: FilterValue): string {
+  if (isRelativeDate(value)) return `${value.relative}()`;
   if (value instanceof Date) return value.toISOString();
   if (typeof value === 'string' && value.trim() !== '' && !Number.isNaN(Number(value))) {
     return `"${value}"`;
@@ -663,7 +669,7 @@ export class FilterEditor {
       input.className = 'dc-filter-value';
       input.type = 'text';
       input.value = c.text;
-      input.placeholder = kind === 'list' ? 'a, b, c' : 'value';
+      input.placeholder = kind === 'list' ? 'a, b, c' : 'value, or today() / now()';
       input.addEventListener('change', () =>
         this.update(c.id, { text: input.value }),
       );

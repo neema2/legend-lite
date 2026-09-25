@@ -24,6 +24,7 @@ import {
   LEAF_COUNT_COLUMN,
   columnType,
   isNumericType,
+  isRelativeDate,
   referencedColumns,
   rowColumns,
   totalOrderSorts,
@@ -105,6 +106,7 @@ export function temporalLiteral(v: Date): string {
 }
 
 export function literal(v: FilterValue): string {
+  if (isRelativeDate(v)) return v.relative === 'today' ? 'today()' : 'now()';
   if (typeof v === 'string') return `'${escapePure(v)}'`;
   if (typeof v === 'boolean') return v ? 'true' : 'false';
   if (v instanceof Date) return temporalLiteral(v);
@@ -538,9 +540,14 @@ function detailColumns(s: CubeSnapshot): string[] {
  * False for a detail query, which also has no grouping but returns
  * every row, and therefore very much wants a sort and a cap.
  */
-function isSingleRow(s: CubeSnapshot, groupCols: readonly string[]): boolean {
+function isSingleRow(
+  s: CubeSnapshot,
+  groupCols: readonly string[],
+  grandTotal = false,
+): boolean {
   return (
-    groupCols.length === 0 && (s.measures.length > 0 || s.pivotOn.length > 0)
+    groupCols.length === 0
+    && (grandTotal || s.measures.length > 0 || s.pivotOn.length > 0)
   );
 }
 
@@ -554,6 +561,14 @@ export function serialize(
   const groupCols = scope
     ? snapshot.rows.slice(0, Math.max(0, scope.level))
     : snapshot.rows;
+  // THE ROOT OF A GROUPED CUBE IS A GROUP. Level 0 under row
+  // dimensions is the grand total whether or not a measure was
+  // configured -- and without this, a cube with no explicit measures
+  // (every uploaded file) sent `t->limit(1001)` for it: the "Total"
+  // row showed the FIRST TRADE's values, and the 1,001 raw rows set
+  // off the truncation warning.
+  const grandTotal = scope !== undefined && scope.level === 0
+    && snapshot.rows.length > 0;
 
   for (const d of snapshot.derived) {
     parts.push(`extend(~[${ident(d.name)}: x|${d.expression}])`);
@@ -585,7 +600,7 @@ export function serialize(
   // it carries a figure, which reads as "no total for this" rather
   // than as a projection that dropped it.
   const grouping = snapshot.pivotOn.length === 0
-    && (groupCols.length > 0 || snapshot.measures.length > 0);
+    && (groupCols.length > 0 || snapshot.measures.length > 0 || grandTotal);
   const pivoting = snapshot.pivotOn.length > 0;
 
   /**
@@ -882,7 +897,8 @@ export function serialize(
       const by = groupCols.map(ident).join(', ');
       parts.push(`groupBy(~[${by}], ~[${outer.join(', ')}])`);
     }
-  } else if (snapshot.measures.length > 0 || groupCols.length > 0) {
+  } else if (snapshot.measures.length > 0 || groupCols.length > 0
+    || grandTotal) {
     // No column dimension: an ordinary aggregation over the row
     // dimensions. Needs an explicit groupBy, since there is no pivot
     // to infer the grouping from.
@@ -929,7 +945,7 @@ export function serialize(
   // a detail cube has no grouping either and returns everything, so
   // this guard silently dropped its sort AND its row cap. The
   // plainest possible grid was the one that honoured neither.
-  if (!isSingleRow(snapshot, groupCols)) {
+  if (!isSingleRow(snapshot, groupCols, grandTotal)) {
     const sorts = totalOrderSorts(snapshot, groupCols);
     if (sorts.length > 0) parts.push(sortClause(sorts));
 

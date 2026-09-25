@@ -5,6 +5,7 @@ import {
   applyMenuAction,
   buildMenu,
   menuItems,
+  valueLabel,
   type MenuActionId,
 } from '../src/ui/menu.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
@@ -440,5 +441,47 @@ describe('applyMenuAction', () => {
     ] as MenuActionId[]) {
       assert.equal(run(id, 'desk'), CUBE, `${id} must not touch the query`);
     }
+  });
+});
+
+describe("upstream's remaining entries", () => {
+  const labels = (ctx: Parameters<typeof buildMenu>[0]) =>
+    menuItems(buildMenu(ctx)).map((i) => `${i.label}${i.disabled ? ' [off]' : ''}`);
+
+  it('Copy > Selected Rows, disabled with no selection', () => {
+    assert.ok(labels({ snapshot: CUBE, column: 'desk' }).includes('Selected Rows as Plain Text [off]'));
+    assert.ok(labels({ snapshot: CUBE, column: 'desk', hasSelection: true })
+      .includes('Selected Rows as Plain Text'));
+  });
+
+  it('Resize > Minimize, All, and Size Grid to Fit; Minimize spares a fixed width', () => {
+    const l = labels({ snapshot: CUBE, column: 'desk' });
+    for (const want of ['Minimize Column', 'Minimize All Columns', 'Size Grid to Fit Screen']) {
+      assert.ok(l.includes(want), want);
+    }
+    assert.ok(labels({ snapshot: CUBE, column: 'desk', fixedWidth: true })
+      .includes('Minimize Column [off]'));
+  });
+
+  it('Pivot > Exclude from a pivoted column, Include from an excluded measure', () => {
+    const onPivoted = labels({ snapshot: CUBE, column: '2021__|__total',
+      canGroup: false, pivotBase: 'notional', isMeasure: true });
+    assert.ok(onPivoted.includes('Exclude Column notional from Horizontal Pivot'));
+    const onExcluded = labels({ snapshot: CUBE, column: 'notional',
+      isMeasure: true, excludedFromPivot: true });
+    assert.ok(onExcluded.includes('Include Column notional in Horizontal Pivot'));
+    // Neither without an active pivot.
+    const flat = labels({ snapshot: { ...CUBE, pivotOn: [] }, column: 'notional',
+      isMeasure: true, excludedFromPivot: true });
+    assert.ok(!flat.some((x) => /Horizontal Pivot$/.test(x) && /Include|Exclude/.test(x)));
+  });
+});
+
+describe('valueLabel', () => {
+  it('names a date as its day, and TODAY/NOW by name', () => {
+    assert.equal(valueLabel(new Date(2021, 1, 9)), '2021-02-09');
+    assert.equal(valueLabel(new Date(2021, 1, 9, 12, 58)), '2021-02-09 12:58:00');
+    assert.equal(valueLabel({ relative: 'today' }), 'TODAY');
+    assert.equal(valueLabel('EMEA'), 'EMEA');
   });
 });

@@ -9,6 +9,7 @@ import {
   fromSnapshot,
   labelFor,
   mergeColumnOrder,
+  renameColumnConfig,
   resolvedWidths,
   toColumnAppearance,
   toColumnLayout,
@@ -18,6 +19,7 @@ import {
 } from '../src/config.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { serialize } from '../src/serialize.ts';
+import { renameColumnReferences } from '../src/snapshot.ts';
 
 const CUBE: CubeSnapshot = {
   source: { expression: 't' },
@@ -338,5 +340,48 @@ describe('Column Properties > Display as link reaches the grid', () => {
       wiki: 'title',
     });
     assert.equal(DEFAULT_LINK_LABEL_PARAMETER, 'dataCube.linkLabel');
+  });
+});
+
+describe('renaming a calculated column that is in use', () => {
+  // Renaming one the cube was grouped, pivoted, sorted or filtered by
+  // left those naming a column that no longer existed, and the planner
+  // refused the rename.
+  const USING: CubeSnapshot = {
+    source: { expression: 't' },
+    columns: [{ name: 'region', type: 'String' }, { name: 'qty', type: 'Integer' }],
+    derived: [{ name: 'big', expression: '$x.qty > 10', kind: 'dimension' }],
+    rows: ['big'],
+    pivotOn: ['big'],
+    measures: [{ name: 'n', column: 'big', fn: 'count' }],
+    sorts: [{ column: 'big', direction: 'desc' }],
+    filter: { kind: 'not', child: { kind: 'or', children: [
+      { kind: 'condition', column: 'big', operator: 'equal', value: true },
+      { kind: 'condition', column: 'region', operator: 'equalColumn', rightColumn: 'big' },
+    ] } },
+    pivotCast: [{ name: 'true__|__n', measure: 'big' }],
+    epoch: 1,
+  };
+
+  it('carries the new name into every reference', () => {
+    const r = renameColumnReferences(USING, 'big', 'large');
+    assert.deepEqual(r.rows, ['large']);
+    assert.deepEqual(r.pivotOn, ['large']);
+    assert.equal(r.sorts[0]?.column, 'large');
+    assert.equal(r.measures[0]?.column, 'large');
+    assert.match(JSON.stringify(r.filter), /"column":"large"/);
+    assert.match(JSON.stringify(r.filter), /"rightColumn":"large"/);
+    assert.doesNotMatch(JSON.stringify(r.filter), /"big"/);
+    // A cast built on the old name is forgotten, to be learned again.
+    assert.equal(r.pivotCast, undefined);
+  });
+
+  it("moves the column's settings and its place in the order", () => {
+    let c = withColumn(DEFAULT_CONFIGURATION, 'big', { displayName: 'Big trade' });
+    c = { ...c, columnOrder: ['region', 'big', 'qty'] };
+    const r = renameColumnConfig(c, 'big', 'large');
+    assert.equal(columnConfig(r, 'large').displayName, 'Big trade');
+    assert.equal(r.columns['big'], undefined);
+    assert.deepEqual(r.columnOrder, ['region', 'large', 'qty']);
   });
 });

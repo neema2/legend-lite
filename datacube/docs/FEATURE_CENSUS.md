@@ -38,6 +38,24 @@ Both are ship-blockers, both are small and local, and both are
 invisible to the harness because it checks each control's *presence*
 and a handful of *outcomes*, not every control's outcome.
 
+> **Update 2026-09-25 (batch 2), from a sweep that set every General
+> and Column Properties control in the real editor and looked:**
+> FIXED — the Total row showed the FIRST TRADE (the grand-total query
+> had no aggregation without explicit measures); ~20 appearance
+> controls never reached the grid after load (fonts, colours, grid
+> lines, highlight rows, per column too); pivot sort direction; Row
+> Limit on a flat cube (unset = no limit, as upstream); the Display
+> commas checkbox showed unticked while commas showed; cube-wide Case
+> (was a disabled control); renaming a calculated column in use;
+> TODAY/NOW filter values (checked on our planner AND legend-engine
+> 4.145.0); Copy Selected Rows, Minimize Column/All, Size Grid to Fit,
+> Exclude/Include from Horizontal Pivot; date filter labels (D1); `-0`
+> (C7). The sweep is now permanent: ~40 `control:` checks in
+> verify_features, 137/137.
+> NOT DONE — `first` / `last` aggregates: our planner lowers `first` to
+> ANY_VALUE (not first) and has no lowering for `last`; legend-engine
+> 4.145.0 fails both on H2. Needs a legend-lite core leg first.
+
 ---
 
 ## 1. Calculated columns (user item 1)

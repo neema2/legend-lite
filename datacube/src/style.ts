@@ -12,6 +12,7 @@
 // without a browser, and so the grid can apply it without deciding
 // anything.
 
+import type { FontCase } from './format.ts';
 import type { Scalar } from './result.ts';
 
 /** Which of the four colour slots a value falls into. */
@@ -27,6 +28,12 @@ export interface FontStyle {
   readonly underline?: boolean;
   readonly strikethrough?: boolean;
   readonly textAlign?: TextAlign;
+  /**
+   * Letter case, as CSS renders it: upstream's cube-wide
+   * `DataCubeConfiguration.fontCase`. A column's own Case (its number
+   * format's `fontCase`) rewrites the text instead, and both can hold.
+   */
+  readonly fontCase?: FontCase;
 }
 
 /** The four-slot colour set, foreground and background. */
@@ -148,6 +155,7 @@ export function cellStyle(
   if (appearance.bold) style['font-weight'] = '700';
   if (appearance.italic) style['font-style'] = 'italic';
   if (appearance.textAlign) style['justify-content'] = justify(appearance.textAlign);
+  if (appearance.fontCase) style['text-transform'] = appearance.fontCase;
 
   // Underline and strikethrough combine rather than replacing each
   // other, which a single assignment would get wrong.

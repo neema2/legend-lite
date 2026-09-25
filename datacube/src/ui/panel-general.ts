@@ -28,7 +28,6 @@ import {
   withSettings,
 } from '../config.ts';
 import {
-  badge,
   button,
   checkbox,
   colorPicker,
@@ -248,21 +247,15 @@ export const generalPropertiesPanel: PanelBuilder = (ctx) => {
         c.showGroupedColumns, (v) => setConfig({ showGroupedColumns: v }),
       ),
     ),
-    // ITS OWN ROW, so the badge can only be read as belonging to the
-    // leaf count. A marker at the end of a row of several checkboxes
-    // attaches itself to whichever one happens to be last: adding a
-    // working setting in front of it made that setting announce
-    // itself as "Not wired", which is worse than no marker at all.
+    // The leaf count: every group query carries a count and the tree
+    // label shows it -- "EMEA (1234)" (wired 2026-09-25; it carried a
+    // "Not wired" badge until then).
     field(
       doc,
       '',
       checkbox(doc, 'Show leaf count', c.showLeafCount, (v) =>
         setConfig({ showLeafCount: v }),
       ),
-      // Honest marker: a leaf count needs a count aggregate added to
-      // every level query, which is a query change rather than a
-      // display one, and this build does not make it.
-      badge(doc, 'Not wired'),
     ),
     field(
       doc,
@@ -293,7 +286,8 @@ export const generalPropertiesPanel: PanelBuilder = (ctx) => {
     field(
       doc,
       'Row Limit:',
-      numberInput(doc, c.maxRows, (v) => setConfig({ maxRows: v ?? 1000 }), {
+      // Empty means no limit, as upstream's Row Limit field.
+      numberInput(doc, c.maxRows, (v) => setConfig({ maxRows: v }), {
         min: 1,
         max: 1_000_000,
         width: 110,
@@ -362,18 +356,16 @@ export const generalPropertiesPanel: PanelBuilder = (ctx) => {
     field(
       doc,
       'Case:',
+      // Cube-wide, as upstream's DataCubeConfiguration.fontCase. It was
+      // a disabled control ("Per column") until 2026-09-25; a column's
+      // own Case still applies on top.
       dropdown(
         doc,
-        undefined,
+        a.fontCase,
         FONT_CASES,
-        () => {
-          /* case is per column; the grid-wide default is deliberately
-             absent because a cube-wide UPPERCASE also shouts at the
-             tree column, which is the one place it is never wanted */
-        },
-        { allowNone: true, width: 150, disabled: true },
+        (fontCase) => setAppearance({ fontCase }),
+        { allowNone: true, width: 150 },
       ),
-      badge(doc, 'Per column'),
     ),
   );
 

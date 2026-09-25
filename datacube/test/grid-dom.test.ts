@@ -783,3 +783,26 @@ describe('reordering a PIVOTED column', () => {
     assert.equal(ordered, null);
   });
 });
+
+describe('appearance set AFTER the grid is built', () => {
+  // The grid took its appearance once, at construction, so every font,
+  // colour, grid-line and highlight setting changed the configuration
+  // and nothing on screen (found by the 2026-09-25 controls sweep).
+  it('reaches the cells and the grid-wide variables', () => {
+    build(10);
+    const cell = () => container.querySelector('.dc-row .dc-cell[data-column="2023__|__total"]') as HTMLElement;
+    assert.notEqual(cell().style.getPropertyValue('font-weight'), '700');
+    grid.setAppearance(
+      { bold: true, showHorizontalGridLines: true, gridLineColor: '#ff0000' },
+      { '2023__|__total': { normalForeground: '#0000ff' } },
+    );
+    assert.equal(cell().style.getPropertyValue('font-weight'), '700');
+    assert.equal(cell().style.getPropertyValue('color'), 'rgb(0, 0, 255)');
+    assert.equal(container.style.getPropertyValue('--dc-grid-line'), '#ff0000');
+    assert.equal(container.style.getPropertyValue('--dc-hgrid'), '1');
+    // And back: a colour the new appearance does not set is REMOVED.
+    grid.setAppearance({}, {});
+    assert.equal(container.style.getPropertyValue('--dc-grid-line'), '');
+    assert.notEqual(cell().style.getPropertyValue('font-weight'), '700');
+  });
+});

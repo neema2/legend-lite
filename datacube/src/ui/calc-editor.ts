@@ -57,6 +57,8 @@ export interface CalcEditorOptions {
   readonly onChange: (
     row: readonly DerivedColumn[],
     group: readonly DerivedColumn[],
+    /** Present when an edit changed the column's NAME. */
+    rename?: { readonly from: string; readonly to: string },
   ) => Promise<string | null>;
   readonly start?: CalcStart;
 }
@@ -162,10 +164,11 @@ export class CalcEditor {
   async #propose(
     row: DerivedColumn[],
     group: DerivedColumn[],
+    rename?: { readonly from: string; readonly to: string },
   ): Promise<string | null> {
     this.#busy = true;
     try {
-      const refusal = await this.#options.onChange(row, group);
+      const refusal = await this.#options.onChange(row, group, rename);
       if (refusal === null) {
         this.#row = row;
         this.#group = group;
@@ -216,7 +219,10 @@ export class CalcEditor {
     } else {
       list.push(next);
     }
-    const refusal = await this.#propose(row, group);
+    const renamed = e.original !== undefined && e.original !== next.name
+      ? { from: e.original, to: next.name }
+      : undefined;
+    const refusal = await this.#propose(row, group, renamed);
     if (refusal !== null) {
       // THE FORM STAYS, with what the user typed and why it failed.
       this.#refusal = refusal;

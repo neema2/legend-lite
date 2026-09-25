@@ -222,6 +222,7 @@ export class FormatterCache {
           style: 'currency',
           currency: format.currency ?? 'USD',
           useGrouping: format.displayCommas !== false,
+          signDisplay: 'negative',
           ...fractionDigits(format, 2, 2),
         });
         break;
@@ -229,12 +230,17 @@ export class FormatterCache {
         made = new Intl.NumberFormat(locale, {
           style: 'percent',
           useGrouping: format.displayCommas !== false,
+          signDisplay: 'negative',
           ...fractionDigits(format, 1, 1),
         });
         break;
       case 'number':
         made = new Intl.NumberFormat(locale, {
           useGrouping: format.displayCommas !== false,
+          // A minus only on a value that is STILL negative once rounded:
+          // -0.0012 at two places read "-0" (2026-09-25 probe), which
+          // says negative about a number the grid is showing as zero.
+          signDisplay: 'negative',
           ...fractionDigits(format, 0, 2),
         });
         break;

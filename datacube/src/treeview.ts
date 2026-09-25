@@ -213,7 +213,7 @@ export async function fetchTree(
 }
 
 /** The first `n` rows of a result, columns preserved. */
-function takeRows(table: ResultTable, n: number): ResultTable {
+export function takeRows(table: ResultTable, n: number): ResultTable {
   return {
     ...table,
     columns: table.columns.map((c) => ({ ...c, values: c.values.slice(0, n) })),

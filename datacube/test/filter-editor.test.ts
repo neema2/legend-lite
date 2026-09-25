@@ -487,3 +487,22 @@ describe('opening on a filter that already exists', () => {
     assert.deepEqual(roundTrip(roundTrip(f) as FilterNode), f);
   });
 });
+
+describe('TODAY and NOW', () => {
+  // Upstream's advanced values (DataCubeOperationAdvancedValueType):
+  // a date relative to when the query runs.
+  it('parse from their call spelling only', () => {
+    assert.deepEqual(parseValue('today()'), { relative: 'today' });
+    assert.deepEqual(parseValue('now()'), { relative: 'now' });
+    assert.equal(parseValue('today'), 'today');
+    assert.equal(parseValue("'today()'"), 'today()');
+  });
+
+  it('render as the Pure functions, so the date moves with the day', () => {
+    assert.equal(
+      filterExpression({ kind: 'condition', column: 'trade_date',
+        operator: 'lessThan', value: { relative: 'today' } }),
+      '$x.trade_date < today()',
+    );
+  });
+});

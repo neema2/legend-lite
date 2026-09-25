@@ -39,6 +39,8 @@ import type {
   SortDirection,
 } from '../snapshot.ts';
 import type { CalcStage } from '../calc.ts';
+import { temporalLiteral } from '../serialize.ts';
+import { isRelativeDate } from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 
 /**
@@ -103,6 +105,14 @@ export interface MenuContext {
   readonly extendable?: boolean;
   /** The stage, when the column is itself a calculated one. */
   readonly calcStage?: CalcStage;
+  /** Set on a pivot result column: the measure it came from. */
+  readonly pivotBase?: string;
+  /** The column (or, on a pivot result, its measure) is a measure. */
+  readonly isMeasure?: boolean;
+  /** The column is a measure kept OUT of the horizontal pivot. */
+  readonly excludedFromPivot?: boolean;
+  /** The column has a fixed width, which Minimize must not override. */
+  readonly fixedWidth?: boolean;
 }
 
 /**
@@ -176,6 +186,14 @@ export type MenuActionId =
   | 'chart.plot'
   | 'chart.treemap'
   | 'view.properties'
+  // Upstream's Copy > Selected Rows, Resize > Minimize and Size to Fit,
+  // and Pivot > Exclude / Include.
+  | 'copy.rows'
+  | 'column.minimize'
+  | 'column.minimizeAll'
+  | 'grid.sizeToFit'
+  | 'pivot.exclude'
+  | 'pivot.include'
   // Upstream's Extended Columns submenu.
   | 'calc.add'
   | 'calc.extend'
@@ -292,12 +310,26 @@ const OPERATOR_LABEL: Readonly<Partial<Record<FilterOperator, string>>> = {
  * The value is in the label because the menu is read after the
  * click, and by then which cell was under the pointer has gone.
  */
+/**
+ * A filter value as the menu names it.
+ *
+ * A Date through `String()` read "Tue Feb 09 2021 00:00:00 GMT-0500
+ * (Eastern Standard Time)" beside a cell showing "Feb 09, 2021"
+ * (2026-09-25 probe). The day, and the time only when there is one --
+ * the same shape as the Pure literal the filter sends.
+ */
+export function valueLabel(value: FilterValue): string {
+  if (isRelativeDate(value)) return value.relative === 'today' ? 'TODAY' : 'NOW';
+  if (value instanceof Date) return temporalLiteral(value).slice(1).replace('T', ' ');
+  return String(value);
+}
+
 function filterItem(
   column: string,
   operator: FilterOperator,
   value: FilterValue | undefined,
 ): MenuItem {
-  const shown = value === undefined ? '' : ` ${String(value)}`;
+  const shown = value === undefined ? '' : ` ${valueLabel(value)}`;
   return {
     id: 'filter.add',
     label: `Add Filter: ${columnLabel(column)} ${OPERATOR_LABEL[operator] ?? operator}${shown}`,
@@ -361,6 +393,11 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'copy.selection',
           label: 'Selected Cells as Plain Text',
+          disabled: !ctx.hasSelection,
+        },
+        {
+          id: 'copy.rows',
+          label: 'Selected Rows as Plain Text',
           disabled: !ctx.hasSelection,
         },
         {
@@ -474,6 +511,25 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
           disabled: !isHorizontal,
           ...(column ? { column } : {}),
         },
+        // Upstream's pair, only while a column pivot is active: take a
+        // measure out of the pivot from one of its pivoted columns, or
+        // put an excluded measure back from the measure itself.
+        ...(ctx.pivotBase !== undefined && ctx.isMeasure
+          && !ctx.excludedFromPivot && s.pivotOn.length > 0
+          ? [{
+            id: 'pivot.exclude' as const,
+            label: `Exclude Column ${columnLabel(ctx.pivotBase)} from Horizontal Pivot`,
+            column: ctx.pivotBase,
+          }]
+          : []),
+        ...(column !== undefined && ctx.pivotBase === undefined && ctx.isMeasure
+          && ctx.excludedFromPivot && s.pivotOn.length > 0
+          ? [{
+            id: 'pivot.include' as const,
+            label: `Include Column ${columnLabel(column)} in Horizontal Pivot`,
+            column,
+          }]
+          : []),
         {
           id: 'pivot.clearHorizontal',
           label: 'Clear All Horizontal Pivots',
@@ -521,7 +577,15 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
           disabled: !column,
           ...(column ? { column } : {}),
         },
+        {
+          id: 'column.minimize',
+          label: 'Minimize Column',
+          disabled: !column || ctx.fixedWidth === true,
+          ...(column ? { column } : {}),
+        },
         { id: 'column.autoSizeAll', label: 'Auto-size All Columns' },
+        { id: 'column.minimizeAll', label: 'Minimize All Columns' },
+        { id: 'grid.sizeToFit', label: 'Size Grid to Fit Screen' },
       ],
     },
     {
