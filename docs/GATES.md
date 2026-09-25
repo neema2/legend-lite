@@ -5616,3 +5616,29 @@ column) — step 5 collapses them into the registrations; `native-claims.tsv` re
 helpers, not by splitting — the real split is its own slice (charter step 6 territory). The five
 family natives reaching the scalar funnel by trial (WRONG-SITE) — 4c/5, visible only under the
 probe. `ENGINE_LIBRARY_FUNCTIONS`'s one row — the namespace rule, step 7 / D7.
+
+## 2026-09-25 — Regression caught late: a refused body minted as a native node; the corpus gets a per-test ceiling
+
+**What happened.** The audit burn (c5caddd3b) changed the call-node mint to decide "by the row
+alone": any declaration whose row was not `Body` became a native node. A bodied declaration the
+platform REFUSES (the corpus's walled SQL-printer bodies, `Refused` rows) had been a user call that
+the inliner refused by reading the row — the wall. As a native node it bypassed that wall, and the
+inliner then inlined the printer's bodies through their switch arms: `testDb2ColumnRename` went
+from 1.3s to 102s in both corpus passes (the DuckDB lane from ~42s to 138s in-lane). It was green
+throughout, because the test is on the fail roster and fails the same way after 100s. I read the
+green and pushed twice. Bisected by reverting one changed file at a time on the scoped test; the
+mint alone brought it back to 1.2s; stack sampling of the test JVM showed every sample inside
+`UserCallInliner.rewriteSwitch`.
+
+**Fix.** A call is a native node when the platform runs the declaration by its rule or form, or
+when there is no body to run; a refused body stays a user call and the inliner raises the wall
+(`CallNodes.mint`: `chosen.body().isEmpty() || implementations.runsByRule(def)`). The audit's own
+suggestion for that site ("mint by the row alone") was wrong and I applied it without thinking it
+through; recorded as such.
+
+**The missing gate.** `MinimalCorpusTest` now fails any corpus test over a per-test ceiling of
+15s (the slowest legitimate test is ~1.5s; the probe lane is exempt). A slowdown of this shape is
+red, never a number in a log someone has to notice.
+
+**Measured after the fix (alone on the machine, no probe):** DuckDB lane 59s / 64s in-lane
+(host and database passes), H2 34s / 85s; slowest test 1.5s; rosters unchanged; core tests green.

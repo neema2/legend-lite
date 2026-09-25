@@ -44,6 +44,11 @@ import java.util.Set;
 @Tag("heavy")
 class MinimalCorpusTest {
 
+    /** Wall time one corpus test may take, setups included (2026-09-25: the
+     *  slowest legitimate test is ~1.5s; ten times that is the ceiling). */
+    static final long PER_TEST_CEILING_MS = 15_000L;
+
+
     /** The roster files: one test FQN per line, sorted, no messages. */
     private static final String DUCKDB_ROSTER = "/rcorpus/duckdb-fail-roster.txt";
     private static final String H2_ROSTER = "/rcorpus/h2-fail-roster.txt";
@@ -362,6 +367,18 @@ class MinimalCorpusTest {
                 .sorted((a, b) -> Long.compare(b.getValue(), a.getValue()))
                 .limit(15)
                 .forEach(e -> System.out.println("[corpus2] slow " + e.getValue() + "ms " + e.getKey()));
+        // THE PER-TEST CEILING (2026-09-25): the slowest corpus test takes ~1.5s on
+        // this machine; a change that sends one test to 100s (a refused body minted
+        // as a native node and inlined through the SQL printer) must be RED, not
+        // a line in this ledger. Includes the package session's setups; the
+        // probe lane (LL_SHADOW) is exempt — it writes on every decision.
+        if (System.getenv("LL_SHADOW") == null) {
+            List<String> overBudget = elapsed.entrySet().stream()
+                    .filter(e -> e.getValue() > PER_TEST_CEILING_MS)
+                    .map(e -> e.getValue() + "ms " + e.getKey()).toList();
+            org.junit.jupiter.api.Assertions.assertEquals(List.of(), overBudget,
+                    "corpus tests over the per-test ceiling of " + PER_TEST_CEILING_MS + "ms");
+        }
         // setups the platform derived as inert (never ran): named, and
         // pinned exactly on the full run — Phase 0.2
         for (String s : corpus.inertSetups()) {
