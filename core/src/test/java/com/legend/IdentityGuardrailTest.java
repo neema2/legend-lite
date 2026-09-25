@@ -70,6 +70,12 @@ class IdentityGuardrailTest {
         SHAPES.put("SIGNATURE_ID_CUTTING", Pattern.compile("SignatureMangle\\s*\\.\\s*resolve\\("));
         // the native catalog asked by (possibly bare) NAME rather than by declaration
         SHAPES.put("CATALOG_LOOKUP_BY_NAME", Pattern.compile("\\bnative(Keys|Functions)At\\("));
+        // the compiler minting a call by a bare (or any literal) name — step 5
+        // spells these by the declaration (untangle 4b.0, 2026-09-25)
+        SHAPES.put("MINT_BY_NAME", Pattern.compile("new AppliedFunction\\(\\s*\""));
+        // a language form dispatched on a spelled name — 4d dispatches by the
+        // form's owned declarations
+        SHAPES.put("FORM_DISPATCH_BY_NAME", Pattern.compile("\\bCoreFn\\.of\\("));
         // an implementer family, a language form or a legacy vocabulary looked up by name text
         SHAPES.put("FAMILY_LOOKUP_BY_NAME", Pattern.compile(
                 "NativeFn\\s*\\.\\s*[A-Z][A-Za-z]*\\s*\\.\\s*of(Lifted|Derived)?\\(|\\bCoreFn\\s*\\.\\s*of\\("
@@ -87,17 +93,23 @@ class IdentityGuardrailTest {
      * 4a (2026-09-24, the pick by table): CATALOG_LOOKUP_BY_NAME 180 -> 179
      * (Scalars' no-rule branch reads the table), FAMILY_LOOKUP_BY_NAME 89 -> 87
      * (the inliner's and StoreEscapees' derived-member checks), FUNCTION_CATEGORY_CHECK
-     * 19 -> 16 (isPlatformImplementedDerived and its two readers). */
-    private static final Map<String, Integer> PINS = Map.of(
-            "NAME_COMPARE", 214,
-            "NAME_COMPARE_REVERSED", 94,
-            "LITERAL_NAME_COMPARE", 65,
-            "NAME_AFFIX_TEST", 53,
-            "NAME_CUTTING", 106,
-            "SIGNATURE_ID_CUTTING", 1,
-            "CATALOG_LOOKUP_BY_NAME", 179,
-            "FAMILY_LOOKUP_BY_NAME", 87,
-            "FUNCTION_CATEGORY_CHECK", 16);
+     * 19 -> 16 (isPlatformImplementedDerived and its two readers).
+     * 4b.0 (2026-09-25): two shapes ADDED so 4b's deferrals cannot quietly stay —
+     * MINT_BY_NAME 145 (the compiler minting a call by a literal name; step 5
+     * spells these by the declaration), FORM_DISPATCH_BY_NAME 21 (CoreFn.of on
+     * a spelled name; 4d dispatches by the form's owned declarations). */
+    private static final Map<String, Integer> PINS = Map.ofEntries(
+            Map.entry("NAME_COMPARE", 214),
+            Map.entry("NAME_COMPARE_REVERSED", 94),
+            Map.entry("LITERAL_NAME_COMPARE", 65),
+            Map.entry("NAME_AFFIX_TEST", 53),
+            Map.entry("NAME_CUTTING", 106),
+            Map.entry("SIGNATURE_ID_CUTTING", 1),
+            Map.entry("CATALOG_LOOKUP_BY_NAME", 179),
+            Map.entry("FAMILY_LOOKUP_BY_NAME", 87),
+            Map.entry("FUNCTION_CATEGORY_CHECK", 16),
+            Map.entry("MINT_BY_NAME", 145),
+            Map.entry("FORM_DISPATCH_BY_NAME", 21));
 
     @Test
     void stringIdentityAndCategoryChecksOnlyShrink() throws IOException {

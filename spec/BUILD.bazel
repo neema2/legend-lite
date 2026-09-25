@@ -19,6 +19,7 @@ _GENERATOR_SRCS = [
     "src/test/java/com/legend/claims/Claims.java",
     "src/test/java/com/legend/claims/ClaimsGenerator.java",
     "src/test/java/com/legend/generators/DynaFnGenerator.java",
+    "src/test/java/com/legend/generators/EngineHandlersGenerator.java",
     "src/test/java/com/legend/generators/ImportsGenerator.java",
     "src/test/java/com/legend/generators/NativesGenerator.java",
     "src/test/java/com/legend/generators/PreludeGenerator.java",
@@ -149,6 +150,24 @@ _ENGINE_COMPILE_CONTEXT = "@legend_engine_src//:legend-engine-core/legend-engine
 # build machine's Java runtime. As a genrule tool it was an exec-configuration
 # java_binary, which compiled core a second time for the tools (2026-09-23).
 _ROOTS = UPSTREAM_ROOTS
+
+# engine-handlers.tsv: the engine's Handlers.java registry — the bare-name
+# function surface, each name with its signature ids and the platform's FQN
+_ENGINE_HANDLERS = "@legend_engine_src//:legend-engine-core/legend-engine-core-base/legend-engine-core-language-pure/legend-engine-language-pure-compiler/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/handlers/Handlers.java"
+
+java_run(
+    name = "gen_engine_handlers",
+    srcs = [_ENGINE_HANDLERS],
+    outs = ["generated/engine-handlers.tsv"],
+    arguments = [
+        "$(execpath %s)" % _ENGINE_HANDLERS,
+        "{OUT}",
+    ],
+    main_class = "com.legend.generators.EngineHandlersGenerator",
+    mnemonic = "Generate",
+    visibility = ["//core:__pkg__"],
+    deps = [":generators"],
+)
 
 # NameResolver.java's CORE_IMPORTS: the engine's META_IMPORTS sequence
 java_run(

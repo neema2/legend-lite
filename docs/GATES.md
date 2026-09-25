@@ -5393,3 +5393,27 @@ a native call; a plain body mints a user call; the row accessors are Intrinsic[R
 provenance and mint native; the boot layer's respelled native is declared and Unimplemented.
 `DeclarationTableTest`: duplicates reported, first kept. Identity pins ratcheted 180→179, 89→87,
 19→16. Every rule test green; the planner builds. Shadow after-sweep (9 suites): PICK disagreements 11 → 0 (the `$prop$` member row and the five family natives now agree on the row); the five family natives still REACH the scalar funnel by trial dispatch — recorded as WRONG-SITE, a 4c/5 item, not counted as agreement. Overload sets unchanged (363 bare / 30 table-more / 0 today-more — 4b/4c own them). One DUPLICATES line (the spec census model).
+
+## 2026-09-25 — The untangle, step 4b.0: the engine surface by bare name, as a census
+
+**What.** Step 4b's first attempt deleted the catalog's bare-name index without an inventory and
+broke 848 bodies; it was reverted and the homework done first (study §14: who resolves a bare
+name, what the bare index actually serves — 1,554 call sites in nine suites classified, the forms'
+qualified names checked 41/41 against `CoreFn.OWNS`, the 49 readers that compare a call's name to a
+bare literal counted, the one order-sensitive tie found). The finding that reshaped the plan:
+legend-engine resolves a query's function by its BARE name against `Handlers.java` FIRST, then the
+imports — so bare resolution for engine input is upstream's rule; what is not is our
+`FN_BY_BARE` (every catalog native by short name, unverified). This slice lands the verified
+replacement as a pure addition, no consumer switched: `EngineHandlersGenerator` reads the pinned
+`Handlers.java` (both entry forms, `h(…)` and `register(…)`) and writes `engine-handlers.tsv`
+(836 rows, 404 names, each id resolved to the FQN the platform declares — 169 engine ids the
+platform declares nowhere, the census of what it does not carry; 6 rows for the platform's own
+surface, the engine's extension hook mirrored); `EngineHandlers` reads it (a wasm resource too);
+the drift test covers it like `CORE_IMPORTS`. Two identity shapes are added, shrink-only, so
+4b's deferrals have a number: MINT_BY_NAME 145 (the compiler minting a call by a literal name →
+step 5), FORM_DISPATCH_BY_NAME 21 (`CoreFn.of` on a spelled name → 4d).
+
+**Test.** `EngineHandlersTest`: `from` → `meta::pure::mapping::from` with its id; `map` → the
+collection map; the direct `register(…)` form is read (`not`, `equal`); an unregistered name is
+empty; the lite surface rides; names ≥ 404 and undeclared ids ≤ 169 pinned. Generator parity
+under `//core:update_generated`. Probe unchanged (nothing consumes the registry yet).

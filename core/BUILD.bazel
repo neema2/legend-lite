@@ -250,6 +250,7 @@ _GENERATED = {
     "src/main/java/com/legend/builtin/DynaFn.java": "//spec:gen_dynafn",
     "src/main/java/com/legend/builtin/Pure.java": "//spec:gen_natives",
     "src/main/java/com/legend/compiler/NameResolver.java": "//spec:gen_imports",
+    "src/main/resources/com/legend/builtin/engine-handlers.tsv": "//spec:gen_engine_handlers",
     "src/main/resources/com/legend/builtin/native-claims.tsv": "//spec:gen_claims",
     "src/main/resources/com/legend/builtin/prelude.pure": "//spec:gen_prelude",
 }

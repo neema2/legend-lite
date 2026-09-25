@@ -19,6 +19,6 @@ public final class PreludeResources implements ResourceSupplier {
 
     @Override
     public String[] supplyResources(ResourceSupplierContext context) {
-        return new String[] {"com/legend/builtin/prelude.pure"};
+        return new String[] {"com/legend/builtin/prelude.pure", "com/legend/builtin/engine-handlers.tsv"};
     }
 }
