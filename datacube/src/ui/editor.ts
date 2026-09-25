@@ -45,7 +45,7 @@ import {
   type PanelContext,
 } from './panel-kit.ts';
 import { generalPropertiesPanel } from './panel-general.ts';
-import { columnPropertiesPanel } from './panel-column.ts';
+import { columnPanelUi, columnPropertiesPanel } from './panel-column.ts';
 import { dimensionsPanel } from './panel-dimensions.ts';
 
 export type { CubeDraft, PanelBuilder, PanelContext };
@@ -71,9 +71,16 @@ export const EDITOR_TABS: readonly EditorTab[] = [
 ];
 
 export interface EditorOptions {
-  readonly onApply: (draft: CubeDraft) => void;
+  /**
+   * `base` is the draft as it stood when the editor opened (or was
+   * last applied): what the user CHANGED is the difference, and only
+   * that should reach a cube other windows may have moved since.
+   */
+  readonly onApply: (draft: CubeDraft, base: CubeDraft) => void;
   readonly onClose: () => void;
   readonly initialTab?: EditorTab;
+  /** Open Column Properties on this column (from its header's menu). */
+  readonly initialColumn?: string;
 }
 
 export class CubeEditor {
@@ -85,15 +92,20 @@ export class CubeEditor {
   #tab: EditorTab;
   /** Per-editor view state, handed to whichever panel is showing. */
   readonly #panelState: Record<string, unknown> = {};
-  /** The draft as it was when the editor opened, for Cancel. */
-  readonly #opened: CubeDraft;
+  /** The draft as it was when opened or last applied: Cancel, and the base of a merge. */
+  #opened: CubeDraft;
 
   constructor(root: HTMLElement, draft: CubeDraft, options: EditorOptions) {
     this.#doc = root.ownerDocument;
     this.#draft = draft;
     this.#opened = draft;
     this.#options = options;
-    this.#tab = options.initialTab ?? 'Columns';
+    this.#tab = options.initialColumn !== undefined
+      ? 'Column Properties'
+      : options.initialTab ?? 'Columns';
+    if (options.initialColumn !== undefined) {
+      columnPanelUi(this.#panelState).chosen = options.initialColumn;
+    }
 
     root.classList.add('dc-editor');
     root.setAttribute('role', 'dialog');
@@ -120,6 +132,17 @@ export class CubeEditor {
     return this.#draft;
   }
 
+  /**
+   * Show Column Properties for one column -- upstream's Properties...
+   * from a column header. Keeps every other edit in the draft.
+   */
+  focusColumn(name: string): void {
+    columnPanelUi(this.#panelState).chosen = name;
+    this.#tab = 'Column Properties';
+    this.#renderTabs();
+    this.refresh();
+  }
+
   setTab(tab: EditorTab): void {
     if (tab === this.#tab) return;
     this.#tab = tab;
@@ -144,7 +167,8 @@ export class CubeEditor {
   apply(options: { close?: boolean } = {}): void {
     const snapshot = applyToSnapshot(this.#draft.snapshot, this.#draft.config);
     this.#draft = { ...this.#draft, snapshot };
-    this.#options.onApply(this.#draft);
+    this.#options.onApply(this.#draft, this.#opened);
+    this.#opened = this.#draft;
     if (options.close) this.#options.onClose();
   }
 

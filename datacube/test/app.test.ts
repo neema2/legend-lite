@@ -599,7 +599,80 @@ describe('the app', () => {
         (b) => b.textContent === 'Cancel',
       ) as HTMLButtonElement
     ).click();
-    assert.equal(overlay.hidden, true);
+    assert.equal(overlay.isConnected, false, 'Cancel left the window open');
+    assert.equal(root.querySelector('.dc-app-overlay'), null);
+  });
+
+  it('Properties... from a HEADER opens Column Properties on that column', () => {
+    rightClick('.dc-th[data-column="total"]');
+    pick('Properties...');
+    const win = root.querySelector('[data-window="Properties"]') as HTMLElement;
+    const active = win.querySelector('.dc-editor-tab[aria-selected="true"]');
+    assert.equal(active?.textContent, 'Column Properties');
+    // `total` is a measure over `notional`: the panel shows the column.
+    const chooser = [...win.querySelectorAll('.dc-field')]
+      .find((f) => f.querySelector('.dc-field-label')?.textContent === 'Choose Column:')
+      ?.querySelector('select') as HTMLSelectElement;
+    assert.equal(chooser.value, 'notional');
+  });
+
+  it('keeps several windows open at once, as upstream\'s layout', () => {
+    app.openEditor();
+    app.openFilters();
+    const titles = [...root.querySelectorAll('.dc-app-overlay')]
+      .map((w) => (w as HTMLElement).dataset['window']);
+    assert.deepEqual(titles.sort(), ['Filters', 'Properties']);
+  });
+
+  it('reopening an open window RAISES it, keeping its draft', () => {
+    app.openEditor();
+    const first = root.querySelector('[data-window="Properties"]') as HTMLElement;
+    const body = first.querySelector('.dc-editor');
+    app.openFilters();
+    app.openEditor();
+    const again = root.querySelector('[data-window="Properties"]') as HTMLElement;
+    assert.equal(again, first);
+    assert.equal(again.querySelector('.dc-editor'), body, 'the draft was rebuilt');
+    const filters = root.querySelector('[data-window="Filters"]') as HTMLElement;
+    assert.ok(Number(again.style.zIndex) > Number(filters.style.zIndex));
+  });
+
+  it('closing one window leaves the others', () => {
+    app.openEditor();
+    app.openFilters();
+    (root.querySelector('[data-window="Filters"] .dc-overlay-close') as HTMLElement)
+      .click();
+    assert.ok(root.querySelector('[data-window="Properties"]'));
+    assert.equal(root.querySelector('[data-window="Filters"]'), null);
+  });
+
+  it('an older Properties draft does not undo a filter applied meanwhile', async () => {
+    app.openEditor();
+    const props = root.querySelector('[data-window="Properties"]') as HTMLElement;
+    // Meanwhile, in the Filter window...
+    app.openFilters();
+    const filters = root.querySelector('[data-window="Filters"]') as HTMLElement;
+    (filters.querySelector('.dc-filter-btn') as HTMLButtonElement).click();
+    const value = filters.querySelector('input.dc-filter-value') as HTMLInputElement;
+    value.value = 'EMEA';
+    value.dispatchEvent(new dom.window.Event('change'));
+    (filters.querySelector('.dc-filter-apply') as HTMLButtonElement).click();
+    for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
+    assert.ok(app.snapshot.filter, 'the filter did not apply');
+    // ...then Properties, opened BEFORE it, applies a change of its own.
+    [...props.querySelectorAll('.dc-editor-tab')]
+      .find((b) => b.textContent === 'General Properties')
+      ?.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true }));
+    const limit = [...props.querySelectorAll('.dc-field')]
+      .find((f) => f.querySelector('.dc-field-label')?.textContent === 'Row Limit:')
+      ?.querySelector('input') as HTMLInputElement;
+    limit.value = '42';
+    limit.dispatchEvent(new dom.window.Event('change'));
+    ([...props.querySelectorAll('.dc-editor-footer button')]
+      .find((b) => b.textContent === 'Apply') as HTMLButtonElement).click();
+    for (let i = 0; i < 5; i += 1) await new Promise((r) => setTimeout(r, 0));
+    assert.equal(app.snapshot.maxRows, 42);
+    assert.ok(app.snapshot.filter, 'the older draft put the cube back');
   });
 
   it('opens the filter editor showing the filter ALREADY in force', () => {

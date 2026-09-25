@@ -127,10 +127,11 @@ async function reset() {
   // now, so one left open covers the grid and every later right-click
   // waits thirty seconds for a cell it cannot reach -- and Escape
   // reaches the overlay only while focus is still inside it.
+  // EVERY window: several can be open at once now, as upstream's.
   const shut = page.locator('.dc-app-overlay:not([hidden]) .dc-overlay-close');
-  if (await shut.count()) {
+  for (let i = 0; i < 6 && await shut.count(); i += 1) {
     await shut.first().click().catch(() => {});
-    await page.waitForTimeout(150);
+    await page.waitForTimeout(100);
   }
   for (let i = 0; i < 3; i += 1) {
     const open = await page.locator('.dc-menu, .dc-app-overlay:not([hidden])')
@@ -580,7 +581,7 @@ try {
     await menu(['Filter', /^Add Filter: .* = /]);
     await menu(['Filter', 'Filters...'], { requery: false });
     const open = await page.evaluate(() =>
-      !document.querySelector('.dc-app-overlay')?.hidden);
+      Boolean(document.querySelector('.dc-app-overlay:not([hidden])')));
     if (!open) throw new Error('the overlay never opened');
     const conditions = await page.locator('.dc-filter-row:not(.dc-filter-group)')
       .count();
@@ -1991,8 +1992,12 @@ try {
     await page.locator('.dc-overlay-close').first().click();
     await page.waitForTimeout(250);
 
+    // A closed window is GONE from the page, not hidden on it: several
+    // can be open at once, so each is its own element and closing it
+    // removes it.
     const state = await page.evaluate(() => {
       const w = document.querySelector('.dc-app-overlay');
+      if (!w) return null;
       const b = w.getBoundingClientRect();
       return {
         hidden: w.hidden,
@@ -2000,18 +2005,39 @@ try {
         area: Math.round(b.width) * Math.round(b.height),
       };
     });
-    if (!state.hidden) throw new Error('the overlay is still marked open');
-    if (state.display !== 'none') {
-      throw new Error(`a closed dialog computes display: ${state.display},`
-        + ' so it is still on the page');
-    }
-    if (state.area !== 0) {
-      throw new Error(`a closed dialog still occupies ${state.area}px²`);
+    if (state !== null) {
+      throw new Error(`a closed dialog is still on the page:`
+        + ` ${JSON.stringify(state)}`);
     }
 
     // And the grid is usable again, which is the thing that broke.
     await menu(['Sort', 'Clear All Sorts']).catch(() => {});
     return 'gone, and the grid takes clicks again';
+  });
+
+  await check('the Filter and Properties windows stay open together', async () => {
+    // Upstream's layout keeps several windows open at once; there used
+    // to be ONE overlay, and opening the filter threw the editor away.
+    await menu(['Properties...'], { requery: false });
+    // From the status bar: `menu()` starts by closing every window.
+    await page.locator('.dc-status-filter').click();
+    await page.waitForTimeout(200);
+    const open = await page.evaluate(() =>
+      [...document.querySelectorAll('.dc-app-overlay')]
+        .map((w) => w.dataset.window));
+    if (!(open.includes('Properties') && open.includes('Filters'))) {
+      throw new Error(`open windows: ${open.join(', ')}`);
+    }
+    // Both take input: a click in the editor raises it above the filter.
+    await page.locator('[data-window="Properties"] .dc-editor-tab').first().click();
+    const z = await page.evaluate(() => ({
+      props: Number(document.querySelector('[data-window="Properties"]').style.zIndex),
+      filters: Number(document.querySelector('[data-window="Filters"]').style.zIndex),
+    }));
+    if (!(z.props > z.filters)) {
+      throw new Error(`clicking the editor did not raise it: ${JSON.stringify(z)}`);
+    }
+    return 'both open; the one touched comes to the front';
   });
 
   await check('a dialog can be dragged and resized, and stays put',

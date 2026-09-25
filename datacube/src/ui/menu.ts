@@ -90,6 +90,8 @@ export interface MenuContext {
    * by it.
    */
   readonly pivotTotal?: boolean;
+  /** From a header: Properties... opens Column Properties on this. */
+  readonly propertiesColumn?: string;
   /**
    * The value in the cell that was right-clicked, if any.
    *
@@ -661,7 +663,11 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
     { id: 'chart.treemap', label: 'Treemap' },
   ]);
 
-  push('', [{ id: 'view.properties', label: 'Properties...' }]);
+  push('', [{
+    id: 'view.properties',
+    label: 'Properties...',
+    ...(ctx.propertiesColumn !== undefined ? { column: ctx.propertiesColumn } : {}),
+  }]);
 
   return groups;
 }

@@ -83,7 +83,7 @@ import {
   type MenuItem,
 } from './ui/menu.ts';
 import { MenuView } from './ui/menu-view.ts';
-import { makeWindow, type WindowSpec } from './ui/window.ts';
+import { makeWindow, type WindowOptions, type WindowSpec } from './ui/window.ts';
 import {
   PivotPanel,
   currentHeaderDrag,
@@ -279,7 +279,6 @@ export class CubeApp {
     /** The strip holding the zones and the control that folds it. */
     zoneBar: HTMLElement;
     grid: HTMLElement;
-    overlay: HTMLElement;
     stats: HTMLElement;
   };
   /**
@@ -300,6 +299,12 @@ export class CubeApp {
    * again every time.
    */
   readonly #windows = new Map<string, WindowSpec>();
+  /** The open Properties editor, to move it to a column. */
+  #editor: CubeEditor | null = null;
+  /** The windows on screen, by title. See `#showOverlay`. */
+  readonly #open = new Map<string, HTMLElement>();
+  /** The z-index the most recently touched window was given. */
+  #zTop = 20;
   #snapshot: CubeSnapshot;
   #config: CubeConfiguration = DEFAULT_CONFIGURATION;
   #view: CubeView | null = null;
@@ -335,11 +340,9 @@ export class CubeApp {
       // above it. Declared here so the map has one shape.
       zoneBar: this.#doc.createElement('div'),
       grid: this.#doc.createElement('div'),
-      overlay: this.#doc.createElement('div'),
       stats: this.#doc.createElement('div'),
     };
     this.#els.grid.className = 'dc-app-grid';
-    this.#els.overlay.className = 'dc-app-overlay';
     this.#els.stats.className = 'dc-app-stats';
 
     // The zones sit between the toolbar and the grid, where ag-Grid
@@ -360,8 +363,7 @@ export class CubeApp {
     const side = this.#doc.createElement('div');
     side.className = 'dc-app-side';
     middle.append(side);
-    root.append(this.#els.overlay, this.#els.stats);
-    this.#els.overlay.hidden = true;
+    root.append(this.#els.stats);
 
     this.#columnsPanel = new ColumnsToolPanel(side, {
       labelFor: (c) => labelFor(this.#config, c),
@@ -1313,8 +1315,19 @@ export class CubeApp {
           value = undefined;
         }
       }
+      // FROM A HEADER, Properties... opens on that column (its measure,
+      // for a pivot result or a pivot total), as upstream's does.
+      const facts = column !== undefined ? this.#columnFacts(column) : {};
+      const onHeader = el.closest('.dc-th') !== null;
+      const propertiesColumn = onHeader && column !== undefined
+        && column !== TREE_COLUMN
+        ? facts.pivotBase
+          ?? this.#snapshot.measures.find((m) => m.name === column)?.column
+          ?? column
+        : undefined;
       const groups = buildMenu({
         snapshot: this.#snapshot,
+        ...(propertiesColumn !== undefined ? { propertiesColumn } : {}),
         ...(column !== undefined ? { column } : {}),
         isRowDimension: column
           ? this.#snapshot.rows.includes(column)
@@ -1332,7 +1345,7 @@ export class CubeApp {
           ? { extendable: true }
           : {}),
         ...(column !== undefined ? calcStageOf(this.#snapshot, column) : {}),
-        ...(column !== undefined ? this.#columnFacts(column) : {}),
+        ...facts,
         ...(value !== undefined ? { value } : {}),
         ...(columnType !== undefined ? { columnType } : {}),
       });
@@ -1389,7 +1402,7 @@ export class CubeApp {
         if (column) this.#copy(this.#columnCsv(column));
         return;
       case 'view.properties':
-        this.openEditor();
+        this.openEditor(item.column);
         return;
       case 'copy.rows':
         this.#copy(this.#rowsCsv());
@@ -1760,7 +1773,7 @@ export class CubeApp {
       pre.className = 'dc-drill';
       pre.textContent = toCsv(table);
       host.append(pre);
-    });
+    }, { replace: true });
   }
 
   // -- export -----------------------------------------------------------
@@ -1802,7 +1815,7 @@ export class CubeApp {
       // there is no untrusted markup in it.
       box.innerHTML = svg;
       host.append(box);
-    });
+    }, { replace: true });
   }
 
   /** One rendering, shared by download and email. */
@@ -2024,14 +2037,26 @@ export class CubeApp {
 
   // -- the dialogs ----------------------------------------------------------
 
-  openEditor(): void {
-    this.#showOverlay('Properties', (host) => {
-      new CubeEditor(
+  /**
+   * The Properties editor; on `column`, open at Column Properties for
+   * it -- upstream's Properties... from a column header. An editor
+   * already open is raised and moved to that column, keeping its draft.
+   */
+  openEditor(column?: string): void {
+    const open = this.#editor;
+    if (open && this.#open.has('Properties')) {
+      this.#showOverlay('Properties', () => {});
+      if (column !== undefined) open.focusColumn(column);
+      return;
+    }
+    this.#showOverlay('Properties', (host, close) => {
+      this.#editor = new CubeEditor(
         host,
         draftFor(this.#snapshot, this.#config, this.#options.dimensions ?? []),
         {
-          onApply: (draft) => this.#applyDraft(draft),
-          onClose: () => this.#closeOverlay(),
+          onApply: (draft, base) => this.#applyDraft(draft, base),
+          onClose: close,
+          ...(column !== undefined ? { initialColumn: column } : {}),
         },
       );
     });
@@ -2051,7 +2076,7 @@ export class CubeApp {
         onChange: (row, group, rename) => this.#setCalc(row, group, rename),
         ...(start ? { start } : {}),
       });
-    });
+    }, { replace: start !== undefined });
   }
 
   /** Take one calculated column out, whichever stage it is in. */
@@ -2063,7 +2088,7 @@ export class CubeApp {
   }
 
   openFilters(): void {
-    this.#showOverlay('Filters', (host) => {
+    this.#showOverlay('Filters', (host, close) => {
       new FilterEditor(host, {
         // Row-stage calculated columns filter like any other, and each
         // column brings its TYPE: it decides the operators offered and
@@ -2074,8 +2099,15 @@ export class CubeApp {
         })),
         ...(this.#snapshot.filter ? { value: this.#snapshot.filter } : {}),
         onApply: (filter) => this.#applyFilter(filter),
-        onClose: () => this.#closeOverlay(),
+        onClose: close,
       });
+    }, {
+      // Upstream's Filter window: 750 x 400, near the top right --
+      // wide enough for a condition on a date and time to the second.
+      size: {
+        width: 750, height: 400, minWidth: 300, minHeight: 200,
+        x: -50, y: 50, center: false,
+      },
     });
   }
 
@@ -2099,7 +2131,18 @@ export class CubeApp {
     }
   }
 
-  #applyDraft(draft: CubeDraft): void {
+  #applyDraft(edited: CubeDraft, base: CubeDraft): void {
+    // ONLY WHAT THE EDITOR CHANGED. Other windows stay open beside the
+    // editor now -- a filter applied, a column pinned from the menu,
+    // a calculated column added -- and applying a draft taken before
+    // them wholesale would silently put the cube back. So the editor's
+    // edits (the difference between its draft and what it opened on)
+    // land on the cube as it is NOW.
+    const draft = mergeDraft(
+      { snapshot: this.#snapshot, config: this.#config, dimensions: edited.dimensions },
+      base,
+      edited,
+    );
     const wasRoot = this.#config.showRootAggregation;
     // A REFUSED DRAFT PUTS EVERYTHING BACK. It used to stay: the
     // refusal went to the status line and the draft remained the
@@ -2224,58 +2267,92 @@ export class CubeApp {
     return true;
   }
 
-  #showOverlay(title: string, build: (host: HTMLElement) => void): void {
-    const overlay = this.#els.overlay;
-    overlay.hidden = false;
-    overlay.replaceChildren();
-    overlay.removeAttribute('style');
-    overlay.classList.remove('dc-window');
-    const head = this.#div(overlay, 'dc-overlay-head');
+  /**
+   * Open a WINDOW, or bring it forward if it is already open.
+   *
+   * Several at once, as upstream's layout: the Filter window beside
+   * the Properties editor beside a column editor, each consulted
+   * against the others and against the grid. There used to be ONE
+   * overlay, and opening anything replaced whatever was in it.
+   *
+   * Keyed by title. Reopening an open window raises it rather than
+   * rebuilding it -- a half-edited draft is not thrown away because
+   * the entry that opened it was clicked again -- unless `replace`
+   * says the content is new (a different drill-through, a new chart).
+   *
+   * `build` receives the body and the one function that closes THIS
+   * window; a window closes itself, never "whichever is open".
+   */
+  #showOverlay(
+    title: string,
+    build: (host: HTMLElement, close: () => void) => void,
+    options: { readonly replace?: boolean; readonly size?: WindowOptions } = {},
+  ): HTMLElement {
+    const open = this.#open.get(title);
+    if (open && !options.replace) {
+      this.#raise(open);
+      return open;
+    }
+    const win = open ?? this.#doc.createElement('div');
+    if (!open) {
+      win.className = 'dc-app-overlay';
+      win.dataset['window'] = title;
+      this.#els.root.append(win);
+      this.#open.set(title, win);
+      // Whichever window is touched comes to the front.
+      win.addEventListener('pointerdown', () => this.#raise(win));
+      // Escape closes the window it is pressed in, because a window a
+      // keyboard user cannot dismiss is a trap; the panels inside stop
+      // their own Escape from reaching here.
+      win.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape') this.#closeWindow(title);
+      });
+    }
+    win.hidden = false;
+    win.replaceChildren();
+    win.removeAttribute('style');
+    const close = (): void => this.#closeWindow(title);
+    const head = this.#div(win, 'dc-overlay-head');
     const h = this.#doc.createElement('span');
     h.textContent = title;
-    const close = this.#doc.createElement('button');
-    close.type = 'button';
-    close.className = 'dc-overlay-close';
-    close.textContent = '×';
-    close.setAttribute('aria-label', 'Close');
-    close.addEventListener('click', () => this.#closeOverlay());
-    head.append(h, close);
-    build(this.#div(overlay, 'dc-overlay-body'));
+    const shut = this.#doc.createElement('button');
+    shut.type = 'button';
+    shut.className = 'dc-overlay-close';
+    shut.textContent = '\u00d7';
+    shut.setAttribute('aria-label', `Close ${title}`);
+    shut.addEventListener('click', close);
+    head.append(h, shut);
+    build(this.#div(win, 'dc-overlay-body'), close);
 
-    // A WINDOW, not a block at the bottom of the page.
-    //
-    // The overlay was appended after the grid, so opening a dialog
-    // pushed the page down and showed it below the data it was about
-    // -- which makes a filter or a column's properties impossible to
-    // consult against the rows they change. DataCube's are floating
-    // windows (DataCubeLayout): dragged by the header, resizable from
-    // any edge, and each remembering where it was put.
-    //
-    // Remembered BY TITLE: reopening Properties should find it where
-    // you left it, while the filter window keeps its own place.
+    // Dragged by the header, resized from any edge, and REMEMBERED BY
+    // TITLE: reopening Properties finds it where it was left, while
+    // the Filter window keeps its own place.
+    const remembered = this.#windows.get(title);
     this.#windows.set(
       title,
-      makeWindow(overlay, head, this.#els.root, {
-        ...(this.#windows.get(title)
-          ? { spec: this.#windows.get(title) }
-          : {}),
+      makeWindow(win, head, this.#els.root, {
+        ...(options.size ?? {}),
+        ...(remembered ? { spec: remembered } : {}),
         onChange: (spec) => this.#windows.set(title, spec),
       }),
     );
-    // Escape closes, because a modal a keyboard user cannot dismiss
-    // is a trap, and the panels below already stop their own Escape
-    // from reaching here.
-    overlay.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') this.#closeOverlay();
-    });
+    this.#raise(win);
+    return win;
   }
 
-  #closeOverlay(): void {
-    const overlay = this.#els.overlay;
-    overlay.hidden = true;
-    overlay.classList.remove('dc-window');
-    overlay.removeAttribute('style');
-    overlay.replaceChildren();
+  /** Put a window above every other. */
+  #raise(win: HTMLElement): void {
+    this.#zTop += 1;
+    win.style.zIndex = String(this.#zTop);
+  }
+
+  /** Close one window, by its title. */
+  #closeWindow(title: string): void {
+    const win = this.#open.get(title);
+    if (!win) return;
+    win.remove();
+    this.#open.delete(title);
+    if (title === 'Properties') this.#editor = null;
   }
 
   // -- the toolbar ------------------------------------------------------------
@@ -2613,4 +2690,48 @@ function isTextEntry(target: EventTarget | null): boolean {
 function fmt(n: number): string {
   if (!Number.isFinite(n)) return '—';
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+/**
+ * A three-way merge of an editor's draft: what changed between `base`
+ * and `edited`, laid over `current`.
+ *
+ * The editor owns three things in the snapshot -- the row and column
+ * pivots and the sorts -- and the whole configuration. Each is taken
+ * from the edit only where the edit differs from its base, key by
+ * key down through the configuration's objects, so two windows that
+ * touched different settings both keep what they did.
+ */
+export function mergeDraft(current: CubeDraft, base: CubeDraft, edited: CubeDraft):
+CubeDraft {
+  const same = (a: unknown, b: unknown): boolean =>
+    JSON.stringify(a) === JSON.stringify(b);
+  const plain = (v: unknown): v is Record<string, unknown> =>
+    typeof v === 'object' && v !== null && !Array.isArray(v);
+  const merge = (now: unknown, was: unknown, next: unknown): unknown => {
+    if (same(was, next)) return now;
+    if (!plain(now) || !plain(was) || !plain(next)) return next;
+    const out: Record<string, unknown> = { ...now };
+    for (const key of new Set([...Object.keys(was), ...Object.keys(next)])) {
+      const merged = merge(now[key], was[key], next[key]);
+      if (merged === undefined) delete out[key];
+      else out[key] = merged;
+    }
+    return out;
+  };
+  const snapshot: CubeSnapshot = {
+    ...current.snapshot,
+    rows: merge(current.snapshot.rows, base.snapshot.rows,
+      edited.snapshot.rows) as CubeSnapshot['rows'],
+    pivotOn: merge(current.snapshot.pivotOn, base.snapshot.pivotOn,
+      edited.snapshot.pivotOn) as CubeSnapshot['pivotOn'],
+    sorts: merge(current.snapshot.sorts, base.snapshot.sorts,
+      edited.snapshot.sorts) as CubeSnapshot['sorts'],
+  };
+  return {
+    snapshot: applyToSnapshot(snapshot,
+      merge(current.config, base.config, edited.config) as CubeConfiguration),
+    config: merge(current.config, base.config, edited.config) as CubeConfiguration,
+    dimensions: edited.dimensions,
+  };
 }
