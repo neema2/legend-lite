@@ -237,16 +237,60 @@ final class StaticFold {
         if (!anyStatic) {
             return null;
         }
-        LambdaFunction lets = SourceSubst.inlineLets(new LambdaFunction(List.of(),
-                callee.body().orElseThrow()));
-        if (lets == null) {
+        ValueSpecification single = singleBody(callee);
+        if (single == null) {
             return null;
         }
-        ValueSpecification body = SourceSubst.substitute(
-                typer.alphaRename(lets.body().get(0)), subst);
+        ValueSpecification body = SourceSubst.substitute(typer.alphaRename(single), subst);
         inlining.push(callee.signatureKey());
         try {
             return fold(body, inner);
+        } finally {
+            inlining.pop();
+        }
+    }
+
+    /** The callee's body as ONE expression (its lets inlined through the shared
+     * funnel), or null when it has non-let intermediate statements. */
+    private static @com.legend.Nullable ValueSpecification singleBody(
+            com.legend.compiler.element.TypedFunction callee) {
+        LambdaFunction lets = SourceSubst.inlineLets(new LambdaFunction(List.of(),
+                callee.body().orElseThrow()));
+        return lets == null ? null : lets.body().get(0);
+    }
+
+    /** A call to the ONE bodied callee of this arity, every argument static:
+     * its body evaluates under those bindings (the interpreter's rule for a
+     * library function with a body — natives evaluate by their fold row).
+     * Null = not such a call, or not static; a callee already on the stack is
+     * a recursive program and is left to the ordinary path. */
+    private @com.legend.Nullable Object evalUserCall(AppliedFunction af, Map<String, Object> scope) {
+        List<ValueSpecification> ps = af.parameters();
+        List<com.legend.compiler.element.TypedFunction> bodied = new ArrayList<>();
+        for (var f : typer.functionCandidates(af.function())) {
+            if (f.body().isPresent() && f.parameters().size() == ps.size()) {
+                bodied.add(f);
+            }
+        }
+        if (bodied.size() != 1 || inlining.contains(bodied.get(0).signatureKey())) {
+            return null;
+        }
+        var callee = bodied.get(0);
+        Map<String, Object> inner = new LinkedHashMap<>(scope);
+        for (int i = 0; i < ps.size(); i++) {
+            Object v = eval(ps.get(i), inner);
+            if (v == null) {
+                return null;
+            }
+            inner.put(callee.parameters().get(i).name(), v);
+        }
+        ValueSpecification single = singleBody(callee);
+        if (single == null) {
+            return null;
+        }
+        inlining.push(callee.signatureKey());
+        try {
+            return eval(typer.alphaRename(single), inner);
         } finally {
             inlining.pop();
         }
@@ -356,6 +400,7 @@ final class StaticFold {
         AND(Pure.AND__BOOLEAN_1__BOOLEAN_1.qualifiedName(), Pure.AND__BOOLEAN_MANY.qualifiedName()),
         AT(Pure.AT__T_MANY__INTEGER_1.qualifiedName()),
         CONCATENATE(Pure.CONCATENATE__RELATION_1__RELATION_1.qualifiedName(), Pure.CONCATENATE__T_MANY__T_MANY.qualifiedName()),
+        CONTAINS(Pure.CONTAINS__ANY_MANY__ANY_1.qualifiedName(), Pure.CONTAINS__Z_MANY__Z_1__FUNCTION_1.qualifiedName()),
         ELEMENT_TO_PATH(Pure.ELEMENT_TO_PATH__3.qualifiedName(), Pure.ELEMENT_TO_PATH__FUNCTION_1.qualifiedName(), Pure.ELEMENT_TO_PATH__PACKAGEABLEELEMENT_1.qualifiedName(), Pure.ELEMENT_TO_PATH__PACKAGEABLEELEMENT_1__BOOLEAN_1.qualifiedName(), Pure.ELEMENT_TO_PATH__PACKAGEABLEELEMENT_1__STRING_1.qualifiedName(), Pure.ELEMENT_TO_PATH__TYPE_1.qualifiedName(), Pure.ELEMENT_TO_PATH__TYPE_1__STRING_1.qualifiedName()),
         EQUAL(Pure.EQUAL__ANY_MANY__ANY_MANY.qualifiedName()),
         FILTER(Pure.FILTER__RELATION_1__FUNCTION_1.qualifiedName(), Pure.FILTER__T_MANY__FUNCTION_1.qualifiedName(), Pure.TDS_FILTER__TDS_1__FUNCTION_1.qualifiedName()),
@@ -372,7 +417,6 @@ final class StaticFold {
         OR(Pure.OR__BOOLEAN_1__BOOLEAN_1.qualifiedName(), Pure.OR__BOOLEAN_MANY.qualifiedName()),
         PAIR(Pure.PAIR__U_1__V_1.qualifiedName()),
         PLUS(Pure.PLUS__DECIMAL_MANY.qualifiedName(), Pure.PLUS__FLOAT_MANY.qualifiedName(), Pure.PLUS__INTEGER_MANY.qualifiedName(), Pure.PLUS__NUMBER_MANY.qualifiedName(), Pure.STRING_PLUS__STRING_MANY.qualifiedName()),
-        REMOVE_ALL(com.legend.compiler.element.type.PlatformTypes.REMOVE_ALL),
         REMOVE_DUPLICATES(Pure.REMOVE_DUPLICATES__T_MANY.qualifiedName(), Pure.REMOVE_DUPLICATES__T_MANY__FUNCTION_0_1__FUNCTION_0_1.qualifiedName(), Pure.REMOVE_DUPLICATES__T_MANY__FUNCTION_1.qualifiedName()),
         SORT_BY(Pure.SORT_BY__T_m__FUNCTION_0_1.qualifiedName()),
         TO_ONE(Pure.TO_ONE__T_MANY.qualifiedName(), Pure.TO_ONE__T_MANY__STRING_1.qualifiedName()),
@@ -405,7 +449,9 @@ final class StaticFold {
         List<ValueSpecification> ps = af.parameters();
         FoldOp op = FoldOp.of(af);
         if (op == null) {
-            return null;
+            // not a native the folder evaluates by a row: a BODIED library
+            // function evaluates by its body (removeAll: filter + contains)
+            return evalUserCall(af, scope);
         }
         switch (op) {
             // arithmetic is VARIADIC (upstream's plus(Number[*]) & co.): the
@@ -515,18 +561,15 @@ final class StaticFold {
                 List<Object> coll = ps.size() == 1 ? evalList(ps.get(0), scope) : null;
                 return coll == null ? null : new ArrayList<>(new LinkedHashSet<>(coll));
             }
-            case REMOVE_ALL -> {
+            case CONTAINS -> {
+                // the platform's native (lowered to SQL IN), evaluated statically
+                // over static values; the comparator overload is not static
                 if (ps.size() != 2) {
                     return null;
                 }
-                List<Object> a = evalList(ps.get(0), scope);
-                List<Object> b = evalList(ps.get(1), scope);
-                if (a == null || b == null) {
-                    return null;
-                }
-                List<Object> out = new ArrayList<>(a);
-                out.removeAll(b);
-                return out;
+                List<Object> coll = evalList(ps.get(0), scope);
+                Object x = eval(ps.get(1), scope);
+                return coll == null || x == null ? null : coll.contains(x);
             }
             case INDEX_OF -> {
                 if (ps.size() != 2) {

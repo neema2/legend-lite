@@ -62,6 +62,11 @@ class SkipCensusTest {
             // REPORT (target/spec-body-census.txt), not yet a pin; its
             // numbers are recorded in docs/SPEC_BODY_CENSUS_2026_09_08.md
             "SpecBodyCensusTest.java",
+            // the manifest-world census (charter step 7 / D7, 2026-09-25): a
+            // MEASUREMENT program, opt-in by -Dmanifest.census=<module>; skips
+            // in the chain by design — its numbers are the step's work list,
+            // pinned only when the corpus loader switches to the manifests
+            "ManifestWorldCensusTest.java",
             // the dynafunction registry (upstream boundary batch 5 audit,
             // 2026-09-11): skips only when the legend-engine checkout is
             // absent — the enum is compared EXHAUSTIVELY with the engine's

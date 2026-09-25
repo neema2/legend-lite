@@ -120,8 +120,11 @@ public final class PreludeGenerator {
      *  spelling. Each row carries its reason. */
     static final Map<String, String> ENGINE_LIBRARY_FUNCTIONS = Map.of(
             "meta::pure::functions::collection::removeAll",
-            "StaticFold folds it over static column lists (PlatformTypes.REMOVE_ALL); the corpus's tds"
-                    + " extensions (columnValueDifference) and the prelude's SchemaState bodies call it");
+            "the corpus's tds extensions (columnValueDifference) and the prelude's SchemaState bodies call it;"
+                    + " the corpus loader refuses the namespace as runtime (MinimalCorpus.refusePlatformNamespace),"
+                    + " so this module is its only home. INTERIM for the namespace rule (charter D7: every bodied"
+                    + " function upstream declares under meta::pure::functions:: is library, measured 2026-09-25 at"
+                    + " 126 functions / 26 boot-typing failures / the agg form unowned) — one row until that lands");
     /** The protocol TEMPLATE package admitted out of the versioned exclusion. */
     private static final String PROTOCOL_TEMPLATE_M3 = "meta::protocols::pure::vX_X_X::metamodel::m3::";
 

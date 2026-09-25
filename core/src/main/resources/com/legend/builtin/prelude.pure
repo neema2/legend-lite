@@ -6584,7 +6584,7 @@ Class meta::relational::functions::sqlstring::SQLResult
 // 485 classes, 23 enums, 153 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
 // ENGINE LIBRARY FUNCTIONS — 1 bodied declarations outside the platform roots, carried by membership
 // (PreludeGenerator.ENGINE_LIBRARY_FUNCTIONS, each with its reason), verbatim, every overload:
-//   meta::pure::functions::collection::removeAll (2 overloads) — StaticFold folds it over static column lists (PlatformTypes.REMOVE_ALL); the corpus's tds extensions (columnValueDifference) and the prelude's SchemaState bodies call it
+//   meta::pure::functions::collection::removeAll (2 overloads) — the corpus's tds extensions (columnValueDifference) and the prelude's SchemaState bodies call it; the corpus loader refuses the namespace as runtime (MinimalCorpus.refusePlatformNamespace), so this module is its only home. INTERIM for the namespace rule (charter D7: every bodied function upstream declares under meta::pure::functions:: is library, measured 2026-09-25 at 126 functions / 26 boot-typing failures / the agg form unowned) — one row until that lands
 // RESPELLED NATIVES — 66 upstream `native function` declarations the platform does not implement (carried so they
 // resolve and type-check; a call fails at lowering as 'not implemented', never 'unknown function').
 // ENGINE NATIVES NOT CARRIED — the signature names a type the platform does not carry

@@ -5466,3 +5466,39 @@ rosters (DuckDB 2474 pass, H2 2232). Identity pins 214 → 209, 94 → 84, 65 �
 core-group name in several packages (`map`) stays bare with both candidates; a unique one
 (`extend`) qualifies and keeps its form. Prelude generator parity under `//core:update_generated`
 (the prelude carries `removeAll`'s two overloads with their provenance line).
+
+## 2026-09-25 — removeAll leaves the compiler; the namespace rule measured; the manifest census program
+
+**What.** After 4b.1 the constant folder still knew `removeAll` by a fold row keyed on a
+`PlatformTypes` spelling, with a generator membership carrying its declaration — two mechanisms
+around one function. Now: the folder's static interpreter evaluates a BODIED library function by its
+body (`StaticFold.evalUserCall`: the one bodied callee of the arity, every argument static, lets
+inlined through the shared funnel, recursion left to the ordinary path), as the structural inliner
+already did for partially-static calls; natives evaluate by their fold row, and the row the body of
+removeAll bottoms out on is `contains` (the platform's native, lowered to SQL `IN`), keyed on its two
+catalog declarations. The `REMOVE_ALL` row and `PlatformTypes.REMOVE_ALL` are deleted; `core/src/main`
+mentions removeAll nowhere. The generator membership stays as the declared INTERIM, one row, because
+the corpus loader refuses the `meta::pure::functions::` namespace as a runtime program
+(`MinimalCorpus.refusePlatformNamespace`, "reference checkouts are spec, never runtime") — the prelude
+is that function's only home until the namespace rule lands.
+
+**The namespace rule, measured and reverted (charter D7).** "Every bodied function upstream declares
+under `meta::pure::functions::` is platform library, wherever its file sits" admits 126 functions
+from 9 engine `corefunctions` files (the other 87 names there are platform-owned and stay out) and
+fails the boot pin with 26 unwalled typing failures: 10 bare PROFILE references (`doc`, `test` — the
+resolver reads a stereotype's profile as an element name), 2 classes constructed in bodies but never
+seeded (`SplitTextResult`, `CamelSplit` — the closure seeds signature types only), ~12 kernel/overload
+gaps in metamodel-walking functions (`allProperties`, `hierarchicalAllProperties`,
+`instanceValuesAtParameter`, `simpleToString`, `getPropertyValues`, `lookup`), one signature-id
+reference (`with_T_m__Mapping_1__PackageableRuntime_1__T_m_`), one `meta::pure::router` unknown. And
+it captured 270 DuckDB / 182 H2 corpus tests plus 47 core tests through ONE form the ownership ledger
+does not own: `agg` — `GroupByChecker` recognises it by `fn.equals("agg")`, it is in neither `CoreFn`
+nor the claims, so the engine's `collection::agg` body took every bare `agg`. Both blockers are
+step-7 work with their numbers; the rule is the target, not a slice.
+
+**The manifest-world census program** (`ManifestWorldCensusTest`, opt-in) and its first run are
+recorded in charter step 7 / D7: 27 modules, 1,772 files, 32 walls, 15,736 / 1,447 bodies; parse
+0.34s, model 5.7s, the strict builder's retry loop 72.7s. No tolerant mode — ruled.
+
+**Test.** Both corpus rosters LOST 0 (DuckDB 2474, H2 2232); core, guardrails, spec green; the
+protocol-node construction pin unchanged (the two inliners share one body wrapper).

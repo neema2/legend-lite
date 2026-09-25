@@ -219,13 +219,6 @@ public final class PlatformTypes {
      */
     public static final String EXECUTE_IN_DB = "meta::relational::metamodel::execute::executeInDb";
 
-    /** collection::removeAll — the engine's bodied library function (core
-     * corefunctions/collectionExtension.pure) the constant folder evaluates over
-     * static column lists; naming it here carries its declaration into the
-     * prelude (the generator's Java-demand rule), so the fold keys on a
-     * declaration, never a bare spelling. */
-    public static final String REMOVE_ALL = "meta::pure::functions::collection::removeAll";
-
     /** executeInDbToTDS(sql, connectionFunction) — the engine's program is
      * executeInDb(sql, fn)->resultSetToTDS() (execute.pure:73-90): a VALUE
      * MAPPING of the result set into a TDS, which our raw-grid relation
