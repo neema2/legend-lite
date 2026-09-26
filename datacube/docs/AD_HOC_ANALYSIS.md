@@ -98,14 +98,18 @@ dimension of its own, so every column can be placed.
 
 ## State (2026-09-25)
 
-Steps 1–5 are built, and step 6 is partly built. Code: `src/adhoc/` (`state.ts` pure grid, `query.ts`
+Steps 1–6 are built. Code: `src/adhoc/` (`state.ts` pure grid, `query.ts`
 one query per shape, `outline.ts` members from the source, `session.ts`
 history + refresh, `mode.ts` on screen, `member-selection.ts`,
 `options-panel.ts`). The switch is *Ad Hoc Analysis* in the title bar
 menu; Ctrl-Z / Ctrl-Y walk the mode's own history while it is on.
 
-- The opening grid starts on the dimension the cube is grouped by (else
-  the first), Measures across, everything else on the POV bar.
+- The opening grid is the cube AS IT STANDS (`carryOver`): its row
+  groups down the rows, its column pivots across after the Measures, a
+  filter pinning a member (an AND of `==` down a hierarchy's
+  generations) as that member -- on the POV, or shown on its axis. Those
+  conditions leave the cube's filter; the rest of it stays. Ungrouped,
+  the first dimension opens down the rows.
 - A shape's filter names at most `MAX_FILTER_MEMBERS` (64) members; past
   that it names what COVERS them (parents, up to the top = no filter).
   The answer is then a superset, and the grid reads only the members it
@@ -118,7 +122,6 @@ menu; Ctrl-Z / Ctrl-Y walk the mode's own history while it is on.
   against the real planner and engine (figures checked against each
   other: children sum to their parent, the POV narrows every cell).
 
-Not yet: carrying the cube's pivots onto the column axis and a
-one-member filter onto the POV (step 6's second half); member display
+Not yet: member display
 (name / alias); drag-and-drop between the POV bar and the axes (menu
 entries do it today); saving an ad hoc grid with the view.

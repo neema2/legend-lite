@@ -7,9 +7,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { buildCube } from '../src/adhoc/outline.ts';
-import type { AdHocSession } from '../src/adhoc/session.ts';
-import { SNAPSHOT, session } from './adhoc-fixture.ts';
+import { buildCube, carryOver } from '../src/adhoc/outline.ts';
+import { AdHocSession } from '../src/adhoc/session.ts';
+import type { FilterNode } from '../src/snapshot.ts';
+import { fakeRun, SNAPSHOT, session } from './adhoc-fixture.ts';
 
 const labels = (s: AdHocSession) =>
   s.view?.table.columns[0]?.values.map((v) => String(v).replace(/ /g, '.'));
@@ -81,5 +82,55 @@ describe('an ad hoc session', () => {
     assert.deepEqual(labels(s), ['Time']);
     await s.redo();
     assert.deepEqual(labels(s), ['Time', '.2021', '.2022']);
+  });
+});
+
+describe('opening on the cube as it stands', () => {
+  const TIME = [{ name: 'Time', columns: ['year', 'quarter'] }];
+
+  it('row groups go down the rows, column pivots across after the measures', async () => {
+    const { cube, grid } = carryOver({ ...SNAPSHOT, rows: ['region'], pivotOn: ['year'] }, TIME);
+    assert.deepEqual(grid.rows.map((a) => a.dimension), ['region']);
+    assert.deepEqual(grid.columns.map((a) => a.dimension), ['Measures', 'Time']);
+    assert.deepEqual(grid.pov, {});
+    const s = new AdHocSession(cube, fakeRun([]), grid);
+    await s.refresh();
+    assert.deepEqual(labels(s), ['region']);
+    assert.deepEqual(values(s), [75]);
+  });
+
+  it('a filter pinning a member down a hierarchy becomes that member, and leaves the filter', async () => {
+    const filter: FilterNode = { kind: 'and', children: [
+      { kind: 'condition', column: 'year', operator: 'equal', value: '2021' },
+      { kind: 'condition', column: 'quarter', operator: 'equal', value: 'Q2' },
+    ] };
+    const { cube, grid } = carryOver({ ...SNAPSHOT, filter }, TIME);
+    assert.deepEqual(grid.rows.map((a) => a.dimension), ['Time']);
+    assert.deepEqual(grid.rows[0]?.members, [['2021', 'Q2']], 'on the rows: the member shown');
+    assert.equal(cube.snapshot.filter, undefined, 'the conditions left the cube filter');
+    const s = new AdHocSession(cube, fakeRun([]), grid);
+    await s.refresh();
+    assert.deepEqual(values(s), [25]);
+  });
+
+  it('on the POV when the dimension is off the grid; other conditions stay on the cube', async () => {
+    const keep: FilterNode = { kind: 'condition', column: 'notional', operator: 'greaterThan', value: 5 };
+    const filter: FilterNode = { kind: 'and', children: [
+      { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' },
+      keep,
+    ] };
+    const { cube, grid } = carryOver({ ...SNAPSHOT, rows: ['year'], filter }, TIME);
+    assert.deepEqual(grid.pov, { region: ['EMEA'] });
+    assert.deepEqual(cube.snapshot.filter, keep);
+  });
+
+  it('an OR filter is not a member: it stays whole', () => {
+    const filter: FilterNode = { kind: 'or', children: [
+      { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' },
+      { kind: 'condition', column: 'region', operator: 'equal', value: 'AMER' },
+    ] };
+    const { cube, grid } = carryOver({ ...SNAPSHOT, filter }, TIME);
+    assert.deepEqual(grid.pov, { region: [] });
+    assert.deepEqual(cube.snapshot.filter, filter);
   });
 });

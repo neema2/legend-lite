@@ -43,9 +43,8 @@ import {
 import type { Dimension } from './dimensions.ts';
 import { availableDimensions, useDimension } from './dimensions.ts';
 import { AdHocMode } from './adhoc/mode.ts';
-import { buildCube } from './adhoc/outline.ts';
+import { carryOver } from './adhoc/outline.ts';
 import { AdHocSession } from './adhoc/session.ts';
-import { initialGrid } from './adhoc/state.ts';
 import { drillQuery } from './drill.ts';
 import type { QueryEngine } from './engine.ts';
 import { exportFileName, toCsv, toEml } from './export.ts';
@@ -2238,19 +2237,15 @@ export class CubeApp {
    */
   async enterAdHoc(): Promise<void> {
     if (this.#adhoc) return;
-    const cube = buildCube(this.#snapshot, this.#dimensions());
+    // OPEN ON WHAT THE USER WAS LOOKING AT: its row groups down the
+    // rows, its pivots across, a filter pinning a member as that member.
+    const { cube, grid } = carryOver(this.#snapshot, this.#dimensions());
     if (cube.outline.dimensions.length === 0) {
       this.#status('Ad Hoc Analysis needs at least one dimension column', 'warn');
       return;
     }
-    // OPEN ON WHAT THE USER WAS LOOKING AT: the dimension the cube is
-    // grouped by, rather than whichever column the source lists first
-    // (a trade id, in the harness's file).
-    const grouped = this.#snapshot.rows[0];
-    const start = cube.outline.dimensions.find((d) => grouped !== undefined
-      && d.generations.includes(grouped))?.name;
     const session = new AdHocSession(cube, (pure, snapshot, scope) =>
-      this.#controller.query(pure, snapshot, scope), initialGrid(cube.outline, undefined, start));
+      this.#controller.query(pure, snapshot, scope), grid);
     const middle = this.#els.grid.parentElement as HTMLElement;
     const host = this.#doc.createElement('div');
     middle.before(host);

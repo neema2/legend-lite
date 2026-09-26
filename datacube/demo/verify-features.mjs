@@ -4410,6 +4410,28 @@ try {
       return `${a.rows[0]} = ${a.first[0]}, ${chips} on the POV`;
     });
 
+    await check('ad hoc analysis: opens on the cube as it stands -- its grouping down the rows', async () => {
+      await freshCube();
+      const dims = await dimensionNames();
+      const on = ['region', 'desk', 'book'].find((n) => dims.includes(n));
+      if (!on) throw new Error(`no low-cardinality dimension in ${dims}`);
+      await menu(['Pivot', /^Vertical Pivot on/], { col: await needCol(on) });
+      const cubeRows = (await state()).rows.length;
+      await burger('Ad Hoc Analysis');
+      await page.waitForFunction(() => {
+        const a = window.__dataCube?.adhoc;
+        return a && !a.busy && a.view;
+      }, null, { timeout: 30_000 });
+      const a = await adhoc();
+      if (JSON.stringify(a.rows) !== JSON.stringify([on])) throw new Error(`rows ${a.rows}`);
+      if (on in a.pov) throw new Error(`${on} is on the POV as well`);
+      // Zoomed once, the members are the groups the cube showed.
+      const was = await stamp();
+      await cellOf(on).dblclick();
+      const b = await changed(was);
+      return `${on} down the rows; zoomed: ${b.labels.length - 1} members (cube showed ${cubeRows} rows)`;
+    });
+
     await check('ad hoc analysis: double-click zooms in; the children add up to their parent', async () => {
       const a = await enter();
       const was = await stamp();
