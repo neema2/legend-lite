@@ -3,6 +3,7 @@ package com.legend.warehouse.server;
 import com.legend.Nullable;
 import com.legend.server.Json;
 import com.legend.warehouse.sqlapi.ApiJson;
+import com.legend.warehouse.sqlapi.SqlApi;
 import com.legend.warehouse.sqlapi.SqlApi.ApiError;
 import com.legend.warehouse.sqlapi.SqlApi.Chunk;
 import com.legend.warehouse.sqlapi.SqlApi.ErrorCode;
@@ -42,6 +43,7 @@ public final class WarehouseServer implements AutoCloseable {
     private static final Pattern CHUNK = Pattern.compile("/sql/v1/statements/([0-9a-f-]{36})/chunks/(\\d{1,9})");
     private static final Pattern CANCEL = Pattern.compile("/sql/v1/statements/([0-9a-f-]{36})/cancel");
     private static final Pattern OBJECTS = Pattern.compile("/sql/v1/catalogs/([a-z][a-z0-9_]{0,62})/objects");
+    private static final Pattern SESSION = Pattern.compile("/sql/v1/sessions/([0-9a-f-]{36})");
     private static final long MAX_WAIT_MS = 30_000;
 
     /** Everything the process is started with. */
@@ -59,6 +61,7 @@ public final class WarehouseServer implements AutoCloseable {
     private final Identity identity;
     private final Catalogs catalogs;
     private final History history;
+    private final Sessions sessions;
     private final Statements statements;
 
     public WarehouseServer(Config config) throws IOException, SQLException {
@@ -75,7 +78,8 @@ public final class WarehouseServer implements AutoCloseable {
         for (String[] u : config.users()) identity.addUser(u[0], u[1]);
         catalogs = new Catalogs(config.dataDir(), config.catalogs());
         history = new History(config.dataDir());
-        statements = new Statements(catalogs, history, config.limits(), clock);
+        sessions = new Sessions(catalogs, Duration.ofMinutes(30), clock);
+        statements = new Statements(catalogs, sessions, history, config.limits(), clock);
         http = HttpServer.create(new InetSocketAddress("127.0.0.1", config.port()), 0);
         http.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         http.createContext("/", this::handle);
@@ -143,6 +147,13 @@ public final class WarehouseServer implements AutoCloseable {
             Statements.Run run = run(principal, m.group(1));
             waitFor(run, waitMs(ex, 0));
             reply(run, false);
+        } else if (path.equals("/sql/v1/sessions") && method.equals("POST")) {
+            openSession(ex, principal);
+        } else if ((m = SESSION.matcher(path)).matches() && method.equals("DELETE")) {
+            Sessions.Session s = sessions.find(principal, m.group(1));
+            if (s == null) throw Reply.error(404, ErrorCode.NOT_FOUND, "no session " + m.group(1));
+            sessions.close(s);
+            throw new Reply(200, Json.toCompact(ApiJson.session(new SqlApi.Session(s.id(), s.catalog()))));
         } else if (path.equals("/sql/v1/catalogs") && method.equals("GET")) {
             List<Json.Node> out = new ArrayList<>();
             for (String c : catalogs.names()) {
@@ -184,6 +195,24 @@ public final class WarehouseServer implements AutoCloseable {
         return p;
     }
 
+    private void openSession(HttpExchange ex, String principal) throws IOException, Reply {
+        String catalog;
+        try {
+            String c = Json.parseObject(body(ex)).getStringOr("catalog", StatementRequest.DEFAULT_CATALOG);
+            catalog = c == null ? StatementRequest.DEFAULT_CATALOG : c;
+        } catch (RuntimeException bad) {
+            throw Reply.error(400, ErrorCode.BAD_REQUEST, "the body must be {\"catalog\"}");
+        }
+        Sessions.Session s;
+        try {
+            s = Catalogs.validName(catalog) ? sessions.open(principal, catalog) : null;
+        } catch (SQLException e) {
+            throw Reply.error(500, ErrorCode.INTERNAL, String.valueOf(e.getMessage()));
+        }
+        if (s == null) throw Reply.error(404, ErrorCode.NOT_FOUND, "no catalog '" + catalog + "'");
+        throw new Reply(200, Json.toCompact(ApiJson.session(new SqlApi.Session(s.id(), s.catalog()))));
+    }
+
     private void submit(HttpExchange ex, String principal) throws IOException, Reply {
         StatementRequest req;
         try {
@@ -191,7 +220,12 @@ public final class WarehouseServer implements AutoCloseable {
         } catch (RuntimeException bad) {
             throw Reply.error(400, ErrorCode.BAD_REQUEST, String.valueOf(bad.getMessage()));
         }
-        if (!Catalogs.validName(req.catalog()) || !catalogs.names().contains(req.catalog())) {
+        String sessionId = req.sessionId();
+        if (sessionId != null) {
+            if (sessions.find(principal, sessionId) == null) {
+                throw Reply.error(404, ErrorCode.NOT_FOUND, "no session " + sessionId);
+            }
+        } else if (!Catalogs.validName(req.catalog()) || !catalogs.names().contains(req.catalog())) {
             throw Reply.error(404, ErrorCode.NOT_FOUND, "no catalog '" + req.catalog() + "'");
         }
         Statements.Run run;
@@ -311,6 +345,7 @@ public final class WarehouseServer implements AutoCloseable {
     public void close() throws SQLException {
         http.stop(0);
         statements.close();
+        sessions.close();
         history.close();
         catalogs.close();
     }

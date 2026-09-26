@@ -72,7 +72,18 @@ public final class WhDriver implements Driver {
         } catch (IllegalStateException refused) {
             throw new SQLException("sign-in refused: " + refused.getMessage(), refused);
         }
-        return new WhConnection(client, catalog, url);
+        String session;
+        try {
+            session = client.openSession(catalog);
+        } catch (java.io.IOException e) {
+            throw new SQLException("cannot open a session: " + e.getMessage(), e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new SQLException("interrupted while opening a session", e);
+        } catch (IllegalStateException refused) {
+            throw new SQLException("no session on catalog '" + catalog + "': " + refused.getMessage(), refused);
+        }
+        return new WhConnection(client, catalog, session, url);
     }
 
     @Override

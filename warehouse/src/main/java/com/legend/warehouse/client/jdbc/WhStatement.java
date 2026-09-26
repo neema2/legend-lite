@@ -36,7 +36,8 @@ final class WhStatement implements java.sql.PreparedStatement {
         WarehouseClient.Result r;
         try {
             r = conn.client.execute(new StatementRequest(sql, conn.catalog, timeoutMs,
-                    StatementRequest.DEFAULT_WAIT_MS, StatementRequest.DEFAULT_ROWS_PER_CHUNK), id -> inFlight = id);
+                    StatementRequest.DEFAULT_WAIT_MS, StatementRequest.DEFAULT_ROWS_PER_CHUNK, conn.session),
+                    id -> inFlight = id);
         } catch (WarehouseClient.Failure f) {
             throw new SQLException(f.error().message(), f.error().code().name(), f);
         } catch (java.io.IOException e) {

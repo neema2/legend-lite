@@ -43,13 +43,26 @@ public final class SqlApi {
         TIMEOUT, CANCELLED, QUEUE_FULL, TOO_LARGE, INTERNAL
     }
 
-    /** What a caller asks to run. */
+    /**
+     * What a caller asks to run. With a {@code sessionId}, it runs on that
+     * session's own connection, after the session's earlier statements:
+     * {@code USE}, {@code SET}, temp tables and transactions persist.
+     */
     public record StatementRequest(
             String sql,
             String catalog,
             long timeoutMs,
             long waitMs,
-            int rowsPerChunk) {
+            int rowsPerChunk,
+            @Nullable String sessionId) {
+
+        public StatementRequest(String sql, String catalog, long timeoutMs, long waitMs, int rowsPerChunk) {
+            this(sql, catalog, timeoutMs, waitMs, rowsPerChunk, null);
+        }
+
+        public StatementRequest inSession(String session) {
+            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, session);
+        }
 
         public static final String DEFAULT_CATALOG = "main";
         public static final long DEFAULT_TIMEOUT_MS = 60_000;
@@ -95,6 +108,10 @@ public final class SqlApi {
             @Nullable ResultMeta result,
             @Nullable ApiError error,
             @Nullable Chunk firstChunk) {
+    }
+
+    /** A session: a pinned connection to one catalog. */
+    public record Session(String sessionId, String catalog) {
     }
 
     /** A signed-in session's token. */

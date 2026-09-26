@@ -61,4 +61,10 @@ public interface SqlApiBinding {
     Chunk chunk(HttpResult result);
 
     HttpCall cancel(String statementId, String token);
+
+    HttpCall openSession(String catalog, String token);
+
+    SqlApi.Session session(HttpResult result);
+
+    HttpCall closeSession(String sessionId, String token);
 }

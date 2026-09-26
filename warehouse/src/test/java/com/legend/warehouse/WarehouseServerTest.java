@@ -179,6 +179,22 @@ class WarehouseServerTest {
     }
 
     @Test
+    void anotherUsersSessionDoesNotExistToYou() throws Exception {
+        String a = login("alice", "alice-pw");
+        String b = login("bob", "bob-pw");
+        String session = API.session(send(API.openSession("main", a))).sessionId();
+        HttpResult asBob = send(API.submit(StatementRequest.of("SELECT 1").inSession(session), b));
+        assertEquals(404, asBob.status(), asBob.body());
+        HttpResult asAlice = send(API.submit(StatementRequest.of("SELECT getvariable('app_user')").inSession(session), a));
+        assertEquals(200, asAlice.status(), asAlice.body());
+        assertTrue(asAlice.body().contains("alice"), asAlice.body());
+        assertEquals(404, send(API.closeSession(session, b)).status());
+        assertEquals(200, send(API.closeSession(session, a)).status());
+        assertEquals(404, send(API.submit(StatementRequest.of("SELECT 1").inSession(session), a)).status(),
+                "a closed session is gone");
+    }
+
+    @Test
     void aLargeResultComesInChunks() throws Exception {
         String t = login("alice", "alice-pw");
         SqlApiBinding.Done done = (SqlApiBinding.Done) run(t, new StatementRequest(

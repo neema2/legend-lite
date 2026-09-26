@@ -93,6 +93,15 @@ public final class WarehouseClient {
         return new Result(s.statementId(), meta, rows);
     }
 
+    /** A session on the catalog: statements in it share one connection, in order. */
+    public String openSession(String catalog) throws IOException, InterruptedException {
+        return binding.session(send(binding.openSession(catalog, token()))).sessionId();
+    }
+
+    public void closeSession(String sessionId) throws IOException, InterruptedException {
+        send(binding.closeSession(sessionId, token()));
+    }
+
     /** Ask the warehouse to stop a statement. */
     public void cancel(String statementId) throws IOException, InterruptedException {
         send(binding.cancel(statementId, token()));

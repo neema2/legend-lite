@@ -186,6 +186,76 @@ class WarehouseJdbcTest {
         assertEquals("SQL_BIND", e.getSQLState());
     }
 
+    static String one(Connection c, String sql) throws SQLException {
+        try (Statement s = c.createStatement(); ResultSet rs = s.executeQuery(sql)) {
+            assertTrue(rs.next(), "no row: " + sql);
+            return rs.getString(1);
+        }
+    }
+
+    static Connection connect() throws SQLException {
+        return DriverManager.getConnection("jdbc:warehouse:http://127.0.0.1:" + server.port()
+                + "/main?user=alice&password=alice-pw");
+    }
+
+    @Test
+    void aConnectionIsASessionWhatAStatementLeavesIsThereForTheNext() throws SQLException {
+        try (Connection c = connect(); Statement s = c.createStatement()) {
+            s.execute("SET TimeZone = 'America/New_York'");
+            assertEquals("America/New_York", one(c, "SELECT current_setting('TimeZone')"));
+            // The corpus harness's workspace, exactly: attach, use, work.
+            String home = one(c, "SELECT current_database()");
+            s.execute("ATTACH ':memory:' AS ws_probe");
+            s.execute("USE ws_probe");
+            s.execute("CREATE TABLE fixture AS SELECT 42 AS answer");
+            assertEquals("42", one(c, "SELECT answer FROM fixture"));
+            s.execute("CREATE TEMP TABLE scratch AS SELECT 'mine' AS who");
+            assertEquals("mine", one(c, "SELECT who FROM scratch"));
+            s.execute("USE \"" + home + "\"");
+            s.execute("DETACH ws_probe");
+        }
+    }
+
+    @Test
+    void twoConnectionsDoNotSeeEachOthersSessions() throws SQLException {
+        try (Connection a = connect(); Connection b = connect()) {
+            a.createStatement().execute("CREATE TEMP TABLE only_a AS SELECT 1 AS x");
+            assertEquals("1", one(a, "SELECT x FROM only_a"));
+            SQLException e = assertThrows(SQLException.class, () -> one(b, "SELECT x FROM only_a"));
+            assertTrue(e.getMessage().contains("only_a"), e.getMessage());
+        }
+    }
+
+    @Test
+    void transactionsRollBackAndCommit() throws SQLException {
+        try (Connection c = connect(); Statement s = c.createStatement()) {
+            s.execute("CREATE OR REPLACE TABLE ledger (id INTEGER)");
+            c.setAutoCommit(false);
+            s.execute("INSERT INTO ledger VALUES (1), (2)");
+            c.rollback();
+            assertEquals("0", one(c, "SELECT count(*) FROM ledger"));
+            s.execute("INSERT INTO ledger VALUES (3)");
+            c.commit();
+            c.setAutoCommit(true);
+        }
+        try (Connection other = connect()) {
+            assertEquals("1", one(other, "SELECT count(*) FROM ledger"), "the commit is visible elsewhere");
+        }
+    }
+
+    @Test
+    void aScriptRunsAndAnswersWithItsLastStatement() throws SQLException {
+        try (Connection c = connect(); Statement s = c.createStatement()) {
+            assertTrue(s.execute("CREATE OR REPLACE TABLE s1 (x INTEGER); INSERT INTO s1 VALUES (1), (2); "
+                    + "SELECT sum(x) FROM s1"));
+            ResultSet rs = s.getResultSet();
+            assertTrue(rs.next());
+            assertEquals(3, rs.getLong(1));
+            SQLException e = assertThrows(SQLException.class, () -> s.execute("SELECT 1; SELECT * FROM nope_second"));
+            assertTrue(e.getMessage().contains("nope_second"), "the real error, whichever statement: " + e.getMessage());
+        }
+    }
+
     @Test
     void anEmptyResultHasItsColumnsAndNoRows() throws SQLException {
         try (Statement s = remote.createStatement();

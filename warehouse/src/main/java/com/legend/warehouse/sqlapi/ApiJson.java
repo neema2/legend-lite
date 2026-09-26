@@ -34,6 +34,8 @@ public final class ApiJson {
         f.put("timeoutMs", Json.num(r.timeoutMs()));
         f.put("waitMs", Json.num(r.waitMs()));
         f.put("rowsPerChunk", Json.num(r.rowsPerChunk()));
+        String session = r.sessionId();
+        if (session != null) f.put("sessionId", Json.str(session));
         return Json.toCompact(new Json.Obj(f));
     }
 
@@ -49,7 +51,26 @@ public final class ApiJson {
                 catalog == null ? StatementRequest.DEFAULT_CATALOG : catalog,
                 o.getLongOr("timeoutMs", StatementRequest.DEFAULT_TIMEOUT_MS),
                 o.getLongOr("waitMs", StatementRequest.DEFAULT_WAIT_MS),
-                o.getIntOr("rowsPerChunk", StatementRequest.DEFAULT_ROWS_PER_CHUNK));
+                o.getIntOr("rowsPerChunk", StatementRequest.DEFAULT_ROWS_PER_CHUNK),
+                o.getStringOr("sessionId", null));
+    }
+
+    public static String openSession(String catalog) {
+        LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>();
+        f.put("catalog", Json.str(catalog));
+        return Json.toCompact(new Json.Obj(f));
+    }
+
+    public static Json.Obj session(SqlApi.Session s) {
+        LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>();
+        f.put("sessionId", Json.str(s.sessionId()));
+        f.put("catalog", Json.str(s.catalog()));
+        return new Json.Obj(f);
+    }
+
+    public static SqlApi.Session parseSession(String body) {
+        Json.Obj o = Json.parseObject(body);
+        return new SqlApi.Session(o.getString("sessionId"), o.getString("catalog"));
     }
 
     public static String login(String user, String password) {

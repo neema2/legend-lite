@@ -7,21 +7,31 @@ import java.sql.SQLWarning;
 import java.sql.Statement;
 
 /**
- * A connection to one catalog of a warehouse. Each statement runs on its
- * own server-side connection with the signed-in user's identity (W1a), so
- * there are no transactions spanning statements yet: autocommit only.
+ * A connection to one catalog of a warehouse: ONE server-side session, so
+ * what a statement leaves behind (USE, SET, temp tables, a transaction) is
+ * there for the next, as on a local DuckDB connection. The signed-in user's
+ * identity is set by the server before every statement.
  */
 final class WhConnection implements java.sql.Connection {
 
     final WarehouseClient client;
     final String catalog;
+    final String session;
     private final String url;
     private volatile boolean closed;
+    private boolean autoCommit = true;
 
-    WhConnection(WarehouseClient client, String catalog, String url) {
+    WhConnection(WarehouseClient client, String catalog, String session, String url) {
         this.client = client;
         this.catalog = catalog;
+        this.session = session;
         this.url = url;
+    }
+
+    private void run(String sql) throws SQLException {
+        try (Statement s = createStatement()) {
+            s.execute(sql);
+        }
     }
 
     private void open() throws SQLException {
@@ -42,27 +52,49 @@ final class WhConnection implements java.sql.Connection {
 
     @Override
     public boolean getAutoCommit() {
-        return true;
+        return autoCommit;
+    }
+
+    /** Off: a transaction is begun on the session; commit and rollback end it and begin the next. */
+    @Override
+    public void setAutoCommit(boolean on) throws SQLException {
+        open();
+        if (on == autoCommit) return;
+        if (on) {
+            run("COMMIT");
+        } else {
+            run("BEGIN TRANSACTION");
+        }
+        autoCommit = on;
     }
 
     @Override
-    public void setAutoCommit(boolean autoCommit) throws SQLException {
-        if (!autoCommit) throw Unsupported.of("transactions across statements (autocommit only, W1)");
-    }
-
-    @Override
-    public void commit() {
-        // autocommit: every statement is already committed
+    public void commit() throws SQLException {
+        open();
+        if (autoCommit) throw new SQLException("commit with autocommit on");
+        run("COMMIT");
+        run("BEGIN TRANSACTION");
     }
 
     @Override
     public void rollback() throws SQLException {
-        throw Unsupported.of("rollback (autocommit only, W1)");
+        open();
+        if (autoCommit) throw new SQLException("rollback with autocommit on");
+        run("ROLLBACK");
+        run("BEGIN TRANSACTION");
     }
 
     @Override
     public void close() {
+        if (closed) return;
         closed = true;
+        try {
+            client.closeSession(session);
+        } catch (java.io.IOException | RuntimeException gone) {
+            // the session expires on the server anyway
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     @Override

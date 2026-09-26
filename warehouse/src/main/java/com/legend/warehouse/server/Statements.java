@@ -102,6 +102,7 @@ public final class Statements implements AutoCloseable {
     }
 
     private final Catalogs catalogs;
+    private final Sessions sessions;
     private final History history;
     private final Limits limits;
     private final Clock clock;
@@ -113,8 +114,9 @@ public final class Statements implements AutoCloseable {
     });
     private final Map<String, Run> runs = new ConcurrentHashMap<>();
 
-    public Statements(Catalogs catalogs, History history, Limits limits, Clock clock) {
+    public Statements(Catalogs catalogs, Sessions sessions, History history, Limits limits, Clock clock) {
         this.catalogs = catalogs;
+        this.sessions = sessions;
         this.history = history;
         this.limits = limits;
         this.clock = clock;
@@ -125,6 +127,7 @@ public final class Statements implements AutoCloseable {
                     return t;
                 });
         timers.scheduleWithFixedDelay(this::forgetOld, 30, 30, TimeUnit.SECONDS);
+        timers.scheduleWithFixedDelay(sessions::closeIdle, 60, 60, TimeUnit.SECONDS);
     }
 
     /** Queue a statement, or throw QueueFull when there is no room. */
@@ -185,6 +188,31 @@ public final class Statements implements AutoCloseable {
                     run.timedOut ? new ApiError(ErrorCode.TIMEOUT, "timed out while queued") : null);
             return;
         }
+        String sessionId = run.request.sessionId();
+        if (sessionId != null) {
+            Sessions.Session s = sessions.find(run.principal, sessionId);
+            if (s == null) {
+                finish(run, State.FAILED, new ApiError(ErrorCode.NOT_FOUND, "no session " + sessionId));
+                return;
+            }
+            // In the session's order, on its own connection, which stays open.
+            s.lock.lock();
+            try {
+                s.lastUsed = clock.instant();
+                if (run.cancelRequested) {
+                    finish(run, run.timedOut ? State.FAILED : State.CANCELLED,
+                            run.timedOut ? new ApiError(ErrorCode.TIMEOUT, "timed out while queued") : null);
+                    return;
+                }
+                run.state = State.RUNNING;
+                run.started = clock.instant();
+                runOn(run, s.connection);
+            } finally {
+                s.lastUsed = clock.instant();
+                s.lock.unlock();
+            }
+            return;
+        }
         run.state = State.RUNNING;
         run.started = clock.instant();
         String catalog = run.request.catalog();
@@ -193,6 +221,15 @@ public final class Statements implements AutoCloseable {
                 finish(run, State.FAILED, new ApiError(ErrorCode.NOT_FOUND, "no catalog '" + catalog + "'"));
                 return;
             }
+            runOn(run, c);
+        } catch (SQLException e) {
+            finish(run, State.FAILED, classify(e));
+        }
+    }
+
+    /** One statement on one connection: identity first, then prepare and execute. */
+    private void runOn(Run run, Connection c) {
+        try {
             try (Statement identity = c.createStatement()) {
                 // The identity, on this statement's own connection, before anything else.
                 identity.execute("SET VARIABLE app_user = '" + run.principal.replace("'", "''") + "'");
