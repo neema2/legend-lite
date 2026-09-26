@@ -25,8 +25,10 @@ import { describe, it } from 'node:test';
 const read = (path: string): string =>
   readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
 
-const MENU = read('src/ui/menu.ts');
-const APP = read('src/app.ts');
+// Ad Hoc Analysis mode builds and handles its own entries.
+const MODE = read('src/adhoc/mode.ts');
+const MENU = read('src/ui/menu.ts') + MODE;
+const APP = read('src/app.ts') + MODE;
 
 /** Ids the menu builder can put on an item. */
 const emitted = new Set(

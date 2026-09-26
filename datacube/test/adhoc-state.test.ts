@@ -43,6 +43,12 @@ describe('the opening grid', () => {
     assert.equal(g.options.suppressMissingRows, true, 'the user decision: suppress missing on');
     assert.equal(g.options.ancestorPosition, 'top', 'the user decision: top by default');
   });
+
+  it('opens on the dimension asked for, the rest on the POV', () => {
+    const g = initialGrid(OUTLINE, undefined, 'Geography');
+    assert.deepEqual(g.rows.map((a) => a.dimension), ['Geography']);
+    assert.ok('Time' in g.pov && !('Geography' in g.pov));
+  });
 });
 
 describe('Zoom In / Zoom Out', () => {

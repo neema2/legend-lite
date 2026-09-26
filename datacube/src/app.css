@@ -585,6 +585,10 @@
   flex: 1 1 auto;
 }
 
+/* Hidden while Ad Hoc Analysis mode is on: the flex above would
+   otherwise win over the hidden attribute, as it did for the zones. */
+.dc-app-middle[hidden] { display: none !important; }
+
 .dc-app-middle .dc-app-grid {
   flex: 1;
   min-width: 0;
@@ -1932,4 +1936,209 @@
 
 .dc-pivot-panel.dc-pivot-panel-list .dc-zone .dc-chip.dc-drop-after {
   box-shadow: inset 0 -2px 0 0 var(--tw-sky-500, #0ea5e9);
+}
+
+/* ---- Ad Hoc Analysis mode ------------------------------------------- */
+.dc-adhoc {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 2px;
+}
+
+.dc-adhoc-pov {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  min-height: var(--dc-control-height);
+  padding: 2px 4px;
+  border: 1px solid var(--dc-line);
+  background: var(--dc-fill-faint);
+}
+
+.dc-adhoc-pov-label {
+  font-weight: 600;
+  color: var(--dc-muted-strong);
+  margin-right: 4px;
+}
+
+.dc-adhoc-pov-empty {
+  color: var(--dc-muted);
+  font-style: italic;
+}
+
+.dc-adhoc-pov-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--dc-row-control-height);
+  padding: 0 6px;
+  border: 1px solid var(--dc-line-strong);
+  border-radius: var(--dc-radius-sm);
+  background: var(--dc-bg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.dc-adhoc-pov-chip:hover {
+  border-color: var(--dc-active);
+}
+
+.dc-adhoc-pov-dim {
+  color: var(--dc-muted);
+}
+
+.dc-adhoc-pov-member {
+  font-weight: 500;
+}
+
+.dc-adhoc-pov-tools {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.dc-adhoc-tool {
+  height: var(--dc-row-control-height);
+  padding: 0 8px;
+  border: 1px solid var(--dc-line);
+  border-radius: var(--dc-radius-sm);
+  background: var(--dc-bg);
+  font: inherit;
+  cursor: pointer;
+}
+
+.dc-adhoc-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+
+.dc-overlay-body.dc-adhoc-members,
+.dc-overlay-body.dc-adhoc-options {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.dc-adhoc-members-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+}
+
+.dc-adhoc-members-left,
+.dc-adhoc-members-right {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dc-adhoc-members-search {
+  height: var(--dc-control-height);
+}
+
+.dc-adhoc-members-tree,
+.dc-adhoc-members-picked {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  margin: 0;
+  padding: 2px;
+  border: 1px solid var(--dc-line);
+}
+
+.dc-adhoc-members-picked {
+  list-style: none;
+}
+
+.dc-adhoc-member,
+.dc-adhoc-picked {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: var(--dc-row-height);
+  white-space: nowrap;
+}
+
+.dc-adhoc-member-twist {
+  width: 14px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.dc-adhoc-member-label {
+  cursor: default;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dc-adhoc-member-focus > .dc-adhoc-member-label {
+  outline: 1px solid var(--dc-active);
+  background: var(--dc-selection-fill);
+}
+
+.dc-adhoc-picked-label {
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dc-adhoc-members-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.dc-adhoc-members-heading {
+  font-weight: 600;
+  color: var(--dc-muted-strong);
+}
+
+.dc-adhoc-members-none {
+  color: var(--dc-muted);
+  padding: 4px;
+}
+
+.dc-adhoc-members-footer,
+.dc-adhoc-options-footer {
+  flex: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 40px;
+  padding: 0 8px;
+  border-top: 1px solid var(--dc-line);
+}
+
+.dc-adhoc-members-buttons,
+.dc-adhoc-options-buttons {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.dc-adhoc-options-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 12px;
+}
+
+.dc-adhoc-options-section {
+  margin: 0 0 8px;
+  border: 1px solid var(--dc-line-faint);
+}
+
+.dc-adhoc-option {
+  display: block;
+  padding: 2px 0;
 }

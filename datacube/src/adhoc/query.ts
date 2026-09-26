@@ -82,6 +82,39 @@ function and(nodes: readonly FilterNode[]): FilterNode | undefined {
   return nodes.length === 1 ? nodes[0] : { kind: 'and', children: nodes };
 }
 
+/** At most this many members are named in one shape's filter. */
+export const MAX_FILTER_MEMBERS = 64;
+
+/**
+ * What a shape's filter names for one dimension: the members shown,
+ * or -- past MAX_FILTER_MEMBERS -- their distinct parents, and theirs,
+ * until few enough, up to the top (no filter at all). Zooming the top
+ * of a dimension with 5,000 members put 5,000 conditions in one
+ * filter, and the planner ran out of stack (2026-09-25 harness).
+ *
+ * A cover is a SUPERSET of the rows asked for, never a subset: the
+ * answer may hold members the grid does not show, and the grid reads
+ * each cell by its members' exact values, so those are simply never
+ * read. The figures are the same; only the answer is larger.
+ */
+export function coveringMembers(shown: readonly MemberPath[]): MemberPath[] {
+  let cover = [...shown];
+  while (cover.length > MAX_FILTER_MEMBERS && (cover[0]?.length ?? 0) > 0) {
+    const seen = new Set<string>();
+    const up: MemberPath[] = [];
+    for (const m of cover) {
+      const parent = m.slice(0, -1);
+      const k = parent.join(KEY_SEP);
+      if (!seen.has(k)) {
+        seen.add(k);
+        up.push(parent);
+      }
+    }
+    cover = up;
+  }
+  return cover;
+}
+
 /**
  * The queries a grid needs, one per shape. A shape where a measure has
  * nothing to aggregate (no measure in play) needs none.
@@ -119,10 +152,14 @@ export function planQueries(cube: AdHocCube, grid: AdHocGrid): AdHocQuery[] {
       if (level === 0) return;
       const generations = outlineOf(cube, a.dimension).generations;
       groupColumns.push(...generations.slice(0, level));
-      // Only the members shown at this generation.
-      const shown = a.members.filter((m) => m.length === level);
-      const each = shown.map((m) => and(memberConditions(cube.snapshot, generations, m)) as FilterNode);
-      if (each.length > 0) filters.push(each.length === 1 ? each[0] as FilterNode : { kind: 'or', children: each });
+      // The members shown at this generation -- or, when they are many,
+      // what COVERS them (see coveringMembers).
+      const cover = coveringMembers(a.members.filter((m) => m.length === level));
+      const each = cover.map((m) => and(memberConditions(cube.snapshot, generations, m)))
+        .filter((f): f is FilterNode => f !== undefined);
+      if (each.length === cover.length && each.length > 0) {
+        filters.push(each.length === 1 ? each[0] as FilterNode : { kind: 'or', children: each });
+      }
     });
     const needed = new Set([...groupColumns, ...specs.map((m) => m.column),
       ...specs.flatMap((m) => (m.weight ? [m.weight] : []))]);
@@ -160,6 +197,11 @@ export function memberLabel(dimension: string, path: MemberPath): string {
 const TOP = '\u0002';
 function segment(dimension: string, path: MemberPath): string {
   return path.length === 0 ? `${TOP}${dimension}` : path.join('\u0001');
+}
+
+/** The member a header segment names (the top member: no values). */
+export function memberOfSegment(s: string): MemberPath {
+  return s.startsWith(TOP) ? [] : s.split('\u0001');
 }
 
 /** What a header segment shows. */

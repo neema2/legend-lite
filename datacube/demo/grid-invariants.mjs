@@ -19,7 +19,11 @@
 export function gridInvariants() {
   const bad = [];
   const round = (n) => Math.round(n);
-  const root = document.querySelector('.dc-grid');
+  // THE GRID ON SCREEN. Ad Hoc Analysis mode keeps the cube's grid,
+  // hidden, beside its own; measuring both at once reported the hidden
+  // one's zero-width headers as the visible one's faults.
+  const grids = [...document.querySelectorAll('.dc-grid')];
+  const root = grids.find((g) => g.getClientRects().length > 0) ?? grids[0];
   if (!root) return ['there is no grid at all'];
 
   // 1. The grid occupies real space. A container collapsed to nothing
@@ -42,9 +46,9 @@ export function gridInvariants() {
   //    box shorter than the cells it holds is a header nobody can
   //    read. Zero-width cells are still worth catching separately,
   //    since a collapsed column clips in the other axis.
-  const ths = [...document.querySelectorAll('.dc-th')];
+  const ths = [...root.querySelectorAll('.dc-th')];
   if (!ths.length) bad.push('no header cells exist');
-  const head = document.querySelector('.dc-head');
+  const head = root.querySelector('.dc-head');
   if (ths.length && head) {
     const headH = head.getBoundingClientRect().height;
     const cellH = Math.max(
@@ -73,7 +77,7 @@ export function gridInvariants() {
 
   // 4. Rows are RECTANGULAR. A ragged row means the column model and
   //    the row renderer disagree about how many columns there are.
-  const rows = [...document.querySelectorAll('.dc-row')];
+  const rows = [...root.querySelectorAll('.dc-row')];
   const widths = new Set(
     rows.map((r) => r.querySelectorAll('.dc-cell').length),
   );
@@ -131,7 +135,7 @@ export function gridInvariants() {
   //    and a grouping that dropped a column are all this one property
   //    failing -- four faults found by hand, one assertion.
   const headAt = new Map();
-  for (const e of document.querySelectorAll('.dc-th[data-column]')) {
+  for (const e of root.querySelectorAll('.dc-th[data-column]')) {
     headAt.set(e.dataset.column, round(e.getBoundingClientRect().left));
   }
   const first = rows[0];
@@ -169,7 +173,7 @@ export function gridInvariants() {
   //    column across.
   if (first) {
     const headByX = new Map();
-    for (const e of document.querySelectorAll('.dc-th[data-column]')) {
+    for (const e of root.querySelectorAll('.dc-th[data-column]')) {
       headByX.set(round(e.getBoundingClientRect().left), e.dataset.column);
     }
     for (const c of first.querySelectorAll('.dc-cell')) {

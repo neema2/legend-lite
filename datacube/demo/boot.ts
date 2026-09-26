@@ -561,6 +561,7 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
           // they are and let the user build the cube up. Guessing at
           // dimensions and measures would be wrong more often than
           // the guess is worth.
+          app.dispose();
           app = makeApp(
             {
               source: { expression: opened.source },

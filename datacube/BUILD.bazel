@@ -29,6 +29,9 @@ _TESTS = glob(["test/*.test.ts"])
 # What a test reads from disk beyond src/: the guardrails scan the demo
 # entry points too (they ship), so they are declared, not assumed.
 _EXTRA_DATA = {
+    # the in-memory source the Ad Hoc Analysis tests query
+    "adhoc-session": ["test/adhoc-fixture.ts"],
+    "adhoc-mode": ["test/adhoc-fixture.ts"],
     "guardrails": glob(["demo/**/*.ts"]) + [
         "test/wasm-differential/compare.ts",
         "//wasm:differential",

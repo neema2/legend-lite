@@ -599,6 +599,20 @@ export class CubeController {
     return this.#applyHistory(next, () => this.#history.rollbackRedo(next));
   }
 
+  /**
+   * Run one query through this cube's runner -- whichever plane it is --
+   * outside the tree: Ad Hoc Analysis mode's grid and member lookups.
+   */
+  async query(
+    pure: string,
+    snapshot: CubeSnapshot,
+    scope?: LevelScope,
+    signal?: AbortSignal,
+  ): Promise<ResultTable> {
+    const { rows } = await this.#runner.run(pure, snapshot, scope, signal);
+    return rows;
+  }
+
   /** Settings > Max History Stack Size. */
   setHistoryLimit(limit: number): void {
     this.#history.setLimit(limit);

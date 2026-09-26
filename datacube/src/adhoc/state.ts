@@ -84,15 +84,20 @@ export interface AdHocGrid {
 // -- starting a grid ------------------------------------------------------
 
 /**
- * The classic ad hoc opening grid: the first dimension down the rows at its
+ * The classic ad hoc opening grid: one dimension (the first, or `start`) down the rows at its
  * top member, the measures across the columns, everything else on the
  * POV at its top.
  */
-export function initialGrid(outline: Outline, options = DEFAULT_OPTIONS): AdHocGrid {
+export function initialGrid(
+  outline: Outline,
+  options = DEFAULT_OPTIONS,
+  /** The dimension to open on (the one the cube was grouped by); else the first. */
+  start?: string,
+): AdHocGrid {
   const regular = outline.dimensions.filter((d) => d.name !== MEASURES);
-  const first = regular[0];
+  const first = regular.find((d) => d.name === start) ?? regular[0];
   const pov: Record<string, MemberPath> = {};
-  for (const d of regular.slice(1)) pov[d.name] = [];
+  for (const d of regular) if (d !== first) pov[d.name] = [];
   return {
     rows: first ? [{ dimension: first.name, members: [[]] }] : [],
     columns: [{ dimension: MEASURES, members: outline.measures.map((m) => [m]) }],

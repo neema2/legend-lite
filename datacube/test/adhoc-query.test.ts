@@ -3,7 +3,14 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { assembleGrid, planQueries, segmentLabel, type AdHocCube } from '../src/adhoc/query.ts';
+import {
+  assembleGrid,
+  coveringMembers,
+  MAX_FILTER_MEMBERS,
+  planQueries,
+  segmentLabel,
+  type AdHocCube,
+} from '../src/adhoc/query.ts';
 import {
   initialGrid,
   povToAxis,
@@ -72,6 +79,36 @@ describe('the queries: one per shape', () => {
     assert.match(quarters!.pure, /groupBy\(~\[year, quarter\]/);
     assert.match(quarters!.pure, /\$x\.quarter == 'Q1'/);
     assert.doesNotMatch(quarters!.pure, /'2022'/, 'only the members shown at that generation');
+  });
+
+  it('many members are filtered by what covers them, never one condition each', () => {
+    // Every quarter of 100 years: 400 members at generation 2.
+    const years = Array.from({ length: 100 }, (_v, i) => [String(2000 + i)]);
+    const quarters = years.flatMap(([y]) => ['Q1', 'Q2', 'Q3', 'Q4'].map((q) => [y as string, q]));
+    assert.deepEqual(coveringMembers(quarters.slice(0, MAX_FILTER_MEMBERS)),
+      quarters.slice(0, MAX_FILTER_MEMBERS), 'few enough: the members themselves');
+    assert.deepEqual(coveringMembers(quarters.slice(0, 200)), years.slice(0, 50),
+      'too many: their parents');
+    assert.deepEqual(coveringMembers(quarters), [[]], 'still too many: the top, no filter');
+    let g = initialGrid(CUBE.outline);
+    g = zoomIn(g, 'Time', [], quarters);
+    const deep = planQueries(CUBE, g).find((q) => q.key === '2');
+    assert.ok(deep);
+    assert.match(deep.pure, /groupBy\(~\[year, quarter\]/);
+    assert.doesNotMatch(deep.pure, /\$x\.quarter ==/, 'no per-member conditions');
+    assert.doesNotMatch(deep.pure, /\$x\.year ==/, 'the top covers them: no filter');
+  });
+
+  it('a superset answer places exactly the members shown', () => {
+    // Two members shown, the answer holds a third: it is never read.
+    let g = initialGrid(CUBE.outline);
+    g = zoomIn(g, 'Time', [], [['2021'], ['2022']]);
+    g = { ...g, rows: [{ dimension: 'Time', members: [['2021'], ['2022']] }] };
+    const qs = planQueries(CUBE, g);
+    const answers = new Map([[qs[0]!.key, table({
+      year: ['2020', '2021', '2022'], notional: [1, 2, 3], pnl: [0, 0, 0] })]]);
+    const view = assembleGrid(CUBE, g, answers, qs);
+    assert.deepEqual(view.table.columns[1]?.values, [2, 3]);
   });
 
   it('the POV pins every query', () => {

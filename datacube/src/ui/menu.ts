@@ -226,7 +226,24 @@ export type MenuActionId =
   | 'view.dimension'
   | 'view.undo'
   | 'view.redo'
-  | 'view.settings';
+  | 'view.settings'
+  | 'view.adhoc'
+  | 'adhoc.zoomNext'
+  | 'adhoc.zoomAll'
+  | 'adhoc.zoomBottom'
+  | 'adhoc.zoomOut'
+  | 'adhoc.keepOnly'
+  | 'adhoc.removeOnly'
+  | 'adhoc.pivot'
+  | 'adhoc.pivotToPov'
+  | 'adhoc.povToRows'
+  | 'adhoc.povToColumns'
+  | 'adhoc.members'
+  | 'adhoc.refresh'
+  | 'adhoc.undo'
+  | 'adhoc.redo'
+  | 'adhoc.options'
+  | 'adhoc.exit';
 
 export interface MenuItem {
   /** Absent on a pure submenu parent, which does nothing itself. */
@@ -245,6 +262,13 @@ export interface MenuItem {
   readonly disabled?: boolean;
   /** A state the entry reports: upstream's check mark (Pin Left / Right). */
   readonly checked?: boolean;
+  /** Ad Hoc Analysis mode: the member (or dimension) the entry acts on. */
+  readonly adhoc?: {
+    readonly dimension: string;
+    readonly member?: readonly string[];
+    /** Members selected with it, for Keep Only / Remove Only. */
+    readonly selected?: readonly (readonly string[])[];
+  };
   readonly submenu?: readonly MenuItem[];
 }
 

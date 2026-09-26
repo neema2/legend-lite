@@ -369,6 +369,46 @@ describe('the app', () => {
     assert.ok(labels.includes('Hide Title Bar'), labels.join(', '));
   });
 
+  it('switches to Ad Hoc Analysis from the hamburger, and back as it was', async () => {
+    hamburger();
+    pick('Ad Hoc Analysis');
+    const settle = async (): Promise<void> => {
+      for (let i = 0; i < 20 && (app.adhoc?.busy ?? false); i++) {
+        await new Promise((r) => setTimeout(r, 0));
+      }
+      await new Promise((r) => setTimeout(r, 0));
+    };
+    await settle();
+    assert.ok(app.adhoc, 'the mode is on');
+    const middle = root.querySelector('.dc-app-middle') as HTMLElement;
+    assert.equal(middle.hidden, true, "the cube's grid waits");
+    assert.equal((root.querySelector('.dc-zone-bar') as HTMLElement).hidden, true);
+    assert.ok(root.querySelector('.dc-adhoc .dc-adhoc-pov'));
+    // The host's hierarchy is the outline; the opening grid is its top.
+    assert.deepEqual(app.adhoc.session.grid.rows.map((a) => a.dimension), ['Geography']);
+    assert.deepEqual(app.adhoc.view?.table.columns[0]?.values, ['Geography']);
+    // Checked while on; choosing it again leaves.
+    hamburger();
+    const entry = menuItems().find((i) => i.textContent?.includes('Ad Hoc Analysis'));
+    assert.equal(entry?.getAttribute('aria-checked'), 'true');
+    pick('Ad Hoc Analysis');
+    assert.equal(app.adhoc, null);
+    assert.equal(root.querySelector('.dc-adhoc'), null);
+    assert.equal(middle.hidden, false);
+    assert.equal((root.querySelector('.dc-zone-bar') as HTMLElement).hidden, false);
+  });
+
+  it('a disposed app no longer answers the shortcuts', () => {
+    const undoKey = () => dom.window.document.dispatchEvent(
+      new dom.window.KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }));
+    undoKey();
+    const heard = statuses.length;
+    assert.ok(heard > 0, 'the live app answers Ctrl-Z');
+    app.dispose();
+    undoKey();
+    assert.equal(statuses.length, heard, 'a disposed app spoke');
+  });
+
   it('shows the row grouping as chips, in BOTH surfaces', () => {
     // The bar over the grid and the sidebar's own section are two
     // renderings of one state, so a grouping shows in both -- and a
@@ -1079,5 +1119,17 @@ describe('the bar says what you are looking at, and nothing else', () => {
     assert.match(toggle.title, /frozen at \d/);
     assert.match(toggle.title, /29 rows/);
     assert.match(toggle.title, /Click to go live/);
+  });
+});
+
+describe('applying the editor', () => {
+  it("keeps the Dimensions tab's hierarchies on the configuration", async () => {
+    const { mergeDraft } = await import('../src/app.ts');
+    const base = { snapshot: SNAPSHOT, config: DEFAULT_CONFIGURATION, dimensions: [] };
+    const geo = [{ name: 'Geography', columns: ['region', 'desk'] }];
+    const merged = mergeDraft(base, base, { ...base, dimensions: geo });
+    assert.deepEqual(merged.config.dimensions, geo);
+    // Untouched, nothing is written: the host's stay in charge.
+    assert.equal(mergeDraft(base, base, base).config.dimensions, undefined);
   });
 });

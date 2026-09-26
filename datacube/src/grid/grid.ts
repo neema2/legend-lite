@@ -87,6 +87,10 @@ export interface GridOptions {
   readonly rowMeta?: (absoluteRow: number) => GridRowMeta;
   readonly onToggleExpand?: (key: string, expanded: boolean) => void;
   readonly onActivateCell?: (row: number, column: number) => void;
+  /** A cell double-clicked (a host that zooms on it); nothing when absent. */
+  readonly onDoubleClickCell?: (row: number, column: number) => void;
+  /** A header cell double-clicked: its segments down to it, and its level. */
+  readonly onHeaderActivate?: (path: readonly string[], level: number) => void;
   /** Called whenever the selected rectangle changes. */
   readonly onSelectionChange?: (range: CellRange | null) => void;
   /**
@@ -580,6 +584,12 @@ export class DataGrid {
         if (cell.colSpan > 1) {
           el.setAttribute('aria-colspan', String(cell.colSpan));
         }
+        // Which header this is, for a host that acts on it (Ad Hoc Analysis
+        // mode's column members).
+        el.dataset['level'] = String(level);
+        if (cell.path) el.dataset['segments'] = JSON.stringify(cell.path);
+        el.addEventListener('dblclick', () =>
+          this.#options.onHeaderActivate?.(cell.path ?? [], level));
         if (cell.rowSpan > 1) {
           el.setAttribute('aria-rowspan', String(cell.rowSpan));
         }
@@ -1002,6 +1012,8 @@ export class DataGrid {
     const target = event.target as { closest?: unknown } | null;
     if (!target || typeof target.closest !== 'function') return;
     const el = target as unknown as Element;
+    // The second click of a double-click: see #onDoubleClick.
+    if (event.detail === 2) this.#onDoubleClick(event);
 
     const cell = el.closest<HTMLElement>('.dc-cell');
     const chevron = el.closest('.dc-chevron');
@@ -1035,6 +1047,36 @@ export class DataGrid {
     const expanded = row?.getAttribute('aria-expanded') === 'true';
     event.preventDefault();
     this.#options.onToggleExpand?.(key, !expanded);
+  };
+
+  /**
+   * A cell double-clicked, for a host that acts on it.
+   *
+   * READ OFF THE CLICK'S COUNT, not a dblclick listener: the first
+   * click re-renders the cell it lands on (focus and selection move),
+   * so the second lands on a NEW element and Chrome sends no dblclick
+   * at all (2026-09-25 harness: two clicks, no dblclick). The click
+   * count survives the re-render; the pointer's position finds the
+   * cell now under it.
+   */
+  #onDoubleClick = (event: MouseEvent): void => {
+    const target = event.target as { closest?: unknown } | null;
+    if (!target || typeof target.closest !== 'function') return;
+    const el = target as unknown as Element;
+    if (el.closest('.dc-chevron')) return;
+    const doc = this.#root.ownerDocument;
+    const cell = (el.isConnected ? el.closest<HTMLElement>('.dc-cell') : null)
+      ?? (typeof doc.elementFromPoint === 'function'
+        ? doc.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>('.dc-cell') ?? null
+        : null);
+    if (cell && !this.#body.contains(cell)) return;
+    const row = cell?.closest<HTMLElement>('.dc-row');
+    if (!cell || !row) return;
+    // The cell's own column index, not its place among the row's
+    // children: a row holds more than its cells.
+    const col = Number(cell.getAttribute('aria-colindex') ?? '0') - 1;
+    const abs = Number(row.getAttribute('aria-rowindex') ?? '0') - this.#headerLevels() - 1;
+    if (col >= 0 && abs >= 0) this.#options.onDoubleClickCell?.(abs, col);
   };
 
   #onScroll = (): void => {

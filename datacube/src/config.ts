@@ -170,6 +170,12 @@ export interface CubeConfiguration {
    * upstream has no such option; display only, the query is the same.
    */
   readonly pivotMeasuresFirst?: boolean;
+  /**
+   * Named dimensions (hierarchies), as the Dimensions tab edits them --
+   * upstream's `DataCubeConfiguration.dimensions`. Absent: the host's.
+   * Ad Hoc Analysis mode's outline is built from them.
+   */
+  readonly dimensions?: readonly { readonly name: string; readonly columns: readonly string[] }[];
 
   // No grid mode: "Dimensional" was offered and read by nothing
   // (census §2). It returns with Ad Hoc Analysis mode, which gives it a meaning.

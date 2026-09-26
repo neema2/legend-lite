@@ -42,6 +42,10 @@ import {
 } from './config.ts';
 import type { Dimension } from './dimensions.ts';
 import { availableDimensions, useDimension } from './dimensions.ts';
+import { AdHocMode } from './adhoc/mode.ts';
+import { buildCube } from './adhoc/outline.ts';
+import { AdHocSession } from './adhoc/session.ts';
+import { initialGrid } from './adhoc/state.ts';
 import { drillQuery } from './drill.ts';
 import type { QueryEngine } from './engine.ts';
 import { exportFileName, toCsv, toEml } from './export.ts';
@@ -355,6 +359,10 @@ export class CubeApp {
   #statsSlot: HTMLElement | null = null;
   /** Repaints the plane toggle, which is now the only plane badge. */
   #paintSnap: (() => void) | null = null;
+  /** Ad Hoc Analysis mode while it is on; the cube's own grid is hidden then. */
+  #adhoc: AdHocMode | null = null;
+  /** The shortcuts this app listens for on the DOCUMENT: see `dispose`. */
+  #onDocKey: ((event: KeyboardEvent) => void) | null = null;
 
   constructor(
     root: HTMLElement,
@@ -1144,7 +1152,8 @@ export class CubeApp {
    */
   #applyChrome(): void {
     const zones = this.#config.showDragZones || this.#zonePeek;
-    this.#els.zoneBar.hidden = !zones;
+    // Ad Hoc Analysis mode has its own axes; the cube's zones wait.
+    this.#els.zoneBar.hidden = !zones || this.#adhoc !== null;
     this.#els.zoneBar.classList.toggle('dc-peeking', !this.#config
       .showDragZones && this.#zonePeek);
     this.#els.toolbar.classList.toggle(
@@ -2200,6 +2209,92 @@ export class CubeApp {
     }
   }
 
+  /**
+   * Stop listening on the document. A host that builds a new cube in the
+   * same element (opening a file does) left the old one's shortcuts
+   * live: Ctrl-Z undid a cube no longer on screen, and said "Could not
+   * undo" over the one that was (2026-09-25 harness).
+   */
+  dispose(): void {
+    if (this.#onDocKey) this.#doc.removeEventListener('keydown', this.#onDocKey);
+    this.#onDocKey = null;
+    this.exitAdHoc();
+    this.#menu.close();
+  }
+
+  // -- Ad Hoc Analysis mode -------------------------------------------------
+
+  /** Whether Ad Hoc Analysis mode is on, and its session. */
+  get adhoc(): AdHocMode | null {
+    return this.#adhoc;
+  }
+
+  /**
+   * Switch to Ad Hoc Analysis mode: the cube's named dimensions as its
+   * hierarchies, its measures as the Measures dimension, the opening
+   * grid queried through this cube's own runner. The cube's grid, zones
+   * and sidebar are hidden, not torn down, so leaving finds them as
+   * they were.
+   */
+  async enterAdHoc(): Promise<void> {
+    if (this.#adhoc) return;
+    const cube = buildCube(this.#snapshot, this.#dimensions());
+    if (cube.outline.dimensions.length === 0) {
+      this.#status('Ad Hoc Analysis needs at least one dimension column', 'warn');
+      return;
+    }
+    // OPEN ON WHAT THE USER WAS LOOKING AT: the dimension the cube is
+    // grouped by, rather than whichever column the source lists first
+    // (a trade id, in the harness's file).
+    const grouped = this.#snapshot.rows[0];
+    const start = cube.outline.dimensions.find((d) => grouped !== undefined
+      && d.generations.includes(grouped))?.name;
+    const session = new AdHocSession(cube, (pure, snapshot, scope) =>
+      this.#controller.query(pure, snapshot, scope), initialGrid(cube.outline, undefined, start));
+    const middle = this.#els.grid.parentElement as HTMLElement;
+    const host = this.#doc.createElement('div');
+    middle.before(host);
+    const mode = new AdHocMode(host, session, {
+      formatters: this.#formatters,
+      rowHeight: DATACUBE_ROW_HEIGHT,
+      showWindow: (title, build, size) => {
+        this.#showOverlay(title, build, size ? { size } : {});
+      },
+      startTask: (description) => this.#startTask(description),
+      status: (text, kind) => this.#status(text, kind),
+      reportFailure: (error) => this.#reportFailure(error),
+      onExit: () => this.exitAdHoc(),
+      ...(this.#options.writeClipboard ? { writeClipboard: this.#options.writeClipboard } : {}),
+    });
+    this.#adhoc = mode;
+    this.#els.root.classList.add('dc-adhoc-on');
+    middle.hidden = true;
+    this.#els.zoneBar.hidden = true;
+    await mode.refresh();
+  }
+
+  /** Back to the cube's own grid, as it was left. */
+  exitAdHoc(): void {
+    const mode = this.#adhoc;
+    if (!mode) return;
+    this.#adhoc = null;
+    const host = this.#els.root.querySelector<HTMLElement>(':scope > .dc-adhoc');
+    mode.destroy();
+    host?.remove();
+    for (const key of [...this.#open.keys()]) {
+      if (key.startsWith('Member Selection: ') || key === 'Ad Hoc Options') this.#closeWindow(key);
+    }
+    this.#els.root.classList.remove('dc-adhoc-on');
+    (this.#els.grid.parentElement as HTMLElement).hidden = false;
+    this.#applyChrome();
+    this.#status('Back to the cube');
+  }
+
+  /** The named dimensions: the Dimensions tab's, else the host's. */
+  #dimensions(): readonly Dimension[] {
+    return this.#config.dimensions ?? this.#options.dimensions ?? [];
+  }
+
   // -- dimensions ----------------------------------------------------------
 
   useDimension(dimension: Dimension): void {
@@ -2225,7 +2320,7 @@ export class CubeApp {
     this.#showOverlay('Properties', (host, close) => {
       this.#editor = new CubeEditor(
         host,
-        draftFor(this.#snapshot, this.#config, this.#options.dimensions ?? []),
+        draftFor(this.#snapshot, this.#config, this.#dimensions()),
         {
           onApply: (draft, base) => this.#applyDraft(draft, base),
           onClose: close,
@@ -2823,6 +2918,13 @@ export class CubeApp {
             : 'Show Drag Zones',
         },
         { id: 'view.titleBar', label: 'Hide Title Bar' },
+        // The other way to work the cube: members on axes, the rest
+        // on the POV. Checked while it is on; choosing it again leaves.
+        {
+          id: 'view.adhoc',
+          label: 'Ad Hoc Analysis',
+          ...(this.#adhoc ? { checked: true } : {}),
+        },
       ];
       if (this.#options.storage) {
         items.push(
@@ -2830,10 +2932,7 @@ export class CubeApp {
           { id: 'view.load', label: 'Load View' },
         );
       }
-      for (const d of availableDimensions(
-        this.#snapshot,
-        this.#options.dimensions ?? [],
-      )) {
+      for (const d of availableDimensions(this.#snapshot, this.#dimensions())) {
         items.push({ id: 'view.dimension', label: d.name, column: d.name });
       }
       // The HOST's own entries last, so its additions never push the
@@ -2850,7 +2949,7 @@ export class CubeApp {
     });
     bar.append(burger);
 
-    this.#doc.addEventListener('keydown', (event) => {
+    this.#onDocKey = (event: KeyboardEvent): void => {
       if (!(event.ctrlKey || event.metaKey)) return;
       const key = event.key.toLowerCase();
 
@@ -2876,7 +2975,8 @@ export class CubeApp {
         event.preventDefault();
         void this.#redo();
       }
-    });
+    };
+    this.#doc.addEventListener('keydown', this.#onDocKey);
   }
 
   /**
@@ -2893,6 +2993,10 @@ export class CubeApp {
    * promise rejection in the console.
    */
   async #undo(): Promise<void> {
+    if (this.#adhoc) {
+      await this.#adhoc.undo();
+      return;
+    }
     if (!this.#controller.canUndo) {
       this.#status('Nothing to undo', 'warn');
       return;
@@ -2906,6 +3010,10 @@ export class CubeApp {
   }
 
   async #redo(): Promise<void> {
+    if (this.#adhoc) {
+      await this.#adhoc.redo();
+      return;
+    }
     if (!this.#controller.canRedo) {
       this.#status('Nothing to redo', 'warn');
       return;
@@ -2929,6 +3037,10 @@ export class CubeApp {
       case 'view.settings':
         this.openSettings();
         return true;
+      case 'view.adhoc':
+        if (this.#adhoc) this.exitAdHoc();
+        else void this.enterAdHoc();
+        return true;
       case 'view.save':
         this.saveView(this.#config.reportTitle ?? 'view');
         return true;
@@ -2936,9 +3048,7 @@ export class CubeApp {
         void this.loadView();
         return true;
       case 'view.dimension': {
-        const found = (this.#options.dimensions ?? []).find(
-          (d) => d.name === item.column,
-        );
+        const found = this.#dimensions().find((d) => d.name === item.column);
         if (found) this.useDimension(found);
         return true;
       }
@@ -3024,10 +3134,15 @@ CubeDraft {
     sorts: merge(current.snapshot.sorts, base.snapshot.sorts,
       edited.snapshot.sorts) as CubeSnapshot['sorts'],
   };
+  // The Dimensions tab's edit is KEPT, on the configuration: it went
+  // nowhere before, so a hierarchy defined there was gone on Apply.
+  const merged = merge(current.config, base.config, edited.config) as CubeConfiguration;
+  const config: CubeConfiguration = same(base.dimensions, edited.dimensions)
+    ? merged
+    : { ...merged, dimensions: edited.dimensions };
   return {
-    snapshot: applyToSnapshot(snapshot,
-      merge(current.config, base.config, edited.config) as CubeConfiguration),
-    config: merge(current.config, base.config, edited.config) as CubeConfiguration,
+    snapshot: applyToSnapshot(snapshot, config),
+    config,
     dimensions: edited.dimensions,
   };
 }

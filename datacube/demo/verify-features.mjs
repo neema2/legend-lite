@@ -4349,6 +4349,153 @@ try {
     await control('Column negative foreground', { act: column('pnl', () => put(page.locator(`${O} input[title="Negative foreground"]`).first(), '#0000ff')),
       expect: (b, a) => (a.styles.some((x, i) => isNegativeText(a.texts[i]) && x?.color !== b.styles[i]?.color) ? null : 'no negative recoloured') });
   }
+
+  // ---- Ad Hoc Analysis mode ----------------------------------------------
+  //
+  // Against the real planner and engine: every figure below is the
+  // database's, and they are checked against EACH OTHER -- a member's
+  // total is the sum of its children's, the POV narrows every cell --
+  // so no number is written into this file.
+  {
+    const adhoc = () => page.evaluate(() => {
+      const a = window.__dataCube?.adhoc;
+      const v = a?.view;
+      if (!a) return null;
+      return {
+        busy: a.busy,
+        rows: a.session.grid.rows.map((r) => r.dimension),
+        columns: a.session.grid.columns.map((r) => r.dimension),
+        pov: a.session.grid.pov,
+        labels: v ? v.table.columns[0].values.map((x) => String(x ?? '').trim()) : [],
+        first: v ? v.table.columns[v.rowDimensions.length]?.values ?? [] : [],
+      };
+    });
+    /** Wait until the mode has answered something other than `was`. */
+    const changed = async (was) => {
+      await page.waitForFunction((prev) => {
+        const a = window.__dataCube?.adhoc;
+        if (!a || a.busy || !a.view) return false;
+        const now = JSON.stringify([a.session.grid, a.view.table.columns.map((c) => c.values)]);
+        return now !== prev;
+      }, was, { timeout: 20_000 });
+      return adhoc();
+    };
+    const stamp = () => page.evaluate(() => {
+      const a = window.__dataCube?.adhoc;
+      return a?.view ? JSON.stringify([a.session.grid, a.view.table.columns.map((c) => c.values)]) : '';
+    });
+    const cellOf = (text) => page.locator('.dc-adhoc-grid .dc-cell', {
+      hasText: new RegExp(`^\\s*${text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`),
+    }).first();
+    const sum = (xs) => xs.reduce((n, x) => n + Number(x ?? 0), 0);
+    const close = (a, b) => Math.abs(a - b) <= 1e-6 * Math.max(1, Math.abs(a), Math.abs(b));
+    const enter = async () => {
+      await freshCube();
+      await burger('Ad Hoc Analysis');
+      await page.waitForFunction(() => {
+        const a = window.__dataCube?.adhoc;
+        return a && !a.busy && a.view;
+      }, null, { timeout: 30_000 });
+      return adhoc();
+    };
+
+    await check('ad hoc analysis: opens on the top member, measures across, the rest on the POV', async () => {
+      const a = await enter();
+      if (a.rows.length !== 1) throw new Error(`rows ${a.rows}`);
+      if (a.columns[0] !== 'Measures') throw new Error(`columns ${a.columns}`);
+      if (a.labels.length !== 1 || a.labels[0] !== a.rows[0]) throw new Error(`labels ${a.labels}`);
+      const chips = await page.locator('.dc-adhoc-pov-chip').count();
+      if (chips !== Object.keys(a.pov).length || chips === 0) throw new Error(`${chips} POV chips`);
+      if (!await page.locator('.dc-app-middle').isHidden()) throw new Error("the cube's grid is still shown");
+      return `${a.rows[0]} = ${a.first[0]}, ${chips} on the POV`;
+    });
+
+    await check('ad hoc analysis: double-click zooms in; the children add up to their parent', async () => {
+      const a = await enter();
+      const was = await stamp();
+      await cellOf(a.labels[0]).dblclick();
+      const b = await changed(was);
+      if (b.labels.length < 2) throw new Error(`labels ${b.labels}`);
+      const total = Number(b.first[0]);
+      const children = sum(b.first.slice(1));
+      if (!close(total, children)) throw new Error(`top ${total} vs children ${children}`);
+      return `${b.labels.length - 1} children summing to ${total}`;
+    });
+
+    await check('ad hoc analysis: Keep Only, Zoom Out and undo from the menu and the keyboard', async () => {
+      const a = await enter();
+      let was = await stamp();
+      await cellOf(a.labels[0]).dblclick();
+      const b = await changed(was);
+      const child = b.labels[1];
+      was = await stamp();
+      await cellOf(child).click({ button: 'right' });
+      await page.locator('.dc-menu-item', { hasText: 'Keep Only' }).first().click();
+      const c = await changed(was);
+      if (JSON.stringify(c.labels) !== JSON.stringify([child])) throw new Error(`kept ${c.labels}`);
+      if (!close(Number(c.first[0]), Number(b.first[1]))) throw new Error(`${c.first[0]} vs ${b.first[1]}`);
+      was = await stamp();
+      await cellOf(child).click({ button: 'right' });
+      await page.locator('.dc-menu-item', { hasText: 'Zoom Out' }).first().click();
+      const d = await changed(was);
+      if (JSON.stringify(d.labels) !== JSON.stringify([a.labels[0]])) throw new Error(`zoomed out to ${d.labels}`);
+      was = await stamp();
+      await page.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+      const e = await changed(was);
+      if (JSON.stringify(e.labels) !== JSON.stringify([child])) throw new Error(`undo gave ${e.labels}`);
+      return `kept ${child}, zoomed out, undone`;
+    });
+
+    await check('ad hoc analysis: a POV member from Member Selection narrows every cell', async () => {
+      const a = await enter();
+      const chip = page.locator('.dc-adhoc-pov-chip').first();
+      const dimension = await chip.getAttribute('data-dimension');
+      await chip.click();
+      const win = page.locator(`.dc-app-overlay[data-window="Member Selection: ${dimension}"]`);
+      await win.waitFor({ timeout: 5000 });
+      // The top member is listed first; its first child next, once looked up.
+      await win.locator('.dc-adhoc-member').nth(1).waitFor({ timeout: 15_000 });
+      const pick = win.locator('.dc-adhoc-member').nth(1);
+      const member = (await pick.locator('.dc-adhoc-member-label').textContent())?.trim();
+      await pick.locator('.dc-adhoc-member-pick').check();
+      const was = await stamp();
+      await win.locator('.dc-adhoc-members-ok').click();
+      const b = await changed(was);
+      if (JSON.stringify(b.pov[dimension]) !== JSON.stringify([member])) {
+        throw new Error(`POV ${JSON.stringify(b.pov)}`);
+      }
+      if (!(Number(b.first[0]) <= Number(a.first[0]) || b.first[0] === null)) {
+        throw new Error(`${member} gave ${b.first[0]}, more than the whole ${a.first[0]}`);
+      }
+      const text = await chip.textContent();
+      if (!text?.includes(member)) throw new Error(`chip reads ${text}`);
+      return `${dimension} = ${member}: ${a.first[0]} -> ${b.first[0]}`;
+    });
+
+    await check('ad hoc analysis: Options re-place the answers, and Exit restores the cube', async () => {
+      const a = await enter();
+      let was = await stamp();
+      await cellOf(a.labels[0]).dblclick();
+      const b = await changed(was);
+      await page.locator('.dc-adhoc-tool', { hasText: 'Options...' }).click();
+      const win = page.locator('.dc-app-overlay[data-window="Ad Hoc Options"]');
+      await win.waitFor({ timeout: 5000 });
+      await win.locator('input[name="dc-adhoc-indentation"][value="none"]').check();
+      was = await stamp();
+      await win.locator('.dc-adhoc-options-ok').click();
+      const c = await changed(was);
+      const raw = await page.evaluate(() => window.__dataCube.adhoc.view.table.columns[0].values);
+      if (raw.some((v) => /^\s/.test(String(v)))) throw new Error(`still indented: ${JSON.stringify(raw)}`);
+      if (JSON.stringify(c.first) !== JSON.stringify(b.first)) throw new Error('the figures changed');
+      await page.locator('.dc-adhoc-tool', { hasText: 'Exit' }).click();
+      await page.waitForFunction(() => !window.__dataCube?.adhoc, null, { timeout: 5000 });
+      if (await page.locator('.dc-adhoc').count()) throw new Error('the mode is still on screen');
+      if (await page.locator('.dc-app-middle').isHidden()) throw new Error("the cube's grid did not come back");
+      const rows = await page.locator('.dc-app-grid .dc-row').count();
+      if (!rows) throw new Error('no rows after Exit');
+      return `unindented, ${rows} cube rows back`;
+    });
+  }
 } catch (e) {
   record('the run itself', false, String(e.message ?? e).split('\n')[0]);
 } finally {
