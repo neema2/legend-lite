@@ -85,4 +85,9 @@ public interface SqlApiBinding {
     HttpCall history(int limit, String token);
 
     java.util.List<SqlApi.HistoryEntry> history(HttpResult result);
+
+    /** What the caller may read in {@code catalog}: tables and views, with their columns. */
+    HttpCall objects(String catalog, String token);
+
+    java.util.List<SqlApi.CatalogObject> objects(HttpResult result);
 }

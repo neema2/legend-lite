@@ -164,6 +164,17 @@ public final class SqlApi {
     }
 
     /** One of the caller's statements, from {@code GET /sql/v1/history}. */
+    /** One table or view the caller may read, from {@code GET /sql/v1/catalogs/{c}/objects}. */
+    public record CatalogObject(String schema, String name, String kind, List<CatalogColumn> columns) {
+        public CatalogObject {
+            columns = List.copyOf(columns);
+        }
+    }
+
+    /** A catalog object's column: its name and DuckDB's name for its type. */
+    public record CatalogColumn(String name, String type) {
+    }
+
     public record HistoryEntry(String statementId, String catalog, String sql, State state, String submittedAt,
             @Nullable String finishedAt, @Nullable Long rowCount, @Nullable String errorCode) {
     }

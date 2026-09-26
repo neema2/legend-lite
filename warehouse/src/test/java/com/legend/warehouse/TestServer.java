@@ -48,10 +48,15 @@ final class TestServer implements AutoCloseable {
 
     static TestServer start(Path data, List<String[]> users, List<String> owners, Statements.Limits limits)
             throws Exception {
+        return start(data, users, owners, limits, List.of());
+    }
+
+    static TestServer start(Path data, List<String[]> users, List<String> owners, Statements.Limits limits,
+            List<String> allowedOrigins) throws Exception {
         String binary = System.getenv("WAREHOUSE_BINARY");
         if (binary == null) {
             WarehouseServer s = new WarehouseServer(new WarehouseServer.Config(0, data, List.of("main"), users, null,
-                    Duration.ofMinutes(5), limits).withOwners(owners));
+                    Duration.ofMinutes(5), limits).withOwners(owners).withAllowedOrigins(allowedOrigins));
             return new TestServer(s, null, s.port());
         }
         List<String> cmd = new ArrayList<>(List.of(binary, "--port", "0", "--data", data.toString(),
@@ -64,6 +69,10 @@ final class TestServer implements AutoCloseable {
         }
         for (String o : owners) {
             cmd.add("--owner");
+            cmd.add(o);
+        }
+        for (String o : allowedOrigins) {
+            cmd.add("--allow-origin");
             cmd.add(o);
         }
         String library = System.getenv("WAREHOUSE_DUCKDB_LIBRARY");

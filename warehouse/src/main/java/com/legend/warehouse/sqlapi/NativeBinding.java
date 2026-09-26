@@ -118,7 +118,18 @@ public final class NativeBinding implements SqlApiBinding {
         return ApiJson.parseHistory(result.body());
     }
 
-    private static ApiError failure(HttpResult result) {
+    @Override
+    public HttpCall objects(String catalog, String token) {
+        return new HttpCall("GET", "/sql/v1/catalogs/" + catalog + "/objects", json(token), null);
+    }
+
+    @Override
+    public java.util.List<SqlApi.CatalogObject> objects(HttpResult result) {
+        if (result.status() != 200) throw new IllegalStateException(failure(result).message());
+        return ApiJson.parseObjects(result.body());
+    }
+
+        private static ApiError failure(HttpResult result) {
         ApiError e = ApiJson.errorOf(result.body());
         return e != null ? e : new ApiError(ErrorCode.INTERNAL, "HTTP " + result.status() + ": " + result.body());
     }

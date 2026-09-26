@@ -205,6 +205,20 @@ public final class ApiJson {
         return out;
     }
 
+    public static List<SqlApi.CatalogObject> parseObjects(String body) {
+        List<SqlApi.CatalogObject> out = new ArrayList<>();
+        for (Json.Node n : ((Json.Arr) Json.parse(body)).items()) {
+            Json.Obj o = (Json.Obj) n;
+            List<SqlApi.CatalogColumn> columns = new ArrayList<>();
+            for (Json.Node c : o.getArr("columns").items()) {
+                Json.Obj col = (Json.Obj) c;
+                columns.add(new SqlApi.CatalogColumn(col.getString("name"), col.getString("type")));
+            }
+            out.add(new SqlApi.CatalogObject(o.getString("schema"), o.getString("name"), o.getString("kind"), columns));
+        }
+        return out;
+    }
+
     /** The error a failed call carried, if its body is one of ours. */
     public static @Nullable ApiError errorOf(String body) {
         try {

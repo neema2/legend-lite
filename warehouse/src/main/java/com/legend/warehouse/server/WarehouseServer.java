@@ -59,20 +59,29 @@ public final class WarehouseServer implements AutoCloseable {
             Duration tokenLife,
             Statements.Limits limits,
             @Nullable Path duckdbLibrary,
-            List<String> owners) {
+            List<String> owners,
+            List<String> allowedOrigins) {
 
         /** DuckDB's library from the classpath (DuckDB's JDBC jar carries it). */
         public Config(int port, Path dataDir, List<String> catalogs, List<String[]> users,
                 byte @Nullable [] tokenKey, Duration tokenLife, Statements.Limits limits) {
-            this(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, null, List.of());
+            this(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, null, List.of(), List.of());
         }
 
         public Config withOwners(List<String> owners) {
-            return new Config(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, duckdbLibrary, owners);
+            return new Config(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, duckdbLibrary, owners,
+                    allowedOrigins);
+        }
+
+        /** The web pages (exact origins, e.g. {@code https://cube.example.com}) whose browsers may call this server. */
+        public Config withAllowedOrigins(List<String> allowedOrigins) {
+            return new Config(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, duckdbLibrary, owners,
+                    allowedOrigins);
         }
     }
 
     private final HttpServer http;
+    private final java.util.Set<String> allowedOrigins;
     private final Identity identity;
     private final Catalogs catalogs;
     private final Database system;
@@ -115,6 +124,7 @@ public final class WarehouseServer implements AutoCloseable {
         }
         statements = new Statements(catalogs, sessions, results, history,
                 new Statements.Access(config.owners(), grants, authorizer), config.limits(), clock);
+        allowedOrigins = java.util.Set.copyOf(config.allowedOrigins());
         http = HttpServer.create(new InetSocketAddress("127.0.0.1", config.port()), 0);
         http.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         http.createContext("/", this::handle);
@@ -131,8 +141,37 @@ public final class WarehouseServer implements AutoCloseable {
 
     // -- routing -----------------------------------------------------------
 
+    /**
+     * A browser lets a page read another origin's responses only when that origin says so (CORS).
+     * An allowed origin's requests, errors included, carry its name back; its preflight is answered
+     * here, before any route. Any other origin gets no CORS header at all, and the browser keeps the
+     * response from the page. Exact origins only, never a wildcard; no cookies (tokens are bearer).
+     */
+    private boolean corsPreflight(HttpExchange ex) throws IOException {
+        String origin = ex.getRequestHeaders().getFirst("Origin");
+        boolean allowed = origin != null && allowedOrigins.contains(origin);
+        if (allowed) {
+            ex.getResponseHeaders().set("Access-Control-Allow-Origin", origin);
+            ex.getResponseHeaders().add("Vary", "Origin");
+        }
+        if (!ex.getRequestMethod().equals("OPTIONS")
+                || ex.getRequestHeaders().getFirst("Access-Control-Request-Method") == null) {
+            return false;
+        }
+        if (allowed) {
+            ex.getResponseHeaders().set("Access-Control-Allow-Methods", "GET, POST, DELETE");
+            ex.getResponseHeaders().set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+            ex.getResponseHeaders().set("Access-Control-Max-Age", "600");
+            ex.sendResponseHeaders(204, -1);
+        } else {
+            ex.sendResponseHeaders(403, -1);
+        }
+        return true;
+    }
+
     private void handle(HttpExchange ex) throws IOException {
         try {
+            if (corsPreflight(ex)) return;
             route(ex);
         } catch (Reply r) {
             send(ex, r.status, r.contentType, r.bytes);
@@ -443,7 +482,7 @@ public final class WarehouseServer implements AutoCloseable {
     /**
      * {@code --port N --data DIR --catalog NAME... --user NAME:PASSWORD...
      * --concurrency N --queue N --max-rows N --retain-minutes N --result-memory-mb N --duckdb-library FILE
-     * --owner NAME...}. An owner may do anything; every other user is a reader (§3 of the server program).
+     * --owner NAME... --allow-origin ORIGIN...}. An owner may do anything; every other user is a reader (§3 of the server program).
      */
     public static void main(String[] args) throws Exception {
         int port = 8765;
@@ -457,6 +496,7 @@ public final class WarehouseServer implements AutoCloseable {
         long resultMemoryMb = Statements.Limits.DEFAULT_RESULT_MEMORY >> 20;
         Path library = null;
         List<String> owners = new ArrayList<>();
+        List<String> origins = new ArrayList<>();
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--port" -> port = Integer.parseInt(args[++i]);
@@ -467,6 +507,7 @@ public final class WarehouseServer implements AutoCloseable {
                 case "--queue" -> queue = Integer.parseInt(args[++i]);
                 case "--duckdb-library" -> library = Path.of(args[++i]);
                 case "--owner" -> owners.add(args[++i]);
+                case "--allow-origin" -> origins.add(args[++i]);
                 case "--max-rows" -> maxRows = Long.parseLong(args[++i]);
                 case "--retain-minutes" -> retainMinutes = Long.parseLong(args[++i]);
                 case "--result-memory-mb" -> resultMemoryMb = Long.parseLong(args[++i]);
@@ -476,7 +517,7 @@ public final class WarehouseServer implements AutoCloseable {
         if (cats.isEmpty()) cats.add(StatementRequest.DEFAULT_CATALOG);
         WarehouseServer s = new WarehouseServer(new Config(port, data, cats, users, null, Duration.ofHours(1),
                 new Statements.Limits(concurrency, queue, maxRows, Duration.ofMinutes(retainMinutes), resultMemoryMb << 20),
-                library, owners));
+                library, owners, origins));
         System.err.println("warehouse listening on 127.0.0.1:" + s.port() + ", catalogs " + cats);
     }
 }

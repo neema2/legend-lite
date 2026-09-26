@@ -11,17 +11,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.json.Json;
 import com.legend.warehouse.server.Statements;
+import com.legend.warehouse.sqlapi.SqlApi;
 import com.legend.warehouse.sqlapi.SqlApi.ErrorCode;
 import com.legend.warehouse.sqlapi.SqlApi.ResultFormat;
 import com.legend.warehouse.sqlapi.SqlApi.StatementRequest;
 import com.legend.warehouse.sqlapi.SqlApiBinding;
-import com.legend.warehouse.sqlapi.SqlApiBinding.HttpCall;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import org.junit.jupiter.api.AfterAll;
@@ -319,18 +317,13 @@ class WarehouseEntitlementsTest {
         assertFalse(f.error().message().contains("the secret"), sql);
     }
 
+    /** What {@code token}'s user may read, through the binding's own catalog call. */
     static Set<String> objects(String token) throws Exception {
-        HttpCall call = new HttpCall("GET", "/sql/v1/catalogs/main/objects",
-                Map.of("Authorization", "Bearer " + token), null);
-        SqlApiBinding.HttpResult r = sendTo(server, call);
-        assertEquals(200, r.status(), r.body());
         Set<String> out = new TreeSet<>();
-        List<String> seen = new ArrayList<>();
-        for (Json.Node n : ((Json.Arr) Json.parse(r.body())).items()) {
-            Json.Obj o = (Json.Obj) n;
-            seen.add(str(o.get("schema")) + "." + str(o.get("name")));
+        for (SqlApi.CatalogObject o : API.objects(sendTo(server, API.objects("main", token)))) {
+            out.add(o.schema() + "." + o.name());
+            assertFalse(o.columns().isEmpty(), o.name() + " came without its columns");
         }
-        out.addAll(seen);
         return out;
     }
 }
