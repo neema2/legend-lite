@@ -272,6 +272,13 @@ export interface ColumnLayout {
    * only -- the query, and every column's identity path, are the same.
    */
   readonly measuresFirst?: boolean;
+  /**
+   * What a header cell SHOWS for a path segment, when that is not the
+   * segment itself: Essbase mode's segments are a member's full path
+   * (unique, so two Q1s under different years never merge) and show
+   * its last part.
+   */
+  readonly headerLabel?: (segment: string) => string;
 }
 
 /** A header cell's segments, measure first when the layout says so. */
@@ -589,7 +596,7 @@ export function buildColumnModel(
       const label = own && leaf.label !== undefined ? leaf.label
         : measuresFirst && level === 0 && leaf.path.length > 1
           ? (displayNames[segment] ?? segment)
-          : segment;
+          : layout.headerLabel ? layout.headerLabel(segment) : segment;
       // Merge while the whole prefix matches, not just this segment:
       // two different years can both have a 'total' beneath them, and
       // merging on the segment alone would fuse unrelated columns.

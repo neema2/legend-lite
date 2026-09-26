@@ -419,6 +419,19 @@ function keyValue(type: string | undefined, value: string): FilterValue {
   return Number.isNaN(at.getTime()) ? value : at;
 }
 
+/**
+ * The conditions pinning a member of a hierarchy -- `columns[i] ==
+ * path[i]` down its path, typed as the tree's keys are. Essbase mode's
+ * members use the same rule the tree's branches do.
+ */
+export function memberConditions(
+  snapshot: CubeSnapshot,
+  columns: readonly string[],
+  path: RowPath,
+): FilterNode[] {
+  return parentConditions({ ...snapshot, rows: columns }, path);
+}
+
 function parentConditions(
   snapshot: CubeSnapshot,
   parent: RowPath,

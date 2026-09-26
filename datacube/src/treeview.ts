@@ -102,7 +102,8 @@ export interface TreeView {
  * format`. Grouping by any date or timestamp column simply failed,
  * and the grid kept the previous answer.
  */
-function groupValue(v: Scalar): string {
+/** A group key as the tree's paths spell it (Essbase members too). */
+export function groupValue(v: Scalar): string {
   if (v === null) return NULL_GROUP;
   // LOCAL components, with no zone suffix, so `new Date(text)` reads
   // it back as the same instant. `toISOString()` would round-trip
