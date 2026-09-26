@@ -662,6 +662,20 @@ describe('buildColumnModel', () => {
     assert.equal(m.headerRows[0]?.[0]?.label, 'Notional (USD)');
   });
 
+  it('a renamed column keeps its place in the order: the path is identity, not the label', () => {
+    // The long-run "panel reorder stops reaching the grid" gap: the
+    // display name was written into the path, the order is looked up
+    // by the path, and the renamed column sorted LAST whatever the
+    // order said.
+    const m = buildColumnModel(table(['a', 'b', 'settled']), [], [], {
+      order: ['settled', 'a', 'b'],
+      displayNames: { settled: 'RENAMED' },
+    });
+    assert.deepEqual(m.leaves.map((l) => l.name), ['settled', 'a', 'b']);
+    assert.deepEqual(m.leaves[0]?.path, ['settled']);
+    assert.equal(m.headerRows[0]?.[0]?.label, 'RENAMED');
+  });
+
   it('marks a column blurred', () => {
     const m = buildColumnModel(table(['pnl']), [], [], { blurred: ['pnl'] });
     assert.equal(m.leaves[0]?.blurred, true);

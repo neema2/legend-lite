@@ -445,6 +445,9 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
         status.classList.remove('warn-text');
       },
       onView: (view) => {
+        // For the browser harness: how many views have landed.
+        const w = window as unknown as { __dataCubeViews?: number };
+        w.__dataCubeViews = (w.__dataCubeViews ?? 0) + 1;
         // A VIEW LANDED, SO THE LAST ERROR IS OVER.
         //
         // The line showed the last error and nothing ever took it
@@ -468,6 +471,11 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
           view.sql || '(the demo shim plans per level; expand a row)';
       },
     });
+    // For the browser harness ONLY: the running cube, so a check can
+    // read the cube's own configuration and snapshot when what it sees
+    // on screen disagrees -- which it could not before, and which left
+    // one defect undiagnosable. Not product code: the demo page.
+    (window as unknown as { __dataCube?: CubeApp }).__dataCube = created;
     return created;
   }
 

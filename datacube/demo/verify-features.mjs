@@ -3043,18 +3043,11 @@ try {
 
   // -- the columns panel, which is a control and not a legend -------
 
-  await gap('a panel reorder still reaches the grid after a long run',
-    'the panel and the configuration take the new order and the grid'
-    + ' keeps the old one, but only after the checks above have run --'
-    + ' the same reorder works on a freshly loaded cube, in Node'
-    + ' against a stub engine, and in every subset of this suite I'
-    + ' have tried. The projection keeps the old order too, so the'
-    + ' write does not reach the query; the status line is clean, so'
-    + ' nothing failed. It is not pinning and not a lost update (a'
-    + ' second drag changes nothing). Hard to see further because the'
-    + ' cube cannot report its own configuration: the specification'
-    + ' export carries the snapshot and the per-column settings but'
-    + ' not `columnOrder`, so there is nothing to read back.',
+  // Was a known gap for a long time: a column RENAMED by an earlier
+  // check (settled -> "RENAMED") dropped out of the order, because the
+  // display name was written into the column's identity path. Found by
+  // reading the cube's own state (window.__dataCube) at the failure.
+  await check('a panel reorder still reaches the grid after a long run',
     async () => {
       const listed = () => page.evaluate(() =>
         [...document.querySelectorAll('.dc-tool-panel-row')]
@@ -3065,17 +3058,61 @@ try {
       if (before.length < 3) throw new Error('not enough columns listed');
       const last = before[before.length - 1];
       const stamp = await statusNow();
+      const viewsBefore = await page.evaluate(() => window.__dataCubeViews ?? 0);
+      const errorsBefore = pageErrors.length;
       await page.locator(`.dc-tool-panel-row[data-column="${last}"]`)
         .dragTo(page.locator(
           `.dc-tool-panel-row[data-column="${before[0]}"]`),
         { timeout: 10_000, targetPosition: { x: 40, y: 2 } });
       await settle(stamp);
+      // WAIT FOR THE DROP'S OWN VIEW, not the first one: `settle`
+      // returns when the status line changes, and a refresh already in
+      // flight (the flatten above) changes it before the drop's
+      // refresh -- the one carrying the new order -- has landed.
+      const quiet = async () => {
+        let seen = await page.evaluate(() => window.__dataCubeViews ?? 0);
+        for (let i = 0; i < 50; i += 1) {
+          await page.waitForTimeout(100);
+          const now = await page.evaluate(() => window.__dataCubeViews ?? 0);
+          if (now === seen && i >= 3) return;
+          seen = now;
+        }
+      };
+      await quiet();
+      const trace = {
+        viewsAfterDrag: (await page.evaluate(() => window.__dataCubeViews ?? 0)) - viewsBefore,
+        statusBefore: stamp,
+        statusAfter: await statusNow(),
+        newPageErrors: pageErrors.slice(errorsBefore),
+      };
       const grid = (await gridColumns()).filter((c) => c !== '__tree');
       const panel = (await listed()).filter((c) => grid.includes(c));
       const shown = grid.filter((c) => panel.includes(c));
       if (panel.join(',') !== shown.join(',')) {
+        // What the CUBE holds, not only what the screen shows.
+        const held = await page.evaluate(() => {
+          const app = window.__dataCube;
+          if (!app) return 'no __dataCube on the page';
+          return JSON.stringify({
+            columnOrder: app.configuration.columnOrder ?? null,
+            snapshotColumns: app.snapshot.columns.map((c) => c.name),
+            derived: app.snapshot.derived.map((d) => d.name),
+            rows: app.snapshot.rows,
+            pivotOn: app.snapshot.pivotOn,
+            configured: Object.entries(app.configuration.columns)
+              .filter(([, c]) => c.pinned || c.hidden)
+              .map(([n, c]) => `${n}:${c.pinned ?? ''}${c.hidden ? 'hidden' : ''}`),
+          });
+        });
+        // Where each header SITS (the order above is by screen x) and
+        // where the model PUT it (its grid column).
+        const heads = await page.evaluate(() =>
+          [...document.querySelectorAll('.dc-th[data-column]')].map((e) =>
+            `${e.dataset.column}@${e.style.gridColumn}/x${Math.round(e.getBoundingClientRect().left)}`
+            + `${e.classList.contains('dc-pinned') ? '/pinned' : ''}${getComputedStyle(e).position === 'sticky' ? '/sticky' : ''}`));
         throw new Error(`the panel reads ${panel.join(', ')} and the grid`
-          + ` reads ${shown.join(', ')}`);
+          + ` reads ${shown.join(', ')} | headers ${heads.join(' ')} | trace ${JSON.stringify(trace)} | cube holds ${held}`
+          + ` | query ${(await state()).pure.slice(0, 260)}`);
       }
       return `${last} moved and the grid followed`;
     });

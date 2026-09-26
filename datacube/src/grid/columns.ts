@@ -297,15 +297,20 @@ export function buildColumnModel(
 
   const totalPrefix = `${PIVOT_TOTAL_KEY}${PIVOT_SEPARATOR}`;
   const leaves: LeafColumn[] = table.columns.map((c, index) => {
-    const display = layout.displayNames?.[c.name];
+    // The PATH IS IDENTITY: measures, pivot values, the column's own
+    // name. A display name is a LABEL (set below, drawn by the header)
+    // and never goes here -- it used to, and every lookup that reads a
+    // column's name off its path (the order, a pivot's measure, a
+    // drag's rank) then missed a renamed column: `settled` renamed
+    // "RENAMED" dropped out of the order and sorted last, so a panel
+    // reorder "stopped reaching the grid" -- after the check that
+    // renamed it, which is why only a long run showed it.
     const path = c.name === TREE_COLUMN
       ? [treeLabel]
       // A pivot total spans ONE header level whatever the pivot's
       // depth: its name over its measure, the name cell reaching down.
       : c.name.startsWith(totalPrefix)
         ? [layout.pivotTotal?.label ?? 'Total', c.name.slice(totalPrefix.length)]
-      : display !== undefined
-        ? [display]
         : dimensions.includes(c.name)
           ? [c.name]
           : splitPath(c.name, measures, pivotArity);
@@ -537,7 +542,10 @@ export function buildColumnModel(
         continue;
       }
 
-      const label = leaf.path[level]!;
+      // The one leaf this cell sits over shows its LABEL (a display
+      // name) where it has one; every other cell shows its path.
+      const own = leaf.path.length === level + 1;
+      const label = own && leaf.label !== undefined ? leaf.label : leaf.path[level]!;
       // Merge while the whole prefix matches, not just this segment:
       // two different years can both have a 'total' beneath them, and
       // merging on the segment alone would fuse unrelated columns.
