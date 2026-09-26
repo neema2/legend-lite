@@ -68,6 +68,15 @@ h2-fail-roster.txt`.
 
 ## Status lines (update in place; newest first)
 
+- 2026-09-26 14:00 warehouse: **cross-area edit starting now (rule 7), with the user's go-ahead
+  while the untangle is paused:** `com.legend.server.Json` moves to its own package
+  `com.legend.json` through the untangle's own tool (a new group E in
+  `tools/untangle/groups.txt`, applied by `move_classes.py --group E`), and `core/BUILD.bazel`
+  gains a public `:json` target (Json.java alone, deps `:base`); `:base` becomes public. Why:
+  every warehouse target uses exactly `base` + `Json` from core yet reaches all 29 core targets,
+  so any core change rebuilds and re-tests the warehouse (native image included) in both
+  sessions' chains. After: the warehouse depends on `//core:base` + `//core:json` only. Json's
+  users inside core get `:json` in their deps. Building until pushed.
 - 2026-09-26 15:15 untangle: **step 3 homework landed** (this commit; GATES.md "Execution plan
   step 3 homework"): the kernel reading, a resolver fix (the normalizer built the resolution
   universe per statement; now once — `NameResolver.resolveQuery(query, imports, modelFqns)` is
