@@ -11,6 +11,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -615,5 +616,57 @@ class VariantIntegrationTest {
             }
         }
         assertTrue(true, "Debug test completed");
+    }
+
+    /**
+     * The DataCube question "pivot on the values inside a JSON array":
+     * flatten the array, extract a scalar key, pivot on it. Upstream's
+     * spelling of the flatten (lateral + flatten over toMany), so a cube's
+     * source query stays plain Pure.
+     */
+    @Test
+    @DisplayName("lateral flatten, extract a scalar, pivot on it")
+    void testPivotOnJsonArrayValues() throws SQLException {
+        String pureQuery = """
+                #>{store::EventDatabase.T_EVENTS}#
+                    ->filter(x | $x.EVENT_TYPE == 'purchase')
+                    ->lateral(x | $x.PAYLOAD->get('items')->toMany(@meta::pure::metamodel::variant::Variant)->flatten(~item))
+                    ->extend(~[sku: x | $x.item->get('sku')->to(@String), qty: x | $x.item->get('qty')->to(@Integer)])
+                    ->select(~[ID, sku, qty])
+                    ->pivot(~[sku], ~[qty: x | $x.qty : y | $y->plus()])
+                """;
+
+        System.out.println("Pivot on JSON array values SQL: " + generateSql(pureQuery));
+        var result = executeRelation(pureQuery);
+        System.out.println("Columns: " + result.columns());
+        result.rows().forEach(r -> System.out.println("  Row: " + r));
+
+        // One row per purchase; one column per sku seen anywhere
+        assertEquals(2, result.rows().size());
+        var names = result.columns().stream().map(Object::toString).toList();
+        for (String sku : List.of("ABC", "XYZ", "DEF")) {
+            assertTrue(names.stream().anyMatch(n -> n.contains(sku)), "a column for " + sku + ": " + names);
+        }
+    }
+
+    /** Grouping on a value extracted from a flattened JSON array. */
+    @Test
+    @DisplayName("lateral flatten, extract a scalar, group by it")
+    void testGroupByJsonArrayValues() throws SQLException {
+        String pureQuery = """
+                #>{store::EventDatabase.T_EVENTS}#
+                    ->lateral(x | $x.PAYLOAD->get('items')->toMany(@meta::pure::metamodel::variant::Variant)->flatten(~item))
+                    ->extend(~[sku: x | $x.item->get('sku')->to(@String), price: x | $x.item->get('price')->to(@Integer)])
+                    ->groupBy(~[sku], ~[total: x | $x.price : y | $y->plus()])
+                    ->sort(~sku->ascending())
+                """;
+
+        var result = executeRelation(pureQuery);
+        result.rows().forEach(r -> System.out.println("  Row: " + r));
+        assertEquals(3, result.rows().size());
+        assertEquals("ABC", result.rows().get(0).get(0));
+        assertEquals(10.0, toDouble(result.rows().get(0).get(1)), 0.01);
+        assertEquals("DEF", result.rows().get(1).get(0));
+        assertEquals(100.0, toDouble(result.rows().get(1).get(1)), 0.01);
     }
 }

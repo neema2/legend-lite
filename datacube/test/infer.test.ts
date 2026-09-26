@@ -8,6 +8,7 @@ import { describe, it } from 'node:test';
 
 import {
   inferModel,
+  isNestedType,
   pureTypeOf,
   quoteIdent,
   sqlTypeOf,
@@ -35,13 +36,36 @@ describe('sqlTypeOf', () => {
   it('falls back to VARCHAR for anything unrecognised', () => {
     // A column you can only group by is far less harmful than one
     // whose arithmetic silently means something else.
-    for (const t of ['STRUCT(a INT)', 'INTERVAL', 'UUID', 'BLOB', 'nonsense']) {
+    for (const t of ['INTERVAL', 'UUID', 'BLOB', 'nonsense']) {
       assert.equal(sqlTypeOf(t), 'VARCHAR(4096)', t);
     }
   });
 
   it('is case- and space-insensitive', () => {
     assert.equal(sqlTypeOf('  double '), 'DOUBLE');
+  });
+  it('declares JSON and nested columns SEMISTRUCTURED, a Variant', () => {
+    // Nested columns are converted to JSON as they are loaded, so the
+    // declaration is true of the table by the time the planner reads it.
+    for (const t of ['JSON', 'STRUCT(a INTEGER)', 'INTEGER[]',
+      'STRUCT(sku VARCHAR, qty BIGINT)[]', 'VARCHAR[3]',
+      'MAP(VARCHAR, INTEGER)', 'UNION(a INTEGER, b VARCHAR)']) {
+      assert.equal(sqlTypeOf(t), 'SEMISTRUCTURED', t);
+      assert.equal(pureTypeOf(sqlTypeOf(t)), 'Variant', t);
+    }
+  });
+});
+
+describe('isNestedType', () => {
+  it('knows the nested shapes, and only those', () => {
+    for (const t of ['STRUCT(a INTEGER)', 'INTEGER[]', 'integer[2]',
+      'MAP(VARCHAR, INTEGER)', 'UNION(a INTEGER)']) {
+      assert.ok(isNestedType(t), t);
+    }
+    // JSON is already what the planner navigates; nothing to convert.
+    for (const t of ['JSON', 'VARCHAR', 'DECIMAL(9,2)', 'STRUCTURE']) {
+      assert.ok(!isNestedType(t), t);
+    }
   });
 });
 
@@ -115,6 +139,9 @@ describe('formatOf', () => {
     assert.equal(formatOf('A.PARQUET'), 'parquet');
     assert.equal(formatOf('a.csv'), 'csv');
     assert.equal(formatOf('a.txt'), 'csv');
+    assert.equal(formatOf('a.json'), 'json');
+    assert.equal(formatOf('events.JSONL'), 'json');
+    assert.equal(formatOf('a.ndjson'), 'json');
   });
 });
 

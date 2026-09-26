@@ -24,6 +24,7 @@ import {
   LEAF_COUNT_COLUMN,
   columnType,
   isNumericType,
+  isVariantType,
   isRelativeDate,
   referencedColumns,
   rowColumns,
@@ -926,6 +927,21 @@ export function serialize(
     snapshot.columns.filter((c) => c.excludedFromPivot).map((c) => c.name),
   );
   const pivotOn = snapshot.pivotOn.filter((c) => !excludedFromPivot.has(c));
+
+  // A pivot names a column after each distinct value, and a Variant's
+  // value is a whole JSON document: the engine runs it, and every
+  // column comes back called `{"items": [...]}__|__qty`. The question
+  // is always about a value INSIDE the document, so say how to get it.
+  const specOfPivot = columnSpecs(snapshot);
+  for (const name of pivotOn) {
+    if (isVariantType(specOfPivot.get(name)?.type)) {
+      throw new CubeRefusal(
+        `cannot pivot on '${name}': it holds JSON. Pivot on a value `
+        + `extracted from it instead -- a calculated column such as `
+        + `${colRef('x', name)}->get('key')->to(@String)`,
+      );
+    }
+  }
 
   /**
    * What a PIVOT aggregates: the measures, and only the measures.

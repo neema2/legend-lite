@@ -49,7 +49,7 @@ export interface InferredModel {
  * Deliberately conservative: an unrecognised type becomes VARCHAR,
  * because a column the planner can only group by is far less harmful
  * than one whose arithmetic silently means something else. The list
- * covers what DuckDB's CSV and Parquet readers actually produce.
+ * covers what DuckDB's CSV, Parquet and JSON readers actually produce.
  */
 export function sqlTypeOf(duckdbType: string): string {
   const t = duckdbType.trim().toUpperCase();
@@ -67,8 +67,28 @@ export function sqlTypeOf(duckdbType: string): string {
     case 'DATE': return 'DATE';
     case 'TIMESTAMP': case 'TIMESTAMP WITH TIME ZONE': case 'TIMESTAMPTZ':
       return 'TIMESTAMP';
-    default: return 'VARCHAR(4096)';
+    // Semi-structured: a Variant to the planner. STRUCT, LIST and MAP
+    // columns are converted to JSON as they are loaded (`upload.ts`),
+    // so by the time this runs they are JSON too.
+    case 'JSON': return 'SEMISTRUCTURED';
+    default:
+      return isNestedType(t) ? 'SEMISTRUCTURED' : 'VARCHAR(4096)';
   }
+}
+
+/**
+ * Whether a DuckDB type is nested: a STRUCT, a LIST (`INTEGER[]`, or
+ * a fixed-size `INTEGER[3]`), a MAP or a UNION.
+ *
+ * legend-lite has no column type for these -- a Database declares
+ * `SEMISTRUCTURED` and the planner reads it as Variant, navigating it
+ * with DuckDB's JSON operators. Those operators need JSON, so such a
+ * column is converted with `to_json` when it is loaded rather than
+ * declared as something it is not.
+ */
+export function isNestedType(duckdbType: string): boolean {
+  const t = duckdbType.trim().toUpperCase();
+  return /^(STRUCT|MAP|UNION)\s*\(/.test(t) || /\[\d*\]$/.test(t);
 }
 
 /**

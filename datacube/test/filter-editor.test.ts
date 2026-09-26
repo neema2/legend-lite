@@ -12,6 +12,7 @@ import {
   newCondition,
   newGroup,
   operandKind,
+  operatorsFor,
   parseList,
   parseValue,
   toFilter,
@@ -660,5 +661,16 @@ describe('TODAY and NOW', () => {
         operator: 'lessThan', value: { relative: 'today' } }),
       '$x.trade_date < today()',
     );
+  });
+});
+
+describe('operatorsFor a Variant', () => {
+  it('offers only presence, in either spelling of the type', () => {
+    // Text operators on JSON compile to nonsense; ordering compares
+    // JSON text. Whether the value is there at all is the question a
+    // Variant answers without extracting anything.
+    for (const t of ['Variant', 'meta::pure::metamodel::variant::Variant']) {
+      assert.deepEqual(operatorsFor(t), ['isEmpty', 'isNotEmpty']);
+    }
   });
 });

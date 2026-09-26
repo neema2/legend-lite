@@ -108,6 +108,9 @@ export function aggregatesFor(
       date: ['min', 'max', 'unique'],
       time: ['min', 'max', 'unique'],
       boolean: ['unique'],
+      // A JSON document has no order and no sum; its one aggregate is
+      // "the value, when the group has only one".
+      variant: ['unique'],
     } satisfies Record<DataType, AggregateFn[]>)[dataTypeOf(type)],
   );
   return AGGREGATES.filter((a) => allowed.has(a.value));

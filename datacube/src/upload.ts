@@ -6,8 +6,12 @@
 
 import type { QueryEngine } from './engine.ts';
 import type { ResultTable, Scalar } from './result.ts';
-import { inferModel, type DescribedColumn, type InferredModel }
-  from './infer.ts';
+import {
+  inferModel,
+  isNestedType,
+  type DescribedColumn,
+  type InferredModel,
+} from './infer.ts';
 
 /**
  * The duckdb-wasm surface used here.
@@ -20,7 +24,7 @@ export interface DuckDbFiles {
   registerFileBuffer(name: string, buffer: Uint8Array): Promise<void>;
 }
 
-export type UploadFormat = 'csv' | 'parquet';
+export type UploadFormat = 'csv' | 'parquet' | 'json';
 
 export interface UploadResult extends InferredModel {
   readonly table: string;
@@ -33,9 +37,15 @@ function dq(name: string): string {
   return `"${name.replace(/"/g, '""')}"`;
 }
 
-/** Guess by extension; the picker allows only these two. */
+/**
+ * Guess by extension; the picker allows only these. JSON covers both a
+ * document holding an array of records and newline-delimited records
+ * -- DuckDB's reader tells them apart itself.
+ */
 export function formatOf(fileName: string): UploadFormat {
-  return /\.parquet$/i.test(fileName) ? 'parquet' : 'csv';
+  if (/\.parquet$/i.test(fileName)) return 'parquet';
+  if (/\.(json|jsonl|ndjson)$/i.test(fileName)) return 'json';
+  return 'csv';
 }
 
 /**
@@ -83,11 +93,15 @@ export async function ingestFile(
 
   const reader = format === 'parquet'
     ? `read_parquet('${virtualName}')`
-    // AUTO_DETECT sniffs delimiter, quoting and types. Upstream's
-    // DataCube requires a header row and comma delimiters; DuckDB's
-    // sniffer handles more than that, so there is no reason to
-    // impose the narrower rule.
-    : `read_csv('${virtualName}', AUTO_DETECT=TRUE, HEADER=TRUE)`;
+    : format === 'json'
+      // Each record's top-level keys become columns; anything nested
+      // below them arrives as a STRUCT or a LIST, converted below.
+      ? `read_json('${virtualName}', auto_detect=true)`
+      // AUTO_DETECT sniffs delimiter, quoting and types. Upstream's
+      // DataCube requires a header row and comma delimiters; DuckDB's
+      // sniffer handles more than that, so there is no reason to
+      // impose the narrower rule.
+      : `read_csv('${virtualName}', AUTO_DETECT=TRUE, HEADER=TRUE)`;
 
   // The user's own column names, unchanged. An earlier version
   // renamed anything that was not a plain identifier, because a
@@ -105,15 +119,21 @@ export async function ingestFile(
   await engine.execute(
     `CREATE OR REPLACE TABLE ${qt} AS SELECT * FROM ${reader}`, 0);
 
-  // A ResultTable is COLUMNAR, so DESCRIBE's answer is read by
-  // picking the two columns out and zipping them, not row by row.
-  const describe = await engine.execute(`DESCRIBE ${qt}`, 0);
-  const names = columnOf(describe, 'column_name');
-  const types = columnOf(describe, 'column_type');
-  const described: DescribedColumn[] = names.map((n, i) => ({
-    name: String(n),
-    type: String(types[i] ?? 'VARCHAR'),
-  }));
+  // Nested columns become JSON. legend-lite declares them
+  // SEMISTRUCTURED and navigates them with DuckDB's JSON operators,
+  // which do not apply to a STRUCT or a LIST -- so the table has to
+  // hold what the model says it holds. Parquet carries nested columns
+  // too, which is why this is not JSON-only.
+  let described = await describeTable(engine, qt);
+  const nested = described.filter((c) => isNestedType(c.type));
+  if (nested.length > 0) {
+    const replaced = nested
+      .map((c) => `to_json(${dq(c.name)}) AS ${dq(c.name)}`).join(', ');
+    await engine.execute(
+      `CREATE OR REPLACE TABLE ${qt} AS SELECT * REPLACE (${replaced}) `
+        + `FROM ${qt}`, 0);
+    described = await describeTable(engine, qt);
+  }
 
   const counted = await engine.execute(
     `SELECT count(*) AS n FROM ${qt}`, 0);
@@ -125,6 +145,24 @@ export async function ingestFile(
     rowCount,
     fileName: file.name,
   };
+}
+
+/**
+ * The table's columns and DuckDB types. A ResultTable is COLUMNAR, so
+ * DESCRIBE's answer is read by picking the two columns out and zipping
+ * them, not row by row.
+ */
+async function describeTable(
+  engine: QueryEngine,
+  qt: string,
+): Promise<DescribedColumn[]> {
+  const describe = await engine.execute(`DESCRIBE ${qt}`, 0);
+  const names = columnOf(describe, 'column_name');
+  const types = columnOf(describe, 'column_type');
+  return names.map((n, i) => ({
+    name: String(n),
+    type: String(types[i] ?? 'VARCHAR'),
+  }));
 }
 
 /** One column of a DESCRIBE result, by name. */

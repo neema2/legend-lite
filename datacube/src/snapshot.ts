@@ -192,6 +192,21 @@ export function isFractionalType(type: string | undefined): boolean {
   return type === 'Float' || type === 'Number' || type === 'Decimal';
 }
 
+/**
+ * Whether a Pure type name is Variant: semi-structured data (a JSON
+ * object, array or scalar) in one column.
+ *
+ * Both spellings, because both arrive: the generated SQL-to-Pure
+ * table and a remote engine say `Variant`, while a relation type the
+ * compiler reports carries the full path. Nested data of every other
+ * shape -- a STRUCT, a LIST, a MAP -- is converted to JSON when it is
+ * loaded (`upload.ts`), so this is the one nested type the cube meets.
+ */
+export function isVariantType(type: string | undefined): boolean {
+  return type === 'Variant'
+    || type === 'meta::pure::metamodel::variant::Variant';
+}
+
 /** Columns a cube may group or pivot by. */
 export function dimensionColumns(s: CubeSnapshot): ColumnSpec[] {
   return s.columns.filter((c) => kindOf(c) === 'dimension');

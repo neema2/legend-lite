@@ -28,6 +28,7 @@
 import {
   isNumericType,
   isRelativeDate,
+  isVariantType,
   type FilterCondition,
   type FilterNode,
   type FilterOperator,
@@ -93,10 +94,17 @@ export interface FilterColumn {
   readonly type: string;
 }
 
-/** Upstream's DataCubeColumnDataType, plus the time of day. */
-export type DataType = 'text' | 'number' | 'date' | 'time' | 'boolean';
+/**
+ * Upstream's DataCubeColumnDataType, plus the time of day and
+ * semi-structured data. Upstream has no Variant bucket: a JSON column
+ * there falls to text, which offers `contains` on a value that is not
+ * a string.
+ */
+export type DataType = 'text' | 'number' | 'date' | 'time' | 'boolean'
+  | 'variant';
 
 export function dataTypeOf(type: string | undefined): DataType {
+  if (isVariantType(type)) return 'variant';
   if (type === 'Boolean') return 'boolean';
   if (type === 'StrictTime') return 'time';
   if (type === 'Date' || type === 'StrictDate' || type === 'DateTime'
@@ -114,7 +122,12 @@ const TEXT = new Set<DataType>(['text']);
 const EQUALITY = new Set<DataType>(['text', 'number', 'date', 'time', 'boolean']);
 const ORDERING = new Set<DataType>(['number', 'date', 'time']);
 const LISTS = new Set<DataType>(['text', 'number', 'date']);
-const NULLS = new Set<DataType>(['text', 'number', 'date', 'time', 'boolean']);
+// A Variant takes only these: whether it is there at all. Comparing a
+// JSON document to a typed-in value compares their JSON text, which
+// is rarely the question -- extract a value first (`get`/`to`) and
+// filter that.
+const NULLS = new Set<DataType>(['text', 'number', 'date', 'time', 'boolean',
+  'variant']);
 const COLUMN_EQUALITY = new Set<DataType>(['text', 'number', 'date', 'time']);
 
 /**
@@ -274,6 +287,9 @@ FilterValue | null {
         return t.slice(1, -1);
       }
       return text;
+    // Its operators take no value (`isEmpty`, `isNotEmpty`).
+    case 'variant':
+      return null;
   }
 }
 

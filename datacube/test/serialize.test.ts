@@ -1037,3 +1037,43 @@ describe('C3: a column pivot carries CALCULATED measures', () => {
     assert.match(q, /pivot\(~\[year\], ~\[[^\]]*uplift:x\|\$x\.uplift:y\|\$y->sum\(\)/);
   });
 });
+
+describe('a Variant column', () => {
+  const columns = [
+    { name: 'region', type: 'String' },
+    { name: 'payload', type: 'Variant' },
+    { name: 'notional', type: 'Float' },
+  ];
+
+  it('refuses to be pivoted on, and says how to pivot on what is in it', () => {
+    // It would run: every column would be named after a whole JSON
+    // document. The question is always about a value inside one.
+    assert.throws(
+      () => serialize(snap({ columns, rows: ['region'], pivotOn: ['payload'] })),
+      /cannot pivot on 'payload': it holds JSON.*\$x\.payload->get\('key'\)->to\(@String\)/,
+    );
+  });
+
+  it('pivots on a value extracted from it', () => {
+    const s = serialize(snap({
+      columns,
+      derived: [{ name: 'sku', type: 'String', kind: 'dimension',
+        expression: "$x.payload->get('sku')->to(@String)" }],
+      rows: ['region'],
+      pivotOn: ['sku'],
+    }));
+    assert.match(s, /extend\(~\[sku: x\|\$x\.payload->get\('sku'\)->to\(@String\)/);
+    assert.match(s, /pivot\(~\[sku\]/);
+  });
+
+  it('can be filtered on its presence', () => {
+    assert.equal(
+      filterExpression({
+        kind: 'condition',
+        column: 'payload',
+        operator: 'isNotEmpty',
+      }),
+      '$x.payload->isNotEmpty()',
+    );
+  });
+});
