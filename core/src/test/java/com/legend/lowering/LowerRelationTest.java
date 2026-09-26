@@ -767,11 +767,19 @@ class LowerRelationTest {
         assertEquals(List.of("1|6", "2|10"),
                 exec("SELECT ID, first FROM (" + typed + ")\nORDER BY ID"));
 
-        // to(@String) on a BARE variant column (no get to swap): plain CAST.
+        // to(@String) on a BARE variant column extracts the root value's
+        // TEXT, as a get(...) access does. Moved 2026-09-26 (datacube
+        // Variant work): this pinned a plain CAST, which keeps a JSON
+        // string's quotes -- '"abc"', where variant/convert/to.pure
+        // testToString says 'abc'. The same cast inside a map lambda made
+        // map(t|$t->to(@String))->contains('gift') false on every row.
         String bare = new DuckDb().render(new Lowerer(com.legend.lowering.PlatformRegistrations.catalogTable()).lower(Compiler.compileQuery(model,
                 "#>{test::DB.T_CARTS}#->extend(~txt : x | $x.NUMS->to(@String))")));
-        assertTrue(bare.contains("CAST(t0.NUMS AS VARCHAR) AS txt"), bare);
-        assertEquals(List.of("1|[1, 2, 3]", "2|[10]"),
+        assertTrue(bare.contains("CAST((t0.NUMS ->> '$') AS VARCHAR) AS txt"), bare);
+        // An array's text is now DuckDB's compact JSON, not the stored
+        // spelling -- upstream's own JSON text is compact too
+        // (toJson.pure: '{"Hello":["World","!"]}'; composition.pure '[2,3,4]').
+        assertEquals(List.of("1|[1,2,3]", "2|[10]"),
                 exec("SELECT ID, txt FROM (" + bare + ")\nORDER BY ID"),
                 "whole-value text rendering");
     }

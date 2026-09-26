@@ -649,6 +649,34 @@ class VariantIntegrationTest {
         }
     }
 
+    /**
+     * to(@String) on a Variant that is NOT a get(...) — here each element of
+     * a JSON array, inside a map lambda — is the element's text, unquoted
+     * (upstream variant/convert/to.pure testToString: '"Hello"' -> 'Hello').
+     * It rendered CAST(t AS VARCHAR), which keeps the JSON quotes, so the
+     * contains() below was false on every row and joinStrings printed
+     * "ABC"|"XYZ". Upstream's PCT only reaches to(@String) through get().
+     */
+    @Test
+    @DisplayName("to(@String) on a JSON array element is its unquoted text")
+    void testToStringOnArrayElements() throws SQLException {
+        String elems = "$x.PAYLOAD->get('items')->toMany(@meta::pure::metamodel::variant::Variant)"
+                + "->map(i | $i->get('sku'))->map(s | $s->to(@String)->toOne())";
+        String pureQuery = "#>{store::EventDatabase.T_EVENTS}#"
+                + "->filter(x | $x.EVENT_TYPE == 'purchase')"
+                + "->extend(~[joined: x | " + elems + "->joinStrings('|'),"
+                + " hasAbc: x | " + elems + "->contains('ABC')])"
+                + "->select(~[ID, joined, hasAbc])->sort(~ID->ascending())";
+
+        System.out.println("to(@String) on elements SQL: " + generateSql(pureQuery));
+        var result = executeRelation(pureQuery);
+        result.rows().forEach(r -> System.out.println("  Row: " + r));
+        assertEquals("ABC|XYZ", result.rows().get(0).get(1));
+        assertEquals(true, result.rows().get(0).get(2));
+        assertEquals("DEF", result.rows().get(1).get(1));
+        assertEquals(false, result.rows().get(1).get(2));
+    }
+
     /** Grouping on a value extracted from a flattened JSON array. */
     @Test
     @DisplayName("lateral flatten, extract a scalar, group by it")

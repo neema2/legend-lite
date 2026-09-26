@@ -145,6 +145,24 @@ final class CastPolicy {
                     LegendCompileException.Phase.LOWER,
                     "The type " + tc.fqn() + " is not supported yet!");
         }
+        // A Variant to STRING is its TEXT: fromJson('"Hello"')->to(@String)
+        // is 'Hello' (variant/convert/to.pure testToString), never the JSON
+        // spelling '"Hello"'. A get(...) access already extracts text when
+        // rendered (the dialect's ->> idiom below); any OTHER Variant value
+        // — a list lambda's element, a whole Variant column — had no access
+        // to key on and cast its JSON text, quotes included, so
+        // toMany(@Variant)->map(t|$t->to(@String))->contains('gift') was
+        // false for every row. Extract the root value ('$'), the same shape
+        // PureSql.elementText gives toString. Numbers and booleans cast
+        // from JSON correctly already, so only STRING routes here.
+        if (c.target() == Type.Primitive.STRING
+                && !(value instanceof SqlExpr.Call vg
+                        && vg.fn() == SqlFn.VARIANT_GET)) {
+            return new SqlExpr.Cast(
+                    SqlExpr.Call.of(SqlFn.VARIANT_GET, value,
+                            new SqlExpr.StringLit("$")),
+                    PureSql.type(c.target()));
+        }
         // The dialect may render this cast through its text-extraction idiom
         // (DuckDB ->>) — that is RENDERING knowledge; the IR keeps the access.
         // KIND/SCALE PRESERVATION (X-audit): engine cast-to-Decimal keeps
