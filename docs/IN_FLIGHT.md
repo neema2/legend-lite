@@ -68,6 +68,10 @@ h2-fail-roster.txt`.
 
 ## Status lines (update in place; newest first)
 
+- 2026-09-26 13:45 warehouse: 6a6103cbd's CI was red on ONE job, Windows gate 6: GitHub answered
+  HTTP 500 downloading bazel_features-v1.42.1 (infrastructure, not code; log saved). 671fbb88c,
+  which carries the same tree, is green on every lane. NOT building; D1 is planned and decided
+  (WAREHOUSE_D1_DESIGN_2026_09_26.md), code not started.
 - 2026-09-26 14:05 untangle: **step 2 landed** (this commit; GATES.md entry "Execution plan step 2"):
   lowering registration by declaration identity; `FunctionId` moved from `platform` to `model`
   (move group D) — any core code that imports `com.legend.platform.FunctionId` now imports
