@@ -16,14 +16,19 @@
 // Kept from ours: the completion list of everything in scope at the
 // column's level, inserted at the caret.
 
-import { completionsFor, nameProblem, type CalcStage, type Completion } from '../calc.ts';
+import { columnsInScope, completionsFor, nameProblem, type CalcStage, type Completion } from '../calc.ts';
 import { ident } from '../serialize.ts';
 import { docHint } from './docs.ts';
 import {
+  WINDOW_FUNCTIONS,
   isNumericType,
   renameColumnReferences,
+  rowColumns,
   type CubeSnapshot,
   type DerivedColumn,
+  type WindowFrame,
+  type WindowFunction,
+  type WindowSpec,
 } from '../snapshot.ts';
 
 /** Upstream's DataCubeExtendedColumnKind. */
@@ -71,8 +76,14 @@ export interface ColumnEditorOptions {
 interface Draft {
   name: string;
   level: ColumnLevel;
+  /** An expression over one row, or a window over the rows around it. */
+  mode: 'expression' | 'window';
   expression: string;
+  window: WindowSpec;
 }
+
+/** A window to start from: a running sum, order to be chosen. */
+const NEW_WINDOW: WindowSpec = { fn: 'sum', partition: [], order: [], frame: 'running' };
 
 type Check =
   | { readonly state: 'idle' }
@@ -110,17 +121,19 @@ export class ColumnEditor {
     if ('edit' in start) {
       const found = findColumn(options.snapshot(), start.edit);
       this.#original = start.edit;
-      this.#initial = found ?? { name: start.edit, level: 'measure', expression: '' };
+      this.#initial = found ?? { name: start.edit, level: 'measure', mode: 'expression', expression: '', window: NEW_WINDOW };
     } else {
       this.#original = undefined;
       this.#initial = {
         name: freshName(options.snapshot()),
         // MEASURE by default, as upstream (DataCubeNewColumnState).
         level: start.level ?? 'measure',
+        mode: 'expression',
         expression: start.expression ?? '',
+        window: NEW_WINDOW,
       };
     }
-    this.#draft = { ...this.#initial };
+    this.#draft = { ...this.#initial, window: { ...this.#initial.window } };
     this.#render();
     this.#schedule(0);
   }
@@ -158,7 +171,8 @@ export class ColumnEditor {
     const d = this.#draft;
     const next: DerivedColumn = {
       name: d.name.trim(),
-      expression: d.expression.trim(),
+      expression: d.mode === 'window' ? '' : d.expression.trim(),
+      ...(d.mode === 'window' ? { window: this.#window() } : {}),
       // A group-level column is already past the aggregation, so it has
       // no measure-or-dimension to decide; upstream draws the same line.
       ...(d.level === 'group' ? {} : { kind: d.level }),
@@ -187,6 +201,41 @@ export class ColumnEditor {
     return rename ? renameColumnReferences(next, rename.from, rename.to) : next;
   }
 
+  /** What the calculation still lacks, or null when it is complete. */
+  #bodyProblem(): string | null {
+    const d = this.#draft;
+    if (d.mode === 'expression') {
+      return d.expression.trim().length === 0
+        ? 'An expression is required — e.g. $x.notional * 1.05' : null;
+    }
+    const w = d.window;
+    const meta = WINDOW_FUNCTIONS.find((f) => f.fn === w.fn);
+    if (meta?.column && !w.column) return 'Choose the column the window reads';
+    // At the group level an empty order is the grid's own order.
+    if (meta?.ordered && w.order.length === 0 && this.#stage() === 'row') {
+      return 'Choose an order: this function means nothing without one';
+    }
+    if (w.partition.length === 0 && w.order.length === 0 && this.#stage() === 'row' && !w.column) {
+      return 'Choose a partition or an order';
+    }
+    return null;
+  }
+
+  /** The draft window, tidied: only what its function takes. */
+  #window(): WindowSpec {
+    const w = this.#draft.window;
+    const meta = WINDOW_FUNCTIONS.find((f) => f.fn === w.fn);
+    return {
+      fn: w.fn,
+      ...(meta?.column && w.column ? { column: w.column } : {}),
+      partition: [...w.partition],
+      order: w.order.map((o) => ({ ...o })),
+      ...(meta?.framed && w.frame !== undefined ? { frame: w.frame } : {}),
+      ...((w.fn === 'lag' || w.fn === 'lead') && w.offset !== undefined ? { offset: w.offset } : {}),
+      ...(w.fn === 'ntile' ? { buckets: w.buckets ?? 4 } : {}),
+    };
+  }
+
   #nameProblem(): string | null {
     const s = this.#options.snapshot();
     return nameProblem(s, this.#stage(), this.#draft.name,
@@ -199,7 +248,7 @@ export class ColumnEditor {
     clearTimeout(this.#timer);
     this.#inflight?.abort();
     this.#inflight = null;
-    if (this.#draft.expression.trim().length === 0 || this.#nameProblem() !== null) {
+    if (this.#bodyProblem() !== null || this.#nameProblem() !== null) {
       this.#check = { state: 'idle' };
       this.#paint();
       return;
@@ -274,7 +323,7 @@ export class ColumnEditor {
   }
 
   #reset(): void {
-    this.#draft = { ...this.#initial };
+    this.#draft = { ...this.#initial, window: { ...this.#initial.window } };
     this.#refusal = null;
     this.#render();
     this.#schedule(0);
@@ -282,7 +331,7 @@ export class ColumnEditor {
 
   #canApply(): boolean {
     return this.#nameProblem() === null
-      && this.#draft.expression.trim().length > 0
+      && this.#bodyProblem() === null
       && (this.#check.state === 'ok' || this.#check.state === 'unavailable')
       && this.#refusal === null;
   }
@@ -326,9 +375,34 @@ export class ColumnEditor {
       this.#edited();
       // The scope changes with the level, so the completion list does.
       this.#paintPicker(picker, expr);
+      this.#paintWindow(winBox);
     });
 
-    const exprRow = el(doc, 'label', 'dc-coleditor-code', form);
+    // EXPRESSION OR WINDOW: one row in, one value out -- or a value from
+    // the rows around it (a running total, a rank, the previous period).
+    const modeRow = field(doc, form, 'Calculation:');
+    const mode = el(doc, 'select', 'dc-calc-mode', modeRow) as HTMLSelectElement;
+    for (const [value, label] of [['expression', 'Expression'], ['window', 'Window (running, rank, previous…)']] as const) {
+      const o = doc.createElement('option');
+      o.value = value;
+      o.textContent = label;
+      mode.append(o);
+    }
+    mode.value = this.#draft.mode;
+    const exprBox = el(doc, 'div', 'dc-calc-exprbox', form);
+    const winBox = el(doc, 'div', 'dc-calc-window', form);
+    const showMode = (): void => {
+      exprBox.hidden = this.#draft.mode !== 'expression';
+      winBox.hidden = this.#draft.mode !== 'window';
+    };
+    mode.addEventListener('change', () => {
+      this.#draft.mode = mode.value as Draft['mode'];
+      showMode();
+      this.#paintWindow(winBox);
+      this.#edited();
+    });
+
+    const exprRow = el(doc, 'label', 'dc-coleditor-code', exprBox);
     const expr = el(doc, 'textarea', 'dc-calc-input-expr', exprRow) as HTMLTextAreaElement;
     expr.value = this.#draft.expression;
     expr.rows = 4;
@@ -345,8 +419,10 @@ export class ColumnEditor {
     const problem = el(doc, 'p', 'dc-calc-problem', form);
     problem.setAttribute('role', 'alert');
 
-    const picker = el(doc, 'div', 'dc-calc-picker', form);
+    const picker = el(doc, 'div', 'dc-calc-picker', exprBox);
     this.#paintPicker(picker, expr);
+    this.#paintWindow(winBox);
+    showMode();
 
     const footer = el(doc, 'div', 'dc-calc-footer', this.#root);
     const button = (label: string, cls: string, onClick: () => void): HTMLButtonElement => {
@@ -380,8 +456,7 @@ export class ColumnEditor {
     const c = this.#check;
     switch (c.state) {
       case 'idle':
-        check.textContent = this.#draft.expression.trim().length === 0
-          ? 'An expression is required — e.g. $x.notional * 1.05' : '';
+        check.textContent = this.#bodyProblem() ?? '';
         break;
       case 'compiling':
         check.textContent = 'Compiling…';
@@ -407,6 +482,171 @@ export class ColumnEditor {
     problem.textContent = message ?? '';
     problem.hidden = message === null;
     ok.disabled = this.#busy || !this.#canApply();
+  }
+
+  /** The window form: function, column, partition, order, frame. */
+  #paintWindow(box: HTMLElement): void {
+    const doc = this.#doc;
+    box.replaceChildren();
+    const w = this.#draft.window;
+    const stage = this.#stage();
+    const columns = columnsInScope(this.#options.snapshot(), stage, this.#original).map((c) => c.label);
+    const meta = WINDOW_FUNCTIONS.find((f) => f.fn === w.fn) ?? WINDOW_FUNCTIONS[0]!;
+    const changed = (repaint = false): void => {
+      if (repaint) this.#paintWindow(box);
+      this.#edited();
+    };
+    const select = (parent: HTMLElement, cls: string, options: readonly (readonly [string, string])[],
+      value: string, onChange: (v: string) => void): HTMLSelectElement => {
+      const sel = el(doc, 'select', cls, parent) as HTMLSelectElement;
+      for (const [v, label] of options) {
+        const o = doc.createElement('option');
+        o.value = v;
+        o.textContent = label;
+        sel.append(o);
+      }
+      sel.value = value;
+      sel.addEventListener('change', () => onChange(sel.value));
+      return sel;
+    };
+    const number = (parent: HTMLElement, cls: string, value: number, onChange: (n: number) => void): void => {
+      const input = el(doc, 'input', cls, parent) as HTMLInputElement;
+      input.type = 'number';
+      input.min = '1';
+      input.value = String(value);
+      input.style.width = '64px';
+      input.addEventListener('input', () => {
+        const n = Math.floor(Number(input.value));
+        if (Number.isFinite(n) && n >= 1) onChange(n);
+      });
+    };
+    const colOptions = columns.map((c) => [c, c] as const);
+
+    select(field(doc, box, 'Function:'), 'dc-win-fn',
+      WINDOW_FUNCTIONS.map((f) => [f.fn, f.label] as const), w.fn, (v) => {
+        const next = WINDOW_FUNCTIONS.find((f) => f.fn === v)!;
+        this.#draft.window = {
+          ...w,
+          fn: v as WindowFunction,
+          ...(next.framed ? { frame: w.frame ?? 'running' } : {}),
+        };
+        changed(true);
+      });
+    if (meta.column) {
+      select(field(doc, box, 'Of:'), 'dc-win-column',
+        [['', 'Choose a column…'], ...colOptions], w.column ?? '', (v) => {
+          const { column: _c, ...rest } = this.#draft.window;
+          void _c;
+          this.#draft.window = v === '' ? rest : { ...rest, column: v };
+          changed();
+        });
+    }
+
+    // PARTITION: restart for each value of these -- the grouping
+    // columns: the row groups at the group level, the dimension columns
+    // at the row level. Partitioning by a figure means nothing.
+    const snapshot = this.#options.snapshot();
+    const partitionable = stage === 'group'
+      ? snapshot.rows.filter((r) => columns.includes(r))
+      : rowColumns(snapshot).filter((c) => c.kind === 'dimension' && columns.includes(c.name))
+        .map((c) => c.name);
+    const part = field(doc, box, 'Partition by:');
+    const partList = el(doc, 'div', 'dc-win-partition', part);
+    for (const c of partitionable) {
+      const label = el(doc, 'label', 'dc-win-part', partList);
+      const box2 = el(doc, 'input', 'dc-win-part-check', label) as HTMLInputElement;
+      box2.type = 'checkbox';
+      box2.value = c;
+      box2.checked = w.partition.includes(c);
+      label.append(doc.createTextNode(` ${c}`));
+      box2.addEventListener('change', () => {
+        const now = this.#draft.window.partition;
+        this.#draft.window = {
+          ...this.#draft.window,
+          partition: box2.checked ? [...now, c] : now.filter((x) => x !== c),
+        };
+        changed();
+      });
+    }
+    if (partitionable.length === 0) {
+      partList.textContent = stage === 'group' ? 'No row groups: one partition' : 'No dimension columns';
+    }
+
+    // ORDER: the rows' order within each partition.
+    const orderRow = field(doc, box, 'Order by:');
+    const orderList = el(doc, 'div', 'dc-win-order', orderRow);
+    w.order.forEach((o, i) => {
+      const line = el(doc, 'div', 'dc-win-order-line', orderList);
+      const setAt = (next: { column?: string; direction?: 'asc' | 'desc' }): void => {
+        const order = this.#draft.window.order.map((x, j) => (j === i ? { ...x, ...next } : x));
+        this.#draft.window = { ...this.#draft.window, order };
+        changed();
+      };
+      select(line, 'dc-win-order-column', colOptions, o.column, (v) => setAt({ column: v }));
+      select(line, 'dc-win-order-direction', [['asc', 'Ascending'], ['desc', 'Descending']],
+        o.direction, (v) => setAt({ direction: v as 'asc' | 'desc' }));
+      const remove = el(doc, 'button', 'dc-button dc-win-order-remove', line) as HTMLButtonElement;
+      remove.type = 'button';
+      remove.textContent = '×';
+      remove.setAttribute('aria-label', `Remove ${o.column} from the order`);
+      remove.addEventListener('click', () => {
+        this.#draft.window = {
+          ...this.#draft.window,
+          order: this.#draft.window.order.filter((_x, j) => j !== i),
+        };
+        changed(true);
+      });
+    });
+    const add = el(doc, 'button', 'dc-button dc-win-order-add', orderList) as HTMLButtonElement;
+    add.type = 'button';
+    add.textContent = '+ Add';
+    add.disabled = columns.length === 0;
+    add.addEventListener('click', () => {
+      const used = new Set(this.#draft.window.order.map((o) => o.column));
+      const column = columns.find((c) => !used.has(c)) ?? columns[0];
+      if (column === undefined) return;
+      this.#draft.window = {
+        ...this.#draft.window,
+        order: [...this.#draft.window.order, { column, direction: 'asc' }],
+      };
+      changed(true);
+    });
+    if (stage === 'group' && w.order.length === 0) {
+      el(doc, 'span', 'dc-win-hint', orderList).textContent = 'none: the order the grid shows';
+    }
+
+    if (meta.framed) {
+      const frameRow = field(doc, box, 'Frame:');
+      const f = w.frame ?? (w.fn === 'last' ? 'partition' : 'running');
+      const kind = typeof f === 'object' ? 'last' : f;
+      select(frameRow, 'dc-win-frame', [
+        ['running', 'Running (from the start to this row)'],
+        ['partition', 'Whole partition'],
+        ['last', 'Moving (the last N rows)'],
+      ], kind, (v) => {
+        const frame: WindowFrame = v === 'last' ? { lastRows: 3 } : v as 'running' | 'partition';
+        this.#draft.window = { ...this.#draft.window, frame };
+        changed(true);
+      });
+      if (typeof f === 'object') {
+        number(frameRow, 'dc-win-rows', f.lastRows, (n) => {
+          this.#draft.window = { ...this.#draft.window, frame: { lastRows: n } };
+          changed();
+        });
+      }
+    }
+    if (w.fn === 'lag' || w.fn === 'lead') {
+      number(field(doc, box, 'Rows back / ahead:'), 'dc-win-offset', w.offset ?? 1, (n) => {
+        this.#draft.window = { ...this.#draft.window, offset: n };
+        changed();
+      });
+    }
+    if (w.fn === 'ntile') {
+      number(field(doc, box, 'Buckets:'), 'dc-win-buckets', w.buckets ?? 4, (n) => {
+        this.#draft.window = { ...this.#draft.window, buckets: n };
+        changed();
+      });
+    }
   }
 
   #paintPicker(picker: HTMLElement, expr: HTMLTextAreaElement): void {
@@ -488,11 +728,18 @@ function findColumn(s: CubeSnapshot, name: string): Draft | undefined {
       name,
       // A column saved before kinds were declared behaves as its type.
       level: row.kind ?? (isNumericType(row.type) ? 'measure' : 'dimension'),
+      mode: row.window ? 'window' : 'expression',
       expression: row.expression,
+      window: row.window ?? NEW_WINDOW,
     };
   }
   const group = (s.groupDerived ?? []).find((d) => d.name === name);
-  return group ? { name, level: 'group', expression: group.expression } : undefined;
+  return group
+    ? {
+      name, level: 'group', mode: group.window ? 'window' : 'expression',
+      expression: group.expression, window: group.window ?? NEW_WINDOW,
+    }
+    : undefined;
 }
 
 /**

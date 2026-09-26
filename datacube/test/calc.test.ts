@@ -86,8 +86,12 @@ describe('what a calculated column can see', () => {
       ],
     });
     const got = columnsInScope(s, 'group');
+    // NOT the measure's own name: the pivot spreads it into its
+    // generated columns, and the planner refuses it at this stage
+    // ("relation has no column 'notional'", the product's compile on
+    // the pivoted demo cube, 2026-09-26).
     assert.deepEqual(labels(got), [
-      'region', 'total',
+      'region',
       `2023${PIVOT_SEPARATOR}total`, `2024${PIVOT_SEPARATOR}total`,
     ]);
     // ...and it says which measure it came from, since the name alone

@@ -255,10 +255,81 @@ export interface Measure {
  * not interchangeable -- see `derived` and `groupDerived` on the
  * snapshot.
  */
+/**
+ * A window function: a value computed over the rows AROUND a row --
+ * a running total, a rank, the previous period's figure. Pure's
+ * `extend(over(...), ~col:{p,w,r|...})`, which the planner turns into
+ * SQL's `... OVER (PARTITION BY ... ORDER BY ... ROWS ...)`.
+ */
+export type WindowFunction =
+  | 'sum' | 'average' | 'min' | 'max' | 'count'
+  | 'rank' | 'denseRank' | 'rowNumber' | 'percentRank' | 'cumeDist' | 'ntile'
+  | 'lag' | 'lead' | 'first' | 'last';
+
+/**
+ * Which rows around the current one an aggregate sees: from the start
+ * of the partition to this row (a running figure), the whole partition,
+ * or the last N rows (this one included) -- a moving figure.
+ */
+export type WindowFrame = 'running' | 'partition' | { readonly lastRows: number };
+
+export interface WindowSpec {
+  readonly fn: WindowFunction;
+  /** The column the function reads: aggregates, lag/lead, first/last. */
+  readonly column?: string;
+  /** Restart for each distinct value of these; empty = one partition. */
+  readonly partition: readonly string[];
+  /**
+   * The order the rows are taken in. At the GROUP level, empty means
+   * the order the grid shows that level in, so a running total runs
+   * down the rows as they are seen.
+   */
+  readonly order: readonly SortSpec[];
+  /** Aggregates and first/last only; ranking functions take none. */
+  readonly frame?: WindowFrame;
+  /** lag / lead: how many rows back or ahead (default 1). */
+  readonly offset?: number;
+  /** ntile: how many buckets. */
+  readonly buckets?: number;
+}
+
+/** What each window function needs from the form, and what it is called. */
+export const WINDOW_FUNCTIONS: readonly {
+  readonly fn: WindowFunction;
+  readonly label: string;
+  /** Reads a column's values. */
+  readonly column: boolean;
+  /** Means nothing without an order. */
+  readonly ordered: boolean;
+  /** Takes a frame. */
+  readonly framed: boolean;
+}[] = [
+  { fn: 'sum', label: 'Sum (running / moving)', column: true, ordered: false, framed: true },
+  { fn: 'average', label: 'Average (running / moving)', column: true, ordered: false, framed: true },
+  { fn: 'min', label: 'Minimum', column: true, ordered: false, framed: true },
+  { fn: 'max', label: 'Maximum', column: true, ordered: false, framed: true },
+  { fn: 'count', label: 'Count', column: true, ordered: false, framed: true },
+  { fn: 'rank', label: 'Rank', column: false, ordered: true, framed: false },
+  { fn: 'denseRank', label: 'Dense rank', column: false, ordered: true, framed: false },
+  { fn: 'rowNumber', label: 'Row number', column: false, ordered: true, framed: false },
+  { fn: 'percentRank', label: 'Percent rank', column: false, ordered: true, framed: false },
+  { fn: 'cumeDist', label: 'Cumulative distribution', column: false, ordered: true, framed: false },
+  { fn: 'ntile', label: 'Bucket (ntile)', column: false, ordered: true, framed: false },
+  { fn: 'lag', label: 'Previous value (lag)', column: true, ordered: true, framed: false },
+  { fn: 'lead', label: 'Next value (lead)', column: true, ordered: true, framed: false },
+  { fn: 'first', label: 'First value', column: true, ordered: true, framed: true },
+  { fn: 'last', label: 'Last value', column: true, ordered: true, framed: true },
+];
+
 export interface DerivedColumn {
   readonly name: string;
-  /** Pure expression body, with `$x` bound to the row, e.g. '$x.a * 2'. */
+  /**
+   * Pure expression body, with `$x` bound to the row, e.g. '$x.a * 2'.
+   * Unused (empty) for a window column.
+   */
   readonly expression: string;
+  /** A window column instead of an expression: see `WindowSpec`. */
+  readonly window?: WindowSpec;
   /**
    * The Pure type the expression turned out to have.
    *
@@ -634,6 +705,20 @@ export function totalOrderSorts(
  * Pure text -- so one that refers to the old name is refused by the
  * planner, and the editor says so.
  */
+function renamedWindow(d: DerivedColumn, one: (n: string) => string): DerivedColumn {
+  const w = d.window;
+  if (!w) return d;
+  return {
+    ...d,
+    window: {
+      ...w,
+      ...(w.column !== undefined ? { column: one(w.column) } : {}),
+      partition: w.partition.map(one),
+      order: w.order.map((o) => ({ ...o, column: one(o.column) })),
+    },
+  };
+}
+
 export function renameColumnReferences(
   s: CubeSnapshot,
   from: string,
@@ -674,5 +759,8 @@ export function renameColumnReferences(
       ...(m.weight !== undefined ? { weight: one(m.weight) } : {}),
     })),
     ...(s.filter ? { filter: inFilter(s.filter) } : {}),
+    // A window names its columns outright, so a rename reaches them.
+    derived: s.derived.map((d) => renamedWindow(d, one)),
+    ...(s.groupDerived ? { groupDerived: s.groupDerived.map((d) => renamedWindow(d, one)) } : {}),
   };
 }

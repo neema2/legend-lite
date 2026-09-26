@@ -17,7 +17,7 @@
 // moved on underneath it. That is why a snap captures source rows at
 // drillable grain instead of storing aggregated results.
 
-import { NULL_GROUP, filterExpression, ident } from './serialize.ts';
+import { NULL_GROUP, derivedExtend, filterExpression } from './serialize.ts';
 import type { CubeSnapshot, FilterNode } from './snapshot.ts';
 import type { RowPath } from './tree.ts';
 
@@ -80,7 +80,7 @@ export function drillQuery(
   const parts: string[] = [snapshot.source.expression];
 
   for (const d of snapshot.derived) {
-    parts.push(`extend(~[${ident(d.name)}: x|${d.expression}])`);
+    parts.push(derivedExtend(d));
   }
 
   const conditions = drillConditions(snapshot, request);

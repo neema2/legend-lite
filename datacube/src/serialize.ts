@@ -28,6 +28,7 @@ import {
   referencedColumns,
   rowColumns,
   totalOrderSorts,
+  WINDOW_FUNCTIONS,
   type AggregateFn,
   type ColumnKind,
   type CubeSnapshot,
@@ -35,6 +36,8 @@ import {
   type FilterValue,
   type Measure,
   type SortSpec,
+  type DerivedColumn,
+  type WindowSpec,
 } from './snapshot.ts';
 import type { RowPath } from './tree.ts';
 import { ROOT_COLUMN } from './grid/columns.ts';
@@ -349,6 +352,103 @@ export function filterExpression(node: FilterNode, param = 'x'): string {
   }
 }
 
+/**
+ * A calculated column as its `extend`: an expression over one row, or
+ * a window over the rows around it.
+ *
+ * `level`, at the GROUP stage: which of the cube's row dimensions this
+ * query groups by, and the order it shows them in. A window may only
+ * name columns the level has, so a deeper dimension drops out of its
+ * partition and order; an empty order takes the level's display order,
+ * so a running total runs down the rows as the grid shows them.
+ */
+export function derivedExtend(
+  d: DerivedColumn,
+  level?: { readonly rows: readonly string[]; readonly present: readonly string[]; readonly order: readonly SortSpec[] },
+): string {
+  if (!d.window) return `extend(~[${ident(d.name)}: x|${d.expression}])`;
+  let w: WindowSpec = d.window;
+  if (level) {
+    const here = new Set(level.present);
+    const has = (c: string): boolean => here.has(c) || !level.rows.includes(c);
+    const order = w.order.filter((o) => has(o.column));
+    w = {
+      ...w,
+      partition: w.partition.filter(has),
+      order: order.length > 0 ? order : level.order.filter((o) => has(o.column)),
+    };
+  }
+  return windowExtend(d.name, w);
+}
+
+/**
+ * `extend(over(partition, order, frame), ~name:{p,w,r|...})`, in the
+ * forms Pure's `over` overloads take (probed against the planner,
+ * 2026-09-26): partition as a column array, order as a list; with no
+ * partition, the order alone -- or, to carry a frame, the general
+ * `over([], [order], frame)`.
+ */
+export function windowExtend(name: string, w: WindowSpec): string {
+  const sorts = w.order.map(
+    (o) => `~${ident(o.column)}->${o.direction === 'asc' ? 'ascending' : 'descending'}()`,
+  );
+  const meta = WINDOW_META.get(w.fn);
+  if (!meta) throw new CubeRefusal(`unknown window function '${String(w.fn)}'`);
+  // A whole-partition aggregate needs no order; a ranking one refuses a
+  // frame. Last value reads the whole partition unless told otherwise:
+  // its default frame ends at the current row, which is always itself.
+  const frameOf = (): string | undefined => {
+    if (!meta.framed) return undefined;
+    const f = w.frame ?? (w.fn === 'last' ? 'partition' : undefined);
+    if (f === undefined) return undefined;
+    if (f === 'partition') return 'rows(unbounded(), unbounded())';
+    if (sorts.length === 0) return undefined; // running / moving need an order
+    if (f === 'running') return 'rows(unbounded(), 0)';
+    const n = Math.max(1, Math.floor(f.lastRows));
+    return `rows(${-(n - 1)}, 0)`;
+  };
+  const frame = frameOf();
+  let over: string;
+  if (w.partition.length > 0) {
+    const by = `~[${w.partition.map(ident).join(', ')}]`;
+    over = `over(${by}${sorts.length > 0 ? `, [${sorts.join(', ')}]` : ''}${frame ? `, ${frame}` : ''})`;
+  } else if (sorts.length > 0) {
+    over = frame ? `over([], [${sorts.join(', ')}], ${frame})` : `over([${sorts.join(', ')}])`;
+  } else {
+    // One partition, no order: the whole relation. Pure has no empty
+    // over(); ordering by the column read, over the whole frame, is the
+    // same set of rows whatever the order.
+    const key = w.column;
+    if (!key) throw new CubeRefusal(`'${name}' needs an order or a partition`);
+    over = `over([], [~${ident(key)}->ascending()], rows(unbounded(), unbounded()))`;
+  }
+  if (meta.column && !w.column) throw new CubeRefusal(`'${name}' needs a column to read`);
+  if (meta.ordered && sorts.length === 0) throw new CubeRefusal(`'${name}' needs an order`);
+  const read = w.column !== undefined ? `.${ident(w.column)}` : '';
+  const at = (n: number | undefined): string => (n !== undefined && n !== 1 ? `, ${Math.floor(n)}` : '');
+  let fn: string;
+  switch (w.fn) {
+    case 'sum': fn = `{p,w,r|$r${read}}:y|$y->plus()`; break;
+    case 'average': fn = `{p,w,r|$r${read}}:y|$y->average()`; break;
+    case 'min': fn = `{p,w,r|$r${read}}:y|$y->min()`; break;
+    case 'max': fn = `{p,w,r|$r${read}}:y|$y->max()`; break;
+    case 'count': fn = `{p,w,r|$r${read}}:y|$y->count()`; break;
+    case 'rank': fn = '{p,w,r|$p->rank($w, $r)}'; break;
+    case 'denseRank': fn = '{p,w,r|$p->denseRank($w, $r)}'; break;
+    case 'rowNumber': fn = '{p,w,r|$p->rowNumber($r)}'; break;
+    case 'percentRank': fn = '{p,w,r|$p->percentRank($w, $r)}'; break;
+    case 'cumeDist': fn = '{p,w,r|$p->cumulativeDistribution($w, $r)}'; break;
+    case 'ntile': fn = `{p,w,r|$p->ntile($r, ${Math.max(1, Math.floor(w.buckets ?? 4))})}`; break;
+    case 'lag': fn = `{p,w,r|$p->lag($r${at(w.offset)})${read}}`; break;
+    case 'lead': fn = `{p,w,r|$p->lead($r${at(w.offset)})${read}}`; break;
+    case 'first': fn = `{p,w,r|$p->first($w, $r)${read}}`; break;
+    case 'last': fn = `{p,w,r|$p->last($w, $r)${read}}`; break;
+  }
+  return `extend(${over}, ~[${ident(name)}:${fn}])`;
+}
+
+const WINDOW_META = new Map(WINDOW_FUNCTIONS.map((f) => [f.fn, f]));
+
 function sortClause(sorts: readonly SortSpec[]): string {
   const keys = sorts.map(
     (s) =>
@@ -620,9 +720,7 @@ export function serialize(
   const grandTotal = scope !== undefined && scope.level === 0
     && snapshot.rows.length > 0;
 
-  for (const d of snapshot.derived) {
-    parts.push(`extend(~[${ident(d.name)}: x|${d.expression}])`);
-  }
+  for (const d of snapshot.derived) parts.push(derivedExtend(d));
 
   const conditions: FilterNode[] = [];
   if (snapshot.filter) conditions.push(snapshot.filter);
@@ -1012,9 +1110,20 @@ export function serialize(
   // Post-aggregation columns come AFTER the pivot or groupBy, which
   // is the whole point: they see the aggregates rather than the rows
   // that produced them.
-  for (const d of snapshot.groupDerived ?? []) {
-    parts.push(`extend(~[${ident(d.name)}: x|${d.expression}])`);
-  }
+  // A window here sees this level's rows: its dimensions, in the order
+  // the grid shows them.
+  // With no display order the level's keys order it; the grand total,
+  // one row grouped by the root constant, orders by that.
+  const shown = totalOrderSorts(snapshot, groupCols);
+  const keys: SortSpec[] = groupCols.length > 0
+    ? groupCols.map((column) => ({ column, direction: 'asc' as const }))
+    : grouping ? [{ column: ROOT_COLUMN, direction: 'asc' as const }] : [];
+  const levelWindow = {
+    rows: snapshot.rows,
+    present: grouping && groupCols.length === 0 ? [ROOT_COLUMN] : groupCols,
+    order: shown.length > 0 ? shown : keys,
+  };
+  for (const d of snapshot.groupDerived ?? []) parts.push(derivedExtend(d, levelWindow));
 
   // A grand total is a single row; sorting and limiting it is noise
   // that only makes the generated text harder to read in a bug

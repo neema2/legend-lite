@@ -27,7 +27,7 @@
 // "all columns" -- the completion has to be as honest as the query.
 
 import { PIVOT_SEPARATOR } from './generated/lite-facts.ts';
-import type { CubeSnapshot } from './snapshot.ts';
+import { rowColumns, type CubeSnapshot } from './snapshot.ts';
 
 /** Which extend stage an expression belongs to. */
 export type CalcStage = 'row' | 'group';
@@ -199,9 +199,23 @@ export function columnsInScope(
     out.push({ insert: columnRef(r), label: r,
       detail: 'row dimension (a group key)', kind: 'column' });
   }
-  for (const m of snapshot.measures) {
-    out.push({ insert: columnRef(m.name), label: m.name,
-      detail: `measure, ${m.fn}(${m.column})`, kind: 'column' });
+  // A PIVOT SPREADS ITS MEASURES into its generated columns (below):
+  // under one, a measure's own name is no column at this stage.
+  if (snapshot.pivotOn.length === 0) {
+    for (const m of snapshot.measures) {
+      out.push({ insert: columnRef(m.name), label: m.name,
+        detail: `measure, ${m.fn}(${m.column})`, kind: 'column' });
+    }
+  }
+  // NO MEASURES, NO PIVOT: the groupBy aggregates every other column
+  // under its own name (upstream's _groupByAggCols), so each is here.
+  if (snapshot.measures.length === 0 && snapshot.pivotOn.length === 0) {
+    const keys = new Set(snapshot.rows);
+    for (const c of rowColumns(snapshot)) {
+      if (keys.has(c.name)) continue;
+      out.push({ insert: columnRef(c.name), label: c.name,
+        detail: `aggregated column, ${c.type}`, kind: 'column' });
+    }
   }
   // The pivot's generated columns, from the CAST the snapshot asked
   // for rather than from a rendered grid: the snapshot is the source of

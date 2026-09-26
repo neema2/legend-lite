@@ -2415,7 +2415,9 @@ try {
   /** The calculated columns the running query extends with. */
   const calcNames = async () => {
     const { pure } = await state();
-    return [...pure.matchAll(/extend\(~\[([^:\]]+):/g)].map((m) => m[1].replace(/^'|'$/g, ''));
+    // Window columns too: `extend(over(...), ~[name:{p,w,r|...`.
+    return [...pure.matchAll(/extend\(~\[([^:\]]+):|, ~\[([^:\]]+):\{p,w,r\|/g)]
+      .map((m) => (m[1] ?? m[2]).replace(/^'|'$/g, ''));
   };
 
   /**
@@ -2640,29 +2642,29 @@ try {
       return problem ?? '';
     });
 
-  await check('the GROUP stage never offers a source column', async () => {
-    // A groupDerived expression runs after the source rows are gone,
-    // so naming one cannot compile. Offering it would be a suggestion
-    // the planner refuses, and the user could not tell whose fault
-    // that was.
+  await check('the GROUP stage offers only columns that compile there', async () => {
+    // A groupDerived expression runs after the groupBy. With measures,
+    // the source columns are gone and must not be offered; with NONE,
+    // the groupBy aggregates every column under its own name (upstream's
+    // _groupByAggCols), so they are there. The rule underneath both:
+    // nothing offered may be refused. So every offered column that is
+    // not a row dimension is compiled, through the product's own check.
     await openCalc();
     await page.locator('.dc-coleditor .dc-calc-level').selectOption('group');
     const offered = await page.locator('.dc-coleditor .dc-calc-item-column'
       + ' .dc-calc-item-label').allTextContents();
-    const leaked = ['pnl', 'qty', 'book'].filter((n) => offered.includes(n)
-      && !offered.slice(0, 0).includes(n));
-    // A row dimension IS in scope at this stage, so only columns that
-    // are neither a dimension nor a measure count as a leak.
     const dims = await dimensionNames();
-    const measures = ['notional'];
-    const real = leaked.filter((n) => !dims.includes(n)
-      && !measures.includes(n));
-    if (real.length > 0) {
-      throw new Error(`offered source columns at the group stage:`
-        + ` ${real.join(', ')}`);
+    const probe = offered.filter((n) => !dims.includes(n)).slice(0, 6);
+    const refused = [];
+    for (const n of probe) {
+      const ref = /^[A-Za-z_][A-Za-z0-9_]*$/.test(n) ? `$x.${n}` : `$x.'${n}'`;
+      await page.fill('.dc-coleditor .dc-calc-input-expr', ref);
+      const verdict = await compiledCheck();
+      if (verdict.state === 'refused') refused.push(`${n}: ${verdict.text.slice(0, 80)}`);
     }
-    await page.keyboard.press('Escape');
-    return `${offered.length} in scope`;
+    await closeCalc();
+    if (refused.length > 0) throw new Error(`offered but refused: ${refused.join('; ')}`);
+    return `${offered.length} in scope; ${probe.length} non-dimension columns each compile`;
   });
 
   await check('removing a calculated column takes it out of the query',
@@ -2914,6 +2916,131 @@ try {
       }
       return form.problem.replace(/\s+/g, ' ').slice(0, 80);
     });
+
+  // ---- window columns -------------------------------------------------
+  //
+  // Every figure below is the DATABASE's, checked against an independent
+  // reckoning: the grid's own measure summed in the page, or the raw
+  // rows fetched by a plain select and accumulated in JavaScript.
+  const addWindow = async ({ name, level, fn, of, partition = [], order = [], frame }) => {
+    await openCalc();
+    const ed = (sel) => page.locator(`.dc-coleditor ${sel}`);
+    await page.fill('.dc-coleditor .dc-calc-input-name', name);
+    await ed('.dc-calc-level').selectOption(level);
+    await ed('.dc-calc-mode').selectOption('window');
+    await ed('.dc-win-fn').selectOption(fn);
+    if (of) await ed('.dc-win-column').selectOption(of);
+    for (const p of partition) await ed(`.dc-win-part-check[value="${p}"]`).check();
+    for (const [i, o] of order.entries()) {
+      await ed('.dc-win-order-add').click();
+      await ed('.dc-win-order-column').nth(i).selectOption(o.column);
+      await ed('.dc-win-order-direction').nth(i).selectOption(o.direction);
+    }
+    if (frame) await ed('.dc-win-frame').selectOption(frame);
+    const verdict = await compiledCheck();
+    if (verdict.state === 'refused') throw new Error(`refused: ${verdict.text}`);
+    const ok = ed('.dc-calc-ok');
+    if (await ok.isDisabled()) {
+      throw new Error(`OK is disabled: ${await ed('.dc-calc-check').textContent()}`);
+    }
+    const before = await statusNow();
+    await ok.click();
+    await settle(before);
+    await closeCalc();
+  };
+  /** The view's columns by name: the assembled table the grid draws. */
+  const viewColumns = (...names) => page.evaluate((wanted) => {
+    const t = window.__dataCube.controller.view.rows;
+    return Object.fromEntries(wanted.map((n) => [n, t.columns.find((c) => c.name === n)?.values ?? null]));
+  }, names);
+  const near = (a, b) => Math.abs(Number(a) - Number(b)) <= 1e-6 * Math.max(1, Math.abs(Number(a)), Math.abs(Number(b)));
+
+  await check('window column: a group-level running total and previous value, down the grid', async () => {
+    await freshCube();
+    try {
+      await menu(['Pivot', /^Vertical Pivot on/], { col: await needCol('desk') });
+      await addWindow({ name: 'running', level: 'group', fn: 'sum', of: 'notional', frame: 'running' });
+      await addWindow({ name: 'previous', level: 'group', fn: 'lag', of: 'notional' });
+      const { pure } = await state();
+      if (!/extend\(over\(/.test(pure)) throw new Error(`no window in the query: ${pure.slice(0, 200)}`);
+      const v = await viewColumns('notional', 'running', 'previous');
+      if (!v.notional || !v.running || !v.previous) throw new Error(`columns ${Object.keys(v).filter((k) => !v[k])} missing`);
+      let acc = 0;
+      const bad = [];
+      v.notional.forEach((n, i) => {
+        acc += Number(n ?? 0);
+        if (!near(v.running[i], acc)) bad.push(`row ${i}: running ${v.running[i]} vs ${acc}`);
+        const want = i === 0 ? null : v.notional[i - 1];
+        if (want === null ? v.previous[i] !== null : !near(v.previous[i], want)) {
+          bad.push(`row ${i}: previous ${v.previous[i]} vs ${want}`);
+        }
+      });
+      if (v.notional.length < 2) throw new Error('too few groups to prove anything');
+      if (bad.length) throw new Error(bad.slice(0, 3).join('; '));
+      return `${v.notional.length} desks: running ends at ${acc.toFixed(2)}, each previous is the row above`;
+    } finally {
+      await freshCube();
+    }
+  });
+
+  await check('window column: a row-level running sum per region matches the raw rows', async () => {
+    await freshCube();
+    try {
+      await addWindow({ name: 'run_qty', level: 'measure', fn: 'sum', of: 'quantity',
+        partition: ['region'], order: [{ column: 'trade_id', direction: 'asc' }], frame: 'running' });
+      const result = await page.evaluate(async () => {
+        const c = window.__dataCube.controller;
+        const raw = await c.query(`${c.snapshot.source.expression}->select(~[trade_id, region, quantity])`, c.snapshot);
+        const col = (t, n) => t.columns.find((x) => x.name === n).values;
+        const ids = col(raw, 'trade_id'); const regions = col(raw, 'region'); const qty = col(raw, 'quantity');
+        const order = ids.map((_v, i) => i).sort((a, b) => Number(ids[a]) - Number(ids[b]));
+        const want = new Map(); const acc = new Map();
+        for (const i of order) {
+          const r = String(regions[i]);
+          const q = qty[i];
+          const prev = acc.has(r) ? acc.get(r) : null;
+          const next = q === null ? prev : (prev ?? 0) + Number(q);
+          acc.set(r, next);
+          want.set(String(ids[i]), next);
+        }
+        const t = c.view.rows;
+        const gotIds = col(t, 'trade_id'); const got = col(t, 'run_qty');
+        const bad = [];
+        gotIds.forEach((id, i) => {
+          const w = want.get(String(id));
+          const g = got[i];
+          const same = w === null ? g === null : Math.abs(Number(g) - w) <= 1e-6 * Math.max(1, Math.abs(w));
+          if (!same) bad.push(`trade ${id}: ${g} vs ${w}`);
+        });
+        return { compared: gotIds.length, raw: ids.length, bad: bad.slice(0, 3), nbad: bad.length };
+      });
+      if (result.compared < 100) throw new Error(`only ${result.compared} rows to compare`);
+      if (result.nbad) throw new Error(`${result.nbad} wrong: ${result.bad.join('; ')}`);
+      return `${result.compared} rows on screen, each equal to the running sum of ${result.raw} raw rows`;
+    } finally {
+      await freshCube();
+    }
+  });
+
+  await check('window column: a group-level rank follows the measure', async () => {
+    await freshCube();
+    try {
+      await menu(['Pivot', /^Vertical Pivot on/], { col: await needCol('book') });
+      await addWindow({ name: 'rank_notional', level: 'group', fn: 'rank',
+        order: [{ column: 'notional', direction: 'desc' }] });
+      const v = await viewColumns('notional', 'rank_notional');
+      const bad = [];
+      v.notional.forEach((n, i) => {
+        const want = 1 + v.notional.filter((m) => Number(m) > Number(n)).length;
+        if (Number(v.rank_notional[i]) !== want) bad.push(`row ${i}: rank ${v.rank_notional[i]} vs ${want}`);
+      });
+      if (v.notional.length < 3) throw new Error('too few groups to rank');
+      if (bad.length) throw new Error(bad.slice(0, 3).join('; '));
+      return `${v.notional.length} books ranked by notional`;
+    } finally {
+      await freshCube();
+    }
+  });
 
   await check('calculated columns live in the grid menu, not the hamburger',
     async () => {

@@ -11,7 +11,7 @@ import { detailSnapshot, serialize } from '../../src/serialize.ts';
 import { planQueries, type AdHocCube } from '../../src/adhoc/query.ts';
 import { initialGrid, setPov, zoomIn } from '../../src/adhoc/state.ts';
 import type { LevelScope } from '../../src/serialize.ts';
-import type { CubeSnapshot } from '../../src/snapshot.ts';
+import type { CubeSnapshot, WindowSpec } from '../../src/snapshot.ts';
 
 export const MODEL = `###Relational
 Database trades::DB
@@ -256,6 +256,59 @@ const AD_HOC: AdHocCube = {
     CASES.push({ name: `adhoc-shape-${q.key}`, snapshot: q.snapshot,
       ...(q.scope ? { scope: q.scope } : {}) });
   }
+}
+
+// WINDOW COLUMNS, at both stages, as the serialiser writes them: every
+// function, every over() form (partition + order + frame, order only,
+// partition only, neither), at each tree level including the grand
+// total, and under a pivot.
+{
+  const row = (name: string, window: WindowSpec, kind: 'measure' | 'dimension' = 'measure') =>
+    ({ name, expression: '', kind, window });
+  const grp = (name: string, window: WindowSpec) => ({ name, expression: '', window });
+  const WIN_ROW = snap({
+    rows: ['region', 'desk'],
+    measures: SUM_NOTIONAL,
+    derived: [
+      row('cum_notional', { fn: 'sum', column: 'notional', partition: ['region'],
+        order: [{ column: 'year', direction: 'asc' }, { column: 'qtr', direction: 'asc' }], frame: 'running' }),
+      row('moving_avg', { fn: 'average', column: 'pnl', partition: ['desk'],
+        order: [{ column: 'year', direction: 'asc' }], frame: { lastRows: 3 } }),
+      row('prev_pnl', { fn: 'lag', column: 'pnl', partition: ['book'],
+        order: [{ column: 'year', direction: 'asc' }], offset: 2 }),
+      row('rank_in_desk', { fn: 'rank', partition: ['region', 'desk'],
+        order: [{ column: 'notional', direction: 'desc' }] }, 'dimension'),
+      row('global_running', { fn: 'sum', column: 'qty',
+        partition: [], order: [{ column: 'year', direction: 'asc' }], frame: 'running' }),
+      row('region_total', { fn: 'sum', column: 'notional', partition: ['region'], order: [] }),
+      row('table_max', { fn: 'max', column: 'pnl', partition: [], order: [] }),
+      row('bucket', { fn: 'ntile', partition: [], order: [{ column: 'pnl', direction: 'asc' }], buckets: 4 }, 'dimension'),
+      row('last_notional', { fn: 'last', column: 'notional', partition: ['region'],
+        order: [{ column: 'year', direction: 'asc' }] }),
+    ],
+  });
+  for (const level of [0, 1, 2]) {
+    CASES.push({ name: `window-row-level-${level}`, snapshot: WIN_ROW,
+      scope: { level, parent: level === 2 ? ['EMEA'] : [] } });
+  }
+  const WIN_GROUP = snap({
+    rows: ['region', 'desk'],
+    measures: SUM_NOTIONAL,
+    groupDerived: [
+      grp('running_notional', { fn: 'sum', column: 'notional', partition: [], order: [], frame: 'running' }),
+      grp('share_rank', { fn: 'rank', partition: [], order: [{ column: 'notional', direction: 'desc' }] }),
+      grp('prev_group', { fn: 'lag', column: 'notional', partition: [], order: [] }),
+      grp('desk_running', { fn: 'sum', column: 'notional', partition: ['region'],
+        order: [{ column: 'desk', direction: 'asc' }], frame: 'running' }),
+      grp('cume', { fn: 'cumeDist', partition: [], order: [{ column: 'notional', direction: 'asc' }] }),
+    ],
+  });
+  for (const level of [0, 1, 2]) {
+    CASES.push({ name: `window-group-level-${level}`, snapshot: WIN_GROUP,
+      scope: { level, parent: level === 2 ? ['EMEA'] : [] } });
+  }
+  CASES.push({ name: 'window-row-under-pivot', snapshot: { ...WIN_ROW, pivotOn: ['year'] },
+    scope: { level: 1, parent: [] } });
 }
 
 /** A detail level, exactly as `fetchTree` builds its query. */

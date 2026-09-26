@@ -193,3 +193,82 @@ describe('caretFor', () => {
     assert.equal(caretFor(pure, 'elsewhere [1:1]', 'm', '$x.a'), undefined);
   });
 });
+
+describe('a window column', () => {
+  const choose = (sel: string, value: string): void => {
+    const e = $<HTMLSelectElement>(sel);
+    e.value = value;
+    e.dispatchEvent(new dom.window.Event('change'));
+  };
+
+  it('builds a running sum from the form: function, column, partition, order, frame', async () => {
+    open({});
+    choose('.dc-calc-mode', 'window');
+    assert.equal($<HTMLElement>('.dc-calc-exprbox').hidden, true, 'the expression box stays shown');
+    // Unfinished: the form says what is missing and OK waits.
+    await settle();
+    assert.match($<HTMLElement>('.dc-calc-check').textContent ?? '', /column the window reads/);
+    assert.equal($<HTMLButtonElement>('.dc-calc-ok').disabled, true);
+    choose('.dc-win-column', 'notional');
+    const region = [...root.querySelectorAll<HTMLInputElement>('.dc-win-part-check')]
+      .find((b) => b.value === 'region');
+    assert.ok(region);
+    region.checked = true;
+    region.dispatchEvent(new dom.window.Event('change'));
+    $<HTMLButtonElement>('.dc-win-order-add').click();
+    choose('.dc-win-order-column', 'notional');
+    choose('.dc-win-order-direction', 'desc');
+    await settle();
+    assert.equal($<HTMLButtonElement>('.dc-calc-ok').disabled, false);
+    $<HTMLButtonElement>('.dc-calc-ok').click();
+    await settle();
+    const added = applied.at(-1)?.row.at(-1);
+    assert.deepEqual(added?.window, {
+      fn: 'sum', column: 'notional', partition: ['region'],
+      order: [{ column: 'notional', direction: 'desc' }], frame: 'running',
+    });
+    assert.equal(added?.expression, '');
+    // And the compile saw the cube with it.
+    assert.ok(compiled.at(-1)?.derived.some((d) => d.window?.fn === 'sum'));
+  });
+
+  it('a rank takes no column and no frame; a moving average takes N rows', async () => {
+    open({});
+    choose('.dc-calc-mode', 'window');
+    choose('.dc-win-fn', 'rank');
+    assert.equal(root.querySelector('.dc-win-column'), null);
+    assert.equal(root.querySelector('.dc-win-frame'), null);
+    await settle();
+    assert.match($<HTMLElement>('.dc-calc-check').textContent ?? '', /order/);
+    choose('.dc-win-fn', 'average');
+    choose('.dc-win-column', 'notional');
+    $<HTMLButtonElement>('.dc-win-order-add').click();
+    choose('.dc-win-frame', 'last');
+    type('.dc-win-rows', '5');
+    await settle();
+    $<HTMLButtonElement>('.dc-calc-ok').click();
+    await settle();
+    assert.deepEqual(applied.at(-1)?.row.at(-1)?.window?.frame, { lastRows: 5 });
+  });
+
+  it('at the group level an empty order means the grid order, and says so', async () => {
+    open({ level: 'group' });
+    choose('.dc-calc-mode', 'window');
+    choose('.dc-win-fn', 'rowNumber');
+    await settle();
+    assert.match(root.querySelector('.dc-win-hint')?.textContent ?? '', /order the grid shows/);
+    assert.equal($<HTMLButtonElement>('.dc-calc-ok').disabled, false);
+  });
+
+  it('an existing window column opens on its form', () => {
+    const w = { fn: 'lag' as const, column: 'notional', partition: [], order: [{ column: 'region', direction: 'asc' as const }], offset: 2 };
+    const cube: CubeSnapshot = { ...CUBE, derived: [...CUBE.derived, { name: 'prev', expression: '', kind: 'measure', window: w }] };
+    new ColumnEditor(root, {
+      snapshot: () => cube, start: { edit: 'prev' }, debounceMs: 0,
+      compile: async () => ({ pure: '', refusal: null }), apply: async () => null, onClose: () => {},
+    });
+    assert.equal($<HTMLSelectElement>('.dc-calc-mode').value, 'window');
+    assert.equal($<HTMLSelectElement>('.dc-win-fn').value, 'lag');
+    assert.equal($<HTMLInputElement>('.dc-win-offset').value, '2');
+  });
+});
