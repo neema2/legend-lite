@@ -133,8 +133,9 @@ three to identical rows.
 
 This is our own, clean API: the asynchronous "statements" pattern hosted
 warehouses share. It isn't copied from any one vendor. It is
-**defined once in legend-lite**, as Java records plus a TypeScript
-client generated from them. It is **served natively** by the warehouse,
+**defined once in legend-lite**, as Java records. Its client is the
+same Java, compiled into the WebAssembly module for the browser (§2c).
+It is **served natively** by the warehouse,
 and **by binding** in the legend-lite gateway.
 
 | Call | Does |
