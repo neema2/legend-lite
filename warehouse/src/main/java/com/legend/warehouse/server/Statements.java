@@ -58,7 +58,8 @@ public final class Statements implements AutoCloseable {
         volatile @Nullable Instant finished;
         volatile @Nullable ResultMeta result;
         volatile @Nullable ApiError error;
-        volatile List<Chunk> chunks = List.of();
+        /** A JSON result's chunks, each {@code {"index", "rows"}} already written. */
+        volatile List<byte[]> jsonChunks = List.of();
         volatile List<byte[]> arrowChunks = List.of();
         /** The connection running it, while it runs: what a cancel interrupts. */
         volatile @Nullable Conn running;
@@ -89,15 +90,15 @@ public final class Statements implements AutoCloseable {
         }
 
         /** The status document; the first chunk only when asked for. */
-        public Status status(boolean withFirstChunk) {
+        /** The status document, without its rows (a JSON result's first chunk is spliced in by the server). */
+        public Status status() {
             State s = state;
-            List<Chunk> cs = chunks;
-            Chunk first = withFirstChunk && s == State.SUCCEEDED && !cs.isEmpty() ? cs.get(0) : null;
-            return new Status(id, s, s == State.SUCCEEDED ? result : null, error, first);
+            return new Status(id, s, s == State.SUCCEEDED ? result : null, error, null);
         }
 
-        public @Nullable Chunk chunk(int index) {
-            List<Chunk> cs = chunks;
+        /** A JSON result's chunk, already written. */
+        public byte @Nullable [] jsonChunk(int index) {
+            List<byte[]> cs = jsonChunks;
             return state == State.SUCCEEDED && index >= 0 && index < cs.size() ? cs.get(index) : null;
         }
 
@@ -290,14 +291,9 @@ public final class Statements implements AutoCloseable {
             run.result = new ResultMeta(cols, a.rows(), a.chunks().size());
             return;
         }
-        List<List<Json.Node>> rows = Collect.json(r, limits.maxRows());
-        List<Chunk> chunks = new ArrayList<>();
-        for (int from = 0; from < rows.size(); from += per) {
-            chunks.add(new Chunk(chunks.size(), rows.subList(from, Math.min(rows.size(), from + per))));
-        }
-        if (chunks.isEmpty()) chunks.add(new Chunk(0, List.of()));
-        run.chunks = List.copyOf(chunks);
-        run.result = new ResultMeta(cols, rows.size(), chunks.size());
+        Collect.JsonChunks j = Collect.jsonChunks(r, per, limits.maxRows());
+        run.jsonChunks = j.chunks();
+        run.result = new ResultMeta(cols, j.rows(), j.chunks().size());
     }
 
     /** DuckDB's error kinds, as the API's codes. */

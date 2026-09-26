@@ -110,6 +110,93 @@ final class JsonCells {
         };
     }
 
+    // -- the same values, written straight to text: no tree per value (a JSON chunk's path) --------
+
+    /** The top-level cell of {@code row}, written: the same JSON as {@link #cell}. */
+    static void writeCell(Json.Writer w, Duck d, ColumnData c, int row) {
+        if (c.tree.type instanceof DuckType.Scalar || !c.present(row)) {
+            write(w, d, c, row);
+            return;
+        }
+        w.beginObject();
+        w.name("value");
+        write(w, d, c, row);
+        w.field("text", DuckValues.text(d, c, row));
+        w.endObject();
+    }
+
+    static void write(Json.Writer w, Duck d, ColumnData c, int row) {
+        if (!c.present(row)) {
+            w.writeNull();
+            return;
+        }
+        switch (c.tree.type) {
+            case DuckType.ListOf l -> {
+                long size = c.tree.arraySize(d);
+                int from, to;
+                if (size > 0) {
+                    from = (int) (row * size);
+                    to = (int) (from + size);
+                } else {
+                    int[] o = java.util.Objects.requireNonNull(c.offsets);
+                    from = o[row];
+                    to = o[row + 1];
+                }
+                w.beginArray();
+                for (int i = from; i < to; i++) write(w, d, c.children.get(0), i);
+                w.endArray();
+            }
+            case DuckType.StructOf s -> {
+                w.beginObject();
+                for (int i = 0; i < s.fields().size(); i++) {
+                    w.name(s.fields().get(i).name());
+                    write(w, d, c.children.get(i), row);
+                }
+                w.endObject();
+            }
+            case DuckType.MapOf m -> {
+                int[] o = java.util.Objects.requireNonNull(c.offsets);
+                w.beginArray();
+                for (int i = o[row]; i < o[row + 1]; i++) {
+                    w.beginArray();
+                    write(w, d, c.children.get(0), i);
+                    write(w, d, c.children.get(1), i);
+                    w.endArray();
+                }
+                w.endArray();
+            }
+            case DuckType.Scalar s -> writeScalar(w, d, c, row, s.base());
+        }
+    }
+
+    private static void writeScalar(Json.Writer w, Duck d, ColumnData c, int row, String base) {
+        ByteBuffer v = c.values;
+        switch (base) {
+            case "BOOLEAN" -> w.writeBool((v.get(row >>> 3) >> (row & 7) & 1) == 1);
+            case "TINYINT" -> w.writeLong(v.get(row));
+            case "UTINYINT" -> w.writeLong(Byte.toUnsignedInt(v.get(row)));
+            case "SMALLINT" -> w.writeLong(v.getShort(2 * row));
+            case "USMALLINT" -> w.writeLong(Short.toUnsignedInt(v.getShort(2 * row)));
+            case "INTEGER" -> w.writeLong(v.getInt(4 * row));
+            case "UINTEGER" -> w.writeLong(Integer.toUnsignedLong(v.getInt(4 * row)));
+            case "FLOAT" -> writeFloating(w, v.getFloat(4 * row));
+            case "DOUBLE" -> writeFloating(w, v.getDouble(8 * row));
+            case "BIGINT" -> w.writeString(Long.toString(v.getLong(8 * row)));
+            case "VARCHAR", "JSON", "UUID", "ENUM" -> w.writeString(new String(c.bytesAt(row), StandardCharsets.UTF_8));
+            default -> {
+                // everything else is a string in the API; its text is the tree path's
+                Json.Node n = scalar(d, c, row, base);
+                w.writeString(((Json.Str) n).value());
+            }
+        }
+    }
+
+    private static void writeFloating(Json.Writer w, double x) {
+        boolean negativeZero = x == 0.0 && Double.doubleToRawLongBits(x) != 0;
+        if (Double.isNaN(x) || Double.isInfinite(x) || negativeZero) w.writeString(Double.toString(x));
+        else w.writeDouble(x);
+    }
+
     /** JSON has no NaN or infinities, and loses the sign of -0.0: those travel as their names. */
     private static Json.Node floating(double x) {
         boolean negativeZero = x == 0.0 && Double.doubleToRawLongBits(x) != 0;

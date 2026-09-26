@@ -43,6 +43,61 @@ public final class Collect {
         return rows;
     }
 
+    /** A result as JSON chunks, each {@code {"index": n, "rows": [...]}} already written, and its row count. */
+    public record JsonChunks(List<byte[]> chunks, long rows) {
+    }
+
+    /**
+     * Every row as the API's JSON, written straight to each chunk's bytes ({@code rowsPerChunk} rows a
+     * chunk, the last smaller): no tree of objects per value, so a large result costs its text, not
+     * a heap of nodes (measured: 1M rows held 2.7 GB in a native image as trees).
+     */
+    public static JsonChunks jsonChunks(Result r, int rowsPerChunk, long maxRows) throws Exception {
+        Duck d = Duck.api();
+        List<TypeTree> trees = trees(d, r);
+        List<byte[]> chunks = new ArrayList<>();
+        Json.Writer[] w = {start(0)};
+        int[] inChunk = {0};
+        long[] total = {0};
+        try {
+            r.chunks((array, n) -> {
+                total[0] += n;
+                if (total[0] > maxRows) throw new TooLarge(maxRows);
+                List<ColumnData> cols = columns(array, trees);
+                for (int row = 0; row < n; row++) {
+                    if (inChunk[0] == rowsPerChunk) {
+                        chunks.add(finish(w[0]));
+                        w[0] = start(chunks.size());
+                        inChunk[0] = 0;
+                    }
+                    w[0].beginArray();
+                    for (ColumnData c : cols) JsonCells.writeCell(w[0], d, c, row);
+                    w[0].endArray();
+                    inChunk[0]++;
+                }
+            });
+        } finally {
+            for (TypeTree t : trees) t.destroy(d);
+        }
+        if (inChunk[0] > 0 || chunks.isEmpty()) chunks.add(finish(w[0]));
+        return new JsonChunks(List.copyOf(chunks), total[0]);
+    }
+
+    private static Json.Writer start(int index) {
+        Json.Writer w = Json.compactWriter();
+        w.beginObject();
+        w.field("index", index);
+        w.name("rows");
+        w.beginArray();
+        return w;
+    }
+
+    private static byte[] finish(Json.Writer w) {
+        w.endArray();
+        w.endObject();
+        return w.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
+    }
+
     /** A result as Arrow chunks, and how many rows they hold in all. */
     public record Arrow(List<byte[]> chunks, long rows) {
     }

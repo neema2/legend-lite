@@ -23,10 +23,14 @@ final class TypeTree {
     /** DECIMAL(p,s): p and s; 0 otherwise. */
     final int precision;
     final int scale;
+    /** A fixed-size array's size (T[n]); 0 for anything else. Read once: a C call costs ~2.3 us natively. */
+    private final long arraySize;
     final List<TypeTree> children;
     private final boolean ownsLogical;
 
-    private TypeTree(DuckType type, MemorySegment logical, int id, int enumWidth, List<TypeTree> children, boolean owns) {
+    private TypeTree(DuckType type, MemorySegment logical, int id, int enumWidth, long arraySize, List<TypeTree> children,
+            boolean owns) {
+        this.arraySize = arraySize;
         this.type = type;
         this.logical = logical;
         this.id = id;
@@ -66,7 +70,8 @@ final class TypeTree {
                 case DuckType.Scalar s -> {
                 }
             }
-            return new TypeTree(type, logical, id, enumWidth, List.copyOf(kids), owns);
+            long arraySize = id == Duck.ARRAY ? (long) d.arraySize.invokeExact(logical) : 0;
+            return new TypeTree(type, logical, id, enumWidth, arraySize, List.copyOf(kids), owns);
         } catch (Throwable t) {
             throw Duck.fail(t);
         }
@@ -81,12 +86,7 @@ final class TypeTree {
 
     /** A fixed-size array ({@code T[n]}): its size; 0 for a list. */
     long arraySize(Duck d) {
-        if (id != Duck.ARRAY) return 0;
-        try {
-            return (long) d.arraySize.invokeExact(logical);
-        } catch (Throwable t) {
-            throw Duck.fail(t);
-        }
+        return arraySize;
     }
 
     void destroy(Duck d) {

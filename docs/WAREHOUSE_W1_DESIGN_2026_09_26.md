@@ -333,7 +333,18 @@ talks to it over HTTP only.
 | 1M rows x 8 as Arrow over HTTP | **158–167 ms** | 76–135 ms |
 | 1M rows x 8 as JSON over HTTP | **2.7–4.0 s**, 2.7 GB resident after | 0.73–0.95 s |
 
-**Owed:** the JSON path builds a tree of objects per value and holds it for the retention period;
-the native image's serial collector pays most. JSON chunks should be written straight to bytes, as
-Arrow chunks are (next). Windows native builds (a separate toolchain setup).
+**JSON chunks written straight to bytes** (the JSON path built a tree of objects per value and held
+it for the retention period; the native image's serial collector paid most). Each chunk is now written
+once, through core's streaming `Json.Writer` (the same writer the tree was printed with, so the text is
+identical), kept as bytes, served as they are, and the first chunk spliced into the status:
+
+| 1M rows x 8 as JSON over HTTP | before | after |
+|---|---|---|
+| native: total | 2.7–4.0 s | **1.20–1.27 s** |
+| native: fetching the chunks | 0.63–1.74 s | **92–95 ms** |
+| native: resident after six results held | 2.7 GB | **745 MB** |
+| JVM: total | 0.73–0.95 s | **0.63–0.72 s** |
+
+**Owed:** results are still held in memory for their retention (a size cap and spilling to disk, §2);
+Windows native builds (a separate toolchain setup).
 

@@ -158,7 +158,7 @@ public final class WarehouseServer implements AutoCloseable {
             Statements.Run run = run(principal, m.group(1));
             statements.cancel(run);
             waitFor(run, 5_000);
-            throw new Reply(200, Json.toCompact(ApiJson.status(run.status(false))));
+            throw new Reply(200, Json.toCompact(ApiJson.status(run.status())));
         } else if ((m = STATEMENT.matcher(path)).matches() && method.equals("GET")) {
             Statements.Run run = run(principal, m.group(1));
             waitFor(run, waitMs(ex, 0));
@@ -265,7 +265,16 @@ public final class WarehouseServer implements AutoCloseable {
 
     private void reply(Statements.Run run, boolean withFirstChunk) throws Reply {
         int status = run.state().done() ? 200 : 202;
-        throw new Reply(status, Json.toCompact(ApiJson.status(run.status(withFirstChunk))));
+        String head = Json.toCompact(ApiJson.status(run.status()));
+        byte[] first = withFirstChunk && run.format() == SqlApi.ResultFormat.JSON ? run.jsonChunk(0) : null;
+        if (first == null) throw new Reply(status, head);
+        // the first chunk, spliced in as written: {..., "firstChunk": {"index": 0, "rows": [...]}}
+        byte[] open = (head.substring(0, head.length() - 1) + ",\"firstChunk\":").getBytes(StandardCharsets.UTF_8);
+        byte[] body = new byte[open.length + first.length + 1];
+        System.arraycopy(open, 0, body, 0, open.length);
+        System.arraycopy(first, 0, body, open.length, first.length);
+        body[body.length - 1] = '}';
+        throw new Reply(status, "application/json", body);
     }
 
     private void chunk(String principal, String id, int index) throws Reply {
@@ -275,9 +284,9 @@ public final class WarehouseServer implements AutoCloseable {
             if (a == null) throw Reply.error(404, ErrorCode.NOT_FOUND, "no chunk " + index + " for statement " + id);
             throw new Reply(200, ArrowStreams.MEDIA_TYPE, a);
         }
-        Chunk c = run.chunk(index);
+        byte[] c = run.jsonChunk(index);
         if (c == null) throw Reply.error(404, ErrorCode.NOT_FOUND, "no chunk " + index + " for statement " + id);
-        throw new Reply(200, Json.toCompact(ApiJson.chunk(c)));
+        throw new Reply(200, "application/json", c);
     }
 
     private Statements.Run run(String principal, String id) throws Reply {
@@ -302,7 +311,8 @@ public final class WarehouseServer implements AutoCloseable {
             throw Reply.error(503, ErrorCode.QUEUE_FULL, String.valueOf(full.getMessage()));
         }
         waitFor(run, 30_000);
-        Chunk c = run.chunk(0);
+        byte[] written = run.jsonChunk(0);
+        Chunk c = written == null ? null : ApiJson.parseChunk(new String(written, StandardCharsets.UTF_8));
         if (c == null) throw Reply.error(500, ErrorCode.INTERNAL, "the catalog could not be read");
         LinkedHashMap<String, LinkedHashMap<String, Json.Node>> byObject = new LinkedHashMap<>();
         LinkedHashMap<String, List<Json.Node>> columns = new LinkedHashMap<>();
