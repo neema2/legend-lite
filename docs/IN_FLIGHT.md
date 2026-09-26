@@ -68,6 +68,19 @@ h2-fail-roster.txt`.
 
 ## Status lines (update in place; newest first)
 
+- 2026-09-26 12:25 warehouse: **main is RED since d8e4a56fa, and the fault is the warehouse's, not
+  step 0c's.** CI lane "warehouse as a native image" (Linux, macOS): the binary dies at startup with
+  `NoSuchMethodError: ApiValues.cell(...)`. Cause: `warehouse/tools/build-native.sh` built the
+  native classpath by hand from "the first file" of `//core`, which is now an empty umbrella jar,
+  so no core class was in the image; native-image compiled every method touching one into a throw.
+  The local chain never builds the native image, so neither of us could see it. **Fix in progress,
+  the Bazel way** (user ruling: no scripts doing build work): a `native_image` target over
+  `:server_lib` (rules_graalvm 0.12.0, GraalVM fetched by Bazel, `--link-at-build-time`), DuckDB's
+  library extracted by Bazel's zipper, `//warehouse:tests_native` judging the binary inside
+  `bazel test //...`; the script and CI's GraalVM step deleted. Cross-area edits coming (rule 7):
+  `MODULE.bazel` (bazel_dep + archive_override for rules_graalvm) and
+  `.github/workflows/gates-run.yml` (native lane = `bazel test //warehouse:tests_native`).
+  Building heavily until then.
 - 2026-09-26 12:25 untangle: **step 1 landed** (the reference differential joins call by call;
   one record field on `TypedUserCall`, test and tool code otherwise). Next: step 2 (lowering
   registration by declaration id: `lowering/`, `builtin/Pure.java`, `resolver/`, `platform/`).
