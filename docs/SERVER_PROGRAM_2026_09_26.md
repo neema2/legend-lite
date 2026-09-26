@@ -224,10 +224,39 @@ here, without the engine rewriting anything.
 
 0. **One DuckDB connection per session.** Variables are per connection,
    so one user's identity cannot be seen from another's session.
-1. **Roles and grants:** users hold roles; roles are granted catalogs,
-   schemas and views. The base tables are granted to no end-user role.
-   Grants live in the server's own tables: `security.user_roles` and
-   `security.grants(role, object)`.
+0b. **An identity nothing can spoof.** The DuckDB Java driver (1.4.4)
+   cannot register a host function, so identity is guaranteed at the
+   edges:
+   - the principal comes **only** from the verified token (signature
+     checked against the identity provider, subject claim); a client
+     never sends a user name;
+   - **only the server** sets `app_user`, on the session's own
+     connection, and **re-sets it immediately before every statement**,
+     so nothing a previous statement did survives;
+   - user statements are **SELECT-only** with an **allow-list** of pure
+     functions, so a statement has no side effects. `SET VARIABLE` is
+     not a SELECT and is refused.
+   - **Later, optionally:** a DuckDB extension exposing
+     `current_principal()`, fixed per connection by the host with no
+     SQL setter (W0 measures its cost: build, signing, the Windows
+     lane).
+1. **Roles and grants, emulated Postgres-style:**
+   - **Privileges:** SELECT on tables and views; USAGE on catalogs and
+     schemas; EXECUTE on functions, macros and table functions; roles
+     granted to roles; PUBLIC; ownership; REVOKE; `SHOW GRANTS`.
+   - **Admin statements** (`CREATE ROLE`, `CREATE USER`, `GRANT`,
+     `REVOKE`) are parsed by the server itself, since DuckDB does not
+     know them, in Postgres syntax so pgwire tools work. They are stored
+     in `security.*`.
+   - **Checks:** every object a statement references needs SELECT, and
+     every function it calls needs EXECUTE. Pure built-ins are granted
+     to PUBLIC; file and system functions (`read_parquet`,
+     `duckdb_tables()`, …) are not.
+   - **Views run with their owner's rights, as in Postgres:** a user
+     needs SELECT on the view, not on the base tables beneath it. The
+     base tables are granted to no end-user role.
+   - **Metadata is filtered by grants:** the catalog API and
+     `information_schema` show only what the caller may see.
 1b. **ACL tables:** `security.acl(username, <key>)`, one row per value a
    user may see, at whatever granularity, e.g.
    ```sql
@@ -238,6 +267,18 @@ here, without the engine rewriting anything.
    ```
    Several keys mean several `EXISTS` clauses, and masks are
    expressions in the view's `SELECT`.
+
+   **EXISTS, never a straight join** (measured): a user with EMEA twice
+   in the ACL, directly and through a group, got 4 rows totalling 30.0
+   through a join, but 2 rows totalling 15.0 through EXISTS, which is
+   correct. A join multiplies rows whenever a user matches more than one
+   ACL row. DuckDB plans EXISTS as a hash **semi join**, and the user's
+   own filter still pushes down into the base scan.
+
+   **"Sees everything"** is its own table,
+   `security.full_access(username, key)`, joined with `OR EXISTS`, not
+   a `'*'` value in the ACL: a wildcard inside the join condition blocks
+   the hash plan.
 2. **Role-level views:** a role's schema holds views over the base data.
    - **Rows:** `WHERE region = 'EMEA'`, or per user:
      `WHERE region IN (SELECT region FROM entitlements.user_regions
