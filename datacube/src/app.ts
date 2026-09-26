@@ -2909,7 +2909,7 @@ export class CubeApp {
     burger.className = 'dc-titlebar-menu';
     burger.setAttribute('aria-label', 'Menu');
     burger.textContent = '\u2261';
-    burger.addEventListener('click', (event) => {
+    burger.addEventListener('click', () => {
       if (this.#menu.open) {
         this.#menu.close();
         return;
@@ -2967,10 +2967,19 @@ export class CubeApp {
       // outside-press dismissal closes the menu and the click that
       // follows reopens it, so the button appears to do nothing and
       // the menu cannot be dismissed from the control that opened it.
-      this.#menu.show([{ label: '', items }], event.clientX, event.clientY,
-        burger);
+      // BELOW THE BUTTON, not at the pointer: at the pointer the menu
+      // covered the button it came from (on the left edge nothing
+      // pushes it aside), so a second press picked the first entry
+      // instead of shutting the menu.
+      const at = burger.getBoundingClientRect();
+      this.#menu.show([{ label: '', items }], at.left, at.bottom, burger);
     });
-    bar.append(burger, fold);
+    // THE MENU ON THE LEFT, the folds alone on the right (user,
+    // 2026-09-25). Upstream ends its bar with the menu; ours gave that
+    // edge to the fold column, and the app menu takes the corner where
+    // people look for one.
+    bar.prepend(burger);
+    bar.append(fold);
     // THE ZONES' WAY BACK, at the far right: directly above where
     // their own fold was. Only while they are folded -- a control that
     // is always there but does nothing half the time is worse than one
