@@ -68,15 +68,16 @@ h2-fail-roster.txt`.
 
 ## Status lines (update in place; newest first)
 
-- 2026-09-26 14:00 warehouse: **cross-area edit starting now (rule 7), with the user's go-ahead
-  while the untangle is paused:** `com.legend.server.Json` moves to its own package
-  `com.legend.json` through the untangle's own tool (a new group E in
-  `tools/untangle/groups.txt`, applied by `move_classes.py --group E`), and `core/BUILD.bazel`
-  gains a public `:json` target (Json.java alone, deps `:base`); `:base` becomes public. Why:
-  every warehouse target uses exactly `base` + `Json` from core yet reaches all 29 core targets,
-  so any core change rebuilds and re-tests the warehouse (native image included) in both
-  sessions' chains. After: the warehouse depends on `//core:base` + `//core:json` only. Json's
-  users inside core get `:json` in their deps. Building until pushed.
+- 2026-09-26 14:30 warehouse: **SUPERSEDES the 14:00 line (nothing of it landed). Cross-area
+  cleanup, user-approved while the untangle is paused:** the foundations leave `core`.
+  `//base` (top level; `com.legend.base.Nullable`/`NonNull`, Java package unchanged, so no
+  annotation site changes), `//json` (`com.legend.server.Json` -> `com.legend.json.Json`, moved
+  with `move_classes.py`, group E; the JSON escape-WRITE table moves from `protocol.Escapes`
+  into `Json`, `Escapes` keeps the Pure-literal decoder; ArchitectureTest 7b gains
+  `com.legend.json`), and NullAway's plugin + flags in one place (`//tools/nullaway`, replacing
+  `//core:nullaway` and the flag copies). Touches `core/BUILD.bazel`, `ArchitectureTest`,
+  `tools/untangle/groups.txt`, `tools/deps`, every BUILD that loads the null gate. The warehouse
+  then reaches no `//core` target (a new deps guard pins it). Building until pushed.
 - 2026-09-26 15:15 untangle: **step 3 homework landed** (this commit; GATES.md "Execution plan
   step 3 homework"): the kernel reading, a resolver fix (the normalizer built the resolution
   universe per statement; now once — `NameResolver.resolveQuery(query, imports, modelFqns)` is
