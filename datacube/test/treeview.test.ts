@@ -505,6 +505,60 @@ describe('Show leaf count', () => {
   });
 });
 
+describe('the count, next level (the default)', () => {
+  // An OPENED group shows how many rows sit directly beneath it, read
+  // off the rows opening it fetched; a closed one shows nothing.
+  const CUBE: CubeSnapshot = {
+    source: { expression: 'trades' },
+    columns: [
+      { name: 'region', type: 'String' },
+      { name: 'desk', type: 'String' },
+      { name: 'notional', type: 'Float' },
+    ],
+    derived: [],
+    rows: ['region', 'desk'],
+    pivotOn: [],
+    measures: [],
+    sorts: [],
+    epoch: 1,
+    childCount: true,
+  };
+  const levelsWith = (truncated: boolean): Map<string, LevelData> => {
+    const levels = new Map<string, LevelData>();
+    levels.set(requestKey({ level: 1, parent: [] }), {
+      request: { level: 1, parent: [] },
+      table: table([{ name: 'region', values: ['AMER', 'EMEA'] }, { name: 'notional', values: [1, 2] }]),
+      paths: [['AMER'], ['EMEA']],
+      truncated: false,
+    });
+    levels.set(requestKey({ level: 2, parent: ['EMEA'] }), {
+      request: { level: 2, parent: ['EMEA'] },
+      table: table([{ name: 'region', values: ['EMEA', 'EMEA', 'EMEA'] },
+        { name: 'desk', values: ['a', 'b', 'c'] }, { name: 'notional', values: [1, 1, 0] }]),
+      paths: [['EMEA', 'a'], ['EMEA', 'b'], ['EMEA', 'c']],
+      truncated,
+    });
+    return levels;
+  };
+  const tree = (levels: Map<string, LevelData>) => {
+    const rows = flattenTree(TreeState.empty().expand(['EMEA']), 2, (p) =>
+      levels.get(requestKey({ level: p.length + 1, parent: p }))?.paths);
+    return assemble(CUBE, rows, levels).columns.find((c) => c.name === TREE_COLUMN)?.values;
+  };
+
+  it('an opened group counts its next level; a closed one shows none', () => {
+    assert.deepEqual(tree(levelsWith(false)), ['AMER', 'EMEA (3)', 'a', 'b', 'c']);
+  });
+
+  it('children cut short by the row cap read N+', () => {
+    assert.equal(tree(levelsWith(true))?.[1], 'EMEA (3+)');
+  });
+
+  it('asks nothing of the query', () => {
+    assert.doesNotMatch(serialize(CUBE, { level: 1, parent: [] }), /__leafCount/);
+  });
+});
+
 describe('detail rows under the deepest group', () => {
   // Upstream: "when maximum level of drilldown is reached, we simply
   // just need to filter the data to match drilldown values, no

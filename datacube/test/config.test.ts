@@ -389,3 +389,34 @@ describe('renaming a calculated column that is in use', () => {
     assert.deepEqual(r.columnOrder, ['region', 'large', 'qty']);
   });
 });
+
+describe('what the count counts', () => {
+  const base: CubeSnapshot = {
+    source: { expression: 't' },
+    columns: [{ name: 'region', type: 'String' }],
+    derived: [],
+    rows: ['region'],
+    pivotOn: [],
+    measures: [],
+    sorts: [],
+    epoch: 1,
+  };
+
+  it('by default: an opened group\'s next level, and nothing in the query', () => {
+    const s = applyToSnapshot(base, DEFAULT_CONFIGURATION);
+    assert.equal(s.childCount, true);
+    assert.equal(s.leafCount, false);
+  });
+
+  it("upstream's, by choice: every group's rows, counted by the query", () => {
+    const s = applyToSnapshot(base, { ...DEFAULT_CONFIGURATION, leafCountMode: 'leaves' });
+    assert.equal(s.leafCount, true);
+    assert.equal(s.childCount, false);
+  });
+
+  it('unticked: neither', () => {
+    const s = applyToSnapshot(base, { ...DEFAULT_CONFIGURATION, showLeafCount: false });
+    assert.equal(s.leafCount, false);
+    assert.equal(s.childCount, false);
+  });
+});

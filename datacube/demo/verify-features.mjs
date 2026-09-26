@@ -1038,9 +1038,9 @@ try {
   await check('the deepest group opens onto its rows, as many as its count says',
     async () => {
       // Upstream drops the groupBy at the last level and returns the
-      // group's own rows, filtered to its keys. The group's "(n)" --
-      // the leaf count, on by default as upstream's -- is the promise
-      // those rows keep.
+      // group's own rows, filtered to its keys. An OPENED group's "(n)"
+      // -- the count, on by default, of the rows directly beneath it --
+      // is the promise those rows keep.
       await menu(['Pivot', 'Clear All Vertical Pivots']).catch(() => {});
       const dims = await dimensionNames();
       const on = ['desk', 'book', 'region'].find((n) => dims.includes(n));
@@ -1049,14 +1049,17 @@ try {
       const total = () => page.evaluate(() =>
         Number(document.querySelector('[aria-rowcount]')?.getAttribute('aria-rowcount')));
       const group = page.locator('.dc-row[aria-expanded=false]').first();
-      const label = (await group.locator('.dc-cell').first().innerText()).trim();
-      const n = Number(/\((\d+)\)$/.exec(label)?.[1]);
-      if (!Number.isFinite(n)) throw new Error(`no leaf count on "${label}"`);
+      const closed = (await group.locator('.dc-cell').first().innerText()).trim();
+      if (/\(\d+\+?\)$/.test(closed)) throw new Error(`a CLOSED group shows a count: "${closed}"`);
       const before = await total();
       const settled = await statusNow();
       await group.locator('.dc-chevron').click();
       await settle(settled);
       const opened = (await total()) - before;
+      const label = (await page.locator('.dc-row[aria-expanded=true]').first()
+        .locator('.dc-cell').first().innerText()).trim();
+      const n = Number(/\((\d+)\+?\)$/.exec(label)?.[1]);
+      if (!Number.isFinite(n)) throw new Error(`no count on the opened "${label}"`);
       const firstDetail = await page.locator('.dc-row[aria-expanded=true] + .dc-row')
         .first().locator('.dc-cell').first().innerText();
       // Shut again, and LEAVE THE CUBE GROUPED: the next check clears
@@ -1064,8 +1067,9 @@ try {
       const shut = await statusNow();
       await page.locator('.dc-row[aria-expanded=true] .dc-chevron').first().click();
       await settle(shut);
-      // Under the row cap every row comes; over it, the cap's worth.
-      const want = Math.min(n, 1000);
+      // The count is what came: every row under the cap, else the cap's
+      // worth with a "+".
+      const want = n;
       if (opened !== want) {
         throw new Error(`"${label}" opened onto ${opened} rows, its count says ${n}`);
       }
@@ -4235,15 +4239,30 @@ try {
     await control('Keep grouped columns in the grid', { setup: () => group('region'),
       act: general(() => boxOf('Keep grouped columns in the grid').check()),
       expect: (b, a) => (a.headers.some((h) => h.startsWith('region=')) ? null : 'no region column') });
+    const openFirst = async () => {
+      const s0 = await statusNow();
+      await page.locator('.dc-row[aria-expanded=false] .dc-chevron').first().click();
+      await settle(s0);
+    };
     // On by default, as upstream's: shown ticked, and unticking takes
-    // the counts away.
-    await control('Show leaf count: shown ticked, untick removes the counts', { setup: () => group('region'),
+    // the counts away. By default it counts an OPENED group's next level.
+    await control('Show leaf count: shown ticked, untick removes the counts', {
+      setup: async () => { await group('region'); await openFirst(); },
       act: general(async () => {
         if (!(await boxOf('Show leaf count').isChecked())) throw new Error('unticked by default');
         await boxOf('Show leaf count').uncheck();
       }),
-      expect: (b, a) => (/\(\d+\)$/.test(b.tree[0] ?? '') && !/\(\d+\)$/.test(a.tree[0] ?? '')
+      expect: (b, a) => (/\(\d+\+?\)$/.test(b.tree[0] ?? '') && !/\(\d+\+?\)$/.test(a.tree[0] ?? '')
         ? null : `tree before ${b.tree[0]} after ${a.tree[0]}`) });
+    // Upstream's count, by choice: every group, open or closed, shows
+    // how many source rows it holds -- the total's worth between them.
+    await control('Count: all rows beneath, on every group', { setup: () => group('region'),
+      act: general(() => fieldOf('Count:').locator('select').selectOption('leaves')),
+      expect: (b, a) => {
+        const counts = a.tree.map((t) => Number(/\((\d+)\)$/.exec(t ?? '')?.[1])).filter(Number.isFinite);
+        if (/\(\d+\+?\)$/.test(b.tree[0] ?? '')) return `closed group counted by default: ${b.tree[0]}`;
+        return counts.length > 1 ? null : `tree after ${a.tree}`;
+      } });
     await control('Tree column sort', { setup: () => group('region'),
       act: general(() => fieldOf('Sort:').locator('select').selectOption('desc')),
       expect: changed('tree') });

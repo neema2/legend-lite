@@ -482,6 +482,14 @@ export interface CubeSnapshot {
    * queries carry. It changes the query, which is why it lives here.
    */
   readonly leafCount?: boolean;
+  /**
+   * Show, beside an OPENED group's label, how many rows sit directly
+   * beneath it (the next level, or its detail rows) -- read off the
+   * rows that opening it fetched, so no query changes. "N+" when the
+   * row cap cut them short. The "next level" count mode (config
+   * `leafCountMode`), the default.
+   */
+  readonly childCount?: boolean;
   readonly measures: readonly Measure[];
   readonly sorts: readonly SortSpec[];
   readonly window?: RowWindow;

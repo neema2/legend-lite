@@ -283,6 +283,22 @@ export const generalPropertiesPanel: PanelBuilder = (ctx) => {
         setConfig({ showLeafCount: v }),
       ),
     ),
+    // WHAT it counts: ours by default (an opened group's next level),
+    // or upstream's (every group's source rows).
+    field(
+      doc,
+      'Count:',
+      dropdown(
+        doc,
+        c.leafCountMode ?? 'children',
+        [
+          { value: 'children', label: 'Next level, when opened' },
+          { value: 'leaves', label: 'All rows beneath, always' },
+        ],
+        (v) => setConfig({ leafCountMode: v ?? 'children' } as Patch<CubeConfiguration>),
+        { width: 180, disabled: !c.showLeafCount },
+      ),
+    ),
     field(
       doc,
       'Sort:',

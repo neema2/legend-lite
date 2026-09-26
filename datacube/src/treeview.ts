@@ -406,6 +406,14 @@ export function assemble(
   // display row, and rendered after the label as upstream's group cell
   // does -- `EMEA (1234)`.
   const countOf = (i: number): Scalar => {
+    // The children count: an opened group's rows beneath it, as fetched.
+    if (snapshot.childCount === true) {
+      const row = rows[i];
+      if (!row || !row.isGroup || !row.expanded) return null;
+      const below = levels.get(requestKey({ level: row.level + 1, parent: row.path }));
+      if (!below) return null;
+      return below.truncated ? `${below.paths.length}+` : below.paths.length;
+    }
     const hit = source.get(i);
     const col = hit?.data.table.columns.find((c) => c.name === LEAF_COUNT_COLUMN);
     return hit && col ? (col.values[hit.index] ?? null) : null;

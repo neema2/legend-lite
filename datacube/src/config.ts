@@ -132,6 +132,16 @@ export interface CubeConfiguration {
    */
   readonly showTitleBar: boolean;
   readonly showLeafCount: boolean;
+  /**
+   * WHAT the count counts. `children` (ours, the default): an opened
+   * group shows how many rows sit directly beneath it -- the next
+   * level's groups, or its detail rows at the bottom -- and a closed
+   * one shows nothing. `leaves`: upstream's, every group shows how many
+   * SOURCE rows it holds, open or closed (a count() its queries carry).
+   * Absent: `children`. Not an upstream field; upstream's is the
+   * `leaves` behaviour.
+   */
+  readonly leafCountMode?: 'children' | 'leaves';
   readonly treeColumnSort: SortDirection;
   /**
    * Levels opened when the cube first loads. Absent means none.
@@ -594,8 +604,11 @@ export function applyToSnapshot(
     ...(config.maxRows !== undefined ? { maxRows: config.maxRows } : {}),
     ...(config.showGroupedColumns ? { keepGroupedColumns: true } : {}),
     // Clear it as well as set it, so unticking the box takes the count
-    // back out of the query.
-    ...(config.showLeafCount ? { leafCount: true } : { leafCount: false }),
+    // back out of the query. Only upstream's LEAVES count is a query
+    // column; the children count is read off the rows an opened group
+    // already fetched.
+    leafCount: config.showLeafCount && config.leafCountMode === 'leaves',
+    childCount: config.showLeafCount && config.leafCountMode !== 'leaves',
     ...pivotTotalOf(config),
     columns,
     derived,
