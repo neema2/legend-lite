@@ -1196,7 +1196,7 @@ export class CubeApp {
     const button = this.#doc.createElement('button');
     button.type = 'button';
     button.className = 'dc-zone-fold';
-    button.textContent = '\u2303';
+    button.append(this.#chevron('up'));
     button.title = 'Hide the drag zones';
     button.setAttribute('aria-label', 'Hide the drag zones');
     button.setAttribute('aria-expanded', 'true');
@@ -1204,6 +1204,44 @@ export class CubeApp {
       this.#setChrome({ showDragZones: false });
     });
     return button;
+  }
+
+  /** The zones' way back, in whichever title bar is on screen. */
+  #zonesBack(): HTMLElement {
+    const show = this.#doc.createElement('button');
+    show.type = 'button';
+    show.className = 'dc-titlebar-zones';
+    show.append(this.#chevron('down'));
+    show.title = 'Show the drag zones';
+    show.setAttribute('aria-label', 'Show the drag zones');
+    show.setAttribute('aria-expanded', 'false');
+    show.addEventListener('click', () => {
+      this.#setChrome({ showDragZones: true });
+    });
+    return show;
+  }
+
+  /**
+   * A fold's chevron, drawn rather than typed: the ⌃ / ⌄ glyphs sat
+   * off-centre and changed size with the font.
+   */
+  #chevron(direction: 'up' | 'down'): SVGSVGElement {
+    const ns = 'http://www.w3.org/2000/svg';
+    const svg = this.#doc.createElementNS(ns, 'svg');
+    svg.setAttribute('class', 'dc-chevron-icon');
+    svg.setAttribute('viewBox', '0 0 12 12');
+    svg.setAttribute('width', '12');
+    svg.setAttribute('height', '12');
+    svg.setAttribute('aria-hidden', 'true');
+    const path = this.#doc.createElementNS(ns, 'path');
+    path.setAttribute('d', direction === 'up' ? 'M2.5 7.5 6 4l3.5 3.5' : 'M2.5 4.5 6 8l3.5-3.5');
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', 'currentColor');
+    path.setAttribute('stroke-width', '1.5');
+    path.setAttribute('stroke-linecap', 'round');
+    path.setAttribute('stroke-linejoin', 'round');
+    svg.append(path);
+    return svg;
   }
 
   #statusSeparator(): HTMLElement {
@@ -2759,11 +2797,18 @@ export class CubeApp {
     // it and leave a person no way back except a reload. The lip is
     // 12px and carries one control; the grid's right-click menu
     // carries the same toggle, so there are always two ways back.
+    //
+    // THE FOLDS LIVE ON THE RIGHT, one column per bar, so folding and
+    // unfolding is a flick of the pointer rather than a trip across
+    // the screen (user, 2026-09-25): the zones' fold is the zone
+    // bar's last control, and their way back appears in the title
+    // bar directly above it; the lip keeps its chevron where the
+    // title bar's fold was, the whole strip still clickable.
     if (!this.#config.showTitleBar) {
       const open = doc.createElement('button');
       open.type = 'button';
       open.className = 'dc-titlebar-lip';
-      open.textContent = '\u2304';
+      open.append(this.#chevron('down'));
       open.title = 'Show the title bar';
       open.setAttribute('aria-label', 'Show the title bar');
       open.setAttribute('aria-expanded', 'false');
@@ -2771,6 +2816,7 @@ export class CubeApp {
         this.#setChrome({ showTitleBar: true });
       });
       bar.append(open);
+      if (!this.#config.showDragZones) bar.append(this.#zonesBack());
       return;
     }
 
@@ -2842,36 +2888,18 @@ export class CubeApp {
     paint();
     host.append(snap);
 
-    // THE ZONES' WAY BACK, in the bar that is still on screen. Shown
-    // only when they are folded: a control that is always there but
-    // does nothing half the time is worse than one that appears when
-    // it has something to do.
-    if (!this.#config.showDragZones) {
-      const show = doc.createElement('button');
-      show.type = 'button';
-      show.className = 'dc-titlebar-zones';
-      show.textContent = '\u2304 Zones';
-      show.title = 'Show the drag zones';
-      show.setAttribute('aria-label', 'Show the drag zones');
-      show.setAttribute('aria-expanded', 'false');
-      show.addEventListener('click', () => {
-        this.#setChrome({ showDragZones: true });
-      });
-      host.append(show);
-    }
-
-    // AND THE BAR FOLDS ITSELF, beside the menu it carries.
+    // AND THE BAR FOLDS ITSELF: after the menu, in the fold column
+    // (appended below, once the hamburger is in).
     const fold = doc.createElement('button');
     fold.type = 'button';
     fold.className = 'dc-titlebar-fold';
-    fold.textContent = '\u2303';
+    fold.append(this.#chevron('up'));
     fold.title = 'Hide the title bar';
     fold.setAttribute('aria-label', 'Hide the title bar');
     fold.setAttribute('aria-expanded', 'true');
     fold.addEventListener('click', () => {
       this.#setChrome({ showTitleBar: false });
     });
-    bar.append(fold);
 
     // The hamburger. Theirs carries host-level entries -- View
     // Source, Settings, About -- so ours carries the equivalents:
@@ -2942,7 +2970,12 @@ export class CubeApp {
       this.#menu.show([{ label: '', items }], event.clientX, event.clientY,
         burger);
     });
-    bar.append(burger);
+    bar.append(burger, fold);
+    // THE ZONES' WAY BACK, at the far right: directly above where
+    // their own fold was. Only while they are folded -- a control that
+    // is always there but does nothing half the time is worse than one
+    // that appears when it has something to do.
+    if (!this.#config.showDragZones) bar.append(this.#zonesBack());
 
     this.#onDocKey = (event: KeyboardEvent): void => {
       if (!(event.ctrlKey || event.metaKey)) return;

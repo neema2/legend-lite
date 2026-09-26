@@ -4038,6 +4038,38 @@ try {
     return `grid ${before} -> ${after}px, lip ${lipHeight}px`;
   });
 
+  await check('the folds stay in one column at the right: unfolding is where folding was', async () => {
+    // User, 2026-09-25: bringing the zones back meant a trip to the far
+    // left. Every fold control is now in a column at the right edge,
+    // and each way back appears where its fold was (or straight above).
+    const cx = (sel) => page.evaluate((q) => {
+      const e = document.querySelector(q);
+      if (!e) return null;
+      const r = e.getBoundingClientRect();
+      return Math.round(r.left + r.width / 2);
+    }, sel);
+    const right = await page.evaluate(() =>
+      Math.round(document.querySelector('.dc-titlebar').getBoundingClientRect().right));
+    const zoneFold = await cx('.dc-zone-fold');
+    if (zoneFold === null || right - zoneFold > 20) throw new Error(`zone fold at ${zoneFold}, bar ends ${right}`);
+    await page.click('.dc-zone-fold');
+    await page.waitForTimeout(150);
+    const back = await cx('.dc-titlebar-zones');
+    const titleFold = await cx('.dc-titlebar-fold');
+    await page.click('.dc-titlebar-fold');
+    await page.waitForTimeout(150);
+    const lip = await cx('.dc-titlebar-lip .dc-chevron-icon');
+    const backFolded = await cx('.dc-titlebar-zones');
+    await page.click('.dc-titlebar-zones');
+    await page.click('.dc-titlebar-lip');
+    await page.waitForTimeout(150);
+    const near = (a, b) => a !== null && b !== null && Math.abs(a - b) <= 2;
+    if (!near(back, zoneFold)) throw new Error(`zones back at ${back}, their fold was at ${zoneFold}`);
+    if (!near(lip, titleFold)) throw new Error(`lip chevron at ${lip}, the title fold was at ${titleFold}`);
+    if (!near(backFolded, zoneFold)) throw new Error(`zones back on the lip at ${backFolded}, not ${zoneFold}`);
+    return `zones fold/back at x=${zoneFold}, title fold/lip at x=${titleFold}`;
+  });
+
   await check("the grid's menu carries no Layout entries", async () => {
     // Layout left the right-click menu by the user's direction
     // (2026-09-25): the grid's menu is about the data. It used to be

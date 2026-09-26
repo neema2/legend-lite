@@ -340,54 +340,72 @@
   min-width: 0;
 }
 
-/* The folds: a chevron, quiet until you want it. Same glyph and
-   same behaviour as the columns panel's, which is the one a person
-   has already learned here. */
+/* THE FOLDS: one column per bar at the right edge, each a drawn
+   chevron in a square the width of the column, quiet until wanted.
+   The zone bar's fold is its last control; the title bar's "show
+   the zones" appears directly above it, so folding and unfolding is
+   a flick of the pointer (user, 2026-09-25). */
 .dc-zone-fold,
 .dc-titlebar-fold,
 .dc-titlebar-zones {
-  flex: 0 0 auto;
+  flex: 0 0 24px;
+  width: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
   border: 0;
+  border-radius: var(--dc-radius-sm);
   background: transparent;
   color: var(--tw-neutral-500);
   cursor: pointer;
-  font: inherit;
-  line-height: 1;
-  padding: 0 var(--dc-pad-2);
+  padding: 0;
 }
 
 .dc-zone-fold:hover,
 .dc-titlebar-fold:hover,
-.dc-titlebar-zones:hover {
+.dc-titlebar-zones:hover,
+.dc-titlebar-lip:hover {
   color: var(--tw-black);
   background: var(--tw-neutral-200);
 }
 
-/* FOLDED, THE TITLE BAR IS A LIP -- 12px carrying one control. The
-   hamburger lives in that bar, so a bar that vanished outright would
-   take the menu with it. */
+/* "Show the zones" says what it brings back: the bar's own tint. */
+.dc-titlebar-zones {
+  color: var(--tw-sky-600, #0284c7);
+}
+
+.dc-chevron-icon {
+  display: block;
+  flex: none;
+  pointer-events: none;
+}
+
+/* FOLDED, THE TITLE BAR IS A LIP -- a thin strip, the whole of it a
+   button, its chevron in the fold column at the right. The hamburger
+   lives in that bar, so a bar that vanished outright would take the
+   menu with it. */
 .dc-titlebar.dc-collapsed {
-  height: 12px;
-  justify-content: flex-start;
+  height: 14px;
   border-bottom: 1px solid var(--tw-neutral-200);
 }
 
 .dc-titlebar-lip {
-  width: 100%;
-  height: 12px;
+  flex: 1 1 auto;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
   border: 0;
   background: transparent;
   color: var(--tw-neutral-500);
   cursor: pointer;
-  font: inherit;
-  font-size: 10px;
-  line-height: 12px;
-  padding: 0;
+  padding: 0 6px 0 0;
 }
 
-.dc-titlebar-lip:hover {
-  color: var(--tw-black);
-  background: var(--tw-neutral-200);
+.dc-titlebar.dc-collapsed .dc-chevron-icon {
+  width: 10px;
+  height: 10px;
 }
 
 /* ONE BAR, SPLIT ROWS | COLUMNS, rather than two stacked strips.
