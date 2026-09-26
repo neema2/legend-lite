@@ -53,4 +53,16 @@ right, ALL the type matches first and only then ALL the multiplicity matches; th
 several smallest is a compilation error, "Too many matches", listing them. Our kernel ranks
 differently (it does not prefer the closer multiplicity or the closer numeric type), which is the
 whole of the 799 overload disagreements above. Reproducing this rule — the two match orderings
-included — is step D's first item and the binder's acceptance test is this differential at zero.
+included — is task #47, the first thing done before step A (`docs/A1_HOMEWORK_2026_09_25.md`
+has the orderings written out and the change list); the binder's acceptance test is this
+differential at zero.
+
+## The implicit import group (`RefImports.java`)
+
+`RefImports.java` runs the same way as `RefResolutions.java` and prints, for every source the
+reference compiled (2,108 on 2026-09-25), the packages its import group makes visible. Twenty-nine
+packages appear in every source: the implicit imports the Pure parser adds to each section. Our
+generated `NameResolver.CORE_IMPORTS` is those 29 plus three the newer engine added. So a bare
+name in Pure source (the corpus included) resolves by the section's imports and this group alone;
+the engine's handler surface is a rule for engine input, not for Pure source. The list is in the
+homework note.
