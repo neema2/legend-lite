@@ -3,6 +3,7 @@ package com.legend.warehouse.client.jdbc;
 import com.legend.Nullable;
 import com.legend.warehouse.client.WarehouseClient;
 import com.legend.warehouse.sqlapi.NativeBinding;
+import com.legend.warehouse.sqlapi.SqlApi;
 import com.legend.warehouse.sqlapi.SqlApi.StatementRequest;
 import java.net.URI;
 import java.net.URLDecoder;
@@ -72,7 +73,7 @@ public final class WhDriver implements Driver {
         } catch (IllegalStateException refused) {
             throw new SQLException("sign-in refused: " + refused.getMessage(), refused);
         }
-        String session;
+        SqlApi.Session session;
         try {
             session = client.openSession(catalog);
         } catch (java.io.IOException e) {

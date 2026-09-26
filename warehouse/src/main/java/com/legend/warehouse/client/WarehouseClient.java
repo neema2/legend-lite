@@ -2,6 +2,7 @@ package com.legend.warehouse.client;
 
 import com.legend.Nullable;
 import com.legend.server.Json;
+import com.legend.warehouse.sqlapi.SqlApi;
 import com.legend.warehouse.sqlapi.SqlApi.ApiError;
 import com.legend.warehouse.sqlapi.SqlApi.Chunk;
 import com.legend.warehouse.sqlapi.SqlApi.ResultMeta;
@@ -94,8 +95,8 @@ public final class WarehouseClient {
     }
 
     /** A session on the catalog: statements in it share one connection, in order. */
-    public String openSession(String catalog) throws IOException, InterruptedException {
-        return binding.session(send(binding.openSession(catalog, token()))).sessionId();
+    public SqlApi.Session openSession(String catalog) throws IOException, InterruptedException {
+        return binding.session(send(binding.openSession(catalog, token())));
     }
 
     public void closeSession(String sessionId) throws IOException, InterruptedException {

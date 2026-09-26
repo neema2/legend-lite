@@ -3,6 +3,7 @@ package com.legend.warehouse.server;
 import com.legend.Nullable;
 import com.legend.server.Json;
 import com.legend.warehouse.sqlapi.SqlApi.ApiError;
+import com.legend.warehouse.sqlapi.SqlApi.Column;
 import com.legend.warehouse.sqlapi.SqlApi.Chunk;
 import com.legend.warehouse.sqlapi.SqlApi.ErrorCode;
 import com.legend.warehouse.sqlapi.SqlApi.ResultMeta;
@@ -12,6 +13,7 @@ import com.legend.warehouse.sqlapi.SqlApi.Status;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Clock;
@@ -241,6 +243,15 @@ public final class Statements implements AutoCloseable {
             try (PreparedStatement st = c.prepareStatement(run.request.sql())) {
                 run.jdbc = st;
                 if (run.cancelRequested) throw new SQLException("INTERRUPT Error: cancelled before start");
+                if (run.request.describeOnly()) {
+                    // What the prepared statement will return, as DuckDB's own
+                    // driver reports it before execution; nothing runs.
+                    ResultSetMetaData md = st.getMetaData();
+                    List<Column> cols = md == null ? List.of() : ResultEncoder.api(ResultEncoder.columns(md));
+                    run.result = new ResultMeta(cols, 0, 0);
+                    finish(run, State.SUCCEEDED, null);
+                    return;
+                }
                 boolean hasRows = st.execute();
                 if (hasRows) {
                     try (ResultSet rs = st.getResultSet()) {

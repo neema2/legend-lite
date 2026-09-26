@@ -203,7 +203,6 @@ meta::relational::tests::functions::sqlstring::testSqlGenerationDivide_AllDBs
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAbs
 meta::relational::tests::functions::sqlstring::testToSQLStringWithAggregation
 meta::relational::tests::groupBy::datePeriods::testGroupByWithFilterFunction_noDatePath
-meta::relational::tests::groupBy::testAggToManyWithFilter
 meta::relational::tests::groupBy::testGroupByPercentile
 meta::relational::tests::groupBy::testGroupByWithJoinDB2
 meta::relational::tests::groupBy::testMax

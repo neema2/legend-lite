@@ -79,10 +79,22 @@ GET  /sql/v1/statements/{id}/chunks/{n}
 
 POST /sql/v1/statements/{id}/cancel   → {"statementId", "state": "cancelled"}
 
+POST   /sql/v1/sessions       {"catalog": "main"}
+  → {"sessionId", "catalog", "engine": "DuckDB", "engineVersion": "v1.5.5"}
+DELETE /sql/v1/sessions/{id}
+
 GET  /sql/v1/catalogs                  → [{"name"}]
 GET  /sql/v1/catalogs/{c}/objects      → [{"schema", "name", "kind": "table"|"view", "columns": [{"name", "type"}]}]
 ```
 
+- **Sessions:** a statement with a `sessionId` runs on that session's own
+  connection, after the session's earlier statements, so `USE`, `SET`, temp
+  tables and transactions carry over. A session reports the engine behind it
+  (name and version as that engine's driver gives them): the SQL it accepts
+  is that engine's.
+- **`describeOnly: true`:** the statement is prepared, never run, and the
+  result carries its columns and no rows (a compiler asking what a query
+  returns; Snowflake's query API has the same flag).
 - **States:** `queued`, `running`, `succeeded`, `failed`, `cancelled`.
 - **Error codes:** a closed set:
   - `AUTH_REQUIRED`, `AUTH_INVALID`, `FORBIDDEN` (W2);
@@ -158,8 +170,8 @@ compared cell by cell (class, printed form, `getString`, type name, JDBC
 code, nested elements, update counts). **Named differences:** a BLOB is
 compared by bytes and JSON by text, since DuckDB's classes for those are
 its own internals. JDBC calls the executor does not use are generated
-stubs that throw "not supported", never a wrong answer. W1 is autocommit
-only: there are no transactions across statements yet.
+stubs that throw "not supported", never a wrong answer. A connection is a
+session, so autocommit off, commit and rollback work as on DuckDB.
 
 ## Found while building W1a (2026-09-26)
 
@@ -171,11 +183,50 @@ only: there are no transactions across statements yet.
   reports them correctly on 1.5.5.1. So the server prepares every
   statement, then executes it. Worth reporting to DuckDB (not done yet;
   it would go out under the user's name).
-- **Prepared statements take one statement.** legend-lite's executor sends
-  multi-statement scripts for effect bodies, so W1c (the corpus proof)
-  must decide how a script travels: split by the client, or accepted as
-  a script by an owner role. W2's authorizer allows one statement for end
-  users either way.
+- **A script travels whole.** DuckDB's `prepareStatement` runs a script's
+  leading statements and prepares the last, so legend-lite's effect-body
+  scripts need nothing special (corrected 2026-09-26: this line first said
+  a prepare takes one statement). W2's authorizer allows one statement for
+  end users.
 - **A queue that refuses works:** with a concurrency of 1 and a queue of
   1, the third slow statement is refused with `QUEUE_FULL` (HTTP 503)
   instead of waiting forever.
+
+## W1c: the corpus through the warehouse (2026-09-26)
+
+**Proven: the DuckDB corpus lane gives the same verdicts through the
+warehouse as in process.** `bazel test //spec:corpus_warehouse` (manual,
+not in the chain) is `:corpus_duckdb` with every connection a session on a
+warehouse the harness starts as a child process (its deploy jar, DuckDB
+1.5.5.1 on its own classpath; the harness runs 1.4.4). Workspaces keep their
+shape: the root session ATTACHes `__ws_N`, each workspace and aside is its
+own session doing `USE`, and closing one DETACHes it.
+
+| Lane | host judge | database judge | per pass |
+|---|---|---|---|
+| in process (DuckDB 1.4.4) | 2,472 pass / 107 fail | 2,474 / 107 | ~35 s |
+| warehouse (HTTP, 1.5.5.1) | 2,472 / 107 | 2,474 / 107 | ~52 s |
+
+Same roster, same database-mode lines. What it took, each a fact the lane
+measured, not a guess:
+
+- **Two API facts:** a session reports its engine (core picks its SQL dialect
+  from `DatabaseMetaData.getDatabaseProductName`), and `describeOnly`
+  (core's `WireTypes` reads a prepared statement's columns before running
+  it).
+- **Column metadata as DuckDB's driver gives it:** precision, scale,
+  nullability, signedness and class names are per-type constants, measured
+  on 1.5.5.1 and pinned by the differential test.
+- **One core fix, the one red row** (`testAggToManyWithFilter`,
+  `ClassCastException`): the executor decoded a JSON cell only when the
+  driver's object was named `org.duckdb.JsonNode`, so a JSON column arriving
+  as text (this driver) went undecoded. It now decodes when the PLAN types
+  the column JSON. That is a class name no longer driving logic; the
+  in-process lane is unchanged by it.
+- **Nothing else:** the bulk loader falls back to the text path (the
+  appender is DuckDB's in-process API), and the graph's system database stays
+  in process (it holds the metamodel, not the test data).
+
+The ~50% time cost is one HTTP round trip and JSON per statement; W1d
+(Arrow chunks) and connection reuse are where it would come back.
+

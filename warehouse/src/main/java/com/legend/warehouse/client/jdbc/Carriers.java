@@ -57,6 +57,83 @@ final class Carriers {
         };
     }
 
+    /**
+     * The precision DuckDB's driver reports for a column of this type: a
+     * constant per type (measured on 1.5.5.1), a DECIMAL's own, 0 for a
+     * nested type.
+     */
+    static int precision(DuckType t) {
+        if (!(t instanceof DuckType.Scalar s)) return 0;
+        return switch (s.base()) {
+            case "BOOLEAN", "SMALLINT", "USMALLINT" -> 5;
+            case "TINYINT", "UTINYINT" -> 3;
+            case "INTEGER", "UINTEGER" -> 10;
+            case "BIGINT", "UBIGINT" -> 19;
+            case "HUGEINT", "UHUGEINT" -> 38;
+            case "FLOAT" -> 8;
+            case "DOUBLE" -> 17;
+            case "DECIMAL" -> decimal(s)[0];
+            case "VARCHAR", "BLOB" -> Integer.MAX_VALUE;
+            case "DATE" -> 13;
+            case "TIME" -> 15;
+            case "TIMESTAMP", "TIMESTAMP_S", "TIMESTAMP_MS", "TIMESTAMP_NS" -> 29;
+            case "TIMESTAMP WITH TIME ZONE" -> 35;
+            default -> 0;   // UUID, INTERVAL, ENUM, JSON
+        };
+    }
+
+    /** The scale DuckDB's driver reports: a DECIMAL's own, else 0. */
+    static int scale(DuckType t) {
+        return t instanceof DuckType.Scalar s && s.base().equals("DECIMAL") ? decimal(s)[1] : 0;
+    }
+
+    /** DuckDB's driver reports every type signed but the unsigned integers. */
+    static boolean signed(DuckType t) {
+        return !(t instanceof DuckType.Scalar s) || !s.base().startsWith("U") || s.base().equals("UUID");
+    }
+
+    /**
+     * The class of what {@code getObject} returns for this type: DuckDB's own
+     * where this driver returns the same class; the JDBC interface where
+     * DuckDB's is a class of its own (its array, struct, blob and JSON node).
+     */
+    static String className(DuckType t) {
+        return switch (t) {
+            case DuckType.ListOf l -> "java.sql.Array";
+            case DuckType.StructOf st -> "java.sql.Struct";
+            case DuckType.MapOf m -> "java.util.LinkedHashMap";
+            case DuckType.Scalar s -> switch (s.base()) {
+                case "BOOLEAN" -> "java.lang.Boolean";
+                case "TINYINT" -> "java.lang.Byte";
+                case "SMALLINT", "UTINYINT" -> "java.lang.Short";
+                case "INTEGER", "USMALLINT" -> "java.lang.Integer";
+                case "BIGINT", "UINTEGER" -> "java.lang.Long";
+                case "HUGEINT", "UBIGINT", "UHUGEINT" -> "java.math.BigInteger";
+                case "FLOAT" -> "java.lang.Float";
+                case "DOUBLE" -> "java.lang.Double";
+                case "DECIMAL" -> "java.math.BigDecimal";
+                case "UUID" -> "java.util.UUID";
+                case "DATE" -> "java.time.LocalDate";
+                case "TIME" -> "java.time.LocalTime";
+                case "TIMESTAMP", "TIMESTAMP_S", "TIMESTAMP_MS", "TIMESTAMP_NS" -> "java.sql.Timestamp";
+                case "TIMESTAMP WITH TIME ZONE" -> "java.time.OffsetDateTime";
+                case "BLOB" -> "java.sql.Blob";
+                default -> "java.lang.String";   // VARCHAR, ENUM, INTERVAL, JSON
+            };
+        };
+    }
+
+    /** DECIMAL(p,s)'s p and s; DuckDB always spells both. */
+    private static int[] decimal(DuckType.Scalar s) {
+        String n = s.name();
+        int open = n.indexOf('(');
+        int comma = n.indexOf(',', open);
+        int close = n.indexOf(')', comma);
+        if (open < 0 || comma < 0 || close < 0) throw new IllegalArgumentException("DECIMAL without precision: " + n);
+        return new int[] {Integer.parseInt(n.substring(open + 1, comma).strip()),
+                Integer.parseInt(n.substring(comma + 1, close).strip())};
+    }
+
     /** The Java object DuckDB's driver would return for this JSON value of this type. */
     static @Nullable Object decode(Json.Node v, DuckType t) {
         if (v instanceof Json.Null) return null;

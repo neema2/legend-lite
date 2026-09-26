@@ -47,6 +47,10 @@ public final class SqlApi {
      * What a caller asks to run. With a {@code sessionId}, it runs on that
      * session's own connection, after the session's earlier statements:
      * {@code USE}, {@code SET}, temp tables and transactions persist.
+     *
+     * <p>{@code describeOnly}: prepare the statement and report its result's
+     * columns, without running it (a compiler asking what a query returns).
+     * The result has the columns and no rows.
      */
     public record StatementRequest(
             String sql,
@@ -54,14 +58,24 @@ public final class SqlApi {
             long timeoutMs,
             long waitMs,
             int rowsPerChunk,
-            @Nullable String sessionId) {
+            @Nullable String sessionId,
+            boolean describeOnly) {
 
         public StatementRequest(String sql, String catalog, long timeoutMs, long waitMs, int rowsPerChunk) {
-            this(sql, catalog, timeoutMs, waitMs, rowsPerChunk, null);
+            this(sql, catalog, timeoutMs, waitMs, rowsPerChunk, null, false);
+        }
+
+        public StatementRequest(String sql, String catalog, long timeoutMs, long waitMs, int rowsPerChunk,
+                @Nullable String sessionId) {
+            this(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, false);
         }
 
         public StatementRequest inSession(String session) {
-            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, session);
+            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, session, describeOnly);
+        }
+
+        public StatementRequest describe() {
+            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, true);
         }
 
         public static final String DEFAULT_CATALOG = "main";
@@ -110,8 +124,12 @@ public final class SqlApi {
             @Nullable Chunk firstChunk) {
     }
 
-    /** A session: a pinned connection to one catalog. */
-    public record Session(String sessionId, String catalog) {
+    /**
+     * A session: a pinned connection to one catalog, and the engine behind
+     * it (its name and version, as that engine's own driver reports them:
+     * the SQL a session accepts is that engine's).
+     */
+    public record Session(String sessionId, String catalog, String engine, String engineVersion) {
     }
 
     /** A signed-in session's token. */

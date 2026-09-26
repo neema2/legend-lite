@@ -102,6 +102,7 @@ unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringJo
 unordered-chain meta::relational::tests::functions::sqlstring::testToSQLStringWithCodeBlock
 unordered-chain meta::relational::tests::groupBy::datePeriods::testDayOfWeek
 unordered-chain meta::relational::tests::groupBy::testAggToManyWithAverage
+unordered-chain meta::relational::tests::groupBy::testAggToManyWithFilter
 unordered-chain meta::relational::tests::groupBy::testGroupByAndFilterIsolatedJoinMerge
 unordered-chain meta::relational::tests::groupBy::testGroupByEmptyColsNonTerminalOperation
 unordered-chain meta::relational::tests::groupBy::testGroupByWithUnion

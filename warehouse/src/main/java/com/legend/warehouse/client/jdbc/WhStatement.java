@@ -29,15 +29,29 @@ final class WhStatement implements java.sql.PreparedStatement {
     }
 
     private boolean run(String sql) throws SQLException {
-        if (closed) throw new SQLException("the statement is closed");
         results = null;
         updateCount = -1;
+        WarehouseClient.Result r = call(sql, false);
+        // A statement with no columns reported an update count, not rows
+        // (DDL: -1, as DuckDB's driver reports it; a write: its row count).
+        if (r.meta().columns().isEmpty()) {
+            updateCount = r.meta().rowCount();
+            return false;
+        }
+        results = new WhResultSet(this, r.meta(), maxRows > 0 && r.rows().size() > maxRows
+                ? r.rows().subList(0, maxRows) : r.rows());
+        return true;
+    }
+
+    /** One request: the statement run, or (describe) only prepared and its columns reported. */
+    private WarehouseClient.Result call(String sql, boolean describe) throws SQLException {
+        if (closed) throw new SQLException("the statement is closed");
         long timeoutMs = timeoutSeconds > 0 ? timeoutSeconds * 1000L : StatementRequest.DEFAULT_TIMEOUT_MS;
         WarehouseClient.Result r;
         try {
-            r = conn.client.execute(new StatementRequest(sql, conn.catalog, timeoutMs,
-                    StatementRequest.DEFAULT_WAIT_MS, StatementRequest.DEFAULT_ROWS_PER_CHUNK, conn.session),
-                    id -> inFlight = id);
+            StatementRequest request = new StatementRequest(sql, conn.catalog, timeoutMs,
+                    StatementRequest.DEFAULT_WAIT_MS, StatementRequest.DEFAULT_ROWS_PER_CHUNK, conn.session);
+            r = conn.client.execute(describe ? request.describe() : request, id -> inFlight = id);
         } catch (WarehouseClient.Failure f) {
             throw new SQLException(f.error().message(), f.error().code().name(), f);
         } catch (java.io.IOException e) {
@@ -48,15 +62,7 @@ final class WhStatement implements java.sql.PreparedStatement {
         } finally {
             inFlight = null;
         }
-        // A statement with no columns reported an update count, not rows
-        // (DDL: -1, as DuckDB's driver reports it; a write: its row count).
-        if (r.meta().columns().isEmpty()) {
-            updateCount = r.meta().rowCount();
-            return false;
-        }
-        results = new WhResultSet(this, r.meta(), maxRows > 0 && r.rows().size() > maxRows
-                ? r.rows().subList(0, maxRows) : r.rows());
-        return true;
+        return r;
     }
 
     private String text() throws SQLException {
@@ -413,7 +419,9 @@ final class WhStatement implements java.sql.PreparedStatement {
 
     @Override
     public java.sql.ResultSetMetaData getMetaData() throws java.sql.SQLException {
-        throw Unsupported.of("PreparedStatement.getMetaData");
+        WhResultSet r = results;
+        if (r != null) return r.getMetaData();
+        return WhResultSetMetaData.of(call(text(), true).meta().columns());
     }
 
     @Override

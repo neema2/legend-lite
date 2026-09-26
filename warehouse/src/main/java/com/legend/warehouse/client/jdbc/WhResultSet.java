@@ -251,7 +251,7 @@ final class WhResultSet implements java.sql.ResultSet {
 
     @Override
     public ResultSetMetaData getMetaData() {
-        return new WhResultSetMetaData(this);
+        return new WhResultSetMetaData(columns, types);
     }
 
     @Override

@@ -5,6 +5,7 @@ meta::relational::graphFetch::tests::simple::testGraphFetchWithViewRootNestedDee
 meta::relational::graphFetch::tests::union::propertyLevel::test6 ||| AssertFailed: assertJsonStringsEqual: UNJUDGED in database mode — json: not byte-equal (keys sorted, compact) | expected: [{"employees":[{"a
 meta::relational::metamodel::execute::tests::testExecuteInDbToTDS ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::ddl::dropAndCreateTable ||| DialectCapability: variant navigation reached a dialect without JSON support
+meta::relational::tests::groupBy::testAggToManyWithFilter ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::mapping::innerjoin::isolation::testIsolationOfInnerJoins ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV1 ||| DialectCapability: variant navigation reached a dialect without JSON support
 meta::relational::tests::mapping::union::multipleChainedJoins::testUnionWithChainedJoinsAcross2SetsV2 ||| DialectCapability: variant navigation reached a dialect without JSON support

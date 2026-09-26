@@ -552,13 +552,15 @@ public final class Executor {
         }
         // A JSON-carrier CELL under a non-Any VALUE root (a variant-list
         // read narrowed by cast(@Float): $row.values->at(1)->cast(@Float) —
-        // the cast re-roots the declared type, but the cell still arrives
-        // as the driver's JSON node). The node is SELF-DESCRIBING wire —
+        // the cast re-roots the declared type, but the plan still types
+        // the column JSON). Decided by that PLANNED type, never by the
+        // driver's class: DuckDB's driver hands a JSON node, another
+        // (the warehouse's) the text — the same wire either way, and
         // decoding it is recovery, never value guessing. NEVER for a
         // VARIANT root (audit 22 self-catch): a Variant result's contract
         // IS the JSON text — decoding it would change the wire.
         if (!variantRoot && v != null
-                && v.getClass().getName().equals("org.duckdb.JsonNode")) {
+                && sqlTypeOf(plan, 0) == com.legend.sql.SqlType.Scalar.JSON) {
             return new Cell(decodeAny(v), present);
         }
         return new Cell(v, present);

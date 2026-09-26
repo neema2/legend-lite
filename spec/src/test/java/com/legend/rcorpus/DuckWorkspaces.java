@@ -67,7 +67,16 @@ final class DuckWorkspaces {
      *  this means a close/DETACH leak, which must fail fast. */
     private static final int LEAK_CEILING = 8;
 
-    private static DuckDBConnection root;
+    /** The warehouse's deploy jar: set, every connection is a session on a
+     *  warehouse this harness starts (W1c, docs/WAREHOUSE_W1_DESIGN_2026_09_26.md);
+     *  unset, the in-process DuckDB below. */
+    private static final @com.legend.Nullable String WAREHOUSE_JAR =
+            System.getProperty("rcorpus.warehouse.server");
+
+    /** The instance's root connection: in process, the DuckDB connection the
+     *  others duplicate; on a warehouse, a session of its own. */
+    private static Connection root;
+    private static @com.legend.Nullable String warehouseUrl;
     private static final AtomicInteger IDS = new AtomicInteger();
     private static final Set<String> LIVE = new TreeSet<>();
 
@@ -76,8 +85,12 @@ final class DuckWorkspaces {
 
     static synchronized Connection open() throws SQLException {
         if (root == null) {
-            root = (DuckDBConnection) DriverManager
-                    .getConnection("jdbc:duckdb:");
+            if (WAREHOUSE_JAR != null) {
+                warehouseUrl = startWarehouse(WAREHOUSE_JAR);
+                root = DriverManager.getConnection(warehouseUrl);
+            } else {
+                root = DriverManager.getConnection("jdbc:duckdb:");
+            }
             try (Statement st = root.createStatement()) {
                 com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
                 st.execute("SET threads=1");
@@ -94,7 +107,7 @@ final class DuckWorkspaces {
             com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
             st.execute("ATTACH ':memory:' AS " + ws);
         }
-        Connection conn = root.duplicate();
+        Connection conn = another();
         try (Statement st = conn.createStatement()) {
             com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
             st.execute("USE " + ws);
@@ -106,6 +119,58 @@ final class DuckWorkspaces {
         }
         LIVE.add(ws);
         return closeDetaches(conn, ws);
+    }
+
+    /** Another connection to the same instance: in process, a duplicate of
+     *  the root; on a warehouse, a session of its own on the same catalog. */
+    private static Connection another() throws SQLException {
+        String url = warehouseUrl;
+        return url != null ? DriverManager.getConnection(url)
+                : ((DuckDBConnection) root).duplicate();
+    }
+
+    /** Starts the warehouse as a child process on a free port, with an empty
+     *  data directory and one user; stopped when this JVM exits. Its own
+     *  classpath: the warehouse runs DuckDB 1.5.5.1, this harness 1.4.4. */
+    private static String startWarehouse(String jar) throws SQLException {
+        try {
+            java.nio.file.Path data = java.nio.file.Files.createTempDirectory("rcorpus-warehouse");
+            String launcher = java.nio.file.Path.of(System.getProperty("java.home"), "bin", "java").toString();
+            Process p = new ProcessBuilder(launcher, "--enable-native-access=ALL-UNNAMED", "-jar", jar,
+                    "--port", "0", "--data", data.toString(), "--user", "rcorpus:rcorpus",
+                    "--concurrency", "4")
+                    .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+                    .start();
+            Runtime.getRuntime().addShutdownHook(new Thread(p::destroy));
+            java.io.BufferedReader err = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(p.getErrorStream(), java.nio.charset.StandardCharsets.UTF_8));
+            java.util.regex.Pattern ready = java.util.regex.Pattern.compile("warehouse listening on 127\\.0\\.0\\.1:(\\d+)");
+            String line;
+            while ((line = err.readLine()) != null) {
+                System.err.println("[warehouse] " + line);
+                java.util.regex.Matcher m = ready.matcher(line);
+                if (m.find()) {
+                    Thread drain = new Thread(() -> {
+                        try {
+                            String l;
+                            while ((l = err.readLine()) != null) System.err.println("[warehouse] " + l);
+                        } catch (java.io.IOException ignored) {
+                            // the process ended
+                        }
+                    }, "warehouse-stderr");
+                    drain.setDaemon(true);
+                    drain.start();
+                    return "jdbc:warehouse:http://127.0.0.1:" + m.group(1)
+                            + "/main?user=rcorpus&password=rcorpus";
+                }
+            }
+            throw new SQLException("the warehouse exited before listening (exit " + p.waitFor() + ")");
+        } catch (java.io.IOException e) {
+            throw new SQLException("cannot start the warehouse from " + jar, e);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new SQLException("interrupted starting the warehouse", e);
+        }
     }
 
     /** The ASIDE catalogs a workspace attached for clashing fixtures
@@ -142,7 +207,7 @@ final class DuckWorkspaces {
      * DDL, drops and inserts see the aside alone, never the session's
      * same-named tables. Closed by {@link #isolateEnd}. */
     static synchronized Connection asideConnection(String aside) throws SQLException {
-        Connection c = root.duplicate();
+        Connection c = another();
         try (Statement st = c.createStatement()) {
             com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
             st.execute("USE " + aside);

@@ -153,7 +153,7 @@ public final class WarehouseServer implements AutoCloseable {
             Sessions.Session s = sessions.find(principal, m.group(1));
             if (s == null) throw Reply.error(404, ErrorCode.NOT_FOUND, "no session " + m.group(1));
             sessions.close(s);
-            throw new Reply(200, Json.toCompact(ApiJson.session(new SqlApi.Session(s.id(), s.catalog()))));
+            throw new Reply(200, Json.toCompact(ApiJson.session(s.api())));
         } else if (path.equals("/sql/v1/catalogs") && method.equals("GET")) {
             List<Json.Node> out = new ArrayList<>();
             for (String c : catalogs.names()) {
@@ -210,7 +210,7 @@ public final class WarehouseServer implements AutoCloseable {
             throw Reply.error(500, ErrorCode.INTERNAL, String.valueOf(e.getMessage()));
         }
         if (s == null) throw Reply.error(404, ErrorCode.NOT_FOUND, "no catalog '" + catalog + "'");
-        throw new Reply(200, Json.toCompact(ApiJson.session(new SqlApi.Session(s.id(), s.catalog()))));
+        throw new Reply(200, Json.toCompact(ApiJson.session(s.api())));
     }
 
     private void submit(HttpExchange ex, String principal) throws IOException, Reply {

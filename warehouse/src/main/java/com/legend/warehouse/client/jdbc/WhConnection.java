@@ -1,6 +1,7 @@
 package com.legend.warehouse.client.jdbc;
 
 import com.legend.warehouse.client.WarehouseClient;
+import com.legend.warehouse.sqlapi.SqlApi;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
@@ -17,14 +18,18 @@ final class WhConnection implements java.sql.Connection {
     final WarehouseClient client;
     final String catalog;
     final String session;
+    final String engine;
+    final String engineVersion;
     private final String url;
     private volatile boolean closed;
     private boolean autoCommit = true;
 
-    WhConnection(WarehouseClient client, String catalog, String session, String url) {
+    WhConnection(WarehouseClient client, String catalog, SqlApi.Session session, String url) {
         this.client = client;
         this.catalog = catalog;
-        this.session = session;
+        this.session = session.sessionId();
+        this.engine = session.engine();
+        this.engineVersion = session.engineVersion();
         this.url = url;
     }
 
@@ -220,7 +225,8 @@ final class WhConnection implements java.sql.Connection {
 
     @Override
     public java.sql.DatabaseMetaData getMetaData() throws java.sql.SQLException {
-        throw Unsupported.of("Connection.getMetaData");
+        open();
+        return new WhDatabaseMetaData(this, url);
     }
 
     @Override

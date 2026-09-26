@@ -96,6 +96,30 @@ junit_test(
     upstream = True,
 )
 
+# W1c (docs/WAREHOUSE_W1_DESIGN_2026_09_26.md): :corpus_duckdb with every
+# connection a session on the warehouse, spoken to through its JDBC driver. The
+# harness starts the server (its deploy jar: DuckDB 1.5.5.1, its own classpath)
+# as a child process. Not in the chain yet: its differences from :corpus_duckdb
+# are the leg's rows.
+junit_test(
+    name = "corpus_warehouse",
+    data = _INPUTS + ["//warehouse:server_deploy.jar"],
+    jvm_flags = [
+        "-Drcorpus.warehouse.server=$(rootpath //warehouse:server_deploy.jar)",
+        "-Dlegend.prerun=legend.judge.mode=host,legend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
+        "-Dlegend.judge.mode=database",
+        "-Dlegend.judge.ledger=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-database.tsv",
+        "-Dlegend.judge.ledger.host=$${TEST_UNDECLARED_OUTPUTS_DIR}/judge-host.tsv",
+    ],
+    runtime_deps = [
+        ":spec_tests_lib",
+        "//warehouse:client",
+    ],
+    select = ["--select-class=com.legend.rcorpus.MinimalCorpusTest"],
+    tags = ["manual"],
+    upstream = True,
+)
+
 # Maven gate 5, the same two passes on H2: the corpus under the HOST judge (the
 # prerun, writing its ledger), then under the DATABASE judge, joined per assert —
 # :corpus_duckdb's shape. The database pass was its own target until 2026-09-23,

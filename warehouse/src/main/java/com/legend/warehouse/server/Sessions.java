@@ -1,6 +1,7 @@
 package com.legend.warehouse.server;
 
 import com.legend.Nullable;
+import com.legend.warehouse.sqlapi.SqlApi;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.time.Clock;
@@ -29,14 +30,23 @@ public final class Sessions implements AutoCloseable {
         final String principal;
         final String catalog;
         final Connection connection;
+        final String engine;
+        final String engineVersion;
         final ReentrantLock lock = new ReentrantLock(true);
         volatile Instant lastUsed;
 
-        Session(String principal, String catalog, Connection connection, Instant now) {
+        Session(String principal, String catalog, Connection connection, Instant now) throws SQLException {
             this.principal = principal;
             this.catalog = catalog;
             this.connection = connection;
+            this.engine = connection.getMetaData().getDatabaseProductName();
+            this.engineVersion = connection.getMetaData().getDatabaseProductVersion();
             this.lastUsed = now;
+        }
+
+        /** The session as the API reports it. */
+        public SqlApi.Session api() {
+            return new SqlApi.Session(id, catalog, engine, engineVersion);
         }
 
         public String id() {
@@ -63,7 +73,13 @@ public final class Sessions implements AutoCloseable {
     public @Nullable Session open(String principal, String catalog) throws SQLException {
         Connection c = catalogs.connect(catalog);
         if (c == null) return null;
-        Session s = new Session(principal, catalog, c, clock.instant());
+        Session s;
+        try {
+            s = new Session(principal, catalog, c, clock.instant());
+        } catch (SQLException e) {
+            c.close();
+            throw e;
+        }
         open.put(s.id, s);
         return s;
     }

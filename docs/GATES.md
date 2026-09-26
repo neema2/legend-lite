@@ -5681,3 +5681,25 @@ zero (package and overload) is their acceptance test, and step D's first item is
 reproduced with both match orderings. Every earlier slice was checked against our own previous
 behaviour and against tests most overloads pass either way; this is the first check against the
 reference itself.
+
+## 2026-09-26 — JSON cells decode by the planned type, not the driver's class (H2 roster 362 → 361)
+
+**What.** `Executor.cellRead` decoded a JSON-carrier cell under a non-Any root only when the driver's
+object was named `org.duckdb.JsonNode`. Any other driver's JSON — H2's text, the warehouse driver's
+text — went undecoded, and a numeric read of it threw `ClassCastException`. It now decodes when the
+PLAN types the column JSON (`sqlTypeOf(plan, 0) == JSON`). Found by W1c, the DuckDB corpus lane run
+through the warehouse's JDBC driver (docs/WAREHOUSE_W1_DESIGN_2026_09_26.md), where this was the one
+red row.
+
+**Roster changes, each for that reason.** `h2-fail-roster.txt` loses
+`meta::relational::tests::groupBy::testAggToManyWithFilter` (it passes now on H2, as on DuckDB).
+`h2-unordered-register.txt` gains the same test as `unordered-chain`, mirroring DuckDB's register,
+which has listed it beside its sibling `testAggToManyWithAverage` all along: it passes through the
+unordered collection comparison on both backends. `h2-database-lost-register.txt` gains it too:
+on H2 its database-judge pass stops at `DialectCapability: variant navigation reached a dialect
+without JSON support`, the known H2 wall 60 of the register's 64 rows already carry (no H2-only
+leg, by ruling). Its H2 shape moved from failing under both judges to that of those 60: the host
+judge passes it, the database judge walls.
+
+**Measured.** DuckDB in process: roster unchanged (host 2,472 / 107, database 2,474 / 107). DuckDB
+through the warehouse (`//spec:corpus_warehouse`, manual): identical. H2: fail 362 → 361.

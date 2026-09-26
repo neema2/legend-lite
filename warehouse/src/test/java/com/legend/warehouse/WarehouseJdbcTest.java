@@ -265,4 +265,57 @@ class WarehouseJdbcTest {
             assertFalse(rs.next());
         }
     }
+
+    @Test
+    void aPreparedStatementDescribesItsColumnsBeforeRunningAsDuckDBDoes() throws SQLException {
+        String sql = """
+                SELECT true a, 1::TINYINT b, 1::SMALLINT c, 1::INTEGER d, 1::BIGINT e, 1::HUGEINT f,
+                       1::UTINYINT g, 1::USMALLINT h, 1::UINTEGER i, 1::UBIGINT j, 1::UHUGEINT k,
+                       1::FLOAT l, NULL::DOUBLE m, 2.5::DECIMAL(9,2) n, 1.5::DECIMAL(38,10) o, 'x' p,
+                       uuid() q, INTERVAL 1 DAY r, DATE '2020-01-01' s, TIME '01:02:03' t,
+                       TIMESTAMP '2020-01-01' u, TIMESTAMP_S '2020-01-01' v, TIMESTAMP_MS '2020-01-01' w,
+                       TIMESTAMP_NS '2020-01-01' x, TIMESTAMPTZ '2020-01-01' y, 'a'::BLOB z,
+                       '{}'::JSON aa, [1, 2] ab, [1, 2]::INTEGER[2] ac, {'k': 1} ad, MAP {1: 2} ae,
+                       'a'::ENUM('a', 'b') af""";
+        try (var r = remote.prepareStatement(sql); var l = local.prepareStatement(sql)) {
+            java.sql.ResultSetMetaData rm = r.getMetaData();
+            java.sql.ResultSetMetaData lm = l.getMetaData();
+            assertEquals(lm.getColumnCount(), rm.getColumnCount());
+            for (int i = 1; i <= lm.getColumnCount(); i++) {
+                assertEquals(lm.getColumnLabel(i), rm.getColumnLabel(i));
+                assertEquals(lm.getColumnTypeName(i), rm.getColumnTypeName(i));
+                assertEquals(lm.getColumnType(i), rm.getColumnType(i), lm.getColumnTypeName(i));
+                assertEquals(lm.getPrecision(i), rm.getPrecision(i), lm.getColumnTypeName(i));
+                assertEquals(lm.getScale(i), rm.getScale(i), lm.getColumnTypeName(i));
+                assertEquals(lm.isNullable(i), rm.isNullable(i), lm.getColumnTypeName(i));
+                assertEquals(lm.isSigned(i), rm.isSigned(i), lm.getColumnTypeName(i));
+                // DuckDB names its own classes for its array, struct, blob and
+                // JSON node; this driver names the JDBC interface (or String)
+                String cls = lm.getColumnClassName(i);
+                if (cls.startsWith("java.")) {
+                    assertEquals(cls, rm.getColumnClassName(i), lm.getColumnTypeName(i));
+                }
+            }
+        }
+    }
+
+    @Test
+    void describingDoesNotRunTheStatement() throws SQLException {
+        try (Connection c = connect(); Statement s = c.createStatement()) {
+            s.execute("CREATE TABLE described (x INTEGER)");
+            try (var p = c.prepareStatement("INSERT INTO described VALUES (1) RETURNING x")) {
+                assertEquals(1, p.getMetaData().getColumnCount());
+            }
+            try (ResultSet rs = s.executeQuery("SELECT count(*) FROM described")) {
+                assertTrue(rs.next());
+                assertEquals(0L, rs.getLong(1));
+            }
+        }
+    }
+
+    @Test
+    void theDatabaseIsTheEngineBehindTheSession() throws SQLException {
+        assertEquals(local.getMetaData().getDatabaseProductName(), remote.getMetaData().getDatabaseProductName());
+        assertEquals(local.getMetaData().getDatabaseProductVersion(), remote.getMetaData().getDatabaseProductVersion());
+    }
 }

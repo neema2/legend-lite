@@ -1,31 +1,42 @@
 package com.legend.warehouse.client.jdbc;
 
 import com.legend.warehouse.sqlapi.DuckType;
+import com.legend.warehouse.sqlapi.SqlApi.Column;
 import java.sql.SQLException;
+import java.util.List;
 
 /** A result's columns, reported as DuckDB's driver reports them: its type names and codes. */
 final class WhResultSetMetaData implements java.sql.ResultSetMetaData {
 
-    private final WhResultSet rs;
+    private final List<Column> columns;
+    private final List<DuckType> types;
 
-    WhResultSetMetaData(WhResultSet rs) {
-        this.rs = rs;
+    WhResultSetMetaData(List<Column> columns, List<DuckType> types) {
+        this.columns = columns;
+        this.types = types;
+    }
+
+    /** The columns a described statement will return. */
+    static WhResultSetMetaData of(List<Column> columns) {
+        List<DuckType> types = new java.util.ArrayList<>(columns.size());
+        for (Column c : columns) types.add(DuckType.parse(c.type()));
+        return new WhResultSetMetaData(columns, types);
     }
 
     private DuckType type(int i) throws SQLException {
-        if (i < 1 || i > rs.types().size()) throw new SQLException("no column " + i);
-        return rs.types().get(i - 1);
+        if (i < 1 || i > types.size()) throw new SQLException("no column " + i);
+        return types.get(i - 1);
     }
 
     @Override
     public int getColumnCount() {
-        return rs.columns().size();
+        return columns.size();
     }
 
     @Override
     public String getColumnName(int i) throws SQLException {
         type(i);
-        return rs.columns().get(i - 1).name();
+        return columns.get(i - 1).name();
     }
 
     @Override
@@ -36,7 +47,7 @@ final class WhResultSetMetaData implements java.sql.ResultSetMetaData {
     @Override
     public String getColumnTypeName(int i) throws SQLException {
         type(i);
-        return rs.columns().get(i - 1).type();
+        return columns.get(i - 1).type();
     }
 
     @Override
@@ -46,17 +57,12 @@ final class WhResultSetMetaData implements java.sql.ResultSetMetaData {
 
     @Override
     public String getColumnClassName(int i) throws SQLException {
-        return switch (type(i)) {
-            case DuckType.ListOf l -> "java.sql.Array";
-            case DuckType.StructOf s -> "java.sql.Struct";
-            case DuckType.MapOf m -> "java.util.Map";
-            case DuckType.Scalar s -> "java.lang.Object";
-        };
+        return Carriers.className(type(i));
     }
 
     @Override
     public int isNullable(int i) {
-        return columnNullableUnknown;
+        return columnNullable;   // as DuckDB's driver reports every column
     }
 
     @Override
@@ -80,8 +86,8 @@ final class WhResultSetMetaData implements java.sql.ResultSetMetaData {
     }
 
     @Override
-    public boolean isSigned(int i) {
-        return true;
+    public boolean isSigned(int i) throws SQLException {
+        return Carriers.signed(type(i));
     }
 
     @Override
@@ -95,13 +101,13 @@ final class WhResultSetMetaData implements java.sql.ResultSetMetaData {
     }
 
     @Override
-    public int getPrecision(int i) {
-        return 0;
+    public int getPrecision(int i) throws SQLException {
+        return Carriers.precision(type(i));
     }
 
     @Override
-    public int getScale(int i) {
-        return 0;
+    public int getScale(int i) throws SQLException {
+        return Carriers.scale(type(i));
     }
 
     @Override
