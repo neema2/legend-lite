@@ -1,5 +1,7 @@
 # The compiler, designed from the language: how legend-lite should bind, type, evaluate and lower Pure
 
+> **Corrected by `PLAN_AUDIT_2026_09_26.md` (2026-09-26).** §1 and §5 are wrong about the engine and the corpus: the engine's handler map is the whole namespace for engine input, and the corpus is Pure source that never touches it (audit §1 row 7). §3.3's element and syntax rules, §3.4's "bound twice is an error", §3.5's evaluator scope, §3.6's "Plan" (the MIR already is it) and its null-semantics sentence, and §4's dialect capability are corrected in audit §1 rows 4–6 and §2. The stages, the principles and the migration shape stand.
+
 Written 2026-09-25. This is the design the untangle should have started from. It is written from
 three vantage points at once — how Pure the language actually works, how legend-engine actually
 compiles and plans it, and what a compiler that emits SQL has to hold at each stage — and it says,
