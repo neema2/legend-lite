@@ -2,20 +2,19 @@ package com.legend.warehouse.server;
 
 import com.legend.Nullable;
 import com.legend.server.Json;
+import com.legend.warehouse.server.duck.Collect;
+import com.legend.warehouse.server.duck.Conn;
+import com.legend.warehouse.server.duck.DuckException;
+import com.legend.warehouse.server.duck.Result;
 import com.legend.warehouse.sqlapi.SqlApi.ApiError;
-import com.legend.warehouse.sqlapi.SqlApi.Column;
 import com.legend.warehouse.sqlapi.SqlApi.Chunk;
+import com.legend.warehouse.sqlapi.SqlApi.Column;
 import com.legend.warehouse.sqlapi.SqlApi.ErrorCode;
+import com.legend.warehouse.sqlapi.SqlApi.ResultFormat;
 import com.legend.warehouse.sqlapi.SqlApi.ResultMeta;
 import com.legend.warehouse.sqlapi.SqlApi.State;
 import com.legend.warehouse.sqlapi.SqlApi.StatementRequest;
 import com.legend.warehouse.sqlapi.SqlApi.Status;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -40,10 +39,11 @@ import java.util.concurrent.TimeUnit;
  * wait in a bounded FIFO queue; a full queue refuses with QUEUE_FULL
  * rather than growing without end.
  *
- * <p>IDENTITY, BEFORE EVERY STATEMENT: each statement gets its own
- * connection, and the first thing run on it sets {@code app_user} to the
- * verified principal (program §3, 0b). Nothing a previous statement did
- * survives, because no connection is ever reused.
+ * <p>IDENTITY, FROM OUTSIDE SQL: each statement gets its own connection
+ * (a session keeps one), and the connection belongs to the verified
+ * principal from the moment it opens: {@code system.main.authenticated_user()}
+ * answers with it, and no statement can change it (docs/WAREHOUSE_FFM_HOMEWORK_2026_09_26.md §5).
+ * Nothing a previous statement did survives, because no connection is ever reused.
  */
 public final class Statements implements AutoCloseable {
 
@@ -59,7 +59,9 @@ public final class Statements implements AutoCloseable {
         volatile @Nullable ResultMeta result;
         volatile @Nullable ApiError error;
         volatile List<Chunk> chunks = List.of();
-        volatile @Nullable Statement jdbc;
+        volatile List<byte[]> arrowChunks = List.of();
+        /** The connection running it, while it runs: what a cancel interrupts. */
+        volatile @Nullable Conn running;
         volatile boolean cancelRequested;
         volatile boolean timedOut;
         final CompletableFuture<Void> done = new CompletableFuture<>();
@@ -97,6 +99,16 @@ public final class Statements implements AutoCloseable {
         public @Nullable Chunk chunk(int index) {
             List<Chunk> cs = chunks;
             return state == State.SUCCEEDED && index >= 0 && index < cs.size() ? cs.get(index) : null;
+        }
+
+        /** An Arrow result's chunk: a whole Arrow IPC stream. */
+        public byte @Nullable [] arrowChunk(int index) {
+            List<byte[]> cs = arrowChunks;
+            return state == State.SUCCEEDED && index >= 0 && index < cs.size() ? cs.get(index) : null;
+        }
+
+        public ResultFormat format() {
+            return request.format();
         }
     }
 
@@ -167,14 +179,8 @@ public final class Statements implements AutoCloseable {
     }
 
     private static void interrupt(Run run) {
-        Statement s = run.jdbc;
-        if (s != null) {
-            try {
-                s.cancel();
-            } catch (SQLException ignored) {
-                // it finished between the check and the cancel
-            }
-        }
+        Conn c = run.running;
+        if (c != null) c.interrupt();
     }
 
     /** Thrown when the queue is full. */
@@ -218,56 +224,49 @@ public final class Statements implements AutoCloseable {
         run.state = State.RUNNING;
         run.started = clock.instant();
         String catalog = run.request.catalog();
-        try (Connection c = catalogs.connect(catalog)) {
-            if (c == null) {
-                finish(run, State.FAILED, new ApiError(ErrorCode.NOT_FOUND, "no catalog '" + catalog + "'"));
-                return;
-            }
-            runOn(run, c);
-        } catch (SQLException e) {
+        Conn c;
+        try {
+            c = catalogs.connect(catalog, run.principal);
+        } catch (DuckException e) {
             finish(run, State.FAILED, classify(e));
+            return;
+        }
+        if (c == null) {
+            finish(run, State.FAILED, new ApiError(ErrorCode.NOT_FOUND, "no catalog '" + catalog + "'"));
+            return;
+        }
+        try {
+            runOn(run, c);
+        } finally {
+            c.close();
         }
     }
 
-    /** One statement on one connection: identity first, then prepare and execute. */
-    private void runOn(Run run, Connection c) {
+    /** One statement (or script) on one connection, which already belongs to the run's principal. */
+    private void runOn(Run run, Conn c) {
+        run.running = c;
         try {
-            try (Statement identity = c.createStatement()) {
-                // The identity, on this statement's own connection, before anything else.
-                identity.execute("SET VARIABLE app_user = '" + run.principal.replace("'", "''") + "'");
-            }
-            // PREPARED, then executed: DuckDB JDBC 1.5.5.1's Statement.execute
-            // replaces a binder or catalog error with "Attempting to execute an
-            // unsuccessful or closed pending query result" (1.4.4 reported it);
-            // preparing first keeps the real message.
-            try (PreparedStatement st = c.prepareStatement(run.request.sql())) {
-                run.jdbc = st;
-                if (run.cancelRequested) throw new SQLException("INTERRUPT Error: cancelled before start");
-                if (run.request.describeOnly()) {
-                    // What the prepared statement will return, as DuckDB's own
-                    // driver reports it before execution; nothing runs.
-                    ResultSetMetaData md = st.getMetaData();
-                    List<Column> cols = md == null ? List.of() : ResultEncoder.api(ResultEncoder.columns(md));
-                    run.result = new ResultMeta(cols, 0, 0);
-                    finish(run, State.SUCCEEDED, null);
-                    return;
-                }
-                boolean hasRows = st.execute();
-                if (hasRows) {
-                    try (ResultSet rs = st.getResultSet()) {
-                        collect(run, rs);
-                    }
-                } else {
-                    // DuckDB's own count: -1 for DDL, the rows changed for a write.
-                    run.result = new ResultMeta(List.of(), st.getUpdateCount(), 0);
-                }
+            if (run.cancelRequested) throw DuckException.cancelledBeforeStart();
+            if (run.request.describeOnly()) {
+                // What the statement will return, from DuckDB's prepare; nothing runs.
+                run.result = new ResultMeta(ResultEncoder.api(c.describe(run.request.sql())), 0, 0);
                 finish(run, State.SUCCEEDED, null);
+                return;
             }
+            try (Result r = c.execute(run.request.sql())) {
+                if (r.hasRows()) {
+                    collect(run, r);
+                } else {
+                    // The rows a write changed; -1 for a statement that changes none (DDL, SET).
+                    run.result = new ResultMeta(List.of(), r.changed(), 0);
+                }
+            }
+            finish(run, State.SUCCEEDED, null);
         } catch (ResultEncoder.Unsupported e) {
             finish(run, State.FAILED, new ApiError(ErrorCode.UNSUPPORTED_TYPE, String.valueOf(e.getMessage())));
-        } catch (TooLarge e) {
+        } catch (Collect.TooLarge e) {
             finish(run, State.FAILED, new ApiError(ErrorCode.TOO_LARGE, String.valueOf(e.getMessage())));
-        } catch (SQLException e) {
+        } catch (DuckException e) {
             if (run.cancelRequested) {
                 finish(run, run.timedOut ? State.FAILED : State.CANCELLED, run.timedOut
                         ? new ApiError(ErrorCode.TIMEOUT, "timed out after " + run.request.timeoutMs() + " ms")
@@ -275,40 +274,34 @@ public final class Statements implements AutoCloseable {
             } else {
                 finish(run, State.FAILED, classify(e));
             }
-        } catch (RuntimeException e) {
+        } catch (Exception e) {
             finish(run, State.FAILED, new ApiError(ErrorCode.INTERNAL, String.valueOf(e.getMessage())));
         } finally {
-            run.jdbc = null;
+            run.running = null;
         }
     }
 
-    private static final class TooLarge extends Exception {
-        TooLarge(long max) {
-            super("the result has more than " + max + " rows");
-        }
-    }
-
-    private void collect(Run run, ResultSet rs) throws SQLException, TooLarge {
-        List<ResultEncoder.Col> cols = ResultEncoder.columns(rs.getMetaData());
+    private void collect(Run run, Result r) throws Exception {
+        List<Column> cols = ResultEncoder.api(r.columns());
         int per = Math.max(1, run.request.rowsPerChunk());
-        List<Chunk> chunks = new ArrayList<>();
-        List<List<Json.Node>> rows = new ArrayList<>();
-        long n = 0;
-        while (rs.next()) {
-            if (++n > limits.maxRows()) throw new TooLarge(limits.maxRows());
-            rows.add(ResultEncoder.row(rs, cols));
-            if (rows.size() == per) {
-                chunks.add(new Chunk(chunks.size(), rows));
-                rows = new ArrayList<>();
-            }
+        if (run.request.format() == ResultFormat.ARROW) {
+            Collect.Arrow a = Collect.arrow(r, per, limits.maxRows());
+            run.arrowChunks = a.chunks();
+            run.result = new ResultMeta(cols, a.rows(), a.chunks().size());
+            return;
         }
-        if (!rows.isEmpty() || chunks.isEmpty()) chunks.add(new Chunk(chunks.size(), rows));
+        List<List<Json.Node>> rows = Collect.json(r, limits.maxRows());
+        List<Chunk> chunks = new ArrayList<>();
+        for (int from = 0; from < rows.size(); from += per) {
+            chunks.add(new Chunk(chunks.size(), rows.subList(from, Math.min(rows.size(), from + per))));
+        }
+        if (chunks.isEmpty()) chunks.add(new Chunk(0, List.of()));
         run.chunks = List.copyOf(chunks);
-        run.result = new ResultMeta(ResultEncoder.api(cols), n, chunks.size());
+        run.result = new ResultMeta(cols, rows.size(), chunks.size());
     }
 
     /** DuckDB's error kinds, as the API's codes. */
-    static ApiError classify(SQLException e) {
+    static ApiError classify(DuckException e) {
         String m = String.valueOf(e.getMessage());
         String first = m.split("\n", 2)[0];
         ErrorCode code;

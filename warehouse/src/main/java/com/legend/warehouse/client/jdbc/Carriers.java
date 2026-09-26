@@ -180,7 +180,9 @@ final class Carriers {
             case "DATE" -> LocalDate.parse(str(v));
             case "TIME" -> LocalTime.parse(str(v));
             case "TIMESTAMP", "TIMESTAMP_S", "TIMESTAMP_MS", "TIMESTAMP_NS" -> Timestamp.valueOf(LocalDateTime.parse(str(v)));
-            case "TIMESTAMP WITH TIME ZONE" -> OffsetDateTime.parse(str(v));
+            // the instant, shown in THIS JVM's zone, as DuckDB's JDBC driver shows it
+            case "TIMESTAMP WITH TIME ZONE" -> OffsetDateTime.parse(str(v))
+                    .atZoneSameInstant(java.time.ZoneId.systemDefault()).toOffsetDateTime();
             case "BLOB" -> new WhBlob(Base64.getDecoder().decode(str(v)));
             // VARCHAR, ENUM, INTERVAL, and JSON as its text: DuckDB's driver
             // returns its own node type for JSON; its text is the same.

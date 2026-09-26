@@ -2,6 +2,9 @@ package com.legend.warehouse.server;
 
 import com.legend.Nullable;
 import com.legend.server.Json;
+import com.legend.warehouse.server.duck.ArrowStreams;
+import com.legend.warehouse.server.duck.DuckException;
+import com.legend.warehouse.server.duck.DuckLibrary;
 import com.legend.warehouse.sqlapi.ApiJson;
 import com.legend.warehouse.sqlapi.SqlApi;
 import com.legend.warehouse.sqlapi.SqlApi.ApiError;
@@ -17,7 +20,6 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.SecureRandom;
-import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
@@ -54,7 +56,14 @@ public final class WarehouseServer implements AutoCloseable {
             List<String[]> users,
             byte @Nullable [] tokenKey,
             Duration tokenLife,
-            Statements.Limits limits) {
+            Statements.Limits limits,
+            @Nullable Path duckdbLibrary) {
+
+        /** DuckDB's library from the classpath (DuckDB's JDBC jar carries it). */
+        public Config(int port, Path dataDir, List<String> catalogs, List<String[]> users,
+                byte @Nullable [] tokenKey, Duration tokenLife, Statements.Limits limits) {
+            this(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, null);
+        }
     }
 
     private final HttpServer http;
@@ -64,7 +73,8 @@ public final class WarehouseServer implements AutoCloseable {
     private final Sessions sessions;
     private final Statements statements;
 
-    public WarehouseServer(Config config) throws IOException, SQLException {
+    public WarehouseServer(Config config) throws IOException, DuckException {
+        DuckLibrary.load(config.duckdbLibrary());
         Clock clock = Clock.systemUTC();
         byte @Nullable [] configured = config.tokenKey();
         byte[] key;
@@ -100,7 +110,7 @@ public final class WarehouseServer implements AutoCloseable {
         try {
             route(ex);
         } catch (Reply r) {
-            send(ex, r.status, r.body);
+            send(ex, r.status, r.contentType, r.bytes);
         } catch (RuntimeException e) {
             send(ex, 500, ApiJson.errorBody(new ApiError(ErrorCode.INTERNAL, String.valueOf(e.getMessage()))));
         } finally {
@@ -111,12 +121,18 @@ public final class WarehouseServer implements AutoCloseable {
     /** A response, thrown from anywhere in a handler. */
     private static final class Reply extends Exception {
         final int status;
-        final String body;
+        final String contentType;
+        final byte[] bytes;
 
         Reply(int status, String body) {
+            this(status, "application/json", body.getBytes(StandardCharsets.UTF_8));
+        }
+
+        Reply(int status, String contentType, byte[] bytes) {
             super(null, null, false, false);
             this.status = status;
-            this.body = body;
+            this.contentType = contentType;
+            this.bytes = bytes;
         }
 
         static Reply error(int status, ErrorCode code, String message) {
@@ -206,7 +222,7 @@ public final class WarehouseServer implements AutoCloseable {
         Sessions.Session s;
         try {
             s = Catalogs.validName(catalog) ? sessions.open(principal, catalog) : null;
-        } catch (SQLException e) {
+        } catch (DuckException e) {
             throw Reply.error(500, ErrorCode.INTERNAL, String.valueOf(e.getMessage()));
         }
         if (s == null) throw Reply.error(404, ErrorCode.NOT_FOUND, "no catalog '" + catalog + "'");
@@ -245,6 +261,11 @@ public final class WarehouseServer implements AutoCloseable {
 
     private void chunk(String principal, String id, int index) throws Reply {
         Statements.Run run = run(principal, id);
+        if (run.format() == SqlApi.ResultFormat.ARROW) {
+            byte[] a = run.arrowChunk(index);
+            if (a == null) throw Reply.error(404, ErrorCode.NOT_FOUND, "no chunk " + index + " for statement " + id);
+            throw new Reply(200, ArrowStreams.MEDIA_TYPE, a);
+        }
         Chunk c = run.chunk(index);
         if (c == null) throw Reply.error(404, ErrorCode.NOT_FOUND, "no chunk " + index + " for statement " + id);
         throw new Reply(200, Json.toCompact(ApiJson.chunk(c)));
@@ -333,8 +354,11 @@ public final class WarehouseServer implements AutoCloseable {
     }
 
     private static void send(HttpExchange ex, int status, String body) throws IOException {
-        byte[] b = body.getBytes(StandardCharsets.UTF_8);
-        ex.getResponseHeaders().set("Content-Type", "application/json");
+        send(ex, status, "application/json", body.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static void send(HttpExchange ex, int status, String contentType, byte[] b) throws IOException {
+        ex.getResponseHeaders().set("Content-Type", contentType);
         ex.sendResponseHeaders(status, b.length);
         try (OutputStream os = ex.getResponseBody()) {
             os.write(b);
@@ -342,7 +366,7 @@ public final class WarehouseServer implements AutoCloseable {
     }
 
     @Override
-    public void close() throws SQLException {
+    public void close() {
         http.stop(0);
         statements.close();
         sessions.close();
@@ -352,7 +376,7 @@ public final class WarehouseServer implements AutoCloseable {
 
     /**
      * {@code --port N --data DIR --catalog NAME... --user NAME:PASSWORD...
-     * --concurrency N --queue N}.
+     * --concurrency N --queue N --duckdb-library FILE}.
      */
     public static void main(String[] args) throws Exception {
         int port = 8765;
@@ -361,6 +385,7 @@ public final class WarehouseServer implements AutoCloseable {
         List<String[]> users = new ArrayList<>();
         int concurrency = 2;
         int queue = 100;
+        Path library = null;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--port" -> port = Integer.parseInt(args[++i]);
@@ -369,12 +394,13 @@ public final class WarehouseServer implements AutoCloseable {
                 case "--user" -> users.add(args[++i].split(":", 2));
                 case "--concurrency" -> concurrency = Integer.parseInt(args[++i]);
                 case "--queue" -> queue = Integer.parseInt(args[++i]);
+                case "--duckdb-library" -> library = Path.of(args[++i]);
                 default -> throw new IllegalArgumentException("unknown argument " + args[i]);
             }
         }
         if (cats.isEmpty()) cats.add(StatementRequest.DEFAULT_CATALOG);
         WarehouseServer s = new WarehouseServer(new Config(port, data, cats, users, null, Duration.ofHours(1),
-                new Statements.Limits(concurrency, queue, 10_000_000, Duration.ofMinutes(10))));
+                new Statements.Limits(concurrency, queue, 10_000_000, Duration.ofMinutes(10)), library));
         System.err.println("warehouse listening on 127.0.0.1:" + s.port() + ", catalogs " + cats);
     }
 }

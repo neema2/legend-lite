@@ -20,7 +20,8 @@ final class WhArray implements Array {
     @Override
     public String getBaseTypeName() {
         return switch (element) {
-            case DuckType.Scalar s -> s.base();
+            // DuckDB's driver names the element by its DuckDBColumnType constant: TIMESTAMP_WITH_TIME_ZONE
+            case DuckType.Scalar s -> s.base().replace(' ', '_');
             case DuckType.ListOf l -> "LIST";
             case DuckType.StructOf st -> "STRUCT";
             case DuckType.MapOf m -> "MAP";

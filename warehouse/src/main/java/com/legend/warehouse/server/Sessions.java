@@ -1,9 +1,10 @@
 package com.legend.warehouse.server;
 
 import com.legend.Nullable;
+import com.legend.warehouse.server.duck.Conn;
+import com.legend.warehouse.server.duck.DuckException;
+import com.legend.warehouse.server.duck.DuckLibrary;
 import com.legend.warehouse.sqlapi.SqlApi;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -18,9 +19,9 @@ import java.util.concurrent.locks.ReentrantLock;
  * transaction -- is there for the next one. A session's statements run one
  * at a time, in the order they were submitted (its lock is fair).
  *
- * <p>Identity is still set before EVERY statement, even on a session: the
- * session's user cannot change, and nothing a statement did to
- * {@code app_user} survives into the next.
+ * <p>The session's connection belongs to its user from the moment it opens:
+ * {@code system.main.authenticated_user()} answers with it, from outside SQL,
+ * and no statement on the session can change it.
  */
 public final class Sessions implements AutoCloseable {
 
@@ -29,24 +30,20 @@ public final class Sessions implements AutoCloseable {
         final String id = UUID.randomUUID().toString();
         final String principal;
         final String catalog;
-        final Connection connection;
-        final String engine;
-        final String engineVersion;
+        final Conn connection;
         final ReentrantLock lock = new ReentrantLock(true);
         volatile Instant lastUsed;
 
-        Session(String principal, String catalog, Connection connection, Instant now) throws SQLException {
+        Session(String principal, String catalog, Conn connection, Instant now) {
             this.principal = principal;
             this.catalog = catalog;
             this.connection = connection;
-            this.engine = connection.getMetaData().getDatabaseProductName();
-            this.engineVersion = connection.getMetaData().getDatabaseProductVersion();
             this.lastUsed = now;
         }
 
-        /** The session as the API reports it. */
+        /** The session as the API reports it: its engine is DuckDB, at the library's own version. */
         public SqlApi.Session api() {
-            return new SqlApi.Session(id, catalog, engine, engineVersion);
+            return new SqlApi.Session(id, catalog, "DuckDB", DuckLibrary.version());
         }
 
         public String id() {
@@ -70,16 +67,10 @@ public final class Sessions implements AutoCloseable {
     }
 
     /** A new session on the catalog, or null when there is no such catalog. */
-    public @Nullable Session open(String principal, String catalog) throws SQLException {
-        Connection c = catalogs.connect(catalog);
+    public @Nullable Session open(String principal, String catalog) throws DuckException {
+        Conn c = catalogs.connect(catalog, principal);
         if (c == null) return null;
-        Session s;
-        try {
-            s = new Session(principal, catalog, c, clock.instant());
-        } catch (SQLException e) {
-            c.close();
-            throw e;
-        }
+        Session s = new Session(principal, catalog, c, clock.instant());
         open.put(s.id, s);
         return s;
     }
@@ -95,8 +86,6 @@ public final class Sessions implements AutoCloseable {
         s.lock.lock();
         try {
             s.connection.close();
-        } catch (SQLException ignored) {
-            // closing: nothing to do about it
         } finally {
             s.lock.unlock();
         }

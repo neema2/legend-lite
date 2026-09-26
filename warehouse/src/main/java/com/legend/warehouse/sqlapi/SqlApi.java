@@ -35,6 +35,22 @@ public final class SqlApi {
         }
     }
 
+    /** How a result's chunks travel. On the wire: lower case. */
+    public enum ResultFormat {
+        /** Rows of JSON values (§3's value rules); the first chunk comes with the status. */
+        JSON,
+        /** Each chunk a whole Arrow IPC stream ({@code application/vnd.apache.arrow.stream}). */
+        ARROW;
+
+        public String wire() {
+            return name().toLowerCase(Locale.ROOT);
+        }
+
+        public static ResultFormat ofWire(String s) {
+            return ResultFormat.valueOf(s.toUpperCase(Locale.ROOT));
+        }
+    }
+
     /** The closed set of error codes a caller can act on. */
     public enum ErrorCode {
         AUTH_REQUIRED, AUTH_INVALID, FORBIDDEN,
@@ -59,23 +75,28 @@ public final class SqlApi {
             long waitMs,
             int rowsPerChunk,
             @Nullable String sessionId,
-            boolean describeOnly) {
+            boolean describeOnly,
+            ResultFormat format) {
 
         public StatementRequest(String sql, String catalog, long timeoutMs, long waitMs, int rowsPerChunk) {
-            this(sql, catalog, timeoutMs, waitMs, rowsPerChunk, null, false);
+            this(sql, catalog, timeoutMs, waitMs, rowsPerChunk, null, false, ResultFormat.JSON);
         }
 
         public StatementRequest(String sql, String catalog, long timeoutMs, long waitMs, int rowsPerChunk,
                 @Nullable String sessionId) {
-            this(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, false);
+            this(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, false, ResultFormat.JSON);
         }
 
         public StatementRequest inSession(String session) {
-            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, session, describeOnly);
+            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, session, describeOnly, format);
         }
 
         public StatementRequest describe() {
-            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, true);
+            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, true, format);
+        }
+
+        public StatementRequest as(ResultFormat f) {
+            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, describeOnly, f);
         }
 
         public static final String DEFAULT_CATALOG = "main";

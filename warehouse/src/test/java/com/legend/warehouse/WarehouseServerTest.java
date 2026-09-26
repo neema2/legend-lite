@@ -64,6 +64,10 @@ class WarehouseServerTest {
     // -- a minimal driver: the binding decides, this performs ---------------
 
     static HttpResult send(HttpCall c) throws Exception {
+        return sendTo(server, c);
+    }
+
+    static HttpResult sendTo(WarehouseServer server, HttpCall c) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + server.port() + c.path()));
         c.headers().forEach(b::header);
         String body = c.body();
@@ -79,13 +83,21 @@ class WarehouseServerTest {
 
     /** Run to the end: every step the binding asks for. */
     static SqlApiBinding.Step run(String token, StatementRequest req) throws Exception {
-        SqlApiBinding.Step step = API.next(send(API.submit(req, token)), token);
-        while (step instanceof SqlApiBinding.Poll p) step = API.next(send(p.call()), token);
+        return runOn(server, token, req);
+    }
+
+    static SqlApiBinding.Step runOn(WarehouseServer server, String token, StatementRequest req) throws Exception {
+        SqlApiBinding.Step step = API.next(sendTo(server, API.submit(req, token)), token);
+        while (step instanceof SqlApiBinding.Poll p) step = API.next(sendTo(server, p.call()), token);
         return step;
     }
 
     /** Every row of a finished statement, across its chunks. */
     static List<List<Json.Node>> rows(String token, SqlApiBinding.Done done) throws Exception {
+        return rowsOn(server, token, done);
+    }
+
+    static List<List<Json.Node>> rowsOn(WarehouseServer server, String token, SqlApiBinding.Done done) throws Exception {
         Status s = done.status();
         List<List<Json.Node>> out = new ArrayList<>();
         int chunks = s.result().chunkCount();
@@ -93,7 +105,7 @@ class WarehouseServerTest {
         Chunk first = s.firstChunk();
         assertNotNull(first);
         out.addAll(first.rows());
-        for (int i = 1; i < chunks; i++) out.addAll(API.chunk(send(API.fetchChunk(s.statementId(), i, token))).rows());
+        for (int i = 1; i < chunks; i++) out.addAll(API.chunk(sendTo(server, API.fetchChunk(s.statementId(), i, token))).rows());
         return out;
     }
 
@@ -157,7 +169,7 @@ class WarehouseServerTest {
                 String who = i % 2 == 0 ? a : b;
                 String expect = i % 2 == 0 ? "alice" : "bob";
                 seen.add(pool.submit((Callable<String[]>) () -> new String[] {expect,
-                        str(query(who, "SELECT getvariable('app_user')").get(0).get(0))}));
+                        str(query(who, "SELECT system.main.authenticated_user()").get(0).get(0))}));
             }
             for (Future<String[]> f : seen) {
                 String[] pair = f.get();
@@ -166,6 +178,34 @@ class WarehouseServerTest {
         } finally {
             pool.shutdownNow();
         }
+    }
+
+    @Test
+    void noStatementCanChangeWhoTheUserIs() throws Exception {
+        String b = login("bob", "bob-pw");
+        String session = API.session(send(API.openSession("main", b))).sessionId();
+        // the old way to claim an identity, and a temp macro over the identity function's name
+        for (String attempt : List.of("SET VARIABLE app_user = 'alice'", "CREATE TEMP MACRO authenticated_user() AS 'alice'")) {
+            assertTrue(run(b, StatementRequest.of(attempt).inSession(session)) instanceof SqlApiBinding.Done, attempt);
+        }
+        SqlApiBinding.Done done = (SqlApiBinding.Done) run(b, StatementRequest.of(
+                "SELECT system.main.authenticated_user(), current_user, session_user, user").inSession(session));
+        assertEquals(List.of("bob", "bob", "bob", "bob"), done.status().firstChunk().rows().get(0).stream().map(n -> str(n)).toList());
+        send(API.closeSession(session, b));
+    }
+
+    @Test
+    void anAclViewShowsEachUserTheirOwnRows() throws Exception {
+        String a = login("alice", "alice-pw");
+        String b = login("bob", "bob-pw");
+        query(a, """
+                CREATE OR REPLACE TABLE trades AS SELECT * FROM (VALUES (1, 'EMEA'), (2, 'APAC'), (3, 'AMER')) t(id, region);
+                CREATE OR REPLACE TABLE acl AS SELECT * FROM (VALUES ('alice', 'EMEA'), ('bob', 'APAC'), ('bob', 'AMER')) a(username, region);
+                CREATE OR REPLACE VIEW my_trades AS SELECT * FROM trades t WHERE EXISTS (
+                  SELECT 1 FROM acl a WHERE a.username = system.main.authenticated_user() AND a.region = t.region);
+                SELECT 1""");
+        assertEquals(List.of("EMEA"), query(a, "SELECT region FROM my_trades ORDER BY 1").stream().map(r -> str(r.get(0))).toList());
+        assertEquals(List.of("AMER", "APAC"), query(b, "SELECT region FROM my_trades ORDER BY 1").stream().map(r -> str(r.get(0))).toList());
     }
 
     @Test
@@ -185,7 +225,7 @@ class WarehouseServerTest {
         String session = API.session(send(API.openSession("main", a))).sessionId();
         HttpResult asBob = send(API.submit(StatementRequest.of("SELECT 1").inSession(session), b));
         assertEquals(404, asBob.status(), asBob.body());
-        HttpResult asAlice = send(API.submit(StatementRequest.of("SELECT getvariable('app_user')").inSession(session), a));
+        HttpResult asAlice = send(API.submit(StatementRequest.of("SELECT system.main.authenticated_user()").inSession(session), a));
         assertEquals(200, asAlice.status(), asAlice.body());
         assertTrue(asAlice.body().contains("alice"), asAlice.body());
         assertEquals(404, send(API.closeSession(session, b)).status());

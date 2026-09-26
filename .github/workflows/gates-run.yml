@@ -109,6 +109,12 @@ jobs:
           restore-keys: |
             bazel-${{ inputs.platform }}-${{ hashFiles('MODULE.bazel.lock', 'maven_*_install.json', '.bazelversion') }}-
             bazel-${{ inputs.platform }}-
+      - name: pyarrow, the warehouse's Arrow test's standard reader (test-only, app lane)
+        if: matrix.lane.key == 'app'
+        run: |
+          set -eu
+          py=python3; command -v python3 >/dev/null 2>&1 || py=python
+          "$py" -m pip install --quiet --target "$RUNNER_TEMP/pyarrow" pyarrow==23.0.1
       - name: bazel test ${{ matrix.lane.targets }}
         env:
           LANE_TARGETS: ${{ matrix.lane.targets }}
@@ -117,6 +123,10 @@ jobs:
           set -eu
           flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo" --disk_cache="$HOME/.cache/bazel-disk")
           if [ "$LOW_MEMORY" = "true" ]; then flags+=(--config=ci-small --local_test_jobs=1); fi
+          # the warehouse's Arrow test finds python with pyarrow, and FAILS (rather than skips) without it
+          if [ "${{ matrix.lane.key }}" = app ]; then
+            flags+=(--test_env=PATH --test_env=PYTHONPATH="$RUNNER_TEMP/pyarrow" --test_env=WAREHOUSE_ARROW_CHECK=required)
+          fi
           # GENERATED: every committed generated file's diff test (//:update_generated's)
           targets=()
           for t in $LANE_TARGETS; do

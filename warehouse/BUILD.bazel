@@ -58,8 +58,10 @@ java_library(
     deps = [
         ":sqlapi",
         "//core",
-        "@maven_warehouse//:org_duckdb_duckdb_jdbc",
     ],
+    # DuckDB's native library, for every platform, rides inside its JDBC jar: the server calls DuckDB's
+    # C API through java.lang.foreign and uses no JDBC class (docs/WAREHOUSE_FFM_HOMEWORK_2026_09_26.md).
+    runtime_deps = ["@maven_warehouse//:org_duckdb_duckdb_jdbc"],
 )
 
 # `bazel run //warehouse:server -- --user alice:secret --data /tmp/wh`
@@ -87,6 +89,7 @@ java_library(
 junit_test(
     name = "tests",
     size = "medium",
+    data = ["src/test/python/arrow_matches_json.py"],
     select = ["--select-package=com.legend.warehouse"],
     runtime_deps = [":tests_lib"],
 )

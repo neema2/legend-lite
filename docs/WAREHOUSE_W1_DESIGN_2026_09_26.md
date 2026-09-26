@@ -15,13 +15,14 @@ A new Bazel package **`//warehouse`** (Java package `com.legend.warehouse`;
 |---|---|---|
 | `:sqlapi` | the HTTP SQL API as Java records, their JSON codec, the **binding** interface (a sans-I/O state machine, program §2c), and the native binding | **java.base only**. It must compile into the WebAssembly module beside the planner (ruling 7), and a guardrail pins that |
 | `:client` | the JVM driver for a binding (`java.net.http`), and a **`java.sql.Driver`** over it (`jdbc:warehouse:http://host:port/catalog`) | `:sqlapi`, java.net.http, java.sql |
-| `:server_lib` / `:server` | the warehouse process | `:sqlapi`, jdk.httpserver, java.sql, DuckDB JDBC **1.5.5.1** in its own Maven set (legend-lite core stays on 1.4.4 until its own upgrade leg) |
+| `:server_lib` / `:server` | the warehouse process: DuckDB's **C API through `java.lang.foreign`** (W1d), no JDBC class | `:sqlapi`, jdk.httpserver; DuckDB **1.5.5.1**'s native library, taken at run time from its JDBC jar (its own Maven set; legend-lite core stays on 1.4.4 until its own upgrade leg) or passed with `--duckdb-library` |
 | `:tests` | conformance, cancel/timeout, concurrency, identity | all of the above |
 
 Rules carried from core: no reflection (ArchUnit), NullAway, the
-Windows portability guardrail. **DuckDB is loaded from disk**, never
-unpacked from the jar (W0 Q1). The server uses the driver's classes
-without its bundled library, and the library ships beside them.
+Windows portability guardrail. **DuckDB's library** is passed with
+`--duckdb-library` (a native image ships it beside the binary), or else
+extracted once from the JDBC jar on the classpath into a cache file that
+every later start reuses (W1d).
 
 ## 2. The process
 
@@ -32,19 +33,19 @@ without its bundled library, and the library ships beside them.
   when on-demand readers are built, without changing the API.
 - **A statement's life:**
   1. auth;
-  2. a fresh DuckDB connection (`duplicate()`);
-  3. `SET VARIABLE app_user = <principal>` (plus roles, once W2 has
-     them);
+  2. a fresh DuckDB connection that belongs to the principal:
+     `system.main.authenticated_user()` answers with it, from outside SQL
+     (W1d; program §3 0b);
+  3. `current_user` / `session_user` installed as temp macros over it;
   4. the statement, run on the **executor**;
   5. results into chunks;
   6. the connection closed.
 - **Executor:** a concurrency limit (default: 1, then tuned; W0 Q4 shows
   one query already uses every core), a FIFO queue with a length cap, a
-  per-statement timeout, and cancel through `Statement.cancel`.
+  per-statement timeout, and cancel through `duckdb_interrupt`.
 - **Results:** held per statement until fetched or expired: in memory up
-  to a size cap, then spilled to a temp directory. Chunks of a fixed row
-  count. **JSON in W1a; Arrow in W1e**, chosen by measurement between
-  DuckDB's `nanoarrow` extension and our own writer (W0 Q6).
+  to a size cap, then spilled to a temp directory. **JSON** chunks of a
+  fixed row count; **Arrow** chunks of whole 2,048-row batches (W1d).
 - **Query history:** each statement's id, user, SQL text, state, timings,
   rows and error, in a `system.query_history` table, which users will
   query through grants in W2.
@@ -75,7 +76,7 @@ GET  /sql/v1/statements/{id}
 
 GET  /sql/v1/statements/{id}/chunks/{n}
   → json:  {"index": n, "rows": [[…], …]}
-  → arrow: application/vnd.apache.arrow.stream (W1e)
+  → arrow: application/vnd.apache.arrow.stream: a whole stream per chunk (W1d)
 
 POST /sql/v1/statements/{id}/cancel   → {"statementId", "state": "cancelled"}
 
@@ -111,7 +112,9 @@ GET  /sql/v1/catalogs/{c}/objects      → [{"schema", "name", "kind": "table"|"
   A type outside the list is an error, never a guess.
 - **JSON values:** numbers as JSON numbers, except BIGINT/HUGEINT/DECIMAL,
   which are **strings** so no precision is lost in a JavaScript client.
-  Dates and times use ISO-8601 strings. NaN, the infinities and **-0.0**
+  Dates and times use ISO-8601 strings; TIMESTAMP WITH TIME ZONE is the
+  UTC instant (`…Z`), which a client shows in its own zone, as DuckDB's
+  JDBC driver does (measured: its offset is the client JVM's). NaN, the infinities and **-0.0**
   travel as their names (JSON cannot hold them, and loses -0.0's sign).
   Blobs are base64; JSON is its text.
 - **Column types are DuckDB's own type names**, passed through unchanged
@@ -146,7 +149,7 @@ calls. Vendor bindings (V*) implement the same interface.
 | **W1a** | `:sqlapi` (records, JSON codec, native binding) + `:server` (login, statements, poll, chunks as JSON, cancel, executor, history, identity per statement) | endpoint tests; identity per statement (two users read their own `app_user` at once); cancel and timeout; queue full |
 | **W1b** | `:client`: the `java.net.http` driver and the `java.sql.Driver` | a JDBC conformance suite: types round-trip, nulls, big results across chunks, errors carry codes |
 | **W1c** | **The corpus proof:** legend-lite's DuckDB lane with its connection pointed at the warehouse through `jdbc:warehouse:` (data loaded by an owner user) | the lane's pass count equals the in-process DuckDB lane's; every difference is a red row, explained, never masked |
-| **W1d** | Arrow chunks: `nanoarrow` vs our writer, measured, and the winner shipped | 1M-row timing; a standard Arrow reader reads every chunk; the JSON and Arrow values of one result are identical |
+| **W1d** | Arrow chunks: `nanoarrow` vs our writer, measured, and the winner shipped. **Became:** the server on DuckDB's C API through FFM, Arrow from `duckdb_data_chunk_to_arrow`, the identity function | 1M-row timing; a standard Arrow reader reads every chunk; the JSON and Arrow values of one result are identical; W1c re-run |
 | **W1e** | The native image of `:server` (metadata from DuckDB's official file, W0), a CI build, and tests run **against the binary** | the conformance suite on the native executable |
 
 **Not in W1:**
@@ -229,4 +232,72 @@ measured, not a guess:
 
 The ~50% time cost is one HTTP round trip and JSON per statement; W1d
 (Arrow chunks) and connection reuse are where it would come back.
+
+## W1d: the server on DuckDB's C API (2026-09-26)
+
+The Arrow leg grew into a move, decided with the user after the homework
+(docs/WAREHOUSE_FFM_HOMEWORK_2026_09_26.md): **the server calls DuckDB's
+public C API through `java.lang.foreign`** and uses no JDBC class (it
+compiles without DuckDB's jar; the jar is a runtime source of the native
+library). No reflection, no new dependency. nanoarrow was rejected by
+measurement: an ENUM, even nested, invalidates the database for every
+connection.
+
+- **`server.duck`:** `Duck` (every signature read from duckdb.h v1.5.5),
+  `Database`, `Conn`, `Result`; results come chunk by chunk through
+  `duckdb_data_chunk_to_arrow` (one C call per 2,048 rows; a call costs
+  ~2.3 us in a native image), copied to the heap in bulk (`ColumnData`),
+  then read by the JSON encoder (`JsonCells`), DuckDB's own text for
+  nested cells (`DuckValues`) and the Arrow framer (`ArrowStreams`,
+  `FlatBuilder`).
+- **Identity:** `system.main.authenticated_user()`, registered per
+  database, bound per query from the caller's connection id (program §3
+  0b). `SET VARIABLE app_user` is gone. Tests:
+  `noStatementCanChangeWhoTheUserIs`, `anAclViewShowsEachUserTheirOwnRows`.
+- **Scripts** split by DuckDB's own parser (`duckdb_extract_statements`),
+  run in turn, the last one's result returned; **describe** from
+  `duckdb_prepare` (leading statements of a script run first, as DuckDB's
+  JDBC driver's prepare did); **errors** keep DuckDB's messages.
+- **Type names** are spelled from the logical type (the C API has no
+  function for it): STRUCT field names quoted by DuckDB's rule with its
+  own keyword list; a top-level ENUM is `ENUM`, a nested one
+  `ENUM('a', 'b')`, as DuckDB's driver names them (measured).
+- **A nested cell's text** is DuckDB's: the cell is built back into a
+  `duckdb_value` and DuckDB casts it (`duckdb_get_varchar`): identical to
+  DuckDB's driver's `getString` for every case tested.
+- **Arrow** (`resultFormat: "arrow"`): each chunk a whole IPC stream of
+  whole batches (at least `rowsPerChunk` rows, but the last); UHUGEINT and
+  ENUM as text, TIMESTAMP WITH TIME ZONE tagged UTC, the rest as DuckDB
+  writes it (INTERVAL as month-day-nano, `T[n]` as FixedSizeList).
+
+**Proven:**
+
+- `//warehouse:tests` 35/35, including the JDBC differential against
+  DuckDB's own driver (every type, edges, nulls, nested values of every
+  kind with DuckDB's text and type names, 25,000 rows, counts, errors,
+  sessions, transactions, scripts, describe, metadata) and
+  `WarehouseArrowTest`: pyarrow reads every Arrow chunk and every value
+  equals the JSON API's (35 columns of every type, extremes and NULLs;
+  25,000 rows in 3 chunks): **0 differences**. CI's app lane installs
+  pyarrow and sets `WAREHOUSE_ARROW_CHECK=required`, so it cannot skip.
+- **W1c re-run through the C-API server:** host 2,472 / 107, database
+  2,474 / 107, the committed roster, ~52 s a pass (as through JDBC).
+- **1M rows x 8 columns over HTTP, end to end** (submit, then every
+  chunk, this machine): JSON 734–950 ms and 92.4 MB; **Arrow 76–135 ms
+  and 62.3 MB**.
+
+**Owed:**
+
+- **JSON inside a nested value** renders quoted in `getString` (DuckDB's
+  driver prints it raw): the C API cannot build a JSON-typed value. The
+  value itself is identical. Pinned by
+  `jsonInsideANestedValueIsTheOneNamedTextDifference`.
+- **UHUGEINT nested** in a list or struct travels in Arrow as DuckDB
+  writes it (decimal128, right up to 2^127); top-level UHUGEINT is text.
+- **`java_language_version = 21`** in `.bazelrc`: `java.lang.foreign` is
+  final only from 22. It compiles against JDK 25's classes today; W1e
+  (the native image) should raise the level for the warehouse.
+- A nested TIMESTAMP before year 1 in JSON: DuckDB's driver reads nested
+  timestamps through `java.sql.Timestamp` (wrong for BC years); ours is
+  right. Not in the differential.
 

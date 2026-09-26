@@ -76,7 +76,10 @@ class WarehouseJdbcTest {
         if (v instanceof Array a) {
             List<String> items = new ArrayList<>();
             for (Object o : (Object[]) a.getArray()) items.add(shape(o, a.getBaseTypeName()));
-            return "Array<" + a.getBaseTypeName() + "," + a.getBaseType() + ">" + items + " printed " + a;
+            // a BLOB element's own toString is its driver's internals (DuckDB's prints its buffer's
+            // position): blobs compare by their bytes, above, nested as at the top
+            String printed = a.getBaseTypeName().contains("BLOB") ? "(by bytes)" : a.toString();
+            return "Array<" + a.getBaseTypeName() + "," + a.getBaseType() + ">" + items + " printed " + printed;
         }
         if (v instanceof Struct s) {
             List<String> attrs = new ArrayList<>();
@@ -157,6 +160,52 @@ class WarehouseJdbcTest {
                 SELECT [1,2,3]::INTEGER[3] a, [{'x': 1, 'y': [1.5, NULL]}] b, {'a': [1,2], 'b': {'c': 'd'}} c,
                        MAP {1: [1,2]} d, [DATE '2024-01-01'] e, [TIMESTAMP '2024-01-01 00:00:00'] f,
                        ['a', NULL] g, [[1],[2,3]] h, []::INTEGER[] i, {'k': NULL}::STRUCT(k INTEGER) j""");
+    }
+
+    @Test
+    void nestedValuesOfEveryKindAndTheirNames() throws SQLException {
+        // the type names and the nested text are spelled by the server from DuckDB's C API: each
+        // against DuckDB's own driver, including field names that need quotes
+        same("""
+                SELECT ['ok'::mood, NULL] a, ['00000000-0000-0000-0000-000000000042'::UUID] b, [1] c,
+                       [2] d, [170141183460469231731687303715884105727::HUGEINT] e, ['\\x41\\x00'::BLOB] f,
+                       [TIMESTAMPTZ '2024-01-02 03:04:05+00'] g, [-0.0::DOUBLE, 'nan'::DOUBLE] h,
+                       {'firstName': 1, 'a b': 'x', 'select': [1.25::DECIMAL(5,2)]} i, MAP {'k': {'x': NULL}} j,
+                       [[TIME '01:02:03', NULL]] k, {'e': 'ok'::mood, 'u': 18446744073709551615::UBIGINT} l,
+                       [TIMESTAMP_NS '2024-01-02 03:04:05.123456789', NULL] m, [DATE '0044-03-15 (BC)'] n""");
+    }
+
+    @Test
+    void aNestedIntervalReadsAsDuckDBCastsIt() throws SQLException {
+        // DuckDB's own JDBC driver cannot render an INTERVAL[] as text (an INTERNAL error in its cast
+        // path), so the reference is DuckDB's cast, asked for in SQL
+        String value = "[INTERVAL 3 DAY, INTERVAL 1 MONTH, NULL, INTERVAL '1 year 2 hours 3.5 seconds']";
+        String want;
+        try (Statement s = local.createStatement(); ResultSet rs = s.executeQuery("SELECT CAST(" + value + " AS VARCHAR)")) {
+            rs.next();
+            want = rs.getString(1);
+        }
+        try (Statement s = remote.createStatement(); ResultSet rs = s.executeQuery("SELECT " + value)) {
+            rs.next();
+            assertEquals(want, rs.getString(1));
+        }
+    }
+
+    @Test
+    void jsonInsideANestedValueIsTheOneNamedTextDifference() throws SQLException {
+        // OWED (docs/WAREHOUSE_W1_DESIGN_2026_09_26.md, W1d): the C API cannot build a JSON-typed value,
+        // so DuckDB renders a JSON element of a list as quoted text; its own driver prints it raw. The
+        // VALUE is identical; only getString of the enclosing nested cell differs.
+        String sql = "SELECT ['{\"k\":[1]}'::JSON] v";
+        try (Statement r = remote.createStatement(); ResultSet rr = r.executeQuery(sql);
+             Statement l = local.createStatement(); ResultSet lr = l.executeQuery(sql)) {
+            rr.next();
+            lr.next();
+            assertEquals(java.util.Arrays.toString((Object[]) lr.getArray(1).getArray()),
+                    java.util.Arrays.toString((Object[]) rr.getArray(1).getArray()).replace("JSON:", ""));
+            assertEquals("[{\"k\":[1]}]", lr.getString(1));
+            assertEquals("['{\"k\":[1]}']", rr.getString(1));
+        }
     }
 
     @Test

@@ -73,7 +73,7 @@ different program.
   - sessions carrying the user and their active role.
 - **Entitlements (§3):**
   - role-level views in role schemas, with `search_path` set per session;
-  - locked per-session identity variables;
+  - the identity as a server-registered function (`authenticated_user()`), never a variable;
   - a statement authorizer that allows or denies each statement and
     never rewrites it.
 - **Catalogs:**
@@ -144,7 +144,7 @@ and **by binding** in the legend-lite gateway.
 | `GET /sql/v1/statements/{id}` | state (`queued`, `running`, `succeeded`, `failed`, `cancelled`), result metadata (columns and types, row count, chunk list), error |
 | `GET /sql/v1/statements/{id}/chunks/{n}` | one result chunk: Arrow IPC stream, or JSON rows |
 | `POST /sql/v1/statements/{id}/cancel` | cancel |
-| `POST /sql/v1/sessions` / `DELETE …/{id}` | a session, for `search_path` and the identity variables; optional, since a statement may carry its own context |
+| `POST /sql/v1/sessions` / `DELETE …/{id}` | a session: one connection belonging to the user, for `search_path`, temp tables and transactions; optional |
 | `GET /sql/v1/catalog/...` | catalogs, schemas and objects **the caller may see**, with their columns |
 
 **Auth:** `Authorization: Bearer <user token>` on every call. **Errors:**
@@ -224,28 +224,28 @@ here, without the engine rewriting anything.
 
 0. **One DuckDB connection per session.** Variables are per connection,
    so one user's identity cannot be seen from another's session.
-0b. **An identity nothing can spoof.** The DuckDB Java driver 1.4.4
-   cannot register a host function (1.5.x can: see W0 homework, "Can a
-   Java function tell its connection?"), so identity is guaranteed at the
-   edges:
-   - the principal comes **only** from the verified token (signature
-     checked against the identity provider, subject claim); a client
-     never sends a user name;
-   - **only the server** sets `app_user`, on the session's own
-     connection, and **re-sets it immediately before every statement**,
-     so nothing a previous statement did survives;
-   - user statements are **SELECT-only** with an **allow-list** of pure
-     functions, so a statement has no side effects. `SET VARIABLE` is
-     not a SELECT and is refused.
-   - **No identity extension (decided with the user, 2026-09-26).** A
-     DuckDB extension exposing `current_principal()` would still need a
-     setter the server can reach. The JDBC driver does not expose the
-     native connection, so that setter would be SQL too, at best signed
-     with a server-held key. That guards only against the authorizer
-     letting one call through, and the same flaw would already expose
-     base tables, `ATTACH` and files. Security rests on the authorizer
-     either way, so the effort goes into making it tight and proving it
-     (the W2 deny suite).
+0b. **An identity nothing can spoof** (revised 2026-09-26, measured:
+   docs/WAREHOUSE_FFM_HOMEWORK_2026_09_26.md §5). The server talks to
+   DuckDB through its C API and registers `system.main.authenticated_user()`.
+   DuckDB calls its bind once per query, on the calling query's own
+   context; the context gives the connection id, and the server's own map
+   gives the principal. It lives nowhere SQL can write:
+   - the principal comes **only** from the verified token; a client never
+     sends a user name;
+   - `SET VARIABLE app_user = …` and a `TEMP MACRO` over the function's
+     name both **failed** to spoof it, where the earlier design (a
+     variable the server re-set before every statement) was spoofed by
+     both, and by a temp macro over `getvariable`;
+   - views call it **fully qualified**: a user's temp macro shadows any
+     unqualified name (`current_user` and `getvariable` included);
+   - a connection the server never mapped **fails the query** at bind;
+   - `current_user` and `session_user` are per-connection temp macros
+     over it, a display convenience no view reads. DuckDB's own are
+     internal macros returning `'duckdb'` and cannot be replaced.
+   - Still true: end users get no DDL (a temp view shadows a real one for
+     that connection too), and the authorizer allow-lists what runs.
+   - **No identity extension (decided with the user, 2026-09-26):** none
+     was needed; the function lives in the server.
 1. **Roles and grants, emulated Postgres-style:**
    - **Privileges:** SELECT on tables and views; USAGE on catalogs and
      schemas; EXECUTE on functions, macros and table functions; roles
@@ -266,10 +266,10 @@ here, without the engine rewriting anything.
 1b. **ACL tables:** `security.acl(username, <key>)`, one row per value a
    user may see, at whatever granularity, e.g.
    ```sql
-   CREATE MACRO app_user() AS getvariable('app_user');
    CREATE VIEW sales.trades AS SELECT t.* FROM base.trades t
    WHERE EXISTS (SELECT 1 FROM security.acl a
-                 WHERE a.username = app_user() AND a.region = t.region);
+                 WHERE a.username = system.main.authenticated_user()
+                   AND a.region = t.region);
    ```
    Several keys mean several `EXISTS` clauses, and masks are
    expressions in the view's `SELECT`.
@@ -288,7 +288,7 @@ here, without the engine rewriting anything.
 2. **Role-level views:** a role's schema holds views over the base data.
    - **Rows:** `WHERE region = 'EMEA'`, or per user:
      `WHERE region IN (SELECT region FROM entitlements.user_regions
-     WHERE user_id = getvariable('user_id'))`.
+     WHERE user_id = system.main.authenticated_user())`.
    - **Columns:** included or not.
    - **Masks:** an expression, e.g. `'***' AS account_no` or a
      hash.
@@ -296,9 +296,9 @@ here, without the engine rewriting anything.
    starts at its role's schema, so the `TRADES` in legend-lite's SQL
    resolves to that role's view of trades. The statement text is never
    edited.
-4. **Identity variables:** at session start the server sets
-   `user_id`, `roles` and user attributes as DuckDB variables, then
-   locks the session so a statement cannot change them.
+4. **Identity from the server, not variables:** the user comes from
+   `system.main.authenticated_user()` (0b); the active roles and user
+   attributes are further functions of the same kind, owed with W2.
 5. **The authorizer** allows or denies each statement; it never rewrites
    one. It parses with DuckDB's own parser (`json_serialize_sql`) and
    denies:

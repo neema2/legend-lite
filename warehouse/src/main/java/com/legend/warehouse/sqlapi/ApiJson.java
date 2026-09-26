@@ -37,6 +37,7 @@ public final class ApiJson {
         String session = r.sessionId();
         if (session != null) f.put("sessionId", Json.str(session));
         if (r.describeOnly()) f.put("describeOnly", Json.bool(true));
+        if (r.format() != SqlApi.ResultFormat.JSON) f.put("resultFormat", Json.str(r.format().wire()));
         return Json.toCompact(new Json.Obj(f));
     }
 
@@ -47,6 +48,7 @@ public final class ApiJson {
             throw new IllegalArgumentException("'sql' is required and must be a string");
         }
         String catalog = o.getStringOr("catalog", StatementRequest.DEFAULT_CATALOG);
+        String format = o.getStringOr("resultFormat", null);
         return new StatementRequest(
                 o.getString("sql"),
                 catalog == null ? StatementRequest.DEFAULT_CATALOG : catalog,
@@ -54,7 +56,8 @@ public final class ApiJson {
                 o.getLongOr("waitMs", StatementRequest.DEFAULT_WAIT_MS),
                 o.getIntOr("rowsPerChunk", StatementRequest.DEFAULT_ROWS_PER_CHUNK),
                 o.getStringOr("sessionId", null),
-                o.getBoolOr("describeOnly", false));
+                o.getBoolOr("describeOnly", false),
+                format == null ? SqlApi.ResultFormat.JSON : SqlApi.ResultFormat.ofWire(format));
     }
 
     public static String openSession(String catalog) {
