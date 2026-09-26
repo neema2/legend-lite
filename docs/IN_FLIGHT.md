@@ -32,6 +32,18 @@ the reference differential made positional) and step 2 (lowering registration by
 (once), stress resources under `core/src/test/resources/stress/`, `spec/src/test/resources/rcorpus/
 h2-fail-roster.txt`.
 
+**Cross-area edits in its next push (W2, commit `d024cc1c2`):**
+- `core/src/main/java/com/legend/server/Json.java` (+ `JsonTest`): `parseNumber` keeps an integer
+  past a `long` exact (as a decimal) instead of throwing; DuckDB's parse JSON carries UINT64's max.
+  One method, no BUILD change.
+- `spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java` (the untangle's area; the
+  warehouse start only): the harness's warehouse user is started as an owner (`--owner rcorpus`),
+  and `-Drcorpus.warehouse.data` keeps the warehouse's data directory. The in-process DuckDB path
+  is untouched; `//spec:corpus_warehouse` is unchanged (pass 2,474 / fail 107).
+
+**Next slice:** W2 docs/owed items and D1 (DataCube Direct mode over the HTTP SQL API), all inside
+`warehouse/` and `datacube/`; nothing planned in `core/`, `spec/` or `tools/`.
+
 ## The rules both sides follow
 
 1. **Before pushing, `git fetch` and rebase on `origin/main`; never force-push; never bare `git stash`.**
@@ -56,4 +68,9 @@ h2-fail-roster.txt`.
 ## Status lines (update in place; newest first)
 
 - 2026-09-26 untangle: plan audited and published; step 0 not started. No timed run in progress.
-- 2026-09-26 warehouse: (the warehouse session fills this in)
+- 2026-09-26 warehouse: W2 (entitlements) committed as `d024cc1c2`, rebased on `d70eebded`; running
+  the gate chain now (`bazel test //... //parser-equivalence:diagnostics`, then
+  `//tools/deps:all`): **the machine is under load until it finishes, so no timed run meanwhile**.
+  Pushing when green; after the push the warehouse is at a clean point and step 0 may land. Of the
+  new warehouse files, one (`server/AdminStatements.java`) imports `com.legend.Nullable`; the move
+  tool rewrites it with the rest. Last corpus run: `//spec:corpus_warehouse`, 2026-09-26 ~10:20, untimed.
