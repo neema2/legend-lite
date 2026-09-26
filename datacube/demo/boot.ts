@@ -21,7 +21,7 @@ import { mountRemote } from '../src/remote.ts';
 import { ingestFile } from '../src/upload.ts';
 import { makeWindow, type WindowSpec } from '../src/ui/window.ts';
 import type { MenuItem } from '../src/ui/menu.ts';
-import { SAMPLES, sampleById } from '../src/samples.ts';
+import { SAMPLES, sampleById, sampleFileName } from '../src/samples.ts';
 import type { ColumnFormat } from '../src/format.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 
@@ -519,6 +519,8 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       const s = sampleById(pick.value);
       if (!s) return;
       rowsInput.value = String(s.defaultRows);
+      must('samplecsv').textContent = s.format === 'jsonl'
+        ? 'Get JSON' : 'Get CSV';
       note.classList.remove('bad');
       note.textContent = s.about;
     };
@@ -530,14 +532,15 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       if (!s) return;
       const rows = Math.max(1, Math.min(2_000_000,
         Number(rowsInput.value) || s.defaultRows));
-      const name = `sample-${s.id}.csv`;
+      const name = sampleFileName(s);
       // Generating 200k rows is a second of synchronous string
       // building; say so before starting rather than looking hung.
       note.classList.remove('bad');
       note.textContent = `building ${name}…`;
       setTimeout(() => {
         const url = URL.createObjectURL(
-          new Blob([s.build(rows)], { type: 'text/csv' }));
+          new Blob([s.build(rows)], { type: s.format === 'jsonl'
+            ? 'application/x-ndjson' : 'text/csv' }));
         const a = document.createElement('a');
         a.href = url;
         a.download = name;

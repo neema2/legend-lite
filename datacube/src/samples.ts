@@ -44,7 +44,68 @@ export interface Sample {
   readonly about: string;
   /** Rows to generate when the caller has no preference. */
   readonly defaultRows: number;
+  /** The file's format, and so its extension. Absent: CSV. */
+  readonly format?: 'csv' | 'jsonl';
   build(rows: number, seed?: number): string;
+}
+
+/** The file name a sample is saved and opened under. */
+export function sampleFileName(s: Sample): string {
+  return `sample-${s.id}.${s.format ?? 'csv'}`;
+}
+
+const SKUS = [
+  { sku: 'KB-01', category: 'Keyboards', price: 89.0 },
+  { sku: 'KB-02', category: 'Keyboards', price: 149.0 },
+  { sku: 'MS-01', category: 'Mice', price: 39.5 },
+  { sku: 'MS-02', category: 'Mice', price: 74.0 },
+  { sku: 'MN-27', category: 'Monitors', price: 329.0 },
+  { sku: 'MN-32', category: 'Monitors', price: 499.0 },
+  { sku: 'CB-USB', category: 'Cables', price: 12.0 },
+  { sku: 'HS-01', category: 'Headsets', price: 119.0 },
+];
+const TAGS = ['gift', 'express', 'b2b', 'promo', 'returning'];
+const TIERS = ['gold', 'silver', 'bronze'];
+const CUSTOMERS = ['Acme', 'Globex', 'Initech', 'Umbrella', 'Hooli',
+  'Stark', 'Wayne', 'Wonka'];
+
+/**
+ * Orders as newline-delimited JSON: flat fields beside a nested
+ * object, an array of objects and an array of strings -- the three
+ * shapes semi-structured data comes in. Each nested field arrives as
+ * a Variant column.
+ */
+export function sampleOrdersJsonl(
+  options: { rows?: number; seed?: number } = {},
+): string {
+  const rows = Math.max(1, options.rows ?? 2000);
+  const rand = rng(options.seed ?? 20260926);
+  const pick = <T>(xs: readonly T[]): T => xs[Math.floor(rand() * xs.length)]!;
+  const out: string[] = new Array(rows);
+  for (let i = 0; i < rows; i++) {
+    const lines = Array.from({ length: 1 + Math.floor(rand() * 4) }, () => {
+      const p = pick(SKUS);
+      return { sku: p.sku, category: p.category,
+        qty: 1 + Math.floor(rand() * 5), price: p.price };
+    });
+    const tags = TAGS.filter(() => rand() < 0.25);
+    const month = String(1 + Math.floor(rand() * 12)).padStart(2, '0');
+    const day = String(1 + Math.floor(rand() * 28)).padStart(2, '0');
+    const name = pick(CUSTOMERS);
+    out[i] = JSON.stringify({
+      order_id: 5000 + i,
+      region: REGIONS[i % REGIONS.length],
+      placed_on: `2025-${month}-${day}`,
+      customer: { name, tier: TIERS[name.length % TIERS.length],
+        // Only some customers have a contact: a key that is sometimes
+        // absent, which is what `get` returning nothing is for.
+        ...(i % 3 === 0 ? { contact: { email: `${name.toLowerCase()}@example.com` } } : {}) },
+      items: lines,
+      tags,
+      total: Number(lines.reduce((t, l) => t + l.qty * l.price, 0).toFixed(2)),
+    });
+  }
+  return `${out.join('\n')}\n`;
 }
 
 const REGIONS = ['EMEA', 'APAC', 'AMER'];
@@ -243,6 +304,17 @@ export const SAMPLES: readonly Sample[] = [
     build: (rows) => 'k,maybe_num\n'
       + lines(Math.max(0, rows - 1), (i) => `k${i % 3},${i}`)
       + '\nk0,not-a-number\n',
+  },
+  {
+    id: 'orders-json',
+    label: 'Orders — nested JSON',
+    about: 'Newline-delimited JSON: a customer object, an array of line '
+      + 'items and an array of tags beside flat fields. The nested ones '
+      + 'arrive as Variant columns.',
+    defaultRows: 2000,
+    format: 'jsonl',
+    build: (rows, seed) =>
+      sampleOrdersJsonl(seed === undefined ? { rows } : { rows, seed }),
   },
   {
     id: 'one-row',

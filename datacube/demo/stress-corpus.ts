@@ -30,7 +30,7 @@ const rows = (n: number, f: (i: number) => string) =>
 const STRESS_ROWS = 300;
 
 const offered: CorpusEntry[] = SAMPLES.map((s) => ({
-  name: `${s.id}.csv`,
+  name: `${s.id}.${s.format ?? 'csv'}`,
   targets: s.about,
   text: s.build(Math.min(s.defaultRows, STRESS_ROWS)),
 }));

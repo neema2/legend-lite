@@ -10,6 +10,7 @@ import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
+import { sampleById, sampleFileName } from '../src/samples.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 
 let engine: DuckDbEngine;
@@ -111,5 +112,17 @@ describe('ingestFile with JSON', () => {
     assert.equal(typeOf.get('id'), 'Integer');
     assert.equal(typeOf.get('xs'), 'Variant');
     assert.equal(typeOf.get('s'), 'Variant');
+  });
+
+  it('opens the offered orders sample with its nested fields as Variant', async () => {
+    const sample = sampleById('orders-json')!;
+    const r = await ingestFile(engine, files,
+      picked(sampleFileName(sample), sample.build(200)));
+    assert.equal(r.rowCount, 200);
+    assert.deepEqual(
+      Object.fromEntries(r.columns.map((c) => [c.name, c.type])),
+      { order_id: 'Integer', region: 'String', placed_on: 'StrictDate',
+        customer: 'Variant', items: 'Variant', tags: 'Variant',
+        total: 'Float' });
   });
 });
