@@ -1,0 +1,25 @@
+--- a/internal/native_image/rules.bzl
++++ b/internal/native_image/rules.bzl
+@@ -136,7 +136,13 @@
+     }
+ 
+     graal_actions = _wrap_actions_for_graal(ctx.actions)
+-    if is_macos:
++
++    # Xcode's DEVELOPER_DIR and SDKROOT reach the action only when Bazel knows an Xcode. A Mac
++    # with Apple's Command Line Tools alone has none, and apple_support's wrapper then fails on an
++    # unset DEVELOPER_DIR; there, native-image runs as it does on Linux and finds the C toolchain
++    # through xcrun itself.
++    xcode_config = ctx.attr._xcode_config[apple_common.XcodeVersionConfig] if is_macos else None
++    if is_macos and xcode_config.xcode_version() != None:
+         xcode_args = ctx.actions.args()
+ 
+         # Bazel passes DEVELOPER_DIR and SDKROOT to every locally executed action that sets the
+@@ -147,7 +153,6 @@
+         # https://github.com/oracle/graal/blob/77a7f6a691024d22367ae33be4da0c15ceb6a246/substratevm/src/com.oracle.svm.driver/src/com/oracle/svm/driver/NativeImage.java#L1801-L1808
+         xcode_args.add(apple_support.path_placeholders.xcode(), format = "-EDEVELOPER_DIR=%s")
+         xcode_args.add(apple_support.path_placeholders.sdkroot(), format = "-ESDKROOT=%s")
+-        xcode_config = ctx.attr._xcode_config[apple_common.XcodeVersionConfig]
+ 
+         # native-image reads the MACOSX_DEPLOYMENT_TARGET env var to determine target macos version
+         run_params["env"]["MACOSX_DEPLOYMENT_TARGET"] = str(xcode_config.minimum_os_for_platform_type(apple_common.platform_type.macos))

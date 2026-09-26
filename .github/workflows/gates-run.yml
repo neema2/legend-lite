@@ -60,7 +60,7 @@ jobs:
             {"key":"9",      "name":"gate 9 Channel B dual-verdict",   "targets":"//pct:pct_channel_b"},
             {"key":"10",     "name":"gate 10 stress corpus",           "targets":"//core:stress_suites"},
             {"key":"app",    "name":"DataCube app, WASM planner, warehouse", "targets":"//datacube:tests //wasm:all //warehouse:tests"},
-            {"key":"native", "name":"warehouse as a native image",     "targets":"//warehouse:tests"}
+            {"key":"native", "name":"warehouse as a native image",     "targets":"//warehouse:tests_native"}
           ]')
           # the native image is built on Linux and macOS (Windows needs its own toolchain setup: owed)
           if [ "$PLATFORM" = windows ]; then all=$(printf '%s' "$all" | jq -c '[.[] | select(.key != "native")]'); fi
@@ -119,18 +119,6 @@ jobs:
           set -eu
           py=python3; command -v python3 >/dev/null 2>&1 || py=python
           "$py" -m pip install --quiet --target "$RUNNER_TEMP/pyarrow" pyarrow==23.0.1
-      - name: GraalVM (native lane)
-        if: matrix.lane.key == 'native'
-        uses: graalvm/setup-graalvm@v1
-        with:
-          java-version: '25'
-          distribution: 'graalvm-community'
-      - name: the warehouse as a native image (native lane)
-        if: matrix.lane.key == 'native'
-        run: |
-          set -eu
-          BAZEL_FLAGS="--config=ci --repository_cache=$HOME/.cache/bazel-repo --disk_cache=$HOME/.cache/bazel-disk" \
-            warehouse/tools/build-native.sh "$RUNNER_TEMP/native"
       - name: bazel test ${{ matrix.lane.targets }}
         env:
           LANE_TARGETS: ${{ matrix.lane.targets }}
@@ -142,10 +130,6 @@ jobs:
           # the warehouse's Arrow test finds python with pyarrow, and FAILS (rather than skips) without it
           if [ "${{ matrix.lane.key }}" = app ] || [ "${{ matrix.lane.key }}" = native ]; then
             flags+=(--test_env=PATH --test_env=PYTHONPATH="$RUNNER_TEMP/pyarrow" --test_env=WAREHOUSE_ARROW_CHECK=required)
-          fi
-          # the same warehouse suite, judging the native binary instead of an in-process server
-          if [ "${{ matrix.lane.key }}" = native ]; then
-            flags+=(--test_env=WAREHOUSE_BINARY="$RUNNER_TEMP/native/warehouse")
           fi
           # GENERATED: every committed generated file's diff test (//:update_generated's)
           targets=()

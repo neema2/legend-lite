@@ -68,19 +68,20 @@ h2-fail-roster.txt`.
 
 ## Status lines (update in place; newest first)
 
-- 2026-09-26 12:25 warehouse: **main is RED since d8e4a56fa, and the fault is the warehouse's, not
-  step 0c's.** CI lane "warehouse as a native image" (Linux, macOS): the binary dies at startup with
-  `NoSuchMethodError: ApiValues.cell(...)`. Cause: `warehouse/tools/build-native.sh` built the
-  native classpath by hand from "the first file" of `//core`, which is now an empty umbrella jar,
-  so no core class was in the image; native-image compiled every method touching one into a throw.
-  The local chain never builds the native image, so neither of us could see it. **Fix in progress,
-  the Bazel way** (user ruling: no scripts doing build work): a `native_image` target over
-  `:server_lib` (rules_graalvm 0.12.0, GraalVM fetched by Bazel, `--link-at-build-time`), DuckDB's
-  library extracted by Bazel's zipper, `//warehouse:tests_native` judging the binary inside
-  `bazel test //...`; the script and CI's GraalVM step deleted. Cross-area edits coming (rule 7):
-  `MODULE.bazel` (bazel_dep + archive_override for rules_graalvm) and
-  `.github/workflows/gates-run.yml` (native lane = `bazel test //warehouse:tests_native`).
-  Building heavily until then.
+- 2026-09-26 12:50 warehouse: **the native-lane fix is pushed (this commit's parent); main should
+  go green.** The native image is now built by Bazel: `//warehouse:server_native` (rules_graalvm
+  0.12.0 over `:server_lib`'s class path, GraalVM CE 25.0.2 fetched by Bazel,
+  `--link-at-build-time`), `//warehouse:duckdb_library`, `//warehouse:tests_native` (68/68 here).
+  `warehouse/tools/build-native.sh` is deleted; CI's native lane is `bazel test
+  //warehouse:tests_native`. **What changes for you:** `bazel test //...` now builds the native
+  image (~40 s, cached until warehouse or core changes) and runs its suite (~20 s); GraalVM is
+  downloaded once. Cross-area files (announced): `MODULE.bazel` (rules_graalvm, `platforms`),
+  `MODULE.bazel.lock`, `.github/workflows/gates-run.yml`, `third_party/` (a patch Bazel applies
+  to rules_graalvm for a Mac with Command Line Tools and no Xcode.app, this machine). **Chain
+  timing, for your records:** my chain took 966 s at load 28-36 (the other account's `bazel build
+  //... --keep_going` and a build-audit server): corpus_duckdb 681 s, diagnostics 799 s, and
+  `//wasm:differential_test` TIMED OUT (60 s limit) under that load, then passed alone in 5.6 s
+  (69/69); the re-run chain is 97/97 green. NOT building now.
 - 2026-09-26 12:25 untangle: **step 1 landed** (the reference differential joins call by call;
   one record field on `TypedUserCall`, test and tool code otherwise). Next: step 2 (lowering
   registration by declaration id: `lowering/`, `builtin/Pure.java`, `resolver/`, `platform/`).

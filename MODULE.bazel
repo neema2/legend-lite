@@ -259,6 +259,38 @@ maven.install(
 )
 use_repo(maven, "maven_core", "maven_h2_modern", "maven_warehouse", "maven_runner", "maven_teavm", "maven_test", "maven_tools", "maven_upstream")
 
+# THE WAREHOUSE AS A NATIVE IMAGE (docs/WAREHOUSE_W1_DESIGN_2026_09_26.md, W1e): GraalVM's
+# native-image run by Bazel over the server's own runtime class path, as //tools/teavm runs
+# TeaVM -- never a script picking jars by hand (the 2026-09-26 break: a hand-listed //core jar
+# went empty when core split, and the image shipped without core). rules_graalvm 0.12.0 carries
+# GraalVM for JDK 25 and the Bazel 9 CcInfo fix; the registry stops at 0.11.1, so it is pinned
+# here by its release archive's digest. GraalVM itself is fetched by Bazel. Only its
+# native-image toolchain is registered: the repository's Java runtime stays rules_java's.
+bazel_dep(name = "rules_graalvm", version = "0.12.0")
+# The OS and CPU constraints the native targets select on (already in the graph at 1.0.0).
+bazel_dep(name = "platforms", version = "1.0.0")
+archive_override(
+    module_name = "rules_graalvm",
+    integrity = "sha256-2IktQqVOV09uZKsQztwY3rvJpeRjxWE4Stf1FxH/gCI=",
+    # A Mac with Apple's Command Line Tools and no Xcode.app (this repository's own machine):
+    # the rule's macOS path needs an Xcode Bazel knows; without one, run native-image directly.
+    patch_strip = 1,
+    patches = ["//third_party:rules_graalvm_command_line_tools.patch"],
+    strip_prefix = "rules_graalvm-0.12.0",
+    urls = ["https://github.com/sgammon/rules_graalvm/releases/download/v0.12.0/rules_graalvm-0.12.0.tar.gz"],
+)
+
+gvm = use_extension("@rules_graalvm//:extensions.bzl", "graalvm")
+gvm.graalvm(
+    name = "graalvm",
+    distribution = "ce",
+    java_version = "25",
+    version = "25.0.2",
+)
+use_repo(gvm, "graalvm", "graalvm_toolchains")
+
+register_toolchains("@graalvm_toolchains//:toolchain_gvm")
+
 # ── THE UPSTREAM SOURCES ────────────────────────────────────────────────────────
 # legend-engine / legend-pure at ONE release, pinned by content. Tests read these
 # trees as the spec (see third_party/legend_*_src.BUILD). Measured 2026-09-22:

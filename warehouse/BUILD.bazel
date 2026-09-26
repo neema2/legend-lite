@@ -1,7 +1,9 @@
 # The warehouse: a DuckDB server behind the HTTP SQL API
 # (docs/SERVER_PROGRAM_2026_09_26.md, docs/WAREHOUSE_W1_DESIGN_2026_09_26.md).
+load("@rules_graalvm//graalvm:defs.bzl", "native_image")
 load("@rules_java//java:defs.bzl", "java_binary", "java_library")
 load("//tools/junit:defs.bzl", "junit_test")
+load(":defs.bzl", "jar_entry")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -64,7 +66,7 @@ java_library(
     runtime_deps = ["@maven_warehouse//:org_duckdb_duckdb_jdbc"],
     # What a native image of the server needs to know ahead of time (W1e): its FFM call shapes and
     # upcalls, the JDK's HTTP server and crypto providers. Recorded by GraalVM's agent under the
-    # warehouse test suite (warehouse/tools/build-native.sh --record); native-image reads it from the jar.
+    # warehouse test suite; native-image reads it from the jar.
     resource_strip_prefix = "warehouse/src/main/resources",
     resources = glob(["src/main/resources/**"]),
 )
@@ -96,5 +98,72 @@ junit_test(
     size = "medium",
     data = ["src/test/python/arrow_matches_json.py"],
     select = ["--select-package=com.legend.warehouse"],
+    runtime_deps = [":tests_lib"],
+)
+
+# THE SERVER AS A NATIVE IMAGE (W1e): GraalVM's native-image over :server_lib's runtime class
+# path, which Bazel supplies -- the same jars `bazel run //warehouse:server` runs. Everything
+# must link when the image is built (--link-at-build-time): a class missing from the class
+# path fails the build, where native-image's default compiles each method that names it into a
+# NoSuchMethodError at run time (the 2026-09-26 break). Not on Windows yet (its toolchain is owed).
+NOT_ON_WINDOWS = select({
+    "@platforms//os:windows": ["@platforms//:incompatible"],
+    "//conditions:default": [],
+})
+
+native_image(
+    name = "server_native",
+    extra_args = [
+        "--link-at-build-time",
+        "--enable-native-access=ALL-UNNAMED",
+    ],
+    main_class = "com.legend.warehouse.server.WarehouseServer",
+    target_compatible_with = NOT_ON_WINDOWS,
+    deps = [":server_lib"],
+)
+
+config_setting(
+    name = "linux_x86_64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+config_setting(
+    name = "linux_aarch64",
+    constraint_values = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+# DuckDB's native library for this platform, out of its JDBC jar: what the image loads.
+jar_entry(
+    name = "duckdb_library",
+    entry = select({
+        "@platforms//os:macos": "libduckdb_java.so_osx_universal",
+        ":linux_x86_64": "libduckdb_java.so_linux_amd64",
+        ":linux_aarch64": "libduckdb_java.so_linux_arm64",
+    }),
+    jar = "@maven_warehouse//:org_duckdb_duckdb_jdbc",
+    target_compatible_with = NOT_ON_WINDOWS,
+)
+
+# The same suite, judging the native binary instead of an in-process server (TestServer).
+junit_test(
+    name = "tests_native",
+    size = "medium",
+    data = [
+        "src/test/python/arrow_matches_json.py",
+        ":duckdb_library",
+        ":server_native",
+    ],
+    env = {
+        "WAREHOUSE_BINARY": "$(rootpath :server_native)",
+        "WAREHOUSE_DUCKDB_LIBRARY": "$(rootpath :duckdb_library)",
+    },
+    select = ["--select-package=com.legend.warehouse"],
+    target_compatible_with = NOT_ON_WINDOWS,
     runtime_deps = [":tests_lib"],
 )

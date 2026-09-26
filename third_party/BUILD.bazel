@@ -1,1 +1,2 @@
-# Build files for external source archives (the upstream oracle sources).
+# Build files for external source archives (the upstream oracle sources), and patches Bazel applies
+# to third-party modules (MODULE.bazel names each where it is applied).

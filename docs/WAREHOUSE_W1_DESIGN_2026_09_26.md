@@ -308,22 +308,39 @@ connection.
 
 ## W1e: the server as a native image (2026-09-26)
 
-**The same test suite judges the native binary.** `warehouse/tools/build-native.sh OUT_DIR` builds
-`OUT_DIR/warehouse` from the server's own jars (server, API, core: no DuckDB jar, no JDBC) and puts
-DuckDB's library for the platform beside it, where the binary looks first. With
-`WAREHOUSE_BINARY=<executable>`, every warehouse test starts that executable (the tests'
-`TestServer`) instead of an in-process server, on a free port, with the same users and limits, and
-talks to it over HTTP only.
+**Built by Bazel (2026-09-26, after the break below).** `//warehouse:server_native` is GraalVM's
+`native-image` over `:server_lib`'s runtime class path, supplied by Bazel (rules_graalvm 0.12.0,
+GraalVM CE 25.0.2 fetched by Bazel), with `--link-at-build-time`: a class missing from the class
+path fails the build. `//warehouse:duckdb_library` takes DuckDB's library for the platform out of
+its JDBC jar with Bazel's zipper (`warehouse/defs.bzl`). `//warehouse:tests_native` is the same
+suite with `WAREHOUSE_BINARY` and `WAREHOUSE_DUCKDB_LIBRARY` pointing at those two: every warehouse
+test starts that executable (the tests' `TestServer`) instead of an in-process server, on a free
+port, with the same users and limits, and talks to it over HTTP only. `bazel test //...` builds and
+runs it, so both sessions' local chains judge the binary (~40 s to build, cached until warehouse or
+core changes). Linux and macOS; Windows is owed.
+
+- **The break that moved it into Bazel:** a script (`warehouse/tools/build-native.sh`, deleted)
+  listed the class path by hand as "the first file of `//core`". When core split into 29 targets,
+  `//core` became an umbrella whose jar is empty; the image shipped with no core class, and
+  native-image's default (link at run time) turned every method naming one into a
+  `NoSuchMethodError` at startup. The local chain never built the image, so no one saw it before
+  CI did.
+- **A Mac with Command Line Tools only** (no Xcode.app, as on this repository's machine): Bazel
+  knows no Xcode, and rules_graalvm's macOS path needs one. A patch applied by Bazel
+  (`third_party/rules_graalvm_command_line_tools.patch`) runs native-image directly there, as on
+  Linux; with Xcode (CI's macOS runners) the rule's own path is unchanged.
 
 - **Metadata** (`META-INF/native-image/com.legend/warehouse/reachability-metadata.json`, in the
   server jar, so native-image reads it with no flags): 39 FFM call shapes, the identity function's 3
   upcalls, the JDK's HTTP server and crypto providers, time-zone data. Recorded by GraalVM's agent while
-  the whole suite runs against the JVM server (`build-native.sh --record`, one agent directory per
-  process, merged); re-recording reproduces the committed file byte for byte.
+  the whole suite runs against the JVM server (one agent directory per process, merged); re-recording
+  reproduced the committed file byte for byte. **Owed:** re-recording as a Bazel target (the suite
+  under the agent, then `bazel run` writing the merged file back, as `//:update_generated` does);
+  the script that did it is gone. Needed only when the server's FFM or reflection use changes.
 - **`GET /sql/v1/history`:** the caller's own statements, newest first (the history test reads it
   through the API, so it judges the binary too; another user's statements are not in yours).
-- **CI:** the `native` lane (Linux, macOS) installs GraalVM CE 25, builds with the script, and runs
-  `//warehouse:tests` against the binary, with the Arrow check required.
+- **CI:** the `native` lane (Linux, macOS) runs `bazel test //warehouse:tests_native`, with the Arrow
+  check required.
 
 **Measured (this machine, GraalVM CE 25.0.1, a 21.5 MB binary, built in ~23 s):**
 
