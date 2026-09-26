@@ -1,0 +1,59 @@
+# In flight: who is changing what on main, and how the two lines of work stay out of each other's way
+
+Two sessions push to `main` several times a day. This file is the handshake. Each session reads it
+before starting a slice and updates its own section when its plan changes. Keep it short; the
+detail lives in the plan documents linked.
+
+## The compiler untangle (plan: `EXECUTION_PLAN_2026_09_26.md`)
+
+**Owns, for the duration:** `core/src/main/java/com/legend/{compiler,platform,builtin,lowering,
+resolver,normalizer,element}`, `core/src/test/java/com/legend/{ArchitectureTest,IdentityGuardrailTest,
+CodeShapeGuardrailTest,JavaEvalLedgerTest}.java` and the other guardrail tests, `spec/src/test/java/
+com/legend/{generators,rcorpus}`, `tools/reference/`, `tools/untangle/`, `core/BUILD.bazel`.
+
+**Next slice (step 0, ~1 day):** the annotation move (`com.legend.Nullable`/`NonNull` →
+`com.legend.base.*`, every Java root including `warehouse/`), two leaf class moves
+(`resolver.AsorRef` → lowering, `element.StoreLookups` → compiler), and `//core` split into ~25
+targets with `//core` kept as an umbrella so no consumer's `deps` changes. Then step 1 (test-only:
+the reference differential made positional) and step 2 (lowering registration by declaration id:
+`lowering/`, `builtin/Pure.java`, `resolver/`).
+
+**What it will touch outside its area, and when:**
+- `warehouse/BUILD.bazel:17-18` (the NullAway flags naming the old annotation FQN) and the 24
+  warehouse files that use the annotations: in the step 0 commit, by the move tool. No logic change.
+- Nothing else in `warehouse/`, `datacube/`, `exec/`, `server/`.
+
+## The warehouse (design: `WAREHOUSE_W1_DESIGN_2026_09_26.md`)
+
+**Owns:** `warehouse/`, `maven_warehouse_install.json`, `//spec:corpus_warehouse`, its rows in
+`spec/BUILD.bazel` and `MODULE.bazel`.
+
+**Touches outside its area (seen on main so far):** `core/src/main/java/com/legend/exec/Executor.java`
+(once), stress resources under `core/src/test/resources/stress/`, `spec/src/test/resources/rcorpus/
+h2-fail-roster.txt`.
+
+## The rules both sides follow
+
+1. **Before pushing, `git fetch` and rebase on `origin/main`; never force-push; never bare `git stash`.**
+2. **The annotation move is a re-runnable command, not a diff to merge.** If a rebase conflicts on
+   an annotation import or a bare `@Nullable`, do not resolve by hand: finish the rebase taking
+   `main`'s side for those hunks, then run `python3 tools/untangle/move_classes.py --group A` on
+   the rebased tree and re-stage. Any new file written after the move lands imports
+   `com.legend.base.Nullable`/`NonNull`.
+3. **Do not edit `core/BUILD.bazel` or `tools/untangle/` while step 0 is in flight** (about a day
+   from its announcement in this file). New core code in that window goes into an existing package;
+   after the split, into the target that owns its package (the BUILD file says which).
+4. **`//core` stays a valid dependency label** throughout. Consumers do not need to change `deps`
+   when the split lands.
+5. **Timing runs are announced here first.** The corpus lanes' seconds are a gate for the untangle;
+   a run under another Bazel's load is discarded. Before a timed run: `uptime` load under 2, and
+   the other session's line below says it is not building. Never kill the other account's processes.
+6. **The gate chain is the same for both:** `bazel test //... //parser-equivalence:diagnostics` then
+   `bazel test //tools/deps:all`, green before a push to main. A push that turns another lane red
+   is reverted by whoever notices, with a line here.
+7. **Cross-area edits are one-line entries here before they land**, naming the file and why.
+
+## Status lines (update in place; newest first)
+
+- 2026-09-26 untangle: plan audited and published; step 0 not started. No timed run in progress.
+- 2026-09-26 warehouse: (the warehouse session fills this in)

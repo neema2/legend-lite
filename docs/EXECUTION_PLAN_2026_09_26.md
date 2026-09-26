@@ -47,11 +47,20 @@ the dependency graph already permits. After this, every back-edge a later step w
 build error, not a test found afterwards.
 
 **What we do.**
-- `python3 tools/untangle/move_classes.py --group A` (groups.txt: `com.legend.base <- com.legend.Nullable
-  com.legend.NonNull --inline`). Then: `core/BUILD.bazel:42-43` NullAway `CustomNullableAnnotations`/
-  `CustomNonnullAnnotations` to the new FQN; `ArchitectureTest.java:273-276` `NULLNESS_ANNOTATIONS`;
-  the 4 root-package files using bare `@Nullable`. Prove the null gate is live by injecting one
-  violation and watching it fail, then remove it.
+- First extend `tools/untangle/move_classes.py` `ROOTS` (today `core, spec, pct, parser-equivalence`)
+  to every directory that references the annotations: `warehouse` (24 files), `wasm`, `tools`,
+  `testing`, `datacube` if it has Java. Then `python3 tools/untangle/move_classes.py --group A`
+  (groups.txt: `com.legend.base <- com.legend.Nullable com.legend.NonNull --inline`). Then the
+  build-file carriers, which the tool cannot see: `core/BUILD.bazel:42-43` AND
+  `warehouse/BUILD.bazel:17-18` (its own copy of `CustomNullableAnnotations`/
+  `CustomNonnullAnnotations`; grep every `BUILD.bazel` for the old FQN), `ArchitectureTest.java:273-276`
+  `NULLNESS_ANNOTATIONS`, the 4 root-package files using bare `@Nullable`. Prove EVERY null gate is
+  live (core's and warehouse's) by injecting one violation in each and watching it fail, then remove
+  it. A build that stays green with the old FQN in a flag is a disabled gate, not a passing one.
+- Keep `//core` as an umbrella target that exports the new targets, so the six consumers
+  (`spec`, `pct`, `parser-equivalence`, `wasm`, `tools/engine-runner`, `warehouse`) need no change
+  in the same commit; they move to fine-grained deps later, one at a time.
+- Coordination with the concurrent warehouse session: `docs/IN_FLIGHT.md`.
 - Groups B/C in groups.txt: `resolver.AsorRef → lowering` (the lowering↔resolver cycle is two
   constants read at `SnapshotEnvelope.java:134,140`); `compiler.element.StoreLookups → compiler`.
 - `core/BUILD.bazel`: targets `annot`(base), `values`, `error`, `spi`, `lexer`, `protocol`(+spec),
