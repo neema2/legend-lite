@@ -40,7 +40,12 @@ import type {
 } from '../snapshot.ts';
 import type { CalcStage } from '../calc.ts';
 import { temporalLiteral } from '../serialize.ts';
-import { isJsonValue, isRelativeDate } from '../snapshot.ts';
+import {
+  isJsonValue,
+  isRelativeDate,
+  isVariantType,
+  rowColumns,
+} from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 
 /**
@@ -210,6 +215,8 @@ export type MenuActionId =
   // Upstream's Extended Columns submenu.
   | 'calc.add'
   | 'calc.extend'
+  // A JSON column's fields, extracted into calculated columns.
+  | 'json.extract'
   | 'calc.edit'
   | 'calc.delete'
   // The chrome, toggled from the title bar's menu. Not a snapshot
@@ -606,6 +613,11 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
       label: 'Extended Columns',
       submenu: [
         { id: 'calc.add', label: 'Add New Column...' },
+        ...(column !== undefined && isVariantType(rowColumns(s)
+          .find((c) => c.name === column)?.type)
+          ? [{ id: 'json.extract' as const,
+            label: `Extract Fields from ${named}...`, column }]
+          : []),
         ...(column !== undefined && ctx.extendable
           ? [{ id: 'calc.extend' as const, label: `Extend Column ${named}...`,
             column }]

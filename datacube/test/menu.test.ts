@@ -529,3 +529,22 @@ describe('the Pin and Sort entries report state, as upstream', () => {
     assert.equal(find(groups, 'Add Descending')?.disabled, false);
   });
 });
+
+describe('Extract Fields', () => {
+  const withJson: CubeSnapshot = {
+    ...CUBE,
+    columns: [...CUBE.columns, { name: 'payload', type: 'Variant' }],
+    derived: [{ name: 'sub', expression: "$x.payload->get('a')", kind: 'dimension',
+      type: 'meta::pure::metamodel::variant::Variant' }],
+  };
+
+  it('is offered on a JSON column, source or calculated', () => {
+    assert.ok(ids({ snapshot: withJson, column: 'payload' }).includes('json.extract'));
+    assert.ok(ids({ snapshot: withJson, column: 'sub' }).includes('json.extract'));
+  });
+
+  it('is not offered on any other column', () => {
+    assert.ok(!ids({ snapshot: withJson, column: 'desk' }).includes('json.extract'));
+    assert.ok(!ids({ snapshot: withJson }).includes('json.extract'));
+  });
+});

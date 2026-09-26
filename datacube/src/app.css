@@ -2160,3 +2160,59 @@
   display: block;
   padding: 2px 0;
 }
+
+/* Extract Fields from a JSON column (ui/json-fields.ts). */
+.dc-overlay-body.dc-jsonfields {
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.dc-jsonfields-note {
+  flex: none;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--dc-line);
+  color: var(--dc-muted);
+  font-size: var(--dc-text-sm-size);
+}
+
+.dc-jsonfields-note.dc-jsonfields-bad { color: var(--tw-red-500, #ef4444); }
+
+.dc-jsonfields-tree {
+  flex: 1 1 auto;
+  overflow: auto;
+  padding: 6px 12px 12px;
+}
+
+.dc-jsonfields-field [role='group'] { margin-left: 14px; }
+
+.dc-jsonfields-head {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 4px 0 2px;
+}
+
+.dc-jsonfields-name { font-family: var(--dc-mono); font-weight: 600; }
+.dc-jsonfields-what { color: var(--dc-muted); font-size: var(--dc-text-sm-size); }
+
+.dc-jsonfields-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 0 4px;
+}
+
+.dc-jsonfields-add {
+  font: inherit;
+  font-size: var(--dc-text-sm-size);
+  padding: 1px 8px;
+  border: 1px solid var(--dc-line);
+  border-radius: var(--dc-radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.dc-jsonfields-add:hover { background: var(--dc-row-hover); }
+.dc-jsonfields-add:disabled { opacity: .5; cursor: progress; }
