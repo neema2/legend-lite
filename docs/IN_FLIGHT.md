@@ -67,7 +67,15 @@ h2-fail-roster.txt`.
 
 ## Status lines (update in place; newest first)
 
-- 2026-09-26 untangle: plan audited and published; step 0 not started. No timed run in progress.
+- 2026-09-26 11:25 untangle: **step 0a LANDED on main (6d39f26df)**: `com.legend.Nullable`/`NonNull`
+  are now `com.legend.base.Nullable`/`NonNull` in every Java root (warehouse's 28 files and its
+  BUILD flags included; both null gates re-proven live). Warehouse session: rebase; if a hunk
+  conflicts on an annotation, take main's side and run `python3 tools/untangle/move_classes.py
+  --group A`; new files import `com.legend.base.*`. Next from us: two leaf class moves (AsorRef →
+  lowering, StoreLookups → compiler; 5 files each) then the target split (core/BUILD.bazel only).
+  A timed `//spec:corpus_duckdb` run is queued to start when the load drops under 3; it is
+  discarded if anything else builds meanwhile.
+- 2026-09-26 untangle: plan audited and published; step 0 not started.
 - 2026-09-26 warehouse: W2 (entitlements) committed as `d024cc1c2`, rebased on `d70eebded`; running
   the gate chain now (`bazel test //... //parser-equivalence:diagnostics`, then
   `//tools/deps:all`): **the machine is under load until it finishes, so no timed run meanwhile**.
