@@ -58,7 +58,7 @@ jobs:
             {"key":"8",      "name":"gate 8 parser equivalence",       "targets":"//parser-equivalence:parser_parity"},
             {"key":"9",      "name":"gate 9 Channel B dual-verdict",   "targets":"//pct:pct_channel_b"},
             {"key":"10",     "name":"gate 10 stress corpus",           "targets":"//core:stress_suites"},
-            {"key":"app",    "name":"DataCube app and WASM planner",   "targets":"//datacube:tests //wasm:all"}
+            {"key":"app",    "name":"DataCube app, WASM planner, warehouse", "targets":"//datacube:tests //wasm:all //warehouse:tests"}
           ]')
           if [ -n "${WANT:-}" ]; then
             lanes=$(printf '%s' "$all" | jq -c --arg w ",$WANT," '[.[] | . as $e | select($w | contains("," + $e.key + ","))]')

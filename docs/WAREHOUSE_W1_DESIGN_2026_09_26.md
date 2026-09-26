@@ -133,3 +133,22 @@ calls. Vendor bindings (V*) implement the same interface.
 - DuckLake and on-demand instances (with deployment);
 - OIDC (W2);
 - the static-pivot dialect rule (before D1).
+
+## Found while building W1a (2026-09-26)
+
+- **DuckDB JDBC 1.5.5.1 loses errors on `Statement.execute`.** A binder or
+  catalog error ("Table with name … does not exist", "Referenced column
+  … not found") comes back as a generic "Invalid Input Error: Attempting
+  to execute an unsuccessful or closed pending query result". 1.4.4
+  reports them correctly on the same path, and `PreparedStatement`
+  reports them correctly on 1.5.5.1. So the server prepares every
+  statement, then executes it. Worth reporting to DuckDB (not done yet;
+  it would go out under the user's name).
+- **Prepared statements take one statement.** legend-lite's executor sends
+  multi-statement scripts for effect bodies, so W1c (the corpus proof)
+  must decide how a script travels: split by the client, or accepted as
+  a script by an owner role. W2's authorizer allows one statement for end
+  users either way.
+- **A queue that refuses works:** with a concurrency of 1 and a queue of
+  1, the third slow statement is refused with `QUEUE_FULL` (HTTP 503)
+  instead of waiting forever.

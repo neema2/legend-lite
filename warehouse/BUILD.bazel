@@ -1,0 +1,74 @@
+# The warehouse: a DuckDB server behind the HTTP SQL API
+# (docs/SERVER_PROGRAM_2026_09_26.md, docs/WAREHOUSE_W1_DESIGN_2026_09_26.md).
+load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+load("//tools/junit:defs.bzl", "junit_test")
+
+package(default_visibility = ["//visibility:public"])
+
+# core's null gate, the same flags (core/BUILD.bazel NULLAWAY_OPTS).
+NULLAWAY_OPTS = [
+    "-XDcompilePolicy=simple",
+    "--should-stop=ifError=FLOW",
+    "-Xmaxerrs",
+    "10000",
+    "-XepDisableAllChecks",
+    "-Xep:NullAway:ERROR",
+    "-XepOpt:NullAway:AnnotatedPackages=com.legend",
+    "-XepOpt:NullAway:CustomNullableAnnotations=com.legend.Nullable",
+    "-XepOpt:NullAway:CustomNonnullAnnotations=com.legend.NonNull",
+    "-XepOpt:NullAway:JSpecifyMode=true",
+    "-XepOpt:NullAway:CheckOptionalEmptiness=true",
+    "-XDaddTypeAnnotationsToSymbol=true",
+]
+
+# THE API, on java.base alone: records, the JSON codec, the bindings. It must
+# compile into the WebAssembly module beside the planner (program ruling 7), so
+# it names no java.sql, no java.net, no JDK server. It uses core only for core's
+# strict JSON parser; when core splits, that narrows to the JSON target.
+java_library(
+    name = "sqlapi",
+    srcs = glob(["src/main/java/com/legend/warehouse/sqlapi/**/*.java"]),
+    javacopts = NULLAWAY_OPTS,
+    plugins = ["//core:nullaway"],
+    deps = ["//core"],
+)
+
+# The process: the JDK's HTTP server, DuckDB 1.5.5.1 (its own Maven set).
+java_library(
+    name = "server_lib",
+    srcs = glob(["src/main/java/com/legend/warehouse/server/**/*.java"]),
+    javacopts = NULLAWAY_OPTS,
+    plugins = ["//core:nullaway"],
+    deps = [
+        ":sqlapi",
+        "//core",
+        "@maven_warehouse//:org_duckdb_duckdb_jdbc",
+    ],
+)
+
+# `bazel run //warehouse:server -- --user alice:secret --data /tmp/wh`
+java_binary(
+    name = "server",
+    main_class = "com.legend.warehouse.server.WarehouseServer",
+    runtime_deps = [":server_lib"],
+)
+
+java_library(
+    name = "tests_lib",
+    testonly = True,
+    srcs = glob(["src/test/java/**/*.java"]),
+    deps = [
+        ":server_lib",
+        ":sqlapi",
+        "//core",
+        "@maven_test//:org_junit_jupiter_junit_jupiter",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+junit_test(
+    name = "tests",
+    size = "medium",
+    select = ["--select-package=com.legend.warehouse"],
+    runtime_deps = [":tests_lib"],
+)

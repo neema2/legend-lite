@@ -67,6 +67,17 @@ maven.install(
     repositories = ["https://repo1.maven.org/maven2"],
 )
 
+# THE WAREHOUSE's DuckDB (docs/WAREHOUSE_W1_DESIGN_2026_09_26.md): 1.5.x, for
+# chunked result fetching and host functions. Its own set, so the warehouse moves
+# ahead without dragging core's 1.4.4 (core upgrades in its own leg).
+maven.install(
+    name = "maven_warehouse",
+    artifacts = ["org.duckdb:duckdb_jdbc:1.5.5.1"],
+    fail_if_repin_required = False,
+    lock_file = "//:maven_warehouse_install.json",
+    repositories = ["https://repo1.maven.org/maven2"],
+)
+
 # THE MODERN H2, for the one lane that runs on it: pct's gate 7 (PCT relation on
 # H2 2.4.240, pct/pom.xml's -Dh2.version profile). An ALTERNATIVE to core's
 # 2.1.214, never beside it — the target that takes this one is given no other H2.
@@ -246,7 +257,7 @@ maven.install(
     lock_file = "//:maven_teavm_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
-use_repo(maven, "maven_core", "maven_h2_modern", "maven_runner", "maven_teavm", "maven_test", "maven_tools", "maven_upstream")
+use_repo(maven, "maven_core", "maven_h2_modern", "maven_warehouse", "maven_runner", "maven_teavm", "maven_test", "maven_tools", "maven_upstream")
 
 # ── THE UPSTREAM SOURCES ────────────────────────────────────────────────────────
 # legend-engine / legend-pure at ONE release, pinned by content. Tests read these
