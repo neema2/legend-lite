@@ -236,10 +236,15 @@ here, without the engine rewriting anything.
    - user statements are **SELECT-only** with an **allow-list** of pure
      functions, so a statement has no side effects. `SET VARIABLE` is
      not a SELECT and is refused.
-   - **Later, optionally:** a DuckDB extension exposing
-     `current_principal()`, fixed per connection by the host with no
-     SQL setter (W0 measures its cost: build, signing, the Windows
-     lane).
+   - **No identity extension (decided with the user, 2026-09-26).** A
+     DuckDB extension exposing `current_principal()` would still need a
+     setter the server can reach. The JDBC driver does not expose the
+     native connection, so that setter would be SQL too, at best signed
+     with a server-held key. That guards only against the authorizer
+     letting one call through, and the same flaw would already expose
+     base tables, `ATTACH` and files. Security rests on the authorizer
+     either way, so the effort goes into making it tight and proving it
+     (the W2 deny suite).
 1. **Roles and grants, emulated Postgres-style:**
    - **Privileges:** SELECT on tables and views; USAGE on catalogs and
      schemas; EXECUTE on functions, macros and table functions; roles
