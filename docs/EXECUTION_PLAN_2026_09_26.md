@@ -252,10 +252,10 @@ cascade, the tolerant modes); the 28 rows; the 799 by shape.
   (before the marginal refinement) over both corpus lanes: 279 bare names, 40 "engine-only" — all
   from the prelude merge re-adding an FQN the file's own wildcard import had resolved (the
   calendar tests import `meta::pure::functions::date::calendar::*`), i.e. not tier-1-only at all;
-  the refined count is in the record.
+  the refined count is in the record: 6 names by site (homework §5, corrected after the audit).
 - ~~Measure `ResolvedNames.names` … with a real profile on a quiet machine …~~ **Done**:
   `homework-2026-09-26.md` §4. JFR over `//spec:corpus_duckdb` at load 2.4: `ResolvedNames` 4–6%
-  inclusive; the resolver's 17–19% was ONE method rebuilding platform ∪ model as a fresh set per
+  inclusive; the resolver's 17–19% of SAMPLES (2–5% of wall) was ONE method rebuilding platform ∪ model as a fresh set per
   STATEMENT of every synthesized body (`ModelNormalizer.resolveSynthesized` →
   `NameResolver.resolveQuery(query, imports, modelFqns)`). Fixed at the algorithm (universe built
   once per normalization; the per-call overload deleted) — measured after on the curve.

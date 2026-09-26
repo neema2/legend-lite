@@ -5716,8 +5716,12 @@ once per normalization and each statement resolves through `resolveQueryIn`; the
 is deleted (its two contract-test callers and the PCT channel-B lane build the universe
 explicitly). Not a cache: nothing is kept past the normalization that computes it. **Timing**
 (`//spec:corpus_duckdb` alone, `--nocache_test_results`, load 3.8 at start): passes 32s and 39s,
-wall 77.7s, against 35s / 41s / 86.3s at step 2 and 34s / 43s / 87.6s at step 1 — about 3s a pass,
-10s of wall; less than the sample profile's 13–15% (a sample profile locates, it does not time).
+wall 77.7s, against 35s / 41s / 86.3s at step 2 and 34s / 43s / 87.6s at step 1 — 1–3s a pass,
+under 10s of wall, at load 3.8–5.1 (not the quiet reading the rule asks for; a quiet re-time is
+owed at step 3's first timed gate). CORRECTED after the audit of this homework
+(`step3-homework-audit-2026-09-26.md` #29): the profile's 13–15% is a share of SAMPLED CPU, about
+2–5% of wall, and the measured 1–3s agrees with it; the first wording overstated it as a share of
+the lane.
 `receipts/untangle-4b/corpus-curve-duckdb.txt` has the line.
 
 **The tier probe** (`homework-2026-09-26.md` §5; receipts `step3/tiers/`). `DecisionProbe.bareTier`
@@ -5728,9 +5732,11 @@ merge point for a name that reached the typer bare; `tools/untangle/bare_tiers.p
 what they return. A first, unrefined run counted FQNs the file's own wildcard import had already
 resolved and reported 40 "engine-only" names — kept as a receipt of the wrong question. The
 marginal probe over both corpus lanes and the manifest census: **48 bare names served beyond the
-resolver's own tiers — CORE 40, FORM 4, ENGINE-ONLY 4** (`currentUserId`: an import the reference
-requires; variant `get`, `wtd`, `ytd`: overloads the reference never sees, our candidate set was
-wider and the signature happened to agree). Nothing in Pure source needs the engine tier; step 3
+resolver's own tiers — CORE 40, FORM 4, ENGINE-ONLY 4** by the classifier's buckets; by SITE the
+prelude merge added SIX names (`currentUserId`, `flatten`: imports the reference requires; variant
+`get`, `wtd`, `ytd`: overloads the reference never sees, our candidate set was wider and the
+signature happened to agree; `toString`: a catalog member the resolver's universe should have held).
+Corrected after the audit (#11, #12); homework §5 has the rows. Nothing in Pure source needs the engine tier; step 3
 drops it there and keeps it for `LEGEND_LITE` trees. `core_tests`' harness queries add six
 engine-input names, which keep the tier by design.
 
