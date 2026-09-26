@@ -530,21 +530,16 @@ describe('the Pin and Sort entries report state, as upstream', () => {
   });
 });
 
-describe('Extract Fields', () => {
+describe('a JSON column in the menu', () => {
   const withJson: CubeSnapshot = {
     ...CUBE,
     columns: [...CUBE.columns, { name: 'payload', type: 'Variant' }],
-    derived: [{ name: 'sub', expression: "$x.payload->get('a')", kind: 'dimension',
-      type: 'meta::pure::metamodel::variant::Variant' }],
   };
 
-  it('is offered on a JSON column, source or calculated', () => {
-    assert.ok(ids({ snapshot: withJson, column: 'payload' }).includes('json.extract'));
-    assert.ok(ids({ snapshot: withJson, column: 'sub' }).includes('json.extract'));
-  });
-
-  it('is not offered on any other column', () => {
-    assert.ok(!ids({ snapshot: withJson, column: 'desk' }).includes('json.extract'));
-    assert.ok(!ids({ snapshot: withJson }).includes('json.extract'));
+  it('is extended through Add Column, not a menu of its own', () => {
+    // The app opens the column editor on its fields for calc.extend.
+    const got = ids({ snapshot: withJson, column: 'payload', extendable: true });
+    assert.ok(got.includes('calc.extend'));
+    assert.ok(!got.some((id) => String(id).startsWith('json.')));
   });
 });

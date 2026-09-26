@@ -313,6 +313,13 @@ export function fieldsOf(column: string, columnRef: string, sample: Sample): Fie
         kind: scalar === 'float' ? 'measure' : 'dimension',
       });
     }
+    // A nested object or array, pulled out as a JSON column of its own:
+    // it groups, drills and extracts again like any JSON column. Not
+    // at the top -- that is the column itself.
+    if (path.length > 0 && (shape.objects > 0 || shape.arrays > 0)) {
+      extractions.push({ name: nameOf(names), label: 'as JSON',
+        expression: expr, type: 'Variant', kind: 'dimension' });
+    }
     if (shape.arrays > 0) extractions.push(...arrayExtractions(shape, expr, names));
     const children = shape.objects > 0
       ? [...shape.fields.entries()]
@@ -351,10 +358,15 @@ function arrayExtractions(shape: Shape, expr: string, names: readonly string[]):
   }
   if (el.objects > 0) {
     for (const [k, f] of [...el.fields.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
+      const key = literal(k);
+      // Every element's value -- a scalar, or an array or object of its
+      // own -- as ONE JSON array: ["MS-01","HS-01"].
+      out.push({ name: nameOf([...names, k]), label: `every ${k}, as JSON`,
+        expression: `${many}->map(e | $e->get(${key}))->toVariant()`,
+        type: 'Variant', kind: 'dimension' });
       const s = scalarTypeOf(f);
       if (!s || f.objects > 0 || f.arrays > 0) continue;
       const t = PURE_TYPE[s];
-      const key = literal(k);
       out.push({ name: nameOf([...names, k, 'list']), label: `every ${k}, as text`,
         expression: `${many}->map(e | $e->get(${key})->to(@String)->toOne())->joinStrings(', ')`,
         type: 'String', kind: 'dimension' });

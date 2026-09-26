@@ -16,12 +16,22 @@
 // Kept from ours: the completion list of everything in scope at the
 // column's level, inserted at the caret.
 
-import { columnsInScope, completionsFor, nameProblem, type CalcStage, type Completion } from '../calc.ts';
+import {
+  columnRef,
+  columnsInScope,
+  completionsFor,
+  nameProblem,
+  type CalcStage,
+  type Completion,
+} from '../calc.ts';
+import type { Extraction } from '../json-shape.ts';
+import { buildJsonFields, freeName } from './json-fields.ts';
 import { ident } from '../serialize.ts';
 import { docHint } from './docs.ts';
 import {
   WINDOW_FUNCTIONS,
   isNumericType,
+  isVariantType,
   renameColumnReferences,
   rowColumns,
   type CubeSnapshot,
@@ -44,7 +54,9 @@ export const LEVELS: readonly { value: ColumnLevel; label: string }[] = [
 
 /** A new column (seeded, as "Extend Column X..." does), or one to edit. */
 export type ColumnEditorStart =
-  | { readonly expression?: string; readonly level?: ColumnLevel }
+  | { readonly expression?: string; readonly level?: ColumnLevel;
+    /** A JSON column whose fields to offer first. */
+    readonly json?: string }
   | { readonly edit: string };
 
 export interface CompileOutcome {
@@ -73,6 +85,11 @@ export interface ColumnEditorOptions {
   readonly onClose: () => void;
   /** Upstream's 500 ms; a test passes 0. */
   readonly debounceMs?: number;
+  /**
+   * A sample of a JSON column's cells, for picking a field of it
+   * (`ui/json-fields.ts`). Absent: the editor offers no JSON fields.
+   */
+  readonly sampleJson?: (column: string) => Promise<readonly unknown[]>;
 }
 
 interface Draft {
@@ -117,6 +134,11 @@ export class ColumnEditor {
   /** A refusal from the cube on OK or Delete, shown until the next edit. */
   #refusal: string | null = null;
   #busy = false;
+  /**
+   * The name is still the one the editor chose, so picking a JSON field
+   * may replace it with the field's own. Typing a name ends that.
+   */
+  #autoName: boolean;
   #timer: ReturnType<typeof setTimeout> | undefined;
   #inflight: AbortController | null = null;
   #els!: {
@@ -150,6 +172,7 @@ export class ColumnEditor {
         child: NEW_CHILD,
       };
     }
+    this.#autoName = !('edit' in start);
     this.#draft = { ...this.#initial, window: { ...this.#initial.window }, child: { ...this.#initial.child } };
     this.#render();
     this.#schedule(0);
@@ -381,6 +404,7 @@ export class ColumnEditor {
     const nameMark = el(doc, 'span', 'dc-calc-namemark', nameRow);
     name.addEventListener('input', () => {
       this.#draft.name = name.value;
+      this.#autoName = false;
       this.#edited();
     });
 
@@ -428,6 +452,8 @@ export class ColumnEditor {
         mode.value = 'expression';
       }
       exprBox.hidden = this.#draft.mode !== 'expression';
+      // JSON columns are source-row values: nothing to pick at Group Level.
+      jsonBox.hidden = this.#draft.level === 'group';
       winBox.hidden = this.#draft.mode !== 'window';
       childBox.hidden = this.#draft.mode !== 'children';
     };
@@ -436,6 +462,23 @@ export class ColumnEditor {
       showMode();
       this.#paintWindow(winBox);
       this.#paintChildren(childBox);
+      this.#edited();
+    });
+
+    // FROM A JSON COLUMN: pick a field and the name, kind and Pure are
+    // filled in below -- then compiled and applied like anything typed.
+    const jsonBox = el(doc, 'div', 'dc-calc-json', exprBox);
+    this.#paintJson(jsonBox, (e) => {
+      if (this.#autoName) {
+        const taken = new Set(rowColumns(this.#options.snapshot()).map((c) => c.name));
+        this.#draft.name = freeName(e.name, taken);
+        name.value = this.#draft.name;
+      }
+      this.#draft.level = e.kind;
+      level.value = e.kind;
+      this.#draft.expression = e.expression;
+      expr.value = e.expression;
+      this.#paintPicker(picker, expr);
       this.#edited();
     });
 
@@ -520,6 +563,44 @@ export class ColumnEditor {
     problem.textContent = message ?? '';
     problem.hidden = message === null;
     ok.disabled = this.#busy || !this.#canApply();
+  }
+
+  /** A JSON column to pick from, and its fields once one is chosen. */
+  #paintJson(box: HTMLElement, onPick: (e: Extraction) => void): void {
+    const doc = this.#doc;
+    const sample = this.#options.sampleJson;
+    const self = this.#original;
+    const json = rowColumns(this.#options.snapshot())
+      .filter((c) => c.name !== self && isVariantType(c.type))
+      .map((c) => c.name);
+    if (!sample || json.length === 0) {
+      box.remove();
+      return;
+    }
+    const row = field(doc, box, 'From JSON:');
+    const pick = el(doc, 'select', 'dc-calc-json-column', row) as HTMLSelectElement;
+    pick.setAttribute('aria-label', 'JSON column');
+    for (const [value, label] of [['', 'Pick a JSON column…'], ...json.map((c) => [c, c])]) {
+      const o = doc.createElement('option');
+      o.value = value!;
+      o.textContent = label!;
+      pick.append(o);
+    }
+    const fields = el(doc, 'div', 'dc-calc-json-fields', box);
+    const show = (): void => {
+      fields.replaceChildren();
+      const column = pick.value;
+      if (!column) return;
+      buildJsonFields(fields, {
+        column, columnRef: columnRef(column), sample: () => sample(column), onPick,
+      });
+    };
+    pick.addEventListener('change', show);
+    const start = this.#options.start;
+    if (!('edit' in start) && start.json && json.includes(start.json)) {
+      pick.value = start.json;
+      show();
+    }
   }
 
   /** The child-groups form: the function, and the measure it reads. */

@@ -272,3 +272,85 @@ describe('a window column', () => {
     assert.equal($<HTMLInputElement>('.dc-win-offset').value, '2');
   });
 });
+
+describe('picking a JSON field', () => {
+  const ORDERS: CubeSnapshot = {
+    ...CUBE,
+    columns: [...CUBE.columns, { name: 'customer', type: 'Variant' }],
+    derived: [],
+  };
+  const CELLS = ['{"tier":"gold","contact":{"email":"a@x"}}', '{"tier":"silver"}'];
+
+  function openJson(start: ColumnEditorStart, sampled: string[] = []): ColumnEditor {
+    return new ColumnEditor(root, {
+      snapshot: () => ORDERS,
+      start,
+      debounceMs: 0,
+      compile: async (candidate) => {
+        compiled.push(candidate);
+        return { pure: 't', refusal: null };
+      },
+      apply: async (row, group) => { applied.push({ row, group }); return null; },
+      onClose: () => { closed += 1; },
+      sampleJson: async (column) => { sampled.push(column); return CELLS; },
+    });
+  }
+  const button = (label: string): HTMLButtonElement => {
+    const b = [...root.querySelectorAll<HTMLButtonElement>('.dc-jsonfields-add')]
+      .find((x) => x.textContent === label);
+    assert.ok(b, `no '${label}' among ${[...root.querySelectorAll('.dc-jsonfields-add')]
+      .map((x) => x.textContent).join(', ')}`);
+    return b!;
+  };
+
+  it('opens on the JSON column it was started from, sampled', async () => {
+    const sampled: string[] = [];
+    openJson({ json: 'customer' }, sampled);
+    await settle();
+    assert.deepEqual(sampled, ['customer']);
+    assert.equal($<HTMLSelectElement>('.dc-calc-json-column').value, 'customer');
+  });
+
+  it('fills the name, kind and expression, and compiles them; OK adds it', async () => {
+    openJson({ json: 'customer' });
+    await settle();
+    button('as String').click();
+    await settle();
+    assert.equal($<HTMLInputElement>('.dc-calc-input-name').value, 'customer_contact_email');
+    assert.equal($<HTMLTextAreaElement>('.dc-calc-input-expr').value,
+      "$x.customer->get('contact')->get('email')->to(@String)");
+    assert.equal($<HTMLSelectElement>('.dc-calc-level').value, 'dimension');
+    assert.ok(compiled.some((c) => c.derived.some((d) =>
+      d.expression.includes("get('email')"))), 'the pick was compiled');
+    $<HTMLButtonElement>('.dc-calc-ok').click();
+    await settle();
+    assert.equal(applied.at(-1)?.row.at(-1)?.name, 'customer_contact_email');
+  });
+
+  it('pulls a nested object out as a JSON column', async () => {
+    openJson({ json: 'customer' });
+    await settle();
+    button('as JSON').click();
+    assert.equal($<HTMLTextAreaElement>('.dc-calc-input-expr').value,
+      "$x.customer->get('contact')");
+  });
+
+  it('keeps a name the user typed', async () => {
+    openJson({ json: 'customer' });
+    await settle();
+    type('.dc-calc-input-name', 'mine');
+    button('as String').click();
+    assert.equal($<HTMLInputElement>('.dc-calc-input-name').value, 'mine');
+  });
+
+  it('offers no JSON section on a cube without JSON columns', async () => {
+    new ColumnEditor(root, {
+      snapshot: () => CUBE, start: {}, debounceMs: 0,
+      compile: async () => ({ pure: 't', refusal: null }),
+      apply: async () => null, onClose: () => {},
+      sampleJson: async () => [],
+    });
+    assert.equal(root.querySelector('.dc-calc-json'), null);
+  });
+});
+

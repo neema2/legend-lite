@@ -129,3 +129,22 @@ describe('freeName', () => {
     assert.equal(freeName('tier', new Set(['tier', 'tier_2'])), 'tier_3');
   });
 });
+
+describe('as JSON', () => {
+  it('pulls a nested object or array out, and every element field as one array', () => {
+    const docs = inferShape(['{"c":{"e":"a"},"items":[{"sku":"A","tags":["x"]}]}']);
+    const f = byName(fieldsOf('d', '$x.d', docs));
+    assert.deepEqual(f.get('d_c'), { ...f.get('d_c'), expression: "$x.d->get('c')", type: 'Variant' });
+    assert.equal(f.get('d_items')?.expression, "$x.d->get('items')");
+    assert.equal(f.get('d_items_sku')?.expression,
+      "$x.d->get('items')->toMany(@Variant)->map(e | $e->get('sku'))->toVariant()");
+    // An array inside each element: its values from every element.
+    assert.equal(f.get('d_items_tags')?.type, 'Variant');
+  });
+
+  it('is not offered for the column itself', () => {
+    const f = byName(fieldsOf('c', '$x.c', inferShape(['{"a":1}'])));
+    assert.equal(f.get('c'), undefined);
+  });
+});
+

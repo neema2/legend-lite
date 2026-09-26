@@ -2161,16 +2161,26 @@
   padding: 2px 0;
 }
 
-/* Extract Fields from a JSON column (ui/json-fields.ts). */
-.dc-overlay-body.dc-jsonfields {
+/* A JSON column's fields, in the column editor (ui/json-fields.ts). */
+.dc-calc-json { margin-bottom: 6px; }
+
+.dc-calc-json-fields {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--dc-line);
+  border-radius: var(--dc-radius-sm);
+}
+
+.dc-calc-json-fields:empty { display: none; }
+
+.dc-jsonfields {
   display: flex;
   flex-direction: column;
-  padding: 0;
 }
 
 .dc-jsonfields-note {
   flex: none;
-  padding: 8px 12px;
+  padding: 6px 8px;
   border-bottom: 1px solid var(--dc-line);
   color: var(--dc-muted);
   font-size: var(--dc-text-sm-size);
@@ -2178,11 +2188,7 @@
 
 .dc-jsonfields-note.dc-jsonfields-bad { color: var(--tw-red-500, #ef4444); }
 
-.dc-jsonfields-tree {
-  flex: 1 1 auto;
-  overflow: auto;
-  padding: 6px 12px 12px;
-}
+.dc-jsonfields-tree { padding: 4px 8px 8px; }
 
 .dc-jsonfields-field [role='group'] { margin-left: 14px; }
 
@@ -2215,4 +2221,7 @@
 }
 
 .dc-jsonfields-add:hover { background: var(--dc-row-hover); }
-.dc-jsonfields-add:disabled { opacity: .5; cursor: progress; }
+.dc-jsonfields-add.dc-jsonfields-picked {
+  border-color: var(--dc-active);
+  color: var(--dc-active);
+}

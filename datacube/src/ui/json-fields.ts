@@ -1,13 +1,13 @@
-// Extract Fields: what is inside a JSON column, one click from a column.
+// The fields of a JSON column, for the Add Column screen.
 //
-// The window samples the column through the cube's own query path,
-// infers the shape of its documents (`json-shape.ts`), and lists every
-// field with what can be made of it -- the value itself, or for an
-// array its count, its values as text, whether it contains a value, a
-// field of its first element, a total. A click adds that calculated
-// column. The Pure it writes is shown beside each choice and lands in
-// the ordinary calculated-column list, so it can be edited like any
-// other: this writes Pure for you, it is not a second language.
+// Samples the column through the cube's own query path, infers the
+// shape of its documents (`json-shape.ts`), and lists every field with
+// what can be made of it -- the value itself; a nested object or array
+// as a JSON column of its own; for an array its count, its values as
+// text, whether it contains a value; for an array of objects each
+// field's values, first value and total. Picking one hands the column
+// editor a name, a kind and the Pure, which it compiles like anything
+// typed there: this writes Pure for you, it is not a second language.
 
 import {
   fieldsOf,
@@ -23,10 +23,8 @@ export interface JsonFieldsOptions {
   readonly columnRef: string;
   /** The column's cells from a sample of rows. */
   readonly sample: () => Promise<readonly unknown[]>;
-  /** Names already taken, so a new column gets a free one. */
-  readonly taken: () => ReadonlySet<string>;
-  /** Add the column: the planner's refusal, or null when it took it. */
-  readonly add: (name: string, extraction: Extraction) => Promise<string | null>;
+  /** A field's extraction was chosen. */
+  readonly onPick: (extraction: Extraction) => void;
 }
 
 /** A free name: `base`, else `base_2`, `base_3`... */
@@ -64,9 +62,10 @@ export function buildJsonFields(host: HTMLElement, options: JsonFieldsOptions): 
       return;
     }
     const read = sample.rows - sample.unreadable;
-    say(`From ${sample.rows.toLocaleString()} sampled rows`
+    say(`${sample.rows.toLocaleString()} rows sampled`
       + (sample.unreadable > 0 ? ` (${sample.unreadable} not JSON)` : '')
-      + '. Types are a guess from the sample; the compiler has the last word.');
+      + '. Pick a field: types are a guess from the sample, and the '
+      + 'expression below is compiled as usual.');
     if (read === 0 || sample.shape.present === 0) {
       say(`No JSON values in the ${sample.rows.toLocaleString()} sampled rows.`, true);
       return;
@@ -113,21 +112,15 @@ export function buildJsonFields(host: HTMLElement, options: JsonFieldsOptions): 
     const b = doc.createElement('button');
     b.type = 'button';
     b.className = 'dc-jsonfields-add';
-    b.textContent = `+ ${e.label}`;
+    b.textContent = e.label;
     // The Pure it writes, on hover: nothing hidden about what it does.
     b.title = `${e.name}: ${e.type}\n${e.expression}`;
     b.addEventListener('click', () => {
-      const name = freeName(e.name, options.taken());
-      b.disabled = true;
-      say(`Adding ${name}…`);
-      void options.add(name, e).then((refusal) => {
-        b.disabled = false;
-        if (refusal === null) {
-          say(`Added ${name} (${e.type}). Edit it under Extended Columns.`);
-        } else {
-          say(`${name} was not added: ${refusal}`, true);
-        }
-      });
+      for (const other of tree.querySelectorAll('.dc-jsonfields-picked')) {
+        other.classList.remove('dc-jsonfields-picked');
+      }
+      b.classList.add('dc-jsonfields-picked');
+      options.onPick(e);
     });
     return b;
   }

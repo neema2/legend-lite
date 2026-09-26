@@ -57,7 +57,6 @@ import {
   buildExecutionErrorAlert,
   type AlertOptions,
 } from './ui/alert.ts';
-import { buildJsonFields } from './ui/json-fields.ts';
 import { serialize } from './serialize.ts';
 import { toHtml, toSpreadsheetML } from './export-rich.ts';
 import { toPdf, toPlainText } from './export-doc.ts';
@@ -77,6 +76,7 @@ import { isPivotTotalColumn, pivotTotalColumn } from './treeview.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
 import type { Scalar } from './result.ts';
 import {
+  isVariantType,
   renameColumnReferences,
   rowColumns,
   type ColumnKind,
@@ -1607,17 +1607,17 @@ export class CubeApp {
         return;
       case 'calc.extend':
         if (column) {
-          this.openColumnEditor({
-            expression: columnRef(column),
-            level: this.#kindOf(column) ?? 'measure',
-          });
+          // A JSON column opens on its fields: what to extend it by is
+          // what is in it.
+          const json = isVariantType(rowColumns(this.#snapshot)
+            .find((c) => c.name === column)?.type);
+          this.openColumnEditor(json
+            ? { json: column, level: 'dimension' }
+            : { expression: columnRef(column), level: this.#kindOf(column) ?? 'measure' });
         }
         return;
       case 'calc.edit':
         if (column) this.openColumnEditor({ edit: column });
-        return;
-      case 'json.extract':
-        if (column) this.openJsonFields(column);
         return;
       case 'calc.delete':
         if (column) this.#deleteCalc(column);
@@ -2389,6 +2389,7 @@ export class CubeApp {
         start,
         compile: (candidate, signal) => this.#controller.compile(candidate, signal),
         apply: (row, group, rename) => this.#setCalc(row, group, rename),
+        sampleJson: (column) => this.#sampleJson(column),
         onClose: close,
       }));
     }, {
@@ -2400,48 +2401,29 @@ export class CubeApp {
   }
 
   /**
-   * Extract Fields from a JSON column: sample it through the cube's own
-   * query path, show what its documents hold, and add a calculated
-   * column per click (`ui/json-fields.ts`).
+   * A sample of a JSON column's cells, for the column editor's JSON
+   * field picker: only what reaches the column (the source column
+   * alone, or a calculated one with the calculated columns before it),
+   * the first rows, unfiltered -- the shape of the data, not of the
+   * current view -- through the cube's own query path, so every plane.
    */
-  openJsonFields(column: string): void {
-    this.#showOverlay(`Extract Fields from ${column}`, (host) => {
-      buildJsonFields(host, {
-        column,
-        columnRef: columnRef(column),
-        sample: async () => {
-          // Only what reaches the column: the source column alone, or a
-          // calculated one with the calculated columns before it. The
-          // first rows, unfiltered -- the shape of the data, not of
-          // the current view.
-          const s = this.#snapshot;
-          const at = s.derived.findIndex((d) => d.name === column);
-          const flat: CubeSnapshot = {
-            source: s.source,
-            columns: at >= 0 ? [] : s.columns.filter((c) => c.name === column),
-            derived: at >= 0 ? s.derived.slice(0, at + 1) : [],
-            rows: [],
-            pivotOn: [],
-            measures: [],
-            sorts: [],
-            epoch: s.epoch,
-          };
-          const scope = { level: 0, parent: [], limit: JSON_SAMPLE_ROWS };
-          const { rows } = await this.#controller.runQuery(
-            serialize(flat, scope), flat, scope);
-          return rows.columns.find((c) => c.name === column)?.values ?? [];
-        },
-        taken: () => new Set(rowColumns(this.#snapshot).map((c) => c.name)),
-        add: (name, e) => this.#setCalc(
-          [...this.#snapshot.derived,
-            { name, expression: e.expression, kind: e.kind }],
-          this.#snapshot.groupDerived ?? []),
-      });
-    }, {
-      key: `json:${column}`,
-      size: { x: 60, y: 60, width: 520, height: 460, minWidth: 320,
-        minHeight: 200, center: false },
-    });
+  async #sampleJson(column: string): Promise<readonly unknown[]> {
+    const s = this.#snapshot;
+    const at = s.derived.findIndex((d) => d.name === column);
+    const flat: CubeSnapshot = {
+      source: s.source,
+      columns: at >= 0 ? [] : s.columns.filter((c) => c.name === column),
+      derived: at >= 0 ? s.derived.slice(0, at + 1) : [],
+      rows: [],
+      pivotOn: [],
+      measures: [],
+      sorts: [],
+      epoch: s.epoch,
+    };
+    const scope = { level: 0, parent: [], limit: JSON_SAMPLE_ROWS };
+    const { rows } = await this.#controller.runQuery(
+      serialize(flat, scope), flat, scope);
+    return rows.columns.find((c) => c.name === column)?.values ?? [];
   }
 
   /** Take one calculated column out, whichever stage it is in. */
