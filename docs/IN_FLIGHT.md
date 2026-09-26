@@ -68,6 +68,14 @@ h2-fail-roster.txt`.
 
 ## Status lines (update in place; newest first)
 
+- 2026-09-26 15:15 untangle: **step 3 homework landed** (this commit; GATES.md "Execution plan
+  step 3 homework"): the kernel reading, a resolver fix (the normalizer built the resolution
+  universe per statement; now once — `NameResolver.resolveQuery(query, imports, modelFqns)` is
+  DELETED, use `resolveQueryIn(query, imports, ctx.resolutionUniverse())`), the bare-name tier
+  probe. Core code only in `compiler/`, `normalizer/`, `probe/`, `builtin/DecisionProbe`. NOT
+  building after the push. Next: step 3's code (Bindings, the candidate rule, the kernel loop).
+  Note for timing: the OTHER ACCOUNT's Bazel (`neema`, two servers) ran at load 24–25 between 14:45 and 15:05
+  and timed out four of our lanes; re-run alone they pass.
 - 2026-09-26 13:45 warehouse: 6a6103cbd's CI was red on ONE job, Windows gate 6: GitHub answered
   HTTP 500 downloading bazel_features-v1.42.1 (infrastructure, not code; log saved). 671fbb88c,
   which carries the same tree, is green on every lane. NOT building; D1 is planned and decided

@@ -230,18 +230,43 @@ errors on every such call.
 **Homework done.** `reference-matching.md` (twenty findings, the twelve methods to read, the risks);
 `engine-resolution.md` (the two languages, settled); `code-traps.md` (readers, pins, the twin
 cascade, the tolerant modes); the 28 rows; the 799 by shape.
-**Homework owed** (each a line in the slice's GATES.md record):
-- Read the twelve reference methods in `reference-matching.md`'s list, in that order, before
-  writing the kernel.
+**Homework owed** (each a line in the slice's GATES.md record) — status 2026-09-26 afternoon:
+- ~~Read the twelve reference methods in `reference-matching.md`'s list, in that order, before
+  writing the kernel.~~ **Done**: `kernel-reading-2026-09-26.md` (pseudo-code with line citations
+  for all twelve, §A; twelve corrections to the findings, §B; thirty-five implementer traps, §C).
+  The corrections that change the kernel are appended to `reference-matching.md` ("Corrections
+  from the second reading"): the unconditional-accept path for properties and qualified
+  properties (no strict re-rank, no tie error), silent survival when ANY candidate's inference
+  failed (we WALL instead, with the reason — invariant 4), untyped-lambda typing THROWS on a
+  non-`Function` parameter (so the lenient candidate order must be exact), the `&&` short-circuit
+  across lambdas, merge-mode dropping a concrete over a non-concrete binding, the precise automap
+  trigger, Nil before the FunctionType branch.
 - TDS erasure leaves the typer (`homework-2026-09-26.md` §1): `TdsErasure.refineResult` stops
-  rewriting typed results; the matcher treats `TabularDataSet` as a class.
-- The probe count of tier-1-only bare names in Pure source.
-- Measure `ResolvedNames.names` (33 sites in 17 files, each rebuilding `BareNames.catalog(name)`)
-  with a real profile on a quiet machine (`jstack` from the Bazel JDK against the
-  `corpus_duckdb.runfiles` JVM, or `-Dmanifest.census.timing=1`), before and after. That, not the
-  33 hash lookups, is where resolution time can go.
-- Decide where `Bindings` lives (`com.legend.compiler` now; `com.legend.bind` at step 10) and that
-  it is immutable.
+  rewriting typed results; the matcher treats `TabularDataSet` as a class. **A work item of the
+  slice** (the homework behind it is closed).
+- The probe count of tier-1-only bare names in Pure source. **Method in place**: the shadow probe
+  writes `BARE-TIER name fqn tier site` rows — from the resolver's prelude merge ONLY for an FQN
+  the resolver's own tiers had not already put on the node (`resolver-added`), and from the
+  overload merge point for a name that reached the typer bare (`merge`);
+  `tools/untangle/bare_tiers.py` classifies each bare name CORE / FORM / ENGINE-ONLY. First run
+  (before the marginal refinement) over both corpus lanes: 279 bare names, 40 "engine-only" — all
+  from the prelude merge re-adding an FQN the file's own wildcard import had resolved (the
+  calendar tests import `meta::pure::functions::date::calendar::*`), i.e. not tier-1-only at all;
+  the refined count is in the record.
+- ~~Measure `ResolvedNames.names` … with a real profile on a quiet machine …~~ **Done**:
+  `homework-2026-09-26.md` §4. JFR over `//spec:corpus_duckdb` at load 2.4: `ResolvedNames` 4–6%
+  inclusive; the resolver's 17–19% was ONE method rebuilding platform ∪ model as a fresh set per
+  STATEMENT of every synthesized body (`ModelNormalizer.resolveSynthesized` →
+  `NameResolver.resolveQuery(query, imports, modelFqns)`). Fixed at the algorithm (universe built
+  once per normalization; the per-call overload deleted) — measured after on the curve.
+- ~~Decide where `Bindings` lives …~~ **Decided**: `com.legend.compiler` (the resolver's
+  package; moves to `com.legend.bind` at step 10 with the resolver), an immutable record
+  `Bindings(Map<AppliedFunction, List<FunctionId>> byNode)` keyed by NODE IDENTITY
+  (`IdentityHashMap` copied into an unmodifiable view), produced by `NameResolver` beside the
+  resolved `ParsedModel` (the resolver returns the pair; `ParsedModel` is below the compiler and
+  never carries a compiler type), handed to `PureModelContext.from` and read by the typer as
+  `ctx.bindings()`; a query resolved on its own gets its own `Bindings` the same way. The
+  protocol node itself never carries `FunctionId` — the seven-package cycle in `cycles.md` §4.
 **Gate.** Differential overload 0, package 0 (after step 1's fixes), compile-status rows explained;
 rosters LOST 0 (DuckDB 2474, H2 2232 at the last record; read the current numbers from the rosters);
 conformance unchanged; census walls ≤ 32, failures ≤ 1,447, kernel ≤ 164; FUNCTION_CATEGORY_CHECK

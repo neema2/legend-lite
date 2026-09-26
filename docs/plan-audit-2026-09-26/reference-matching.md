@@ -215,3 +215,47 @@ other parameters decide.
 5. Element/candidate scope rules (1, 2, 3): no own-package tier for elements either, ambiguity is an
    error, Root fallback, 3 extra core imports on our side. Visible only in a compile-status
    differential — add it before A1 lands.
+
+## Corrections from the second reading (2026-09-26, step 3 homework)
+
+The twelve methods in the reading list above were read again in that order, method by method, and
+rendered as pseudo-code with line citations in `kernel-reading-2026-09-26.md` (§A). Its §B checks
+every numbered finding here against the code. Findings 1, 2, 3, 6, 7, 10, 12, 14, 17, 18, 20 hold as
+written. The corrections, each of which changes what the step 3 kernel must do:
+
+1. **Finding 5 omits the UNCONDITIONAL-ACCEPT path** (FEP:200-203). When the match came from a
+   pre-resolved `func`, a simple property, a relation column or a QUALIFIED PROPERTY, the first
+   candidate (lenient order) is accepted with no strict re-rank and no "Too many matches". Finding 11
+   is incomplete: qualified-property overloads never tie-error; source order decides.
+2. **Finding 4's "if every candidate's inference failed" is "if ANY candidate failed"** (FEP:204-207,
+   :258): a later candidate that inferred fine but was not strict-best is silently kept as `func`,
+   with its inferred return type, its arguments unbound by the retry cleanup. Silent survival, not
+   an error, whenever any candidate failed lambda/column inference.
+3. **Untyped-lambda typing THROWS** ("Can't infer the parameters' types for the lambda. Please
+   specify it in the signature.", TI:114-117, :125-128) when the candidate's parameter at that
+   position is not a concrete `Function<…>` (a `T[1]` or `Any[1]` parameter). Nothing catches it:
+   it is a compile error raised by the first candidate reached in lenient order — so the lenient
+   order must be reproduced exactly, or the error surfaces on different calls than the reference's.
+4. **The `&&` short-circuit** (FEP:629, :170): after one lambda fails under a candidate, no later
+   lambda is typed for that candidate.
+5. **Finding 15 in merge mode**: a concrete value arriving over a NON-concrete existing binding in
+   the same context is DROPPED, not merged (TIC:467-480, the FEP:591 path). Finding 5(b)'s tie
+   mechanism is the name index's set iteration order (FEM:73, :156), not the HashMap of matches.
+6. **Automap trigger** is `!isToOne(m, strict=false)` = NOT (concrete AND upper == 1)
+   (Multiplicity.java:78-83): `[0..1]` does not automap; a multiplicity-PARAMETER receiver does.
+7. **Nil is checked before the FunctionType branch** in `TypeMatch` (TM:394 before :399): a Nil
+   value against a `Function<…>` target is BOTTOM, a match. GTM:236 flips the Any/Nil argument skip
+   under contravariance (inside FunctionType parameter positions).
+8. Not previously written: the retry cleanup runs only with more than one candidate (FEP:223);
+   "The type parameter T was not resolved" is thrown only in a root context (TI:85-90) while an
+   unresolved multiplicity parameter always throws (TI:100-103); `let` registers its variable in
+   the PARENT variable context (FEP:250); unknown import paths vanish silently
+   (Imports.java:64); `getFunctionMatches` wraps any matcher exception as "Error finding match
+   for function '<name>'" (FEM:78-87).
+
+**What the plan does with them** (recorded in `EXECUTION_PLAN_2026_09_26.md` step 3): the kernel
+reproduces 1, 3, 4, 5, 6, 7 exactly (they decide which candidate is tried and which error the
+reference raises). For 2 — silent survival — the kernel WALLS the call with the reference's reason
+instead of keeping a wrong binding (AGENTS.md invariant 4: no fallbacks); the probe counts how many
+corpus calls take that path before the switch, and each is explained in the step's record. §C of
+the reading lists thirty-five implementer traps; the kernel's tests name the ones they pin.

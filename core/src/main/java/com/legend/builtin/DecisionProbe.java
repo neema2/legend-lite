@@ -35,6 +35,12 @@ public interface DecisionProbe {
      *  (a null is a candidate with no source definition — a test convenience). */
     void onCandidates(String name, String source, Stream<@Nullable Function> candidates);
 
+    /** A bare {@code name} served an FQN with declarations through {@code tier}
+     *  (ENGINE, CORE, FORM — {@code BareNames.tiered}) at {@code site}
+     *  ({@code resolver}: the prelude merge onto the node; {@code merge}: the
+     *  overload merge point for a name that reached the typer bare). */
+    void onBareTier(String name, String fqn, String tier, String site);
+
     /** The installed probe, or null. The binding (META-INF/services) is a TEST-LANE
      *  resource (//core:shadow_binding on the suites' libraries), never the product
      *  jar's: a planner build carries this interface and the Shadow class, never
@@ -72,6 +78,12 @@ public interface DecisionProbe {
 
     /** {@code source}: {@code node} when the resolver left the candidates on the
      *  call, {@code bare} when the typer's bare-name rule supplied them. */
+    static void bareTier(String name, String fqn, String tier, String site) {
+        if (INSTALLED != null) {
+            INSTALLED.onBareTier(name, fqn, tier, site);
+        }
+    }
+
     static void candidates(String name, String source, Stream<@Nullable Function> candidates) {
         if (INSTALLED != null) {
             INSTALLED.onCandidates(name, source, candidates);

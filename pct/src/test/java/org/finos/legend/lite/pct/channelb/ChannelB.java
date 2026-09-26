@@ -260,8 +260,8 @@ public final class ChannelB {
             var imports = module.model().elementImports().get(fqn);
             ValueSpecification resolved = imports == null
                     ? NameResolver.resolveQuery(lambda)
-                    : NameResolver.resolveQuery(lambda, imports,
-                            ctx.elementFqns());
+                    : NameResolver.resolveQueryIn(lambda, imports,
+                            ctx.resolutionUniverse());
             // ONE universe with channel A (PctExecuteNative): the PCT runs
             // with CORRECT_SQL_SUBSTRING_INDEXING on, as the engine's own
             // testable runner does — the flag is the lowering's, so channel

@@ -39,8 +39,12 @@ final class FunctionCompiler {
             // exactly like a qualified call, natives and model alike, under
             // the same platform-owned gate. No bare index, no courtesy list.
             List<Function> all = new ArrayList<>();
-            for (String candidate : com.legend.compiler.BareNames.fqns(fqn)) {
-                for (Function f : functionsAt(candidate)) {
+            for (var tier : com.legend.compiler.BareNames.tiered(fqn)) {
+                List<Function> at = functionsAt(tier.fqn());
+                if (!at.isEmpty() && com.legend.builtin.DecisionProbe.INSTALLED != null) {
+                    com.legend.builtin.DecisionProbe.bareTier(fqn, tier.fqn(), tier.tier(), "merge");
+                }
+                for (Function f : at) {
                     if (!all.contains(f)) {
                         all.add(f);
                     }

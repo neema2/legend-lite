@@ -167,6 +167,14 @@ public final class Shadow implements DecisionProbe {
         write("CANDIDATES", name, String.valueOf(ids.size()), String.join(",", ids), source);
     }
 
+    /** Which tier of the bare-name rule supplied a declaration for a bare call
+     *  (step 3 homework: a name served ONLY by the engine surface in Pure source
+     *  is a missing declaration, not a tier to keep). */
+    @Override
+    public void onBareTier(String name, String fqn, String tier, String site) {
+        write("BARE-TIER", name, fqn, tier, site);
+    }
+
     @Override
     public void onForm(String name, String form) {
         CoreFn owner = Sink.FORM_AT.get(name);

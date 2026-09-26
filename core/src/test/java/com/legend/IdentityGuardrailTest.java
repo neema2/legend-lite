@@ -132,7 +132,12 @@ class IdentityGuardrailTest {
             java.util.Set.of("LOCAL_NAME_COMPARE", "CASE_NAME_LABEL", "PARSE_NAME_LOOKUP");
 
     private static final Map<String, Integer> PINS = Map.ofEntries(
-            Map.entry("NAME_COMPARE", 207),
+            // step 3 homework (2026-09-26): 207 -> 208 is NOT a new site — BareNames'
+            // lite-partition test (a package-prefix check on the tier's FQN) was
+            // written on a local variable the pattern never saw; the tiers are data
+            // now (TierFqn) and the same test reads fqn(), so the pattern sees it.
+            // Retired when the surface is a declaration fact (step 3, Bindings).
+            Map.entry("NAME_COMPARE", 208),
             Map.entry("NAME_COMPARE_REVERSED", 81),
             Map.entry("LITERAL_NAME_COMPARE", 64),
             Map.entry("NAME_AFFIX_TEST", 51),

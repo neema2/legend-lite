@@ -532,21 +532,15 @@ public final class NameResolver {
      * Resolve a query under a SECTION import scope — the real-pure shape
      * for a query written inside an import-bearing section (a test file,
      * a notebook cell): the section's imports plus the prelude, with the
-     * MODEL's element universe as the wildcard-candidate set. An
-     * unresolved bare name passes through and fails loudly in Phase G.
-     */
-    public static ValueSpecification resolveQuery(ValueSpecification query,
-            ImportScope imports, Set<String> modelFqns) {
-        Set<String> known = new HashSet<>(PLATFORM_FQNS);
-        known.addAll(modelFqns);
-        return resolveQueryIn(query, imports, Set.copyOf(known));
-    }
-
-    /** {@link #resolveQuery(ValueSpecification, ImportScope, Set)} with the
      * candidate universe READY — the model context's memoized union of its
      * element names and the platform's ({@code ModelContext.resolutionUniverse}),
-     * so a query pays no per-query set build (leg 6e). {@code universe}
-     * must be immutable. */
+     * or the normalizer's, built once per model — so a query pays no
+     * per-query set build (leg 6e). {@code universe} must be immutable. An
+     * unresolved bare name passes through and fails loudly in Phase G.
+     * (The overload that took the model's FQNs and built platform ∪ model per
+     * call was 13-15% of the DuckDB corpus lane, called per statement from the
+     * normalizer — deleted 2026-09-26, step 3 homework.)
+     */
     public static ValueSpecification resolveQueryIn(ValueSpecification query,
             ImportScope imports, Set<String> universe) {
         return Objects.requireNonNull(resolveVs(query, Scope.preludeOf(imports, universe)));
@@ -1722,14 +1716,25 @@ public final class NameResolver {
                 if (captured && scope.prelude()
                         && !af.function().contains("::")) {
                     List<String> merged = null;
-                    for (var nf : BareNames.catalog(af.function())) {
-                        String nfq = nf.qualifiedName();
-                        if (!matches.contains(nfq)
-                                && (merged == null || !merged.contains(nfq))) {
-                            if (merged == null) {
-                                merged = new ArrayList<>(matches);
+                    for (var tier : BareNames.catalogTiered(af.function())) {
+                        // the probe records what the tier ADDS: an FQN the
+                        // resolver's own tiers (imports, own package, core
+                        // group) already put on the node is theirs, not this one's
+                        if (!tier.getValue().isEmpty()
+                                && !matches.contains(tier.getKey().fqn())
+                                && com.legend.builtin.DecisionProbe.INSTALLED != null) {
+                            com.legend.builtin.DecisionProbe.bareTier(af.function(),
+                                    tier.getKey().fqn(), tier.getKey().tier(), "resolver-added");
+                        }
+                        for (var nf : tier.getValue()) {
+                            String nfq = nf.qualifiedName();
+                            if (!matches.contains(nfq)
+                                    && (merged == null || !merged.contains(nfq))) {
+                                if (merged == null) {
+                                    merged = new ArrayList<>(matches);
+                                }
+                                merged.add(nfq);
                             }
-                            merged.add(nfq);
                         }
                     }
                     if (merged != null) {

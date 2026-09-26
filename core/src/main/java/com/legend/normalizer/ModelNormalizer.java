@@ -148,10 +148,18 @@ public final class ModelNormalizer {
      *  passes through unchanged (resolution is idempotent). */
     private static List<PackageableElement> resolveSynthesized(ParsedModel parsed,
             List<PackageableElement> elements) {
-        java.util.Set<String> modelFqns = new java.util.HashSet<>();
+        // THE UNIVERSE ONCE per normalization, not once per statement: the
+        // JFR profile of //spec:corpus_duckdb (2026-09-26, step 3 homework,
+        // receipts plan-audit-2026-09-26/step3/) put 13-15% of the whole lane
+        // in NameResolver.resolveQuery rebuilding platform ∪ model as a fresh
+        // set for EVERY statement of every synthesized body (Set.copyOf and
+        // addAll were the resolver's top callees). Same set, built here once.
+        java.util.Set<String> universe = new java.util.HashSet<>(
+                com.legend.compiler.NameResolver.platformFqns());
         for (PackageableElement el : elements) {
-            modelFqns.add(el.qualifiedName());
+            universe.add(el.qualifiedName());
         }
+        universe = java.util.Set.copyOf(universe);
         com.legend.model.ImportScope none = new com.legend.model.ImportScope.Builder().build();
         List<PackageableElement> out = new ArrayList<>(elements.size());
         for (PackageableElement el : elements) {
@@ -163,7 +171,7 @@ public final class ModelNormalizer {
                 List<com.legend.protocol.spec.ValueSpecification> body = new ArrayList<>(fd.body().size());
                 boolean changed = false;
                 for (var stmt : fd.body()) {
-                    var resolved = com.legend.compiler.NameResolver.resolveQuery(stmt, scope, modelFqns);
+                    var resolved = com.legend.compiler.NameResolver.resolveQueryIn(stmt, scope, universe);
                     changed |= resolved != stmt;
                     body.add(resolved);
                 }

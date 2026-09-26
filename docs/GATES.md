@@ -5682,6 +5682,79 @@ reproduced with both match orderings. Every earlier slice was checked against ou
 behaviour and against tests most overloads pass either way; this is the first check against the
 reference itself.
 
+## 2026-09-26 — Execution plan step 3 homework: the kernel reading, the resolver's per-statement set build, the bare-name tier probe
+
+**What it is, plainly.** Step 3 (the binder's candidate set and the reference's overload rule) is
+the first slice that changes behaviour, and the plan owed five pieces of homework before its code.
+This is those five, each with a receipt, plus one fix the homework found. No behaviour changes:
+rosters identical, the probe's CANDIDATES/PICK/FORM rows untouched.
+
+**The kernel reading** (`docs/plan-audit-2026-09-26/kernel-reading-2026-09-26.md`). The twelve
+reference methods read in the listed order and rendered as pseudo-code with line citations (§A).
+§B checks all twenty findings of `reference-matching.md`: eleven hold, twelve corrections are
+appended to that report under "Corrections from the second reading". The ones that change the
+kernel: properties, relation columns and QUALIFIED PROPERTIES take the first lenient-ordered
+candidate with no strict re-rank and no tie error (FEP:200-203); when ANY candidate's lambda or
+column inference failed the reference raises nothing and keeps the last candidate (FEP:204-207,
+:258) — the plan says we WALL that call with the reason instead (invariant 4); typing an untyped
+lambda against a non-`Function` parameter THROWS (TI:114-117), so the lenient candidate order must
+be reproduced exactly; the `&&` short-circuit stops lambda typing after one failure (FEP:629);
+merge mode drops a concrete value over a non-concrete binding (TIC:467-480); automap fires on
+`!isToOne(m, strict=false)`; Nil is matched before the FunctionType branch (TM:394). §C lists
+thirty-five traps for the implementer.
+
+**The profile, and the fix it found** (`homework-2026-09-26.md` §4; receipts `step3/profile-*.txt`,
+`agg.py`, `agg2.py`). Java Flight Recorder over `//spec:corpus_duckdb` at load 2.4, nothing else
+building: `compiler.spec` 34–35% of samples inclusive, the name resolver 17–19%, the store resolver
+17–18%, lowering 11–14%, `ResolvedNames` (the 33 `names` sites) 4–6%, `Pure.nativeFunctionsAt` under
+1%. The resolver's share was ONE method: `NameResolver.resolveQuery(query, imports, modelFqns)`
+built `platform ∪ model` as a fresh set (`Set.copyOf`, `addAll`: 184 of the 256 resolver samples)
+on every call, and its one caller — `ModelNormalizer.resolveSynthesized` — called it once per
+STATEMENT of every synthesized body. `Compiler.resolveQuery` had already used the model context's
+memoized universe (leg 6e); the normalizer had not. Fixed at the algorithm: the universe is built
+once per normalization and each statement resolves through `resolveQueryIn`; the per-call overload
+is deleted (its two contract-test callers and the PCT channel-B lane build the universe
+explicitly). Not a cache: nothing is kept past the normalization that computes it. **Timing**
+(`//spec:corpus_duckdb` alone, `--nocache_test_results`, load 3.8 at start): passes 32s and 39s,
+wall 77.7s, against 35s / 41s / 86.3s at step 2 and 34s / 43s / 87.6s at step 1 — about 3s a pass,
+10s of wall; less than the sample profile's 13–15% (a sample profile locates, it does not time).
+`receipts/untangle-4b/corpus-curve-duckdb.txt` has the line.
+
+**The tier probe** (`homework-2026-09-26.md` §5; receipts `step3/tiers/`). `DecisionProbe.bareTier`
+/ `Shadow.onBareTier` write `BARE-TIER name fqn tier site` rows — from the resolver's prelude merge
+ONLY for an FQN the resolver's own tiers had not already put on the node, and from the overload
+merge point for a name that reached the typer bare; `tools/untangle/bare_tiers.py` classifies.
+`BareNames.tiered` makes the three tiers data (`TierFqn`); `fqns` and `catalog` are unchanged in
+what they return. A first, unrefined run counted FQNs the file's own wildcard import had already
+resolved and reported 40 "engine-only" names — kept as a receipt of the wrong question. The
+marginal probe over both corpus lanes and the manifest census: **48 bare names served beyond the
+resolver's own tiers — CORE 40, FORM 4, ENGINE-ONLY 4** (`currentUserId`: an import the reference
+requires; variant `get`, `wtd`, `ytd`: overloads the reference never sees, our candidate set was
+wider and the signature happened to agree). Nothing in Pure source needs the engine tier; step 3
+drops it there and keeps it for `LEGEND_LITE` trees. `core_tests`' harness queries add six
+engine-input names, which keep the tier by design.
+
+**Bindings decided.** `com.legend.compiler`, an immutable record keyed by node identity, returned
+by the resolver beside the resolved `ParsedModel` (which is below the compiler and never carries a
+compiler type), handed to `PureModelContext.from` and read by the typer as `ctx.bindings()`.
+
+**Guards — the gate caught two growths on the first chain.** CATALOG_LOOKUP_BY_NAME 10 → 11 was
+real: `catalogTiered` added a second `nativeFunctionsAt` beside `catalog`'s; `catalog` now derives
+from `catalogTiered` (one lookup, de-duplicated by FQN) — back to 10. NAME_COMPARE 207 → 208 is
+NOT a new site: `BareNames`' lite-partition test (a package-prefix check on the tier's FQN) was
+written on a local variable the pattern never saw; with the tiers as data it reads `fqn()` and
+the pattern sees it. The pin moves to 208 with that reason in the test; the test itself is retired
+when the product surface is a declaration fact (step 3, Bindings). Every other pin unchanged.
+`NameResolutionContractTest` calls `resolveQueryIn` with an explicitly built universe.
+
+**Test.** First chain: 96 of 97, `//core:guardrails` red on the two growths above (receipt
+`step3/chain-1-guardrail-caught.log`). Second chain after the fixes, under the OTHER account's
+Bazel (load 24–25 for its 5- and 15-minute averages): 93 pass, guardrails green, four long lanes
+TIMEOUT (`parser-equivalence:diagnostics` 1298s, `pct_duckdb`, `pct_h2`, `warehouse:tests`) and
+`corpus_duckdb` at 381s — load, not the tree; re-run alone at load 4: all four pass
+(diagnostics 222s, pct_duckdb 86s, pct_h2 35s, warehouse 11s), so 97/97 and `//tools/deps:all`
+3/3. Rosters DuckDB 107 / H2 361/354 of 2613, the pins exactly.
+
 ## 2026-09-26 — Execution plan step 2 (A2): the lowering registers by declaration identity; one identity
 
 **What it is, plainly.** A lowering rule used to say "I implement `sort`", and the catalog fanned that

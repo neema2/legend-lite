@@ -138,6 +138,16 @@ class NameResolutionContractTest {
      * of the platform schema(Database,String). (Batch 142 made schema()
      * a system-metamodel Pure accessor, so the example native here is
      * joinStrings — the contract is the same.) */
+    /** The candidate universe a model context memoizes (platform ∪ model), built
+     *  here once per test — the per-call overload that built it is gone
+     *  (step 3 homework, 2026-09-26). */
+    private static java.util.Set<String> universe(java.util.Set<String> modelFqns) {
+        java.util.Set<String> known = new java.util.HashSet<>(
+                com.legend.compiler.NameResolver.platformFqns());
+        known.addAll(modelFqns);
+        return java.util.Set.copyOf(known);
+    }
+
     @Test
     @DisplayName("prelude natives join user candidates at call position")
     void preludeNativesJoinCallCandidates() {
@@ -147,8 +157,8 @@ class NameResolutionContractTest {
                 List.of(new com.legend.protocol.spec.Variable("strs"),
                         new com.legend.protocol.spec.CString(",")));
         var resolved = (com.legend.protocol.spec.AppliedFunction)
-                com.legend.compiler.NameResolver.resolveQuery(call, imports,
-                        java.util.Set.of("app::fns::joinStrings"));
+                com.legend.compiler.NameResolver.resolveQueryIn(call, imports,
+                        universe(java.util.Set.of("app::fns::joinStrings")));
         assertTrue(resolved.candidateFqns().contains("app::fns::joinStrings"),
                 "the user wildcard candidate is carried");
         assertTrue(resolved.candidateFqns().contains(
@@ -168,7 +178,7 @@ class NameResolutionContractTest {
                 List.of(new com.legend.protocol.spec.CString("select 1"),
                         new com.legend.protocol.spec.Variable("conn")));
         var resolved = (com.legend.protocol.spec.AppliedFunction)
-                com.legend.compiler.NameResolver.resolveQuery(call, imports, java.util.Set.of());
+                com.legend.compiler.NameResolver.resolveQueryIn(call, imports, universe(java.util.Set.of()));
         assertEquals("meta::relational::metamodel::execute::executeInDb", resolved.function());
     }
 
