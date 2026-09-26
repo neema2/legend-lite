@@ -61,37 +61,55 @@ class NoEagerTypeReferencesTest {
 
     @Test
     void noForbiddenTypeFieldsOutsideAllowlist() throws Exception {
+        // core's compiled classes are ONE directory under Maven (target/classes)
+        // and, since execution plan step 0c (2026-09-26), TWENTY-NINE jars under
+        // Bazel — one per package group, `bin/core/lib<target>.jar`. Walk every
+        // main jar in the directory that holds TypedClass's jar, and count,
+        // because a walk over one jar of twenty-nine finds a fraction and a
+        // guard that checks a fraction passes (the floor below caught exactly
+        // that on the first split build: 296 of 498).
         Path location = Paths.get(
                 TypedClass.class.getProtectionDomain().getCodeSource().getLocation().toURI());
-        // core's compiled classes are a DIRECTORY under Maven (target/classes)
-        // and a JAR under Bazel. Walk whichever it is — and count, because a walk
-        // over the wrong location finds nothing and a guard that checks nothing
-        // passes.
-        java.nio.file.FileSystem jar = Files.isDirectory(location)
-                ? null : java.nio.file.FileSystems.newFileSystem(location);
-        Path classesRoot = jar == null ? location : jar.getPath("/");
-
-        List<String> violations = new ArrayList<>();
-        long[] scanned = {0};
-        try (Stream<Path> paths = Files.walk(classesRoot)) {
-            paths.filter(p -> p.toString().endsWith(".class"))
-                    .map(p -> classesRoot.relativize(p).toString()
-                            .replace(java.io.File.separatorChar, '/'))
-                    .map(rel -> rel.replace('/', '.').replace('\\', '.'))
-                    .map(name -> name.substring(0, name.length() - ".class".length()))
-                    .filter(fqn -> fqn.startsWith("com.legend."))
-                    // Synthetic / lambda classes surface captured-variable
-                    // fields that aren't meaningful for this check.
-                    .filter(fqn -> !fqn.contains("$$Lambda"))
-                    .forEach(fqn -> {
-                        scanned[0]++;
-                        scanClass(fqn, violations);
-                    });
-        } finally {
-            if (jar != null) {
-                jar.close();
+        List<Path> roots = new ArrayList<>();
+        if (Files.isDirectory(location)) {
+            roots.add(location);
+        } else {
+            try (Stream<Path> siblings = Files.list(location.getParent())) {
+                siblings.filter(p -> p.getFileName().toString().matches("lib[a-z_]+\\.jar"))
+                        // the test library and the generators' rewrite of core are
+                        // not the product's main classes
+                        .filter(p -> !p.getFileName().toString().contains("tests_lib"))
+                        .filter(p -> !p.getFileName().toString().startsWith("libcore_next"))
+                        .sorted()
+                        .forEach(roots::add);
             }
         }
+
+        List<String> violations = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.TreeSet<>();
+        for (Path root : roots) {
+            java.nio.file.FileSystem jar = Files.isDirectory(root)
+                    ? null : java.nio.file.FileSystems.newFileSystem(root);
+            Path classesRoot = jar == null ? root : jar.getPath("/");
+            try (Stream<Path> paths = Files.walk(classesRoot)) {
+                paths.filter(p -> p.toString().endsWith(".class"))
+                        .map(p -> classesRoot.relativize(p).toString()
+                                .replace(java.io.File.separatorChar, '/'))
+                        .map(rel -> rel.replace('/', '.').replace('\\', '.'))
+                        .map(name -> name.substring(0, name.length() - ".class".length()))
+                        .filter(fqn -> fqn.startsWith("com.legend."))
+                        // Synthetic / lambda classes surface captured-variable
+                        // fields that aren't meaningful for this check.
+                        .filter(fqn -> !fqn.contains("$$Lambda"))
+                        .filter(seen::add)
+                        .forEach(fqn -> scanClass(fqn, violations));
+            } finally {
+                if (jar != null) {
+                    jar.close();
+                }
+            }
+        }
+        long[] scanned = {seen.size()};
         // Floor, in GuardCoverage's sense (package-private there, so inline
         // here): every main source file compiles to at least one class, and
         // core's main-source guards pin 498 files, so fewer than 498 classes

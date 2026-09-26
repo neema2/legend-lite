@@ -5682,6 +5682,48 @@ reproduced with both match orderings. Every earlier slice was checked against ou
 behaviour and against tests most overloads pass either way; this is the first check against the
 reference itself.
 
+## 2026-09-26 — Execution plan step 0: the annotations leave the root package, two leaf moves, core becomes 29 targets
+
+The plan (`EXECUTION_PLAN_2026_09_26.md`, after `PLAN_AUDIT_2026_09_26.md`) puts structure before
+the first compiler slice, because the audit found that the first slice as specified would have put
+a `platform` type on a `protocol` node — legal under one compilation unit, a 7-package cycle in the
+graph, and three architecture tests red after the fact. With core as targets, that mistake is a
+compile error in the file being written.
+
+**0a — the annotation move (6d39f26df).** `com.legend.Nullable`/`NonNull` → `com.legend.base`, by
+`tools/untangle/move_classes.py --group A` (`--inline`, 425 files, line counts unchanged). The tool
+now walks every `.java` in the repository: its fixed root list (core, spec, pct, parser-equivalence)
+missed the 28 warehouse files and two strays, and a partial move compiles nowhere. Build carriers
+rewritten by the tool: `core/BUILD.bazel` and `warehouse/BUILD.bazel` NullAway flags. Both gates
+proven live by injection (a `return null` from a `String` method in `LiteralFold` and in the
+warehouse's `History`; each failed with `[NullAway] returning @Nullable expression`). The ledger's
+root-package register dropped its two rows (the annotations were never funnel classes).
+
+**0b — the leaf moves (cbb6a0266).** `resolver.AsorRef` → `lowering` (the lowering↔resolver cycle,
+132 files, was two compile-time constants read by `SnapshotEnvelope`, invisible to ArchUnit and
+jdeps); `compiler.element.StoreLookups` → `compiler` (an interface over `model`, implemented by
+`ModelBuilder`). Groups B and C in `groups.txt` record why. Class graph after A+B+C (class-level,
+same-package users included): 34 packages, 29 units; remaining cycles the compiler quartet (208
+classes; step G) and the two sanctioned parent/child pairs.
+
+**0c — core as targets.** One `java_library` per package group in `core/BUILD.bazel`, each with its
+direct deps and private visibility; `:core` is an umbrella that exports them, so the six consumers
+(`spec`, `pct`, `parser-equivalence`, `wasm`, `tools/engine-runner`, `warehouse`) changed nothing.
+The deps came from the class graph; strict deps found the two edges it had missed (`lowering` →
+`protocol`, `testdatagen` → `values`) and nothing else. `deps(//core:parser)` = base, error, lexer,
+model, parser, protocol, spi, values — the front end reaches neither the compiler nor exec nor
+server. `core_next` (the generators' rewrite of core) stays one library on purpose: it is a
+generator check, not the product.
+
+**Test.** Chain green three times (once per commit); rosters DuckDB 107 fail / H2 361 fail of 2613,
+LOST 0, unchanged at each. Timing: the chain runs were under load 15–80 (the other account's
+lanes), so their corpus seconds are not readings (DuckDB host pass 155s and 231s where the receipts
+say 32s). The quiet re-run of `//spec:corpus_duckdb` alone: queued behind the other account's load; its numbers are appended to this entry when it runs.
+
+**Not done here, on purpose:** the front-end test lane (`core_tests_lib` is one library over all
+286 test files; a per-target lane needs the test tree split the same way — step 0d if the test-side
+graph is clean), and any move of the compiler quartet's files (steps 3–7 rewrite them).
+
 ## 2026-09-26 — JSON cells decode by the planned type, not the driver's class (H2 roster 362 → 361)
 
 **What.** `Executor.cellRead` decoded a JSON-carrier cell under a non-Any root only when the driver's

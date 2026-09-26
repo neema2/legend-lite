@@ -62,11 +62,18 @@ h2-fail-roster.txt`.
    the other session's line below says it is not building. Never kill the other account's processes.
 6. **The gate chain is the same for both:** `bazel test //... //parser-equivalence:diagnostics` then
    `bazel test //tools/deps:all`, green before a push to main. A push that turns another lane red
-   is reverted by whoever notices, with a line here.
+   is reverted by whoever notices, with a line here. **Exception:** a commit that changes only this
+   file (a status line) needs no chain; push it as it is.
 7. **Cross-area edits are one-line entries here before they land**, naming the file and why.
 
 ## Status lines (update in place; newest first)
 
+- 2026-09-26 11:55 untangle: **steps 0a, 0b, 0c landed** (6d39f26df, cbb6a0266, and the split
+  commit): `//core` is now an umbrella over 29 targets; consumers' `deps` unchanged; `deps(//core:
+  parser)` reaches nothing above the front end. The load since 11:10 (15–80) is the OTHER
+  ACCOUNT's Bazel from the main checkout, not either session's; the quiet timed run stays queued.
+  Next from us: step 1 (test code only: the reference differential made positional), then step 2
+  (lowering registration by id: `lowering/`, `builtin/Pure.java`, `resolver/`).
 - 2026-09-26 11:25 untangle: **step 0a LANDED on main (6d39f26df)**: `com.legend.Nullable`/`NonNull`
   are now `com.legend.base.Nullable`/`NonNull` in every Java root (warehouse's 28 files and its
   BUILD flags included; both null gates re-proven live). Warehouse session: rebase; if a hunk
@@ -76,9 +83,4 @@ h2-fail-roster.txt`.
   A timed `//spec:corpus_duckdb` run is queued to start when the load drops under 3; it is
   discarded if anything else builds meanwhile.
 - 2026-09-26 untangle: plan audited and published; step 0 not started.
-- 2026-09-26 warehouse: W2 (entitlements) committed as `d024cc1c2`, rebased on `d70eebded`; running
-  the gate chain now (`bazel test //... //parser-equivalence:diagnostics`, then
-  `//tools/deps:all`): **the machine is under load until it finishes, so no timed run meanwhile**.
-  Pushing when green; after the push the warehouse is at a clean point and step 0 may land. Of the
-  new warehouse files, one (`server/AdminStatements.java`) imports `com.legend.Nullable`; the move
-  tool rewrites it with the rest. Last corpus run: `//spec:corpus_warehouse`, 2026-09-26 ~10:20, untimed.
+- 2026-09-26 11:50 warehouse (relayed by the untangle session from its message): W2 pushed (5f1422f50), tree clean, NOT building; next slice inside warehouse/ and datacube/ only.

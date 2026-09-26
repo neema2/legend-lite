@@ -1,10 +1,8 @@
-# core, as ONE java_library — the first step of the Bazel migration.
-#
-# Deliberately coarse. Building core as a single target separates two risks that
-# a per-package layout would confuse: "can Bazel compile this code at all"
-# (toolchain, deps, resources, Error Prone) from "is the dependency graph right".
-# Only the first is under test here. The split into ~28 targets follows, and
-# Bazel itself checks each one by refusing to load on a cycle.
+# core, as targets. It began as ONE java_library (the Bazel migration's first
+# step, 2026-09-22: "can Bazel compile this at all" before "is the graph right");
+# on 2026-09-26 (execution plan step 0c) it became one target per package group
+# — see "CORE AS TARGETS" below — with `:core` kept as the umbrella consumers
+# depend on. Bazel now refuses a back-edge at compile time.
 load("@rules_java//java:defs.bzl", "java_binary", "java_library", "java_plugin")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/junit:defs.bzl", "junit_test")
@@ -46,17 +44,200 @@ NULLAWAY_OPTS = [
     "-XDaddTypeAnnotationsToSymbol=true",
 ]
 
+# CORE AS TARGETS (execution plan step 0c, 2026-09-26). One java_library per
+# package group, each naming its direct dependencies, so a reference from a
+# lower layer to a higher one is a build error in the file being written — not
+# an ArchUnit finding after the fact. The grouping is the dependency graph's:
+# every package is its own target except the four sanctioned pairs/quartet
+# (protocol+spec, parser+section, server+serial, and the compiler quartet —
+# compiler, element, spec, spec.typed — which is still one cycle of 208 classes
+# and splits at step G). `:core` below is the umbrella every consumer keeps
+# depending on; it exports all of these. Deps are listed low to high.
+
+# every target below: NULLAWAY_OPTS, the plugin, and PRIVATE visibility —
+# consumers depend on the umbrella `:core` until they choose a narrower target
+# deliberately. (BUILD files allow no **kwargs, so the three lines repeat.)
+_PRIVATE = ["//visibility:private"]
+
+java_library(name = "base", srcs = glob(["src/main/java/com/legend/base/*.java"]), javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
+java_library(name = "spi", srcs = glob(["src/main/java/com/legend/spi/*.java"]), javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
+java_library(name = "cache", srcs = glob(["src/main/java/com/legend/cache/*.java"]), deps = [":base"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
+java_library(name = "values", srcs = glob(["src/main/java/com/legend/values/*.java"]), deps = [":base"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
+java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), deps = [":base"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
+java_library(name = "lexer", srcs = glob(["src/main/java/com/legend/lexer/*.java"]), deps = [":base"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
+java_library(name = "sql", srcs = glob(["src/main/java/com/legend/sql/*.java"]), deps = [":base"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
+java_library(name = "protocol", srcs = glob(["src/main/java/com/legend/protocol/**/*.java"]), deps = [":base", ":values"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
+java_library(name = "model", srcs = glob(["src/main/java/com/legend/model/*.java"]), deps = [":base", ":protocol"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
 java_library(
-    name = "core",
-    srcs = glob(["src/main/java/**/*.java"]),
+    name = "parser",
+    srcs = glob(["src/main/java/com/legend/parser/**/*.java"]),
+    deps = [":base", ":error", ":lexer", ":model", ":protocol", ":spi", ":values"],
     javacopts = NULLAWAY_OPTS,
     plugins = [":nullaway"],
+    visibility = _PRIVATE,
+)
+
+# the platform's declarations, generated from the pinned upstream; the four
+# resources (prelude, handler surface, imports, membership) ride here because
+# this is the code that loads them
+java_library(
+    name = "builtin",
+    srcs = glob(["src/main/java/com/legend/builtin/*.java"]),
     # native-claims.tsv is generated here under the drift test but READ only by
     # the spec module's claim tests: it is not product data (retiring at step 5)
     resources = glob(
         ["src/main/resources/**"],
         exclude = ["src/main/resources/com/legend/builtin/native-claims.tsv"],
     ),
+    deps = [":base", ":error", ":model", ":parser", ":protocol"],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    visibility = _PRIVATE,
+)
+java_library(name = "platform", srcs = glob(["src/main/java/com/legend/platform/*.java"]), deps = [":base", ":builtin", ":model"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
+java_library(
+    name = "compiler_element_type",
+    srcs = glob(["src/main/java/com/legend/compiler/element/type/*.java"]),
+    deps = [":base", ":builtin", ":model", ":platform", ":protocol", ":sql"],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    visibility = _PRIVATE,
+)
+java_library(
+    name = "sql_dialect",
+    srcs = glob(["src/main/java/com/legend/sql/dialect/*.java"]),
+    deps = [":base", ":compiler_element_type", ":sql"],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    visibility = _PRIVATE,
+)
+
+# the compiler quartet: resolver-of-names, element compiler, typer, typed tree
+java_library(
+    name = "compiler",
+    srcs = glob(["src/main/java/com/legend/compiler/**/*.java"], exclude = ["src/main/java/com/legend/compiler/element/type/*.java"]),
+    deps = [":base", ":builtin", ":compiler_element_type", ":error", ":model", ":platform", ":protocol", ":sql", ":values"],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    visibility = _PRIVATE,
+)
+java_library(
+    name = "normalizer",
+    srcs = glob(["src/main/java/com/legend/normalizer/*.java"]),
+    deps = [":base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":platform", ":protocol"],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    visibility = _PRIVATE,
+)
+java_library(
+    name = "lineage",
+    srcs = glob(["src/main/java/com/legend/lineage/*.java"]),
+    deps = [":base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":platform", ":protocol", ":sql"],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    visibility = _PRIVATE,
+)
+java_library(
+    name = "validation",
+    srcs = glob(["src/main/java/com/legend/validation/*.java"]),
+    deps = [":base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":protocol"],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    visibility = _PRIVATE,
+)
+java_library(
+    name = "lowering",
+    srcs = glob(["src/main/java/com/legend/lowering/*.java"]),
+    deps = [":base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":platform", ":protocol", ":sql", ":values"],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    visibility = _PRIVATE,
+)
+java_library(
+    name = "plan",
+    srcs = glob(["src/main/java/com/legend/plan/*.java"]),
+    deps = [":base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lineage", ":model", ":sql"],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    visibility = _PRIVATE,
+)
+java_library(
+    name = "resolver",
+    srcs = glob(["src/main/java/com/legend/resolver/*.java"]),
+    deps = [":base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lowering", ":model", ":plan", ":sql", ":values"],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    visibility = _PRIVATE,
+)
+java_library(
+    name = "exec",
+    srcs = glob(["src/main/java/com/legend/exec/*.java"]),
+    deps = [":base", ":compiler", ":compiler_element_type", ":error", ":lowering", ":model", ":sql", ":sql_dialect", ":values"],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    visibility = _PRIVATE,
+)
+java_library(
+    name = "probe",
+    srcs = glob(["src/main/java/com/legend/probe/*.java"]),
+    deps = [":base", ":builtin", ":lowering", ":model", ":platform"],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    visibility = _PRIVATE,
+)
+java_library(
+    name = "testdatagen",
+    srcs = glob(["src/main/java/com/legend/testdatagen/*.java"]),
+    deps = [":base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":exec", ":lineage", ":model", ":plan", ":protocol", ":resolver", ":sql_dialect", ":values"],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    visibility = _PRIVATE,
+)
+
+# the root package: the driver (Compiler, StatementExecutor, the judges)
+java_library(
+    name = "driver",
+    srcs = glob(["src/main/java/com/legend/*.java"]),
+    deps = [
+        ":base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":error", ":exec",
+        ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":platform",
+        ":protocol", ":resolver", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
+    ],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    visibility = _PRIVATE,
+)
+java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = [":base", ":lexer", ":model", ":parser"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
+java_library(
+    name = "test",
+    srcs = glob(["src/main/java/com/legend/test/*.java"]),
+    deps = [":base", ":compiler", ":driver", ":error", ":exec", ":model", ":protocol", ":sql", ":values"],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    visibility = _PRIVATE,
+)
+java_library(
+    name = "server_lib",
+    srcs = glob(["src/main/java/com/legend/server/**/*.java"]),
+    deps = [":base", ":cache", ":compiler_element_type", ":driver", ":error", ":exec", ":lowering", ":model", ":protocol", ":sql_dialect"],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [":nullaway"],
+    visibility = _PRIVATE,
+)
+
+_CORE_TARGETS = [
+    ":base", ":spi", ":cache", ":values", ":error", ":lexer", ":sql", ":protocol", ":model", ":parser",
+    ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":compiler", ":normalizer",
+    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":exec", ":probe", ":testdatagen",
+    ":driver", ":ide", ":test", ":server_lib",
+]
+
+# THE UMBRELLA: what every consumer depends on today and keeps depending on.
+# It compiles nothing; it exports the targets above. A consumer that needs only
+# the front end may later depend on `:parser` and stop carrying exec and server.
+java_library(
+    name = "core",
+    exports = _CORE_TARGETS,
 )
 
 # THE JDBC DRIVERS, as their own target. core never compiles against a driver: it
