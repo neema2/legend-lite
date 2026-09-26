@@ -229,3 +229,92 @@ rule, and the authorizer stays strict.
 
 (Measured with DuckDB 1.4.4's parser via Python; W1 re-runs the suite on
 the warehouse's 1.5.x, as a test.)
+
+
+## Q4. DuckDB under a server: concurrency, isolation, processes
+
+**Probe:** `experiments/warehouse-w0/concurrency_probe.py`, run on an
+M4 (10 cores), a 20M-row table, and a group-by over it (12 ms alone).
+
+| Question | Measured |
+|---|---|
+| N concurrent reads, one connection each | **throughput does not grow** (×1.07–1.08 for 2, 4 and 8): one query already uses all 10 cores. 8 at once took 86 ms wall, each slowed |
+| A reader during an uncommitted write | sees the old data, then the new after commit (snapshot isolation) |
+| Two writers, same rows | the second is **refused** ("Conflict on update"): optimistic, no waiting |
+| Two writers, different rows | both commit |
+| A second process on a file another holds | **refused, even read-only** (file lock) |
+| Several read-only processes after the writer closes | all open |
+
+**For the design:**
+- An instance's capacity is its cores. The queue and concurrency limit
+  decide fairness and latency, not throughput. More capacity means more
+  instances.
+- A writable DuckDB file belongs to one process.
+
+## Q5. Many processes on one dataset: DuckLake
+
+**Probe:** `experiments/warehouse-w0/lake_probe.py`. It uses DuckLake
+(DuckDB's lakehouse format: a catalog in a database, data as Parquet
+files). A writer process inserted 5 batches while a separate reader
+process queried every 150 ms.
+
+| Catalog | Result |
+|---|---|
+| **SQLite** | the reader **saw each commit live**: 1,100 → 1,200 → … → 1,500 |
+| a DuckDB file | the second process was refused (the same file lock) |
+
+**For the design:** on-demand read instances plus a writer are
+feasible. DuckLake, with its catalog in a database that serves several
+clients (SQLite locally; in production presumably Postgres, or the
+warehouse itself), and Parquet data on object storage. Grants and ACL
+tables can live in the same catalog database. W1 decides the storage
+layout with this as the leading candidate.
+
+## Q6. Arrow results
+
+- **The driver:** `arrowExportStream` exists but needs the Arrow Java
+  library, a heavy dependency and a native-image risk.
+- **DuckDB's `nanoarrow` community extension:**
+  `SELECT * FROM to_arrow_ipc((<query>))` gave 1M rows × 4 columns as
+  36.7 MB of Arrow IPC (one header plus 489 batches) in **~10 ms**. The
+  blobs, concatenated, read as a valid stream (int64, double, string,
+  date32), and every row checked. Costs: it is a community extension
+  (installed from DuckDB's community repository, tied to the DuckDB
+  version, bundled per platform for offline starts), and the server
+  wraps the already-authorized statement to use it.
+- **Our own Arrow IPC writer,** in plain Java from DuckDB's columnar
+  result chunks (the 1.5 driver added chunked fetching): no extension,
+  and it runs in the native image and WebAssembly alike.
+
+**Decision in W1**, measured side by side: speed on 1M rows, and native
+image behaviour.
+
+## Q7. The SQL-API binding in WebAssembly
+
+The planner's WebAssembly module already compiles records, sealed types
+and pattern-matching switches, and core has a strict pure-Java JSON
+parser (`com.legend.server.Json`, sealed node tree, RFC 8259). A
+binding needs only strings, bytes and that parser, and no `java.net`.
+So this is **expected to compile**. The proof is D1's binding
+differential: recorded exchanges replayed through the JVM and WASM
+builds. Still to check then: how the module passes `byte[]` to and from
+JavaScript (today's entry point passes strings).
+
+## W0 status
+
+Answered with measurements:
+- **Q1** Java plus native image: yes.
+- **Q2** host functions cannot carry identity: identity stays a variable
+  plus the authorizer.
+- **Q3** the parser supports a strict authorizer, with allow-lists and
+  static pivots.
+- **Q4** concurrency.
+- **Q5** multi-process via DuckLake.
+- **Q6** Arrow options.
+- **Q7** WASM feasibility.
+
+Deferred, with owners:
+- Linux, Lambda, SnapStart and cold-S3 timings: with deployment.
+- The Windows native image: W1's CI.
+- The binding's WASM proof: D1.
+- The static-pivot dialect rule: before D1.
