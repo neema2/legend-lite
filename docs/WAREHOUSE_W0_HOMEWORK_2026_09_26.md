@@ -102,6 +102,44 @@ that also compile to WebAssembly.
 - **Keep the no-reflection rule** for our own code: that is why our side
   needed no metadata; only the driver's JNI callbacks did.
 
+### Published metadata (checked 2026-09-26)
+
+- **DuckDB's own driver repo** now carries
+  `META-INF/native-image/org.duckdb/duckdb_jdbc/reachability-metadata.json`
+  inside the jar, so native-image picks it up with no agent. Related
+  changes:
+  - the metadata itself (duckdb-java PR #849, merged 2026-08-30);
+  - a GraalVM CI job (#850);
+  - a time-zone timestamp fix (#852).
+
+  All merged after the latest release (1.5.5.1, 2026-08-03), so the
+  metadata is **unreleased** and ships with the next one. It has 49
+  entries to the probe's 45: UUID, maps, structs, arrays, time-zone
+  timestamps and the timeout exception, which the probe never hit.
+- **GraalVM's shared reachability-metadata repository has nothing for
+  DuckDB.** A few projects keep their own copies.
+- **"Load the library by name first"** (#421) was closed unmerged: the
+  driver keeps unpacking a bundled library, so the `-nolib` driver stays
+  the way to load from disk.
+- **Plan:** take DuckDB's file from their repo now, pinned to a commit;
+  switch to the one inside the jar when it is released; still test the
+  native binary itself in CI.
+
+### Correction: the Java driver now has host functions
+
+DuckDB JDBC **1.5.x** has Java scalar and table functions
+(`DuckDBScalarFunctionBuilder`, added 2026-04, released in 1.5.x; the
+classes are in the 1.5.5.1 jar). The program doc's "the Java driver
+cannot register a host function" held only for **1.4.4**, the version
+legend-lite pins. The warehouse starts on 1.5.x. Upgrading legend-lite
+is a separate change, with its own gate run.
+
+**Open question for W0:** DuckDB registers functions for the whole
+database, not per connection, and runs queries on its own worker
+threads. Can a Java `current_principal()` tell which connection called
+it? If it can, a setter-less identity is possible in pure Java, which
+reopens the identity-extension decision on better terms.
+
 **User, 2026-09-26: good enough to move on.** The Linux, Lambda and
 cold-data items below stay open, measured when deployment is built.
 

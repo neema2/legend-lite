@@ -224,8 +224,9 @@ here, without the engine rewriting anything.
 
 0. **One DuckDB connection per session.** Variables are per connection,
    so one user's identity cannot be seen from another's session.
-0b. **An identity nothing can spoof.** The DuckDB Java driver (1.4.4)
-   cannot register a host function, so identity is guaranteed at the
+0b. **An identity nothing can spoof.** The DuckDB Java driver 1.4.4
+   cannot register a host function (1.5.x can: see W0 homework, "Can a
+   Java function tell its connection?"), so identity is guaranteed at the
    edges:
    - the principal comes **only** from the verified token (signature
      checked against the identity provider, subject claim); a client
