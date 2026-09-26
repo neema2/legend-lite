@@ -115,7 +115,9 @@ def duckdb_interval(text):
 
 def main():
     d = pathlib.Path(sys.argv[1])
-    doc = json.loads((d / "json.json").read_text())
+    # UTF-8 both ways, whatever the platform's code page (Windows reads and prints cp1252 by default)
+    sys.stdout.reconfigure(encoding="utf-8")
+    doc = json.loads((d / "json.json").read_text(encoding="utf-8"))
     want_rows, types = doc["rows"], doc["types"]
     got_rows = []
     chunks = sorted(d.glob("arrow-*.arrows"), key=lambda p: int(p.stem.split("-")[1]))
