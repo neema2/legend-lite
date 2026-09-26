@@ -170,6 +170,15 @@ public final class WarehouseServer implements AutoCloseable {
             if (s == null) throw Reply.error(404, ErrorCode.NOT_FOUND, "no session " + m.group(1));
             sessions.close(s);
             throw new Reply(200, Json.toCompact(ApiJson.session(s.api())));
+        } else if (path.equals("/sql/v1/history") && method.equals("GET")) {
+            int limit = (int) Math.max(1, Math.min(1_000, queryLong(ex, "limit", 100)));
+            try {
+                throw new Reply(200, Json.toCompact(new Json.Arr(history.recent(principal, limit))));
+            } catch (Reply r) {
+                throw r;
+            } catch (Exception e) {
+                throw Reply.error(500, ErrorCode.INTERNAL, String.valueOf(e.getMessage()));
+            }
         } else if (path.equals("/sql/v1/catalogs") && method.equals("GET")) {
             List<Json.Node> out = new ArrayList<>();
             for (String c : catalogs.names()) {
@@ -335,12 +344,17 @@ public final class WarehouseServer implements AutoCloseable {
     }
 
     private static long waitMs(HttpExchange ex, long def) {
+        return queryLong(ex, "waitMs", def);
+    }
+
+    /** A numeric query parameter, or {@code def} when absent or not a number. */
+    private static long queryLong(HttpExchange ex, String name, long def) {
         String q = ex.getRequestURI().getQuery();
         if (q == null) return def;
         for (String part : q.split("&")) {
-            if (part.startsWith("waitMs=")) {
+            if (part.startsWith(name + "=")) {
                 try {
-                    return Long.parseLong(part.substring("waitMs=".length()));
+                    return Long.parseLong(part.substring(name.length() + 1));
                 } catch (NumberFormatException bad) {
                     return def;
                 }
@@ -376,7 +390,7 @@ public final class WarehouseServer implements AutoCloseable {
 
     /**
      * {@code --port N --data DIR --catalog NAME... --user NAME:PASSWORD...
-     * --concurrency N --queue N --duckdb-library FILE}.
+     * --concurrency N --queue N --max-rows N --retain-minutes N --duckdb-library FILE}.
      */
     public static void main(String[] args) throws Exception {
         int port = 8765;
@@ -385,6 +399,8 @@ public final class WarehouseServer implements AutoCloseable {
         List<String[]> users = new ArrayList<>();
         int concurrency = 2;
         int queue = 100;
+        long maxRows = 10_000_000;
+        long retainMinutes = 10;
         Path library = null;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -395,12 +411,14 @@ public final class WarehouseServer implements AutoCloseable {
                 case "--concurrency" -> concurrency = Integer.parseInt(args[++i]);
                 case "--queue" -> queue = Integer.parseInt(args[++i]);
                 case "--duckdb-library" -> library = Path.of(args[++i]);
+                case "--max-rows" -> maxRows = Long.parseLong(args[++i]);
+                case "--retain-minutes" -> retainMinutes = Long.parseLong(args[++i]);
                 default -> throw new IllegalArgumentException("unknown argument " + args[i]);
             }
         }
         if (cats.isEmpty()) cats.add(StatementRequest.DEFAULT_CATALOG);
         WarehouseServer s = new WarehouseServer(new Config(port, data, cats, users, null, Duration.ofHours(1),
-                new Statements.Limits(concurrency, queue, 10_000_000, Duration.ofMinutes(10)), library));
+                new Statements.Limits(concurrency, queue, maxRows, Duration.ofMinutes(retainMinutes)), library));
         System.err.println("warehouse listening on 127.0.0.1:" + s.port() + ", catalogs " + cats);
     }
 }

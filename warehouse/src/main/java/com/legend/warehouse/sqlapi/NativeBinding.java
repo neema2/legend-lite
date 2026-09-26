@@ -96,6 +96,17 @@ public final class NativeBinding implements SqlApiBinding {
         return new HttpCall("DELETE", "/sql/v1/sessions/" + sessionId, json(token), null);
     }
 
+    @Override
+    public HttpCall history(int limit, String token) {
+        return new HttpCall("GET", "/sql/v1/history?limit=" + limit, json(token), null);
+    }
+
+    @Override
+    public java.util.List<SqlApi.HistoryEntry> history(HttpResult result) {
+        if (result.status() != 200) throw new IllegalStateException(failure(result).message());
+        return ApiJson.parseHistory(result.body());
+    }
+
     private static ApiError failure(HttpResult result) {
         ApiError e = ApiJson.errorOf(result.body());
         return e != null ? e : new ApiError(ErrorCode.INTERNAL, "HTTP " + result.status() + ": " + result.body());

@@ -8,8 +8,12 @@ import com.legend.warehouse.server.duck.DuckException;
 import com.legend.warehouse.server.duck.Result;
 import com.legend.warehouse.sqlapi.SqlApi.ApiError;
 import com.legend.warehouse.sqlapi.SqlApi.ResultMeta;
+import com.legend.server.Json;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 
 /**
  * Every statement, as it finishes: who ran it, what, when, and how it
@@ -54,6 +58,29 @@ public final class History implements AutoCloseable {
         } catch (DuckException failed) {
             // History must never fail the statement it describes.
             System.err.println("warehouse: could not record statement " + run.id + ": " + failed.getMessage());
+        }
+    }
+
+    /**
+     * The principal's own most recent statements, newest first, as the API reports them
+     * ({@code GET /sql/v1/history}): each statement's id, catalog, SQL, state, times, rows and error.
+     */
+    public synchronized List<Json.Node> recent(String principal, int limit) throws Exception {
+        try (Result r = conn.execute("""
+                SELECT statement_id, catalog, sql_text, state, strftime(submitted_at, '%Y-%m-%dT%H:%M:%S.%fZ'),
+                       strftime(finished_at, '%Y-%m-%dT%H:%M:%S.%fZ'), row_count, error_code
+                FROM query_history WHERE principal = ? ORDER BY submitted_at DESC, statement_id LIMIT ?""",
+                principal, (long) limit)) {
+            List<Json.Node> out = new ArrayList<>();
+            String[] names = {"statementId", "catalog", "sql", "state", "submittedAt", "finishedAt", "rowCount", "errorCode"};
+            for (List<Json.Node> row : Collect.json(r, limit)) {
+                LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>();
+                for (int i = 0; i < names.length; i++) {
+                    if (!(row.get(i) instanceof Json.Null)) f.put(names[i], row.get(i));
+                }
+                out.add(new Json.Obj(f));
+            }
+            return out;
         }
     }
 

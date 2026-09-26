@@ -6,7 +6,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.warehouse.server.Statements;
-import com.legend.warehouse.server.WarehouseServer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Array;
@@ -41,16 +40,14 @@ import org.junit.jupiter.api.Test;
  */
 class WarehouseJdbcTest {
 
-    static WarehouseServer server;
+    static TestServer server;
     static Connection remote;
     static Connection local;
 
     @BeforeAll
     static void start() throws Exception {
         Path data = Files.createTempDirectory("warehouse-jdbc");
-        server = new WarehouseServer(new WarehouseServer.Config(0, data, List.of("main"),
-                List.<String[]>of(new String[] {"alice", "alice-pw"}), null, Duration.ofMinutes(5),
-                new Statements.Limits(2, 50, 1_000_000, Duration.ofMinutes(5))));
+        server = TestServer.start(data, List.<String[]>of(new String[] {"alice", "alice-pw"}), new Statements.Limits(2, 50, 1_000_000, Duration.ofMinutes(5)));
         remote = DriverManager.getConnection("jdbc:warehouse:http://127.0.0.1:" + server.port()
                 + "/main?user=alice&password=alice-pw");
         local = DriverManager.getConnection("jdbc:duckdb:");

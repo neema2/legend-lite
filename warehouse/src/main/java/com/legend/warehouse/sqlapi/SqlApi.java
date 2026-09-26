@@ -153,6 +153,11 @@ public final class SqlApi {
     public record Session(String sessionId, String catalog, String engine, String engineVersion) {
     }
 
+    /** One of the caller's statements, from {@code GET /sql/v1/history}. */
+    public record HistoryEntry(String statementId, String catalog, String sql, State state, String submittedAt,
+            @Nullable String finishedAt, @Nullable Long rowCount, @Nullable String errorCode) {
+    }
+
     /** A signed-in session's token. */
     public record Token(String token, String expiresAt, String principal) {
     }

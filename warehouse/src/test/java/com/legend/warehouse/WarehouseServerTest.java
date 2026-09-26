@@ -7,8 +7,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.server.Json;
 import com.legend.warehouse.server.Statements;
-import com.legend.warehouse.server.WarehouseServer;
 import com.legend.warehouse.sqlapi.NativeBinding;
+import com.legend.warehouse.sqlapi.SqlApi;
 import com.legend.warehouse.sqlapi.SqlApi.ApiError;
 import com.legend.warehouse.sqlapi.SqlApi.Chunk;
 import com.legend.warehouse.sqlapi.SqlApi.ErrorCode;
@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Test;
  */
 class WarehouseServerTest {
 
-    static WarehouseServer server;
+    static TestServer server;
     static Path data;
     static final HttpClient HTTP = HttpClient.newHttpClient();
     static final SqlApiBinding API = new NativeBinding(2_000);
@@ -50,10 +50,8 @@ class WarehouseServerTest {
     @BeforeAll
     static void start() throws Exception {
         data = Files.createTempDirectory("warehouse-test");
-        server = new WarehouseServer(new WarehouseServer.Config(0, data, List.of("main"),
-                List.of(new String[] {"alice", "alice-pw"}, new String[] {"bob", "bob-pw"}),
-                null, Duration.ofMinutes(5),
-                new Statements.Limits(2, 50, 1_000_000, Duration.ofMinutes(5))));
+        server = TestServer.start(data, List.of(new String[] {"alice", "alice-pw"}, new String[] {"bob", "bob-pw"}),
+                new Statements.Limits(2, 50, 1_000_000, Duration.ofMinutes(5)));
     }
 
     @AfterAll
@@ -67,7 +65,7 @@ class WarehouseServerTest {
         return sendTo(server, c);
     }
 
-    static HttpResult sendTo(WarehouseServer server, HttpCall c) throws Exception {
+    static HttpResult sendTo(TestServer server, HttpCall c) throws Exception {
         HttpRequest.Builder b = HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + server.port() + c.path()));
         c.headers().forEach(b::header);
         String body = c.body();
@@ -86,7 +84,7 @@ class WarehouseServerTest {
         return runOn(server, token, req);
     }
 
-    static SqlApiBinding.Step runOn(WarehouseServer server, String token, StatementRequest req) throws Exception {
+    static SqlApiBinding.Step runOn(TestServer server, String token, StatementRequest req) throws Exception {
         SqlApiBinding.Step step = API.next(sendTo(server, API.submit(req, token)), token);
         while (step instanceof SqlApiBinding.Poll p) step = API.next(sendTo(server, p.call()), token);
         return step;
@@ -97,7 +95,7 @@ class WarehouseServerTest {
         return rowsOn(server, token, done);
     }
 
-    static List<List<Json.Node>> rowsOn(WarehouseServer server, String token, SqlApiBinding.Done done) throws Exception {
+    static List<List<Json.Node>> rowsOn(TestServer server, String token, SqlApiBinding.Done done) throws Exception {
         Status s = done.status();
         List<List<Json.Node>> out = new ArrayList<>();
         int chunks = s.result().chunkCount();
@@ -275,10 +273,8 @@ class WarehouseServerTest {
     @Test
     void aFullQueueRefusesInsteadOfGrowing() throws Exception {
         Path dir = Files.createTempDirectory("warehouse-queue");
-        try (WarehouseServer small = new WarehouseServer(new WarehouseServer.Config(0, dir, List.of("main"),
-                List.<String[]>of(new String[] {"alice", "alice-pw"}), null, Duration.ofMinutes(5),
-                new Statements.Limits(1, 1, 1_000, Duration.ofMinutes(5))))) {
-            WarehouseServer saved = server;
+        try (TestServer small = TestServer.start(dir, List.<String[]>of(new String[] {"alice", "alice-pw"}), new Statements.Limits(1, 1, 1_000, Duration.ofMinutes(5)))) {
+            TestServer saved = server;
             server = small;
             try {
                 String t = login("alice", "alice-pw");
@@ -302,11 +298,18 @@ class WarehouseServerTest {
     @Test
     void writesWorkForTheirUserAndEveryStatementIsInTheHistory() throws Exception {
         String t = login("bob", "bob-pw");
-        long before = server.history().count("bob");
         query(t, "CREATE OR REPLACE TABLE bob_notes AS SELECT 1 AS id, 'hello' AS note");
         List<List<Json.Node>> r = query(t, "SELECT note FROM bob_notes");
         assertEquals("hello", str(r.get(0).get(0)));
-        assertEquals(before + 2, server.history().count("bob"));
+        // the history, through the API: the caller's own statements, newest first
+        List<SqlApi.HistoryEntry> h = API.history(send(API.history(2, t)));
+        assertEquals(List.of("SELECT note FROM bob_notes", "CREATE OR REPLACE TABLE bob_notes AS SELECT 1 AS id, 'hello' AS note"),
+                h.stream().map(SqlApi.HistoryEntry::sql).toList());
+        assertEquals(State.SUCCEEDED, h.get(0).state());
+        assertEquals(1L, h.get(0).rowCount());
+        String a = login("alice", "alice-pw");
+        assertTrue(API.history(send(API.history(1000, a))).stream().noneMatch(e -> e.sql().contains("bob_notes")),
+                "another user's statements are not in your history");
     }
 
     @Test

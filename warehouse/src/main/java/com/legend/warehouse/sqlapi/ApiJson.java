@@ -191,6 +191,18 @@ public final class ApiJson {
         return parseChunk(Json.parseObject(body));
     }
 
+    public static List<SqlApi.HistoryEntry> parseHistory(String body) {
+        List<SqlApi.HistoryEntry> out = new ArrayList<>();
+        for (Json.Node n : ((Json.Arr) Json.parse(body)).items()) {
+            Json.Obj o = (Json.Obj) n;
+            String rows = o.getStringOr("rowCount", null);
+            out.add(new SqlApi.HistoryEntry(o.getString("statementId"), o.getString("catalog"), o.getString("sql"),
+                    State.ofWire(o.getString("state")), o.getString("submittedAt"), o.getStringOr("finishedAt", null),
+                    rows == null ? null : Long.valueOf(rows), o.getStringOr("errorCode", null)));
+        }
+        return out;
+    }
+
     /** The error a failed call carried, if its body is one of ours. */
     public static @Nullable ApiError errorOf(String body) {
         try {

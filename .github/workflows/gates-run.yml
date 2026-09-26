@@ -40,6 +40,7 @@ jobs:
         env:
           WANT: ${{ inputs.gates }}
           LOW_MEMORY: ${{ inputs.low-memory }}
+          PLATFORM: ${{ inputs.platform }}
         run: |
           set -eu
           if [ "$LOW_MEMORY" = "true" ]; then
@@ -58,15 +59,18 @@ jobs:
             {"key":"8",      "name":"gate 8 parser equivalence",       "targets":"//parser-equivalence:parser_parity"},
             {"key":"9",      "name":"gate 9 Channel B dual-verdict",   "targets":"//pct:pct_channel_b"},
             {"key":"10",     "name":"gate 10 stress corpus",           "targets":"//core:stress_suites"},
-            {"key":"app",    "name":"DataCube app, WASM planner, warehouse", "targets":"//datacube:tests //wasm:all //warehouse:tests"}
+            {"key":"app",    "name":"DataCube app, WASM planner, warehouse", "targets":"//datacube:tests //wasm:all //warehouse:tests"},
+            {"key":"native", "name":"warehouse as a native image",     "targets":"//warehouse:tests"}
           ]')
+          # the native image is built on Linux and macOS (Windows needs its own toolchain setup: owed)
+          if [ "$PLATFORM" = windows ]; then all=$(printf '%s' "$all" | jq -c '[.[] | select(.key != "native")]'); fi
           if [ -n "${WANT:-}" ]; then
             lanes=$(printf '%s' "$all" | jq -c --arg w ",$WANT," '[.[] | . as $e | select($w | contains("," + $e.key + ","))]')
           else
             lanes=$all
           fi
           [ "$(printf '%s' "$lanes" | jq 'length')" -gt 0 ] || {
-            echo "::error ::no lane matches gates='${WANT:-}' — valid keys: 1,checks,3,4,5,6,7,8,9,10,app"
+            echo "::error ::no lane matches gates='${WANT:-}' — valid keys: 1,checks,3,4,5,6,7,8,9,10,app,native"
             exit 1
           }
           echo "lanes=$lanes" >> "$GITHUB_OUTPUT"
@@ -109,12 +113,24 @@ jobs:
           restore-keys: |
             bazel-${{ inputs.platform }}-${{ hashFiles('MODULE.bazel.lock', 'maven_*_install.json', '.bazelversion') }}-
             bazel-${{ inputs.platform }}-
-      - name: pyarrow, the warehouse's Arrow test's standard reader (test-only, app lane)
-        if: matrix.lane.key == 'app'
+      - name: pyarrow, the warehouse's Arrow test's standard reader (test-only)
+        if: matrix.lane.key == 'app' || matrix.lane.key == 'native'
         run: |
           set -eu
           py=python3; command -v python3 >/dev/null 2>&1 || py=python
           "$py" -m pip install --quiet --target "$RUNNER_TEMP/pyarrow" pyarrow==23.0.1
+      - name: GraalVM (native lane)
+        if: matrix.lane.key == 'native'
+        uses: graalvm/setup-graalvm@v1
+        with:
+          java-version: '25'
+          distribution: 'graalvm-community'
+      - name: the warehouse as a native image (native lane)
+        if: matrix.lane.key == 'native'
+        run: |
+          set -eu
+          BAZEL_FLAGS="--config=ci --repository_cache=$HOME/.cache/bazel-repo --disk_cache=$HOME/.cache/bazel-disk" \
+            warehouse/tools/build-native.sh "$RUNNER_TEMP/native"
       - name: bazel test ${{ matrix.lane.targets }}
         env:
           LANE_TARGETS: ${{ matrix.lane.targets }}
@@ -124,8 +140,12 @@ jobs:
           flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo" --disk_cache="$HOME/.cache/bazel-disk")
           if [ "$LOW_MEMORY" = "true" ]; then flags+=(--config=ci-small --local_test_jobs=1); fi
           # the warehouse's Arrow test finds python with pyarrow, and FAILS (rather than skips) without it
-          if [ "${{ matrix.lane.key }}" = app ]; then
+          if [ "${{ matrix.lane.key }}" = app ] || [ "${{ matrix.lane.key }}" = native ]; then
             flags+=(--test_env=PATH --test_env=PYTHONPATH="$RUNNER_TEMP/pyarrow" --test_env=WAREHOUSE_ARROW_CHECK=required)
+          fi
+          # the same warehouse suite, judging the native binary instead of an in-process server
+          if [ "${{ matrix.lane.key }}" = native ]; then
+            flags+=(--test_env=WAREHOUSE_BINARY="$RUNNER_TEMP/native/warehouse")
           fi
           # GENERATED: every committed generated file's diff test (//:update_generated's)
           targets=()

@@ -19,9 +19,32 @@ public final class DuckLibrary {
     private DuckLibrary() {
     }
 
-    /** Loads DuckDB: from {@code explicit} when given, else from the classpath. */
+    /**
+     * Loads DuckDB: from {@code explicit} when given; in a native image, from beside the executable
+     * (the image ships with it); on the JVM, from DuckDB's JDBC jar on the classpath.
+     */
     public static void load(@Nullable Path explicit) throws IOException {
-        Duck.load(explicit != null ? explicit : extracted());
+        if (explicit != null) {
+            Duck.load(explicit);
+        } else if (System.getProperty("org.graalvm.nativeimage.imagecode") != null) {
+            Duck.load(besideExecutable());
+        } else {
+            Duck.load(extracted());
+        }
+    }
+
+    /** The library beside a native executable: under its platform name, or {@code libduckdb_java.so}. */
+    private static Path besideExecutable() throws IOException {
+        String command = ProcessHandle.current().info().command().orElseThrow(
+                () -> new IOException("cannot tell where this executable is; pass --duckdb-library"));
+        Path dir = Path.of(command).toAbsolutePath().getParent();
+        if (dir == null) throw new IOException("no directory for " + command + "; pass --duckdb-library");
+        for (String name : new String[] {resourceName(), "libduckdb_java.so"}) {
+            Path p = dir.resolve(name);
+            if (Files.isRegularFile(p)) return p;
+        }
+        throw new IOException("DuckDB's library is not beside " + command + " (" + resourceName()
+                + " or libduckdb_java.so); pass --duckdb-library");
     }
 
     /** DuckDB's version, as its drivers report it ("v1.5.5"). */

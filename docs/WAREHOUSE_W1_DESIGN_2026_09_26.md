@@ -84,6 +84,9 @@ POST   /sql/v1/sessions       {"catalog": "main"}
   → {"sessionId", "catalog", "engine": "DuckDB", "engineVersion": "v1.5.5"}
 DELETE /sql/v1/sessions/{id}
 
+GET  /sql/v1/history?limit=100         → the caller's own statements, newest first:
+     [{"statementId", "catalog", "sql", "state", "submittedAt", "finishedAt"?, "rowCount"?, "errorCode"?}]
+
 GET  /sql/v1/catalogs                  → [{"name"}]
 GET  /sql/v1/catalogs/{c}/objects      → [{"schema", "name", "kind": "table"|"view", "columns": [{"name", "type"}]}]
 ```
@@ -150,7 +153,7 @@ calls. Vendor bindings (V*) implement the same interface.
 | **W1b** | `:client`: the `java.net.http` driver and the `java.sql.Driver` | a JDBC conformance suite: types round-trip, nulls, big results across chunks, errors carry codes |
 | **W1c** | **The corpus proof:** legend-lite's DuckDB lane with its connection pointed at the warehouse through `jdbc:warehouse:` (data loaded by an owner user) | the lane's pass count equals the in-process DuckDB lane's; every difference is a red row, explained, never masked |
 | **W1d** | Arrow chunks: `nanoarrow` vs our writer, measured, and the winner shipped. **Became:** the server on DuckDB's C API through FFM, Arrow from `duckdb_data_chunk_to_arrow`, the identity function | 1M-row timing; a standard Arrow reader reads every chunk; the JSON and Arrow values of one result are identical; W1c re-run |
-| **W1e** | The native image of `:server` (metadata from DuckDB's official file, W0), a CI build, and tests run **against the binary** | the conformance suite on the native executable |
+| **W1e** | The native image of `:server`, a CI build, and tests run **against the binary** | the conformance suite on the native executable |
 
 **Not in W1:**
 - grants, ACL views and the authorizer (W2);
@@ -300,4 +303,37 @@ connection.
 - A nested TIMESTAMP before year 1 in JSON: DuckDB's driver reads nested
   timestamps through `java.sql.Timestamp` (wrong for BC years); ours is
   right. Not in the differential.
+
+## W1e: the server as a native image (2026-09-26)
+
+**The same test suite judges the native binary.** `warehouse/tools/build-native.sh OUT_DIR` builds
+`OUT_DIR/warehouse` from the server's own jars (server, API, core: no DuckDB jar, no JDBC) and puts
+DuckDB's library for the platform beside it, where the binary looks first. With
+`WAREHOUSE_BINARY=<executable>`, every warehouse test starts that executable (the tests'
+`TestServer`) instead of an in-process server, on a free port, with the same users and limits, and
+talks to it over HTTP only.
+
+- **Metadata** (`META-INF/native-image/com.legend/warehouse/reachability-metadata.json`, in the
+  server jar, so native-image reads it with no flags): 39 FFM call shapes, the identity function's 3
+  upcalls, the JDK's HTTP server and crypto providers, time-zone data. Recorded by GraalVM's agent while
+  the whole suite runs against the JVM server (`build-native.sh --record`, one agent directory per
+  process, merged); re-recording reproduces the committed file byte for byte.
+- **`GET /sql/v1/history`:** the caller's own statements, newest first (the history test reads it
+  through the API, so it judges the binary too; another user's statements are not in yours).
+- **CI:** the `native` lane (Linux, macOS) installs GraalVM CE 25, builds with the script, and runs
+  `//warehouse:tests` against the binary, with the Arrow check required.
+
+**Measured (this machine, GraalVM CE 25.0.1, a 21.5 MB binary, built in ~23 s):**
+
+| | native image | JVM |
+|---|---|---|
+| start to listening (DuckDB opened, system database, identity function) | **161 ms** | |
+| idle memory | **60 MB** | |
+| `//warehouse:tests` | **35/35** | 35/35 |
+| 1M rows x 8 as Arrow over HTTP | **158–167 ms** | 76–135 ms |
+| 1M rows x 8 as JSON over HTTP | **2.7–4.0 s**, 2.7 GB resident after | 0.73–0.95 s |
+
+**Owed:** the JSON path builds a tree of objects per value and holds it for the retention period;
+the native image's serial collector pays most. JSON chunks should be written straight to bytes, as
+Arrow chunks are (next). Windows native builds (a separate toolchain setup).
 

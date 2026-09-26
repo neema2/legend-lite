@@ -67,4 +67,9 @@ public interface SqlApiBinding {
     SqlApi.Session session(HttpResult result);
 
     HttpCall closeSession(String sessionId, String token);
+
+    /** The caller's own most recent statements, newest first. */
+    HttpCall history(int limit, String token);
+
+    java.util.List<SqlApi.HistoryEntry> history(HttpResult result);
 }

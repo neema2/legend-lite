@@ -62,6 +62,11 @@ java_library(
     # DuckDB's native library, for every platform, rides inside its JDBC jar: the server calls DuckDB's
     # C API through java.lang.foreign and uses no JDBC class (docs/WAREHOUSE_FFM_HOMEWORK_2026_09_26.md).
     runtime_deps = ["@maven_warehouse//:org_duckdb_duckdb_jdbc"],
+    # What a native image of the server needs to know ahead of time (W1e): its FFM call shapes and
+    # upcalls, the JDK's HTTP server and crypto providers. Recorded by GraalVM's agent under the
+    # warehouse test suite (warehouse/tools/build-native.sh --record); native-image reads it from the jar.
+    resource_strip_prefix = "warehouse/src/main/resources",
+    resources = glob(["src/main/resources/**"]),
 )
 
 # `bazel run //warehouse:server -- --user alice:secret --data /tmp/wh`

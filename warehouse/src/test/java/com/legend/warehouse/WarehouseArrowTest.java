@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.server.Json;
 import com.legend.warehouse.server.Statements;
-import com.legend.warehouse.server.WarehouseServer;
 import com.legend.warehouse.sqlapi.NativeBinding;
 import com.legend.warehouse.sqlapi.SqlApi.ResultFormat;
 import com.legend.warehouse.sqlapi.SqlApi.StatementRequest;
@@ -35,22 +34,21 @@ import org.junit.jupiter.api.Test;
  */
 class WarehouseArrowTest {
 
-    static WarehouseServer server;
+    static TestServer server;
     static String token;
     static final HttpClient HTTP = HttpClient.newHttpClient();
     static final SqlApiBinding API = new NativeBinding(2_000);
 
     @BeforeAll
     static void start() throws Exception {
-        server = new WarehouseServer(new WarehouseServer.Config(0, Files.createTempDirectory("warehouse-arrow"),
-                List.of("main"), List.<String[]>of(new String[] {"alice", "alice-pw"}), null, Duration.ofMinutes(5),
-                new Statements.Limits(2, 50, 1_000_000, Duration.ofMinutes(5))));
+        server = TestServer.start(Files.createTempDirectory("warehouse-arrow"),
+                List.<String[]>of(new String[] {"alice", "alice-pw"}), new Statements.Limits(2, 50, 1_000_000, Duration.ofMinutes(5)));
         token = API.token(WarehouseServerTest.sendTo(server, API.login("alice", "alice-pw"))).token();
         WarehouseServerTest.runOn(server, token, StatementRequest.of("CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy')"));
     }
 
     @AfterAll
-    static void stop() {
+    static void stop() throws Exception {
         server.close();
     }
 
