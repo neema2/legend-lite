@@ -266,25 +266,30 @@ const AD_HOC: AdHocCube = {
   const row = (name: string, window: WindowSpec, kind: 'measure' | 'dimension' = 'measure') =>
     ({ name, expression: '', kind, window });
   const grp = (name: string, window: WindowSpec) => ({ name, expression: '', window });
+  // Every order-sensitive window (a running or moving frame, lag, last, ntile) orders by
+  // enough keys to be TOTAL: rows are unique on (book, year, qtr) in any data this corpus
+  // runs over (the mode differential's included), so no answer depends on how an engine
+  // happens to order tied rows. rank is safe with ties (equal keys, equal rank).
   const WIN_ROW = snap({
     rows: ['region', 'desk'],
     measures: SUM_NOTIONAL,
     derived: [
       row('cum_notional', { fn: 'sum', column: 'notional', partition: ['region'],
-        order: [{ column: 'year', direction: 'asc' }, { column: 'qtr', direction: 'asc' }], frame: 'running' }),
+        order: [{ column: 'year', direction: 'asc' }, { column: 'qtr', direction: 'asc' }, { column: 'book', direction: 'asc' }], frame: 'running' }),
       row('moving_avg', { fn: 'average', column: 'pnl', partition: ['desk'],
-        order: [{ column: 'year', direction: 'asc' }], frame: { lastRows: 3 } }),
+        order: [{ column: 'year', direction: 'asc' }, { column: 'qtr', direction: 'asc' }, { column: 'book', direction: 'asc' }], frame: { lastRows: 3 } }),
       row('prev_pnl', { fn: 'lag', column: 'pnl', partition: ['book'],
-        order: [{ column: 'year', direction: 'asc' }], offset: 2 }),
+        order: [{ column: 'year', direction: 'asc' }, { column: 'qtr', direction: 'asc' }], offset: 2 }),
       row('rank_in_desk', { fn: 'rank', partition: ['region', 'desk'],
         order: [{ column: 'notional', direction: 'desc' }] }, 'dimension'),
       row('global_running', { fn: 'sum', column: 'qty',
-        partition: [], order: [{ column: 'year', direction: 'asc' }], frame: 'running' }),
+        partition: [], order: [{ column: 'year', direction: 'asc' }, { column: 'qtr', direction: 'asc' }, { column: 'book', direction: 'asc' }], frame: 'running' }),
       row('region_total', { fn: 'sum', column: 'notional', partition: ['region'], order: [] }),
       row('table_max', { fn: 'max', column: 'pnl', partition: [], order: [] }),
-      row('bucket', { fn: 'ntile', partition: [], order: [{ column: 'pnl', direction: 'asc' }], buckets: 4 }, 'dimension'),
+      row('bucket', { fn: 'ntile', partition: [],
+        order: [{ column: 'pnl', direction: 'asc' }, { column: 'book', direction: 'asc' }, { column: 'year', direction: 'asc' }, { column: 'qtr', direction: 'asc' }], buckets: 4 }, 'dimension'),
       row('last_notional', { fn: 'last', column: 'notional', partition: ['region'],
-        order: [{ column: 'year', direction: 'asc' }] }),
+        order: [{ column: 'year', direction: 'asc' }, { column: 'qtr', direction: 'asc' }, { column: 'book', direction: 'asc' }] }),
     ],
   });
   for (const level of [0, 1, 2]) {

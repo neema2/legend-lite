@@ -72,11 +72,11 @@ be an ordinary `js_test` in `bazel test //...` with no JVM in it.
 
 1. **Arrow JS as the page's own dependency** (`apache-arrow` 17.0.0 in datacube/package.json). It
    ships already, inside DuckDB-WASM; declaring it adds no bytes. Recommended: yes.
-2. **Pivots in Direct mode.** The only correct reader-runnable form (static `IN` of every
-   distinct value, no pre-filter) is one the planner does not emit, and the planner is the
-   untangle's area. Recommended: D1 ships with pivots **refused in Direct mode with a message
-   that says so**, and the planner form (plus the cube's distinct-values pre-query, and the
-   broken `pivotValues` spelling) goes to the untangle's queue as a written request.
+2. **Pivots: DECIDED (user, 2026-09-26): the static pivot, by a double query.** The cube first
+   asks for the pivot column's distinct values (an ordinary query a reader may run), then asks
+   for the pivot with those values as a static `IN` list and **no pre-filter** (measured equal to
+   today's dynamic pivot, NULL-key groups included). The second half is a planner form legend-lite
+   does not emit today, in the untangle's area: it is designed with them before it is written.
 3. **Browser access.** Recommended: `--allow-origin ORIGIN` on the warehouse (repeatable, exact
    origins, no wildcard, preflight answered), rather than serving the page from the warehouse.
 
@@ -101,6 +101,14 @@ be an ordinary `js_test` in `bazel test //...` with no JVM in it.
   order-dependent by accident); pivots are expected refusals until decision 2's planner leg lands.
 - **D1e — the browser check:** the demo in Direct mode against a running warehouse (sign in, pick
   a table, the grid fills, a denied table says so), in the existing harness pattern.
+
+**Deterministic cases (user, 2026-09-26).** Every order-sensitive row-level window in the cube
+corpus (`datacube/test/wasm-differential/cases.ts`) now orders by keys that are total over rows
+unique on `(book, year, qtr)`; the mode differential's data keeps that triple unique. Cases whose
+outer query has no `ORDER BY` stay that way — the product must not add an order it did not ask
+for (test-lane order ruling, 2026-09-20) — and are compared as multisets: `flat` (no sort asked),
+the grand-total levels (one row), and the child-group aggregates (`children-*`, joined to the tree
+by key, so their row order never reaches the grid).
 
 **Not in D1:** JSON/Variant columns (the variant branch), the static-pivot planner form (the
 untangle's area, decision 2), re-recording the native-image metadata as a Bazel target (owed from
