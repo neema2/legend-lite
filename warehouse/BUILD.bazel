@@ -33,6 +33,22 @@ java_library(
     deps = ["//core"],
 )
 
+# The JVM client: the java.net.http driver for a binding, and a JDBC driver over
+# it (jdbc:warehouse:http://host:port/catalog) whose values are the SAME Java
+# objects DuckDB's own driver returns -- legend-lite's executor runs unchanged.
+java_library(
+    name = "client",
+    srcs = glob(["src/main/java/com/legend/warehouse/client/**/*.java"]),
+    javacopts = NULLAWAY_OPTS,
+    plugins = ["//core:nullaway"],
+    resources = ["src/main/resources/META-INF/services/java.sql.Driver"],
+    resource_strip_prefix = "warehouse/src/main/resources",
+    deps = [
+        ":sqlapi",
+        "//core",
+    ],
+)
+
 # The process: the JDK's HTTP server, DuckDB 1.5.5.1 (its own Maven set).
 java_library(
     name = "server_lib",
@@ -58,9 +74,11 @@ java_library(
     testonly = True,
     srcs = glob(["src/test/java/**/*.java"]),
     deps = [
+        ":client",
         ":server_lib",
         ":sqlapi",
         "//core",
+        "@maven_warehouse//:org_duckdb_duckdb_jdbc",
         "@maven_test//:org_junit_jupiter_junit_jupiter",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],

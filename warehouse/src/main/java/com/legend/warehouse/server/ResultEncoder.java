@@ -2,36 +2,42 @@ package com.legend.warehouse.server;
 
 import com.legend.Nullable;
 import com.legend.server.Json;
+import com.legend.warehouse.sqlapi.DuckType;
 import com.legend.warehouse.sqlapi.SqlApi.Column;
 import java.math.BigDecimal;
+import java.sql.Array;
+import java.sql.Blob;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.time.LocalDate;
+import java.sql.Struct;
+import java.sql.Timestamp;
 import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Base64;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
+import java.util.Map;
 
 /**
  * A JDBC result as the API's columns and JSON values
  * (docs/WAREHOUSE_W1_DESIGN_2026_09_26.md §3).
  *
- * <p>THE TYPE LIST IS CLOSED. Each DuckDB type maps to exactly one API
- * type and one JSON spelling; a type outside the list is refused with its
- * name, never guessed at. 64-bit and wider integers and decimals travel as
- * STRINGS, so a JavaScript client loses no precision; dates and times are
- * ISO-8601.
+ * <p>A column's API type is DuckDB's own type name, unchanged; its values
+ * are encoded by walking that type ({@link DuckType}):
+ * <ul>
+ *   <li>64-bit and wider integers, and decimals, as STRINGS, so a
+ *   JavaScript client loses no precision;</li>
+ *   <li>dates and times ISO-8601; NaN and infinities as their names;
+ *   blobs as base64; JSON as its text;</li>
+ *   <li>a list as an array, a struct as an object, a map as an array of
+ *   {@code [key, value]} pairs (keys need not be strings).</li>
+ * </ul>
+ * A type outside what this knows is refused with its name, never guessed.
  */
 final class ResultEncoder {
 
-    /** How one column's values are read and written. */
-    enum Kind { BOOLEAN, SMALL_INT, WIDE_INT, BIG_INT, DECIMAL, FLOATING, TEXT, BLOB, DATE, TIME, TIMESTAMP, TIMESTAMP_TZ }
-
-    record Col(String name, String apiType, Kind kind) {
+    record Col(String name, String typeName, DuckType type) {
     }
 
     /** A type the API does not carry. */
@@ -48,105 +54,126 @@ final class ResultEncoder {
         List<Col> out = new ArrayList<>();
         for (int i = 1; i <= md.getColumnCount(); i++) {
             String name = md.getColumnLabel(i);
-            String type = md.getColumnTypeName(i).toUpperCase(Locale.ROOT);
-            Kind kind = kindOf(type);
-            if (kind == null) throw new Unsupported(name, type);
-            out.add(new Col(name, apiType(type, kind), kind));
+            String typeName = md.getColumnTypeName(i);
+            DuckType t;
+            try {
+                t = DuckType.parse(typeName);
+            } catch (IllegalArgumentException bad) {
+                throw new Unsupported(name, typeName);
+            }
+            if (!supported(t)) throw new Unsupported(name, typeName);
+            out.add(new Col(name, typeName, t));
         }
         return out;
     }
 
     static List<Column> api(List<Col> cols) {
         List<Column> out = new ArrayList<>(cols.size());
-        for (Col c : cols) out.add(new Column(c.name(), c.apiType(), true));
+        for (Col c : cols) out.add(new Column(c.name(), c.typeName(), true));
         return out;
     }
 
-    private static @Nullable Kind kindOf(String t) {
-        if (t.startsWith("DECIMAL")) return Kind.DECIMAL;
+    private static boolean supported(DuckType t) {
         return switch (t) {
-            case "BOOLEAN" -> Kind.BOOLEAN;
-            case "TINYINT", "SMALLINT", "INTEGER", "UTINYINT", "USMALLINT", "UINTEGER" -> Kind.SMALL_INT;
-            case "BIGINT" -> Kind.WIDE_INT;
-            case "UBIGINT", "HUGEINT", "UHUGEINT" -> Kind.BIG_INT;
-            case "FLOAT", "DOUBLE" -> Kind.FLOATING;
-            case "VARCHAR", "UUID", "INTERVAL" -> Kind.TEXT;
-            case "BLOB" -> Kind.BLOB;
-            case "DATE" -> Kind.DATE;
-            case "TIME" -> Kind.TIME;
-            case "TIMESTAMP", "TIMESTAMP_S", "TIMESTAMP_MS", "TIMESTAMP_NS" -> Kind.TIMESTAMP;
-            case "TIMESTAMP WITH TIME ZONE" -> Kind.TIMESTAMP_TZ;
-            default -> null;
+            case DuckType.Scalar s -> SCALARS.contains(s.base());
+            case DuckType.ListOf l -> supported(l.element());
+            case DuckType.StructOf st -> st.fields().stream().allMatch(f -> supported(f.type()));
+            case DuckType.MapOf m -> supported(m.key()) && supported(m.value());
         };
     }
 
-    private static String apiType(String t, Kind k) {
-        return switch (k) {
-            case TIMESTAMP -> "TIMESTAMP";
-            default -> t;
-        };
-    }
+    private static final java.util.Set<String> SCALARS = java.util.Set.of(
+            "BOOLEAN", "TINYINT", "SMALLINT", "INTEGER", "BIGINT", "HUGEINT",
+            "UTINYINT", "USMALLINT", "UINTEGER", "UBIGINT", "UHUGEINT",
+            "FLOAT", "DOUBLE", "DECIMAL", "VARCHAR", "UUID", "INTERVAL", "ENUM", "JSON", "BLOB",
+            "DATE", "TIME", "TIMESTAMP", "TIMESTAMP_S", "TIMESTAMP_MS", "TIMESTAMP_NS",
+            "TIMESTAMP WITH TIME ZONE");
 
     /** The current row as JSON values, in column order. */
     static List<Json.Node> row(ResultSet rs, List<Col> cols) throws SQLException {
         List<Json.Node> out = new ArrayList<>(cols.size());
-        for (int i = 0; i < cols.size(); i++) out.add(value(rs, i + 1, cols.get(i).kind()));
+        for (int i = 0; i < cols.size(); i++) {
+            DuckType t = cols.get(i).type();
+            Object v;
+            // A top-level timestamp is read as java.time: java.sql.Timestamp's
+            // epoch is wrong for BC years (legend-lite's executor does the same).
+            if (t instanceof DuckType.Scalar s && s.base().startsWith("TIMESTAMP") && !s.base().contains("ZONE")) {
+                v = rs.getObject(i + 1, LocalDateTime.class);
+            } else {
+                v = rs.getObject(i + 1);
+            }
+            Json.Node value = encode(v, t);
+            // A NESTED column also carries DuckDB's own text for it, as its
+            // driver's getString gives it ([{'x': 1, 'y': NULL}]): a client
+            // must not re-derive DuckDB's quoting rules and drift from them.
+            if (!(t instanceof DuckType.Scalar) && v != null) {
+                LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>();
+                f.put("value", value);
+                f.put("text", Json.str(String.valueOf(rs.getString(i + 1))));
+                value = new Json.Obj(f);
+            }
+            out.add(value);
+        }
         return out;
     }
 
-    private static Json.Node value(ResultSet rs, int i, Kind k) throws SQLException {
-        switch (k) {
-            case BOOLEAN -> {
-                boolean b = rs.getBoolean(i);
-                return rs.wasNull() ? Json.nil() : Json.bool(b);
+    static Json.Node encode(@Nullable Object v, DuckType t) throws SQLException {
+        if (v == null) return Json.nil();
+        return switch (t) {
+            case DuckType.Scalar s -> scalar(v, s.base());
+            case DuckType.ListOf l -> {
+                Object[] items = (Object[]) ((Array) v).getArray();
+                List<Json.Node> out = new ArrayList<>(items.length);
+                for (Object item : items) out.add(encode(item, l.element()));
+                yield new Json.Arr(out);
             }
-            case SMALL_INT -> {
-                long v = rs.getLong(i);
-                return rs.wasNull() ? Json.nil() : Json.num(v);
+            case DuckType.StructOf st -> {
+                Object[] attrs = ((Struct) v).getAttributes();
+                LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>();
+                for (int i = 0; i < st.fields().size(); i++) {
+                    f.put(st.fields().get(i).name(), encode(i < attrs.length ? attrs[i] : null, st.fields().get(i).type()));
+                }
+                yield new Json.Obj(f);
             }
-            case WIDE_INT -> {
-                long v = rs.getLong(i);
-                return rs.wasNull() ? Json.nil() : Json.str(Long.toString(v));
+            case DuckType.MapOf m -> {
+                List<Json.Node> pairs = new ArrayList<>();
+                for (Map.Entry<?, ?> e : ((Map<?, ?>) v).entrySet()) {
+                    pairs.add(new Json.Arr(List.of(encode(e.getKey(), m.key()), encode(e.getValue(), m.value()))));
+                }
+                yield new Json.Arr(pairs);
             }
-            case BIG_INT -> {
-                Object v = rs.getObject(i);
-                return v == null ? Json.nil() : Json.str(v.toString());
+        };
+    }
+
+    private static Json.Node scalar(Object v, String base) throws SQLException {
+        switch (base) {
+            case "BOOLEAN":
+                return Json.bool((Boolean) v);
+            case "TINYINT": case "SMALLINT": case "INTEGER": case "UTINYINT": case "USMALLINT": case "UINTEGER":
+                return Json.num(((Number) v).longValue());
+            case "BIGINT": case "HUGEINT": case "UBIGINT": case "UHUGEINT":
+                return Json.str(v.toString());
+            case "DECIMAL":
+                return Json.str(((BigDecimal) v).toPlainString());
+            case "FLOAT": case "DOUBLE": {
+                double d = ((Number) v).doubleValue();
+                // JSON has no NaN or infinities, and loses the sign of -0.0:
+                // those travel as their names.
+                boolean negativeZero = d == 0.0 && Double.doubleToRawLongBits(d) != 0;
+                return Double.isNaN(d) || Double.isInfinite(d) || negativeZero
+                        ? Json.str(Double.toString(d)) : Json.num(d);
             }
-            case DECIMAL -> {
-                BigDecimal v = rs.getBigDecimal(i);
-                return v == null ? Json.nil() : Json.str(v.toPlainString());
+            case "BLOB": {
+                Blob b = (Blob) v;
+                return Json.str(Base64.getEncoder().encodeToString(b.getBytes(1, (int) b.length())));
             }
-            case FLOATING -> {
-                double v = rs.getDouble(i);
-                if (rs.wasNull()) return Json.nil();
-                // JSON has no NaN or Infinity: those travel as their names.
-                return Double.isNaN(v) || Double.isInfinite(v) ? Json.str(Double.toString(v)) : Json.num(v);
-            }
-            case TEXT -> {
-                String v = rs.getString(i);
-                return v == null ? Json.nil() : Json.str(v);
-            }
-            case BLOB -> {
-                byte[] v = rs.getBytes(i);
-                return v == null ? Json.nil() : Json.str(Base64.getEncoder().encodeToString(v));
-            }
-            case DATE -> {
-                LocalDate v = rs.getObject(i, LocalDate.class);
-                return v == null ? Json.nil() : Json.str(v.toString());
-            }
-            case TIME -> {
-                LocalTime v = rs.getObject(i, LocalTime.class);
-                return v == null ? Json.nil() : Json.str(v.toString());
-            }
-            case TIMESTAMP -> {
-                LocalDateTime v = rs.getObject(i, LocalDateTime.class);
-                return v == null ? Json.nil() : Json.str(v.toString());
-            }
-            case TIMESTAMP_TZ -> {
-                OffsetDateTime v = rs.getObject(i, OffsetDateTime.class);
-                return v == null ? Json.nil() : Json.str(v.toString());
-            }
+            case "TIMESTAMP": case "TIMESTAMP_S": case "TIMESTAMP_MS": case "TIMESTAMP_NS":
+                // Nested timestamps come as java.sql.Timestamp; top-level ones as LocalDateTime.
+                return Json.str((v instanceof Timestamp ts ? ts.toLocalDateTime() : (LocalDateTime) v).toString());
+            default:
+                // VARCHAR, ENUM, INTERVAL, UUID, JSON, DATE, TIME, TIMESTAMP WITH TIME ZONE:
+                // their Java objects print as the API's text (UUID, ISO dates and times, JSON text).
+                return Json.str(v.toString());
         }
-        throw new IllegalStateException("unreachable");
     }
 }

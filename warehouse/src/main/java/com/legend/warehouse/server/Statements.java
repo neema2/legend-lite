@@ -210,8 +210,8 @@ public final class Statements implements AutoCloseable {
                         collect(run, rs);
                     }
                 } else {
-                    long count = st.getUpdateCount();
-                    run.result = new ResultMeta(List.of(), Math.max(0, count), 0);
+                    // DuckDB's own count: -1 for DDL, the rows changed for a write.
+                    run.result = new ResultMeta(List.of(), st.getUpdateCount(), 0);
                 }
                 finish(run, State.SUCCEEDED, null);
             }

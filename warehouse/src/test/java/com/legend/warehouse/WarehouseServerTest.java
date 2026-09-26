@@ -256,9 +256,11 @@ class WarehouseServerTest {
     @Test
     void aStatementRefusedForAnUnsupportedTypeSaysWhich() throws Exception {
         String t = login("alice", "alice-pw");
-        ApiError e = ((SqlApiBinding.Failed) run(t, StatementRequest.of("SELECT [1, 2, 3] AS xs"))).error();
+        // Lists, structs and maps are carried (WarehouseJdbcTest); a UNION is not yet.
+        ApiError e = ((SqlApiBinding.Failed) run(t, StatementRequest.of(
+                "SELECT union_value(k := 1) AS u"))).error();
         assertEquals(ErrorCode.UNSUPPORTED_TYPE, e.code());
-        assertTrue(e.message().contains("xs"), e.message());
+        assertTrue(e.message().contains("'u'") && e.message().contains("UNION"), e.message());
     }
 
     @Test

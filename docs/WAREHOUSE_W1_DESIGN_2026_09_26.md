@@ -99,7 +99,17 @@ GET  /sql/v1/catalogs/{c}/objects      → [{"schema", "name", "kind": "table"|"
   A type outside the list is an error, never a guess.
 - **JSON values:** numbers as JSON numbers, except BIGINT/HUGEINT/DECIMAL,
   which are **strings** so no precision is lost in a JavaScript client.
-  Dates and times use ISO-8601 strings.
+  Dates and times use ISO-8601 strings. NaN, the infinities and **-0.0**
+  travel as their names (JSON cannot hold them, and loses -0.0's sign).
+  Blobs are base64; JSON is its text.
+- **Column types are DuckDB's own type names**, passed through unchanged
+  (`INTEGER[]`, `STRUCT(x INTEGER, y DECIMAL(2,1)[])`, `MAP(VARCHAR, INTEGER)`),
+  read into a tree by `DuckType` at both ends.
+- **Nested values (W1b):** a list is an array, a struct an object, a map an
+  array of `[key, value]` pairs. A top-level nested cell is
+  `{"value": …, "text": "…"}`, where `text` is DuckDB's own text for it
+  (what its driver's `getString` gives), so no client re-derives DuckDB's
+  quoting rules.
 
 ## 4. The binding (program §2c), in `:sqlapi`
 
@@ -133,6 +143,23 @@ calls. Vendor bindings (V*) implement the same interface.
 - DuckLake and on-demand instances (with deployment);
 - OIDC (W2);
 - the static-pivot dialect rule (before D1).
+
+## W1b: the JDBC driver (2026-09-26)
+
+`jdbc:warehouse:http://host:port/catalog?user=…&password=…`. **Its values
+are the same Java objects DuckDB's own driver returns**, measured
+identical on 1.4.4 and 1.5.5.1 for every type: `LocalDate`,
+`java.sql.Timestamp` (re-readable as `LocalDateTime`), `OffsetDateTime`,
+`BigInteger`, `BigDecimal` with its scale, `UUID`, and `java.sql.Array` /
+`java.sql.Struct` / `LinkedHashMap` for nested values, printing as DuckDB's
+do. The proof is `WarehouseJdbcTest`, a **differential**: the same SQL
+through this driver over HTTP and through DuckDB's driver in-process,
+compared cell by cell (class, printed form, `getString`, type name, JDBC
+code, nested elements, update counts). **Named differences:** a BLOB is
+compared by bytes and JSON by text, since DuckDB's classes for those are
+its own internals. JDBC calls the executor does not use are generated
+stubs that throw "not supported", never a wrong answer. W1 is autocommit
+only: there are no transactions across statements yet.
 
 ## Found while building W1a (2026-09-26)
 
