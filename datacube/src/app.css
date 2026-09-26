@@ -238,8 +238,10 @@
   font-size: var(--dc-text-sm-size);
 }
 
-/* Where a drop will land, and where it cannot. */
-.dc-pivot-panel.dc-pivot-panel-list > .dc-zone.dc-drop-target {
+/* Where a drop will land, and where it cannot. An EMPTY zone is
+   boxed; a zone with chips shows a bar at the exact place instead
+   (below), as the columns list does. */
+.dc-pivot-panel.dc-pivot-panel-list > .dc-zone.dc-drop-target:not(:has(.dc-chip)) {
   background: color-mix(in srgb, var(--tw-sky-500, #0ea5e9) 10%,
     transparent);
   outline: 1px dashed var(--tw-sky-500, #0ea5e9);
@@ -425,7 +427,7 @@
 
 /* A drop target must be unmistakable while a drag is in flight;
    the alternative is a user hovering, guessing, and letting go. */
-.dc-zone.dc-drop-target {
+.dc-zone.dc-drop-target:not(:has(.dc-chip)) {
   border-style: solid;
   border-color: var(--tw-sky-600);
   background: var(--tw-sky-50);
@@ -1910,4 +1912,24 @@
 @keyframes dc-indeterminate {
   from { left: -40%; }
   to { left: 100%; }
+}
+
+/* THE INSERTION BAR: where a dragged column will land in a pivot
+   zone. Down a list, a line on the chip's top or bottom edge -- the
+   columns list's own mark; across the bar, a line in the gap before
+   or after the chip. */
+.dc-zone .dc-chip.dc-drop-before {
+  box-shadow: -3px 0 0 0 var(--tw-sky-500, #0ea5e9);
+}
+
+.dc-zone .dc-chip.dc-drop-after {
+  box-shadow: 3px 0 0 0 var(--tw-sky-500, #0ea5e9);
+}
+
+.dc-pivot-panel.dc-pivot-panel-list .dc-zone .dc-chip.dc-drop-before {
+  box-shadow: inset 0 2px 0 0 var(--tw-sky-500, #0ea5e9);
+}
+
+.dc-pivot-panel.dc-pivot-panel-list .dc-zone .dc-chip.dc-drop-after {
+  box-shadow: inset 0 -2px 0 0 var(--tw-sky-500, #0ea5e9);
 }

@@ -200,11 +200,23 @@ export class PivotPanel {
       // guaranteed to have arrived, and a zone marked both ways at
       // once says nothing.
       el.classList.remove('dc-refuse');
+      // EXACTLY WHERE IT WILL LAND, as the columns list shows it: a bar
+      // before the chip it would go in front of, or after the last.
+      // The zone itself is only boxed when it is empty -- a box says
+      // "somewhere in here", and with chips in it there is a place.
+      this.#markInsert(el, this.#indexAt(el, event));
     });
-    el.addEventListener('dragleave', () =>
-      el.classList.remove('dc-drop-target', 'dc-refuse'));
+    el.addEventListener('dragleave', (event) => {
+      // Leaving a CHIP for its zone fires this too; only leaving the
+      // zone clears it.
+      const to = event.relatedTarget as Node | null;
+      if (to && el.contains(to)) return;
+      el.classList.remove('dc-drop-target', 'dc-refuse');
+      this.#markInsert(el, null);
+    });
     el.addEventListener('drop', (event) => {
       el.classList.remove('dc-drop-target', 'dc-refuse');
+      this.#markInsert(el, null);
       const drag = currentHeaderDrag();
       if (!drag) return;
       event.preventDefault();
@@ -241,7 +253,14 @@ export class PivotPanel {
         event.dataTransfer.setData('text/plain', column);
       }
     });
-    chip.addEventListener('dragend', () => setHeaderDrag(null));
+    chip.addEventListener('dragend', () => {
+      setHeaderDrag(null);
+      // A drag let go outside any zone leaves no bar behind.
+      for (const z of this.#root.querySelectorAll<HTMLElement>('.dc-zone')) {
+        z.classList.remove('dc-drop-target');
+        this.#markInsert(z, null);
+      }
+    });
 
     // Keyboard: a zone a mouse can fill must be emptiable without
     // one, so Delete on a focused chip removes it.
@@ -274,6 +293,15 @@ export class PivotPanel {
       if (at < middle) return i;
     }
     return chips.length;
+  }
+
+  /** The insertion bar at `index` among the zone's chips; null clears it. */
+  #markInsert(zone: HTMLElement, index: number | null): void {
+    const chips = [...zone.querySelectorAll<HTMLElement>('.dc-chip')];
+    for (const c of chips) c.classList.remove('dc-drop-before', 'dc-drop-after');
+    if (index === null || chips.length === 0) return;
+    if (index < chips.length) chips[index]?.classList.add('dc-drop-before');
+    else chips[chips.length - 1]?.classList.add('dc-drop-after');
   }
 
   #drop(zone: Zone, drag: HeaderDrag, index: number): void {

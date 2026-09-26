@@ -253,6 +253,42 @@ describe('the same zones, down a list', () => {
     assert.deepEqual(changes, []);
   });
 
+  it('shows a bar exactly where the drop will land, as the columns list does', () => {
+    const zone = root.querySelector('.dc-zone-rows') as HTMLElement;
+    const chips = [...zone.querySelectorAll('.dc-chip')] as HTMLElement[];
+    chips.forEach((chip, i) => {
+      Object.defineProperty(chip, 'getBoundingClientRect', {
+        value: () => ({
+          top: i * 20, height: 20, bottom: i * 20 + 20,
+          left: 0, width: 100, right: 100,
+          x: 0, y: i * 20, toJSON: () => ({}),
+        }),
+        configurable: true,
+      });
+    });
+    const over = (clientY: number): void => {
+      zone.dispatchEvent(new dom.window.MouseEvent('dragover', {
+        bubbles: true, cancelable: true, clientY, clientX: 50,
+      }));
+    };
+    const marks = (): string[] => chips.map((c) =>
+      c.classList.contains('dc-drop-before') ? 'before'
+        : c.classList.contains('dc-drop-after') ? 'after' : '-');
+    setHeaderDrag({ column: 'year', from: 'panel' });
+    over(25); // lower half of region: before desk
+    assert.deepEqual(marks(), ['-', 'before']);
+    over(5); // top of region: before region
+    assert.deepEqual(marks(), ['before', '-']);
+    over(39); // lower half of desk: after the last
+    assert.deepEqual(marks(), ['-', 'after']);
+    zone.dispatchEvent(new dom.window.MouseEvent('drop', {
+      bubbles: true, cancelable: true, clientY: 39, clientX: 50,
+    }));
+    // The bar was the truth: it landed last, and the bar is gone.
+    assert.deepEqual(changes.at(-1), ['rows', ['region', 'desk', 'year']]);
+    assert.deepEqual(marks(), ['-', '-']);
+  });
+
   it('finds the drop index DOWN the zone, not across it', () => {
     // A list laid out downwards but measured across gives every drop
     // the same index, so a chip dragged anywhere in a vertical zone

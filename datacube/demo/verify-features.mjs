@@ -3117,6 +3117,49 @@ try {
       return `${last} moved and the grid followed`;
     });
 
+  await check('a pivot zone shows a bar exactly where a dragged column will land', async () => {
+    // As the columns list does: a blue bar on the edge of the chip it
+    // will land beside -- not a box around the whole zone.
+    await flatten();
+    for (const c of ['region', 'desk']) {
+      await menu(['Pivot', `Add Vertical Pivot on ${c}`], { col: await needCol(c) });
+    }
+    const chips = page.locator('.dc-tool-panel-zones .dc-zone-rows .dc-chip');
+    if ((await chips.count()) < 2) throw new Error('could not set up two row groups');
+    const source = page.locator('.dc-tool-panel-row[data-column="book"]');
+    const target = await chips.nth(0).boundingBox();
+    if (!target || !(await source.count())) throw new Error('nothing to drag');
+    // The drag's own events, on the real page: Playwright's mouse does
+    // not start an HTML5 drag from this list, and the question is what
+    // the zone DRAWS mid-drag, which a completed dragTo never shows.
+    const dt = await page.evaluateHandle(() => new DataTransfer());
+    await source.dispatchEvent('dragstart', { dataTransfer: dt });
+    // The lower half of the FIRST chip: it will land between the two.
+    await chips.nth(0).dispatchEvent('dragover', {
+      dataTransfer: dt, clientX: target.x + 20, clientY: target.y + target.height * 0.8,
+      bubbles: true, cancelable: true,
+    });
+    await page.waitForTimeout(80);
+    const seen = await page.evaluate(() => {
+      const zone = document.querySelector('.dc-tool-panel-zones .dc-zone-rows');
+      const cs = [...(zone?.querySelectorAll('.dc-chip') ?? [])];
+      return {
+        marks: cs.map((c) => (c.classList.contains('dc-drop-before') ? 'before'
+          : c.classList.contains('dc-drop-after') ? 'after' : '-')),
+        bar: cs[1] ? getComputedStyle(cs[1]).boxShadow : '',
+        outline: zone ? getComputedStyle(zone).outlineStyle : '',
+        zoneClass: zone?.className ?? null,
+        dragging: document.querySelector('.dc-dragging, [aria-grabbed=true]') !== null,
+      };
+    });
+    await source.dispatchEvent('dragend', { dataTransfer: dt });
+    await menu(['Pivot', 'Clear All Vertical Pivots']).catch(() => {});
+    if (seen.marks.join() !== '-,before') throw new Error(`marks ${seen.marks} | ${JSON.stringify(seen)}`);
+    if (!/rgb/.test(seen.bar)) throw new Error(`no bar drawn: ${seen.bar}`);
+    if (seen.outline === 'dashed') throw new Error('the zone is boxed as well');
+    return `bar before chip 2 (${seen.bar.slice(0, 40)}), zone unboxed`;
+  });
+
   await check('the sidebar configures the cube: list -> rows -> columns',
     async () => {
       // THREE SECTIONS OF ONE SURFACE. Row groups, column labels and
