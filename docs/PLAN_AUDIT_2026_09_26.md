@@ -6,7 +6,9 @@ compiler's Java (how engine-grammar input is resolved), our own code for every s
 lowering and SQL half, the package-cycle graph re-measured on today's tree, and the ANSI
 renderer's spellings classified against the SQL standard and the major databases. Plus the 28
 package disagreements in the reference differential read one by one. Every claim below names its
-evidence; a claim with no file:line is judgement and says so. Receipts: the study directory's
+evidence; a claim with no file:line is judgement and says so. The six research reports are
+in `docs/plan-audit-2026-09-26/` (verbatim, with the file:line evidence); the step-by-step
+execution plan built on them is `EXECUTION_PLAN_2026_09_26.md`. Receipts: the study directory's
 `receipts/plan-audit-2026-09-26/` (graph tools, the join output).
 
 Paths: `M3` = pinned legend-pure `legend-pure-core/legend-pure-m3-core/src/main/java/org/finos/
