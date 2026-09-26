@@ -170,7 +170,7 @@ Upstream: `DataCubeGridMenuBuilder.tsx`. Ours: `src/ui/menu.ts`,
 | Heatmap / Show Plot… / Show TreeMap… | 🚫 | ➕ working | ➕ | H |
 | **Properties…** from a header opens **Column Properties on that column** (pivot result → its measure); disabled while the editor is open | ✓ | opens the editor on its last tab | ⚠️ | C `app.ts:1371` |
 | Menu hidden while scrolling | ✓ | ✓ when the grid's view moves (not on the right-click's own scroll) | ✅ | H, T |
-| Multidimensional menu: Zoom Out, Export, Email, Resize | ✓ WIP | — (Essbase mode, `FEATURE_CENSUS.md` §10) | ❌ | C |
+| Multidimensional menu: Zoom Out, Export, Email, Resize | ✓ WIP | — (Ad Hoc Analysis mode, `AD_HOC_ANALYSIS.md`) | ❌ | C |
 
 ## B. Grid rendering and interaction
 
@@ -488,7 +488,7 @@ lastUpdatedAt, lastOpenAt}`. The sources also call depot:
    - one window per column.
 11. **Pagination** (a decision to make first: upstream defaults it ON,
     and our virtual windowing may make it unnecessary), and detail rows
-    at the leaf level (also an Essbase prerequisite).
-12. **Essbase mode** (`FEATURE_CENSUS.md` §10), then the **server phase**:
+    at the leaf level (also an Ad Hoc Analysis prerequisite).
+12. **Ad Hoc Analysis mode** (`AD_HOC_ANALYSIS.md`), then the **server phase**:
     sources (Legend Query, UDF, Freeform, local-file re-prompt), launch
     points (§K), and OIDC.

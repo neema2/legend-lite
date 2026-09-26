@@ -1,11 +1,11 @@
-// Essbase mode's grid: Smart View ad hoc analysis, as pure state.
+// Ad Hoc Analysis mode's grid: classic OLAP ad hoc analysis, as pure state.
 //
 // A grid has three axes. ROWS and COLUMNS each hold dimensions, nested
 // in order, and each dimension shows an explicit list of MEMBERS -- at
-// any mix of generations, the way Smart View's ad hoc grids do after a
+// any mix of generations, the way classic OLAP ad hoc grids do after a
 // few zooms (2021, then its quarters, then 2022). Every other dimension
 // sits on the POV, pinned to one member. Measures are a dimension too
-// (user decision, docs/ESSBASE_MODE.md): placeable anywhere, subject to
+// (user decision, docs/AD_HOC_ANALYSIS.md): placeable anywhere, subject to
 // Keep Only and Remove Only like the rest.
 //
 // Everything here is pure: an operation takes a grid and returns a new
@@ -44,8 +44,8 @@ export interface AxisDimension {
 export type Axis = 'rows' | 'columns';
 export type ZoomLevel = 'next' | 'all' | 'bottom';
 
-export interface EssbaseOptions {
-  /** Smart View's Zoom In level. */
+export interface AdHocOptions {
+  /** The Zoom In level. */
   readonly zoomLevel: ZoomLevel;
   /** Parents above their members (TOP, the default by the user's decision) or below. */
   readonly ancestorPosition: 'top' | 'bottom';
@@ -59,7 +59,7 @@ export interface EssbaseOptions {
   readonly navigateWithoutData: boolean;
 }
 
-export const DEFAULT_OPTIONS: EssbaseOptions = {
+export const DEFAULT_OPTIONS: AdHocOptions = {
   zoomLevel: 'next',
   ancestorPosition: 'top',
   // The user's decision: missing rows suppressed by default, zero and
@@ -73,22 +73,22 @@ export const DEFAULT_OPTIONS: EssbaseOptions = {
   navigateWithoutData: false,
 };
 
-export interface EssbaseGrid {
+export interface AdHocGrid {
   readonly rows: readonly AxisDimension[];
   readonly columns: readonly AxisDimension[];
   /** Every dimension not on an axis, pinned to one member. */
   readonly pov: Readonly<Record<string, MemberPath>>;
-  readonly options: EssbaseOptions;
+  readonly options: AdHocOptions;
 }
 
 // -- starting a grid ------------------------------------------------------
 
 /**
- * Smart View's opening grid: the first dimension down the rows at its
+ * The classic ad hoc opening grid: the first dimension down the rows at its
  * top member, the measures across the columns, everything else on the
  * POV at its top.
  */
-export function initialGrid(outline: Outline, options = DEFAULT_OPTIONS): EssbaseGrid {
+export function initialGrid(outline: Outline, options = DEFAULT_OPTIONS): AdHocGrid {
   const regular = outline.dimensions.filter((d) => d.name !== MEASURES);
   const first = regular[0];
   const pov: Record<string, MemberPath> = {};
@@ -103,7 +103,7 @@ export function initialGrid(outline: Outline, options = DEFAULT_OPTIONS): Essbas
 
 // -- reading a grid -------------------------------------------------------
 
-function axisOf(grid: EssbaseGrid, dimension: string): Axis | null {
+function axisOf(grid: AdHocGrid, dimension: string): Axis | null {
   if (grid.rows.some((a) => a.dimension === dimension)) return 'rows';
   if (grid.columns.some((a) => a.dimension === dimension)) return 'columns';
   return null;
@@ -132,10 +132,10 @@ export function tuples(axis: readonly AxisDimension[]): MemberPath[][] {
 // -- operations -----------------------------------------------------------
 
 function withMembers(
-  grid: EssbaseGrid,
+  grid: AdHocGrid,
   dimension: string,
   members: readonly MemberPath[],
-): EssbaseGrid {
+): AdHocGrid {
   const axis = axisOf(grid, dimension);
   if (axis === null) return grid;
   return {
@@ -144,7 +144,7 @@ function withMembers(
   };
 }
 
-function membersOf(grid: EssbaseGrid, dimension: string): readonly MemberPath[] {
+function membersOf(grid: AdHocGrid, dimension: string): readonly MemberPath[] {
   const axis = axisOf(grid, dimension);
   return axis === null ? [] : grid[axis].find((a) => a.dimension === dimension)?.members ?? [];
 }
@@ -158,11 +158,11 @@ function membersOf(grid: EssbaseGrid, dimension: string): readonly MemberPath[] 
  * twice does not repeat its children.
  */
 export function zoomIn(
-  grid: EssbaseGrid,
+  grid: AdHocGrid,
   dimension: string,
   member: MemberPath,
   found: readonly MemberPath[],
-): EssbaseGrid {
+): AdHocGrid {
   const list = membersOf(grid, dimension);
   const at = list.findIndex((m) => same(m, member));
   if (at < 0 || found.length === 0) return grid;
@@ -179,10 +179,10 @@ export function zoomIn(
  * where the parent already is). The top member has nowhere to go.
  */
 export function zoomOut(
-  grid: EssbaseGrid,
+  grid: AdHocGrid,
   dimension: string,
   member: MemberPath,
-): EssbaseGrid {
+): AdHocGrid {
   if (member.length === 0) return grid;
   const parent = member.slice(0, -1);
   const list = membersOf(grid, dimension);
@@ -199,10 +199,10 @@ export function zoomOut(
 
 /** KEEP ONLY the selected members of a dimension. Keeping none changes nothing. */
 export function keepOnly(
-  grid: EssbaseGrid,
+  grid: AdHocGrid,
   dimension: string,
   selected: readonly MemberPath[],
-): EssbaseGrid {
+): AdHocGrid {
   const list = membersOf(grid, dimension);
   const kept = list.filter((m) => selected.some((s) => same(s, m)));
   if (kept.length === 0 || kept.length === list.length) return grid;
@@ -211,10 +211,10 @@ export function keepOnly(
 
 /** REMOVE ONLY the selected members. An axis never loses its last member. */
 export function removeOnly(
-  grid: EssbaseGrid,
+  grid: AdHocGrid,
   dimension: string,
   selected: readonly MemberPath[],
-): EssbaseGrid {
+): AdHocGrid {
   const list = membersOf(grid, dimension);
   const kept = list.filter((m) => !selected.some((s) => same(s, m)));
   if (kept.length === 0 || kept.length === list.length) return grid;
@@ -223,10 +223,10 @@ export function removeOnly(
 
 /**
  * PIVOT a dimension to the other axis, where it goes last (innermost).
- * Smart View keeps at least one dimension on the rows and one on the
+ * An ad hoc grid keeps at least one dimension on the rows and one on the
  * columns, so a pivot that would empty an axis changes nothing.
  */
-export function pivot(grid: EssbaseGrid, dimension: string): EssbaseGrid {
+export function pivot(grid: AdHocGrid, dimension: string): AdHocGrid {
   const from = axisOf(grid, dimension);
   if (from === null || grid[from].length === 1) return grid;
   const to: Axis = from === 'rows' ? 'columns' : 'rows';
@@ -242,7 +242,7 @@ export function pivot(grid: EssbaseGrid, dimension: string): EssbaseGrid {
  * PIVOT TO POV: off the grid, pinned to one member -- the one it shows
  * when it shows one, else its first. Never empties an axis.
  */
-export function pivotToPov(grid: EssbaseGrid, dimension: string): EssbaseGrid {
+export function pivotToPov(grid: AdHocGrid, dimension: string): AdHocGrid {
   const from = axisOf(grid, dimension);
   if (from === null || grid[from].length === 1) return grid;
   const members = membersOf(grid, dimension);
@@ -256,7 +256,7 @@ export function pivotToPov(grid: EssbaseGrid, dimension: string): EssbaseGrid {
 }
 
 /** From the POV onto an axis, showing the member it was pinned to. */
-export function povToAxis(grid: EssbaseGrid, dimension: string, axis: Axis): EssbaseGrid {
+export function povToAxis(grid: AdHocGrid, dimension: string, axis: Axis): AdHocGrid {
   const pinned = grid.pov[dimension];
   if (pinned === undefined) return grid;
   const { [dimension]: _gone, ...pov } = grid.pov;
@@ -269,7 +269,7 @@ export function povToAxis(grid: EssbaseGrid, dimension: string, axis: Axis): Ess
 }
 
 /** Pin a POV dimension to another member. */
-export function setPov(grid: EssbaseGrid, dimension: string, member: MemberPath): EssbaseGrid {
+export function setPov(grid: AdHocGrid, dimension: string, member: MemberPath): AdHocGrid {
   const now = grid.pov[dimension];
   if (now === undefined || same(now, member)) return grid;
   return { ...grid, pov: { ...grid.pov, [dimension]: member } };
@@ -277,14 +277,14 @@ export function setPov(grid: EssbaseGrid, dimension: string, member: MemberPath)
 
 /** Replace a dimension's members (Member Selection). An empty pick changes nothing. */
 export function selectMembers(
-  grid: EssbaseGrid,
+  grid: AdHocGrid,
   dimension: string,
   members: readonly MemberPath[],
-): EssbaseGrid {
+): AdHocGrid {
   if (members.length === 0 || axisOf(grid, dimension) === null) return grid;
   return withMembers(grid, dimension, members);
 }
 
-export function withOptions(grid: EssbaseGrid, patch: Partial<EssbaseOptions>): EssbaseGrid {
+export function withOptions(grid: AdHocGrid, patch: Partial<AdHocOptions>): AdHocGrid {
   return { ...grid, options: { ...grid.options, ...patch } };
 }

@@ -172,7 +172,7 @@ export interface CubeConfiguration {
   readonly pivotMeasuresFirst?: boolean;
 
   // No grid mode: "Dimensional" was offered and read by nothing
-  // (census §2). It returns with Essbase mode, which gives it a meaning.
+  // (census §2). It returns with Ad Hoc Analysis mode, which gives it a meaning.
 
   /** Per column, by column name. */
   readonly columns: Readonly<Record<string, ColumnConfiguration>>;

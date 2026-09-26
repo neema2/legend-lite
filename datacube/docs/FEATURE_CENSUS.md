@@ -134,7 +134,7 @@ against the lip.
 > Display as link + label parameter (http/https only). Found by the
 > new guardrail and wired: **Show leaf count** ("EMEA (1234)", not yet
 > under a column pivot). Removed until their feature exists: grid mode
-> (returns with Essbase mode) and the pivot total name/function (our
+> (returns with Ad Hoc Analysis mode) and the pivot total name/function (our
 > pivot has no total column — a feature, with an open decision:
 > upstream applies a function ACROSS the row's pivot cells client-side;
 > our subtotals are the measure with the key dropped, in the database;
@@ -336,13 +336,10 @@ weighted average; three execution planes; undo covering every action;
 an ARIA treegrid. Upstream has most of the first four as greyed-out
 placeholders.
 
-## 10. Essbase mode (user item 2)
+## 10. Ad Hoc Analysis mode (user item 2)
 
-**Checked against Oracle's documentation, the reading is right: it is
-Smart View ad hoc analysis.** Its operations
-([Analyzing Plan Data in Smart View](https://docs.oracle.com/en/cloud/saas/planning-budgeting-cloud/sv-tutorial-adhocanalysis/index.html),
-[Member Options](https://docs.oracle.com/en/applications/enterprise-performance-management/smart-view/25.200/uugsv/opt_memb.html),
-[Ad Hoc Behavior](https://docs.oracle.com/en/applications/enterprise-performance-management/smart-view/23.200/uugsv/smart_view_behavior_options_ad_hoc.html)):
+**The reading is right: it is classic OLAP ad hoc analysis** (as
+multidimensional-database spreadsheet clients offer it). Its operations:
 
 - **Dimensions on three axes:** rows, columns, and the **POV** — every
   dimension not on the grid is pinned to one member (initially its top,
@@ -366,7 +363,7 @@ column starting at `ALL`, double-click drills a member one level
 (`retrieveDrilldownData`), *Zoom Out* on the right-click menu
 (`retrieveDrilloutData`), vertical pivots ignored in that mode. No POV,
 no Keep/Remove Only, no zoom levels, no member selection, no
-suppression. So matching upstream is not the bar; Smart View is.
+suppression. So matching upstream is not the bar; the classic ad hoc feature set is.
 
 **Ours today:** named dimensions exist as presets for row grouping
 (`dimensions.ts`, `panel-dimensions.ts`, drill down/up one level), and
@@ -374,7 +371,7 @@ a `gridMode: 'dimensional'` setting that nothing reads (§2).
 
 **What the mode needs**, mapped onto machinery that already exists:
 
-| Smart View operation | Maps to |
+| Ad hoc operation | Maps to |
 |---|---|
 | Hierarchies | Named dimensions (have) |
 | Rows / columns axes | Row groups and column pivots (have) |
@@ -402,13 +399,13 @@ in §5 (Zoom In to the leaf needs detail rows).
    each finding first so every fix is proven in the browser.
 2. **Dead controls (§2):** wire Aggregation, weight, pivot total
    function/name, initial expand level, links; remove `gridMode` until
-   Essbase mode lands; add the no-reader guardrail.
+   Ad Hoc Analysis mode lands; add the no-reader guardrail.
 3. **Small parity gaps:** `first`/`last`, `TODAY`/`NOW`, Selected Rows
    copy, Minimize / Size to Fit, Exclude/Include from horizontal pivot in
    the menu, pivot total placement, D1 date label, C7 `-0`.
-4. **Bottom-level detail rows** (H known gap) — also an Essbase
+4. **Bottom-level detail rows** (H known gap) — also an Ad Hoc Analysis
    prerequisite.
-5. **Essbase mode (§10).**
+5. **Ad Hoc Analysis mode (§10).**
 6. **Server phase:** the store and URL scheme of §8b (saved DataCubes
    and saved queries, `/:id`, `?sourceData=`), typed sources (Legend
    Query, function, file, lakehouse), the entry points from the query

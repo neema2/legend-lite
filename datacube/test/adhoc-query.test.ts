@@ -1,20 +1,20 @@
-// Essbase mode's queries and the grid their answers make.
+// Ad Hoc Analysis mode's queries and the grid their answers make.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { assembleGrid, planQueries, segmentLabel, type EssbaseCube } from '../src/essbase/query.ts';
+import { assembleGrid, planQueries, segmentLabel, type AdHocCube } from '../src/adhoc/query.ts';
 import {
   initialGrid,
   povToAxis,
   setPov,
   withOptions,
   zoomIn,
-  type EssbaseGrid,
-} from '../src/essbase/state.ts';
+  type AdHocGrid,
+} from '../src/adhoc/state.ts';
 import type { ResultTable } from '../src/result.ts';
 
-const CUBE: EssbaseCube = {
+const CUBE: AdHocCube = {
   snapshot: {
     source: { expression: 't' },
     columns: [
@@ -55,7 +55,7 @@ const table = (cols: Record<string, (string | number | null)[]>): ResultTable =>
 };
 
 // Time zoomed: the top, 2021 and its quarters, 2022.
-const zoomed = (): EssbaseGrid => {
+const zoomed = (): AdHocGrid => {
   let g = initialGrid(CUBE.outline);
   g = zoomIn(g, 'Time', [], [['2021'], ['2022']]);
   return zoomIn(g, 'Time', ['2021'], [['2021', 'Q1'], ['2021', 'Q2']]);
@@ -89,7 +89,7 @@ describe('the queries: one per shape', () => {
 });
 
 describe('the grid the answers make', () => {
-  const answers = (g: EssbaseGrid) => {
+  const answers = (g: AdHocGrid) => {
     const qs = planQueries(CUBE, g);
     const results = new Map<string, ResultTable>([
       ['0', table({ notional: [100], pnl: [10] })],

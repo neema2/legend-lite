@@ -8,8 +8,8 @@
 // thought to.
 
 import { detailSnapshot, serialize } from '../../src/serialize.ts';
-import { planQueries, type EssbaseCube } from '../../src/essbase/query.ts';
-import { initialGrid, setPov, zoomIn } from '../../src/essbase/state.ts';
+import { planQueries, type AdHocCube } from '../../src/adhoc/query.ts';
+import { initialGrid, setPov, zoomIn } from '../../src/adhoc/state.ts';
 import type { LevelScope } from '../../src/serialize.ts';
 import type { CubeSnapshot } from '../../src/snapshot.ts';
 
@@ -230,10 +230,10 @@ export const CASES: { name: string; snapshot: CubeSnapshot; scope?: LevelScope }
   }), ['EMEA', 'Rates']),
 ];
 
-// ESSBASE MODE's queries, exactly as the mode plans them: a Time
+// AD HOC ANALYSIS mode's queries, exactly as the mode plans them: a Time
 // dimension zoomed to mixed generations (the top, years, one year's
 // quarters) with Geography pinned on the POV -- one query per shape.
-const ESSBASE: EssbaseCube = {
+const AD_HOC: AdHocCube = {
   snapshot: snap({}),
   outline: {
     dimensions: [
@@ -248,12 +248,12 @@ const ESSBASE: EssbaseCube = {
   ],
 };
 {
-  let g = initialGrid(ESSBASE.outline);
+  let g = initialGrid(AD_HOC.outline);
   g = zoomIn(g, 'Time', [], [['2021'], ['2022']]);
   g = zoomIn(g, 'Time', ['2021'], [['2021', 'Q1'], ['2021', 'Q2']]);
   g = setPov(g, 'Geography', ['EMEA', 'Rates']);
-  for (const q of planQueries(ESSBASE, g)) {
-    CASES.push({ name: `essbase-shape-${q.key}`, snapshot: q.snapshot,
+  for (const q of planQueries(AD_HOC, g)) {
+    CASES.push({ name: `adhoc-shape-${q.key}`, snapshot: q.snapshot,
       ...(q.scope ? { scope: q.scope } : {}) });
   }
 }

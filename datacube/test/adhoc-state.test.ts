@@ -1,4 +1,4 @@
-// Essbase mode's pure state: Smart View ad hoc operations, one by one.
+// Ad Hoc Analysis mode's pure state: the ad hoc operations, one by one.
 
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
@@ -18,9 +18,9 @@ import {
   withOptions,
   zoomIn,
   zoomOut,
-  type EssbaseGrid,
+  type AdHocGrid,
   type Outline,
-} from '../src/essbase/state.ts';
+} from '../src/adhoc/state.ts';
 
 const OUTLINE: Outline = {
   dimensions: [
@@ -31,11 +31,11 @@ const OUTLINE: Outline = {
   measures: ['notional', 'pnl'],
 };
 
-const rowsOf = (g: EssbaseGrid, dim = 'Time'): string[] =>
+const rowsOf = (g: AdHocGrid, dim = 'Time'): string[] =>
   (g.rows.find((a) => a.dimension === dim)?.members ?? []).map((m) => m.join('/') || '(top)');
 
 describe('the opening grid', () => {
-  it("is Smart View's: first dimension down, measures across, the rest on the POV at the top", () => {
+  it("is the classic ad hoc grid: first dimension down, measures across, the rest on the POV at the top", () => {
     const g = initialGrid(OUTLINE);
     assert.deepEqual(g.rows, [{ dimension: 'Time', members: [[]] }]);
     assert.deepEqual(g.columns, [{ dimension: MEASURES, members: [['notional'], ['pnl']] }]);

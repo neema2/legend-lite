@@ -1,6 +1,6 @@
-// Essbase mode's queries, and the grid they answer.
+// Ad Hoc Analysis mode's queries, and the grid they answer.
 //
-// A Smart View grid mixes generations on one axis (2021, then 2021's
+// An ad hoc grid mixes generations on one axis (2021, then 2021's
 // quarters, then 2022), so it is not one groupBy. Every cell belongs to
 // a SHAPE -- which generation each on-grid dimension's member is at --
 // and each shape is one query: grouped by the columns down to those
@@ -26,14 +26,14 @@ import {
   MEASURES,
   tuples,
   type AxisDimension,
-  type EssbaseGrid,
+  type AdHocGrid,
   type MemberPath,
   type Outline,
   type OutlineDimension,
 } from './state.ts';
 
 /** What the mode queries: the cube's source and measures, and its outline. */
-export interface EssbaseCube {
+export interface AdHocCube {
   /** Source, columns, calculated columns and the cube's own filter. */
   readonly snapshot: CubeSnapshot;
   readonly outline: Outline;
@@ -41,7 +41,7 @@ export interface EssbaseCube {
   readonly measures: readonly Measure[];
 }
 
-export interface EssbaseQuery {
+export interface AdHocQuery {
   /** The shape: each on-grid dimension's generation, as a stable key. */
   readonly key: string;
   readonly groupColumns: readonly string[];
@@ -55,18 +55,18 @@ export interface EssbaseQuery {
 
 const KEY_SEP = '\u0000';
 
-function regularOnGrid(grid: EssbaseGrid): AxisDimension[] {
+function regularOnGrid(grid: AdHocGrid): AxisDimension[] {
   return [...grid.rows, ...grid.columns].filter((a) => a.dimension !== MEASURES);
 }
 
-function outlineOf(cube: EssbaseCube, name: string): OutlineDimension {
+function outlineOf(cube: AdHocCube, name: string): OutlineDimension {
   const d = cube.outline.dimensions.find((x) => x.name === name);
   if (!d) throw new Error(`no dimension '${name}' in the outline`);
   return d;
 }
 
 /** The measures a cell can ask for: the Measures members shown, or the POV's one. */
-function measuresInPlay(cube: EssbaseCube, grid: EssbaseGrid): string[] {
+function measuresInPlay(cube: AdHocCube, grid: AdHocGrid): string[] {
   const onGrid = [...grid.rows, ...grid.columns].find((a) => a.dimension === MEASURES);
   if (onGrid) {
     return [...new Set(onGrid.members.filter((m) => m.length === 1).map((m) => m[0] as string))];
@@ -86,7 +86,7 @@ function and(nodes: readonly FilterNode[]): FilterNode | undefined {
  * The queries a grid needs, one per shape. A shape where a measure has
  * nothing to aggregate (no measure in play) needs none.
  */
-export function planQueries(cube: EssbaseCube, grid: EssbaseGrid): EssbaseQuery[] {
+export function planQueries(cube: AdHocCube, grid: AdHocGrid): AdHocQuery[] {
   const measures = measuresInPlay(cube, grid);
   if (measures.length === 0) return [];
   const specs = measures.map((m) => {
@@ -169,7 +169,7 @@ export function segmentLabel(s: string): string {
   return last === NULL_GROUP ? '(blank)' : last;
 }
 
-export interface EssbaseView {
+export interface AdHocView {
   /** Row label columns (one per row dimension), then one value column per column tuple. */
   readonly table: ResultTable;
   /** The row dimensions' names: the table's first columns. */
@@ -185,16 +185,16 @@ export interface EssbaseView {
 /**
  * Place the answers. Every (row, column) cell finds its shape's result
  * by its members' values, and reads its measure there; a cell no result
- * has is missing (null). Then Smart View's suppression options drop
+ * has is missing (null). Then the ad hoc suppression options drop
  * rows and columns that are all missing or all zero, and repeated outer
  * members are blanked.
  */
 export function assembleGrid(
-  cube: EssbaseCube,
-  grid: EssbaseGrid,
+  cube: AdHocCube,
+  grid: AdHocGrid,
   results: ReadonlyMap<string, ResultTable>,
-  queries: readonly EssbaseQuery[],
-): EssbaseView {
+  queries: readonly AdHocQuery[],
+): AdHocView {
   const onGrid = regularOnGrid(grid).map((a) => a.dimension);
   const byKey = new Map(queries.map((q) => [q.key, q]));
   // Each result indexed by its group key.

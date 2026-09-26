@@ -421,7 +421,7 @@ function keyValue(type: string | undefined, value: string): FilterValue {
 
 /**
  * The conditions pinning a member of a hierarchy -- `columns[i] ==
- * path[i]` down its path, typed as the tree's keys are. Essbase mode's
+ * path[i]` down its path, typed as the tree's keys are. Ad Hoc Analysis mode's
  * members use the same rule the tree's branches do.
  */
 export function memberConditions(

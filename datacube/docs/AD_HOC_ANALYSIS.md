@@ -1,19 +1,20 @@
-# Essbase mode — the spec, for review before building (2026-09-25)
+# Ad Hoc Analysis mode — the spec, for review before building (2026-09-25)
 
-**What "full Essbase mode" means here:** Oracle Smart View **ad hoc
-analysis** against a cube — the way Essbase users actually work — built on
-DataCube's grid, over any relational source through legend-lite. Not
-upstream's `MULTIDIMENSIONAL` grid mode (WIP, and far short of this: one
-drill level, Zoom Out, no POV, no Keep/Remove Only, no member selection,
-no suppression). Smart View is the bar.
+**What "full ad hoc analysis mode" means here:** classic OLAP **ad hoc
+analysis** against a cube — the way multidimensional-database users work
+in a spreadsheet-style client — built on DataCube's grid, over any
+relational source through legend-lite. Not upstream's `MULTIDIMENSIONAL`
+grid mode (WIP, and far short of this: one drill level, Zoom Out, no POV,
+no Keep/Remove Only, no member selection, no suppression). The classic
+ad hoc feature set is the bar.
 
-Sources for the behaviour: Oracle's *Smart View User's Guide* — ad hoc
-analysis, member options, ad hoc behaviour options (links in
-`FEATURE_CENSUS.md` §10).
+The behaviour matched is the long-established ad hoc feature set of OLAP
+spreadsheet clients (zoom, keep/remove only, pivot, POV, member selection,
+suppression), described here in generic terms.
 
 ## 1. The model: an outline
 
-| Essbase | Here |
+| OLAP concept | Here |
 |---|---|
 | **Dimension** with a **hierarchy** of generations (Year > Quarter > Month) | A *named dimension* (exists: `panel-dimensions.ts`): a name + an ordered list of columns, top generation first |
 | **Member** | A value at a generation, identified by its path (`2021 / Q1`) — the tree's `RowPath` |
@@ -27,7 +28,7 @@ dimension of its own, so every column can be placed.
 ## 2. The grid: three axes
 
 - **Rows** and **columns** hold dimensions (several nested on each, as
-  Smart View's asymmetric grids allow), each showing some of its members.
+  classic ad hoc grids allow), each showing some of its members.
 - **POV** (point of view) holds every other dimension, each pinned to ONE
   member (initially its top). Shown as a bar above the grid: one
   drop-down per dimension; choosing a member filters the whole grid.
@@ -49,11 +50,11 @@ dimension of its own, so every column can be placed.
 | **Refresh** | Re-run with the current grid | exists |
 | **Undo / Redo** | Every ad hoc step | exists (history) |
 
-## 4. Options (Smart View's ad hoc options that apply)
+## 4. Options (the classic ad hoc options that apply)
 
 - **Zoom In level:** Next / All / Bottom.
 - **Ancestor position:** Top (parents above children) or **Bottom**
-  (children above parents, the Essbase default for totals).
+  (children above parents, the classic default for totals).
 - **Indentation:** subitems, totals, or none.
 - **Suppress rows:** No Data/Missing, Zero, Repeated Members.
 - **Suppress columns:** No Data/Missing, Zero.
@@ -66,7 +67,7 @@ dimension of its own, so every column can be placed.
 
 - **Submit Data / write-back** — the cube is read-only over its source.
 - **Calculation scripts, business rules, cell comments, supporting
-  detail, Smart Slices, report designer, VBA/macros** — Essbase server
+  detail, saved slices, report designer, macros** — OLAP server
   and Office features, not grid analysis.
 - **Attribute dimensions and UDAs** — later, if the model carries them.
 
@@ -78,11 +79,11 @@ dimension of its own, so every column can be placed.
    column members × POV filter.
 3. **Zoom In / Zoom Out** with the three levels, **Keep Only / Remove
    Only**, **Pivot / Pivot to POV** — on the grid's right-click menu and
-   double-click, as Smart View's ribbon has them.
+   double-click, as classic ad hoc clients have them.
 4. **Member Selection** dialog.
 5. **Options:** ancestor position, indentation, suppression, member
    display, navigate without data.
-6. The mode switch: *Essbase (ad hoc)* in the title bar menu, the
+6. The mode switch: *Ad Hoc Analysis* in the title bar menu, the
    current cube carried over (rows → row axis, pivots → column axis,
    filters → POV where a filter is one member).
 

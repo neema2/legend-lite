@@ -274,7 +274,7 @@ export interface ColumnLayout {
   readonly measuresFirst?: boolean;
   /**
    * What a header cell SHOWS for a path segment, when that is not the
-   * segment itself: Essbase mode's segments are a member's full path
+   * segment itself: Ad Hoc Analysis mode's segments are a member's full path
    * (unique, so two Q1s under different years never merge) and show
    * its last part.
    */
