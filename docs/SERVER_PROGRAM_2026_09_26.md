@@ -26,6 +26,12 @@ files, UI, docs or commits (standing rule).
    the client.
 5. **Direct first.** The browser path (the tab plans, the warehouse runs,
    over the HTTP SQL API) comes before the server-side JDBC path.
+6. **Entitlements are ACL tables joined in views** (user, 2026-09-26):
+   `security.acl(username, <key>)`, one row per value a user may see, at
+   whatever granularity, joined to the data in the role's view.
+7. **The SQL-API client and every vendor binding run in WebAssembly**
+   (user, 2026-09-26): the same Java code, in the module beside the
+   planner, not a separate TypeScript client.
 
 ## 1. The pieces
 
@@ -152,10 +158,33 @@ DataCube already receives Arrow from DuckDB-wasm and turns it into its
 result table (`result.ts`). The warehouse streams Arrow IPC, so Direct
 mode reuses that reader unchanged. JSON exists for tools and tests.
 
-### 2c. Bindings (the gateway)
+### 2c. Bindings: the same Java in the tab and on the server
 
-A Java interface in legend-lite, one method per call above, with
-implementations:
+**It must compile to WebAssembly (ruling 7).** TeaVM's WebAssembly has
+no `java.net` and no blocking I/O. So a binding does **no I/O**: it
+builds the next HTTP call and interprets each response. It is a pure
+state machine:
+
+```java
+interface SqlApiBinding {                    // compiled to WASM and run on the JVM alike
+  HttpCall submit(Statement s, Token t);    // what to send
+  Step next(HttpResult r);                   // Poll(call) | Fetch(call) | Done(meta) | Failed(error)
+  RowBatch decode(HttpResult chunk);         // a vendor's result → the canonical batch
+}
+```
+
+A small **driver** performs the I/O: `fetch` in the browser,
+`java.net.http` on the JVM. Both drive the identical binding.
+- **Proof:** a WASM differential like the planner's. Recorded exchanges
+  replay through both builds, with identical steps and rows required.
+- **Arrow:** Arrow from the warehouse stays in JavaScript, which
+  DataCube already decodes. A binding only converts a vendor's own
+  format to canonical batches.
+- **CORS:** a vendor API that refuses browser origins, or needs a
+  browser sign-in flow, is reached through the legend-lite gateway,
+  running the same binding.
+
+Implementations:
 
 - **native:** the warehouse (pass-through);
 - **JDBC:** any JDBC database. Asynchrony is emulated with a statement
@@ -175,8 +204,39 @@ render its dialect, which is a separate leg per vendor.
 
 The warehouse enforces them. Nothing upstream of it is trusted.
 
+**Measured on DuckDB 1.4.4 (2026-09-26):**
+
+| What | Result |
+|---|---|
+| `current_user`, `user`, `session_user` | exist, but always return the constant `duckdb`: there is no login to carry |
+| `SET VARIABLE` / `getvariable()` | **per connection**: another connection to the same database does not see it |
+| ACL join in a view on `getvariable` | works: user1 → EMEA rows, user2 → AMER + APAC |
+| `lock_configuration = true` | locks settings but **not** variables: a session can still `SET VARIABLE`, so the authorizer must forbid it |
+| `json_serialize_sql` | lists every table, including in subqueries and CTEs, table functions and file paths used as tables; **fails on anything but SELECT**: `SET`, `ATTACH`, `COPY`, `PRAGMA`, `INSTALL` |
+
+This mirrors real servers: Postgres checks the querying role's grants
+on each referenced relation (a view needs only its own grant) and adds
+row policies inside the engine; hosted warehouses grant to roles, expose
+`CURRENT_USER()` / `CURRENT_ROLE()`, and implement rows with secure
+views or row policies joined to a mapping table. That is the pattern
+here, without the engine rewriting anything.
+
+0. **One DuckDB connection per session.** Variables are per connection,
+   so one user's identity cannot be seen from another's session.
 1. **Roles and grants:** users hold roles; roles are granted catalogs,
    schemas and views. The base tables are granted to no end-user role.
+   Grants live in the server's own tables: `security.user_roles` and
+   `security.grants(role, object)`.
+1b. **ACL tables:** `security.acl(username, <key>)`, one row per value a
+   user may see, at whatever granularity, e.g.
+   ```sql
+   CREATE MACRO app_user() AS getvariable('app_user');
+   CREATE VIEW sales.trades AS SELECT t.* FROM base.trades t
+   WHERE EXISTS (SELECT 1 FROM security.acl a
+                 WHERE a.username = app_user() AND a.region = t.region);
+   ```
+   Several keys mean several `EXISTS` clauses, and masks are
+   expressions in the view's `SELECT`.
 2. **Role-level views:** a role's schema holds views over the base data.
    - **Rows:** `WHERE region = 'EMEA'`, or per user:
      `WHERE region IN (SELECT region FROM entitlements.user_regions
@@ -217,7 +277,7 @@ Each leg lands with its proof, and CI is green before the next starts.
 
 | Leg | What | Proof |
 |---|---|---|
-| **W0** | Homework: DuckDB's concurrency model under a server (one process, connections, the writer), `json_serialize_sql` coverage for the authorizer, Arrow IPC streaming from DuckDB JDBC, the Windows lane. Measured, written down | the homework doc, with probes |
+| **W0** | Homework: DuckDB's concurrency model under a server (one process, a connection per session, the writer), `json_serialize_sql` coverage for the authorizer (every SELECT form; CTE names vs objects; multi-statement text), views over external data with file access denied to users, Arrow IPC streaming from DuckDB JDBC, **what TeaVM's WebAssembly accepts for a sans-I/O binding** (JSON handling, byte arrays, the driver seam to `fetch`), the Windows lane. Measured, written down | the homework doc, with probes |
 | **W1** | Warehouse core: process, catalogs, users/roles/tokens, sessions, the **HTTP SQL API** natively (§2a), Arrow + JSON results, limits, cancel, query history | a Java client suite over HTTP; **legend-lite's DuckDB corpus run against the warehouse through the HTTP API as a connection type**, so thousands of queries prove "the same as DuckDB, remotely" |
 | **W2** | Entitlements: role schemas, views, identity variables, the authorizer (§3) | the entitlement differential; the adversarial deny suite |
 | **D1** | **DataCube Direct mode:** a warehouse source (URL + sign-in), the tab plans, the SQL-API client runs it, Arrow in; the catalog call lists what the user may see | the browser harness over a running warehouse; the **mode differential**: Local vs Direct, identical rows for every harness cube |
