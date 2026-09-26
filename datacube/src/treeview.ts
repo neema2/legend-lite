@@ -196,7 +196,11 @@ export async function fetchTree(
       // data, which is cheaper than a second counting query.
       // Below the deepest group: its detail rows, from their own query.
       const detail = request.level > depth;
-      const target = detail ? detailSnapshot(snapshot, request.parent) : snapshot;
+      const target = detail
+        ? detailSnapshot(snapshot, request.parent)
+        : request.parent.length > 0
+          ? await withChildPivotCast(snapshot, request, deps)
+          : snapshot;
       const scoped = detail
         ? { level: target.rows.length, parent: [], limit: maxRows + 1 }
         : { ...request, limit: maxRows + 1 };
@@ -242,6 +246,35 @@ export async function fetchTree(
       .filter((d) => d.truncated)
       .map((d) => d.request),
   };
+}
+
+/**
+ * The pivot columns ONE group's query actually produces.
+ *
+ * `pivotCast` is learnt from the top level, so it names every value
+ * the pivot found across the whole cube. A group below it holds only
+ * some of them -- a customer who never ordered in EMEA has no
+ * `EMEA__|__total` -- and casting its pivot to a column it did not make
+ * is a binder error, so the group could not be opened. The pivot stage
+ * alone, filtered to the group and limited to no rows, says which
+ * columns it makes; the cast keeps those. What the group lacks it
+ * shows blank, as the grid does for any column a level does not carry.
+ */
+async function withChildPivotCast(
+  snapshot: CubeSnapshot,
+  request: LevelRequest,
+  deps: { readonly runner: QueryRunner; readonly epoch: number;
+    readonly signal?: AbortSignal },
+): Promise<CubeSnapshot> {
+  const { pivotCast, ...bare } = snapshot;
+  if (snapshot.pivotOn.length === 0 || !pivotCast || pivotCast.length === 0) {
+    return snapshot;
+  }
+  const scope = { ...request, limit: 0 };
+  const { rows } = await deps.runner.run(serialize(bare, scope),
+    { ...bare, epoch: deps.epoch }, scope, deps.signal);
+  const made = new Set(rows.columns.map((c) => c.name));
+  return { ...snapshot, pivotCast: pivotCast.filter((c) => made.has(c.name)) };
 }
 
 /** The name of one measure's pivot total column. */

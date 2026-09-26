@@ -597,7 +597,13 @@ export function detailSnapshot(s: CubeSnapshot, parent: RowPath): CubeSnapshot {
   const dims = rowColumns(s)
     .filter((c) => c.kind === 'dimension' && !isOn.has(c.name))
     .map((c) => c.name);
-  return { ...base, rows: dims, ...(pivotCast ? { pivotCast } : {}) };
+  // WITHOUT the parent's cast. The pivot already groups by every
+  // dimension here, so the cast and outer groupBy added nothing -- and
+  // the cast named the WHOLE cube's pivot columns, so a group with no
+  // EMEA rows was cast to an `EMEA__|__total` its pivot never made:
+  // a binder error on opening it.
+  void pivotCast;
+  return { ...base, rows: dims };
 }
 
 /**

@@ -616,3 +616,75 @@ describe('detail rows under the deepest group', () => {
       [null, 10, 20, 30]);
   });
 });
+
+describe('opening a group under a column pivot', () => {
+  // The top level learns the pivot's columns across the WHOLE cube. A
+  // group holds only some of those values -- a customer with no EMEA
+  // orders -- and a query cast to `EMEA__|__total` that its pivot did
+  // not make is a binder error: the group could not be opened.
+  const PIVOTED: CubeSnapshot = {
+    source: { expression: 'orders' },
+    columns: [
+      { name: 'segment', type: 'String' },
+      { name: 'customer', type: 'String' },
+      { name: 'region', type: 'String' },
+      { name: 'total', type: 'Float' },
+    ],
+    derived: [],
+    rows: ['customer'],
+    pivotOn: ['region'],
+    measures: [],
+    sorts: [],
+    epoch: 1,
+    pivotCast: [
+      { name: 'AMER__|__total', measure: 'total' },
+      { name: 'EMEA__|__total', measure: 'total' },
+    ],
+  };
+
+  /**
+   * One group, Acme in segment S, who only ever ordered in AMER --
+   * with its grouping columns first, as a level's query returns them.
+   */
+  function runner(sent: string[]): QueryRunner {
+    return {
+      name: 'stub',
+      async run(pure, snapshot) {
+        sent.push(pure);
+        const keys = snapshot.rows.map((name) => ({
+          name, values: [name === 'segment' ? 'S' : 'Acme'] }));
+        return {
+          rows: table([...keys, { name: 'AMER__|__total', values: [5] }]),
+          sql: 'SELECT',
+        };
+      },
+    };
+  }
+
+  it('opens the detail rows without the parent\'s cast', async () => {
+    const sent: string[] = [];
+    await fetchTree(PIVOTED, TreeState.empty().expand(['Acme']), {
+      runner: runner(sent), guard: new EpochGuard(), epoch: 0,
+    });
+    const detail = sent.find((q) => q.includes("$x.customer == 'Acme'"));
+    assert.ok(detail, sent.join(' | '));
+    assert.doesNotMatch(detail!, /cast\(/, detail);
+    assert.doesNotMatch(detail!, /EMEA/, detail);
+  });
+
+  it('casts a child level to the pivot columns that group makes', async () => {
+    const sent: string[] = [];
+    const twoLevels = { ...PIVOTED, rows: ['segment', 'customer'] };
+    await fetchTree(twoLevels, TreeState.empty().expand(['S']), {
+      runner: runner(sent), guard: new EpochGuard(), epoch: 0,
+    });
+    const child = sent.filter((q) => q.includes("$x.segment == 'S'"));
+    // First the probe -- the pivot alone, no rows -- then the level.
+    assert.ok(child.some((q) => /limit\(0\)/.test(q) && !/cast\(/.test(q)),
+      child.join(' | '));
+    const level = child.find((q) => /cast\(/.test(q));
+    assert.ok(level, child.join(' | '));
+    assert.match(level!, /'AMER__\|__total'/);
+    assert.doesNotMatch(level!, /EMEA/, level);
+  });
+});
