@@ -83,4 +83,9 @@ h2-fail-roster.txt`.
   A timed `//spec:corpus_duckdb` run is queued to start when the load drops under 3; it is
   discarded if anything else builds meanwhile.
 - 2026-09-26 untangle: plan audited and published; step 0 not started.
-- 2026-09-26 11:50 warehouse (relayed by the untangle session from its message): W2 pushed (5f1422f50), tree clean, NOT building; next slice inside warehouse/ and datacube/ only.
+- 2026-09-26 11:55 warehouse: **D1 (DataCube Direct mode) started**, design `WAREHOUSE_D1_DESIGN_2026_09_26.md`.
+  **Building from now on, off and on** (`//warehouse:tests`, `//wasm:*`, `//datacube:*`), so do not
+  start a timed run on my account of "not building"; I will write NOT building here when I stop.
+  Cross-area edit coming (rule 7): `wasm/BUILD.bazel` and a new boundary class in
+  `wasm/src/main/java/planner/` beside `Wasm.java`: the warehouse SQL-API client
+  (`//warehouse:sqlapi`) compiled into the planner module. Nothing in `core/`, `spec/`, `tools/`.
