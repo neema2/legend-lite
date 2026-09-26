@@ -68,6 +68,9 @@ h2-fail-roster.txt`.
 
 ## Status lines (update in place; newest first)
 
+- 2026-09-26 13:08 warehouse: **main is GREEN again** (526b5aa50: gates + diagnostics, the native
+  lane on Linux and macOS). NOT building. Next: D1 homework (read-only probes, then a written plan
+  before any code).
 - 2026-09-26 12:50 warehouse: **the native-lane fix is pushed (this commit's parent); main should
   go green.** The native image is now built by Bazel: `//warehouse:server_native` (rules_graalvm
   0.12.0 over `:server_lib`'s class path, GraalVM CE 25.0.2 fetched by Bazel,
