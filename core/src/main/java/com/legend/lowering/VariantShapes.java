@@ -68,7 +68,7 @@ final class VariantShapes {
      *  null); the engine's DuckDB adapter passes these (PCT composition tests).
      *  The materialized to(@Class) VALUE stays its verbatim refusal (CastPolicy). */
     static boolean emptinessOverClassCast(com.legend.compiler.spec.typed.TypedNativeCall n) {
-        return (Lowerer.isFamily(n, "isEmpty") || Lowerer.isFamily(n, "isNotEmpty"))
+        return (Lowerer.isFamily(n, com.legend.builtin.Pure.AT_COLLECTION_IS_EMPTY) || Lowerer.isFamily(n, com.legend.builtin.Pure.AT_COLLECTION_IS_NOT_EMPTY))
                 && n.args().size() == 1
                 && n.args().get(0) instanceof TypedCast vc
                 && variantCastBase(vc) == vc;
@@ -77,7 +77,7 @@ final class VariantShapes {
     static SqlExpr emptiness(com.legend.compiler.spec.typed.TypedNativeCall n,
             java.util.function.Function<TypedSpec, SqlExpr> scalar) {
         TypedCast vc = (TypedCast) n.args().get(0);
-        return SqlExpr.Call.of(Lowerer.isFamily(n, "isEmpty") ? SqlFn.IS_NULL : SqlFn.IS_NOT_NULL,
+        return SqlExpr.Call.of(Lowerer.isFamily(n, com.legend.builtin.Pure.AT_COLLECTION_IS_EMPTY) ? SqlFn.IS_NULL : SqlFn.IS_NOT_NULL,
                 scalar.apply(vc.source()));
     }
 

@@ -63,7 +63,7 @@ public final class UserCallInliner {
 
     private final SpecCompiler specs;
     private final java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook;
-    private final ArrayDeque<String> stack = new ArrayDeque<>();
+    private final ArrayDeque<com.legend.model.FunctionId> stack = new ArrayDeque<>();
     /** Per activation: the size of its literal-structure arguments (the
      * literal unroll's descent measure; 0 = none). */
     private final ArrayDeque<Integer> literalSizes = new ArrayDeque<>();
@@ -285,7 +285,7 @@ public final class UserCallInliner {
         // A subsumed program: an opaque typed value. A body: inlined below.
         com.legend.platform.Implementation row = call.callee().definition() == null ? null
                 : specs.ctx().implementations().of(
-                        com.legend.platform.FunctionId.of(call.callee().definition()));
+                        com.legend.model.FunctionId.of(call.callee().definition()));
         if (row instanceof com.legend.platform.Implementation.Intrinsic
                 || row instanceof com.legend.platform.Implementation.Form) {
             List<TypedSpec> pargs = new ArrayList<>(call.args().size());
@@ -325,7 +325,7 @@ public final class UserCallInliner {
         com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "BODY");
         // signatureKey identifies the OVERLOAD — name/arity conflated two
         // same-arity overloads into a false recursion (audit).
-        String key = call.callee().signatureKey();
+        com.legend.model.FunctionId key = call.callee().id();
         String shown = call.callee().qualifiedName() + "/"
                 + call.callee().parameters().size();
         int literalSize = args.stream().filter(LiteralUnroll::literalStructure)
@@ -570,12 +570,12 @@ public final class UserCallInliner {
     }
 
     /** The union of the argument classes of every enclosing activation of {@code key}. */
-    private java.util.Set<String> enclosingArgClasses(String key) {
+    private java.util.Set<String> enclosingArgClasses(com.legend.model.FunctionId key) {
         java.util.Set<String> out = new java.util.LinkedHashSet<>();
-        java.util.Iterator<String> k = stack.iterator();
+        java.util.Iterator<com.legend.model.FunctionId> k = stack.iterator();
         java.util.Iterator<java.util.Set<String>> c = argClassSets.iterator();
         while (k.hasNext()) {
-            String at = k.next();
+            com.legend.model.FunctionId at = k.next();
             java.util.Set<String> classes = c.next();
             if (at.equals(key)) {
                 out.addAll(classes);
@@ -736,11 +736,11 @@ public final class UserCallInliner {
 
     /** The literal-argument size of the innermost enclosing activation of
      * {@code key} (the stacks are pushed together). */
-    private int enclosingLiteralSize(String key) {
-        java.util.Iterator<String> k = stack.iterator();
+    private int enclosingLiteralSize(com.legend.model.FunctionId key) {
+        java.util.Iterator<com.legend.model.FunctionId> k = stack.iterator();
         java.util.Iterator<Integer> s = literalSizes.iterator();
         while (k.hasNext()) {
-            String at = k.next();
+            com.legend.model.FunctionId at = k.next();
             int size = s.next();
             if (at.equals(key)) {
                 return size;
@@ -991,8 +991,7 @@ public final class UserCallInliner {
             // the COLLECTION groupBy over a spelled collection whose key
             // lambda folds per element: newMap(pair(key, ^List(values)) …)
             // — the map's SHAPE is the compiler's (WORLD_MAP §4)
-            case TypedNativeCall gb when com.legend.builtin.Pure.nativeNamed("groupBy",
-                        gb.callee().signatureKey()) && gb.args().size() == 2
+            case TypedNativeCall gb when (com.legend.builtin.Pure.AT_COLLECTION_GROUP_BY.contains(gb.callee().id()) || com.legend.builtin.Pure.AT_TDS_GROUP_BY.contains(gb.callee().id()) || com.legend.builtin.Pure.AT_RELATION_GROUP_BY.contains(gb.callee().id())) && gb.args().size() == 2
                     && gb.args().get(1) instanceof TypedLambda keyFn
                     && keyFn.parameters().size() == 1 -> {
                 TypedSpec src = rewrite(gb.args().get(0), env);
@@ -1143,8 +1142,8 @@ public final class UserCallInliner {
                 if (src instanceof com.legend.compiler.spec.typed.TypedNativeCall pc
                         && pc.args().size() == 2
                         && pc.callee().definition() != null
-                        && pc.callee().signatureKey().equals(
-                                com.legend.builtin.Pure.PAIR_KEY)
+                        && pc.callee().id().equals(
+                                com.legend.model.FunctionId.of(com.legend.builtin.Pure.PAIR__U_1__V_1))
                         && (pa.property().equals("first")
                                 || pa.property().equals("second"))) {
                     yield pc.args().get(pa.property().equals("first") ? 0 : 1);
@@ -1279,7 +1278,7 @@ public final class UserCallInliner {
                 // runs their effects once and treats the value as an
                 // opaque handle. Inlining them hits the non-let
                 // intermediate-statement wall on their effect bodies.
-                if (com.legend.builtin.NativeFn.Handle.isExecute(c.callee().qualifiedName())
+                if (com.legend.builtin.NativeFn.Handle.isExecute(c.callee().id())
                         && c.args().size() >= 3) {
                     List<TypedSpec> keepRt = new ArrayList<>(c.args().size());
                     for (int i = 0; i < c.args().size(); i++) {
@@ -1336,7 +1335,7 @@ public final class UserCallInliner {
                 // substitution above — the frame splice (the hook) sees
                 // the lambda only NOW; re-offer the substituted call
                 if (hook != null && rebuilt != c
-                        && (com.legend.builtin.NativeFn.Handle.of(c.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
+                        && (com.legend.builtin.NativeFn.Handle.of(c.callee().id()).orElse(null) == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
                     TypedSpec h = hook.apply(rebuilt, bound.keySet());
                     if (h != rebuilt) {
                         yield rewrite(h, env);

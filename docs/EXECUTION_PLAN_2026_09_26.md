@@ -123,6 +123,16 @@ shape (study `receipts/plan-audit-2026-09-26/differential-join-747ff1c11.tsv`): 
 
 ### Step 2 — A2: one identity, rules registered by declaration id (2 days)
 
+> **Done 2026-09-26** (GATES.md entry of that date). The catalog generator emits one overload group
+> per declared name (`Pure.AT_…`, 488); every rule table, memo and family lookup is keyed by
+> `FunctionId`, which moved to `model` beside the declaration type; the bare-name registration
+> API, both indexes, the second identity and the table's bridge are deleted. Two findings for the
+> record: the identity exposed four qualified-property/function collisions the spelling-based key
+> hid (walls, pinned with the reason; step A4 removes the lift), and the lowering helpers were
+> retyped to identities rather than widening the layering rule. Left for step 3 by count: 18
+> resolver lookups at a qualified name, ~70 `isToOneCall` compares by FQN text, the typer's two
+> spelled family lookups.
+
 **What it is.** Lowering already dispatches by the resolved overload (`Scalars.lower` keys by
 `callee.signatureKey()`), but under lite's own key while the tables use upstream's `FunctionId`, and
 the REGISTRATION side fans bare names to overloads (`Pure.nativeKeysAt`, 158 sites). A2 picks one

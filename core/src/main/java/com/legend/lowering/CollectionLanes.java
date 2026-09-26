@@ -300,11 +300,8 @@ final class CollectionLanes {
     /** The collection {@code add(set, value)} / {@code add(set, index,
      * value)} overloads only — {@code date::add(date, Duration)} is
      * DateShifts' (adjust over the Duration value's fields). */
-    static java.util.List<String> collectionAddKeys() {
-        java.util.List<String> dateAdd = com.legend.builtin.Pure.nativeKeysAt("add",
-                com.legend.compiler.element.type.PlatformTypes.DURATION);
-        return com.legend.builtin.Pure.nativeKeysAt("add").stream()
-                .filter(k -> !dateAdd.contains(k)).toList();
+    static java.util.List<com.legend.model.FunctionId> collectionAddKeys() {
+        return com.legend.builtin.Pure.AT_COLLECTION_ADD;
     }
 
     /** firstNotNull(set) — pureToSQLQuery.pure: {@code $set->filter(v |
@@ -314,8 +311,8 @@ final class CollectionLanes {
      * null CELL is by lane: SQL NULL on the plain lane; on the variant lane
      * (an Any-typed / mixed collection) TDSNull is the json null slot
      * (MixedEncoding — TDSNull is DATA). A to-one value is itself. */
-    static void registerFirstNotNull(java.util.Map<String, Scalars.Rule> rules) {
-        for (String f : com.legend.builtin.Pure.nativeKeysAt("firstNotNull")) {
+    static void registerFirstNotNull(java.util.Map<com.legend.model.FunctionId, Scalars.Rule> rules) {
+        for (com.legend.model.FunctionId f : com.legend.builtin.Pure.AT_TDS_EXTENSIONS_FIRST_NOT_NULL) {
             rules.put(f, (n, args) -> {
                 if (Scalars.isToOne(n.args().get(0))) {
                     return args.get(0);
@@ -360,7 +357,7 @@ final class CollectionLanes {
                 // a computed collection IS find(set, v | v != TDSNull): the
                 // find rule owns the carrier emission (no new list site)
                 return java.util.Objects.requireNonNull(rules.get(
-                        com.legend.builtin.Pure.nativeKeysAt("find").get(0)))
+                        com.legend.builtin.Pure.AT_COLLECTION_FIND.get(0)))
                         .apply(n, java.util.List.of(coll,
                                 new SqlExpr.Lambda(java.util.List.of("x"), notNull)));
             });

@@ -284,7 +284,7 @@ final class ElementReferences {
             String scope = com.legend.plan.PlanRows.scopeId(pn);
             StoreResolver.Context inner = context.withConstructedScope(scope);
             return new RootRow(elementRowByKey(scope, java.util.Objects.requireNonNull(
-                    com.legend.compiler.element.type.PlatformTypes.handleRowClass(pn.callee().qualifiedName(), pn.callee().returnType())), inner, freshVar), inner);
+                    com.legend.compiler.element.type.PlatformTypes.handleRowClass(pn.callee().id(), pn.callee().returnType())), inner, freshVar), inner);
         }
         if (cur instanceof TypedLambda flam) {
             String scope = FunctionBodyRows.scopeId(flam);

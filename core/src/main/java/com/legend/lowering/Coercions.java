@@ -25,7 +25,7 @@ final class Coercions {
     private Coercions() {
     }
 
-    static void register(Map<String, Scalars.Rule> rules) {
+    static void register(Map<com.legend.model.FunctionId, Scalars.Rule> rules) {
         // toOne erases in SQL (MUST-honor: multiplicity narrowing is a
         // no-op value-wise). C2 (STAMP_DISCIPLINE_PROGRAM) MEASURED the
         // blanket unwrap alternative and it REGRESSED milestoning −16 /
@@ -45,7 +45,7 @@ final class Coercions {
         // scalar, [1..1] = already exactly one (identity). The
         // SYNTHESIZED conformance population spells trustOne (below)
         // and stays unguarded BY NAME — the C2 provenance split.
-        for (String f : Pure.nativeKeysAt("toOne")) {
+        for (com.legend.model.FunctionId f : Pure.AT_MULTIPLICITY_TO_ONE) {
             rules.put(f, (n, args) -> {
                 // AGG-STRIP (stamp C2): a LIST-collecting subquery
                 // operand becomes the NATIVE scalar subquery — SQL's
@@ -121,14 +121,14 @@ final class Coercions {
         // IDENTITY, no guard; SQL null-propagates (the engine's
         // processNoOp / no-guard qualifier behavior). This is the
         // synthesized population the C2 provenance split names.
-        for (String f : Pure.nativeKeysAt(Pure.Lite.TRUST_ONE)) {
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_TRUST_ONE) {
             rules.put(f, (n, args) -> args.get(0));
         }
         // toOneMany narrows [*] to [1..*]: at-least-one is CHECKED
         // (audit slice 3 — it was an unconditional no-op). A to-one
         // operand additionally re-carriers to the LIST the [1..*]
         // stamp promises downstream.
-        for (String f : Pure.nativeKeysAt("toOneMany")) {
+        for (com.legend.model.FunctionId f : Pure.AT_MULTIPLICITY_TO_ONE_MANY) {
             rules.put(f, (n, args) -> {
                 Multiplicity.Bounded m = n.args().get(0).info()
                         .multiplicity().requireBounded("toOneMany operand");

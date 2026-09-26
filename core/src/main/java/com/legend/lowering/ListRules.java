@@ -14,14 +14,14 @@ final class ListRules {
     private ListRules() {
     }
 
-    static void register(Map<String, Scalars.Rule> rules) {
+    static void register(Map<com.legend.model.FunctionId, Scalars.Rule> rules) {
         // repeat(e, n): n copies of one value — a semantic node the
         // dialects spell (DuckDB: list_transform over range(n))
-        for (String f : Pure.nativeKeysAt("repeat")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_REPEAT) {
             rules.put(f, (n, args) -> new SqlExpr.Call(SqlFn.REPEAT_VALUE, args));
         }
         // range(start, stop, step): a ZERO step raises real pure's message
-        for (String f : Pure.nativeKeysAt("range")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_RANGE) {
             rules.put(f, (n, args) -> args.size() < 3
                     ? new SqlExpr.Call(SqlFn.RANGE_FN, args)
                     : Scalars.guarded(SqlExpr.Call.of(SqlFn.EQUAL, args.get(2), new SqlExpr.IntLit(0)),

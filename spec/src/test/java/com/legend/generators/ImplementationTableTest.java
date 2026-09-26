@@ -7,7 +7,7 @@ import com.legend.builtin.Pure;
 import com.legend.model.Function;
 import com.legend.model.NativeFunctionDefinition;
 import com.legend.platform.DeclarationTable;
-import com.legend.platform.FunctionId;
+import com.legend.model.FunctionId;
 import com.legend.platform.Implementation;
 import com.legend.platform.ImplementationTable;
 import com.legend.testing.Repo;

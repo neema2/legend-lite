@@ -170,7 +170,7 @@ final class FunctionCompiler {
                 TypeClassifier.multiplicity(f.returnMultiplicity()),
                 body,
                 f instanceof NativeFunctionDefinition,
-                f);
+                f, com.legend.model.FunctionId.of(f));
     }
 
     /**

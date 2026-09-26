@@ -3058,7 +3058,7 @@ final class GraphEmission {
         // the alloyConfig ctor family (graphFetch.pure:126-171): decode
         // the CALL positionally by arity into the same flag surface
         if (cfg instanceof TypedNativeCall cc
-                && com.legend.builtin.NativeFn.ResolverForm.of(cc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.ResolverForm.ALLOY_CONFIG) {
+                && com.legend.builtin.NativeFn.ResolverForm.of(cc.callee().id()).orElse(null) == com.legend.builtin.NativeFn.ResolverForm.ALLOY_CONFIG) {
             List<TypedSpec> a = cc.args();
             int n = a.size();
             boolean includeType = boolArg(a.get(0));

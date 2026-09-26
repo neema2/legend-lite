@@ -54,6 +54,13 @@ class LiteralUnrollLedgerTest {
             "greaterThan", "lessThan", "greaterThanEqual", "lessThanEqual",
             // a spelled pair(a, b) IS an instance literal (first/second)
             "pair",
+            // the map literal's constructor is a SHAPE test inside the get
+            // fold (is the receiver a spelled newMap with spelled keys?);
+            // it folded since batch 74 but the ledger's pattern matched only
+            // `is(c, …)` and this fold's variable is `nm` — the pattern that
+            // reads the generated overload groups (step 2, 2026-09-26) sees
+            // every fold, so the row is written down now
+            "newMap",
             // batch 74: sqlNull is a SHAPE test inside the equality fold
             // (is the operand the TDS null carrier?) — it produces no value
             "sqlNull");
@@ -62,15 +69,28 @@ class LiteralUnrollLedgerTest {
     @DisplayName("LiteralUnroll folds compare-only natives (the pinned set)")
     void foldSetIsCompareOnly() throws Exception {
         String src = Files.readString(Repo.module("src/main/java/com/legend/compiler/spec/LiteralUnroll.java"));
-        Matcher m = Pattern.compile("is\\(c, \"(\\w+)\"\\)").matcher(src);
+        // since execution plan step 2 (2026-09-26) a fold names the catalog's
+        // generated overload GROUPS (`is(c, Pure.AT_COLLECTION_SIZE)`), never a
+        // spelling; the pinned set stays the bare names, read off the group's
+        // own declarations — through the catalog, never a second spelling
+        Matcher m = Pattern.compile("is\\(\\w+, ((?:Pure\\.AT_\\w+(?:, )?)+)\\)").matcher(src);
         Set<String> found = new TreeSet<>();
         while (m.find()) {
-            found.add(m.group(1));
+            for (String group : m.group(1).split(", ")) {
+                @SuppressWarnings("unchecked")
+                java.util.List<com.legend.model.FunctionId> ids =
+                        (java.util.List<com.legend.model.FunctionId>)
+                                com.legend.builtin.Pure.class.getField(group.substring("Pure.".length())).get(null);
+                for (var id : ids) {
+                    var d = java.util.Objects.requireNonNull(com.legend.builtin.Pure.nativeFunctionById(id.qualified()));
+                    found.add(d.qualifiedName().substring(d.qualifiedName().lastIndexOf(':') + 1));
+                }
+            }
         }
         // the TYPED form (upstream boundary batch 4b): a fold keyed on a
         // NativeFn family member — resolve the constant to its bare name
         // through the enum itself, never a second spelling
-        Matcher t = Pattern.compile("NativeFn\\.(\\w+)\\.of\\(c\\.callee\\(\\)\\.qualifiedName\\(\\)\\)"
+        Matcher t = Pattern.compile("NativeFn\\.(\\w+)\\.of\\(c\\.callee\\(\\)\\.id\\(\\)\\)"
                 + "\\.orElse\\(null\\) == com\\.legend\\.builtin\\.NativeFn\\.(\\w+)\\.(\\w+)").matcher(src);
         while (t.find()) {
             @SuppressWarnings({"unchecked", "rawtypes"})

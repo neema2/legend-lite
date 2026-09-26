@@ -591,15 +591,12 @@ public final class Pure {
         static final java.util.Map<String, List<NativeFunctionDefinition>> FN_BY_FQN = new java.util.HashMap<>();
         /** bare name -> the USER-RESOLVABLE overloads across packages, in
          *  catalog order — THE LOWERING'S REGISTRATION SURFACE ONLY
-         *  ({@link Pure#nativeKeysAt}: a rule table registers "every overload
+         *  (a rule table registers the catalog's generated overload GROUPS, every overload
          *  named X"; untangle 4d registers by id and deletes this). Name
          *  RESOLUTION never reads it (4b.2, 2026-09-25): a bare call is
          *  served by {@code com.legend.compiler.BareNames}, and
          *  {@link Pure#nativeFunctionsAt} refuses a bare name. The lite
          *  partition: lite-internal defs are excluded, LITE_SURFACE names stay. */
-        static final java.util.Map<String, List<NativeFunctionDefinition>> REGISTERED_BY_BARE = new java.util.HashMap<>();
-        /** name -> overload signature keys; nativeNamed's O(1) surface (re-audit M5). */
-        static final java.util.Map<String, java.util.Set<String>> KEYS_BY_NAME = new java.util.HashMap<>();
         /** The FQNs a USER may name: every non-lite native and the lite product surface. */
         static final java.util.Set<String> USER_RESOLVABLE_FQNS = new java.util.LinkedHashSet<>();
         /** engine signature id -> the one overload that declares it (a function's
@@ -623,17 +620,7 @@ public final class Pure {
                 boolean userResolvable = !nfd.qualifiedName().startsWith(Lite.PKG)
                         || LITE_SURFACE.contains(bare);
                 if (userResolvable) {
-                    REGISTERED_BY_BARE.computeIfAbsent(bare, k -> new ArrayList<>()).add(nfd);
                     USER_RESOLVABLE_FQNS.add(nfd.qualifiedName());
-                }
-                // keys index serves BOTH spellings (registration tables
-                // use bare) — the bare spelling under the same partition
-                // rule as REGISTERED_BY_BARE.
-                KEYS_BY_NAME.computeIfAbsent(nfd.qualifiedName(), k -> new java.util.HashSet<>())
-                        .add(nfd.signatureKey());
-                if (userResolvable) {
-                    KEYS_BY_NAME.computeIfAbsent(bare, k -> new java.util.HashSet<>())
-                            .add(nfd.signatureKey());
                 }
             }
         }
@@ -690,89 +677,10 @@ public final class Pure {
      * registered at {@code name} — the parser-node-free membership test for
      * identity-keyed consumers (AUDIT_2026_07 §1c).
      */
-    /**
-     * The signature KEYS of every native overload registered at {@code name}
-     * — the parser-node-free registration surface for the lowering's rule
-     * tables (AUDIT_2026_07 §1c: dispatch identity crosses as STRINGS).
-     */
-    public static List<String> nativeKeysAt(String name) {
-        List<String> keys = new ArrayList<>();
-        for (var f : registeredAt(name)) {
-            keys.add(f.signatureKey());
-        }
-        return keys;
-    }
-
-    /**
-     * Signature keys of the overloads at {@code name} with exactly
-     * {@code arity} parameters — for dispatch tables (the lowering's
-     * pinned surface) that must select overloads without touching the
-     * model type (audit 22a M5: the isDistinct GROUP marker must never
-     * catch the legacy 2-arg overload).
-     */
-    public static List<String> nativeKeysAt(String name, int arity) {
-        List<String> keys = new ArrayList<>();
-        for (var f : registeredAt(name)) {
-            if (f.parameters().size() == arity) {
-                keys.add(f.signatureKey());
-            }
-        }
-        return keys;
-    }
-
-    /**
-     * Signature keys of the overloads at {@code name} that take a parameter
-     * whose type is the EXACT class {@code paramClassFqn} (audit 15:
-     * replaces the lowering's {@code contains("_Window")} key probe —
-     * identification is by full FQN, never substring).
-     */
-    public static List<String> nativeKeysAt(String name, String paramClassFqn) {
-        List<String> keys = new ArrayList<>();
-        for (var f : registeredAt(name)) {
-            for (var prm : f.parameters()) {
-                String head = switch (prm.type()) {
-                    case com.legend.protocol.TypeExpression.NameRef nr -> nr.name();
-                    case com.legend.protocol.TypeExpression.Generic g -> g.name();
-                    default -> null;
-                };
-                if (paramClassFqn.equals(head)) {
-                    keys.add(f.signatureKey());
-                    break;
-                }
-            }
-        }
-        return keys;
-    }
-
-    /**
-     * Signature keys of specific overloads the lowering must single out
-     * (string CONCAT-plus — upstream's meta::pure::functions::string::plus(String[*]),
-     * the collection form the parser emits for 'a' + 'b'; IN) — parser records
-     * stay behind this wall.
-     */
     /** The catalog natives a user may name — every non-lite native and the
      *  lite product surface: the resolver's function universe (untangle 4b.1). */
     public static java.util.Set<String> userResolvableFunctionFqns() {
         return java.util.Collections.unmodifiableSet(Index.USER_RESOLVABLE_FQNS);
-    }
-
-    public static String keyPlusString() {
-        return STRING_PLUS__STRING_MANY.signatureKey();
-    }
-
-    public static String keyIn() {
-        return IN__ANY_1__ANY_MANY.signatureKey();
-    }
-
-    /** The real second overload: in(value:Any[0..1], ...) — an empty needle is FALSE. */
-    public static String keyInOptional() {
-        return IN__ANY_0_1__ANY_MANY.signatureKey();
-    }
-
-    public static boolean nativeNamed(String name, String signatureKey) {
-        return Index.KEYS_BY_NAME
-                .getOrDefault(name, java.util.Set.of())
-                .contains(signatureKey);
     }
 
     /** Whether the native {@code name} names is declared VARIADIC — every
@@ -801,20 +709,13 @@ public final class Pure {
 
     /** The catalog's overloads at an exact FQN — a DECLARATION lookup. A bare
      *  name is refused: resolution asks {@code com.legend.compiler.BareNames}
-     *  (untangle 4b.2), registration asks {@link #nativeKeysAt}. */
+     *  (untangle 4b.2), registration names the AT_… overload groups (step 2). */
     public static List<NativeFunctionDefinition> nativeFunctionsAt(String fqn) {
         if (!fqn.contains("::")) {
             throw new IllegalArgumentException("'" + fqn + "' is a bare name, not a declaration:"
-                    + " resolution goes through BareNames, registration through nativeKeysAt");
+                    + " resolution goes through BareNames, registration through the AT_ overload groups");
         }
         return Index.FN_BY_FQN.getOrDefault(fqn, List.of());
-    }
-
-    /** The overloads a rule table registers under {@code name} — bare names on
-     *  the registration index, qualified ones at their declaration. */
-    private static List<NativeFunctionDefinition> registeredAt(String name) {
-        List<NativeFunctionDefinition> exact = Index.FN_BY_FQN.get(name);
-        return exact != null ? exact : Index.REGISTERED_BY_BARE.getOrDefault(name, List.of());
     }
 
     /** All native class FQNs — the resolver's prelude / known-FQN universe. */
@@ -2181,12 +2082,9 @@ public final class Pure {
     public static final NativeFunctionDefinition REMOVE_DUPLICATES_BY__T_MANY__FUNCTION_1 = signature("native function meta::pure::functions::collection::removeDuplicatesBy<T>(col:T[*], key:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::type::Any[1]}>[1]):T[*];");
     public static final NativeFunctionDefinition REMOVE_DUPLICATES__T_MANY = signature("native function meta::pure::functions::collection::removeDuplicates<T>(col:T[*]):T[*];");
     public static final NativeFunctionDefinition DISTINCT__T_MANY = signature("native function meta::pure::functions::collection::distinct<T>(s:T[*]):T[*];");
-    /** The collection overload's key, exported so LOWERING (parser-free) can rule on it. */
-    public static final String DISTINCT_COLLECTION_KEY = DISTINCT__T_MANY.signatureKey();
-    /** pair()'s key, exported for the STRUCT-carrier lowering rule. */
-    public static final String PAIR_KEY = PAIR__U_1__V_1.signatureKey();
-    /** Map get()'s key — the bare name is shared with variant get. */
-    public static final String MAP_GET_KEY = MAP_GET__MAP_1__U_1.signatureKey();
+
+
+
     public static final NativeFunctionDefinition REMOVE_DUPLICATES__T_MANY__FUNCTION_0_1__FUNCTION_0_1 = signature("native function meta::pure::functions::collection::removeDuplicates<T,V>(col:T[*], key:meta::pure::metamodel::function::Function<{T[1]->V[1]}>[0..1], eql:meta::pure::metamodel::function::Function<{V[1],V[1]->meta::pure::metamodel::type::Boolean[1]}>[0..1]):T[*];");
     public static final NativeFunctionDefinition REMOVE_DUPLICATES__T_MANY__FUNCTION_1 = signature("native function meta::pure::functions::collection::removeDuplicates<T>(col:T[*], eql:meta::pure::metamodel::function::Function<{T[1],T[1]->meta::pure::metamodel::type::Boolean[1]}>[1]):T[*];");
     public static final NativeFunctionDefinition REM__NUMBER_1__NUMBER_1 = signature("native function meta::pure::functions::math::rem(dividend:meta::pure::metamodel::type::Number[1], divisor:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Number[1];");
@@ -2372,6 +2270,495 @@ public final class Pure {
     public static final NativeFunctionDefinition SUBSTR__STRING_1__INTEGER_1__INTEGER_1 = signature("native function meta::pure::functions::string::substr(str:meta::pure::metamodel::type::String[1], start:meta::pure::metamodel::type::Integer[1], end:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition IS_DISTINCT__T_MANY__ROOT_GRAPH_FETCH_TREE_1 = signature("native function meta::pure::functions::collection::isDistinct<T>(collection:T[*], graphFetchTree:meta::pure::graphFetch::RootGraphFetchTree<T>[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition IS_ALPHA_NUMERIC__STRING_1 = signature("native function meta::pure::functions::string::isAlphaNumeric(string:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::Boolean[1];");
+    // ---- OVERLOAD GROUPS, generated: the IDENTITIES of every constant declared at one FQN, in constant order, computed once here. A lowering rule registers against these, never a bare name ----
+    public static final List<com.legend.model.FunctionId> AT_ALLOY_OBJECT_REFERENCE_DECODE_OBJECT_REFERENCES_AND_GET_PK_MAP = com.legend.model.FunctionId.ofAll(DECODE_OBJECT_REFERENCES__3);
+    public static final List<com.legend.model.FunctionId> AT_ALLOY_OBJECT_REFERENCE_GENERATE_OBJECT_REFERENCES = com.legend.model.FunctionId.ofAll(GENERATE_OBJECT_REFERENCES__6);
+    public static final List<com.legend.model.FunctionId> AT_ALLOY_OBJECT_REFERENCE_GENERATE_OBJECT_REFERENCES_FOR_GIVEN_SET_ID = com.legend.model.FunctionId.ofAll(GENERATE_OBJECT_REFERENCES_FOR_GIVEN_SET_ID__7);
+    public static final List<com.legend.model.FunctionId> AT_ALLOY_SERVICE_EXECUTION_SET_UP_DATA_SQLS = com.legend.model.FunctionId.ofAll(SET_UP_DATA_SQLS__LIST_MANY__ANY_MANY__ANY_1, SET_UP_DATA_SQLS__STRING_1__DATABASE_MANY, SET_UP_DATA_SQLS__STRING_1__ANY_MANY__ANY_1);
+    public static final List<com.legend.model.FunctionId> AT_ALLOY_SERVICE_EXECUTION_SET_UP_DATA_SQLS_V2 = com.legend.model.FunctionId.ofAll(SET_UP_DATA_SQLS_V2__STRING_1__ANY_1__ANY_1);
+    public static final List<com.legend.model.FunctionId> AT_ALLOY_TEST_MAY_EXECUTE_ALLOY_TEST = com.legend.model.FunctionId.ofAll(MAY_EXECUTE_ALLOY_TEST);
+    public static final List<com.legend.model.FunctionId> AT_CORE_RUNTIME_CONNECTION_BY_ELEMENT = com.legend.model.FunctionId.ofAll(CONNECTION_BY_ELEMENT__RUNTIME_1__STORE_1);
+    public static final List<com.legend.model.FunctionId> AT_CORE_RUNTIME_CURRENT_USER_ID = com.legend.model.FunctionId.ofAll(CORE_CURRENT_USER_ID__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_JSON_GET_VALUE = com.legend.model.FunctionId.ofAll(GET_VALUE__JSON_OBJECT_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_JSON_PARSE_JSON = com.legend.model.FunctionId.ofAll(PARSE_JSON__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_JSON_TDS_TO_JSONKEY_VALUE_OBJECT_STRING = com.legend.model.FunctionId.ofAll(TDS_TO_JSON_KEY_VALUE_OBJECT_STRING__TDS_1);
+    public static final List<com.legend.model.FunctionId> AT_JSON_TO_COMPACT_JSONSTRING = com.legend.model.FunctionId.ofAll(TO_COMPACT_JSON_STRING);
+    public static final List<com.legend.model.FunctionId> AT_JSON_TO_JSON = com.legend.model.FunctionId.ofAll(TO_JSON__ANY_M);
+    public static final List<com.legend.model.FunctionId> AT_JSON_TO_PRETTY_JSONSTRING = com.legend.model.FunctionId.ofAll(TO_PRETTY_JSON_STRING);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_EXECUTE_LEGEND_QUERY = com.legend.model.FunctionId.ofAll(EXECUTE_LEGEND_QUERY__FN_1__PAIR_MANY__EXTENSION_MANY, EXECUTE_LEGEND_QUERY__FN_1__PAIR_MANY__EXECUTION_CONTEXT_1__EXTENSION_MANY);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ADJUST_TEMPORAL = com.legend.model.FunctionId.ofAll(ADJUST_TEMPORAL__DATE_1__INTEGER_1__DURATION_UNIT_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_AS_OF_JOIN_WITH_PREFIX = com.legend.model.FunctionId.ofAll(AS_OF_JOIN_WITH_PREFIX__RELATION_1__RELATION_1__FUNCTION_1__FUNCTION_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ASOR_DECODE_PK_MAP = com.legend.model.FunctionId.ofAll(ASOR_DECODE_PK_MAP__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ASOR_PK_VALUE = com.legend.model.FunctionId.ofAll(ASOR_PK_VALUE__STRING_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CAST_AS_DECLARED = com.legend.model.FunctionId.ofAll(CAST_AS_DECLARED__ANY_01__T_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_FORMAT__STRING_0_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_DATE_TIME_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_DATE_TIME_FORMAT__STRING_0_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_CONVERT_TIME_ZONE_FORMAT = com.legend.model.FunctionId.ofAll(CONVERT_TIME_ZONE_FORMAT__DATE_0_1__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DIVIDE_ROUND = com.legend.model.FunctionId.ofAll(DIVIDE_ROUND__NUMBER_1__NUMBER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GREATER_THAN = com.legend.model.FunctionId.ofAll(GREATER_THAN_ANY__ANY_1__ANY_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GREATER_THAN_EQUAL = com.legend.model.FunctionId.ofAll(GREATER_THAN_EQUAL_ANY__ANY_1__ANY_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GROUP_BY_COMPUTED_KEYS = com.legend.model.FunctionId.ofAll(GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_1, GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GROUP_BY_OVER_INSTANCES = com.legend.model.FunctionId.ofAll(GROUP_BY_OVER_INSTANCES__C_MANY__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_1, GROUP_BY_OVER_INSTANCES__C_MANY__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_DISTINCT_FROM = com.legend.model.FunctionId.ofAll(IS_DISTINCT_FROM__ANY_1__ANY_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_IS_NUMERIC = com.legend.model.FunctionId.ofAll(IS_NUMERIC__STRING_0_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_JOIN_SLOT = com.legend.model.FunctionId.ofAll(JOIN_SLOT__RELATION_1__FUNC_COL_SPEC_1__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_JOIN_WITH_PREFIX = com.legend.model.FunctionId.ofAll(JOIN_WITH_PREFIX__RELATION_1__RELATION_1__JOIN_KIND_1__FUNCTION_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LEGACY_ASSOC_PREDICATE = com.legend.model.FunctionId.ofAll(LEGACY_ASSOC_PREDICATE__A_1__B_1__RELATION_1__RELATION_1__FUNCTION_1, LEGACY_ASSOC_PREDICATE__A_1__B_1__STRING_1__STRING_1__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LEGACY_LOCAL_PROPERTY = com.legend.model.FunctionId.ofAll(LEGACY_LOCAL_PROPERTY__ANY_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LEGACY_NAVIGATE = com.legend.model.FunctionId.ofAll(LEGACY_NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__RELATION_1__FUNCTION_1, LEGACY_NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__RELATION_1__FUNCTION_1__FUNCTION_1, LEGACY_NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__ANY_MANY);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LESS_THAN = com.legend.model.FunctionId.ofAll(LESS_THAN_ANY__ANY_1__ANY_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_LESS_THAN_EQUAL = com.legend.model.FunctionId.ofAll(LESS_THAN_EQUAL_ANY__ANY_1__ANY_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_NAVIGATE = com.legend.model.FunctionId.ofAll(NAVIGATE__RELATION_1__FUNC_COL_SPEC_1__FUNCTION_1, NAVIGATE__C_MANY__FUNC_COL_SPEC_1__FUNCTION_1, NAVIGATE__T_MANY__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_NOT_EQUAL_ANSI = com.legend.model.FunctionId.ofAll(NOT_EQUAL_ANSI__ANY_1__ANY_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_OTHERWISE = com.legend.model.FunctionId.ofAll(OTHERWISE__T_1__T_0_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_PARSE_DATE_FORMAT = com.legend.model.FunctionId.ofAll(PARSE_DATE_FORMAT__STRING_0_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ROUTE = com.legend.model.FunctionId.ofAll(ROUTE__C_MANY__RELATION_1__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SOURCE_URL = com.legend.model.FunctionId.ofAll(SOURCE_URL__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TDS = com.legend.model.FunctionId.ofAll(TDS__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TRUST_ONE = com.legend.model.FunctionId.ofAll(TRUST_ONE__T_MANY);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TUPLE = com.legend.model.FunctionId.ofAll(TUPLE__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1, TUPLE__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1__ANY_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TYPE_AS_DECLARED = com.legend.model.FunctionId.ofAll(TYPE_AS_DECLARED__ANY_01__T_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_TEST_MAY_EXECUTE_LEGEND_TEST = com.legend.model.FunctionId.ofAll(MAY_EXECUTE_LEGEND_TEST);
+    public static final List<com.legend.model.FunctionId> AT_ALLOY_CONNECTIONS_RELATIONAL_MAPPER_POST_PROCESSOR = com.legend.model.FunctionId.ofAll(RELATIONAL_MAPPER_PP);
+    public static final List<com.legend.model.FunctionId> AT_EXECUTION_PLAN_EXECUTE = com.legend.model.FunctionId.ofAll(EXECUTION_PLAN_EXECUTE__EXECUTION_PLAN_1__ANY_MANY__EXTENSION_MANY);
+    public static final List<com.legend.model.FunctionId> AT_EXECUTION_PLAN_EXECUTION_PLAN = com.legend.model.FunctionId.ofAll(EXECUTION_PLAN__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXTENSION_MANY, EXECUTION_PLAN__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__BOOLEAN_1__EXTENSION_MANY, EXECUTION_PLAN__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXTENSION_MANY__DEBUG_CONTEXT_1, EXECUTION_PLAN__FUNCTION_DEFINITION_1__EXTENSION_MANY, EXECUTION_PLAN__FUNCTION_DEFINITION_1__EXECUTION_CONTEXT_1__EXTENSION_MANY, EXECUTION_PLAN__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__EXTENSION_MANY);
+    public static final List<com.legend.model.FunctionId> AT_EXECUTION_PLAN_FEATURE_FLAG_WITH_FEATURE_FLAGS = com.legend.model.FunctionId.ofAll(WITH_FEATURE_FLAGS__T_MANY__ENUM_MANY);
+    public static final List<com.legend.model.FunctionId> AT_EXECUTION_PLAN_TO_STRING_PLAN_TO_STRING = com.legend.model.FunctionId.ofAll(PLAN_TO_STRING__EXECUTION_PLAN_1__EXTENSION_MANY);
+    public static final List<com.legend.model.FunctionId> AT_EXECUTION_PLAN_TO_STRING_PLAN_TO_STRING_WITHOUT_FORMATTING = com.legend.model.FunctionId.ofAll(PLAN_TO_STRING_WITHOUT_FORMATTING__EXECUTION_PLAN_1__EXTENSION_MANY);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT = com.legend.model.FunctionId.ofAll(ASSERT__BOOLEAN_1, ASSERT__BOOLEAN_1__STRING_1, ASSERT__BOOLEAN_1__FN_1, ASSERT__BOOLEAN_1__STRING_1__ANY_MANY);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_CONTAINS = com.legend.model.FunctionId.ofAll(ASSERT_CONTAINS__ANY_MANY__ANY_1, ASSERT_CONTAINS__ANY_MANY__ANY_1__STRING_1, ASSERT_CONTAINS__ANY_MANY__ANY_1__STRING_1__ANY_MANY, ASSERT_CONTAINS__ANY_MANY__ANY_1__FN_1);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_EMPTY = com.legend.model.FunctionId.ofAll(ASSERT_EMPTY__ANY_MANY, ASSERT_EMPTY__ANY_MANY__STRING_1, ASSERT_EMPTY__ANY_MANY__STRING_1__ANY_MANY, ASSERT_EMPTY__ANY_MANY__FN_1);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_EQ = com.legend.model.FunctionId.ofAll(ASSERT_EQ__ANY_1__ANY_1, ASSERT_EQ__ANY_1__ANY_1__STRING_1, ASSERT_EQ__ANY_1__ANY_1__STRING_1__ANY_MANY, ASSERT_EQ__ANY_1__ANY_1__FN_1);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_EQ_WITHIN_TOLERANCE = com.legend.model.FunctionId.ofAll(ASSERT_EQ_WITHIN_TOLERANCE__NUMBER_1__NUMBER_1__NUMBER_1, ASSERT_EQ_WITHIN_TOLERANCE__N_1__N_1__N_1__STRING_1, ASSERT_EQ_WITHIN_TOLERANCE__N_1__N_1__N_1__STRING_1__ANY_MANY, ASSERT_EQ_WITHIN_TOLERANCE__N_1__N_1__N_1__FN_1);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_EQUALS = com.legend.model.FunctionId.ofAll(ASSERT_EQUALS__ANY_MANY__ANY_MANY, ASSERT_EQUALS__ANY_MANY__ANY_MANY__STRING_1, ASSERT_EQUALS__ANY_MANY__ANY_MANY__STRING_1__ANY_MANY, ASSERT_EQUALS__ANY_MANY__ANY_MANY__FN_1);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_ERROR = com.legend.model.FunctionId.ofAll(ASSERT_ERROR__MATCHER, ASSERT_ERROR__FN_1__STRING_1, ASSERT_ERROR__FN_1__STRING_1__INTEGER_01__INTEGER_01);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_FALSE = com.legend.model.FunctionId.ofAll(ASSERT_FALSE__BOOLEAN_1, ASSERT_FALSE__BOOLEAN_1__STRING_1, ASSERT_FALSE__BOOLEAN_1__STRING_1__ANY_MANY, ASSERT_FALSE__BOOLEAN_1__FN_1);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_INSTANCE_OF = com.legend.model.FunctionId.ofAll(ASSERT_INSTANCE_OF__ANY_1__TYPE_1, ASSERT_INSTANCE_OF__ANY_1__TYPE_1__STRING_1, ASSERT_INSTANCE_OF__ANY_1__TYPE_1__STRING_1__ANY_MANY, ASSERT_INSTANCE_OF__ANY_1__TYPE_1__FN_1);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_IS = com.legend.model.FunctionId.ofAll(ASSERT_IS__ANY_1__ANY_1, ASSERT_IS__ANY_1__ANY_1__STRING_1, ASSERT_IS__ANY_1__ANY_1__STRING_1__ANY_MANY, ASSERT_IS__ANY_1__ANY_1__FN_1);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_JSON_STRINGS_EQUAL = com.legend.model.FunctionId.ofAll(ASSERT_JSON_STRINGS_EQUAL__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_NOT_EMPTY = com.legend.model.FunctionId.ofAll(ASSERT_NOT_EMPTY__ANY_MANY, ASSERT_NOT_EMPTY__ANY_MANY__STRING_1, ASSERT_NOT_EMPTY__ANY_MANY__STRING_1__ANY_MANY, ASSERT_NOT_EMPTY__ANY_MANY__FN_1);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_NOT_EQUALS = com.legend.model.FunctionId.ofAll(ASSERT_NOT_EQUALS__ANY_MANY__ANY_MANY, ASSERT_NOT_EQUALS__ANY_MANY__ANY_MANY__STRING_1, ASSERT_NOT_EQUALS__ANY_MANY__ANY_MANY__STRING_1__ANY_MANY, ASSERT_NOT_EQUALS__ANY_MANY__ANY_MANY__FN_1);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_SAME_ELEMENTS = com.legend.model.FunctionId.ofAll(ASSERT_SAME_ELEMENTS__ANY_MANY__ANY_MANY, ASSERT_SAME_ELEMENTS__ANY_MANY__ANY_MANY__STRING_1, ASSERT_SAME_ELEMENTS__ANY_MANY__ANY_MANY__STRING_1__ANY_MANY, ASSERT_SAME_ELEMENTS__ANY_MANY__ANY_MANY__FN_1);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_ASSERT_SIZE = com.legend.model.FunctionId.ofAll(ASSERT_SIZE__ANY_MANY__INTEGER_1, ASSERT_SIZE__ANY_MANY__INTEGER_1__STRING_1, ASSERT_SIZE__ANY_MANY__INTEGER_1__STRING_1__ANY_MANY, ASSERT_SIZE__ANY_MANY__INTEGER_1__FN_1);
+    public static final List<com.legend.model.FunctionId> AT_ASSERTS_FAIL = com.legend.model.FunctionId.ofAll(FAIL, FAIL__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_BOOLEAN_AND = com.legend.model.FunctionId.ofAll(AND__BOOLEAN_1__BOOLEAN_1);
+    public static final List<com.legend.model.FunctionId> AT_BOOLEAN_BETWEEN = com.legend.model.FunctionId.ofAll(BETWEEN__NUMBER, BETWEEN__STRING, BETWEEN__DATE);
+    public static final List<com.legend.model.FunctionId> AT_BOOLEAN_EQ = com.legend.model.FunctionId.ofAll(EQ__ANY_1__ANY_1);
+    public static final List<com.legend.model.FunctionId> AT_BOOLEAN_EQUAL = com.legend.model.FunctionId.ofAll(EQUAL__ANY_MANY__ANY_MANY);
+    public static final List<com.legend.model.FunctionId> AT_BOOLEAN_GREATER_THAN = com.legend.model.FunctionId.ofAll(GREATER_THAN__DATE_0_1__DATE_0_1, GREATER_THAN__DATE_0_1__DATE_1, GREATER_THAN__DATE_1__DATE_0_1, GREATER_THAN__DATE_1__DATE_1, GREATER_THAN__NUMBER_0_1__NUMBER_0_1, GREATER_THAN__NUMBER_0_1__NUMBER_1, GREATER_THAN__NUMBER_1__NUMBER_0_1, GREATER_THAN__NUMBER_1__NUMBER_1, GREATER_THAN__STRING_0_1__STRING_0_1, GREATER_THAN__STRING_0_1__STRING_1, GREATER_THAN__STRING_1__STRING_0_1, GREATER_THAN__STRING_1__STRING_1, GREATER_THAN__BOOLEAN_0_1__BOOLEAN_0_1);
+    public static final List<com.legend.model.FunctionId> AT_BOOLEAN_GREATER_THAN_EQUAL = com.legend.model.FunctionId.ofAll(GREATER_THAN_EQUAL__DATE_0_1__DATE_0_1, GREATER_THAN_EQUAL__DATE_0_1__DATE_1, GREATER_THAN_EQUAL__DATE_1__DATE_0_1, GREATER_THAN_EQUAL__DATE_1__DATE_1, GREATER_THAN_EQUAL__NUMBER_0_1__NUMBER_0_1, GREATER_THAN_EQUAL__NUMBER_0_1__NUMBER_1, GREATER_THAN_EQUAL__NUMBER_1__NUMBER_0_1, GREATER_THAN_EQUAL__NUMBER_1__NUMBER_1, GREATER_THAN_EQUAL__STRING_0_1__STRING_0_1, GREATER_THAN_EQUAL__STRING_0_1__STRING_1, GREATER_THAN_EQUAL__STRING_1__STRING_0_1, GREATER_THAN_EQUAL__STRING_1__STRING_1, GREATER_THAN_EQUAL__BOOLEAN_0_1__BOOLEAN_0_1);
+    public static final List<com.legend.model.FunctionId> AT_BOOLEAN_IS_TRUE = com.legend.model.FunctionId.ofAll(IS_TRUE__BOOLEAN_01);
+    public static final List<com.legend.model.FunctionId> AT_BOOLEAN_LESS_THAN = com.legend.model.FunctionId.ofAll(LESS_THAN__DATE_0_1__DATE_0_1, LESS_THAN__BOOLEAN_0_1__BOOLEAN_0_1, LESS_THAN__DATE_0_1__DATE_1, LESS_THAN__DATE_1__DATE_0_1, LESS_THAN__DATE_1__DATE_1, LESS_THAN__NUMBER_0_1__NUMBER_0_1, LESS_THAN__NUMBER_0_1__NUMBER_1, LESS_THAN__NUMBER_1__NUMBER_0_1, LESS_THAN__NUMBER_1__NUMBER_1, LESS_THAN__STRING_0_1__STRING_0_1, LESS_THAN__STRING_0_1__STRING_1, LESS_THAN__STRING_1__STRING_0_1, LESS_THAN__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_BOOLEAN_LESS_THAN_EQUAL = com.legend.model.FunctionId.ofAll(LESS_THAN_EQUAL__DATE_0_1__DATE_0_1, LESS_THAN_EQUAL__DATE_0_1__DATE_1, LESS_THAN_EQUAL__DATE_1__DATE_0_1, LESS_THAN_EQUAL__DATE_1__DATE_1, LESS_THAN_EQUAL__NUMBER_0_1__NUMBER_0_1, LESS_THAN_EQUAL__NUMBER_0_1__NUMBER_1, LESS_THAN_EQUAL__NUMBER_1__NUMBER_0_1, LESS_THAN_EQUAL__NUMBER_1__NUMBER_1, LESS_THAN_EQUAL__STRING_0_1__STRING_0_1, LESS_THAN_EQUAL__STRING_0_1__STRING_1, LESS_THAN_EQUAL__STRING_1__STRING_0_1, LESS_THAN_EQUAL__STRING_1__STRING_1, LESS_THAN_EQUAL__BOOLEAN_0_1__BOOLEAN_0_1);
+    public static final List<com.legend.model.FunctionId> AT_BOOLEAN_NOT = com.legend.model.FunctionId.ofAll(NOT__BOOLEAN_1);
+    public static final List<com.legend.model.FunctionId> AT_BOOLEAN_OR = com.legend.model.FunctionId.ofAll(OR__BOOLEAN_1__BOOLEAN_1);
+    public static final List<com.legend.model.FunctionId> AT_BOOLEAN_XOR = com.legend.model.FunctionId.ofAll(XOR__BOOLEAN_1__BOOLEAN_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_ADD = com.legend.model.FunctionId.ofAll(ADD__T_MANY__INTEGER_1__T_1, ADD__T_MANY__T_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_AND = com.legend.model.FunctionId.ofAll(AND__BOOLEAN_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_AT = com.legend.model.FunctionId.ofAll(AT__T_MANY__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_CONCATENATE = com.legend.model.FunctionId.ofAll(CONCATENATE__T_MANY__T_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_CONTAINS = com.legend.model.FunctionId.ofAll(CONTAINS__ANY_MANY__ANY_1, CONTAINS__Z_MANY__Z_1__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_COUNT = com.legend.model.FunctionId.ofAll(COUNT__ANY_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_DEFAULT_IF_EMPTY = com.legend.model.FunctionId.ofAll(DEFAULT_IF_EMPTY__T_MANY__T_ONEMANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_DISTINCT = com.legend.model.FunctionId.ofAll(DISTINCT__T_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_DROP = com.legend.model.FunctionId.ofAll(DROP__T_MANY__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_EXISTS = com.legend.model.FunctionId.ofAll(EXISTS__T_MANY__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_FILTER = com.legend.model.FunctionId.ofAll(FILTER__T_MANY__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_FIND = com.legend.model.FunctionId.ofAll(FIND__T_MANY__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_FIRST = com.legend.model.FunctionId.ofAll(FIRST__T_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_FOLD = com.legend.model.FunctionId.ofAll(FOLD__T_MANY__FUNCTION_1__V_m);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_FOR_ALL = com.legend.model.FunctionId.ofAll(FOR_ALL__T_MANY__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_GET = com.legend.model.FunctionId.ofAll(MAP_GET__MAP_1__U_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_GET_ALL = com.legend.model.FunctionId.ofAll(GET_ALL__CLASS_1, GET_ALL__CLASS_1__DATE_1, GET_ALL__CLASS_1__DATE_1__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_GET_ALL_FOR_EACH_DATE = com.legend.model.FunctionId.ofAll(GET_ALL_FOR_EACH_DATE__CLASS_1__DATE_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_GET_ALL_VERSIONS = com.legend.model.FunctionId.ofAll(GET_ALL_VERSIONS__CLASS_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_GET_ALL_VERSIONS_IN_RANGE = com.legend.model.FunctionId.ofAll(GET_ALL_VERSIONS_IN_RANGE__CLASS_1__DATE_1__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_GREATEST = com.legend.model.FunctionId.ofAll(GREATEST__X_MANY, GREATEST__X_1_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_GROUP_BY = com.legend.model.FunctionId.ofAll(GROUP_BY__X_MANY__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_HEAD = com.legend.model.FunctionId.ofAll(HEAD__T_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_IN = com.legend.model.FunctionId.ofAll(IN__ANY_1__ANY_MANY, IN__ANY_0_1__ANY_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_INDEX_OF = com.legend.model.FunctionId.ofAll(INDEX_OF__T_MANY__T_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_INIT = com.legend.model.FunctionId.ofAll(INIT__T_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_IS_DISTINCT = com.legend.model.FunctionId.ofAll(IS_DISTINCT__T_MANY, IS_DISTINCT__T_MANY__ROOT_GRAPH_FETCH_TREE_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_IS_EMPTY = com.legend.model.FunctionId.ofAll(IS_EMPTY__T_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_IS_NOT_EMPTY = com.legend.model.FunctionId.ofAll(IS_NOT_EMPTY__ANY_MANY, IS_NOT_EMPTY__ANY_0_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_KEY_VALUES = com.legend.model.FunctionId.ofAll(KEY_VALUES__MAP_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_KEYS = com.legend.model.FunctionId.ofAll(MAP_KEYS__MAP_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_LAST = com.legend.model.FunctionId.ofAll(LAST__T_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_LEAST = com.legend.model.FunctionId.ofAll(LEAST__X_MANY, LEAST__X_1_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_LIMIT = com.legend.model.FunctionId.ofAll(LIMIT__T_MANY__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_LIST = com.legend.model.FunctionId.ofAll(LIST__U_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_MAP = com.legend.model.FunctionId.ofAll(MAP__T_M__FUNCTION_1, MAP__T_0_1__FUNCTION_1, MAP__T_MANY__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_MAX = com.legend.model.FunctionId.ofAll(MAX_GENERIC__X_MANY, MAX_GENERIC__X_1_MANY, MAX_CMP__T_1_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_MIN = com.legend.model.FunctionId.ofAll(MIN_GENERIC__X_MANY, MIN_GENERIC__X_1_MANY, MIN_CMP__T_1_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_NEW_MAP = com.legend.model.FunctionId.ofAll(NEW_MAP__PAIRS);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_OBJECT_REFERENCE_IN = com.legend.model.FunctionId.ofAll(OBJECT_REFERENCE_IN__ANY_1__STRING_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_OR = com.legend.model.FunctionId.ofAll(OR__BOOLEAN_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_PAGINATED = com.legend.model.FunctionId.ofAll(PAGINATED__T_MANY__INTEGER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_PAIR = com.legend.model.FunctionId.ofAll(PAIR__U_1__V_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_PUT = com.legend.model.FunctionId.ofAll(MAP_PUT__MAP_1__U_1__V_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_PUT_ALL = com.legend.model.FunctionId.ofAll(MAP_PUT_ALL__MAP_1__PAIRS, MAP_PUT_ALL__MAP_1__MAP_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_RANGE = com.legend.model.FunctionId.ofAll(RANGE__INTEGER_1, RANGE__INTEGER_1__INTEGER_1, RANGE__INTEGER_1__INTEGER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_REMOVE_DUPLICATES = com.legend.model.FunctionId.ofAll(REMOVE_DUPLICATES__T_MANY, REMOVE_DUPLICATES__T_MANY__FUNCTION_0_1__FUNCTION_0_1, REMOVE_DUPLICATES__T_MANY__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_REMOVE_DUPLICATES_BY = com.legend.model.FunctionId.ofAll(REMOVE_DUPLICATES_BY__T_MANY__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_REPEAT = com.legend.model.FunctionId.ofAll(REPEAT__T_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_REPLACE_TREE_NODE = com.legend.model.FunctionId.ofAll(REPLACE_TREE_NODE__TREENODE_1__TREENODE_1__TREENODE_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_REVERSE = com.legend.model.FunctionId.ofAll(REVERSE__T_m);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_SIZE = com.legend.model.FunctionId.ofAll(SIZE__ANY_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_SLICE = com.legend.model.FunctionId.ofAll(SLICE__T_MANY__INTEGER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_SORT = com.legend.model.FunctionId.ofAll(SORT__T_m, SORT__T_m__FUNCTION_0_1, SORT__T_m__FUNCTION_0_1__FUNCTION_0_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_SORT_BY = com.legend.model.FunctionId.ofAll(SORT_BY__T_m__FUNCTION_0_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_SORT_BY_REVERSED = com.legend.model.FunctionId.ofAll(SORT_BY_REVERSED__T_m__FUNCTION_0_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_TAIL = com.legend.model.FunctionId.ofAll(TAIL__T_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_TAKE = com.legend.model.FunctionId.ofAll(TAKE__T_MANY__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_UNION = com.legend.model.FunctionId.ofAll(UNION__T_MANY__T_MANY);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_UNIQUE_VALUE_ONLY = com.legend.model.FunctionId.ofAll(UNIQUE_VALUE_ONLY__T_MANY, UNIQUE_VALUE_ONLY__T_MANY__T_01);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_VALUES = com.legend.model.FunctionId.ofAll(MAP_VALUES__MAP_1);
+    public static final List<com.legend.model.FunctionId> AT_COLLECTION_ZIP = com.legend.model.FunctionId.ofAll(ZIP__T_MANY__U_MANY);
+    public static final List<com.legend.model.FunctionId> AT_DATE_ADD = com.legend.model.FunctionId.ofAll(ADD__DATE_1__DURATION_1, ADD__STRICTDATE_1__DURATION_1, ADD__DATETIME_1__DURATION_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_ADJUST = com.legend.model.FunctionId.ofAll(ADJUST__DATE_1__INTEGER_1__DURATION_UNIT_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_CYMINUS2 = com.legend.model.FunctionId.ofAll(CAL_C_Y_MINUS2);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_CYMINUS3 = com.legend.model.FunctionId.ofAll(CAL_C_Y_MINUS3);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_ANNUALIZED = com.legend.model.FunctionId.ofAll(CAL_ANNUALIZED);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_CME = com.legend.model.FunctionId.ofAll(CAL_CME);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_CW = com.legend.model.FunctionId.ofAll(CAL_CW);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_CW_FM = com.legend.model.FunctionId.ofAll(CAL_CW_FM);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_MTD = com.legend.model.FunctionId.ofAll(CAL_MTD);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_P12MTD = com.legend.model.FunctionId.ofAll(CAL_P12MTD);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_P12WA = com.legend.model.FunctionId.ofAll(CAL_P12WA);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_P12WTD = com.legend.model.FunctionId.ofAll(CAL_P12WTD);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_P4WA = com.legend.model.FunctionId.ofAll(CAL_P4WA);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_P4WTD = com.legend.model.FunctionId.ofAll(CAL_P4WTD);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_P52WA = com.legend.model.FunctionId.ofAll(CAL_P52WA);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_P52WTD = com.legend.model.FunctionId.ofAll(CAL_P52WTD);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_PMA = com.legend.model.FunctionId.ofAll(CAL_PMA);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_PMTD = com.legend.model.FunctionId.ofAll(CAL_PMTD);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_PQTD = com.legend.model.FunctionId.ofAll(CAL_PQTD);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_PRIOR_DAY = com.legend.model.FunctionId.ofAll(CAL_PRIOR_DAY);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_PRIOR_YEAR = com.legend.model.FunctionId.ofAll(CAL_PRIOR_YEAR);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_PW = com.legend.model.FunctionId.ofAll(CAL_PW);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_PW_FM = com.legend.model.FunctionId.ofAll(CAL_PW_FM);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_PWA = com.legend.model.FunctionId.ofAll(CAL_PWA);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_PWTD = com.legend.model.FunctionId.ofAll(CAL_PWTD);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_PYMTD = com.legend.model.FunctionId.ofAll(CAL_PYMTD);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_PYQTD = com.legend.model.FunctionId.ofAll(CAL_PYQTD);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_PYTD = com.legend.model.FunctionId.ofAll(CAL_PYTD);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_PYWA = com.legend.model.FunctionId.ofAll(CAL_PYWA);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_PYWTD = com.legend.model.FunctionId.ofAll(CAL_PYWTD);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_QTD = com.legend.model.FunctionId.ofAll(CAL_QTD);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_REPORT_END_DAY = com.legend.model.FunctionId.ofAll(CAL_REPORT_END_DAY);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_WTD = com.legend.model.FunctionId.ofAll(CAL_WTD);
+    public static final List<com.legend.model.FunctionId> AT_DATE_CALENDAR_YTD = com.legend.model.FunctionId.ofAll(CAL_YTD);
+    public static final List<com.legend.model.FunctionId> AT_DATE_DATE = com.legend.model.FunctionId.ofAll(DATE__INTEGER_1, DATE__INTEGER_1__INTEGER_1, DATE__INTEGER_1__INTEGER_1__INTEGER_1, DATE__INTEGER_1__INTEGER_1__INTEGER_1__INTEGER_1, DATE__INTEGER_1__INTEGER_1__INTEGER_1__INTEGER_1__INTEGER_1, DATE__INTEGER_1__INTEGER_1__INTEGER_1__INTEGER_1__INTEGER_1__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_DATE_DIFF = com.legend.model.FunctionId.ofAll(DATE_DIFF__DATE_1__DATE_1__DURATION_UNIT_1, DATE_DIFF__DATE_0_1__DATE_0_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_DATE_PART = com.legend.model.FunctionId.ofAll(DATE_PART__DATE_0_1, DATE_PART__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_DAY_OF_MONTH = com.legend.model.FunctionId.ofAll(DAY_OF_MONTH__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_DAY_OF_WEEK = com.legend.model.FunctionId.ofAll(DAY_OF_WEEK__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_DAY_OF_WEEK_NUMBER = com.legend.model.FunctionId.ofAll(DAY_OF_WEEK_NUMBER__DATE_1, DAY_OF_WEEK_NUMBER__DATE_1__DAY_OF_WEEK_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_DAY_OF_YEAR = com.legend.model.FunctionId.ofAll(DAY_OF_YEAR__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_FIRST_DAY_OF_MONTH = com.legend.model.FunctionId.ofAll(FIRST_DAY_OF_MONTH__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_FIRST_DAY_OF_QUARTER = com.legend.model.FunctionId.ofAll(FIRST_DAY_OF_QUARTER__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_FIRST_DAY_OF_THIS_MONTH = com.legend.model.FunctionId.ofAll(FIRST_DAY_OF_THIS_MONTH);
+    public static final List<com.legend.model.FunctionId> AT_DATE_FIRST_DAY_OF_THIS_QUARTER = com.legend.model.FunctionId.ofAll(FIRST_DAY_OF_THIS_QUARTER);
+    public static final List<com.legend.model.FunctionId> AT_DATE_FIRST_DAY_OF_THIS_YEAR = com.legend.model.FunctionId.ofAll(FIRST_DAY_OF_THIS_YEAR);
+    public static final List<com.legend.model.FunctionId> AT_DATE_FIRST_DAY_OF_WEEK = com.legend.model.FunctionId.ofAll(FIRST_DAY_OF_WEEK__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_FIRST_DAY_OF_YEAR = com.legend.model.FunctionId.ofAll(FIRST_DAY_OF_YEAR__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_FIRST_HOUR_OF_DAY = com.legend.model.FunctionId.ofAll(FIRST_HOUR_OF_DAY__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_FIRST_MILLISECOND_OF_SECOND = com.legend.model.FunctionId.ofAll(FIRST_MILLISECOND_OF_SECOND__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_FIRST_MINUTE_OF_HOUR = com.legend.model.FunctionId.ofAll(FIRST_MINUTE_OF_HOUR__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_FIRST_SECOND_OF_MINUTE = com.legend.model.FunctionId.ofAll(FIRST_SECOND_OF_MINUTE__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_FORMAT_DATE = com.legend.model.FunctionId.ofAll(FORMAT_DATE__STRICT_DATE, FORMAT_DATE__DATE_TIME);
+    public static final List<com.legend.model.FunctionId> AT_DATE_FROM_EPOCH_VALUE = com.legend.model.FunctionId.ofAll(FROM_EPOCH_VALUE__INTEGER_1, FROM_EPOCH_VALUE__INTEGER_1__DURATION_UNIT_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_HAS_DAY = com.legend.model.FunctionId.ofAll(HAS_DAY__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_HAS_HOUR = com.legend.model.FunctionId.ofAll(HAS_HOUR__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_HAS_MINUTE = com.legend.model.FunctionId.ofAll(HAS_MINUTE__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_HAS_MONTH = com.legend.model.FunctionId.ofAll(HAS_MONTH__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_HAS_SECOND = com.legend.model.FunctionId.ofAll(HAS_SECOND__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_HAS_SUBSECOND = com.legend.model.FunctionId.ofAll(HAS_SUBSECOND__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_HAS_SUBSECOND_WITH_AT_LEAST_PRECISION = com.legend.model.FunctionId.ofAll(HAS_SUBSECOND_WITH_AT_LEAST_PRECISION__DATE_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_HOUR = com.legend.model.FunctionId.ofAll(HOUR__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_IS_AFTER_DAY = com.legend.model.FunctionId.ofAll(IS_AFTER_DAY__DATE_1__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_IS_BEFORE_DAY = com.legend.model.FunctionId.ofAll(IS_BEFORE_DAY__DATE_1__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_IS_ON_DAY = com.legend.model.FunctionId.ofAll(IS_ON_DAY__DATE_1__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_IS_ON_OR_AFTER_DAY = com.legend.model.FunctionId.ofAll(IS_ON_OR_AFTER_DAY__DATE_1__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_IS_ON_OR_BEFORE_DAY = com.legend.model.FunctionId.ofAll(IS_ON_OR_BEFORE_DAY__DATE_1__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_MAX = com.legend.model.FunctionId.ofAll(MAX__DATE_1__DATE_1, MAX__DATE_MANY, MAX__DATE_TIME_1__DATE_TIME_1, MAX__DATE_TIME_MANY, MAX__STRICT_DATE_1__STRICT_DATE_1, MAX__STRICT_DATE_MANY);
+    public static final List<com.legend.model.FunctionId> AT_DATE_MIN = com.legend.model.FunctionId.ofAll(MIN__DATE_1__DATE_1, MIN__DATE_MANY, MIN__DATE_TIME_1__DATE_TIME_1, MIN__DATE_TIME_MANY, MIN__STRICT_DATE_1__STRICT_DATE_1, MIN__STRICT_DATE_MANY);
+    public static final List<com.legend.model.FunctionId> AT_DATE_MINUTE = com.legend.model.FunctionId.ofAll(MINUTE__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_MONTH = com.legend.model.FunctionId.ofAll(MONTH__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_MONTH_NUMBER = com.legend.model.FunctionId.ofAll(MONTH_NUMBER__DATE_0_1, MONTH_NUMBER__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_MOST_RECENT_DAY_OF_WEEK = com.legend.model.FunctionId.ofAll(MOST_RECENT_DAY_OF_WEEK__DAY_1, MOST_RECENT_DAY_OF_WEEK__DATE_1__DAY_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_NOW = com.legend.model.FunctionId.ofAll(NOW);
+    public static final List<com.legend.model.FunctionId> AT_DATE_PREVIOUS_DAY_OF_WEEK = com.legend.model.FunctionId.ofAll(PREVIOUS_DAY_OF_WEEK__DAY_1, PREVIOUS_DAY_OF_WEEK__DATE_1__DAY_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_QUARTER = com.legend.model.FunctionId.ofAll(QUARTER__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_QUARTER_NUMBER = com.legend.model.FunctionId.ofAll(QUARTER_NUMBER__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_SECOND = com.legend.model.FunctionId.ofAll(SECOND__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_TIME_BUCKET = com.legend.model.FunctionId.ofAll(TIME_BUCKET__DATETIME_1__INTEGER_1__DURATION_UNIT_1, TIME_BUCKET__STRICTDATE_1__INTEGER_1__DURATION_UNIT_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_TO_EPOCH_VALUE = com.legend.model.FunctionId.ofAll(TO_EPOCH_VALUE__DATE_1, TO_EPOCH_VALUE__DATE_1__DURATION_UNIT_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_TODAY = com.legend.model.FunctionId.ofAll(TODAY);
+    public static final List<com.legend.model.FunctionId> AT_DATE_WEEK_OF_YEAR = com.legend.model.FunctionId.ofAll(WEEK_OF_YEAR__DATE_0_1, WEEK_OF_YEAR__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_DATE_YEAR = com.legend.model.FunctionId.ofAll(YEAR__DATE_0_1, YEAR__DATE_1);
+    public static final List<com.legend.model.FunctionId> AT_FLOW_COALESCE = com.legend.model.FunctionId.ofAll(COALESCE__T_0_1__T_1, COALESCE__T_0_1__T_0_1__T_1, COALESCE__T_0_1__T_0_1__T_0_1__T_1, COALESCE__T_0_1__T_0_1, COALESCE__T_0_1__T_0_1__T_0_1, COALESCE__T_0_1__T_0_1__T_0_1__T_0_1);
+    public static final List<com.legend.model.FunctionId> AT_HASH_HASH = com.legend.model.FunctionId.ofAll(HASH__STRING_1__HASH_TYPE_1);
+    public static final List<com.legend.model.FunctionId> AT_HASH_HASH_CODE = com.legend.model.FunctionId.ofAll(HASH_CODE__ANY_MANY);
+    public static final List<com.legend.model.FunctionId> AT_IO_HTTP_EXECUTE_HTTPRAW = com.legend.model.FunctionId.ofAll(EXECUTE_HTTP_RAW__URL_1__METHOD_1__STRING_01__STRING_01);
+    public static final List<com.legend.model.FunctionId> AT_IO_PRINT = com.legend.model.FunctionId.ofAll(PRINT__ANY_M__INTEGER_1, PRINT__ANY_M);
+    public static final List<com.legend.model.FunctionId> AT_IO_PRINTLN = com.legend.model.FunctionId.ofAll(PRINTLN__ANY_M__INTEGER_1, PRINTLN__ANY_M);
+    public static final List<com.legend.model.FunctionId> AT_LANG_CAST = com.legend.model.FunctionId.ofAll(CAST__ANY_m__T_1);
+    public static final List<com.legend.model.FunctionId> AT_LANG_COMPARE = com.legend.model.FunctionId.ofAll(COMPARE__T_1__T_1);
+    public static final List<com.legend.model.FunctionId> AT_LANG_DYNAMIC_NEW = com.legend.model.FunctionId.ofAll(DYNAMIC_NEW__CLASS_5, DYNAMIC_NEW__CLASS_6, DYNAMIC_NEW__GENERIC_5, DYNAMIC_NEW__GENERIC_6, DYNAMIC_NEW__CLASS_1__KEYVALUE_MANY, DYNAMIC_NEW__GENERICTYPE_1__KEYVALUE_MANY);
+    public static final List<com.legend.model.FunctionId> AT_LANG_EVAL = com.legend.model.FunctionId.ofAll(EVAL__FUNCTION_1, EVAL__FUNCTION_1__T_n, EVAL__FUNCTION_1__T_n__U_p, EVAL__FUNCTION_1__T_n__U_p__W_q, EVAL__FUNCTION_1__4, EVAL__FUNCTION_1__5, EVAL__FUNCTION_1__6);
+    public static final List<com.legend.model.FunctionId> AT_LANG_EXTRACT_ENUM_VALUE = com.legend.model.FunctionId.ofAll(EXTRACT_ENUM_VALUE, EXTRACT_ENUM_VALUE__OPTIONAL);
+    public static final List<com.legend.model.FunctionId> AT_LANG_IF = com.legend.model.FunctionId.ofAll(IF__BOOLEAN_1__FUNCTION_1__FUNCTION_1, IF__PAIR_MANY__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_LANG_LET_FUNCTION = com.legend.model.FunctionId.ofAll(LET_FUNCTION__STRING_1__T_m);
+    public static final List<com.legend.model.FunctionId> AT_LANG_MATCH = com.legend.model.FunctionId.ofAll(MATCH__ANY_MANY__FUNCTION_1_MANY, MATCH__ANY_MANY__FUNCTION_1_MANY__P_o);
+    public static final List<com.legend.model.FunctionId> AT_LANG_MUTATE_ADD = com.legend.model.FunctionId.ofAll(MUTATE_ADD__T_1__STRING_1__ANY_MANY);
+    public static final List<com.legend.model.FunctionId> AT_LANG_SUB_TYPE = com.legend.model.FunctionId.ofAll(SUB_TYPE__ANY_m__T_1);
+    public static final List<com.legend.model.FunctionId> AT_LANG_TO_MULTIPLICITY = com.legend.model.FunctionId.ofAll(TO_MULTIPLICITY__T_MANY__ANY_Z);
+    public static final List<com.legend.model.FunctionId> AT_LANG_WHEN_SUB_TYPE = com.legend.model.FunctionId.ofAll(WHEN_SUB_TYPE__ANY_1__T_1, WHEN_SUB_TYPE__ANY_01__T_1, WHEN_SUB_TYPE__ANY_MANY__T_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_ABS = com.legend.model.FunctionId.ofAll(ABS__NUMBER_1, ABS__INTEGER_1, ABS__FLOAT_1, ABS__DECIMAL_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_ACOS = com.legend.model.FunctionId.ofAll(ACOS__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_ASIN = com.legend.model.FunctionId.ofAll(ASIN__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_ATAN = com.legend.model.FunctionId.ofAll(ATAN__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_ATAN2 = com.legend.model.FunctionId.ofAll(ATAN2__NUMBER_1__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_AVERAGE = com.legend.model.FunctionId.ofAll(AVERAGE__NUMBER_MANY, AVERAGE__RELATION_1__WINDOW_1__T_1__COL_SPEC_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_BIT_AND = com.legend.model.FunctionId.ofAll(BIT_AND__INTEGER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_BIT_NOT = com.legend.model.FunctionId.ofAll(BIT_NOT__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_BIT_OR = com.legend.model.FunctionId.ofAll(BIT_OR__INTEGER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_BIT_SHIFT_LEFT = com.legend.model.FunctionId.ofAll(BIT_SHIFT_LEFT__INTEGER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_BIT_SHIFT_RIGHT = com.legend.model.FunctionId.ofAll(BIT_SHIFT_RIGHT__INTEGER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_BIT_XOR = com.legend.model.FunctionId.ofAll(BIT_XOR__INTEGER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_CBRT = com.legend.model.FunctionId.ofAll(CBRT__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_CEILING = com.legend.model.FunctionId.ofAll(CEILING__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_CORR = com.legend.model.FunctionId.ofAll(CORR__NUMBER_MANY__NUMBER_MANY, CORR__ROW_MAPPER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_MATH_COS = com.legend.model.FunctionId.ofAll(COS__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_COSH = com.legend.model.FunctionId.ofAll(COSH__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_COT = com.legend.model.FunctionId.ofAll(COT__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_COVAR_POPULATION = com.legend.model.FunctionId.ofAll(COVAR_POPULATION__NUMBER_MANY__NUMBER_MANY, COVAR_POPULATION__ROW_MAPPER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_MATH_COVAR_SAMPLE = com.legend.model.FunctionId.ofAll(COVAR_SAMPLE__NUMBER_MANY__NUMBER_MANY, COVAR_SAMPLE__ROW_MAPPER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_MATH_DIVIDE = com.legend.model.FunctionId.ofAll(DIVIDE__NUMBER_1__NUMBER_1, DIVIDE__DECIMAL_1__DECIMAL_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_EXP = com.legend.model.FunctionId.ofAll(EXP__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_FLOOR = com.legend.model.FunctionId.ofAll(FLOOR__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_LOG = com.legend.model.FunctionId.ofAll(LOG__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_LOG10 = com.legend.model.FunctionId.ofAll(LOG10__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_MATH_UTILITY_ROW_MAPPER = com.legend.model.FunctionId.ofAll(ROW_MAPPER__T_0_1__U_0_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_MAX = com.legend.model.FunctionId.ofAll(MAX__FLOAT_1__FLOAT_1, MAX__FLOAT_MANY, MAX__INTEGER_1__INTEGER_1, MAX__INTEGER_MANY, MAX__NUMBER_1__NUMBER_1, MAX__NUMBER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_MATH_MAX_BY = com.legend.model.FunctionId.ofAll(MAX_BY__ROW_MAPPER_MANY, MAX_BY__T_MANY__NUMBER_MANY, MAX_BY__T_MANY__NUMBER_MANY__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_MEAN = com.legend.model.FunctionId.ofAll(MEAN__NUMBER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_MATH_MEDIAN = com.legend.model.FunctionId.ofAll(MEDIAN__NUMBER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_MATH_MIN = com.legend.model.FunctionId.ofAll(MIN__FLOAT_1__FLOAT_1, MIN__FLOAT_MANY, MIN__INTEGER_1__INTEGER_1, MIN__INTEGER_MANY, MIN__NUMBER_1__NUMBER_1, MIN__NUMBER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_MATH_MIN_BY = com.legend.model.FunctionId.ofAll(MIN_BY__ROW_MAPPER_MANY, MIN_BY__T_MANY__NUMBER_MANY, MIN_BY__T_MANY__NUMBER_MANY__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_MINUS = com.legend.model.FunctionId.ofAll(MINUS__INTEGER_MANY, MINUS__DECIMAL_MANY, MINUS__FLOAT_MANY, MINUS__NUMBER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_MATH_MOD = com.legend.model.FunctionId.ofAll(MOD__INTEGER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_MODE = com.legend.model.FunctionId.ofAll(MODE__INTEGER_MANY, MODE__FLOAT_MANY, MODE__NUMBER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_MATH_PERCENTILE = com.legend.model.FunctionId.ofAll(PERCENTILE__NUMBER_MANY__FLOAT_1, PERCENTILE__NUMBER_MANY__FLOAT_1__BOOLEAN_1__BOOLEAN_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_PI = com.legend.model.FunctionId.ofAll(PI);
+    public static final List<com.legend.model.FunctionId> AT_MATH_PLUS = com.legend.model.FunctionId.ofAll(PLUS__DECIMAL_MANY, PLUS__FLOAT_MANY, PLUS__NUMBER_MANY, PLUS__INTEGER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_MATH_POW = com.legend.model.FunctionId.ofAll(POW__NUMBER_1__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_REM = com.legend.model.FunctionId.ofAll(REM__NUMBER_1__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_ROUND = com.legend.model.FunctionId.ofAll(ROUND__DECIMAL_1__INTEGER_1, ROUND__FLOAT_1__INTEGER_1, ROUND__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_SIGN = com.legend.model.FunctionId.ofAll(SIGN__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_SIN = com.legend.model.FunctionId.ofAll(SIN__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_SINH = com.legend.model.FunctionId.ofAll(SINH__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_SQRT = com.legend.model.FunctionId.ofAll(SQRT__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_STD_DEV = com.legend.model.FunctionId.ofAll(STD_DEV__NUMBER_1_MANY__BOOLEAN_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_STD_DEV_POPULATION = com.legend.model.FunctionId.ofAll(STD_DEV_POPULATION__NUMBER_MANY, STD_DEV_POPULATION__RELATION_1__WINDOW_1__T_1__COL_SPEC_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_STD_DEV_SAMPLE = com.legend.model.FunctionId.ofAll(STD_DEV_SAMPLE__NUMBER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_MATH_SUM = com.legend.model.FunctionId.ofAll(SUM__FLOAT_MANY, SUM__INTEGER_MANY, SUM__NUMBER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_MATH_TAN = com.legend.model.FunctionId.ofAll(TAN__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_TANH = com.legend.model.FunctionId.ofAll(TANH__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_TIMES = com.legend.model.FunctionId.ofAll(TIMES__INTEGER_MANY, TIMES__DECIMAL_MANY, TIMES__FLOAT_MANY, TIMES__NUMBER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_MATH_TO_DECIMAL = com.legend.model.FunctionId.ofAll(TO_DECIMAL__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_TO_DEGREES = com.legend.model.FunctionId.ofAll(TO_DEGREES__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_TO_FLOAT = com.legend.model.FunctionId.ofAll(TO_FLOAT__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_TO_RADIANS = com.legend.model.FunctionId.ofAll(TO_RADIANS__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_VARIANCE = com.legend.model.FunctionId.ofAll(VARIANCE__NUMBER_MANY__BOOLEAN_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_VARIANCE_POPULATION = com.legend.model.FunctionId.ofAll(VARIANCE_POPULATION__NUMBER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_MATH_VARIANCE_SAMPLE = com.legend.model.FunctionId.ofAll(VARIANCE_SAMPLE__NUMBER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_MATH_WAVG = com.legend.model.FunctionId.ofAll(WAVG__ROW_MAPPER_MANY);
+    public static final List<com.legend.model.FunctionId> AT_MATH_WAVG_UTILITY_WAVG_ROW_MAPPER = com.legend.model.FunctionId.ofAll(WAVG_ROW_MAPPER__NUMBER_0_1__NUMBER_0_1);
+    public static final List<com.legend.model.FunctionId> AT_MATH_Z_SCORE = com.legend.model.FunctionId.ofAll(Z_SCORE__WINDOW);
+    public static final List<com.legend.model.FunctionId> AT_META_ADD_COLUMNS = com.legend.model.FunctionId.ofAll(ADD_COLUMNS__RELATIONTYPE_1__COLSPECARRAY_1);
+    public static final List<com.legend.model.FunctionId> AT_META_DEACTIVATE = com.legend.model.FunctionId.ofAll(DEACTIVATE__ANY_MANY);
+    public static final List<com.legend.model.FunctionId> AT_META_ELEMENT_TO_PATH = com.legend.model.FunctionId.ofAll(ELEMENT_TO_PATH__FUNCTION_1, ELEMENT_TO_PATH__3, ELEMENT_TO_PATH__PACKAGEABLEELEMENT_1, ELEMENT_TO_PATH__PACKAGEABLEELEMENT_1__BOOLEAN_1, ELEMENT_TO_PATH__PACKAGEABLEELEMENT_1__STRING_1, ELEMENT_TO_PATH__TYPE_1__STRING_1, ELEMENT_TO_PATH__TYPE_1);
+    public static final List<com.legend.model.FunctionId> AT_META_ENUM_VALUES = com.legend.model.FunctionId.ofAll(ENUM_VALUES);
+    public static final List<com.legend.model.FunctionId> AT_META_EVALUATE_AND_DEACTIVATE = com.legend.model.FunctionId.ofAll(EVALUATE_AND_DEACTIVATE__T_M);
+    public static final List<com.legend.model.FunctionId> AT_META_GENERIC_TYPE = com.legend.model.FunctionId.ofAll(GENERIC_TYPE__ANY_MANY);
+    public static final List<com.legend.model.FunctionId> AT_META_ID = com.legend.model.FunctionId.ofAll(ID__ANY_1);
+    public static final List<com.legend.model.FunctionId> AT_META_INSTANCE_OF = com.legend.model.FunctionId.ofAll(INSTANCE_OF__ANY_1__TYPE_1);
+    public static final List<com.legend.model.FunctionId> AT_META_STEREOTYPE = com.legend.model.FunctionId.ofAll(STEREOTYPE__PROFILE_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_META_TYPE = com.legend.model.FunctionId.ofAll(TYPE__ANY_1);
+    public static final List<com.legend.model.FunctionId> AT_MULTIPLICITY_TO_ONE = com.legend.model.FunctionId.ofAll(TO_ONE__T_MANY, TO_ONE__T_MANY__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_MULTIPLICITY_TO_ONE_MANY = com.legend.model.FunctionId.ofAll(TO_ONE_MANY__T_MANY, TO_ONE_MANY__T_MANY__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION__RANGE = com.legend.model.FunctionId.ofAll(_RANGE__NUMBER_1__NUMBER_1, _RANGE__UNBOUNDED_1__NUMBER_1, _RANGE__NUMBER_1__UNBOUNDED_1, _RANGE__INT_1__DU_1__INT_1__DU_1, _RANGE__UNBOUNDED_1__INT_1__DU_1, _RANGE__INT_1__DU_1__UNBOUNDED_1, _RANGE__UNBOUNDED_1__UNBOUNDED_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_AGGREGATE = com.legend.model.FunctionId.ofAll(AGGREGATE__RELATION_1__AGG_COL_SPEC_1, AGGREGATE__RELATION_1__AGG_COL_SPEC_ARRAY_1, AGGREGATE__RELATION_1__FUNC_COL_SPEC_1, AGGREGATE__RELATION_1__FUNC_COL_SPEC_ARRAY_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_AS_OF_JOIN = com.legend.model.FunctionId.ofAll(AS_OF_JOIN__RELATION_1__RELATION_1__FUNCTION_1, AS_OF_JOIN__RELATION_1__RELATION_1__FUNCTION_1__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_ASCENDING = com.legend.model.FunctionId.ofAll(ASCENDING__COL_SPEC_1, ASCENDING__COL_SPEC_1__NULL_ORDER_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_ASSERT_TDS_EQUIVALENT = com.legend.model.FunctionId.ofAll(ASSERT_TDS_EQUIVALENT__REL_1__REL_1__NUMBER_1, ASSERT_TDS_EQUIVALENT__REL_1__REL_1__NUMBER_1__NUMBER_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_COLUMNS = com.legend.model.FunctionId.ofAll(COLUMNS__REL_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_CONCATENATE = com.legend.model.FunctionId.ofAll(CONCATENATE__RELATION_1__RELATION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_CUMULATIVE_DISTRIBUTION = com.legend.model.FunctionId.ofAll(CUMULATIVE_DISTRIBUTION__RELATION_1__WINDOW_1__T_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_DENSE_RANK = com.legend.model.FunctionId.ofAll(DENSE_RANK__RELATION_1__WINDOW_1__T_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_DESCENDING = com.legend.model.FunctionId.ofAll(DESCENDING__COL_SPEC_1, DESCENDING__COL_SPEC_1__NULL_ORDER_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_DISTINCT = com.legend.model.FunctionId.ofAll(DISTINCT__RELATION_1, DISTINCT__RELATION_1__COL_SPEC_ARRAY_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_DROP = com.legend.model.FunctionId.ofAll(DROP__RELATION_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_EMPTY_FIRST = com.legend.model.FunctionId.ofAll(EMPTY_FIRST__SORT_INFO_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_EMPTY_LAST = com.legend.model.FunctionId.ofAll(EMPTY_LAST__SORT_INFO_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_EQUAL_ALL = com.legend.model.FunctionId.ofAll(EQUAL_ALL__U_0_1__RELATION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_EQUAL_ANY = com.legend.model.FunctionId.ofAll(EQUAL_ANY__U_0_1__RELATION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_EXISTS = com.legend.model.FunctionId.ofAll(EXISTS__RELATION_1__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_EXTEND = com.legend.model.FunctionId.ofAll(EXTEND__RELATION_1__AGG_COL_SPEC_1, EXTEND__RELATION_1__AGG_COL_SPEC_ARRAY_1, EXTEND__RELATION_1__FUNC_COL_SPEC_1, EXTEND__RELATION_1__FUNC_COL_SPEC_ARRAY_1, EXTEND__RELATION_1__WINDOW_1__AGG_COL_SPEC_1, EXTEND__RELATION_1__WINDOW_1__AGG_COL_SPEC_ARRAY_1, EXTEND__RELATION_1__WINDOW_1__FUNC_COL_SPEC_1, EXTEND__RELATION_1__WINDOW_1__FUNC_COL_SPEC_ARRAY_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_FILTER = com.legend.model.FunctionId.ofAll(FILTER__RELATION_1__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_FIRST = com.legend.model.FunctionId.ofAll(FIRST__RELATION_1__WINDOW_1__T_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_GREATER_THAN_ALL = com.legend.model.FunctionId.ofAll(GREATER_THAN_ALL__U_0_1__RELATION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_GREATER_THAN_ANY = com.legend.model.FunctionId.ofAll(GREATER_THAN_ANY__U_0_1__RELATION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_GREATER_THAN_EQUAL_ALL = com.legend.model.FunctionId.ofAll(GREATER_THAN_EQUAL_ALL__U_0_1__RELATION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_GREATER_THAN_EQUAL_ANY = com.legend.model.FunctionId.ofAll(GREATER_THAN_EQUAL_ANY__U_0_1__RELATION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_GROUP_BY = com.legend.model.FunctionId.ofAll(GROUP_BY__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_1, GROUP_BY__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_ARRAY_1, GROUP_BY__RELATION_1__COL_SPEC_ARRAY_1__AGG_COL_SPEC_1, GROUP_BY__RELATION_1__COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1, GROUP_BY__RELATION_1__COL_SPEC_1__FUNC_COL_SPEC_1, GROUP_BY__RELATION_1__COL_SPEC_1__FUNC_COL_SPEC_ARRAY_1, GROUP_BY__RELATION_1__COL_SPEC_ARRAY_1__FUNC_COL_SPEC_1, GROUP_BY__RELATION_1__COL_SPEC_ARRAY_1__FUNC_COL_SPEC_ARRAY_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_IN = com.legend.model.FunctionId.ofAll(IN__U_0_1__RELATION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_JOIN = com.legend.model.FunctionId.ofAll(JOIN__RELATION_1__RELATION_1__JOIN_KIND_1__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_JOIN_STRINGS = com.legend.model.FunctionId.ofAll(JOIN_STRINGS__RELATION_1__FUNCTION_1__STRING_1, JOIN_STRINGS__RELATION_1__FUNCTION_1__STRING_1__SORT_INFO_MANY, JOIN_STRINGS__RELATION_1__COL_SPEC_1__STRING_1, JOIN_STRINGS__RELATION_1__COL_SPEC_1__STRING_1__SORT_INFO_MANY);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_LAG = com.legend.model.FunctionId.ofAll(LAG__RELATION_1__T_1, LAG__RELATION_1__T_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_LAST = com.legend.model.FunctionId.ofAll(LAST__RELATION_1__WINDOW_1__T_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_LATERAL = com.legend.model.FunctionId.ofAll(LATERAL__RELATION_1__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_LEAD = com.legend.model.FunctionId.ofAll(LEAD__RELATION_1__T_1, LEAD__RELATION_1__T_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_LESS_THAN_ALL = com.legend.model.FunctionId.ofAll(LESS_THAN_ALL__U_0_1__RELATION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_LESS_THAN_ANY = com.legend.model.FunctionId.ofAll(LESS_THAN_ANY__U_0_1__RELATION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_LESS_THAN_EQUAL_ALL = com.legend.model.FunctionId.ofAll(LESS_THAN_EQUAL_ALL__U_0_1__RELATION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_LESS_THAN_EQUAL_ANY = com.legend.model.FunctionId.ofAll(LESS_THAN_EQUAL_ANY__U_0_1__RELATION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_LIMIT = com.legend.model.FunctionId.ofAll(LIMIT__RELATION_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_MAP = com.legend.model.FunctionId.ofAll(MAP__RELATION_1__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_NTH = com.legend.model.FunctionId.ofAll(NTH__RELATION_1__WINDOW_1__T_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_NTILE = com.legend.model.FunctionId.ofAll(NTILE__RELATION_1__T_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_OVER = com.legend.model.FunctionId.ofAll(OVER__COL_SPEC_1, OVER__COL_SPEC_1__SORT_INFO_MANY, OVER__COL_SPEC_1__SORT_INFO_1__RANGE_1, OVER__COL_SPEC_1__SORT_INFO_MANY__ROWS_1, OVER__COL_SPEC_ARRAY_1, OVER__COL_SPEC_ARRAY_1__SORT_INFO_MANY, OVER__SORT_INFO_MANY, OVER__SORT_INFO_1__RANGE_1, OVER__SORT_INFO_1__RANGE_INTERVAL_1, OVER__COL_SPEC_1__SORT_INFO_1__RANGE_INTERVAL_1, OVER__COL_SPEC_1__ROWS_1, OVER__COL_SPEC_ARRAY_1__ROWS_1, OVER__COL_SPEC_ARRAY_1__SORT_INFO_MANY__ROWS_1, OVER__COL_SPEC_ARRAY_1__SORT_INFO_1__RANGE_1, OVER__COL_SPEC_ARRAY_1__SORT_INFO_1__RANGE_INTERVAL_1, OVER__STRING_MANY__SORT_INFO_MANY__FRAME_0_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_PERCENT_RANK = com.legend.model.FunctionId.ofAll(PERCENT_RANK__RELATION_1__WINDOW_1__T_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_PIVOT = com.legend.model.FunctionId.ofAll(PIVOT__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_1, PIVOT__RELATION_1__COL_SPEC_1__AGG_COL_SPEC_ARRAY_1, PIVOT__RELATION_1__COL_SPEC_1__ANY_1_MANY__AGG_COL_SPEC_1, PIVOT__RELATION_1__COL_SPEC_ARRAY_1__AGG_COL_SPEC_1, PIVOT__RELATION_1__COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_PROJECT = com.legend.model.FunctionId.ofAll(PROJECT__C_MANY__FUNC_COL_SPEC_ARRAY_1, PROJECT__RELATION_1__FUNC_COL_SPEC_ARRAY_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_RANK = com.legend.model.FunctionId.ofAll(RANK__RELATION_1__WINDOW_1__T_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_REDUCE = com.legend.model.FunctionId.ofAll(REDUCE__RELATION_1__WINDOW_1__T_1__FUNCTION_1__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_RENAME = com.legend.model.FunctionId.ofAll(RENAME__RELATION_1__COL_SPEC_1__COL_SPEC_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_ROW_NUMBER = com.legend.model.FunctionId.ofAll(ROW_NUMBER__RELATION_1__T_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_ROWS = com.legend.model.FunctionId.ofAll(ROWS__INTEGER_1__INTEGER_1, ROWS__UNBOUNDED_1__UNBOUNDED_1, ROWS__UNBOUNDED_1__INTEGER_1, ROWS__INTEGER_1__UNBOUNDED_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_SELECT = com.legend.model.FunctionId.ofAll(SELECT__RELATION_1, SELECT__RELATION_1__COL_SPEC_1, SELECT__RELATION_1__COL_SPEC_ARRAY_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_SIZE = com.legend.model.FunctionId.ofAll(SIZE__RELATION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_SLICE = com.legend.model.FunctionId.ofAll(SLICE__RELATION_1__INTEGER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_SORT = com.legend.model.FunctionId.ofAll(SORT__RELATION_1__SORT_INFO_MANY);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_TO_STRING = com.legend.model.FunctionId.ofAll(TO_STRING__RELATION, TO_STRING__RELATION_BOOL);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_UNBOUNDED = com.legend.model.FunctionId.ofAll(UNBOUNDED);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_VARIANT_FLATTEN = com.legend.model.FunctionId.ofAll(FLATTEN__T_MANY__COL_SPEC_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATION_WRITE = com.legend.model.FunctionId.ofAll(WRITE__RELATION_1__ACCESSOR_1);
+    public static final List<com.legend.model.FunctionId> AT_RUNTIME_CURRENT_USER_ID = com.legend.model.FunctionId.ofAll(CURRENT_USER_ID);
+    public static final List<com.legend.model.FunctionId> AT_STRING_ASCII = com.legend.model.FunctionId.ofAll(ASCII__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_CHAR = com.legend.model.FunctionId.ofAll(CHAR__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_CHUNK = com.legend.model.FunctionId.ofAll(CHUNK__STRING_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_CONTAINS = com.legend.model.FunctionId.ofAll(CONTAINS__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_DECODE_BASE64 = com.legend.model.FunctionId.ofAll(DECODE_BASE64__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_ENCODE_BASE64 = com.legend.model.FunctionId.ofAll(ENCODE_BASE64__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_ENDS_WITH = com.legend.model.FunctionId.ofAll(ENDS_WITH__STRING_1__STRING_1, ENDS_WITH__STRING_0_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_FORMAT = com.legend.model.FunctionId.ofAll(FORMAT__STRING_1__ANY_MANY);
+    public static final List<com.legend.model.FunctionId> AT_STRING_GENERATION_GENERATE_GUID = com.legend.model.FunctionId.ofAll(GENERATE_GUID);
+    public static final List<com.legend.model.FunctionId> AT_STRING_INDEX_OF = com.legend.model.FunctionId.ofAll(INDEX_OF__STRING_1__STRING_1, INDEX_OF__STRING_1__STRING_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_IS_ALPHA_NUMERIC = com.legend.model.FunctionId.ofAll(IS_ALPHA_NUMERIC__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_JARO_WINKLER_SIMILARITY = com.legend.model.FunctionId.ofAll(JARO_WINKLER_SIMILARITY__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_JOIN_STRINGS = com.legend.model.FunctionId.ofAll(JOIN_STRINGS__STRING_MANY, JOIN_STRINGS__STRING_MANY__STRING_1, JOIN_STRINGS__STRING_MANY__STRING_1__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_LEFT = com.legend.model.FunctionId.ofAll(LEFT__STRING_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_LENGTH = com.legend.model.FunctionId.ofAll(LENGTH__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_LEVENSHTEIN_DISTANCE = com.legend.model.FunctionId.ofAll(LEVENSHTEIN_DISTANCE__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_LPAD = com.legend.model.FunctionId.ofAll(LPAD__STRING_1__INTEGER_1, LPAD__STRING_1__INTEGER_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_LTRIM = com.legend.model.FunctionId.ofAll(LTRIM__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_MAKE_STRING = com.legend.model.FunctionId.ofAll(MAKE_STRING__ANY_MANY, MAKE_STRING__ANY_MANY__STRING_1, MAKE_STRING__ANY_MANY__STRING_1__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_MATCHES = com.legend.model.FunctionId.ofAll(MATCHES__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_PARSE_BOOLEAN = com.legend.model.FunctionId.ofAll(PARSE_BOOLEAN__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_PARSE_DATE = com.legend.model.FunctionId.ofAll(PARSE_DATE__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_PARSE_DECIMAL = com.legend.model.FunctionId.ofAll(PARSE_DECIMAL__STRING_1, PARSE_DECIMAL__STRING_1__INTEGER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_PARSE_FLOAT = com.legend.model.FunctionId.ofAll(PARSE_FLOAT__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_PARSE_INTEGER = com.legend.model.FunctionId.ofAll(PARSE_INTEGER__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_PLUS = com.legend.model.FunctionId.ofAll(STRING_PLUS__STRING_MANY);
+    public static final List<com.legend.model.FunctionId> AT_STRING_REGEXP_COUNT = com.legend.model.FunctionId.ofAll(REGEXP_COUNT__2, REGEXP_COUNT__3);
+    public static final List<com.legend.model.FunctionId> AT_STRING_REGEXP_EXTRACT = com.legend.model.FunctionId.ofAll(REGEXP_EXTRACT__3, REGEXP_EXTRACT__4, REGEXP_EXTRACT__4P, REGEXP_EXTRACT__5);
+    public static final List<com.legend.model.FunctionId> AT_STRING_REGEXP_INDEX_OF = com.legend.model.FunctionId.ofAll(REGEXP_INDEX_OF__2, REGEXP_INDEX_OF__3, REGEXP_INDEX_OF__3P, REGEXP_INDEX_OF__4);
+    public static final List<com.legend.model.FunctionId> AT_STRING_REGEXP_LIKE = com.legend.model.FunctionId.ofAll(REGEXP_LIKE__2, REGEXP_LIKE__3);
+    public static final List<com.legend.model.FunctionId> AT_STRING_REGEXP_REPLACE = com.legend.model.FunctionId.ofAll(REGEXP_REPLACE__4, REGEXP_REPLACE__5);
+    public static final List<com.legend.model.FunctionId> AT_STRING_REPEAT_STRING = com.legend.model.FunctionId.ofAll(REPEAT_STRING__STRING_0_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_REPLACE = com.legend.model.FunctionId.ofAll(REPLACE__STRING_1__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_REVERSE_STRING = com.legend.model.FunctionId.ofAll(REVERSE_STRING__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_RIGHT = com.legend.model.FunctionId.ofAll(RIGHT__STRING_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_RPAD = com.legend.model.FunctionId.ofAll(RPAD__STRING_1__INTEGER_1, RPAD__STRING_1__INTEGER_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_RTRIM = com.legend.model.FunctionId.ofAll(RTRIM__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_SPLIT = com.legend.model.FunctionId.ofAll(SPLIT__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_SPLIT_PART = com.legend.model.FunctionId.ofAll(SPLIT_PART__STRING_0_1__STRING_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_STARTS_WITH = com.legend.model.FunctionId.ofAll(STARTS_WITH__STRING_1__STRING_1, STARTS_WITH__STRING_0_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_SUBSTR = com.legend.model.FunctionId.ofAll(SUBSTR__STRING_1__INTEGER_1, SUBSTR__STRING_1__INTEGER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_SUBSTRING = com.legend.model.FunctionId.ofAll(SUBSTRING__STRING_1__INTEGER_1, SUBSTRING__STRING_1__INTEGER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_TO_LOWER = com.legend.model.FunctionId.ofAll(TO_LOWER__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_TO_LOWER_FIRST_CHARACTER = com.legend.model.FunctionId.ofAll(TO_LOWER_FIRST_CHARACTER__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_TO_REPRESENTATION = com.legend.model.FunctionId.ofAll(TO_REPRESENTATION__ANY_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_TO_STRING = com.legend.model.FunctionId.ofAll(TO_STRING__ANY_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_TO_UPPER = com.legend.model.FunctionId.ofAll(TO_UPPER__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_TO_UPPER_FIRST_CHARACTER = com.legend.model.FunctionId.ofAll(TO_UPPER_FIRST_CHARACTER__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_STRING_TRIM = com.legend.model.FunctionId.ofAll(TRIM__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_VARIANT_CONVERT_FROM_JSON = com.legend.model.FunctionId.ofAll(FROM_JSON__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_VARIANT_CONVERT_TO = com.legend.model.FunctionId.ofAll(TO__VARIANT_0_1__T_0_1);
+    public static final List<com.legend.model.FunctionId> AT_VARIANT_CONVERT_TO_MANY = com.legend.model.FunctionId.ofAll(TO_MANY__VARIANT_0_1__T_0_1);
+    public static final List<com.legend.model.FunctionId> AT_VARIANT_CONVERT_TO_VARIANT = com.legend.model.FunctionId.ofAll(TO_VARIANT__ANY_MANY);
+    public static final List<com.legend.model.FunctionId> AT_VARIANT_NAVIGATION_GET = com.legend.model.FunctionId.ofAll(GET__VARIANT_0_1__STRING_1, GET__VARIANT_0_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_GRAPH_FETCH_EXECUTION_ALLOY_CONFIG = com.legend.model.FunctionId.ofAll(ALLOY_CONFIG__4, ALLOY_CONFIG__5, ALLOY_CONFIG__6, ALLOY_CONFIG__7, ALLOY_CONFIG__8);
+    public static final List<com.legend.model.FunctionId> AT_GRAPH_FETCH_EXECUTION_GRAPH_FETCH = com.legend.model.FunctionId.ofAll(GRAPH_FETCH__T_MANY__ROOT_GRAPH_FETCH_TREE_1, GRAPH_FETCH__T_MANY__ROOT_GRAPH_FETCH_TREE_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_GRAPH_FETCH_EXECUTION_GRAPH_FETCH_CHECKED = com.legend.model.FunctionId.ofAll(GRAPH_FETCH_CHECKED__T_MANY__ROOT_GRAPH_FETCH_TREE_1, GRAPH_FETCH_CHECKED__T_MANY__ROOT_GRAPH_FETCH_TREE_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_GRAPH_FETCH_EXECUTION_SERIALIZE = com.legend.model.FunctionId.ofAll(SERIALIZE__T_MANY__ROOT_GRAPH_FETCH_TREE_1, SERIALIZE__T_MANY__ROOT_GRAPH_FETCH_TREE_1__CONFIG_1);
+    public static final List<com.legend.model.FunctionId> AT_LINEAGE_SCAN_COLUMNS_SCAN_COLUMNS = com.legend.model.FunctionId.ofAll(SCAN_COLUMNS__2);
+    public static final List<com.legend.model.FunctionId> AT_LINEAGE_SCAN_PROPERTIES_PROPERTY_TREE_BUILD_PROPERTY_TREE = com.legend.model.FunctionId.ofAll(BUILD_PROPERTY_TREE__LISTS);
+    public static final List<com.legend.model.FunctionId> AT_LINEAGE_SCAN_PROPERTIES_SCAN_PROPERTIES = com.legend.model.FunctionId.ofAll(SCAN_PROPERTIES__4);
+    public static final List<com.legend.model.FunctionId> AT_LINEAGE_SCAN_RELATIONS_SCAN_RELATIONS = com.legend.model.FunctionId.ofAll(SCAN_RELATIONS__FUNCTION_DEFINITION_1__MAPPING_1__EXTENSION_MANY, SCAN_RELATIONS__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXTENSION_MANY);
+    public static final List<com.legend.model.FunctionId> AT_MAPPING_FROM = com.legend.model.FunctionId.ofAll(FROM__T_m__PACKAGEABLE_RUNTIME_1, FROM__T_m__MAPPING_1__PACKAGEABLE_RUNTIME_1, FROM__T_m__MAPPING_1__RUNTIME_1, FROM__FN_1__PACKAGEABLE_RUNTIME_1, FROM__FN_1__RUNTIME_1, FROM__T_m__RUNTIME_1);
+    public static final List<com.legend.model.FunctionId> AT_MAPPING_WITH_CHAINED_MAPPINGS = com.legend.model.FunctionId.ofAll(WITH_CHAINED_MAPPINGS);
+    public static final List<com.legend.model.FunctionId> AT_MAPPING_WITH_MAPPING = com.legend.model.FunctionId.ofAll(WITH_MAPPING);
+    public static final List<com.legend.model.FunctionId> AT_METAMODEL_RELATION_NEW_TDSRELATION_ACCESSOR = com.legend.model.FunctionId.ofAll(NEW_TDS_RELATION_ACCESSOR__TDS_1);
+    public static final List<com.legend.model.FunctionId> AT_ROUTER_EXECUTE = com.legend.model.FunctionId.ofAll(ROUTER_EXECUTE__FN_1__MAPPING_1__RUNTIME_1__EXTENSION_MANY, ROUTER_EXECUTE__FN_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__EXTENSION_MANY, ROUTER_EXECUTE__FN_1__MAPPING_1__RUNTIME_1__EXTENSION_MANY__DEBUG_CONTEXT_1);
+    public static final List<com.legend.model.FunctionId> AT_ROUTER_PREEVAL_PREVAL = com.legend.model.FunctionId.ofAll(PREVAL__FUNCTION_DEFINITION_1__EXTENSION_MANY, PREVAL__FUNCTION_DEFINITION_1__EXTENSION_MANY__DEBUG_CONTEXT_1);
+    public static final List<com.legend.model.FunctionId> AT_TDS_ASC = com.legend.model.FunctionId.ofAll(ASC__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_TDS_DESC = com.legend.model.FunctionId.ofAll(DESC__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_TDS_EXTENSIONS_FIRST_NOT_NULL = com.legend.model.FunctionId.ofAll(FIRST_NOT_NULL__T_MANY);
+    public static final List<com.legend.model.FunctionId> AT_TDS_FILTER = com.legend.model.FunctionId.ofAll(TDS_FILTER__TDS_1__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_TDS_GROUP_BY = com.legend.model.FunctionId.ofAll(GROUP_BY__K_MANY__FUNCTION_MANY__AGGREGATE_VALUE_MANY__STRING_MANY);
+    public static final List<com.legend.model.FunctionId> AT_TDS_GROUP_BY_WITH_WINDOW_SUBSET = com.legend.model.FunctionId.ofAll(GROUP_BY_WITH_WINDOW_SUBSET__K_MANY__FUNCTION_MANY__AGGREGATE_VALUE_MANY__STRING_MANY__STRING_MANY__STRING_MANY);
+    public static final List<com.legend.model.FunctionId> AT_TDS_LIMIT = com.legend.model.FunctionId.ofAll(LIMIT__TDS_1__INTEGER_0_1);
+    public static final List<com.legend.model.FunctionId> AT_TDS_PROJECT = com.legend.model.FunctionId.ofAll(PROJECT__K_MANY__FUNCTION_MANY__STRING_MANY);
+    public static final List<com.legend.model.FunctionId> AT_TDS_SORT = com.legend.model.FunctionId.ofAll(SORT__TDS_1__STRING_1__SORT_DIRECTION_1, SORT__TDS_1__STRING_MANY);
+    public static final List<com.legend.model.FunctionId> AT_TDS_TABLE_TO_TDS = com.legend.model.FunctionId.ofAll(TABLE_TO_TDS__TABLE_1);
+    public static final List<com.legend.model.FunctionId> AT_TDS_TDS_CONTAINS = com.legend.model.FunctionId.ofAll(TDS_CONTAINS__T_1__FUNCTION_MANY__TDS_1, TDS_CONTAINS__T_1__FUNCTION_MANY__STRING_MANY__TDS_1__FUNCTION_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_FUNCTIONS_DATABASE_TABLE_REFERENCE = com.legend.model.FunctionId.ofAll(TABLE_REFERENCE__DATABASE_1__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_FUNCTIONS_SQL_QUERY_TO_STRING_SQL_FALSE = com.legend.model.FunctionId.ofAll(SQL_FALSE);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_FUNCTIONS_SQL_QUERY_TO_STRING_SQL_NULL = com.legend.model.FunctionId.ofAll(SQL_NULL);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_FUNCTIONS_SQL_QUERY_TO_STRING_SQL_TRUE = com.legend.model.FunctionId.ofAll(SQL_TRUE);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_FUNCTIONS_SQLSTRING_TO_NON_EXECUTABLE_SQLSTRING = com.legend.model.FunctionId.ofAll(TO_NON_EXECUTABLE_SQL_STRING__FN_1__MAPPING_1__DATABASE_TYPE_1__EXTENSION_MANY);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_FUNCTIONS_SQLSTRING_TO_SQL = com.legend.model.FunctionId.ofAll(TO_SQL__FN_1__MAPPING_1__RUNTIME_1__EXTENSION_MANY);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_FUNCTIONS_SQLSTRING_TO_SQLSTRING = com.legend.model.FunctionId.ofAll(TO_SQL_STRING__FN_1__MAPPING_1__DATABASE_TYPE_1__EXTENSION_MANY);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_FUNCTIONS_SQLSTRING_TO_SQLSTRING_PRETTY = com.legend.model.FunctionId.ofAll(TO_SQL_STRING_PRETTY__FN_1__MAPPING_1__DATABASE_TYPE_1__EXTENSION_MANY, TO_SQL_STRING_PRETTY__FN_1__MAPPING_1__RUNTIME_1__EXTENSION_MANY);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_FUNCTIONS_TO_DDL_CREATE_SCHEMA_STATEMENT = com.legend.model.FunctionId.ofAll(DDL_CREATE_SCHEMA_STATEMENT__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_FUNCTIONS_TO_DDL_CREATE_TABLE_STATEMENT = com.legend.model.FunctionId.ofAll(DDL_CREATE_TABLE_STATEMENT__DB_1__STRING_1__STRING_1, DDL_CREATE_TABLE_STATEMENT__DB_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_FUNCTIONS_TO_DDL_DROP_AND_CREATE_SCHEMA_IN_DB = com.legend.model.FunctionId.ofAll(DROP_AND_CREATE_SCHEMA_IN_DB__STRING_1__CONN_1, DROP_AND_CREATE_SCHEMA_IN_DB__STRING_1__CONN_1__BOOLEAN_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_FUNCTIONS_TO_DDL_DROP_AND_CREATE_TABLE_IN_DB = com.legend.model.FunctionId.ofAll(DROP_AND_CREATE_TABLE_IN_DB__ANY_1__STRING_1__CONN_1, DROP_AND_CREATE_TABLE_IN_DB__ANY_1__STRING_1__STRING_1__CONN_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_FUNCTIONS_TO_DDL_DROP_SCHEMA_STATEMENT = com.legend.model.FunctionId.ofAll(DDL_DROP_SCHEMA_STATEMENT__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_FUNCTIONS_TO_DDL_DROP_TABLE_STATEMENT = com.legend.model.FunctionId.ofAll(DDL_DROP_TABLE_STATEMENT__DB_1__STRING_1, DDL_DROP_TABLE_STATEMENT__DB_1__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_METAMODEL_EXECUTE_CREATE_TEMP_TABLE = com.legend.model.FunctionId.ofAll(CREATE_TEMP_TABLE__STRING_1__COLUMN_MANY__FUNCTION_1__CONN_1, CREATE_TEMP_TABLE__STRING_1__COLUMN_MANY__FUNCTION_1__BOOLEAN_1__CONN_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_METAMODEL_EXECUTE_DROP_TEMP_TABLE = com.legend.model.FunctionId.ofAll(DROP_TEMP_TABLE__STRING_1__CONN_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_METAMODEL_EXECUTE_EXECUTE_IN_DB = com.legend.model.FunctionId.ofAll(EXECUTE_IN_DB__STRING_1__CONN_1__INTEGER_1__INTEGER_1, EXECUTE_IN_DB__STRING_1__CONN_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_METAMODEL_EXECUTE_EXECUTE_IN_DB_TO_TDS = com.legend.model.FunctionId.ofAll(EXECUTE_IN_DB_TO_TDS__STRING_1__FN_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_METAMODEL_EXECUTE_FETCH_DB_COLUMNS_META_DATA = com.legend.model.FunctionId.ofAll(FETCH_DB_COLUMNS_META_DATA);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_METAMODEL_EXECUTE_FETCH_DB_PRIMARY_KEYS_META_DATA = com.legend.model.FunctionId.ofAll(FETCH_DB_PRIMARY_KEYS_META_DATA);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_METAMODEL_EXECUTE_FETCH_DB_SCHEMAS_META_DATA = com.legend.model.FunctionId.ofAll(FETCH_DB_SCHEMAS_META_DATA);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_METAMODEL_EXECUTE_FETCH_DB_TABLES_META_DATA = com.legend.model.FunctionId.ofAll(FETCH_DB_TABLES_META_DATA);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_METAMODEL_EXECUTE_LOAD_CSV_TO_DB_TABLE = com.legend.model.FunctionId.ofAll(LOAD_CSV_TO_DB_TABLE__STRING_1__TABLE_1__CONN_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_MILESTONING_CONCATENATE_TEMPORAL_TDS_QUERIES = com.legend.model.FunctionId.ofAll(CONCATENATE_TEMPORAL_TDS_QUERIES);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_POST_PROCESSOR_CTE_EXTRACTION_EXTRACT_SUBQUERIES_AS_CTES = com.legend.model.FunctionId.ofAll(EXTRACT_CTES);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_POST_PROCESSOR_NON_EXECUTABLE = com.legend.model.FunctionId.ofAll(NON_EXECUTABLE_PP);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_POST_PROCESSOR_REPLACE_TABLES = com.legend.model.FunctionId.ofAll(REPLACE_TABLES);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_TEST_DATA_GENERATION_EXECUTION_PLAN_PLAN_TEST_DATA_GENERATION = com.legend.model.FunctionId.ofAll(PLAN_TEST_DATA_GENERATION__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__TABLE_ROW_IDENTIFIERS_MANY__BOOLEAN_1__EXTENSION_MANY, PLAN_TEST_DATA_GENERATION__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__TABLE_ROW_IDENTIFIERS_MANY__BOOLEAN_1__TEMPORAL_MILESTONING_DATES_0_1__EXTENSION_MANY);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_TEST_DATA_GENERATION_GENERATE_SEED_DATA_STRING = com.legend.model.FunctionId.ofAll(GENERATE_SEED_DATA_STRING__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__ANY_MANY__EXTENSION_MANY);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_TEST_DATA_GENERATION_GENERATE_TEST_DATA = com.legend.model.FunctionId.ofAll(GENERATE_TEST_DATA__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__TABLE_ROW_IDENTIFIERS_MANY__EXTENSION_MANY);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_TEST_DATA_GENERATION_GET_RELATIONAL_CSVDATA_FROM_QUERY = com.legend.model.FunctionId.ofAll(GET_RELATIONAL_CSV_DATA__FN_1__MAPPING_1);
+    public static final List<com.legend.model.FunctionId> AT_RELATIONAL_TESTS_CSV_TO_CSV = com.legend.model.FunctionId.ofAll(TO_CSV__TDS, TO_CSV__TDS_BOOL, TO_CSV__TDS_FMT);
 
     // The GENERATED prelude is a MODULE (Prelude.java reads prelude.pure;
     // Compiler.bootLayer compiles it beside the system metamodel —

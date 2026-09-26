@@ -79,8 +79,8 @@ public final class ExecuteChainAssembly {
         // returned in a PrevalWrapper), so the rows are the wrapped
         // query's rows.
         while (q instanceof TypedNativeCall pv
-                && (com.legend.builtin.NativeFn.Handle.of(pv.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.Handle.PREVAL
-                    || com.legend.builtin.NativeFn.PlanWrapper.of(pv.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.PlanWrapper.WITH_FEATURE_FLAGS)) {
+                && (com.legend.builtin.NativeFn.Handle.of(pv.callee().id()).orElse(null) == com.legend.builtin.NativeFn.Handle.PREVAL
+                    || com.legend.builtin.NativeFn.PlanWrapper.of(pv.callee().id()).orElse(null) == com.legend.builtin.NativeFn.PlanWrapper.WITH_FEATURE_FLAGS)) {
             q = Lets.bound(pv.args().get(0), letPrefix);
         }
         // if(<literal>, |{|q1}, |{|q2}): a query lambda SELECTED by a
@@ -95,7 +95,7 @@ public final class ExecuteChainAssembly {
         // semantics BY EMISSION: fold the lambdas' result expressions
         // into a TypedConcatenate chain under one zero-arg lambda.
         if (q instanceof TypedNativeCall cq
-                && com.legend.builtin.NativeFn.PlanWrapper.of(cq.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.PlanWrapper.CONCATENATE_TEMPORAL_TDS_QUERIES) {
+                && com.legend.builtin.NativeFn.PlanWrapper.of(cq.callee().id()).orElse(null) == com.legend.builtin.NativeFn.PlanWrapper.CONCATENATE_TEMPORAL_TDS_QUERIES) {
             q = concatenateFold(cq, letPrefix, specs);
         }
         if (!(q instanceof TypedLambda lam) || !lam.parameters().isEmpty()) {
@@ -495,8 +495,7 @@ public final class ExecuteChainAssembly {
      * exeCtx overload (f, mapping, runtime, exeCtx, extensions); null on
      * the others. Identified by the overload's SIGNATURE, never by shape. */
     public static @com.legend.base.Nullable TypedSpec executionContextArg(TypedNativeCall ec) {
-        return com.legend.builtin.Pure.ROUTER_EXECUTE__FN_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__EXTENSION_MANY
-                .signatureKey().equals(ec.callee().signatureKey()) && ec.args().size() == 5
+        return com.legend.model.FunctionId.of(com.legend.builtin.Pure.ROUTER_EXECUTE__FN_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__EXTENSION_MANY).equals(ec.callee().id()) && ec.args().size() == 5
                 ? ec.args().get(3) : null;
     }
 

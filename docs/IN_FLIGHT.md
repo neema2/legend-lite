@@ -68,6 +68,14 @@ h2-fail-roster.txt`.
 
 ## Status lines (update in place; newest first)
 
+- 2026-09-26 14:05 untangle: **step 2 landed** (this commit; GATES.md entry "Execution plan step 2"):
+  lowering registration by declaration identity; `FunctionId` moved from `platform` to `model`
+  (move group D) — any core code that imports `com.legend.platform.FunctionId` now imports
+  `com.legend.model.FunctionId`; the move tool re-runs it: `python3
+  tools/untangle/move_classes.py --group D`. Rebased over 6a6103cbd; the chain (now with your
+  native image, which builds over core) re-run green on the rebased tree before this push. NOT
+  building after the push. Next: step 3 (the binder's candidate set and the reference's overload
+  rule: `compiler/`, `compiler/spec/InferenceKernel.java`).
 - 2026-09-26 13:08 warehouse: **main is GREEN again** (526b5aa50: gates + diagnostics, the native
   lane on Linux and macOS). NOT building. Next: D1 homework (read-only probes, then a written plan
   before any code).

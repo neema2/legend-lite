@@ -579,9 +579,17 @@ final class ArchitectureTest {
                             .or(com.tngtech.archunit.core.domain.JavaClass
                                     .Predicates.type(
                                             com.legend.protocol.SourceInfo.class))
+                            // the declaration IDENTITY the typed call carries
+                            // (execution plan step 2, 2026-09-26): every rule
+                            // table is keyed by it; it lives beside the
+                            // declaration type in model and is a value, not
+                            // the parse-product AST
+                            .or(com.tngtech.archunit.core.domain.JavaClass
+                                    .Predicates.type(
+                                            com.legend.model.FunctionId.class))
                             .or(NULLNESS_ANNOTATIONS))
             .as("Invariant 6h: lowering consumes typed HIR + kernel + sql — "
-              + "nothing else, ever (plus the SourceInfo span component)")
+              + "nothing else, ever (plus the SourceInfo span component and the declaration identity)")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -930,8 +938,6 @@ final class ArchitectureTest {
                 "com.legend.builtin.Pure$Index.CLASS_BY_FQN",
                 "com.legend.builtin.Pure$Index.ENUM_BY_FQN",
                 "com.legend.builtin.Pure$Index.FN_BY_FQN",
-                "com.legend.builtin.Pure$Index.REGISTERED_BY_BARE",
-                "com.legend.builtin.Pure$Index.KEYS_BY_NAME",
                 "com.legend.builtin.Pure$Index.FN_BY_ID",
                 "com.legend.builtin.Pure$Index.USER_RESOLVABLE_FQNS",
                 // the step-3 shadow diff's sinks (a probe, deleted at step 4)

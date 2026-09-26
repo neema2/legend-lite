@@ -66,7 +66,7 @@ final class ForeignKeyIdentity {
         }
         TypedSpec body = cond.body().get(cond.body().size() - 1);
         if (!(body instanceof TypedNativeCall c) || c.args().size() != 2
-                || !Pure.nativeNamed("equal", c.callee().signatureKey())) {
+                || !Pure.AT_BOOLEAN_EQUAL.contains(c.callee().id())) {
             return null;
         }
         String row = cond.parameters().get(0);

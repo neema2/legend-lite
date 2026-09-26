@@ -42,7 +42,7 @@ final class CalendarAgg {
 
     static @com.legend.base.Nullable TypedNativeCall calendarCallOf(TypedSpec mapBody) {
         return mapBody instanceof TypedNativeCall c
-                && NativeFn.Calendar.of(c.callee().qualifiedName()).isPresent()
+                && NativeFn.Calendar.of(c.callee().id()).isPresent()
                 && c.args().size() == 4
                 ? c : null;
     }
@@ -107,7 +107,7 @@ final class CalendarAgg {
     static SqlExpr caseValue(TypedNativeCall call, Ctx ctx, SqlExpr value) {
         // the family is a closed type: a calendar call that is not a
         // CalendarFn is a catalog/enum mismatch, loud here
-        NativeFn.Calendar fn = NativeFn.Calendar.of(call.callee().qualifiedName()).orElseThrow(() -> new IllegalStateException(
+        NativeFn.Calendar fn = NativeFn.Calendar.of(call.callee().id()).orElseThrow(() -> new IllegalStateException(
                 "not a calendar function: " + call.callee().qualifiedName()));
         String c = ctx.cal0();
         String e = ctx.cal1();

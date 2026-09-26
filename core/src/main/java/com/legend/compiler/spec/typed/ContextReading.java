@@ -212,7 +212,7 @@ final class ContextReading {
         if (hook instanceof TypedLambda cl && !cl.body().isEmpty()
                 && cl.body().get(cl.body().size() - 1) instanceof TypedNewInstance rni
                 && rni.properties().get("values") instanceof TypedSpec vals
-                && com.legend.builtin.NativeFn.ContextOption.of(Calls.calleeOf(vals)).orElse(null) == com.legend.builtin.NativeFn.ContextOption.EXTRACT_SUBQUERIES_AS_CTES) {
+                && com.legend.builtin.NativeFn.ContextOption.of(Calls.calleeIdOf(vals)).orElse(null) == com.legend.builtin.NativeFn.ContextOption.EXTRACT_SUBQUERIES_AS_CTES) {
             cte[0] = true;
             return;
         }
@@ -220,7 +220,7 @@ final class ContextReading {
         // nonExecutable processor (nonExecutablePostProcessor.pure:24): a
         // platform post-processor, applied as the IR pass nonExecutable()
         if (hook instanceof TypedLambda nl && !nl.body().isEmpty()
-                && com.legend.builtin.NativeFn.ContextOption.of(Calls.calleeOf(nl.body().get(nl.body().size() - 1))).orElse(null) == com.legend.builtin.NativeFn.ContextOption.NON_EXECUTABLE) {
+                && com.legend.builtin.NativeFn.ContextOption.of(Calls.calleeIdOf(nl.body().get(nl.body().size() - 1))).orElse(null) == com.legend.builtin.NativeFn.ContextOption.NON_EXECUTABLE) {
             cte[1] = true;
             return;
         }
@@ -246,7 +246,7 @@ final class ContextReading {
         if (!(hook instanceof TypedLambda lam) || lam.body().isEmpty()
                 || !(lam.body().get(lam.body().size() - 1)
                         instanceof TypedNativeCall call)
-                || com.legend.builtin.NativeFn.ContextOption.of(call.callee().qualifiedName()).orElse(null) != com.legend.builtin.NativeFn.ContextOption.REPLACE_TABLES
+                || com.legend.builtin.NativeFn.ContextOption.of(call.callee().id()).orElse(null) != com.legend.builtin.NativeFn.ContextOption.REPLACE_TABLES
                 || call.args().size() != 2) {
             throw new NotImplementedException(
                     "sqlQueryPostProcessorsConnectionAware hook shape is"
@@ -388,8 +388,8 @@ final class ContextReading {
 
     private static void collectTreeFeatures(TypedSpec n, java.util.Set<Feature> out) {
         if (n instanceof TypedNativeCall call && call.args().size() == 2
-                && com.legend.builtin.Pure.WITH_FEATURE_FLAGS__T_MANY__ENUM_MANY.signatureKey()
-                        .equals(call.callee().signatureKey())) {
+                && com.legend.model.FunctionId.of(com.legend.builtin.Pure.WITH_FEATURE_FLAGS__T_MANY__ENUM_MANY)
+                        .equals(call.callee().id())) {
             literalFlags(call.args().get(1), out);
         }
         for (TypedSpec c : n.children()) {

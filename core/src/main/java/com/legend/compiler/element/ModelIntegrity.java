@@ -156,10 +156,10 @@ final class ModelIntegrity {
      * calls with an arbitrary body. */
     private static void checkDuplicateSignatures(ModelBuilder model,
             java.util.@com.legend.base.Nullable Map<String, String> wallSink,
-            java.util.function.Predicate<Object> fresh, java.util.Set<String> priorKeys) {
-        java.util.Set<String> seen = new java.util.HashSet<>();
+            java.util.function.Predicate<Object> fresh, java.util.Set<com.legend.model.FunctionId> priorKeys) {
+        java.util.Set<com.legend.model.FunctionId> seen = new java.util.HashSet<>();
         for (Function f : model.functions().filter(fresh).toList()) {
-            String key = f.signatureKey();
+            com.legend.model.FunctionId key = com.legend.model.FunctionId.of(f);
             if (priorKeys.contains(key) || !seen.add(key)) {
                 withElement(f.qualifiedName(), () -> {
                     throw new com.legend.error.ModelException(

@@ -66,6 +66,26 @@ public final class ClaimsGenerator {
         return out;
     }
 
+    /** The generated OVERLOAD GROUP(S) each overload belongs to (execution plan
+     *  step 2, 2026-09-26): a rule that names {@code Pure.AT_BOOLEAN_AND} names
+     *  every overload in it, so the group counts as a reader's spelling of the
+     *  member — for the readers column only; the constant column stays the
+     *  member's own constant. */
+    static Map<NativeFunctionDefinition, List<String>> groups() throws IllegalAccessException {
+        Map<NativeFunctionDefinition, List<String>> out = new LinkedHashMap<>();
+        for (Field f : Pure.class.getFields()) {
+            if (Modifier.isStatic(f.getModifiers()) && f.getName().startsWith("AT_")
+                    && List.class.isAssignableFrom(f.getType())) {
+                for (Object member : (List<?>) f.get(null)) {
+                    NativeFunctionDefinition d = java.util.Objects.requireNonNull(
+                            Pure.nativeFunctionById(((com.legend.model.FunctionId) member).qualified()));
+                    out.computeIfAbsent(d, k -> new ArrayList<>()).add(f.getName());
+                }
+            }
+        }
+        return out;
+    }
+
     /** Every main source file: simple class name → text. Four simple names
      *  repeat across packages (Json, Multiplicity, PkInference, package-info);
      *  the LAST in sorted path order is the one kept — deterministic, where the
@@ -104,8 +124,17 @@ public final class ClaimsGenerator {
         return false;
     }
 
+    private static List<String> spellings(List<String> names, java.util.@com.legend.base.Nullable List<String> groups) {
+        List<String> out = new ArrayList<>(names);
+        if (groups != null) {
+            out.addAll(groups);
+        }
+        return out;
+    }
+
     /** The files (simple names) that name the overload — one of its
-     *  constants or its FQN — beyond the registry and the family enums. */
+     *  constants, a group it belongs to, or its FQN — beyond the registry and
+     *  the family enums. */
     static List<String> also(Map<String, String> sources, NativeFunctionDefinition d, List<String> consts) {
         List<String> out = new ArrayList<>();
         for (var e : sources.entrySet()) {
@@ -170,6 +199,7 @@ public final class ClaimsGenerator {
      *  this program's classpath) and core's main sources as text. */
     public static List<String> ledger(SourceTree main) throws Exception {
         Map<NativeFunctionDefinition, List<String>> consts = constants();
+        Map<NativeFunctionDefinition, List<String>> groups = groups();
         Map<String, String> sources = mainSources(main);
         List<String> rows = new ArrayList<>();
         rows.add("# native-claims.tsv — THE IMPLEMENTED SURFACE: one row per Pure.java overload,"
@@ -194,7 +224,7 @@ public final class ClaimsGenerator {
             String row = d.qualifiedName() + "\t" + sig + "\t" + String.join("|", names)
                     + "\t" + (kinds.isEmpty() ? "UNCLAIMED" : String.join("|", kinds))
                     + "\t" + String.join("|", owners)
-                    + "\t" + String.join(";", also(sources, d, names));
+                    + "\t" + String.join(";", also(sources, d, spellings(names, groups.get(d))));
             sorted.put(d.qualifiedName() + " " + sig, row);
         }
         rows.addAll(sorted.values());

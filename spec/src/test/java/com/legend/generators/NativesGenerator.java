@@ -151,7 +151,77 @@ public final class NativesGenerator {
             }
             missing.clear();
         }
+        withOverloadGroups(lines);
         return new Result(lines, orphans, drift, missing, same, wanted.size());
+    }
+
+    /** An overload group's declaration line: one per declared function name,
+     *  generated after the constants (execution plan step 2, 2026-09-26). */
+    static final Pattern GROUP_LINE = Pattern.compile(
+            "^\\s*public static final List<com\\.legend\\.model\\.FunctionId> AT_\\w+ = com\\.legend\\.model\\.FunctionId\\.ofAll\\(.*\\);\\s*$");
+    static final String GROUP_MARKER = "    // ---- OVERLOAD GROUPS, generated: the IDENTITIES of every constant declared at one"
+            + " FQN, in constant order, computed once here. A lowering rule registers against these, never a bare name ----";
+
+    /** The group constant for {@code fqn}: {@code AT_} plus the FQN's segments
+     *  after the common prefix, SNAKE_CASE — {@code meta::pure::functions::boolean::lessThan}
+     *  is {@code AT_BOOLEAN_LESS_THAN}, {@code meta::legend::lite::lessThan} is
+     *  {@code AT_LEGEND_LITE_LESS_THAN}. */
+    public static String groupName(String fqn) {
+        String s = fqn;
+        for (String prefix : List.of("meta::pure::functions::", "meta::pure::", "meta::")) {
+            if (s.startsWith(prefix)) {
+                s = s.substring(prefix.length());
+                break;
+            }
+        }
+        StringBuilder b = new StringBuilder("AT");
+        for (String seg : s.split("::")) {
+            b.append('_');
+            for (int i = 0; i < seg.length(); i++) {
+                char c = seg.charAt(i);
+                if (Character.isUpperCase(c) && i > 0 && Character.isLowerCase(seg.charAt(i - 1))) {
+                    b.append('_');
+                }
+                b.append(Character.toUpperCase(c));
+            }
+        }
+        return b.toString();
+    }
+
+    /** Replaces the overload-group block: the FQN of every constant line is
+     *  read from its signature text; one {@code AT_…} list per FQN, sorted by
+     *  FQN, inserted after the last constant. A group name two FQNs share is
+     *  an error (the naming rule must then grow, never a suffix). */
+    static void withOverloadGroups(List<String> lines) {
+        lines.removeIf(l -> GROUP_LINE.matcher(l).matches() || l.equals(GROUP_MARKER));
+        Map<String, List<String>> byFqn = new java.util.TreeMap<>();
+        int last = -1;
+        Pattern fqnOf = Pattern.compile("native function ([^<(]+)");
+        for (int i = 0; i < lines.size(); i++) {
+            Matcher m = CONSTANT_LINE.matcher(lines.get(i));
+            if (!m.matches()) {
+                continue;
+            }
+            last = i;
+            Matcher f = fqnOf.matcher(m.group(3));
+            if (!f.find()) {
+                throw new IllegalStateException("no FQN in " + m.group(2));
+            }
+            byFqn.computeIfAbsent(f.group(1).trim(), k -> new ArrayList<>()).add(m.group(2));
+        }
+        Map<String, String> names = new LinkedHashMap<>();
+        List<String> block = new ArrayList<>();
+        block.add(GROUP_MARKER);
+        for (var e : byFqn.entrySet()) {
+            String name = groupName(e.getKey());
+            String clash = names.put(name, e.getKey());
+            if (clash != null) {
+                throw new IllegalStateException("overload group name " + name + " for both " + clash + " and " + e.getKey());
+            }
+            block.add("    public static final List<com.legend.model.FunctionId> " + name
+                    + " = com.legend.model.FunctionId.ofAll(" + String.join(", ", e.getValue()) + ");");
+        }
+        lines.addAll(last + 1, block);
     }
 
     /** The receipt both report: the divergent rows, then the refusal when they

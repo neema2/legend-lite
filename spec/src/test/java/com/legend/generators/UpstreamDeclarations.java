@@ -7,7 +7,7 @@ import com.legend.model.Function;
 import com.legend.model.PackageableElement;
 import com.legend.parser.Dialect;
 import com.legend.parser.ElementParser;
-import com.legend.platform.FunctionId;
+import com.legend.model.FunctionId;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;

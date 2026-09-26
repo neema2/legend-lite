@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 package com.legend.platform;
+import com.legend.model.FunctionId;
 
 import com.legend.builtin.NativeFn;
 import com.legend.builtin.Pure;
@@ -62,7 +63,7 @@ class ImplementationTableTest {
     void aLoweringKeyIsMatchedToItsCatalogDefinitionWhole() {
         NativeFunctionDefinition upper = catalog(UPPER_ID);
         Registrations r = new Registrations(List.of(upper),
-                Map.of(Implementation.Position.SCALAR, Set.of(upper.signatureKey())),
+                Map.of(Implementation.Position.SCALAR, Set.of(com.legend.model.FunctionId.of(upper))),
                 Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Set.of(), Map.of());
         ImplementationTable t = ImplementationTable.build(DeclarationTable.of(List.of(upper)), r);
         Implementation row = t.of(new FunctionId(UPPER_ID));
@@ -74,7 +75,7 @@ class ImplementationTableTest {
     void aKeyNoDeclarationHasIsDangling() {
         NativeFunctionDefinition upper = catalog(UPPER_ID);
         Registrations r = new Registrations(List.of(upper),
-                Map.of(Implementation.Position.SCALAR, Set.of("no::such::function(String[1])")),
+                Map.of(Implementation.Position.SCALAR, Set.of(new com.legend.model.FunctionId("no::such::function_String_1__String_1_"))),
                 Map.of(), Map.of(), Map.of(), Map.of(), Map.of(), Set.of(), Map.of());
         ImplementationTable t = ImplementationTable.build(DeclarationTable.of(List.of(upper)), r);
         assertEquals(1, t.dangling().size());
@@ -103,7 +104,7 @@ class ImplementationTableTest {
     void aFormThatAlsoHasARuleKeepsItAsItsDelegate() {
         NativeFunctionDefinition upper = catalog(UPPER_ID);
         Registrations r = new Registrations(List.of(upper),
-                Map.of(Implementation.Position.SCALAR, Set.of(upper.signatureKey())), Map.of(), Map.of(),
+                Map.of(Implementation.Position.SCALAR, Set.of(com.legend.model.FunctionId.of(upper))), Map.of(), Map.of(),
                 Map.of(CoreFn.MAP, Set.of(upper.qualifiedName())), Map.of(), Map.of(), Set.of(), Map.of());
         ImplementationTable t = ImplementationTable.build(DeclarationTable.of(List.of(upper)), r);
         Implementation.Form f = (Implementation.Form) t.of(new FunctionId(UPPER_ID));
@@ -115,7 +116,7 @@ class ImplementationTableTest {
     void aRefusalBesideAnImplementationIsAConflict() {
         NativeFunctionDefinition upper = catalog(UPPER_ID);
         Registrations r = new Registrations(List.of(upper),
-                Map.of(Implementation.Position.SCALAR, Set.of(upper.signatureKey())), Map.of(), Map.of(),
+                Map.of(Implementation.Position.SCALAR, Set.of(com.legend.model.FunctionId.of(upper))), Map.of(), Map.of(),
                 Map.of(), Map.of(upper.qualifiedName(), "an effect"), Map.of(), Set.of(), Map.of());
         ImplementationTable t = ImplementationTable.build(DeclarationTable.of(List.of(upper)), r);
         assertEquals(1, t.conflicts().size());

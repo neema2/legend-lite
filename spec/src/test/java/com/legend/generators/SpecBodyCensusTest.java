@@ -285,7 +285,19 @@ public class SpecBodyCensusTest {
         org.junit.jupiter.api.Assertions.assertTrue(stdlibFailures.size() <= STDLIB_FAILURES_MAX,
                 () -> "core_functions_* typing failures GREW: " + stdlibFailures.size() + " > "
                         + STDLIB_FAILURES_MAX + " (shrink-only):\n  " + String.join("\n  ", stdlibFailures.keySet()));
-        org.junit.jupiter.api.Assertions.assertTrue(loadWalls.size() <= 1,
+        // 1 -> 5 (2026-09-26, execution plan step 2): the model builder judges a
+        // duplicate by the declaration IDENTITY (FunctionId) instead of the
+        // spelling-based key, and four collisions the spelling hid are refused
+        // now: a class's QUALIFIED PROPERTY (EnumerationMapping.toDomainValue,
+        // Mapping.enumerationMappingByName, PropertyMappingsImplementation.
+        // _propertyMappingsByPropertyName, Database.schema) lifted to a package
+        // function has the same identity as the real package function of that
+        // name. The reference keeps the two apart because a qualified property
+        // is not a package element; ours lifts it. The refusal is the honest
+        // state — a call to either name WAS ambiguous under the old key, hidden
+        // by `<T>` in one spelling. Step A4 (members bound to properties) removes
+        // the lift and the four walls with it; task #43 tracks the pin.
+        org.junit.jupiter.api.Assertions.assertTrue(loadWalls.size() <= 5,
                 () -> "spec body census load walls GREW: " + loadWalls);
     }
 

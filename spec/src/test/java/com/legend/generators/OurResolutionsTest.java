@@ -131,7 +131,7 @@ public class OurResolutionsTest {
 
     /** The callee's identity in upstream's own spelling (FunctionId), blank for a synthetic callee. */
     private static String idOf(TypedFunction f) {
-        return f.definition() == null ? "" : com.legend.platform.FunctionId.of(f.definition()).qualified();
+        return f.definition() == null ? "" : com.legend.model.FunctionId.of(f.definition()).qualified();
     }
 
     /** Our {@code module:relative/path} as the reference's {@code /module/relative/path}

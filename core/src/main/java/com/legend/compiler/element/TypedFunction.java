@@ -57,16 +57,19 @@ public record TypedFunction(
         Multiplicity returnMultiplicity,
         Optional<List<ValueSpecification>> body,
         boolean isNative,
-        com.legend.model.@com.legend.base.Nullable Function definition) implements TypedElement {
+        com.legend.model.@com.legend.base.Nullable Function definition,
+        com.legend.model.@com.legend.base.Nullable FunctionId id) implements TypedElement {
 
-    /** The stable overload identity (see {@code Function.signatureKey}). */
-    public String signatureKey() {
-        if (definition == null) {
+    /** The declaration's identity — upstream's own signature id, held whole
+     *  ({@link com.legend.model.FunctionId}): what every rule table is keyed
+     *  by and every callee compare uses (execution plan step 2, 2026-09-26). */
+    public com.legend.model.FunctionId id() {
+        if (id == null) {
             throw new IllegalStateException("TypedFunction '" + qualifiedName
                     + "' has no source definition (test-convenience ctor) —"
                     + " it cannot be dispatched by the lowering");
         }
-        return definition.signatureKey();
+        return id;
     }
 
     /**
@@ -80,7 +83,7 @@ public record TypedFunction(
                          Type returnType, Multiplicity returnMultiplicity,
                          Optional<List<ValueSpecification>> body, boolean isNative) {
         this(qualifiedName, typeParameters, multiplicityParameters, parameters,
-                returnType, returnMultiplicity, body, isNative, null);
+                returnType, returnMultiplicity, body, isNative, null, null);
     }
 
     public TypedFunction(String qualifiedName,
@@ -91,6 +94,21 @@ public record TypedFunction(
                          @com.legend.base.Nullable Optional<List<ValueSpecification>> body,
                          boolean isNative,
                          com.legend.model.@com.legend.base.Nullable Function definition) {
+        this(qualifiedName, typeParameters, multiplicityParameters, parameters, returnType, returnMultiplicity,
+                body, isNative, definition, definition == null ? null : com.legend.model.FunctionId.of(definition));
+    }
+
+    /** The canonical form: the identity is computed ONCE, when the function is
+     *  compiled, and rides every callee compare and rule lookup after. */
+    public TypedFunction(String qualifiedName,
+                         @com.legend.base.Nullable List<String> typeParameters,
+                         @com.legend.base.Nullable List<String> multiplicityParameters,
+                         @com.legend.base.Nullable List<TypedParameter> parameters,
+                         Type returnType, Multiplicity returnMultiplicity,
+                         @com.legend.base.Nullable Optional<List<ValueSpecification>> body,
+                         boolean isNative,
+                         com.legend.model.@com.legend.base.Nullable Function definition,
+                         com.legend.model.@com.legend.base.Nullable FunctionId id) {
         Objects.requireNonNull(qualifiedName, "qualifiedName");
         Objects.requireNonNull(returnType, "returnType");
         Objects.requireNonNull(returnMultiplicity, "returnMultiplicity");
@@ -106,5 +124,6 @@ public record TypedFunction(
         this.body = body == null ? Optional.empty() : body.map(List::copyOf);
         this.isNative = isNative;
         this.definition = definition;
+        this.id = id;
     }
 }

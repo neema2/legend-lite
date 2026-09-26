@@ -888,9 +888,9 @@ public final class Compiler {
             ModelContext ctx) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
-        java.util.Map<String, Boolean> memo = new java.util.HashMap<>();
-        java.util.Map<String, Boolean> verdictMemo = new java.util.HashMap<>();
-        java.util.Map<String, java.util.Set<String>> storeMemo = new java.util.HashMap<>();
+        java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
+        java.util.Map<com.legend.model.FunctionId, Boolean> verdictMemo = new java.util.HashMap<>();
+        java.util.Map<com.legend.model.FunctionId, java.util.Set<String>> storeMemo = new java.util.HashMap<>();
         boolean effects = false;
         boolean seeds = false;
         boolean verdicts = false;
@@ -920,7 +920,7 @@ public final class Compiler {
     /** One statement's letter in {@link ProgramFacts#shape()}. */
     private static char statementKind(TypedSpec s, boolean effect, boolean verdict) {
         if (s instanceof com.legend.compiler.spec.typed.TypedNativeCall c
-                && com.legend.builtin.NativeFn.ContextOwner.of(c.callee().qualifiedName()).isPresent()) {
+                && com.legend.builtin.NativeFn.ContextOwner.of(c.callee().id()).isPresent()) {
             return 'X';
         }
         if (s instanceof com.legend.compiler.spec.typed.TypedLet l) {
@@ -929,7 +929,7 @@ public final class Compiler {
                 v = f.source();
             }
             if (v instanceof com.legend.compiler.spec.typed.TypedNativeCall ec
-                    && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().qualifiedName())) {
+                    && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().id())) {
                 return 'F';
             }
             return effect ? 'E' : 'L';
@@ -945,7 +945,7 @@ public final class Compiler {
      * it SKIPPED (no assertion reachable) instead of scoring a body that
      * merely did not throw. */
     private static boolean callsVerdict(TypedSpec n, SpecCompiler specs,
-            java.util.Map<String, Boolean> memo) {
+            java.util.Map<com.legend.model.FunctionId, Boolean> memo) {
         String callee = n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
                 ? nc.callee().qualifiedName()
                 : n instanceof com.legend.compiler.spec.typed.TypedUserCall uc
@@ -955,7 +955,7 @@ public final class Compiler {
             return true;
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
-            String key = uc.callee().signatureKey();
+            com.legend.model.FunctionId key = uc.callee().id();
             Boolean known = memo.get(key);
             if (known == null) {
                 memo.put(key, false);   // in-progress: cycles score false
@@ -1130,7 +1130,7 @@ public final class Compiler {
                 try {
                     specs.compile(tf);
                 } catch (RuntimeException e) {
-                    walls.put(tf.signatureKey(), String.valueOf(e.getMessage()));
+                    walls.put(tf.id().qualified(), String.valueOf(e.getMessage()));
                 }
             }
         }

@@ -279,7 +279,7 @@ final class AssertVerdicts {
         // (assertError with its own arm, fail) is a normal fall-through —
         // and the switch below is an EXPRESSION with no default, so a new
         // member does not compile until it is placed (batch 3).
-        NativeFn.Verdict fn = NativeFn.Verdict.of(fqn).orElse(null);
+        NativeFn.Verdict fn = NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(bare)).orElse(null);
         if (fn == null) {
             return null;
         }
@@ -560,7 +560,7 @@ final class AssertVerdicts {
                 && peel(pa.source())
                         instanceof com.legend.compiler.spec.typed
                                 .TypedNativeCall gt
-                && com.legend.builtin.NativeFn.SubtypeForm.of(gt.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.GENERIC_TYPE
+                && com.legend.builtin.NativeFn.SubtypeForm.of(gt.callee().id()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.GENERIC_TYPE
                 && !gt.args().isEmpty()) {
             return staticTypeName(gt.args().get(0));
         }
@@ -707,7 +707,7 @@ final class AssertVerdicts {
             if (pred != null && com.legend.compiler.spec.VerdictQueries.vectorContract(source, lam, root, pred)) {
                 TypedSpec predMap = com.legend.compiler.spec.VerdictQueries.predicateVectorOver(source, qm, lam, pred);
                 ExecutionResult planned = arm(env).quantifiedVector(
-                        NativeFn.Verdict.of(fqn).map(NativeFn.Verdict::bareName).orElse(fqn), predMap, letPrefix, specs, env,
+                        NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(root)).map(NativeFn.Verdict::bareName).orElse(fqn), predMap, letPrefix, specs, env,
                         rawHook == null ? null : rawHook::apply);
                 if (planned != null) {
                     return planned;
@@ -762,7 +762,7 @@ final class AssertVerdicts {
         if (fqn == null || !fqn.startsWith(PKG)) {
             return null;
         }
-        NativeFn.Verdict qfn = NativeFn.Verdict.of(fqn).orElse(null);
+        NativeFn.Verdict qfn = NativeFn.Verdict.of(com.legend.compiler.spec.typed.Calls.calleeIdOf(root)).orElse(null);
         List<TypedSpec> aargs = root instanceof TypedUserCall u ? u.args()
                 : ((TypedNativeCall) root).args();
         if (!(qfn == NativeFn.Verdict.ASSERT || qfn == NativeFn.Verdict.ASSERT_FALSE)
@@ -917,7 +917,7 @@ final class AssertVerdicts {
             @com.legend.base.Nullable SpliceHook hook) {
         TypedSpec chain = chaseLets(s, lets);
         if (chain instanceof TypedNativeCall lq
-                && com.legend.builtin.NativeFn.Handle.of(lq.callee().qualifiedName()).orElse(null)
+                && com.legend.builtin.NativeFn.Handle.of(lq.callee().id()).orElse(null)
                         == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY) {
             // executeLegendQuery's result IS the envelope ({"builder":…,
             // "values":…}) — always one object; the root's many-ness lives

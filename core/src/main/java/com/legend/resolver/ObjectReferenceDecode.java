@@ -48,7 +48,7 @@ final class ObjectReferenceDecode {
 
     private static TypedSpec walk(TypedSpec n, @com.legend.base.Nullable TypedSerializeGraph graph,
             ModelContext ctx, ClassSources sources) {
-        if (n instanceof TypedNativeCall c && com.legend.builtin.NativeFn.ObjectReference.of(c.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.ObjectReference.DECODE
+        if (n instanceof TypedNativeCall c && com.legend.builtin.NativeFn.ObjectReference.of(c.callee().id()).orElse(null) == com.legend.builtin.NativeFn.ObjectReference.DECODE
                 && c.args().size() == 3) {
             if (graph == null || graph.objectRefPrefix() == null) {
                 throw new NotImplementedException("decodeObjectReferencesAndGetPkMap"

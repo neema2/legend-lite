@@ -15,92 +15,92 @@ import java.util.Map;
  */
 public final class Aggregates {
 
-    private static final Map<String, SqlAgg.Fn> REDUCERS = new HashMap<>();
+    private static final Map<com.legend.model.FunctionId, SqlAgg.Fn> REDUCERS = new HashMap<>();
 
     /** The signature keys this registry reduces — a CLAIM per key
      *  ({@link com.legend.builtin.Claims}, kind REDUCER). */
-    static java.util.Set<String> reducerKeys() {
+    static java.util.Set<com.legend.model.FunctionId> reducerKeys() {
         return java.util.Collections.unmodifiableSet(REDUCERS.keySet());
     }
 
     private Aggregates() {
     }
 
-    private static void family(SqlAgg.Fn sqlName, String pureName) {
-        for (String f : Pure.nativeKeysAt(pureName)) {
+    private static void family(SqlAgg.Fn sqlName, java.util.List<com.legend.model.FunctionId> ids) {
+        for (com.legend.model.FunctionId f : ids) {
             REDUCERS.put(f, sqlName);
         }
     }
 
     static {
-        family(SqlAgg.Fn.SUM, "sum");
+        family(SqlAgg.Fn.SUM, Pure.AT_MATH_SUM);
         // Pure spells numeric reduction via plus: y|$y->plus() == sum.
-        family(SqlAgg.Fn.SUM, "plus");
-        family(SqlAgg.Fn.COUNT, "count");
-        family(SqlAgg.Fn.AVG, "average");
-        family(SqlAgg.Fn.MIN, "min");
-        family(SqlAgg.Fn.MAX, "max");
+        family(SqlAgg.Fn.SUM, com.legend.model.FunctionId.all(Pure.AT_MATH_PLUS, Pure.AT_STRING_PLUS));
+        family(SqlAgg.Fn.COUNT, Pure.AT_COLLECTION_COUNT);
+        family(SqlAgg.Fn.AVG, Pure.AT_MATH_AVERAGE);
+        family(SqlAgg.Fn.MIN, com.legend.model.FunctionId.all(Pure.AT_DATE_MIN, Pure.AT_MATH_MIN, Pure.AT_COLLECTION_MIN));
+        family(SqlAgg.Fn.MAX, com.legend.model.FunctionId.all(Pure.AT_DATE_MAX, Pure.AT_MATH_MAX, Pure.AT_COLLECTION_MAX));
         // H2-LENIENT per-group witness (view ~groupBy per-row columns —
         // the engine's H2 1.x golden spells the BARE column; our DB-side
         // form is ANY_VALUE): REAL pure first() — order-sensitive
         // first()-over-relation consumers keep their limit-1 route by
         // excluding ANY_VALUE at THEIR arms, never a synthetic native
-        family(SqlAgg.Fn.ANY_VALUE, "first");
-        family(SqlAgg.Fn.STDDEV_SAMP, "stdDevSample");
+        family(SqlAgg.Fn.ANY_VALUE, com.legend.model.FunctionId.all(Pure.AT_RELATION_FIRST, Pure.AT_COLLECTION_FIRST));
+        family(SqlAgg.Fn.STDDEV_SAMP, Pure.AT_MATH_STD_DEV_SAMPLE);
         // upstream's flagged stdDev(numbers, isBiasCorrected) — the flag picks
         // SAMP/POP in the lowering's aggFlavor, exactly as variance's does
-        family(SqlAgg.Fn.STDDEV_SAMP, "stdDev");
-        family(SqlAgg.Fn.COUNT, "size");
+        family(SqlAgg.Fn.STDDEV_SAMP, Pure.AT_MATH_STD_DEV);
+        family(SqlAgg.Fn.COUNT, com.legend.model.FunctionId.all(Pure.AT_RELATION_SIZE, Pure.AT_COLLECTION_SIZE));
         // joinStrings carries its separator as an EXTRA reduce-call argument
         // (handled in the lowering's aggExpr).
-        family(SqlAgg.Fn.STRING_AGG, "joinStrings");
-        family(SqlAgg.Fn.STDDEV_POP, "stdDevPopulation");
-        family(SqlAgg.Fn.VAR_SAMP, "varianceSample");
-        family(SqlAgg.Fn.VAR_POP, "variancePopulation");
+        family(SqlAgg.Fn.STRING_AGG, com.legend.model.FunctionId.all(Pure.AT_STRING_JOIN_STRINGS, Pure.AT_RELATION_JOIN_STRINGS));
+        family(SqlAgg.Fn.STDDEV_POP, Pure.AT_MATH_STD_DEV_POPULATION);
+        family(SqlAgg.Fn.VAR_SAMP, Pure.AT_MATH_VARIANCE_SAMPLE);
+        family(SqlAgg.Fn.VAR_POP, Pure.AT_MATH_VARIANCE_POPULATION);
         // Pure's bare variance is the SAMPLE variance (PCT semantics).
-        family(SqlAgg.Fn.VAR_SAMP, "variance");
-        family(SqlAgg.Fn.MEDIAN, "median");
-        family(SqlAgg.Fn.AVG, "mean");
-        family(SqlAgg.Fn.MODE, "mode");
+        family(SqlAgg.Fn.VAR_SAMP, Pure.AT_MATH_VARIANCE);
+        family(SqlAgg.Fn.MEDIAN, Pure.AT_MATH_MEDIAN);
+        family(SqlAgg.Fn.AVG, Pure.AT_MATH_MEAN);
+        family(SqlAgg.Fn.MODE, Pure.AT_MATH_MODE);
         // Boolean reductions: y|$y->and() / ->or() over a group — DuckDB
         // BOOL_AND/BOOL_OR (engine simpleGroupByAnd/Or goldens). The
         // 1-arg COLLECTION overloads only: the 2-arg logical and(a,b)
         // must never register as a reducer.
-        for (String f : Pure.nativeKeysAt("and", 1)) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.ofAll(Pure.AND__BOOLEAN_MANY)) {
             REDUCERS.put(f, SqlAgg.Fn.BOOL_AND);
         }
-        for (String f : Pure.nativeKeysAt("or", 1)) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.ofAll(Pure.OR__BOOLEAN_MANY)) {
             REDUCERS.put(f, SqlAgg.Fn.BOOL_OR);
         }
         // percentile: DuckDB QUANTILE family; the 4-arg overload's
         // ascending/continuous flags are folded in the lowering (aggExpr).
-        family(SqlAgg.Fn.QUANTILE_CONT, "percentile");
+        family(SqlAgg.Fn.QUANTILE_CONT, Pure.AT_MATH_PERCENTILE);
         // BI-VARIATE reducers — the map body is rowMapper(a, b); aggExpr
         // decomposes it into the two SQL arguments.
-        family(SqlAgg.Fn.CORR, "corr");
-        family(SqlAgg.Fn.COVAR_SAMP, "covarSample");
-        family(SqlAgg.Fn.COVAR_POP, "covarPopulation");
-        family(SqlAgg.Fn.ARG_MAX, "maxBy");
-        family(SqlAgg.Fn.ARG_MIN, "minBy");
+        family(SqlAgg.Fn.CORR, Pure.AT_MATH_CORR);
+        family(SqlAgg.Fn.COVAR_SAMP, Pure.AT_MATH_COVAR_SAMPLE);
+        family(SqlAgg.Fn.COVAR_POP, Pure.AT_MATH_COVAR_POPULATION);
+        family(SqlAgg.Fn.ARG_MAX, Pure.AT_MATH_MAX_BY);
+        family(SqlAgg.Fn.ARG_MIN, Pure.AT_MATH_MIN_BY);
         // wavg has NO single SQL reducer: SUM(v*w)/SUM(w), composed in
         // aggExpr — the marker name never reaches the renderer.
-        family(SqlAgg.Fn.WAVG, "wavg");
+        family(SqlAgg.Fn.WAVG, Pure.AT_MATH_WAVG);
         // hashCode of a GROUP is HASH(LIST(values)) — composed in aggValue.
-        family(SqlAgg.Fn.HASH_LIST, "hashCode");
+        family(SqlAgg.Fn.HASH_LIST, Pure.AT_HASH_HASH_CODE);
         // isDistinct of a GROUP is COUNT(DISTINCT x) = COUNT(x) — composed
         // in aggValue (engine testGroupByIsDistinct golden). EXACT overload
         // only (audit 22a M5): the legacy 2-arg isDistinct(l,r) must never
         // reach the marker — its args would be dropped and the group SQL
         // rendered for a constantly-true pure expression.
-        for (String f : Pure.nativeKeysAt("isDistinct", 1)) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.ofAll(Pure.IS_DISTINCT__T_MANY)) {
             REDUCERS.put(f, SqlAgg.Fn.IS_DISTINCT_MARK);
         }
         // the unique group value or NULL (collectionExtension.pure
         // semantics over a group): composed CASE, no single SQL reducer
-        for (String f : Pure.nativeKeysAt("uniqueValueOnly", 1)) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.ofAll(Pure.UNIQUE_VALUE_ONLY__T_MANY)) {
             REDUCERS.put(f, SqlAgg.Fn.UNIQUE_VALUE_ONLY);
         }
-        for (String f : Pure.nativeKeysAt("uniqueValueOnly", 2)) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.ofAll(Pure.UNIQUE_VALUE_ONLY__T_MANY__T_01)) {
             REDUCERS.put(f, SqlAgg.Fn.UNIQUE_VALUE_ONLY);
         }
     }
@@ -113,14 +113,14 @@ public final class Aggregates {
      */
     /** Nullable variant of {@link #reducerFor} — for is-this-a-reducer probes. */
     static com.legend.sql.SqlAgg.@com.legend.base.Nullable Fn reducerOrNull(TypedFunction callee) {
-        return REDUCERS.get(callee.signatureKey());
+        return REDUCERS.get(callee.id());
     }
 
     /** The ONE aggregate-membership test (remediation T1.7): resolver
      * walls ask the reducer catalog, never a parallel name list — a
      * catalog addition is a wall addition by construction. */
     public static boolean isReducer(TypedFunction callee) {
-        return REDUCERS.containsKey(callee.signatureKey());
+        return REDUCERS.containsKey(callee.id());
     }
 
     /** DEMAND-scan membership: reducers that make an expression an
@@ -130,7 +130,7 @@ public final class Aggregates {
      * golden: plain LEFT JOINs, no grouped subselect). */
     public static boolean isDemandReducer(TypedFunction callee) {
         return isReducer(callee)
-                && REDUCERS.get(callee.signatureKey()) != SqlAgg.Fn.ANY_VALUE;
+                && REDUCERS.get(callee.id()) != SqlAgg.Fn.ANY_VALUE;
     }
 
     /** Node-level demand membership (§4AD decision 1): INFIX plus —
@@ -149,12 +149,12 @@ public final class Aggregates {
                         && run.operatorRun());
     }
 
-    static boolean isReducerKey(String signatureKey) {
-        return REDUCERS.containsKey(signatureKey);
+    static boolean isReducerKey(com.legend.model.FunctionId id) {
+        return REDUCERS.containsKey(id);
     }
 
     static com.legend.sql.SqlAgg.Fn reducerFor(TypedFunction callee) {
-        com.legend.sql.SqlAgg.Fn name = REDUCERS.get(callee.signatureKey());
+        com.legend.sql.SqlAgg.Fn name = REDUCERS.get(callee.id());
         if (name == null) {
             throw new IllegalStateException(
                     "no aggregate lowering registered for resolved overload '"

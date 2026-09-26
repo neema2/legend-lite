@@ -203,7 +203,7 @@ public final class StoreResolver {
             // arm never evaluates the argument) passes through unresolved
             // — its argument may be a lambda VALUE, not a query
             if (stmt instanceof TypedNativeCall dg
-                    && com.legend.builtin.NativeFn.Effect.isInertDiagnostic(dg.callee().qualifiedName())) {
+                    && com.legend.builtin.NativeFn.Effect.isInertDiagnostic(dg.callee().id())) {
                 out.add(stmt);
                 continue;
             }
@@ -215,7 +215,7 @@ public final class StoreResolver {
         }
         for (TypedSpec stmt : out) {
             if (stmt instanceof TypedNativeCall dg
-                    && com.legend.builtin.NativeFn.Effect.isInertDiagnostic(dg.callee().qualifiedName())) {
+                    && com.legend.builtin.NativeFn.Effect.isInertDiagnostic(dg.callee().id())) {
                 continue;
             }
             assertNoStoreOnlyEscapees(stmt);
@@ -324,7 +324,7 @@ public final class StoreResolver {
         // evaluateAndDeactivate over a metamodel ROW is the row (a tree-as-
         // value native: the rows already are the deactivated tree)
         if (n instanceof TypedNativeCall wf
-                && (com.legend.builtin.NativeFn.PlanWrapper.of(wf.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.PlanWrapper.WITH_FEATURE_FLAGS
+                && (com.legend.builtin.NativeFn.PlanWrapper.of(wf.callee().id()).orElse(null) == com.legend.builtin.NativeFn.PlanWrapper.WITH_FEATURE_FLAGS
                     || "meta::pure::functions::meta::evaluateAndDeactivate"
                         .equals(wf.callee().qualifiedName()))
                 && !wf.args().isEmpty()) {
@@ -1371,7 +1371,7 @@ public final class StoreResolver {
      * or on demand — ConstructedInstances.handleRows). */
     private boolean planHandleRow(TypedNativeCall pn) {
         return com.legend.compiler.element.type.PlatformTypes.handleRowClass(
-                        pn.callee().qualifiedName(), pn.callee().returnType()) != null
+                        pn.callee().id(), pn.callee().returnType()) != null
                 && constructed.handleRows(pn);
     }
 

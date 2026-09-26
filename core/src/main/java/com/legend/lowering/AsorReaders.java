@@ -26,13 +26,13 @@ final class AsorReaders {
     private AsorReaders() {
     }
 
-    static void register(Map<String, Scalars.Rule> RULES) {
+    static void register(Map<com.legend.model.FunctionId, Scalars.Rule> RULES) {
         // decodes IN SQL — base64 (unpadded on the wire), then the framing
         // regex picks the segment. asorPkValue = the pk$_i value cast to the
         // pk column's type the resolver stamped; asorDecodePkMap = the
         // engine's {pathToMapping, pkMap, setId} JSON, pk$_i keys renamed by
         // the spelled setId -> pk-column-names table (ObjectReferenceDecode).
-        for (String f : Pure.nativeKeysAt(Pure.Lite.ASOR_PK_VALUE)) {
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_ASOR_PK_VALUE) {
             RULES.put(f, (n, args) -> {
                 if (!(args.get(1) instanceof SqlExpr.IntLit idx)) {
                     throw new IllegalStateException("asorPkValue index must be literal");
@@ -48,7 +48,7 @@ final class AsorReaders {
                 return new SqlExpr.Cast(text, PureSql.type(n.info().type()));
             });
         }
-        for (String f : Pure.nativeKeysAt(Pure.Lite.ASOR_DECODE_PK_MAP)) {
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_ASOR_DECODE_PK_MAP) {
             RULES.put(f, (n, args) -> {
                 if (!(args.get(1) instanceof SqlExpr.StringLit table)
                         || !(com.legend.sql.Json.parseOne(table.value())

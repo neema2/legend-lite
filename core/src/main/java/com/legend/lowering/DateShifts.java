@@ -107,7 +107,7 @@ static String intervalFn(String unitName) {
     /** The truncation heads (moved from Scalars at the 3500-line
      * split seam). */
     static void registerTruncationRules(
-            java.util.Map<String, Scalars.Rule> rules) {
+            java.util.Map<com.legend.model.FunctionId, Scalars.Rule> rules) {
         // Truncations: DATE_TRUNC with the part literal — SEMANTICS
         // ONLY (single-compiler tenet, user ruling 2026-09-01): the
         // day-grained heads' Date result type is honored by the
@@ -118,13 +118,13 @@ static String intervalFn(String unitName) {
         // truncate TODAY() (real pure composes today()->firstDayOf*,
         // dateExtension.pure — same by emission).
         for (var e : java.util.Map.ofEntries(
-                java.util.Map.entry("firstDayOfMonth", "month"), java.util.Map.entry("firstDayOfYear", "year"),
-                java.util.Map.entry("firstDayOfWeek", "week"), java.util.Map.entry("firstDayOfQuarter", "quarter"),
-                java.util.Map.entry("firstHourOfDay", "day"), java.util.Map.entry("firstMinuteOfHour", "hour"),
-                java.util.Map.entry("firstSecondOfMinute", "minute"), java.util.Map.entry("firstMillisecondOfSecond", "second"),
-                java.util.Map.entry("firstDayOfThisYear", "year"), java.util.Map.entry("firstDayOfThisQuarter", "quarter"),
-                java.util.Map.entry("firstDayOfThisMonth", "month")).entrySet()) {
-            for (String f : com.legend.builtin.Pure.nativeKeysAt(e.getKey())) {
+                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_MONTH, "month"), java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_YEAR, "year"),
+                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_WEEK, "week"), java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_QUARTER, "quarter"),
+                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_HOUR_OF_DAY, "day"), java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_MINUTE_OF_HOUR, "hour"),
+                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_SECOND_OF_MINUTE, "minute"), java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_MILLISECOND_OF_SECOND, "second"),
+                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_THIS_YEAR, "year"), java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_THIS_QUARTER, "quarter"),
+                java.util.Map.entry(com.legend.builtin.Pure.AT_DATE_FIRST_DAY_OF_THIS_MONTH, "month")).entrySet()) {
+            for (com.legend.model.FunctionId f : e.getKey()) {
                 rules.put(f, (n, args) -> {
                     SqlExpr trunc = new SqlExpr.Call(SqlFn.DATE_TRUNC, List.of(
                             new SqlExpr.StringLit(e.getValue()),
@@ -137,8 +137,8 @@ static String intervalFn(String unitName) {
         }
     }
 
-    static void registerAdjustRules(java.util.Map<String, Scalars.Rule> rules) {
-        for (String f : com.legend.builtin.Pure.nativeKeysAt("adjust")) {
+    static void registerAdjustRules(java.util.Map<com.legend.model.FunctionId, Scalars.Rule> rules) {
+        for (com.legend.model.FunctionId f : com.legend.builtin.Pure.AT_DATE_ADJUST) {
             rules.put(f, (n, args) -> {
                 SqlExpr added = new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
                         new SqlExpr.StringLit(intervalFn(Scalars.enumName(n.args().get(2)))),
@@ -204,14 +204,13 @@ static String intervalFn(String unitName) {
         // .ADJUST_TEMPORAL javadoc: engine mapToDBUnitType uppercase vs
         // sqlDialectTranslation lowercase): the plain adjust lowering with
         // its interval calls retagged to the TEMPORAL spelling fn.
-        String adjustKey = com.legend.builtin.Pure.nativeKeysAt("adjust").get(0);
+        com.legend.model.FunctionId adjustKey = com.legend.builtin.Pure.AT_DATE_ADJUST.get(0);
         // date::add(date, duration) — the spec body IS adjust over the
         // Duration value's fields ($date->adjust($duration.number,
         // $duration.unit)): the amount reads off the lowered struct (a
         // literal folds to its field), the unit must be a static enum (the
         // interval spelling is compile-time) — a computed unit is loud.
-        for (String f : com.legend.builtin.Pure.nativeKeysAt("add",
-                com.legend.compiler.element.type.PlatformTypes.DURATION)) {
+        for (com.legend.model.FunctionId f : com.legend.builtin.Pure.AT_DATE_ADD) {
             rules.put(f, (n, args) -> {
                 if (!(n.args().get(1) instanceof com.legend.compiler.spec.typed.TypedNewInstance ni)
                         || ni.properties().get("unit") == null
@@ -227,8 +226,7 @@ static String intervalFn(String unitName) {
                         List.of(args.get(0), SqlExpr.StructGet.of(args.get(1), "number"), args.get(1)));
             });
         }
-        for (String f : com.legend.builtin.Pure.nativeKeysAt(
-                com.legend.builtin.Pure.Lite.ADJUST_TEMPORAL)) {
+        for (com.legend.model.FunctionId f : com.legend.builtin.Pure.AT_LEGEND_LITE_ADJUST_TEMPORAL) {
             rules.put(f, (n, args) -> retagTemporal(
                     java.util.Objects.requireNonNull(rules.get(adjustKey))
                             .apply(n, args)));
@@ -249,12 +247,12 @@ static String intervalFn(String unitName) {
      * comment (ledger cluster 25; lives here with the date-shift
      * machinery, Scalars is at its file guardrail). */
     static void registerDayOfWeekNumber2(
-            java.util.Map<String, Scalars.Rule> rules) {
+            java.util.Map<com.legend.model.FunctionId, Scalars.Rule> rules) {
         // 2-arg dayOfWeekNumber(d, firstDay) — engine dayOfWeekNumber.pure:
         // Monday -> isodow, Sunday -> mod(isodow,7)+1; anything else is the
         // engine's own firstDayMondayOrSundayOnly constraint (ledger
         // cluster 25). Overrides the arity-blind extract key above.
-        for (String f : com.legend.builtin.Pure.nativeKeysAt("dayOfWeekNumber", 2)) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.ofAll(com.legend.builtin.Pure.DAY_OF_WEEK_NUMBER__DATE_1__DAY_OF_WEEK_1)) {
             rules.put(f, (n, args) -> {
                 SqlExpr iso = new SqlExpr.Call(SqlFn.EXTRACT, List.of(
                         new SqlExpr.StringLit("isodow"),
@@ -277,12 +275,12 @@ static String intervalFn(String unitName) {
     /** Day-granularity comparisons ({@code isOnDay}, {@code isAfterDay},
      * {@code isOnOrAfterDay}): both operands truncated to the day, then
      * the comparison — moved from {@link Scalars} at the shape limit. */
-    static void registerDayComparisons(java.util.Map<String, Scalars.Rule> rules) {
+    static void registerDayComparisons(java.util.Map<com.legend.model.FunctionId, Scalars.Rule> rules) {
         for (var e : java.util.Map.of(
-                "isOnDay", SqlFn.EQUAL,
-                "isAfterDay", SqlFn.GREATER,
-                "isOnOrAfterDay", SqlFn.GREATER_EQUAL).entrySet()) {
-            for (String f : com.legend.builtin.Pure.nativeKeysAt(e.getKey())) {
+                com.legend.builtin.Pure.AT_DATE_IS_ON_DAY, SqlFn.EQUAL,
+                com.legend.builtin.Pure.AT_DATE_IS_AFTER_DAY, SqlFn.GREATER,
+                com.legend.builtin.Pure.AT_DATE_IS_ON_OR_AFTER_DAY, SqlFn.GREATER_EQUAL).entrySet()) {
+            for (com.legend.model.FunctionId f : e.getKey()) {
                 rules.put(f, (n, args) -> SqlExpr.Call.of(e.getValue(),
                         new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
                                 List.of(Scalars.dateArg(n.args().get(0), args.get(0)))),

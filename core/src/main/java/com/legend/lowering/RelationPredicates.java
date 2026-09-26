@@ -150,7 +150,7 @@ final class RelationPredicates {
         if (n.args().isEmpty()) {
             return false;
         }
-        if (com.legend.builtin.NativeFn.RelationQuantifier.of(n.callee().qualifiedName()).isPresent()) {
+        if (com.legend.builtin.NativeFn.RelationQuantifier.of(n.callee().id()).isPresent()) {
             return n.args().size() == 2 && Type.relationValued(n.args().get(
                     n.callee().qualifiedName().endsWith("::exists") ? 0 : 1).info());
         }
@@ -226,14 +226,14 @@ final class RelationPredicates {
     }
 
     static Lowerer.@com.legend.base.Nullable RelationPredicate of(TypedNativeCall n) {
-        var quantifier = com.legend.builtin.NativeFn.RelationQuantifier.of(n.callee().qualifiedName());
+        var quantifier = com.legend.builtin.NativeFn.RelationQuantifier.of(n.callee().id());
         if (quantifier.isPresent()) {
             return quantifier(quantifier.get());
         }
         // count over a RELATION argument is size (row count) — the graph-
         // leaf sub-aggregation emission rewrites nav-slot reads to their
         // correlated target relation and counts them (H4b)
-        if (Lowerer.isFamily(n, "size") || Lowerer.isFamily(n, "count")) {
+        if (Lowerer.isFamily(n, com.legend.builtin.Pure.AT_RELATION_SIZE, com.legend.builtin.Pure.AT_COLLECTION_SIZE) || Lowerer.isFamily(n, com.legend.builtin.Pure.AT_COLLECTION_COUNT)) {
             // NOTE (audit 22b F1 residual): size over a RELATION value
             // counts ROWS regardless of the value's [1] multiplicity (one
             // relation != one row — a value-mult constant fold here broke
@@ -294,7 +294,7 @@ final class RelationPredicates {
                                         List.of()), null, null))));
             };
         }
-        if ((Lowerer.isFamily(n, "isEmpty") || Lowerer.isFamily(n, "isNotEmpty"))
+        if ((Lowerer.isFamily(n, com.legend.builtin.Pure.AT_COLLECTION_IS_EMPTY) || Lowerer.isFamily(n, com.legend.builtin.Pure.AT_COLLECTION_IS_NOT_EMPTY))
                 && n.args().size() == 1
                 && Type.relationSchema(n.args().get(0).info().type())
                         instanceof Type.RelationType rt0) {
@@ -314,25 +314,25 @@ final class RelationPredicates {
             }
             // EXISTS over the relation (map §2 rule; engine processEmpty
             // Class-arm L4441) — never a serialized graph or list carrier.
-            boolean isNot = Lowerer.isFamily(n, "isNotEmpty");
+            boolean isNot = Lowerer.isFamily(n, com.legend.builtin.Pure.AT_COLLECTION_IS_NOT_EMPTY);
             return (lw, call) -> {
                 SqlExpr ex = new SqlExpr.Exists(lw.relation(call.args().get(0)));
                 return isNot ? ex : SqlExpr.Call.of(SqlFn.NOT, ex);
             };
         }
-        if (Lowerer.isFamily(n, "exists")) {
+        if (Lowerer.isFamily(n, com.legend.builtin.Pure.AT_COLLECTION_EXISTS, com.legend.builtin.Pure.AT_RELATION_EXISTS)) {
             return (lw, call) -> new SqlExpr.Exists(Lowerer.select1(
                     lw.whereLambda(call.args().get(0), call.args().get(1), false)));
         }
-        if (Lowerer.isFamily(n, "forAll")) {
+        if (Lowerer.isFamily(n, com.legend.builtin.Pure.AT_COLLECTION_FOR_ALL)) {
             return (lw, call) -> SqlExpr.Call.of(SqlFn.NOT, new SqlExpr.Exists(Lowerer.select1(
                     lw.whereLambda(call.args().get(0), call.args().get(1), true))));
         }
-        if (Lowerer.isFamily(n, "isEmpty")) {
+        if (Lowerer.isFamily(n, com.legend.builtin.Pure.AT_COLLECTION_IS_EMPTY)) {
             return (lw, call) -> SqlExpr.Call.of(SqlFn.NOT,
                     new SqlExpr.Exists(Lowerer.select1(lw.relation(call.args().get(0)))));
         }
-        if (Lowerer.isFamily(n, "isNotEmpty")) {
+        if (Lowerer.isFamily(n, com.legend.builtin.Pure.AT_COLLECTION_IS_NOT_EMPTY)) {
             return (lw, call) -> new SqlExpr.Exists(Lowerer.select1(lw.relation(call.args().get(0))));
         }
         return null;

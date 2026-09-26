@@ -194,7 +194,7 @@ public final class ResultEnvelopeSplice {
         // chain (the envelope) stands where the call stood — observed
         // where it stands, no separate eager run
         if (n instanceof TypedNativeCall lq
-                && (com.legend.builtin.NativeFn.Handle.of(lq.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
+                && (com.legend.builtin.NativeFn.Handle.of(lq.callee().id()).orElse(null) == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
             // the hook fires BEFORE and AFTER the inliner's env
             // substitution: a still-variable query argument (a helper's
             // parameter — runLegendTest($f, …)) waits for the substituted
@@ -318,7 +318,7 @@ public final class ResultEnvelopeSplice {
                 earg = ef.source();
             }
             if (earg instanceof TypedNativeCall ec2
-                    && com.legend.builtin.NativeFn.Handle.isExecute(ec2.callee().qualifiedName())) {
+                    && com.legend.builtin.NativeFn.Handle.isExecute(ec2.callee().id())) {
                 frames.inlineExecute(ec2, true);
                 return new TypedCInteger(1L, szi.info());
             }
@@ -430,7 +430,7 @@ public final class ResultEnvelopeSplice {
             src = sf.source();
         }
         if (src instanceof TypedNativeCall ec
-                && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().qualifiedName())) {
+                && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().id())) {
             frames.inlineExecute(ec, false);
             return n;
         }
@@ -507,7 +507,7 @@ public final class ResultEnvelopeSplice {
                 execSrc = sf.source();
             }
             sql = execSrc instanceof TypedNativeCall ec
-                    && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().qualifiedName())
+                    && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().id())
                     && k == 0 ? frames.relationalActivitySql(ec) : null;
         }
         return sql == null ? null : new TypedCString(sql, n.info());
@@ -567,7 +567,7 @@ public final class ResultEnvelopeSplice {
             return false;
         }
         return pred.body().get(0) instanceof TypedNativeCall io
-                && com.legend.builtin.NativeFn.SubtypeForm.of(io.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.INSTANCE_OF
+                && com.legend.builtin.NativeFn.SubtypeForm.of(io.callee().id()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.INSTANCE_OF
                 && io.args().size() == 2
                 && io.args().get(0) instanceof TypedVariable v
                 && v.name().equals(pred.parameters().get(0))
@@ -645,7 +645,7 @@ public final class ResultEnvelopeSplice {
                 src = sf.source();
             }
             if (src instanceof TypedNativeCall ec
-                    && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().qualifiedName())) {
+                    && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().id())) {
                 // inline read: the value is observed where it stands —
                 // no separate eager run (it would execute twice)
                 return executedExtent(frames.inlineExecute(ec, false));

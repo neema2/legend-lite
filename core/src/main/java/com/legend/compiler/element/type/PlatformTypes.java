@@ -373,8 +373,8 @@ public final class PlatformTypes {
      * or a handle whose result is not a class (preval's function value).
      * No per-FQN table: NativeFn.Handle labels the kind, the signature
      * names the class. */
-    public static @com.legend.base.Nullable String handleRowClass(String fqn, Type returnType) {
-        if (com.legend.builtin.NativeFn.Handle.of(fqn).isEmpty()) {
+    public static @com.legend.base.Nullable String handleRowClass(com.legend.model.FunctionId id, Type returnType) {
+        if (com.legend.builtin.NativeFn.Handle.of(id).isEmpty()) {
             return null;
         }
         return switch (returnType) {
@@ -735,17 +735,18 @@ public final class PlatformTypes {
      * inlined-assert routes), never run as statements. The seed-SQL form
      * (setUpDataSQLs) is a statement-channel form — executed when mapped
      * over executeInDb, compared as engine text under a TDG assert. */
-    public static boolean isStatementOnly(String fqn) {
-        var handle = com.legend.builtin.NativeFn.Handle.of(fqn).orElse(null);
-        return com.legend.builtin.NativeFn.Effect.isDbEffect(fqn)
-                || com.legend.builtin.NativeFn.Effect.isSeedSqlForm(fqn)
+    public static boolean isStatementOnly(com.legend.model.FunctionId id) {
+        var handle = com.legend.builtin.NativeFn.Handle.of(id).orElse(null);
+        return com.legend.builtin.NativeFn.Effect.isDbEffect(id)
+                || com.legend.builtin.NativeFn.Effect.isSeedSqlForm(id)
                 || handle == com.legend.builtin.NativeFn.Handle.EXECUTE
                 || handle == com.legend.builtin.NativeFn.Handle.EXECUTION_PLAN_EXECUTE
                 || handle == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY
-                || com.legend.builtin.NativeFn.Carrier.of(fqn).orElse(null)
+                || com.legend.builtin.NativeFn.Carrier.of(id).orElse(null)
                         == com.legend.builtin.NativeFn.Carrier.GENERATE_TEST_DATA
-                || GENERATE_SEED_DATA_STRING.equals(fqn);
+                || com.legend.builtin.Pure.AT_RELATIONAL_TEST_DATA_GENERATION_GENERATE_SEED_DATA_STRING.contains(id);
     }
+
 
     /** Debug output — K-dispatched as a NO-OP, arguments never evaluated. */
     public static final String PRINT = "meta::pure::functions::io::print";

@@ -68,7 +68,7 @@ final class SignatureApart {
                 c.typeParameters().stream().map(n -> types.getOrDefault(n, n)).toList(),
                 c.multiplicityParameters().stream().map(n -> mults.getOrDefault(n, n)).toList(),
                 params, rename(c.returnType(), types, mults), rename(c.returnMultiplicity(), mults),
-                c.body(), c.isNative(), c.definition());
+                c.body(), c.isNative(), c.definition(), c.definition() == null ? null : c.id());
     }
 
     /** For each of {@code declared} that is free at the call site, a spelling

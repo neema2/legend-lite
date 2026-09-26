@@ -1566,7 +1566,7 @@ final class Typer {
                         com.legend.compiler.spec.typed.TypedCString lit
                 && com.legend.sql.RawSql.isSingleQuery(lit.value())) {
             sql = com.legend.sql.RawSql.splitStatements(lit.value()).get(0);
-        } else if (com.legend.builtin.NativeFn.Carrier.fetchDbGrid(fqn) != null) {
+        } else if (com.legend.builtin.NativeFn.Carrier.fetchDbGrid(nc.callee().id()) != null) {
             sql = CatalogGrids.sql(nc);
             if (sql != null) {
                 // §4bZ-U leg 4: the JDBC spec fixes the metadata result
@@ -1575,7 +1575,7 @@ final class Typer {
                 // LIMIT-0 probe, reads stamp statically)
                 return new com.legend.compiler.spec.typed
                         .TypedRawSqlRelation(sql, ExprType.one(
-                                Type.relation(CatalogGrids.gridSchema(java.util.Objects.requireNonNull(com.legend.builtin.NativeFn.Carrier.fetchDbGrid(fqn))))));
+                                Type.relation(CatalogGrids.gridSchema(java.util.Objects.requireNonNull(com.legend.builtin.NativeFn.Carrier.fetchDbGrid(nc.callee().id()))))));
             }
         }
         if (sql == null) {
@@ -1645,7 +1645,7 @@ final class Typer {
                 || "AggregateValue".equals(raw);
     }
 
-    private final java.util.ArrayDeque<String> normalizing = new java.util.ArrayDeque<>();
+    private final java.util.ArrayDeque<com.legend.model.FunctionId> normalizing = new java.util.ArrayDeque<>();
     /** A record FIELD's value: a lambda literal there is STORED — it has no
      * application at this site (a let-bound lambda the same body applies
      * does, and keeps the eager paste: the TDS-extension programs rely on
@@ -1670,11 +1670,11 @@ final class Typer {
     private final java.util.ArrayDeque<LambdaFunction> storedLambdas = new java.util.ArrayDeque<>();
 
     private TypedSpec inlineNormalized(AppliedFunction af, TypedFunction chosen, Env env) {
-        String key = chosen.signatureKey();
+        com.legend.model.FunctionId key = chosen.id();
         if (normalizing.contains(key)) {
             throw new TypeInferenceException("recursive NormalizeRequired function '"
                     + chosen.qualifiedName() + "' cannot be inlined ("
-                    + String.join(" -> ", normalizing) + " -> " + key + ")");
+                    + normalizing.stream().map(Object::toString).collect(java.util.stream.Collectors.joining(" -> ")) + " -> " + key + ")");
         }
         LambdaFunction folded = SourceSubst.inlineLets(
                 new LambdaFunction(List.of(),
@@ -2060,8 +2060,8 @@ final class Typer {
     private ExprType refineImportDataFlow(TypedFunction chosen, List<ValueSpecification> raw,
             TypedSpec[] typed, Env env, ExprType out) {
         if (raw.size() != 5
-                || !Pure.ROUTER_EXECUTE__FN_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__EXTENSION_MANY.signatureKey()
-                        .equals(chosen.signatureKey())
+                || !com.legend.model.FunctionId.of(Pure.ROUTER_EXECUTE__FN_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__EXTENSION_MANY)
+                        .equals(chosen.id())
                 || !ImportDataFlow.requested(env.resolveAlias(raw.get(3)), typed[3])) {
             return out;
         }

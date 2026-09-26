@@ -1412,10 +1412,8 @@ public final class Pipelines {
      * identity otherwise. */
     static TypedNativeCall classEmptinessRewrite(TypedNativeCall nc,
             java.util.function.Predicate<TypedSpec> objectSpace) {
-        boolean empt = com.legend.builtin.Pure.nativeNamed("isEmpty",
-                nc.callee().signatureKey())
-                || com.legend.builtin.Pure.nativeNamed("isNotEmpty",
-                        nc.callee().signatureKey());
+        boolean empt = com.legend.builtin.Pure.AT_COLLECTION_IS_EMPTY.contains(nc.callee().id())
+                || com.legend.builtin.Pure.AT_COLLECTION_IS_NOT_EMPTY.contains(nc.callee().id());
         if (!empt || nc.args().size() != 1
                 || !objectSpace.test(nc.args().get(0))
                 || !(Type.asClassType(nc.args().get(0).info().type())

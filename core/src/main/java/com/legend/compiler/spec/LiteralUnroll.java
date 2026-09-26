@@ -95,7 +95,7 @@ final class LiteralUnroll {
             case com.legend.compiler.spec.typed.TypedCLatestDate d when d.info().type() instanceof Type.Primitive p ->
                     Optional.of(new Scalar(p.qualifiedName(), "%latest"));
             // a spelled pair is an instance literal of Pair (first/second)
-            case TypedNativeCall c when is(c, "pair") && c.args().size() == 2
+            case TypedNativeCall c when is(c, Pure.AT_COLLECTION_PAIR) && c.args().size() == 2
                     && c.args().stream().allMatch(LiteralUnroll::literalStructure) ->
                     Optional.of(new Instance(PlatformTypes.PAIR, c));
             default -> Optional.empty();
@@ -144,7 +144,7 @@ final class LiteralUnroll {
             case TypedCopyInstance cp -> 1 + size(cp.source())
                     + cp.overrides().values().stream().mapToInt(LiteralUnroll::size).sum();
             case TypedCollection tc -> tc.elements().stream().mapToInt(LiteralUnroll::size).sum();
-            case TypedNativeCall c when is(c, "pair") -> 1 + c.args().stream().mapToInt(LiteralUnroll::size).sum();
+            case TypedNativeCall c when is(c, Pure.AT_COLLECTION_PAIR) -> 1 + c.args().stream().mapToInt(LiteralUnroll::size).sum();
             default -> literal(s).isPresent() ? 1 : 0;
         };
     }
@@ -193,7 +193,7 @@ final class LiteralUnroll {
         if (inst instanceof TypedNewInstance ni) {
             return Optional.ofNullable(ni.properties().get(prop));
         }
-        if (inst instanceof TypedNativeCall c && is(c, "pair") && c.args().size() == 2) {
+        if (inst instanceof TypedNativeCall c && is(c, Pure.AT_COLLECTION_PAIR) && c.args().size() == 2) {
             return prop.equals("first") ? Optional.of(c.args().get(0))
                     : prop.equals("second") ? Optional.of(c.args().get(1)) : Optional.empty();
         }
@@ -271,7 +271,7 @@ final class LiteralUnroll {
             return false;
         }
         for (TypedSpec p : elements(pairs)) {
-            if (!(p instanceof TypedNativeCall pc && is(pc, "pair") && pc.args().size() == 2
+            if (!(p instanceof TypedNativeCall pc && is(pc, Pure.AT_COLLECTION_PAIR) && pc.args().size() == 2
                     && literal(pc.args().get(0)).filter(l -> l instanceof Scalar).isPresent())) {
                 return false;
             }
@@ -368,15 +368,16 @@ final class LiteralUnroll {
                 .filter(a -> accepts(ctx, lit.cls(), a.typeFqn())).findFirst());
     }
 
-    private static boolean is(TypedNativeCall c, String name) {
-        // the callee's own NAME (the FQN's last segment, exactly) decides
-        // most calls without building a signature key — the key build was
-        // the corpus lane's second hot spot (leg 6e); the overload check
-        // still decides the positive case
-        String fqn = c.callee().qualifiedName();
-        int at = fqn.lastIndexOf("::");
-        String simple = at < 0 ? fqn : fqn.substring(at + 2);
-        return simple.equals(name) && Pure.nativeNamed(name, c.callee().signatureKey());
+    /** Whether {@code c}'s callee is one of the declarations in {@code groups}. */
+    @SafeVarargs
+    private static boolean is(TypedNativeCall c, java.util.List<com.legend.model.FunctionId>... groups) {
+        com.legend.model.FunctionId id = c.callee().id();
+        for (java.util.List<com.legend.model.FunctionId> g : groups) {
+            if (g.contains(id)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /** {@code equal}/{@code eq} over spelled operands — element references,
@@ -422,33 +423,33 @@ final class LiteralUnroll {
     private static boolean isTdsNullCarrier(TypedSpec s) {
         return (s instanceof TypedNewInstance ni
                         && ni.classFqn().equals(com.legend.compiler.element.type.PlatformTypes.TDS_NULL_FQN))
-                || (s instanceof TypedNativeCall c && c.args().isEmpty() && is(c, "sqlNull"));
+                || (s instanceof TypedNativeCall c && c.args().isEmpty() && is(c, Pure.AT_RELATIONAL_FUNCTIONS_SQL_QUERY_TO_STRING_SQL_NULL));
     }
 
     private static TypedSpec nativeFold(TypedNativeCall c, ModelContext ctx) {
         List<TypedSpec> a = c.args();
         // SPELLED-INTEGER compares (WORLD_MAP §4: "size() == 1" and kin) —
         // same-kind identity over two spelled integers, never a new value
-        if ((is(c, "greaterThan") || is(c, "lessThan") || is(c, "greaterThanEqual")
-                || is(c, "lessThanEqual")) && a.size() == 2
+        if ((is(c, Pure.AT_BOOLEAN_GREATER_THAN) || is(c, Pure.AT_BOOLEAN_LESS_THAN) || is(c, Pure.AT_BOOLEAN_GREATER_THAN_EQUAL)
+                || is(c, Pure.AT_BOOLEAN_LESS_THAN_EQUAL)) && a.size() == 2
                 && a.get(0) instanceof TypedCInteger l && a.get(1) instanceof TypedCInteger r) {
             long x = l.value().longValue();
             long y = r.value().longValue();
-            return bool(is(c, "greaterThan") ? x > y : is(c, "lessThan") ? x < y
-                    : is(c, "greaterThanEqual") ? x >= y : x <= y);
+            return bool(is(c, Pure.AT_BOOLEAN_GREATER_THAN) ? x > y : is(c, Pure.AT_BOOLEAN_LESS_THAN) ? x < y
+                    : is(c, Pure.AT_BOOLEAN_GREATER_THAN_EQUAL) ? x >= y : x <= y);
         }
         // LIST SHAPE over a spelled collection (WORLD_MAP §4): its size, and
         // membership of a spelled scalar (same-kind identity, as `in`)
-        if (is(c, "size") && a.size() == 1 && spelledList(a.get(0))) {
+        if (is(c, Pure.AT_RELATION_SIZE, Pure.AT_COLLECTION_SIZE) && a.size() == 1 && spelledList(a.get(0))) {
             return new com.legend.compiler.spec.typed.TypedCInteger(elements(a.get(0)).size(),
                     new ExprType(Type.Primitive.INTEGER, Multiplicity.Bounded.ONE));
         }
-        if (is(c, "defaultIfEmpty") && a.size() == 2 && spelledList(a.get(0))) {
+        if (is(c, Pure.AT_COLLECTION_DEFAULT_IF_EMPTY) && a.size() == 2 && spelledList(a.get(0))) {
             return elements(a.get(0)).isEmpty() ? a.get(1) : a.get(0);
         }
         // the COLLECTION overload only: pure's [x] == x law resolves
         // ['ACTIVE']->contains('TIV') to string::contains (substring)
-        if (is(c, "contains")
+        if (is(c, Pure.AT_COLLECTION_CONTAINS, Pure.AT_STRING_CONTAINS)
                 && c.callee().qualifiedName().equals("meta::pure::functions::collection::contains")
                 && a.size() == 2 && literalStructure(a.get(0))) {
             Optional<Literal> needle = literal(a.get(1)).filter(l -> l instanceof Scalar);
@@ -464,7 +465,7 @@ final class LiteralUnroll {
             }
         }
         // isTrue over a spelled boolean or a spelled empty
-        if (is(c, "isTrue") && a.size() == 1) {
+        if (is(c, Pure.AT_BOOLEAN_IS_TRUE) && a.size() == 1) {
             if (a.get(0) instanceof TypedCBoolean b) {
                 return bool(b.value());
             }
@@ -474,11 +475,11 @@ final class LiteralUnroll {
         }
         // a spelled boolean's assert is a no-op (assert(true, …)); a false
         // one raises and stays the database's
-        if (com.legend.builtin.NativeFn.Verdict.of(c.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.Verdict.ASSERT && !a.isEmpty() && a.get(0) instanceof TypedCBoolean tb && tb.value()) {
+        if (com.legend.builtin.NativeFn.Verdict.of(c.callee().id()).orElse(null) == com.legend.builtin.NativeFn.Verdict.ASSERT && !a.isEmpty() && a.get(0) instanceof TypedCBoolean tb && tb.value()) {
             return bool(true);
         }
         // an enumeration's values are its declaration (spelled)
-        if (com.legend.builtin.NativeFn.LiteralForm.of(c.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.LiteralForm.ENUM_VALUES && a.size() == 1) {
+        if (com.legend.builtin.NativeFn.LiteralForm.of(c.callee().id()).orElse(null) == com.legend.builtin.NativeFn.LiteralForm.ENUM_VALUES && a.size() == 1) {
             Optional<String> fqn = switch (a.get(0)) {
                 case TypedTypeRef tr -> tr.target() instanceof Type.EnumType et
                         ? Optional.of(et.fqn()) : Optional.empty();
@@ -496,7 +497,7 @@ final class LiteralUnroll {
         }
         // dynamicNew(Class, [^KeyValue(key, value)…]) over spelled keys IS the
         // instance literal ^Class(key = value, …)
-        if (com.legend.builtin.NativeFn.LiteralForm.of(c.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.LiteralForm.DYNAMIC_NEW && a.size() == 2 && literalStructure(a.get(1))) {
+        if (com.legend.builtin.NativeFn.LiteralForm.of(c.callee().id()).orElse(null) == com.legend.builtin.NativeFn.LiteralForm.DYNAMIC_NEW && a.size() == 2 && literalStructure(a.get(1))) {
             String cls = typeTargetFqn(a.get(0)).orElse(null);
             java.util.Map<String, TypedSpec> props = new java.util.LinkedHashMap<>();
             boolean spelled = cls != null;
@@ -516,12 +517,12 @@ final class LiteralUnroll {
         }
         // SPELLED MAPS: newMap over spelled pairs is a structure the compiler
         // holds — its key/value pairs, and a lookup by a spelled key
-        if (com.legend.builtin.NativeFn.LiteralForm.of(c.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.LiteralForm.KEY_VALUES && a.size() == 1 && a.get(0) instanceof TypedNativeCall nm
-                && is(nm, "newMap") && nm.args().size() == 1 && spelledKeys(nm.args().get(0))) {
+        if (com.legend.builtin.NativeFn.LiteralForm.of(c.callee().id()).orElse(null) == com.legend.builtin.NativeFn.LiteralForm.KEY_VALUES && a.size() == 1 && a.get(0) instanceof TypedNativeCall nm
+                && is(nm, Pure.AT_COLLECTION_NEW_MAP) && nm.args().size() == 1 && spelledKeys(nm.args().get(0))) {
             return new TypedCollection(elements(nm.args().get(0)), c.info());
         }
-        if (is(c, "get") && a.size() == 2 && a.get(0) instanceof TypedNativeCall nm
-                && is(nm, "newMap") && nm.args().size() == 1 && spelledKeys(nm.args().get(0))) {
+        if (is(c, Pure.AT_VARIANT_NAVIGATION_GET, Pure.AT_COLLECTION_GET) && a.size() == 2 && a.get(0) instanceof TypedNativeCall nm
+                && is(nm, Pure.AT_COLLECTION_NEW_MAP) && nm.args().size() == 1 && spelledKeys(nm.args().get(0))) {
             Optional<Literal> key = literal(a.get(1)).filter(l -> l instanceof Scalar);
             if (key.isPresent()) {
                 Scalar k = (Scalar) key.get();
@@ -537,13 +538,13 @@ final class LiteralUnroll {
                 return new TypedCollection(List.of(), c.info());
             }
         }
-        if (is(c, "instanceOf") && a.size() == 2) {
+        if (is(c, Pure.AT_META_INSTANCE_OF) && a.size() == 2) {
             return literal(a.get(0)).flatMap(lit -> typeTargetFqn(a.get(1))
                     .<TypedSpec>map(fqn -> bool(accepts(ctx, lit.cls(), fqn)))).orElse(c);
         }
         // assertInstanceOf(literal, T) over a CONFORMING literal is the
         // spelled-true assert (a non-conforming one raises — the database's)
-        if (is(c, "assertInstanceOf") && a.size() >= 2) {
+        if (is(c, Pure.AT_ASSERTS_ASSERT_INSTANCE_OF) && a.size() >= 2) {
             return literal(a.get(0)).flatMap(lit -> typeTargetFqn(a.get(1))
                     .filter(fqn -> accepts(ctx, lit.cls(), fqn))
                     .<TypedSpec>map(fqn -> bool(true))).orElse(c);
@@ -551,16 +552,16 @@ final class LiteralUnroll {
         // scalar equality of the SAME kind only: a cross-kind compare
         // (1 == 1.0) is the database's verdict (SQL numeric coercion —
         // EqualityWorldsConformanceTest's declared divergence)
-        if ((is(c, "equal") || is(c, "eq")) && a.size() == 2) {
+        if ((is(c, Pure.AT_BOOLEAN_EQUAL) || is(c, Pure.AT_BOOLEAN_EQ)) && a.size() == 2) {
             return equalityFold(c, a);
         }
-        if (is(c, "not") && a.size() == 1 && a.get(0) instanceof TypedCBoolean b) {
+        if (is(c, Pure.AT_BOOLEAN_NOT) && a.size() == 1 && a.get(0) instanceof TypedCBoolean b) {
             return bool(!b.value());
         }
         // and/or: both literal, or the short-circuit side literal (pure
         // semantics: the right operand is not evaluated)
-        if ((is(c, "and") || is(c, "or")) && a.size() == 2) {
-            boolean isAnd = is(c, "and");
+        if ((is(c, Pure.AT_BOOLEAN_AND, Pure.AT_COLLECTION_AND) || is(c, Pure.AT_BOOLEAN_OR, Pure.AT_COLLECTION_OR)) && a.size() == 2) {
+            boolean isAnd = is(c, Pure.AT_BOOLEAN_AND, Pure.AT_COLLECTION_AND);
             if (a.get(0) instanceof TypedCBoolean l) {
                 if (l.value() != isAnd) {
                     return bool(l.value());
@@ -572,17 +573,17 @@ final class LiteralUnroll {
             }
             return c;
         }
-        if (is(c, "in") && a.size() == 2 && a.get(1) instanceof TypedCollection coll
+        if (is(c, Pure.AT_COLLECTION_IN, Pure.AT_RELATION_IN) && a.size() == 2 && a.get(1) instanceof TypedCollection coll
                 && coll.elements().stream().allMatch(e -> scalar(e).isPresent())) {
             return scalar(a.get(0)).<TypedSpec>map(needle -> bool(coll.elements().stream()
                     .anyMatch(e -> scalar(e).filter(needle::equals).isPresent()))).orElse(c);
         }
-        if ((is(c, "isEmpty") || is(c, "isNotEmpty")) && a.size() == 1
+        if ((is(c, Pure.AT_COLLECTION_IS_EMPTY) || is(c, Pure.AT_COLLECTION_IS_NOT_EMPTY)) && a.size() == 1
                 && spelledList(a.get(0))) {
             boolean empty = elements(a.get(0)).isEmpty();
-            return bool(is(c, "isEmpty") == empty);
+            return bool(is(c, Pure.AT_COLLECTION_IS_EMPTY) == empty);
         }
-        if (is(c, "at") && a.size() == 2 && spelledList(a.get(0))
+        if (is(c, Pure.AT_COLLECTION_AT) && a.size() == 2 && spelledList(a.get(0))
                 && a.get(1) instanceof TypedCInteger k
                 && k.value().intValue() >= 0 && k.value().intValue() < elements(a.get(0)).size()) {
             return elements(a.get(0)).get(k.value().intValue());
@@ -591,7 +592,7 @@ final class LiteralUnroll {
         // lookup, an instance literal): the value itself — never a computed
         // expression (a query-level toOne over an aggregate keeps its shape;
         // the float canon of calendarAggregations keys on it)
-        if ((is(c, "toOne") || is(c, "toOneMany")) && a.size() >= 1
+        if ((is(c, Pure.AT_MULTIPLICITY_TO_ONE) || is(c, Pure.AT_MULTIPLICITY_TO_ONE_MANY)) && a.size() >= 1
                 && (a.get(0) instanceof TypedLambda || a.get(0) instanceof TypedNewInstance)
                 && a.get(0).info().multiplicity() instanceof Multiplicity.Bounded ob
                 && ob.lower() == 1 && Integer.valueOf(1).equals(ob.upper())) {
@@ -599,7 +600,7 @@ final class LiteralUnroll {
         }
         // first/last of the EMPTY spelled list is the empty list (pure:
         // `[]->first()` is []); toOne over it is an error and stays
-        if ((is(c, "first") || is(c, "last")) && a.size() == 1
+        if ((is(c, Pure.AT_RELATION_FIRST, Pure.AT_COLLECTION_FIRST) || is(c, Pure.AT_RELATION_LAST, Pure.AT_COLLECTION_LAST)) && a.size() == 1
                 && spelledList(a.get(0)) && elements(a.get(0)).isEmpty()) {
             // element type from the ARGUMENT (a generic callee's `T[0..1]`
             // stamp never reaches the lowering)
@@ -607,16 +608,16 @@ final class LiteralUnroll {
                     ? new ExprType(a.get(0).info().type(), c.info().multiplicity()) : c.info();
             return new TypedCollection(List.of(), ei);
         }
-        if ((is(c, "toOne") || is(c, "toOneMany") || is(c, "first") || is(c, "last"))
+        if ((is(c, Pure.AT_MULTIPLICITY_TO_ONE) || is(c, Pure.AT_MULTIPLICITY_TO_ONE_MANY) || is(c, Pure.AT_RELATION_FIRST, Pure.AT_COLLECTION_FIRST) || is(c, Pure.AT_RELATION_LAST, Pure.AT_COLLECTION_LAST))
                 && a.size() >= 1 && spelledList(a.get(0)) && !elements(a.get(0)).isEmpty()) {
             List<TypedSpec> el = elements(a.get(0));
-            if (is(c, "toOneMany")) {
+            if (is(c, Pure.AT_MULTIPLICITY_TO_ONE_MANY)) {
                 return a.get(0);
             }
-            if (el.size() == 1 || is(c, "first")) {
+            if (el.size() == 1 || is(c, Pure.AT_RELATION_FIRST, Pure.AT_COLLECTION_FIRST)) {
                 return el.get(0);
             }
-            if (is(c, "last")) {
+            if (is(c, Pure.AT_RELATION_LAST, Pure.AT_COLLECTION_LAST)) {
                 return el.get(el.size() - 1);
             }
             return c;
@@ -626,7 +627,7 @@ final class LiteralUnroll {
         // preOrderTraversal's `$r->concatenate($r->children()->map(..))`
         // over a spelled tree is the spelled node list (the TypedConcatenate
         // node form folds above; this is the plain native call)
-        if (is(c, "concatenate") && a.size() == 2) {
+        if (is(c, Pure.AT_COLLECTION_CONCATENATE, Pure.AT_RELATION_CONCATENATE) && a.size() == 2) {
             if (spelledList(a.get(0)) && spelledList(a.get(1))) {
                 List<TypedSpec> out = new ArrayList<>(elements(a.get(0)));
                 out.addAll(elements(a.get(1)));
@@ -644,7 +645,7 @@ final class LiteralUnroll {
         // zip over two SPELLED lists is list shape: the pairs by position,
         // to the shorter length (a convertJoinTreeNode's nodes zipped with
         // their converted relations); a pair is an instance literal
-        if (is(c, "zip") && a.size() == 2 && spelledList(a.get(0)) && spelledList(a.get(1))) {
+        if (is(c, Pure.AT_COLLECTION_ZIP) && a.size() == 2 && spelledList(a.get(0)) && spelledList(a.get(1))) {
             List<TypedSpec> l = elements(a.get(0));
             List<TypedSpec> r = elements(a.get(1));
             var pairFn = ctx.findFunction("meta::pure::functions::collection::pair").get(0);
@@ -657,13 +658,13 @@ final class LiteralUnroll {
         }
         // the tail of a spelled list is its shape minus the head
         // (toPostgresModel's binary-expression chains fold over it)
-        if (is(c, "tail") && a.size() == 1 && a.get(0) instanceof TypedCollection coll
+        if (is(c, Pure.AT_COLLECTION_TAIL) && a.size() == 1 && a.get(0) instanceof TypedCollection coll
                 && spelledList(coll)) {
             return sub(coll, 1, Integer.MAX_VALUE, c.info());
         }
         // and its init is its shape minus the last (WORLD_MAP §4 lists
         // both; convertJoinStrings interleaves separators over init/last)
-        if (is(c, "init") && a.size() == 1 && a.get(0) instanceof TypedCollection coll
+        if (is(c, Pure.AT_COLLECTION_INIT) && a.size() == 1 && a.get(0) instanceof TypedCollection coll
                 && spelledList(coll)) {
             int n = elements(coll).size();
             return n == 0 ? new TypedCollection(List.of(), c.info())

@@ -1569,7 +1569,7 @@ final class SqlTextVerdicts {
             }
         }
         if (src instanceof TypedNativeCall ec
-                && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().qualifiedName())
+                && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().id())
                 && ec.args().size() >= 2) {
             String mapping = ec.args().get(1) instanceof TypedPackageableRef m
                     ? m.fullPath() : null;

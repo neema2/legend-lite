@@ -52,7 +52,7 @@ public final class PlatformRegistrations {
     }
 
     private static Registrations assemble() {
-        Map<Implementation.Position, Set<String>> keys = new EnumMap<>(Implementation.Position.class);
+        Map<Implementation.Position, Set<com.legend.model.FunctionId>> keys = new EnumMap<>(Implementation.Position.class);
         keys.put(Implementation.Position.SCALAR, RegistryKeys.scalarRules());
         keys.put(Implementation.Position.AGGREGATE, RegistryKeys.reducers());
         keys.put(Implementation.Position.WINDOW, RegistryKeys.windowFunctions());

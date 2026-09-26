@@ -38,7 +38,7 @@ final class Frames {
         // THE FAMILY IS A CLOSED TYPE (NativeFn.Frame, batch 4b): rows / _range
         // are frames, unbounded is a BOUND — an exhaustive switch, no default
         com.legend.builtin.NativeFn.Frame frame = com.legend.builtin.NativeFn.Frame
-                .of(call.callee().qualifiedName()).orElseThrow(() -> new IllegalStateException(
+                .of(call.callee().id()).orElseThrow(() -> new IllegalStateException(
                         "window frame expects rows()/_range(), got " + call.callee().qualifiedName()));
         boolean interval = as.stream().anyMatch(a ->
                 a instanceof TypedEnumValue ev
@@ -85,7 +85,7 @@ final class Frames {
     private static WindowFrame.Bound bound(TypedSpec arg, boolean fromSide) {
         // A negative literal arrives as unary minus AROUND the number — unwrap.
         if (arg instanceof TypedNativeCall neg
-                && Pure.nativeNamed("minus", neg.callee().signatureKey())
+                && Pure.AT_MATH_MINUS.contains(neg.callee().id())
                 && neg.args().size() == 1 && numericBound(neg.args().get(0)) != null) {
             return new WindowFrame.Bound.Preceding(java.util.Objects
                     .requireNonNull(numericBound(neg.args().get(0))));
@@ -112,7 +112,7 @@ final class Frames {
 
     private static boolean isUnboundedCall(TypedSpec arg) {
         return arg instanceof TypedNativeCall c
-                && com.legend.builtin.NativeFn.Frame.of(c.callee().qualifiedName()).orElse(null)
+                && com.legend.builtin.NativeFn.Frame.of(c.callee().id()).orElse(null)
                         == com.legend.builtin.NativeFn.Frame.UNBOUNDED;
     }
 
@@ -138,7 +138,7 @@ final class Frames {
     private static @com.legend.base.Nullable Number numericBound(TypedSpec arg) {
         // A negative literal arrives as unary minus AROUND the number.
         if (arg instanceof TypedNativeCall neg
-                && Pure.nativeNamed("minus", neg.callee().signatureKey())
+                && Pure.AT_MATH_MINUS.contains(neg.callee().id())
                 && neg.args().size() == 1) {
             Number inner = numericBound(neg.args().get(0));
             return inner == null ? null : -inner.doubleValue();

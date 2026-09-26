@@ -205,7 +205,7 @@ final class StaticFold {
 
     /** Callees being inlined on this fold's stack (a recursive program
      * never terminates statically — leave it to the ordinary path). */
-    private final java.util.ArrayDeque<String> inlining = new java.util.ArrayDeque<>();
+    private final java.util.ArrayDeque<com.legend.model.FunctionId> inlining = new java.util.ArrayDeque<>();
 
     /** THE callee a call may be inlined as: the one bodied candidate of the
      * call's arity — among the call's OWN candidates (the resolver's, or the
@@ -218,7 +218,7 @@ final class StaticFold {
                 bodied.add(f);
             }
         }
-        return bodied.size() == 1 && !inlining.contains(bodied.get(0).signatureKey())
+        return bodied.size() == 1 && !inlining.contains(bodied.get(0).id())
                 ? bodied.get(0) : null;
     }
 
@@ -251,7 +251,7 @@ final class StaticFold {
             return null;
         }
         ValueSpecification body = SourceSubst.substitute(typer.alphaRename(single), subst);
-        inlining.push(callee.signatureKey());
+        inlining.push(callee.id());
         try {
             return fold(body, inner);
         } finally {
@@ -291,7 +291,7 @@ final class StaticFold {
         if (single == null) {
             return null;
         }
-        inlining.push(callee.signatureKey());
+        inlining.push(callee.id());
         try {
             return eval(typer.alphaRename(single), inner);
         } finally {

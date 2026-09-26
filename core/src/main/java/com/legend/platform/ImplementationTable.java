@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 package com.legend.platform;
+import com.legend.model.FunctionId;
 
 import com.legend.builtin.NativeFn;
 import com.legend.model.ClassMember;
@@ -60,18 +61,13 @@ public final class ImplementationTable {
         List<String> conflicts = new ArrayList<>();
         List<String> memberWalls = new ArrayList<>();
 
-        // the catalog definition behind each lowering-registry key: the key IS
-        // that definition's signatureKey(), so the match is the whole key
-        Map<String, FunctionId> catalogKey = new LinkedHashMap<>();
-        for (NativeFunctionDefinition n : registrations.catalog()) {
-            catalogKey.put(n.signatureKey(), FunctionId.of(n));
-        }
+        // the lowering registers by identity (execution plan step 2): a key is
+        // a declaration's id, matched whole against the declaration table
         Map<FunctionId, Set<Implementation.Position>> positions = new LinkedHashMap<>();
         for (var e : registrations.loweringKeys().entrySet()) {
-            for (String key : e.getValue()) {
-                FunctionId id = catalogKey.get(key);
-                if (id == null || declarations.get(id) == null) {
-                    dangling.add(e.getKey() + " " + key);
+            for (FunctionId id : e.getValue()) {
+                if (declarations.get(id) == null) {
+                    dangling.add(e.getKey() + " " + id);
                     continue;
                 }
                 positions.computeIfAbsent(id, k -> EnumSet.noneOf(Implementation.Position.class)).add(e.getKey());
@@ -79,10 +75,9 @@ public final class ImplementationTable {
         }
         Map<FunctionId, Set<Feature>> overrides = new LinkedHashMap<>();
         for (var e : registrations.featureOverrides().entrySet()) {
-            for (String key : e.getValue()) {
-                FunctionId id = catalogKey.get(key);
-                if (id == null || declarations.get(id) == null) {
-                    dangling.add("feature " + e.getKey() + " " + key);
+            for (FunctionId id : e.getValue()) {
+                if (declarations.get(id) == null) {
+                    dangling.add("feature " + e.getKey() + " " + id);
                     continue;
                 }
                 overrides.computeIfAbsent(id, k -> EnumSet.noneOf(Feature.class)).add(e.getKey());

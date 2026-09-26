@@ -33,8 +33,7 @@ public final class CatalogGrids {
      * read the LIVE catalog (batch 71: primary keys too). */
     public static @com.legend.base.Nullable String sql(
             com.legend.compiler.spec.typed.TypedNativeCall nc) {
-        String fqn = nc.callee().qualifiedName();
-        var kind = java.util.Objects.requireNonNull(com.legend.builtin.NativeFn.Carrier.fetchDbGrid(fqn));
+        var kind = java.util.Objects.requireNonNull(com.legend.builtin.NativeFn.Carrier.fetchDbGrid(nc.callee().id()));
         String a1 = literalPattern(nc, 1);
         String a2 = nc.args().size() > 2 ? literalPattern(nc, 2) : null;
         String a3 = nc.args().size() > 3 ? literalPattern(nc, 3) : null;
@@ -42,10 +41,10 @@ public final class CatalogGrids {
             return null;
         }
         return switch (kind) {
-            case SCHEMAS -> fetchSql(fqn, a1, null, null);
-            case TABLES -> fetchSql(fqn, a1, a2, null);
-            case COLUMNS -> fetchSql(fqn, a1, a2, a3);
-            case PRIMARY_KEYS -> fetchSql(fqn, a1, a2, null);
+            case SCHEMAS -> fetchSql(nc.callee().id(), a1, null, null);
+            case TABLES -> fetchSql(nc.callee().id(), a1, a2, null);
+            case COLUMNS -> fetchSql(nc.callee().id(), a1, a2, a3);
+            case PRIMARY_KEYS -> fetchSql(nc.callee().id(), a1, a2, null);
         };
     }
 
@@ -77,11 +76,11 @@ public final class CatalogGrids {
 
     /** The catalog query TEXT alone — the E4.e grid-read compiler
      * composes further SQL over it (the chain projection). */
-    public static String fetchSql(String nativeFqn,
+    public static String fetchSql(com.legend.model.FunctionId nativeId,
             @com.legend.base.Nullable String schemaPattern,
             @com.legend.base.Nullable String tablePattern,
             @com.legend.base.Nullable String columnPattern) {
-        return switch (java.util.Objects.requireNonNull(com.legend.builtin.NativeFn.Carrier.fetchDbGrid(nativeFqn))) {
+        return switch (java.util.Objects.requireNonNull(com.legend.builtin.NativeFn.Carrier.fetchDbGrid(nativeId))) {
             case SCHEMAS -> "SELECT upper(schema_name) AS \"TABLE_SCHEM\","
                     + " upper(catalog_name) AS \"TABLE_CATALOG\""
                     + " FROM information_schema.schemata"

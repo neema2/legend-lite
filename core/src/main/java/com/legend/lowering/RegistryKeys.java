@@ -22,29 +22,29 @@ public final class RegistryKeys {
     }
 
     /** {@code Scalars.RULES} keys — SQL expression rules. */
-    public static Set<String> scalarRules() {
+    public static Set<com.legend.model.FunctionId> scalarRules() {
         return Collections.unmodifiableSet(Scalars.ruleKeys());
     }
 
     /** {@code Aggregates.REDUCERS} keys — SQL aggregates. */
-    public static Set<String> reducers() {
+    public static Set<com.legend.model.FunctionId> reducers() {
         return Collections.unmodifiableSet(Aggregates.reducerKeys());
     }
 
     /** {@code Windows.FNS} keys — window functions. */
-    public static Set<String> windowFunctions() {
+    public static Set<com.legend.model.FunctionId> windowFunctions() {
         return Collections.unmodifiableSet(Windows.fnKeys());
     }
 
     /** {@code Windows.AGGREGATES} keys — window-only aggregates. */
-    public static Set<String> windowAggregates() {
+    public static Set<com.legend.model.FunctionId> windowAggregates() {
         return Collections.unmodifiableSet(Windows.aggregateKeys());
     }
 
     /** {@code FeatureRules.UNDER} — per execution feature flag, the keys whose
      *  scalar rule the flag replaces. */
-    public static java.util.Map<com.legend.platform.Feature, Set<String>> featureOverrides() {
-        java.util.Map<com.legend.platform.Feature, Set<String>> out =
+    public static java.util.Map<com.legend.platform.Feature, Set<com.legend.model.FunctionId>> featureOverrides() {
+        java.util.Map<com.legend.platform.Feature, Set<com.legend.model.FunctionId>> out =
                 new java.util.EnumMap<>(com.legend.platform.Feature.class);
         for (var e : FeatureRules.UNDER.entrySet()) {
             out.put(e.getKey(), Set.copyOf(e.getValue().keySet()));

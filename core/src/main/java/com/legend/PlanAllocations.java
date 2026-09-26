@@ -326,7 +326,7 @@ final class PlanAllocations {
             StatementExecutor.ExecEnv env) {
         if (rhs instanceof com.legend.compiler.spec.typed.TypedNativeCall pn
                 && com.legend.compiler.element.type.PlatformTypes.handleRowClass(
-                        pn.callee().qualifiedName(), pn.callee().returnType()) != null) {
+                        pn.callee().id(), pn.callee().returnType()) != null) {
             registerHandleRows(letName, pn, letPrefix, specs, env);
         }
         for (com.legend.compiler.spec.typed.TypedSpec c : rhs.children()) {

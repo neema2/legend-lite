@@ -55,24 +55,25 @@ final class Scalars {
     interface Rule extends BiFunction<TypedNativeCall, List<SqlExpr>, SqlExpr> {
     }
 
-    private static final Map<String, Rule> RULES = new HashMap<>();
+    private static final Map<com.legend.model.FunctionId, Rule> RULES = new HashMap<>();
 
     private Scalars() {
     }
 
     /** The signature keys this registry lowers — a CLAIM per key
      *  ({@link com.legend.builtin.Claims}, kind SCALAR_RULE). */
-    static Set<String> ruleKeys() {
+    static Set<com.legend.model.FunctionId> ruleKeys() {
         return java.util.Collections.unmodifiableSet(RULES.keySet());
     }
 
-    /** Register every catalog overload of {@code pureName} under one semantic entry. */
-    private static void family(SqlFn semantic, String pureName) {
-        var overloads = Pure.nativeKeysAt(pureName);
-        if (overloads.isEmpty()) {
-            throw new IllegalStateException("no catalog overloads for '" + pureName + "'");
+    /** Register every declaration in {@code groups} (the catalog's generated
+     *  overload groups) under one semantic entry — by identity, never by a
+     *  bare name (execution plan step 2, 2026-09-26). */
+    private static void family(SqlFn semantic, List<com.legend.model.FunctionId> ids) {
+        if (ids.isEmpty()) {
+            throw new IllegalStateException("empty overload group for " + semantic);
         }
-        for (var f : overloads) {
+        for (var f : ids) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(semantic, args));
         }
     }
@@ -88,8 +89,8 @@ final class Scalars {
         // spell it false). The residual both-NULL divergence (SQL NULL
         // vs pure true) is the reference engine's own behavior (bare =;
         // IS NOT DISTINCT FROM appears in no golden).
-        for (String name : List.of("equal", "eq")) {
-            for (String f : Pure.nativeKeysAt(name)) {
+        {
+            for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_BOOLEAN_EQUAL, Pure.AT_BOOLEAN_EQ)) {
                 RULES.put(f, (n, args) -> {
                     // ENGINE-VERBATIM empty ladder (pureToSQLQuery.pure
                     // nullSafeEqualsOperation: "a literal empty ([])
@@ -167,17 +168,15 @@ final class Scalars {
         // Ordering comparisons PAD partial-date literals to their instant
         // (dateArg) — the string carrier must never meet a DATE operand
         // (audit: '2014' < DATE '…' is a conversion error).
-        for (var cmp : Map.of("lessThan", SqlFn.LESS, "lessThanEqual", SqlFn.LESS_EQUAL,
-                "greaterThan", SqlFn.GREATER, "greaterThanEqual", SqlFn.GREATER_EQUAL)
+        // the Any-typed Lite ordering shims (DynaFunc conditions, ledger
+        // cluster 18) ride the same rule as upstream's overloads
+        for (var cmp : Map.of(
+                com.legend.model.FunctionId.all(Pure.AT_BOOLEAN_LESS_THAN, Pure.AT_LEGEND_LITE_LESS_THAN), SqlFn.LESS,
+                com.legend.model.FunctionId.all(Pure.AT_BOOLEAN_LESS_THAN_EQUAL, Pure.AT_LEGEND_LITE_LESS_THAN_EQUAL), SqlFn.LESS_EQUAL,
+                com.legend.model.FunctionId.all(Pure.AT_BOOLEAN_GREATER_THAN, Pure.AT_LEGEND_LITE_GREATER_THAN), SqlFn.GREATER,
+                com.legend.model.FunctionId.all(Pure.AT_BOOLEAN_GREATER_THAN_EQUAL, Pure.AT_LEGEND_LITE_GREATER_THAN_EQUAL), SqlFn.GREATER_EQUAL)
                 .entrySet()) {
-            // the Any-typed Lite ordering shims (DynaFunc conditions,
-            // ledger cluster 18) register by FQN — the bare-name index
-            // deliberately excludes the lite package
-            List<String> cmpKeys = new ArrayList<>(
-                    Pure.nativeKeysAt(cmp.getKey()));
-            cmpKeys.addAll(Pure.nativeKeysAt(
-                    Pure.Lite.PKG + cmp.getKey()));
-            for (String f : cmpKeys) {
+            for (com.legend.model.FunctionId f : cmp.getKey()) {
                 RULES.put(f, (n, args) -> {
                     List<SqlExpr> padded = new ArrayList<>(args.size());
                     for (int i = 0; i < args.size(); i++) {
@@ -193,7 +192,7 @@ final class Scalars {
         // (real pure) — the infix renderer would emit the lone list bare.
         // The EMPTY collection takes each reduction's IDENTITY (and([]) is
         // true, or([]) is false — list_aggregate over [] is NULL; audit).
-        for (String f : Pure.nativeKeysAt("and")) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_BOOLEAN_AND, Pure.AT_COLLECTION_AND)) {
             // DELETION LEG (invariant live): the ArrayLit escape was a
             // shape sniff — a to-one BOOLEAN operand cannot carry a
             // designed ArrayLit (List/instance/relation carriers never
@@ -214,7 +213,7 @@ final class Scalars {
                                     new SqlExpr.BoolLit(true)))
                     : Fold.mergeAnd(args.toArray(new SqlExpr[0])));
         }
-        for (String f : Pure.nativeKeysAt("or")) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_BOOLEAN_OR, Pure.AT_COLLECTION_OR)) {
             RULES.put(f, (n, args) -> args.size() == 1
                     ? (Stamps.exactlyOne(n.args().get(0))
                             ? args.get(0)
@@ -227,7 +226,7 @@ final class Scalars {
                     : new SqlExpr.Call(SqlFn.OR, args));
         }
         // elementToPath: a REFERENCE is its path literal (rows: resolver)
-        for (String f : Pure.nativeKeysAt("elementToPath")) {
+        for (com.legend.model.FunctionId f : Pure.AT_META_ELEMENT_TO_PATH) {
             RULES.put(f, (n, args) -> {
                 if (n.args().get(0) instanceof
                         com.legend.compiler.spec.typed.TypedPackageableRef pr) {
@@ -239,7 +238,7 @@ final class Scalars {
         }
         // fail([message]) RAISES; in a VALUE position (Substitution.raise
         // types the call as the position) it casts to that carrier
-        for (String f : Pure.nativeKeysAt("fail")) {
+        for (com.legend.model.FunctionId f : Pure.AT_ASSERTS_FAIL) {
             RULES.put(f, (n, args) -> {
                 SqlExpr raised = PureSql.raise(args.isEmpty()
                         ? new SqlExpr.StringLit("fail") : args.get(0), n.pos());
@@ -253,7 +252,7 @@ final class Scalars {
         // processNotEqual/processNotIn): pure `x != v` MATCHES null x (eq
         // over empty is false) — bare SQL <> silently drops null rows
         // (testConsistencyWithNulls, task #62). See notEqualNullArms.
-        for (String f : Pure.nativeKeysAt("not")) {
+        for (com.legend.model.FunctionId f : Pure.AT_BOOLEAN_NOT) {
             RULES.put(f, (n, args) -> {
                 SqlExpr negated = NullSemantics.negate(args.get(0),
                         NullSemantics.enumInvolved(n.args().get(0)));
@@ -274,7 +273,7 @@ final class Scalars {
         // collection SUM / PRODUCT / left-fold. UNARY plus/minus (the parser's
         // -x => minus(x)): a 1-arg minus NEGATES — the operator renderer would
         // silently DROP the sign of a lone operand (audit: [-5, -3] ran as [5, 3]).
-        for (String f : Pure.nativeKeysAt("plus")) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_MATH_PLUS, Pure.AT_STRING_PLUS)) {
             RULES.put(f, (n, rawArgs) -> {
                 var args = decimalJoin(rawArgs);
                 if (isToOne(n.args().get(0))) {
@@ -292,7 +291,7 @@ final class Scalars {
                         List.of(Numerics.numList(args.get(0))));
             });
         }
-        for (String f : Pure.nativeKeysAt("times")) {
+        for (com.legend.model.FunctionId f : Pure.AT_MATH_TIMES) {
             RULES.put(f, (n, rawArgs) -> {
                 var args = decimalJoin(rawArgs);
                 if (isToOne(n.args().get(0))) {
@@ -309,7 +308,7 @@ final class Scalars {
                         List.of(Numerics.numList(args.get(0))));
             });
         }
-        for (String f : Pure.nativeKeysAt("times")) {
+        for (com.legend.model.FunctionId f : Pure.AT_MATH_TIMES) {
             // DECIMAL-bearing LITERAL product: DuckDB's LIST_PRODUCT
             // degrades to DOUBLE (probed 2026-08-20: [19.905,17774] ->
             // 353791.47000000003) while BINARY decimal arithmetic is
@@ -327,7 +326,7 @@ final class Scalars {
                 return base.apply(n, rawArgs);
             });
         }
-        for (String f : Pure.nativeKeysAt("minus")) {
+        for (com.legend.model.FunctionId f : Pure.AT_MATH_MINUS) {
             RULES.put(f, (n, rawArgs) -> {
                 var args = decimalJoin(rawArgs);
                 // minus<T>(values:T[*]) LEFT-FOLDS subtraction (real pure:
@@ -388,10 +387,10 @@ final class Scalars {
         // times registers ABOVE (collection-product overload needs its own rule).
         // Bit shifts: value casts to BIGINT (bare literals are INT32);
         // pure bounds the shift at 62 — beyond is a LOUD error.
-        for (String name : List.of("bitShiftLeft", "bitShiftRight")) {
-            SqlFn fn = name.equals("bitShiftLeft")
-                    ? SqlFn.BIT_SHIFT_LEFT : SqlFn.BIT_SHIFT_RIGHT;
-            for (String f : Pure.nativeKeysAt(name)) {
+        for (var shift : Map.of(Pure.AT_MATH_BIT_SHIFT_LEFT, SqlFn.BIT_SHIFT_LEFT,
+                Pure.AT_MATH_BIT_SHIFT_RIGHT, SqlFn.BIT_SHIFT_RIGHT).entrySet()) {
+            SqlFn fn = shift.getValue();
+            for (com.legend.model.FunctionId f : shift.getKey()) {
                 RULES.put(f, (n, args) -> {
                     SqlExpr shifted = SqlExpr.Call.of(fn,
                             new SqlExpr.Cast(args.get(0), SqlType.Scalar.BIGINT),
@@ -416,15 +415,15 @@ final class Scalars {
         // (SQL ROUND, half away from zero); plain division otherwise.
         // Integer arithmetic near the INT64 edge computes in HUGEINT
         // (2 * maxLong is a real PCT value).
-        for (String f : Pure.nativeKeysAt("divide")) {
+        for (com.legend.model.FunctionId f : Pure.AT_MATH_DIVIDE) {
             // Decimal kind preservation lives in DecimalKindRules
             // (X-audit); the integer÷integer zero guard lives there too
             // (Part-1 fix — pure's BigDecimal lane raises)
             RULES.put(f, DecimalKindRules::divide);
         }
-        family(SqlFn.MOD, "mod");
+        family(SqlFn.MOD, Pure.AT_MATH_MOD);
         // rem(a, 0): real pure raises 'Cannot divide 5 by zero'
-        for (String f : Pure.nativeKeysAt("rem")) {
+        for (com.legend.model.FunctionId f : Pure.AT_MATH_REM) {
             RULES.put(f, (n, rawArgs) -> {
                 var args = decimalJoin(rawArgs);
                 return guarded(
@@ -434,16 +433,16 @@ final class Scalars {
                         new SqlExpr.Call(SqlFn.REM, args));
             });
         }
-        family(SqlFn.ABS, "abs");
+        family(SqlFn.ABS, Pure.AT_MATH_ABS);
         // isEmpty/isNotEmpty are TYPE-aware: a to-MANY argument is a SQL
         // LIST value (toMany(@T) et al.) — emptiness is length, not
         // NULL-ness (isEmpty([]) = true; IS NULL said false). Scalar
         // ([0..1]) stays the null test.
-        Pure.nativeKeysAt("isTrue").forEach(f -> RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.COALESCE, args.get(0), new SqlExpr.BoolLit(false))));   // empty is false
-        Pure.nativeKeysAt("defaultIfEmpty").forEach(f -> RULES.put(f, (n, args) -> listValued(n.args().get(0))   // col unless empty
+        Pure.AT_BOOLEAN_IS_TRUE.forEach(f -> RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.COALESCE, args.get(0), new SqlExpr.BoolLit(false))));   // empty is false
+        Pure.AT_COLLECTION_DEFAULT_IF_EMPTY.forEach(f -> RULES.put(f, (n, args) -> listValued(n.args().get(0))   // col unless empty
                 ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(new SqlExpr.Call(SqlFn.EQUAL, List.of(SqlExpr.Call.of(SqlFn.COALESCE,
                         SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)), new SqlExpr.IntLit(0)), new SqlExpr.IntLit(0))), args.get(1))), args.get(0)) : SqlExpr.Call.of(SqlFn.COALESCE, args.get(0), args.get(1))));
-        for (String f : Pure.nativeKeysAt("isEmpty")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_IS_EMPTY) {
             RULES.put(f, (n, args) -> listValued(n.args().get(0))
                     ? new SqlExpr.Call(SqlFn.EQUAL, List.of(
                             SqlExpr.Call.of(SqlFn.COALESCE,
@@ -452,7 +451,7 @@ final class Scalars {
                             new SqlExpr.IntLit(0)))
                     : new SqlExpr.Call(SqlFn.IS_NULL, args));
         }
-        for (String f : Pure.nativeKeysAt("isNotEmpty")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_IS_NOT_EMPTY) {
             RULES.put(f, (n, args) -> listValued(n.args().get(0))
                     ? new SqlExpr.Call(SqlFn.GREATER, List.of(
                             SqlExpr.Call.of(SqlFn.COALESCE,
@@ -461,9 +460,9 @@ final class Scalars {
                             new SqlExpr.IntLit(0)))
                     : new SqlExpr.Call(SqlFn.IS_NOT_NULL, args));
         }
-        family(SqlFn.LENGTH, "length");
-        family(SqlFn.UPPER, "toUpper");
-        family(SqlFn.LOWER, "toLower");
+        family(SqlFn.LENGTH, Pure.AT_STRING_LENGTH);
+        family(SqlFn.UPPER, Pure.AT_STRING_TO_UPPER);
+        family(SqlFn.LOWER, Pure.AT_STRING_TO_LOWER);
 
         // toOne/trustOne/toOneMany — the multiplicity-coercion family
         // (moved to Coercions at the shape limit; the seam split)
@@ -472,7 +471,7 @@ final class Scalars {
         // evaluateAndDeactivate erases too (real pure: reflection-level
         // deactivation of expression wrappers — values here are already
         // values, so identity; evaluateAndDeactivate.pure:17).
-        for (String f : Pure.nativeKeysAt("evaluateAndDeactivate")) {
+        for (com.legend.model.FunctionId f : Pure.AT_META_EVALUATE_AND_DEACTIVATE) {
             RULES.put(f, (n, args) -> args.get(0));
         }
 
@@ -483,9 +482,9 @@ final class Scalars {
         // c1-literal COLLECTION params box (DEEP_AUDIT §3: [7] bare)
         // (exact package: relation::exists(rel, f) is RelationPredicates' — the
         // quantification family, NativeFn.RelationQuantifier)
-        for (var fx : List.of(Map.entry(SqlFn.LIST_EXISTS, "meta::pure::functions::collection::exists"),
-                Map.entry(SqlFn.LIST_FOR_ALL, "meta::pure::functions::collection::forAll"))) {
-            for (var f : Pure.nativeKeysAt(fx.getValue())) {
+        for (var fx : List.of(Map.entry(SqlFn.LIST_EXISTS, Pure.AT_COLLECTION_EXISTS),
+                Map.entry(SqlFn.LIST_FOR_ALL, Pure.AT_COLLECTION_FOR_ALL))) {
+            for (var f : fx.getValue()) {
                 RULES.put(f, (n, args) -> new SqlExpr.Call(fx.getKey(),
                         List.of(PureSql.asList(args.get(0),
                                 !CollectionLanes.c1Literal(n.args().get(0))),
@@ -496,12 +495,12 @@ final class Scalars {
         // ---- the registration grind (corpus-driven; MUST-honor templates) ----
         // Math (ROUND is banker's per the semantics contract).
         for (var e : Map.ofEntries(
-                Map.entry("cbrt", SqlFn.CBRT),
-                Map.entry("exp", SqlFn.EXP), Map.entry("log", SqlFn.LN),
-                Map.entry("log10", SqlFn.LOG10), Map.entry("pow", SqlFn.POW),
-                Map.entry("pi", SqlFn.PI),
-                Map.entry("sin", SqlFn.SIN), Map.entry("cos", SqlFn.COS),
-                Map.entry("tan", SqlFn.TAN), Map.entry("asin", SqlFn.ASIN),
+                Map.entry(Pure.AT_MATH_CBRT, SqlFn.CBRT),
+                Map.entry(Pure.AT_MATH_EXP, SqlFn.EXP), Map.entry(Pure.AT_MATH_LOG, SqlFn.LN),
+                Map.entry(Pure.AT_MATH_LOG10, SqlFn.LOG10), Map.entry(Pure.AT_MATH_POW, SqlFn.POW),
+                Map.entry(Pure.AT_MATH_PI, SqlFn.PI),
+                Map.entry(Pure.AT_MATH_SIN, SqlFn.SIN), Map.entry(Pure.AT_MATH_COS, SqlFn.COS),
+                Map.entry(Pure.AT_MATH_TAN, SqlFn.TAN), Map.entry(Pure.AT_MATH_ASIN, SqlFn.ASIN),
                 // acos/asin: the engine's spec cell is the BARE function
                 // (extensionDefaults.pure 'acos(%s)'); out of domain H2
                 // yields NaN and the row drops. A backend that raises
@@ -510,62 +509,62 @@ final class Scalars {
                 // "Unable to compute acos" error is the interpreter's, and
                 // every engine relational PCT adapter ledgers
                 // testArcCosineError as an expected failure (batch 61).
-                Map.entry("acos", SqlFn.ACOS),
-                Map.entry("atan", SqlFn.ATAN),
-                Map.entry("atan2", SqlFn.ATAN2), Map.entry("sinh", SqlFn.SINH),
-                Map.entry("cosh", SqlFn.COSH), Map.entry("tanh", SqlFn.TANH),
-                Map.entry("ceiling", SqlFn.CEILING), Map.entry("floor", SqlFn.FLOOR),
-                Map.entry("sign", SqlFn.SIGN),
-                Map.entry("xor", SqlFn.XOR),
-                Map.entry("bitAnd", SqlFn.BIT_AND), Map.entry("bitOr", SqlFn.BIT_OR),
-                Map.entry("bitXor", SqlFn.BIT_XOR),
+                Map.entry(Pure.AT_MATH_ACOS, SqlFn.ACOS),
+                Map.entry(Pure.AT_MATH_ATAN, SqlFn.ATAN),
+                Map.entry(Pure.AT_MATH_ATAN2, SqlFn.ATAN2), Map.entry(Pure.AT_MATH_SINH, SqlFn.SINH),
+                Map.entry(Pure.AT_MATH_COSH, SqlFn.COSH), Map.entry(Pure.AT_MATH_TANH, SqlFn.TANH),
+                Map.entry(Pure.AT_MATH_CEILING, SqlFn.CEILING), Map.entry(Pure.AT_MATH_FLOOR, SqlFn.FLOOR),
+                Map.entry(Pure.AT_MATH_SIGN, SqlFn.SIGN),
+                Map.entry(Pure.AT_BOOLEAN_XOR, SqlFn.XOR),
+                Map.entry(Pure.AT_MATH_BIT_AND, SqlFn.BIT_AND), Map.entry(Pure.AT_MATH_BIT_OR, SqlFn.BIT_OR),
+                Map.entry(Pure.AT_MATH_BIT_XOR, SqlFn.BIT_XOR),
 
                 // Strings — plain families first; index-shifted below.
                 // (startsWith/endsWith re-register with [0..1]-operand
                 // guards right after this table — audit 20a H2)
-                Map.entry("startsWith", SqlFn.STARTS_WITH),
-                Map.entry("endsWith", SqlFn.ENDS_WITH),
-                Map.entry("matches", SqlFn.REGEXP_FULL_MATCH),
-                Map.entry("left", SqlFn.LEFT), Map.entry("right", SqlFn.RIGHT),
+                Map.entry(Pure.AT_STRING_STARTS_WITH, SqlFn.STARTS_WITH),
+                Map.entry(Pure.AT_STRING_ENDS_WITH, SqlFn.ENDS_WITH),
+                Map.entry(Pure.AT_STRING_MATCHES, SqlFn.REGEXP_FULL_MATCH),
+                Map.entry(Pure.AT_STRING_LEFT, SqlFn.LEFT), Map.entry(Pure.AT_STRING_RIGHT, SqlFn.RIGHT),
 
-                Map.entry("trim", SqlFn.TRIM), Map.entry("ltrim", SqlFn.LTRIM),
-                Map.entry("rtrim", SqlFn.RTRIM), Map.entry("replace", SqlFn.REPLACE),
-                Map.entry("split", SqlFn.SPLIT),
-                Map.entry("reverseString", SqlFn.REVERSE_STRING),
-                Map.entry("ascii", SqlFn.ASCII_CODE), Map.entry("char", SqlFn.CHR),
-                Map.entry("toUpperFirstCharacter", SqlFn.UC_FIRST),
-                Map.entry("toLowerFirstCharacter", SqlFn.LC_FIRST),
-                Map.entry("encodeBase64", SqlFn.ENCODE_BASE64),
-                Map.entry("levenshteinDistance", SqlFn.LEVENSHTEIN),
-                Map.entry("generateGuid", SqlFn.GUID),
-                Map.entry("hash", SqlFn.HASH), Map.entry("hashCode", SqlFn.HASH),
-                Map.entry("coalesce", SqlFn.COALESCE),
+                Map.entry(Pure.AT_STRING_TRIM, SqlFn.TRIM), Map.entry(Pure.AT_STRING_LTRIM, SqlFn.LTRIM),
+                Map.entry(Pure.AT_STRING_RTRIM, SqlFn.RTRIM), Map.entry(Pure.AT_STRING_REPLACE, SqlFn.REPLACE),
+                Map.entry(Pure.AT_STRING_SPLIT, SqlFn.SPLIT),
+                Map.entry(Pure.AT_STRING_REVERSE_STRING, SqlFn.REVERSE_STRING),
+                Map.entry(Pure.AT_STRING_ASCII, SqlFn.ASCII_CODE), Map.entry(Pure.AT_STRING_CHAR, SqlFn.CHR),
+                Map.entry(Pure.AT_STRING_TO_UPPER_FIRST_CHARACTER, SqlFn.UC_FIRST),
+                Map.entry(Pure.AT_STRING_TO_LOWER_FIRST_CHARACTER, SqlFn.LC_FIRST),
+                Map.entry(Pure.AT_STRING_ENCODE_BASE64, SqlFn.ENCODE_BASE64),
+                Map.entry(Pure.AT_STRING_LEVENSHTEIN_DISTANCE, SqlFn.LEVENSHTEIN),
+                Map.entry(Pure.AT_STRING_GENERATION_GENERATE_GUID, SqlFn.GUID),
+                Map.entry(Pure.AT_HASH_HASH, SqlFn.HASH), Map.entry(Pure.AT_HASH_HASH_CODE, SqlFn.HASH),
+                Map.entry(Pure.AT_FLOW_COALESCE, SqlFn.COALESCE),
                 // Temporal
-                Map.entry("today", SqlFn.TODAY), Map.entry("now", SqlFn.NOW),
+                Map.entry(Pure.AT_DATE_TODAY, SqlFn.TODAY), Map.entry(Pure.AT_DATE_NOW, SqlFn.NOW),
 
                 // Lists / collections
 
-                Map.entry("median", SqlFn.LIST_MEDIAN),
+                Map.entry(Pure.AT_MATH_MEDIAN, SqlFn.LIST_MEDIAN),
 
-                Map.entry("toVariant", SqlFn.TO_VARIANT)).entrySet()) {
-            familyIfPresent(e.getValue(), e.getKey());
+                Map.entry(Pure.AT_VARIANT_CONVERT_TO_VARIANT, SqlFn.TO_VARIANT)).entrySet()) {
+            family(e.getValue(), e.getKey());
         }
         // startsWith/endsWith carry the pure [0..1]-overload guards
         // (stringExtension.pure: $source->isNotEmpty() && ...) — the
         // COMPARISON-SITE null tolerance (audit 20a H2), overriding the
         // plain-family registration above.
-        for (var e : Map.of("startsWith", SqlFn.STARTS_WITH,
-                "endsWith", SqlFn.ENDS_WITH).entrySet()) {
-            for (String f : Pure.nativeKeysAt(e.getKey())) {
+        for (var e : Map.of(Pure.AT_STRING_STARTS_WITH, SqlFn.STARTS_WITH,
+                Pure.AT_STRING_ENDS_WITH, SqlFn.ENDS_WITH).entrySet()) {
+            for (com.legend.model.FunctionId f : e.getKey()) {
                 RULES.put(f, (n, args) -> NullSemantics.optionalOperandGuards(
                         n, args, new SqlExpr.Call(e.getValue(), args)));
             }
         }
         // ---- Date family (H-audit registrations bucket) ----
         // Numeric extractions ride EXTRACT with a part literal.
-        for (var e : Map.of("dayOfYear", "doy", "weekOfYear", "week",
-                "dayOfWeekNumber", "isodow", "quarterNumber", "quarter").entrySet()) {
-            for (String f : Pure.nativeKeysAt(e.getKey())) {
+        for (var e : Map.of(Pure.AT_DATE_DAY_OF_YEAR, "doy", Pure.AT_DATE_WEEK_OF_YEAR, "week",
+                Pure.AT_DATE_DAY_OF_WEEK_NUMBER, "isodow", Pure.AT_DATE_QUARTER_NUMBER, "quarter").entrySet()) {
+            for (com.legend.model.FunctionId f : e.getKey()) {
                 RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.EXTRACT, List.of(
                         new SqlExpr.StringLit(e.getValue()),
                         dateArg(n.args().get(0), args.get(0)))));
@@ -577,7 +576,7 @@ final class Scalars {
         // dayOfWeek()/month(): real pure returns calendar ENUMS (Monday…,
         // January…); the engine surface is NUMERIC (DuckDB dow: Sunday=0;
         // month 1-12) — the corpus reads both as Numbers.
-        for (String f : Pure.nativeKeysAt("dayOfWeek")) {
+        for (com.legend.model.FunctionId f : Pure.AT_DATE_DAY_OF_WEEK) {
             // real dayOfWeek():DayOfWeek — the value surface is the ENUM
             // NAME ('Saturday'), the enum-by-name convention every other
             // enum position uses (was DuckDB dow numbers, an engine-lite
@@ -590,7 +589,7 @@ final class Scalars {
         // same enum-by-name convention as dayOfWeek above (the engine's H2
         // emission is formatdatetime 'MMMM', the full month name; monthNumber
         // is the numeric surface and keeps EXTRACT below).
-        for (String f : Pure.nativeKeysAt("month")) {
+        for (com.legend.model.FunctionId f : Pure.AT_DATE_MONTH) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.STRFTIME,
                     dateArg(n.args().get(0), args.get(0)),
                     new SqlExpr.FormatLit(java.util.List.of(com.legend.sql.DateFmt.Part.MONTH_NAME))));
@@ -598,7 +597,7 @@ final class Scalars {
         // quarter(): real pure returns the Quarter ENUM (Q1..Q4, with an
         // upstream TODO to make them numbers); the engine surface is the
         // bare integer — the corpus reads it as a Number.
-        for (String f : Pure.nativeKeysAt("quarter")) {
+        for (com.legend.model.FunctionId f : Pure.AT_DATE_QUARTER) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.EXTRACT, List.of(
                     new SqlExpr.StringLit("quarter"),
                     dateArg(n.args().get(0), args.get(0)))));
@@ -616,7 +615,7 @@ final class Scalars {
         // property/column kind mismatch, so this rule IS the mapping
         // seam's tag door — reconciliation tolerates the label/wire
         // disagreement for tagged reads only.
-        for (String f : Pure.nativeKeysAt("meta::legend::lite::typeAsDeclared")) {
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_TYPE_AS_DECLARED) {
             RULES.put(f, (n, args) -> args.get(0));
         }
         // castAsDeclared never reaches here — the Typer types it as a
@@ -625,7 +624,7 @@ final class Scalars {
         // id() over an ENUM VALUE is its name — exactly the stored string
         // in relation-land. Any other instance's identifier is an engine
         // runtime concept with no SQL story: loud.
-        for (String f : Pure.nativeKeysAt("id")) {
+        for (com.legend.model.FunctionId f : Pure.AT_META_ID) {
             RULES.put(f, (n, args) -> {
                 if (n.args().get(0).info().type()
                         instanceof com.legend.compiler.element.type.Type.EnumType) {
@@ -637,9 +636,9 @@ final class Scalars {
             });
         }
 
-        for (var sh : Map.of("mostRecentDayOfWeek", false,
-                "previousDayOfWeek", true).entrySet()) {
-            for (String f : Pure.nativeKeysAt(sh.getKey())) {
+        for (var sh : Map.of(Pure.AT_DATE_MOST_RECENT_DAY_OF_WEEK, false,
+                Pure.AT_DATE_PREVIOUS_DAY_OF_WEEK, true).entrySet()) {
+            for (com.legend.model.FunctionId f : sh.getKey()) {
                 RULES.put(f, (n, args) -> DateShifts.dayOfWeekShift(n, args,
                         enumName(n.args().get(n.args().size() == 1 ? 0 : 1)),
                         n.args().size() == 2
@@ -655,12 +654,12 @@ final class Scalars {
         CollectionLanes.registerFirstNotNull(RULES);
         // datePart of a PARTIAL literal is the IDENTITY (a year has no finer
         // date part); full-precision values truncate to the day.
-        for (String f : Pure.nativeKeysAt("datePart")) {
+        for (com.legend.model.FunctionId f : Pure.AT_DATE_DATE_PART) {
             RULES.put(f, (n, args) -> partialPrecision(n.args().get(0)) != null
                     ? args.get(0)
                     : new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY, args));
         }
-        for (String f : Pure.nativeKeysAt("timeBucket")) {
+        for (com.legend.model.FunctionId f : Pure.AT_DATE_TIME_BUCKET) {
             RULES.put(f, (n, args) -> {
                 boolean strict = n.args().get(0).info().type()
                         == Type.Primitive.STRICT_DATE;
@@ -703,7 +702,7 @@ final class Scalars {
         }
         // dateDiff(d1, d2, unit): Pure semantics per unit (PCT-pinned) —
         // see dateDiffExpr.
-        for (String f : Pure.nativeKeysAt("dateDiff")) {
+        for (com.legend.model.FunctionId f : Pure.AT_DATE_DATE_DIFF) {
             RULES.put(f, (n, args) -> dateDiffExpr(diffPart(n.args().get(2)),
                     dateArg(n.args().get(0), args.get(0)),
                     dateArg(n.args().get(1), args.get(1))));
@@ -712,14 +711,14 @@ final class Scalars {
         // unit) for EVERY DurationUnit (real pure dateExtension); the bare
         // form is SECONDS. (The audit: non-MILLISECONDS units were silently
         // epoch seconds.)
-        for (String f : Pure.nativeKeysAt("toEpochValue")) {
+        for (com.legend.model.FunctionId f : Pure.AT_DATE_TO_EPOCH_VALUE) {
             RULES.put(f, (n, args) -> dateDiffExpr(
                     n.args().size() > 1 ? diffPart(n.args().get(1)) : "second",
                     new SqlExpr.TimestampLit("1970-01-01 00:00:00"),
                     dateArg(n.args().get(0), args.get(0))));
         }
         // fromEpochValue(n, unit) = epoch + n unit-intervals.
-        for (String f : Pure.nativeKeysAt("fromEpochValue")) {
+        for (com.legend.model.FunctionId f : Pure.AT_DATE_FROM_EPOCH_VALUE) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(
                     new SqlExpr.StringLit(n.args().size() > 1
                             ? DateShifts.intervalFn(enumName(n.args().get(1))) : "to_seconds"),
@@ -733,13 +732,13 @@ final class Scalars {
         // precision; a column answers from its Pure type (StrictDate =
         // day precision, DateTime = SQL TIMESTAMP = full precision).
         for (var e : Map.of(
-                "hasMonth", PureDateLiteral.Precision.MONTH,
-                "hasDay", PureDateLiteral.Precision.DAY,
-                "hasHour", PureDateLiteral.Precision.HOUR,
-                "hasMinute", PureDateLiteral.Precision.MINUTE,
-                "hasSecond", PureDateLiteral.Precision.SECOND,
-                "hasSubsecond", PureDateLiteral.Precision.SUBSECOND).entrySet()) {
-            for (String f : Pure.nativeKeysAt(e.getKey())) {
+                Pure.AT_DATE_HAS_MONTH, PureDateLiteral.Precision.MONTH,
+                Pure.AT_DATE_HAS_DAY, PureDateLiteral.Precision.DAY,
+                Pure.AT_DATE_HAS_HOUR, PureDateLiteral.Precision.HOUR,
+                Pure.AT_DATE_HAS_MINUTE, PureDateLiteral.Precision.MINUTE,
+                Pure.AT_DATE_HAS_SECOND, PureDateLiteral.Precision.SECOND,
+                Pure.AT_DATE_HAS_SUBSECOND, PureDateLiteral.Precision.SUBSECOND).entrySet()) {
+            for (com.legend.model.FunctionId f : e.getKey()) {
                 RULES.put(f, (n, args) -> {
                     // leg 7 D2 (A24/D92 retired): the answer is computed
                     // from the STAMP (datePrecision — ask the plan, never
@@ -756,7 +755,7 @@ final class Scalars {
                 });
             }
         }
-        for (String f : Pure.nativeKeysAt("hasSubsecondWithAtLeastPrecision")) {
+        for (com.legend.model.FunctionId f : Pure.AT_DATE_HAS_SUBSECOND_WITH_AT_LEAST_PRECISION) {
             RULES.put(f, (n, args) -> {
                 if (!(n.args().get(1)
                         instanceof TypedCInteger i)) {
@@ -775,7 +774,7 @@ final class Scalars {
             });
         }
         // ---- Misc (registrations bucket) ----
-        for (String f : Pure.nativeKeysAt("between")) {
+        for (com.legend.model.FunctionId f : Pure.AT_BOOLEAN_BETWEEN) {
             // between IS the two guarded comparisons composed — every
             // operand is [0..1] and an EMPTY operand yields false, never
             // SQL NULL (C1.5a; same optionalOperandGuards the standalone
@@ -794,7 +793,7 @@ final class Scalars {
                                         padded.get(0), padded.get(2)))));
             });
         }
-        for (String f : Pure.nativeKeysAt("compare")) {
+        for (com.legend.model.FunctionId f : Pure.AT_LANG_COMPARE) {
             RULES.put(f, (n, args) -> {
                 // CROSS-KIND compare is a CONSTANT: real Compare.java orders
                 // Numbers < Dates < Booleans < Strings and never coerces —
@@ -818,21 +817,21 @@ final class Scalars {
                         new SqlExpr.IntLit(0));
             });
         }
-        for (String f : Pure.nativeKeysAt("sqlTrue")) {
+        for (com.legend.model.FunctionId f : Pure.AT_RELATIONAL_FUNCTIONS_SQL_QUERY_TO_STRING_SQL_TRUE) {
             RULES.put(f, (n, args) -> new SqlExpr.BoolLit(true));
         }
-        for (String f : Pure.nativeKeysAt("sqlFalse")) {
+        for (com.legend.model.FunctionId f : Pure.AT_RELATIONAL_FUNCTIONS_SQL_QUERY_TO_STRING_SQL_FALSE) {
             RULES.put(f, (n, args) -> new SqlExpr.BoolLit(false));
         }
-        familyIfPresent(SqlFn.CURRENT_USER_FN, "currentUserId");
-        familyIfPresent(SqlFn.COT, "cot");
-        familyIfPresent(SqlFn.RADIANS, "toRadians");
-        familyIfPresent(SqlFn.DEGREES, "toDegrees");
+        family(SqlFn.CURRENT_USER_FN, com.legend.model.FunctionId.all(Pure.AT_RUNTIME_CURRENT_USER_ID, Pure.AT_CORE_RUNTIME_CURRENT_USER_ID));
+        family(SqlFn.COT, Pure.AT_MATH_COT);
+        family(SqlFn.RADIANS, Pure.AT_MATH_TO_RADIANS);
+        family(SqlFn.DEGREES, Pure.AT_MATH_TO_DEGREES);
         // repeatString(s, n): an EMPTY/untyped first arg VARCHAR-casts —
         // DuckDB's binder otherwise picks the BLOB overload for a bare
         // NULL (wire BLOB under the String contract; §4bZ-V C
         // adjudication: fix-emitter, value identical)
-        for (String f : Pure.nativeKeysAt("repeatString")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_REPEAT_STRING) {
             RULES.put(f, (n, args) -> {
                 SqlExpr s0 = args.get(0);
                 if (!(s0.type() instanceof com.legend.sql.TypeFact.Typed)) {
@@ -841,11 +840,11 @@ final class Scalars {
                 return SqlExpr.Call.of(SqlFn.REPEAT_STR, s0, args.get(1));
             });
         }
-        familyIfPresent(SqlFn.JARO_WINKLER, "jaroWinklerSimilarity");
+        family(SqlFn.JARO_WINKLER, Pure.AT_STRING_JARO_WINKLER_SIMILARITY);
         // decodeBase64 accepts UNPADDED input (real pure; SQL from_base64
         // demands padding) — restore the '=' tail: literal-folded, or
         // s || repeat('=', (4 - length(s) % 4) % 4) at runtime.
-        for (String f : Pure.nativeKeysAt("decodeBase64")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_DECODE_BASE64) {
             RULES.put(f, (n, args) -> {
                 SqlExpr in = args.get(0);
                 if (in instanceof SqlExpr.StringLit lit) {
@@ -872,7 +871,7 @@ final class Scalars {
         // subselect form) and dispatches via the absence — registering
         // it here hijacked testSubAggregationWithDeepAndOverlap
         // (measured 2026-08-21: 7 rows became 13).
-        for (String f : Pure.nativeKeysAt("size")) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_RELATION_SIZE, Pure.AT_COLLECTION_SIZE)) {
             RULES.put(f, (n, args) -> {
                 // a TO-ONE value is a 0/1-element collection: 'abc'->size()
                 // is 1, never len('abc') (C1.5d — the same gate its 13
@@ -899,7 +898,7 @@ final class Scalars {
         // prints 'TDSNull' (engine TDS-cell convention — ordinary pure
         // collections hold no empties, so the coalesce is unobservable
         // outside TDS rows).
-        for (String f : Pure.nativeKeysAt("makeString")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_MAKE_STRING) {
             RULES.put(f, (n, args) -> {
                 SqlExpr sep = args.size() == 2 ? args.get(1)
                         : args.size() == 4 ? args.get(2) : new SqlExpr.StringLit("");
@@ -939,7 +938,7 @@ final class Scalars {
         }
         // joinStrings over a LIST value: (list), (list, sep), or
         // (list, prefix, sep, suffix).
-        for (String f : Pure.nativeKeysAt("joinStrings")) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_STRING_JOIN_STRINGS, Pure.AT_RELATION_JOIN_STRINGS)) {
             RULES.put(f, (n, args) -> {
                 // VALUE position over a literal element list: the engine
                 // INTERLEAVES the separator (CONCAT_JOIN; the TDS channel
@@ -996,7 +995,7 @@ final class Scalars {
         // percentile family over LIST values; the 4-arg overload's
         // ascending/continuous flags choose the quantile flavor, and a
         // DESCENDING percentile is the 1-p quantile.
-        for (String f : Pure.nativeKeysAt("percentile")) {
+        for (com.legend.model.FunctionId f : Pure.AT_MATH_PERCENTILE) {
             RULES.put(f, (n, args) -> {
                 boolean asc = true;
                 boolean cont = true;
@@ -1018,7 +1017,7 @@ final class Scalars {
         // compare over the two parameters (its argument order IS the
         // direction); a KEY function sorts {k, i, v} structs by key —
         // index second, so equal keys stay stable — then unwraps.
-        for (String f : Pure.nativeKeysAt("sort")) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_RELATION_SORT, Pure.AT_TDS_SORT, Pure.AT_COLLECTION_SORT)) {
             RULES.put(f, (n, args) -> {
                 // STAMP-READ identity: sort over <=1 values IS the
                 // operand ([0..0] included: sort([]) is []).
@@ -1037,8 +1036,8 @@ final class Scalars {
                     boolean dedup = false;
                     if (sortOperand instanceof
                                 com.legend.compiler.spec.typed.TypedNativeCall dd
-                            && Pure.nativeKeysAt("removeDuplicates")
-                                    .contains(dd.callee().signatureKey())
+                            && Pure.AT_COLLECTION_REMOVE_DUPLICATES
+                                    .contains(dd.callee().id())
                             && !dd.args().isEmpty()
                             && sortLowered instanceof SqlExpr.Call dc
                             && dc.fn() == SqlFn.LIST_FILTER
@@ -1138,39 +1137,39 @@ final class Scalars {
                                         "v")));
             });
         }
-        for (String f : Pure.nativeKeysAt("isBeforeDay")) {
+        for (com.legend.model.FunctionId f : Pure.AT_DATE_IS_BEFORE_DAY) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.LESS,
                     new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
                             List.of(dateArg(n.args().get(0), args.get(0)))),
                     new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
                             List.of(dateArg(n.args().get(1), args.get(1))))));
         }
-        for (String f : Pure.nativeKeysAt("isOnOrBeforeDay")) {
+        for (com.legend.model.FunctionId f : Pure.AT_DATE_IS_ON_OR_BEFORE_DAY) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.LESS_EQUAL,
                     new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
                             List.of(dateArg(n.args().get(0), args.get(0)))),
                     new SqlExpr.Call(SqlFn.DATE_TRUNC_DAY,
                             List.of(dateArg(n.args().get(1), args.get(1))))));
         }
-        for (String f : Pure.nativeKeysAt("toDecimal")) {
+        for (com.legend.model.FunctionId f : Pure.AT_MATH_TO_DECIMAL) {
             // literal folds + input-stamp-driven scale (DecimalKindRules)
             RULES.put(f, DecimalKindRules::toDecimal);
         }
-        for (String f : Pure.nativeKeysAt(Pure.Lite.DIVIDE_ROUND)) {
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_DIVIDE_ROUND) {
             RULES.put(f, DecimalKindRules::divideRound);
         }
-        for (String f : Pure.nativeKeysAt(Pure.Lite.NOT_EQUAL_ANSI)) {
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_NOT_EQUAL_ANSI) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.NOT_EQUAL,
                     args.get(0), args.get(1)));
         }
-        for (String f : Pure.nativeKeysAt(Pure.Lite.TUPLE)) {   // the row of a tree's leaves
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_TUPLE) {   // the row of a tree's leaves
             RULES.put(f, (n, args) -> TupleValue.of(args));
         }
 
         // Temporal EXTRACT parts: one SqlFn entry, part-name literal first.
         for (var e : Map.of(
-                "year", "year", "monthNumber", "month", "dayOfMonth", "day",
-                "hour", "hour", "minute", "minute", "second", "second").entrySet()) {
+                Pure.AT_DATE_YEAR, "year", Pure.AT_DATE_MONTH_NUMBER, "month", Pure.AT_DATE_DAY_OF_MONTH, "day",
+                Pure.AT_DATE_HOUR, "hour", Pure.AT_DATE_MINUTE, "minute", Pure.AT_DATE_SECOND, "second").entrySet()) {
             // a PARTIAL date lacking the component RAISES real pure's
             // message ('Cannot get day of month for 2017') — statically
             // decidable from the precision; the message composes in SQL
@@ -1186,7 +1185,7 @@ final class Scalars {
                 case "day" -> "day of month";
                 default -> e.getValue();
             };
-            for (String f : Pure.nativeKeysAt(e.getKey())) {
+            for (com.legend.model.FunctionId f : e.getKey()) {
                 RULES.put(f, (n, args) -> {
                     PureDateLiteral.Precision prec =
                             datePrecisionOrUnknown(n.args().get(0));
@@ -1218,7 +1217,7 @@ final class Scalars {
         // Collection min/max/sum: 1-arg = over a LIST; 2-arg = least/greatest.
         // A TO-ONE argument (sum(7), average of one value) is the IDENTITY —
         // the list encodings choke on scalars.
-        for (String f : Pure.nativeKeysAt("min")) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_DATE_MIN, Pure.AT_MATH_MIN, Pure.AT_COLLECTION_MIN)) {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
                 if (mx != null) {
@@ -1243,7 +1242,7 @@ final class Scalars {
                         : new SqlExpr.Call(SqlFn.LIST_MIN, args);
             });
         }
-        for (String f : Pure.nativeKeysAt("max")) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_DATE_MAX, Pure.AT_MATH_MAX, Pure.AT_COLLECTION_MAX)) {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
                 if (mx != null) {
@@ -1275,7 +1274,7 @@ final class Scalars {
         // lists under to-one stamps impossible, and for the designed
         // List-OBJECT carrier the identity arm IS pure semantics
         // (first(aList) is the List, not its inner first).
-        for (String f : Pure.nativeKeysAt("sum")) {
+        for (com.legend.model.FunctionId f : Pure.AT_MATH_SUM) {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0))
                     ? args.get(0)
                     : SqlExpr.Call.of(SqlFn.LIST_SUM, Numerics.numList(args.get(0))));
@@ -1283,13 +1282,13 @@ final class Scalars {
         // round(Number[1]) RETURNS Integer (real pure) — banker's round,
         // then the integral cast the signature promises; round(x, scale)
         // keeps its operand's type.
-        for (String f : Pure.nativeKeysAt("round")) {
+        for (com.legend.model.FunctionId f : Pure.AT_MATH_ROUND) {
             RULES.put(f, DecimalKindRules::round);
         }
         // greatest/least/mode take ONE collection argument (real pure: values:X[*]);
         // like min/max/sum, a to-one argument is the identity and a list reduces
         // with the list encoding — SQL's variadic GREATEST/LEAST never applies.
-        for (String f : Pure.nativeKeysAt("greatest")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_GREATEST) {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                 if (mx != null) {
@@ -1300,7 +1299,7 @@ final class Scalars {
                         : new SqlExpr.Call(SqlFn.LIST_MAX, args);
             });
         }
-        for (String f : Pure.nativeKeysAt("least")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_LEAST) {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                 if (mx != null) {
@@ -1311,7 +1310,7 @@ final class Scalars {
                         : new SqlExpr.Call(SqlFn.LIST_MIN, args);
             });
         }
-        for (String f : Pure.nativeKeysAt("mode")) {
+        for (com.legend.model.FunctionId f : Pure.AT_MATH_MODE) {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                 if (mx != null) {
@@ -1339,8 +1338,8 @@ final class Scalars {
         // semantics), each element a struct with Pair's first/second layout.
         // zip: c1-literal sides box (DEEP_AUDIT §3); ListEncodings.zip
         ListEncodings.registerZip(RULES);   // zip: the encoding's owner
-        for (String name : List.of("mean", "average")) {
-            for (String f : Pure.nativeKeysAt(name)) {
+        {
+            for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_MATH_MEAN, Pure.AT_MATH_AVERAGE)) {
                 // a to-one value is its own mean but the KIND is Float
                 // (pure average: Float[1]) — the bare identity kept the
                 // column's INTEGER, the wrong declared kind on the wire
@@ -1353,14 +1352,14 @@ final class Scalars {
         // median overrides its plain-family registration: the mixed-Number
         // carrier must unwrap (json ordering is lexicographic — the wrong
         // middle) and a to-one value is its own median.
-        for (String f : Pure.nativeKeysAt("median")) {
+        for (com.legend.model.FunctionId f : Pure.AT_MATH_MEDIAN) {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0))
                     ? args.get(0)
                     : SqlExpr.Call.of(SqlFn.LIST_MEDIAN, Numerics.numList(args.get(0))));
         }
         ScalarStats.register(RULES);   // stat reductions
         // variance(list, isBiasCorrected): true => sample, false => population.
-        for (String f : Pure.nativeKeysAt("variance")) {
+        for (com.legend.model.FunctionId f : Pure.AT_MATH_VARIANCE) {
             RULES.put(f, (n, args) -> {
                 boolean sample = n.args().size() <= 1
                         || boolLiteral(n.args().get(1), "variance isBiasCorrected");
@@ -1372,17 +1371,17 @@ final class Scalars {
         // first/head/last over a TO-ONE value are the IDENTITY — the list
         // encoding CHAR-INDEXES a lone string ('Doe'[1] = 'D', the at()/last()
         // trap; audit made the family uniform).
-        for (String f : Pure.nativeKeysAt("first")) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_RELATION_FIRST, Pure.AT_COLLECTION_FIRST)) {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
                     : new SqlExpr.Call(SqlFn.LIST_GET,
                             List.of(args.get(0), new SqlExpr.IntLit(1))));
         }
-        for (String f : Pure.nativeKeysAt("head")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_HEAD) {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
                     : new SqlExpr.Call(SqlFn.LIST_GET,
                             List.of(args.get(0), new SqlExpr.IntLit(1))));
         }
-        for (String f : Pure.nativeKeysAt("last")) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_RELATION_LAST, Pure.AT_COLLECTION_LAST)) {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0)) ? args.get(0)
                     : new SqlExpr.Call(SqlFn.LIST_GET,
                             List.of(args.get(0), new SqlExpr.IntLit(-1))));
@@ -1392,7 +1391,7 @@ final class Scalars {
         // platform pure's 0-based). ONE verbatim emission (Phase 1
         // audit): the DuckDB start-clamp is SubstringClamp, that
         // dialect's own rewrite pass.
-        for (String f : Pure.nativeKeysAt("meta::pure::functions::string::substring")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_SUBSTRING) {
             RULES.put(f, (n, args) ->
                     new SqlExpr.Call(SqlFn.SUBSTRING, args));
         }
@@ -1402,10 +1401,10 @@ final class Scalars {
         // corrects it (processSubstr, "needs no flag"); so does the platform:
         // a native with the corrected rule, never the prelude's body (which
         // would inline to substring and lose the name before lowering).
-        for (String f : Pure.nativeKeysAt("meta::pure::functions::string::substr")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_SUBSTR) {
             RULES.put(f, FeatureRules.CORRECTED_SUBSTRING);
         }
-        for (String f : Pure.nativeKeysAt("indexOf")) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_STRING_INDEX_OF, Pure.AT_COLLECTION_INDEX_OF)) {
             RULES.put(f, (n, args) -> {
                 // Dispatch on the RESOLVED CALLEE's declared param: a [*]
                 // set is the LIST search (collection::indexOf), a [1]
@@ -1462,7 +1461,7 @@ final class Scalars {
                 return new SqlExpr.Call(SqlFn.STRPOS, args);
             });
         }
-        for (String f : Pure.nativeKeysAt("at")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_AT) {
             // at(x, 0) over a TO-ONE value is the IDENTITY — the list encoding
             // would CHAR-INDEX a lone string ('Doe'[1] = 'D' in DuckDB).
             RULES.put(f, (n, args) -> {
@@ -1491,14 +1490,14 @@ final class Scalars {
         }
         // list(items): the List<T> CARRIER — at SQL level the list value
         // itself (a to-one item wraps as a singleton).
-        for (String f : Pure.nativeKeysAt("list")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_LIST) {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0))
                     ? new SqlExpr.ArrayLit(List.of(args.get(0)))
                     : args.get(0));
         }
         // add(set, val) appends; add(set, index, val) INSERTS at the 0-based
         // index: prefix || [val] || suffix.
-        for (String f : CollectionLanes.collectionAddKeys()) {
+        for (com.legend.model.FunctionId f : CollectionLanes.collectionAddKeys()) {
             RULES.put(f, (n, args) -> {
                 if (args.size() == 2) {
                     // audit §4: a to-one first operand carriers as its
@@ -1533,7 +1532,7 @@ final class Scalars {
         // accumulate-then-compare-against-KEPT semantics — a list_reduce over
         // singleton-wrapped elements (the accumulator IS the kept list), the
         // candidate dropped when any KEPT element satisfies eq(kept, candidate).
-        for (String f : Pure.nativeKeysAt("removeDuplicates")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_REMOVE_DUPLICATES) {
             RULES.put(f, (n, args) -> {
                 // a TO-ONE value is its own dedup — but the output is
                 // [*]-typed, so it must stay LIST-shaPED for consumers
@@ -1573,7 +1572,7 @@ final class Scalars {
         }
         // collection::distinct = removeDuplicates (real distinct.pure) —
         // registered by the EXACT collection overload key.
-        RULES.put(Pure.DISTINCT_COLLECTION_KEY,
+        RULES.put(com.legend.model.FunctionId.of(Pure.DISTINCT__T_MANY),
                 // audit §4: the same to-one guard its synonym
                 // removeDuplicates always had (a [0..1] value hit the
                 // list-lambda binder)
@@ -1584,10 +1583,10 @@ final class Scalars {
         // NO-OP doctrine (StatementExecutor's print arm) — the value is
         // the Nil[0] cell, NULL; the argument is pure SQL computation and
         // drops with it (effectful args cannot type into scalar position)
-        for (String f : Pure.nativeKeysAt("print")) {
+        for (com.legend.model.FunctionId f : Pure.AT_IO_PRINT) {
             RULES.put(f, (n, args) -> new SqlExpr.NullLit());
         }
-        for (String f : Pure.nativeKeysAt("println")) {
+        for (com.legend.model.FunctionId f : Pure.AT_IO_PRINTLN) {
             RULES.put(f, (n, args) -> new SqlExpr.NullLit());
         }
         // regexp family (real regex/*.pure): DuckDB regexp_* with the
@@ -1601,7 +1600,7 @@ final class Scalars {
         // typed args emit exactly; an Any-typed arg takes the carrier's
         // best-effort text (message-position cosmetics only — pass/fail
         // never rides this).
-        for (String f : Pure.nativeKeysAt("toRepresentation")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_TO_REPRESENTATION) {
             RULES.put(f, (n, args) -> Repr.of(
                     n.args().get(0).info().type(), args.get(0)));
         }
@@ -1609,7 +1608,7 @@ final class Scalars {
         // globally (chunk.pure spec: 'abcdefghijklmnop'->chunk(5) =
         // abcde|fghij|klmno|p; a short string is one chunk) — the
         // pattern composes in SQL so a computed n works too.
-        for (String f : Pure.nativeKeysAt("chunk")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_CHUNK) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(
                     SqlFn.REGEXP_EXTRACT_ALL, args.get(0),
                     SqlExpr.Call.of(SqlFn.CONCAT,
@@ -1618,18 +1617,18 @@ final class Scalars {
                                     com.legend.sql.SqlType.Scalar.VARCHAR),
                             new SqlExpr.StringLit("}"))));
         }
-        for (String f : Pure.nativeKeysAt("regexpLike")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_REGEXP_LIKE) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.MATCHES, List.of(
                     args.get(0),
                     n.args().size() > 2
                             ? RegexpRules.inlineFlags(args.get(1), RegexpRules.regexpFlags(n.args().get(2)))
                             : args.get(1))));
         }
-        for (String f : Pure.nativeKeysAt("regexpCount")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_REGEXP_COUNT) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.LIST_LENGTH,
                     RegexpRules.regexpAll(n, args, 2)));
         }
-        for (String f : Pure.nativeKeysAt("regexpExtract")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_REGEXP_EXTRACT) {
             RULES.put(f, (n, args) -> {
                 if (!(args.get(2) instanceof SqlExpr.BoolLit all)) {
                     throw new IllegalStateException("regexpExtract extractAll must be literal");
@@ -1649,7 +1648,7 @@ final class Scalars {
         // (static, literal) pattern splits at that group's capturing paren:
         // '^(.*?  P-before-group )( P-from-group ...' — our prefix group is
         // always #1 (the first paren), later renumbering is irrelevant.
-        for (String f : Pure.nativeKeysAt("regexpIndexOf")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_REGEXP_INDEX_OF) {
             RULES.put(f, (n, args) -> {
                 int group = 0;
                 String flags = "";
@@ -1703,7 +1702,7 @@ final class Scalars {
                         SqlExpr.Call.of(SqlFn.LENGTH, prefix));
             });
         }
-        for (String f : Pure.nativeKeysAt("regexpReplace")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_REGEXP_REPLACE) {
             RULES.put(f, (n, args) -> {
                 if (!(args.get(3) instanceof SqlExpr.BoolLit all)) {
                     throw new IllegalStateException("regexpReplace replaceAll must be literal");
@@ -1718,9 +1717,10 @@ final class Scalars {
         }
         // lpad/rpad: an EMPTY pad char returns the subject unchanged (real
         // testLpadEmptyChar) — DuckDB raises 'Insufficient padding' instead.
-        for (String name : List.of("lpad", "rpad")) {
-            SqlFn padFn = name.equals("lpad") ? SqlFn.LPAD : SqlFn.RPAD;
-            for (String f : Pure.nativeKeysAt(name)) {
+        for (var pad : Map.of(Pure.AT_STRING_LPAD, SqlFn.LPAD,
+                Pure.AT_STRING_RPAD, SqlFn.RPAD).entrySet()) {
+            SqlFn padFn = pad.getValue();
+            for (com.legend.model.FunctionId f : pad.getKey()) {
                 RULES.put(f, (n, args) ->
                         args.size() == 3 && args.get(2) instanceof SqlExpr.StringLit lit
                                 && lit.value().isEmpty()
@@ -1731,12 +1731,12 @@ final class Scalars {
         // ---- Map<U,V>: the DuckDB MAP carrier ----
         // pair(a,b) travels as STRUCT(first, second) — map_from_entries
         // takes exactly that shape.
-        RULES.put(Pure.PAIR_KEY, (n, args) -> MixedEncoding.pairStruct(n.info().type(),
+        RULES.put(com.legend.model.FunctionId.of(Pure.PAIR__U_1__V_1), (n, args) -> MixedEncoding.pairStruct(n.info().type(),
                 args.get(0), n.args().get(0).info().type(), args.get(1), n.args().get(1).info().type()));
-        for (String f : Pure.nativeKeysAt("newMap")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_NEW_MAP) {
             RULES.put(f, (n, args) -> mapFromPairs(n, args.get(0)));
         }
-        for (String f : Pure.nativeKeysAt("put")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_PUT) {
             // both operands cast to the RESOLVED map type — DuckDB's
             // map_concat rejects INTEGER-vs-BIGINT value mismatches
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.MAP_CONCAT,
@@ -1745,7 +1745,7 @@ final class Scalars {
                             new SqlExpr.ArrayLit(List.of(args.get(1))),
                             new SqlExpr.ArrayLit(List.of(args.get(2)))))));
         }
-        for (String f : Pure.nativeKeysAt("putAll")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_PUT_ALL) {
             RULES.put(f, (n, args) -> {
                 boolean mapArg = PlatformTypes
                         .isMapCarrier(n.args().get(1).info().type());
@@ -1754,22 +1754,22 @@ final class Scalars {
                         castToMapType(n, args.get(0)), castToMapType(n, other));
             });
         }
-        for (String f : Pure.nativeKeysAt("keys")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_KEYS) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.MAP_KEYS, args.get(0)));
         }
-        for (String f : Pure.nativeKeysAt("values")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_VALUES) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.MAP_VALUES, args.get(0)));
         }
         // get: the MAP overload only — the bare-name set is shared with
         // variant get(v, key), whose rule is registered separately above.
-        RULES.put(Pure.MAP_GET_KEY, (n, args) ->
+        RULES.put(com.legend.model.FunctionId.of(Pure.MAP_GET__MAP_1__U_1), (n, args) ->
                 SqlExpr.Call.of(SqlFn.LIST_GET,
                         SqlExpr.Call.of(SqlFn.MAP_EXTRACT, args.get(0), args.get(1)),
                         new SqlExpr.IntLit(1)));
         ListRules.register(RULES);
         // DOMAIN guards RAISED IN SQL with real pure's messages (error()
         // runs in the database — literal AND runtime values alike).
-        for (String f : Pure.nativeKeysAt("sqrt")) {
+        for (com.legend.model.FunctionId f : Pure.AT_MATH_SQRT) {
             RULES.put(f, (n, args) -> {
                 SqlExpr x = new SqlExpr.Cast(args.get(0), SqlType.Scalar.DOUBLE);
                 return guarded(
@@ -1778,9 +1778,9 @@ final class Scalars {
                         SqlExpr.Call.of(SqlFn.SQRT, args.get(0)));
             });
         }
-        family(SqlFn.BIT_NOT, "bitNot");
+        family(SqlFn.BIT_NOT, Pure.AT_MATH_BIT_NOT);
         // formatDate(date, Strict/DateTimeFormat): the two real ISO forms.
-        for (String f : Pure.nativeKeysAt("formatDate")) {
+        for (com.legend.model.FunctionId f : Pure.AT_DATE_FORMAT_DATE) {
             RULES.put(f, (n, args) -> switch (enumName(n.args().get(1))) {
                 case "ISO8601" -> SqlExpr.Call.of(SqlFn.STRFTIME, args.get(0),
                         new SqlExpr.FormatLit(com.legend.sql.DateFmt.DATE));
@@ -1814,20 +1814,20 @@ final class Scalars {
         JsonLane.register(RULES);   // fromJson + meta::json: the variant lane
         ListEncodings.registerConcatenate(RULES);
         // tail/init of a TO-ONE value = EMPTY (all-but-first/-last of 1).
-        for (String f : Pure.nativeKeysAt("tail")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_TAIL) {
             RULES.put(f, (n, args) -> args.get(0) instanceof SqlExpr.NullLit
                     || (isToOne(n.args().get(0)))
                     ? new SqlExpr.NullLit()
                     : new SqlExpr.Call(SqlFn.LIST_TAIL, args));
         }
-        for (String f : Pure.nativeKeysAt("init")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_INIT) {
             RULES.put(f, (n, args) -> args.get(0) instanceof SqlExpr.NullLit
                     || (isToOne(n.args().get(0)))
                     ? new SqlExpr.NullLit()
                     : new SqlExpr.Call(SqlFn.LIST_INIT, args));
         }
         // reverse(T[*]): the list reversed; a to-one value is its own reverse.
-        for (String f : Pure.nativeKeysAt("reverse")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_REVERSE) {
             // <=1 values reverse to themselves ([0..0] included).
             RULES.put(f, (n, args) -> Stamps.atMostOne(n.args().get(0))
                     ? args.get(0)
@@ -1838,7 +1838,7 @@ final class Scalars {
         // emit its pure name; the wire resolves it to the canonical Type
         // instance (assertIs checks identity). Abstract statics (Number,
         // Date, Any) fall back to DuckDB's typeof — honest, still a name.
-        for (String f : Pure.nativeKeysAt("type")) {
+        for (com.legend.model.FunctionId f : Pure.AT_META_TYPE) {
             RULES.put(f, (n, args) -> {
                 Type t = n.args().get(0).info().type();
                 String name = switch (t) {
@@ -1858,9 +1858,11 @@ final class Scalars {
         // minBy/maxBy(values, keys[, count]): sort {k,v} structs by key (list
         // sort over structs orders by the FIRST field), take the head or the
         // top count, then unwrap the values.
-        for (String name : List.of("minBy", "maxBy")) {
-            boolean asc = name.equals("minBy");
-            for (String f : Pure.nativeKeysAt(name)) {
+        for (var by : Map.of(Pure.AT_MATH_MIN_BY, true,
+                Pure.AT_MATH_MAX_BY, false).entrySet()) {
+            boolean asc = by.getValue();
+            String name = asc ? "minBy" : "maxBy";
+            for (com.legend.model.FunctionId f : by.getKey()) {
                 RULES.put(f, (n, args) -> {
                     if (args.size() < 2) {
                         throw new IllegalStateException(name
@@ -1906,7 +1908,7 @@ final class Scalars {
         }
         // removeDuplicatesBy(values, key): keep each key's FIRST occurrence —
         // an element survives iff the first position of its key is its own.
-        for (String f : Pure.nativeKeysAt("removeDuplicatesBy")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_REMOVE_DUPLICATES_BY) {
             RULES.put(f, (n, args) -> {
                 if (!(args.get(1) instanceof SqlExpr.Lambda key && key.params().size() == 1)) {
                     throw new IllegalStateException(
@@ -1925,10 +1927,10 @@ final class Scalars {
         // corr/covarPopulation/covarSample over two LISTS: the paired-unnest
         // subquery recipe — (SELECT CORR(a, b) FROM (SELECT unnest(x) AS a,
         // unnest(y) AS b)); DuckDB zips parallel select-list unnests.
-        for (var e : Map.of("corr", SqlAgg.Fn.CORR,
-                "covarPopulation", SqlAgg.Fn.COVAR_POP,
-                "covarSample", SqlAgg.Fn.COVAR_SAMP).entrySet()) {
-            for (String f : Pure.nativeKeysAt(e.getKey())) {
+        for (var e : Map.of(Pure.AT_MATH_CORR, SqlAgg.Fn.CORR,
+                Pure.AT_MATH_COVAR_POPULATION, SqlAgg.Fn.COVAR_POP,
+                Pure.AT_MATH_COVAR_SAMPLE, SqlAgg.Fn.COVAR_SAMP).entrySet()) {
+            for (com.legend.model.FunctionId f : e.getKey()) {
                 RULES.put(f, (n, args) -> {
                     if (args.size() != 2) {
                         throw new IllegalStateException(e.getKey()
@@ -1983,11 +1985,11 @@ final class Scalars {
             }
         }
         // find(coll, pred): the FIRST satisfying element, [0..1] — filter, then head.
-        for (String f : Pure.nativeKeysAt("find")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_FIND) {
             RULES.put(f, (n, args) -> new SqlExpr.Call(SqlFn.LIST_GET, List.of(
                     new SqlExpr.Call(SqlFn.LIST_FILTER, args), new SqlExpr.IntLit(1))));
         }
-        for (String f : Pure.nativeKeysAt("splitPart")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_SPLIT_PART) {
             RULES.put(f, (n, args) -> {
                 // An EMPTY delimiter never splits: index 0 IS the whole
                 // string (PCT; SQL split_part('', …) returns '' instead).
@@ -2003,11 +2005,11 @@ final class Scalars {
         // contains on a TO-ONE STRING: strpos > 0. A String[*] source is a
         // LIST of strings — list containment, not substring search (the
         // to-one gate; audit: ['x','y']->contains('x') hit strpos).
-        for (String f : Pure.nativeKeysAt("uniqueValueOnly")) {
+        for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_UNIQUE_VALUE_ONLY) {
             RULES.put(f, (n, args) -> DateShifts.uniqueValueOnly(args));
         }
         StringPredicates.register(RULES);   // isAlphaNumeric (character-class predicates)
-        for (String f : Pure.nativeKeysAt("contains")) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_COLLECTION_CONTAINS, Pure.AT_STRING_CONTAINS)) {
             RULES.put(f, (n, args) -> {
                 // COLLECTION-callee c1-LITERALS box (DEEP_AUDIT §3);
                 // dispatch by the RESOLVED CALLEE's param mult (C1
@@ -2123,7 +2125,7 @@ final class Scalars {
         // format string: %t{javaDatePattern} formats its date argument
         // (strftime, pattern converted), and bare %f is pure's MINIMAL float
         // repr, not printf's fixed six decimals.
-        for (String f : Pure.nativeKeysAt("format")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_FORMAT) {
             RULES.put(f, (n, args) -> {
                 List<SqlExpr> spread = new ArrayList<>();
                 spread.add(args.get(0));
@@ -2157,7 +2159,7 @@ final class Scalars {
         // REAL pure hash(text, HashType.X): the enum value picks the digest
         // (the relational md5/sha dynafunctions translate here — the lite
         // md5/sha natives are gone).
-        for (String f : Pure.nativeKeysAt("meta::pure::functions::hash::hash")) {
+        for (com.legend.model.FunctionId f : Pure.AT_HASH_HASH) {
             RULES.put(f, (n, args) -> {
                 if (!(n.args().get(1) instanceof TypedEnumValue ev)) {
                     throw new IllegalStateException("hash(text, hashType) needs a HashType literal");
@@ -2177,7 +2179,7 @@ final class Scalars {
         // toString of a DATETIME prints Pure's ISO form
         // (2014-01-01T00:00:00.000+0000) — SQL's VARCHAR cast uses a space
         // separator and no offset. Other types keep the plain cast.
-        for (String f : Pure.nativeKeysAt("toString")) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(Pure.AT_RELATION_TO_STRING, Pure.AT_STRING_TO_STRING)) {
             RULES.put(f, (n, args) -> {
                 Type t = n.args().get(0).info().type();
                 // A LATE-BOUND grid cell read (Phase 1c) is PHYSICAL —
@@ -2208,11 +2210,11 @@ final class Scalars {
         }
         // isDistinctFrom (DEEP_AUDIT §5k) = SQL IS DISTINCT FROM; pure's 1-arg isDistinct
         // = the ALL_DISTINCT semantic node (a blanket family() once routed it here — AIOOBE)
-        for (String f : Pure.nativeKeysAt(Pure.Lite.IS_DISTINCT_FROM)) {
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_IS_DISTINCT_FROM) {
             RULES.put(f, (n, args) ->
                     new SqlExpr.Call(SqlFn.IS_DISTINCT_FROM, args));
         }
-        for (String f : Pure.nativeKeysAt("isDistinct", 1)) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.ofAll(Pure.IS_DISTINCT__T_MANY)) {
             RULES.put(f, (n, args) -> isToOne(n.args().get(0))
                     ? new SqlExpr.BoolLit(true)
                     : SqlExpr.Call.of(SqlFn.ALL_DISTINCT,
@@ -2224,12 +2226,12 @@ final class Scalars {
         // the SqlFn.PARSE_INT semantic entry lets each dialect spell it:
         // BIGINT cast in execution, the golden 'integer' in engine style
         // (the per-dynafunction origin tag audit 19 F3 called for).
-        for (String f : Pure.nativeKeysAt("parseInteger")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_PARSE_INTEGER) {
             RULES.put(f, (n, args) ->
                     SqlExpr.Call.of(SqlFn.PARSE_INT, args.get(0)));
         }
-        castFamily("parseFloat", Type.Primitive.FLOAT);
-        castFamily("toFloat", Type.Primitive.FLOAT);
+        castFamily(Type.Primitive.FLOAT, Pure.AT_STRING_PARSE_FLOAT);
+        castFamily(Type.Primitive.FLOAT, Pure.AT_MATH_TO_FLOAT);
         // parseDecimal accepts the 'd'/'D' Pure-literal suffix ('3.14159d');
         // SQL DECIMAL casts do not — strip it (literal-folded or RTRIM).
         // Real pure is new BigDecimal(s): the SCALE comes from the string
@@ -2238,7 +2240,7 @@ final class Scalars {
         // The 3-arg overload is setScale(scale, HALF_UP) with a precision
         // bound: DuckDB's string→DECIMAL(p,s) cast rounds half away from
         // zero and raises on overflow, both matching.
-        for (String f : Pure.nativeKeysAt("parseDecimal")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_PARSE_DECIMAL) {
             RULES.put(f, (n, args) -> {
                 if (args.size() == 3) {
                     if (!(args.get(1) instanceof SqlExpr.IntLit p
@@ -2268,10 +2270,10 @@ final class Scalars {
                         new SqlType.Decimal(5, 2));
             });
         }
-        castFamily("parseBoolean", Type.Primitive.BOOLEAN);
+        castFamily(Type.Primitive.BOOLEAN, Pure.AT_STRING_PARSE_BOOLEAN);
         // parseDate accepts PARTIAL-time text ('2015-04-15T17') — pad the
         // literal to a full timestamp shape (SQL's cast demands one).
-        for (String f : Pure.nativeKeysAt("parseDate")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_PARSE_DATE) {
             RULES.put(f, (n, args) -> {
                 SqlExpr in = args.get(0);
                 if (in instanceof SqlExpr.StringLit lit) {
@@ -2317,13 +2319,13 @@ final class Scalars {
         // FORMAT dynafunctions: strptime with engine tokens translated to
         // C-style (the format must be a LITERAL — mapping expressions always
         // spell it inline; anything else is loud)
-        for (String f : Pure.nativeKeysAt(Pure.Lite.PARSE_DATE_FORMAT)) {
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_PARSE_DATE_FORMAT) {
             RULES.put(f, (n, args) -> strptimeOf(args, false));
         }
-        for (String f : Pure.nativeKeysAt(Pure.Lite.CONVERT_DATE_TIME_FORMAT)) {
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_CONVERT_DATE_TIME_FORMAT) {
             RULES.put(f, (n, args) -> strptimeOf(args, false));
         }
-        for (String f : Pure.nativeKeysAt(Pure.Lite.CONVERT_DATE_FORMAT)) {
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_CONVERT_DATE_FORMAT) {
             RULES.put(f, (n, args) -> strptimeOf(args, true));
         }
         // isNumeric(str): PINNED to the engine's H2 emission
@@ -2331,7 +2333,7 @@ final class Scalars {
         // (h2Extension2_1_214.pure:230). Semantically loose ('', '$5' and
         // '1.2.3' are all "numeric") but it is what generated every corpus
         // expectation; a tighter regex silently diverges on those inputs.
-        for (String f : Pure.nativeKeysAt(Pure.Lite.IS_NUMERIC)) {
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_IS_NUMERIC) {
             RULES.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.EQUAL,
                     SqlExpr.Call.of(SqlFn.LOWER, args.get(0)),
                     SqlExpr.Call.of(SqlFn.UPPER, args.get(0))));
@@ -2342,7 +2344,7 @@ final class Scalars {
         // the naive value as tz-local), so pin the instant first:
         // timezone('UTC', dt) tags the naive value AS UTC, then
         // timezone(tz, ...) renders that instant in the target zone.
-        for (String f : Pure.nativeKeysAt(Pure.Lite.CONVERT_TIME_ZONE_FORMAT)) {
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_CONVERT_TIME_ZONE_FORMAT) {
             RULES.put(f, (n, args) -> {
                 if (!(args.get(2) instanceof SqlExpr.StringLit fmt)) {
                     throw new NotImplementedException(
@@ -2357,10 +2359,10 @@ final class Scalars {
             });
         }
         // sqlNull() — the relational store's NULL literal dynafunction
-        for (String f : Pure.nativeKeysAt("sqlNull")) {
+        for (com.legend.model.FunctionId f : Pure.AT_RELATIONAL_FUNCTIONS_SQL_QUERY_TO_STRING_SQL_NULL) {
             RULES.put(f, (n, args) -> new SqlExpr.NullLit());
         }
-        for (String f : Pure.nativeKeysAt("date")) {
+        for (com.legend.model.FunctionId f : Pure.AT_DATE_DATE) {
             // component-validated date/timestamp construction —
             // DateCtorRule owns the spelling (file guardrail split)
             RULES.put(f, DateCtorRule::lower);
@@ -2373,9 +2375,9 @@ final class Scalars {
         // separator — the joinStrings(list) rule (every joinStrings key
         // registers the same closure).
         var joinStrings = java.util.Objects.requireNonNull(
-                RULES.get(Pure.nativeKeysAt("joinStrings").iterator().next()),
+                RULES.get(com.legend.model.FunctionId.all(Pure.AT_STRING_JOIN_STRINGS, Pure.AT_RELATION_JOIN_STRINGS).iterator().next()),
                 "joinStrings rule registered above");
-        RULES.put(Pure.keyPlusString(), (n, args) -> {
+        RULES.put(com.legend.model.FunctionId.of(Pure.STRING_PLUS__STRING_MANY), (n, args) -> {
             if (n.args().get(0) instanceof TypedCollection run
                     && args.get(0) instanceof SqlExpr.ArrayLit lit
                     && lit.elements().size() == run.elements().size()
@@ -2390,16 +2392,16 @@ final class Scalars {
         // real pure declares BOTH in(Any[1], ...) and in(Any[0..1], ...):
         // the optional-needle overload is FALSE for the empty needle
         // (COALESCE — a NULL needle must never say NULL).
-        RULES.put(Pure.keyInOptional(), (n, args) ->
+        RULES.put(com.legend.model.FunctionId.of(Pure.IN__ANY_0_1__ANY_MANY), (n, args) ->
                 args.get(0) instanceof SqlExpr.NullLit
                         ? new SqlExpr.BoolLit(false)
                         : SqlExpr.Call.of(SqlFn.COALESCE,
                                 java.util.Objects.requireNonNull(
-                                        RULES.get(Pure.keyIn()),
+                                        RULES.get(com.legend.model.FunctionId.of(Pure.IN__ANY_1__ANY_MANY)),
                                         "in-rule must be registered")
                                         .apply(n, args),
                                 new SqlExpr.BoolLit(false)));
-        RULES.put(Pure.keyIn(), (n, args) -> {
+        RULES.put(com.legend.model.FunctionId.of(Pure.IN__ANY_1__ANY_MANY), (n, args) -> {
             // TYPE-aware membership: a kind-mismatched needle is never a
             // member — static FALSE, not a DB error.
             if (MixedEncoding.kindMismatch(n.args().get(0).info().type(),
@@ -2478,16 +2480,8 @@ final class Scalars {
         });
     }
 
-    /** A registration names a catalog overload or dies — there is no
-     *  "known absent" list any more (upstream boundary batch 3: its 39 names
-     *  were ALL present in the catalog, the branch was dead, and a stale hand
-     *  list is the pattern the program exists to delete). */
-    private static void familyIfPresent(SqlFn semantic, String pureName) {
-        family(semantic, pureName);
-    }
-
-    private static void castFamily(String pureName, Type target) {
-        for (String f : Pure.nativeKeysAt(pureName)) {
+    private static void castFamily(Type target, List<com.legend.model.FunctionId> ids) {
+        for (com.legend.model.FunctionId f : ids) {
             RULES.put(f, (n, args) -> new SqlExpr.Cast(args.get(0), PureSql.type(target)));
         }
     }
@@ -2549,7 +2543,7 @@ final class Scalars {
      *  plain one for its key); loud error when unregistered. */
     static SqlExpr lower(TypedNativeCall call, List<SqlExpr> loweredArgs, Set<Feature> features,
             com.legend.platform.ImplementationTable implementations) {
-        String key = call.callee().signatureKey();
+        com.legend.model.FunctionId key = call.callee().id();
         Rule rule = FeatureRules.select(key, features);
         if (rule != null) {
             com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "SCALAR-FEATURE");

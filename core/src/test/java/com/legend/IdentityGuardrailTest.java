@@ -87,12 +87,18 @@ class IdentityGuardrailTest {
         SHAPES.put("PARSE_NAME_LOOKUP", Pattern.compile(
                 "parseNames\\(\\)\\s*\\.\\s*get\\(|\\bBY_NAME\\s*\\.\\s*get\\("));
         // an implementer family, a language form or a legacy vocabulary looked up by name text
+        // (2026-09-26, step 2: a family asked by the callee's IDENTITY —
+        // `X.of(nc.callee().id())`, `X.of(Calls.calleeIdOf(n))` — is the
+        // declared dispatch, not a lookup by name text, and is not counted)
         SHAPES.put("FAMILY_LOOKUP_BY_NAME", Pattern.compile(
-                "NativeFn\\s*\\.\\s*[A-Z][A-Za-z]*\\s*\\.\\s*of(Lifted|Derived)?\\(|\\bCoreFn\\s*\\.\\s*of\\("
+                "NativeFn\\s*\\.\\s*[A-Z][A-Za-z]*\\s*\\.\\s*of(Lifted|Derived)?\\((?!\\s*(?:[\\w.]+\\.callee\\(\\)\\.id\\(\\)|(?:com\\.legend\\.compiler\\.spec\\.typed\\.)?Calls\\.calleeIdOf\\(|[a-z]\\w*\\.id\\(\\)))|\\bCoreFn\\s*\\.\\s*of\\("
                         + "|\\.matches\\(\\s*[a-z]+\\s*\\.\\s*function\\(\\)\\s*\\)|RowGetter\\s*\\.\\s*of\\("));
         // a function's CATEGORY asked: compensation for a gap in the generic path
+        // (2026-09-26, step 2: a METHOD-REFERENCE spelling, `X::isStatementOnly`,
+        // escaped this pattern — the statement inliner's site was uncounted
+        // until it was respelled as a call; both spellings count now)
         SHAPES.put("FUNCTION_CATEGORY_CHECK", Pattern.compile(
-                "isPlatformOwnedFunction\\(|isVerdictFunction\\(|isStatementOnly\\(|PCT_PROFILE"
+                "isPlatformOwnedFunction\\(|isVerdictFunction\\(|isStatementOnly\\(|::isStatementOnly\\b|::isVerdictFunction\\b|PCT_PROFILE"
                         + "|CORE_FUNCTION_PACKAGES|\"_this\"|\"NormalizeRequiredFunction\""
                         + "|isPlatformImplementedDerived\\(|ASSERT_FAMILY_OWNED"));
     }
@@ -130,14 +136,14 @@ class IdentityGuardrailTest {
             Map.entry("NAME_COMPARE_REVERSED", 81),
             Map.entry("LITERAL_NAME_COMPARE", 64),
             Map.entry("NAME_AFFIX_TEST", 51),
-            Map.entry("NAME_CUTTING", 105),
+            Map.entry("NAME_CUTTING", 104),   // 105 -> 104 (2026-09-26, step 2: the unroller's bare-name cut retired with its by-name fold test)
             Map.entry("SIGNATURE_ID_CUTTING", 1),
-            Map.entry("CATALOG_LOOKUP_BY_NAME", 170),
-            Map.entry("FAMILY_LOOKUP_BY_NAME", 87),
-            Map.entry("FUNCTION_CATEGORY_CHECK", 13),
+            Map.entry("CATALOG_LOOKUP_BY_NAME", 10),   // 170 -> 10 (2026-09-26, execution plan step 2: every rule table registers the catalog's generated overload groups and is keyed by FunctionId; nativeKeysAt/nativeNamed/registeredAt and the bare index are deleted; the 10 left are QUALIFIED lookups, nativeFunctionsAt(fqn), which step 3 turns into declaration-table reads)
+            Map.entry("FAMILY_LOOKUP_BY_NAME", 33),   // 87 -> 33 (2026-09-26, execution plan step 2: every implementer family is asked by the callee's FunctionId — 54 sites — and the by-name lookups those sites used are deleted from NativeFn; the 33 left are CoreFn.of(spelling) and RowGetter.of(spelling) in the typer, step 3/5)
+            Map.entry("FUNCTION_CATEGORY_CHECK", 14),   // 13 -> 14 (2026-09-26, step 2): not a new site — StatementInline's statement-only check was spelled as a method reference the pattern missed; the pattern now sees both spellings and the count is the true 14
             Map.entry("MINT_BY_NAME", 143),
             Map.entry("FORM_DISPATCH_BY_NAME", 21),
-            Map.entry("LOCAL_NAME_COMPARE", 90),
+            Map.entry("LOCAL_NAME_COMPARE", 87),   // 90 -> 87 (2026-09-26, step 2: three local-name compares in the rule tables left with the bare names)
             Map.entry("CASE_NAME_LABEL", 4),
             Map.entry("PARSE_NAME_LOOKUP", 3));
 

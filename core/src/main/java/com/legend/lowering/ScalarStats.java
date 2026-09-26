@@ -21,7 +21,7 @@ final class ScalarStats {
     private ScalarStats() {
     }
 
-    static void register(Map<String, Scalars.Rule> rules) {
+    static void register(Map<com.legend.model.FunctionId, Scalars.Rule> rules) {
         // Statistical reductions, STAMP-decided (pair-#4 elimination):
         // a MANY-stamped value reduces via list_aggregate(x, '<agg>');
         // a SCALAR-stamped operand (the mapping dyna stdDevSample(int1)
@@ -29,11 +29,11 @@ final class ScalarStats {
         // AGGREGATE. Group-by lambdas never reach these rules
         // (Aggregates.reducerFor owns them).
         for (var e : Map.of(
-                "stdDevSample", SqlAgg.Fn.STDDEV_SAMP, "stdDev", SqlAgg.Fn.STDDEV_SAMP,
-                "stdDevPopulation", SqlAgg.Fn.STDDEV_POP,
-                "varianceSample", SqlAgg.Fn.VAR_SAMP,
-                "variancePopulation", SqlAgg.Fn.VAR_POP).entrySet()) {
-            for (String f : Pure.nativeKeysAt(e.getKey())) {
+                Pure.AT_MATH_STD_DEV_SAMPLE, SqlAgg.Fn.STDDEV_SAMP, Pure.AT_MATH_STD_DEV, SqlAgg.Fn.STDDEV_SAMP,
+                Pure.AT_MATH_STD_DEV_POPULATION, SqlAgg.Fn.STDDEV_POP,
+                Pure.AT_MATH_VARIANCE_SAMPLE, SqlAgg.Fn.VAR_SAMP,
+                Pure.AT_MATH_VARIANCE_POPULATION, SqlAgg.Fn.VAR_POP).entrySet()) {
+            for (com.legend.model.FunctionId f : e.getKey()) {
                 rules.put(f, (n, args) -> Stamps.atMostOne(n.args().get(0))
                         ? new SqlAgg.Reducer(e.getValue(),
                                 List.of(args.get(0)), false, java.util.List.of())

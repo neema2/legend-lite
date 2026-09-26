@@ -64,6 +64,22 @@ public final class NativeFn {
         return Map.copyOf(m);
     }
 
+    /** Every member of {@code values} by the identity of each of its catalog
+     *  overloads — the dispatch key since execution plan step 2 (2026-09-26):
+     *  a resolved callee is looked up by {@link FunctionId}, never by name. */
+    static <E extends Enum<E> & Member> Map<com.legend.model.FunctionId, E> indexById(E[] values) {
+        Map<com.legend.model.FunctionId, E> out = new HashMap<>();
+        for (E m : values) {
+            for (NativeFunctionDefinition o : m.overloads()) {
+                E prior = out.put(com.legend.model.FunctionId.of(o), m);
+                if (prior != null && prior != m) {
+                    throw new IllegalStateException(o.qualifiedName() + " in two members: " + prior + ", " + m);
+                }
+            }
+        }
+        return Map.copyOf(out);
+    }
+
     /** Every family, by name — THE registration the claim registry reads. A
      *  new enum in this file that is not listed here is unclaimed, and the
      *  ledger says so. */
@@ -193,12 +209,11 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, Calendar> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, Calendar> BY_ID = indexById(values());
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<Calendar> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<Calendar> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
     }
 
@@ -255,12 +270,11 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, Verdict> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, Verdict> BY_ID = indexById(values());
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<Verdict> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<Verdict> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
     }
 
@@ -292,12 +306,11 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, Frame> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, Frame> BY_ID = indexById(values());
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<Frame> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<Frame> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
     }
 
@@ -332,18 +345,17 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, LowererForm> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, LowererForm> BY_ID = indexById(values());
 
         /** rowMapper / wavgRowMapper — the bi-variate aggregate map bodies. */
-        public static boolean isBivariateMap(String calleeFqn) {
-            LowererForm f = BY_FQN.get(calleeFqn);
+        public static boolean isBivariateMap(com.legend.model.FunctionId id) {
+            LowererForm f = BY_ID.get(id);
             return f == ROW_MAPPER || f == WAVG_ROW_MAPPER;
         }
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<LowererForm> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<LowererForm> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
     }
 
@@ -374,12 +386,11 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, LiteralForm> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, LiteralForm> BY_ID = indexById(values());
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<LiteralForm> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<LiteralForm> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
     }
 
@@ -410,12 +421,11 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, ContextOption> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, ContextOption> BY_ID = indexById(values());
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<ContextOption> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<ContextOption> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
     }
 
@@ -468,12 +478,14 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, RelationQuantifier> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, RelationQuantifier> BY_ID = indexById(values());
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  of this family (exact FQN, never a bare name). */
-        public static Optional<RelationQuantifier> of(String calleeFqn) {
-            return Optional.ofNullable(BY_FQN.get(calleeFqn));
+
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<RelationQuantifier> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
     }
 
@@ -533,12 +545,11 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, PlanWrapper> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, PlanWrapper> BY_ID = indexById(values());
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<PlanWrapper> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<PlanWrapper> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
     }
 
@@ -571,12 +582,11 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, ObjectReference> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, ObjectReference> BY_ID = indexById(values());
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<ObjectReference> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<ObjectReference> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
     }
 
@@ -609,12 +619,11 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, SubtypeForm> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, SubtypeForm> BY_ID = indexById(values());
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<SubtypeForm> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<SubtypeForm> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
     }
 
@@ -651,12 +660,11 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, ResolverForm> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, ResolverForm> BY_ID = indexById(values());
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<ResolverForm> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<ResolverForm> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
     }
 
@@ -687,12 +695,11 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, LiteDesugar> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, LiteDesugar> BY_ID = indexById(values());
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<LiteDesugar> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<LiteDesugar> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
     }
 
@@ -723,12 +730,11 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, TyperForm> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, TyperForm> BY_ID = indexById(values());
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<TyperForm> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<TyperForm> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
     }
 
@@ -807,12 +813,11 @@ public final class NativeFn {
             return Optional.empty();
         }
 
-        private static final Map<String, JavaRoutine> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, JavaRoutine> BY_ID = indexById(values());
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<JavaRoutine> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<JavaRoutine> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
     }
 
@@ -857,25 +862,24 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, Handle> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, Handle> BY_ID = indexById(values());
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<Handle> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<Handle> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
 
         /** The two execute spellings (router / executionPlan): the result frame. */
-        public static boolean isExecute(@com.legend.base.Nullable String fqn) {
-            Handle h = fqn == null ? null : BY_FQN.get(fqn);
+        public static boolean isExecute(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            Handle h = id == null ? null : BY_ID.get(id);
             return h == EXECUTE || h == EXECUTION_PLAN_EXECUTE;
         }
 
         /** Which handle forces EAGERLY when consumed at a statement's value
          *  position: execute's frame run IS the value; plan handles stay
          *  symbolic (navigated by the plan reader). */
-        public static boolean forcesAtValuePosition(@com.legend.base.Nullable String fqn) {
-            Handle h = fqn == null ? null : BY_FQN.get(fqn);
+        public static boolean forcesAtValuePosition(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            Handle h = id == null ? null : BY_ID.get(id);
             return h == EXECUTE || h == EXECUTE_LEGEND_QUERY;
         }
     }
@@ -924,31 +928,30 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, Effect> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, Effect> BY_ID = indexById(values());
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<Effect> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<Effect> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
 
         /** The DATABASE effects (raw SQL, DDL, CSV load): statement-ordered, session-bound. */
-        public static boolean isDbEffect(@com.legend.base.Nullable String fqn) {
-            Effect e = fqn == null ? null : BY_FQN.get(fqn);
+        public static boolean isDbEffect(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            Effect e = id == null ? null : BY_ID.get(id);
             return e == EXECUTE_IN_DB || e == DROP_AND_CREATE_TABLE_IN_DB
                     || e == DROP_AND_CREATE_SCHEMA_IN_DB || e == LOAD_CSV_TO_DB_TABLE
                     || e == CREATE_TEMP_TABLE || e == DROP_TEMP_TABLE;
         }
 
         /** The seed-SQL forms (setUpDataSQLs / V2). */
-        public static boolean isSeedSqlForm(@com.legend.base.Nullable String fqn) {
-            Effect e = fqn == null ? null : BY_FQN.get(fqn);
+        public static boolean isSeedSqlForm(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            Effect e = id == null ? null : BY_ID.get(id);
             return e == SET_UP_DATA_SQLS || e == SET_UP_DATA_SQLS_V2;
         }
 
         /** print / println — inert diagnostics (no value, no rows). */
-        public static boolean isInertDiagnostic(@com.legend.base.Nullable String fqn) {
-            Effect e = fqn == null ? null : BY_FQN.get(fqn);
+        public static boolean isInertDiagnostic(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            Effect e = id == null ? null : BY_ID.get(id);
             return e == PRINT || e == PRINTLN;
         }
     }
@@ -988,12 +991,11 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, Carrier> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, Carrier> BY_ID = indexById(values());
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<Carrier> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<Carrier> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
 
         /** The JDBC DatabaseMetaData grid a fetchDb* native reads — host-evaluated
@@ -1001,8 +1003,8 @@ public final class NativeFn {
         public enum FetchDbGrid { SCHEMAS, TABLES, COLUMNS, PRIMARY_KEYS }
 
         /** The metadata grid of a fetchDb* callee, or null when the callee is not one. */
-        public static @com.legend.base.Nullable FetchDbGrid fetchDbGrid(@com.legend.base.Nullable String fqn) {
-            Carrier c = fqn == null ? null : BY_FQN.get(fqn);
+        public static @com.legend.base.Nullable FetchDbGrid fetchDbGrid(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            Carrier c = id == null ? null : BY_ID.get(id);
             if (c == null) {
                 return null;
             }
@@ -1039,12 +1041,11 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, ContextOwner> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, ContextOwner> BY_ID = indexById(values());
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<ContextOwner> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<ContextOwner> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
     }
 
@@ -1077,12 +1078,11 @@ public final class NativeFn {
             return overloads;
         }
 
-        private static final Map<String, DdlStatement> BY_FQN = index(values());
+        private static final Map<com.legend.model.FunctionId, DdlStatement> BY_ID = indexById(values());
 
-        /** The member a callee FQN resolves to — empty when the callee is not
-         *  in this family (a normal fall-through, never an error). */
-        public static Optional<DdlStatement> of(@com.legend.base.Nullable String calleeFqn) {
-            return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
+        /** The member whose overloads include the declaration {@code id}, or empty. */
+        public static Optional<DdlStatement> of(@com.legend.base.Nullable com.legend.model.FunctionId id) {
+            return id == null ? Optional.empty() : Optional.ofNullable(BY_ID.get(id));
         }
     }
 

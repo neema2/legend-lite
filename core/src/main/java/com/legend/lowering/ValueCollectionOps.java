@@ -69,13 +69,13 @@ final class ValueCollectionOps {
                 || rt.columns().size() != 1) {
             return null;
         }
-        String key = n.callee().signatureKey();
-        if (Pure.nativeNamed("removeDuplicates", key)) {
+        com.legend.model.FunctionId key = n.callee().id();
+        if (Pure.AT_COLLECTION_REMOVE_DUPLICATES.contains(key)) {
             return new TypedDistinct(n.args().get(0),
                     List.of(rt.columns().get(0).name()),
                     n.args().get(0).info());
         }
-        if (Pure.nativeNamed("sort", key)) {
+        if ((Pure.AT_RELATION_SORT.contains(key) || Pure.AT_TDS_SORT.contains(key) || Pure.AT_COLLECTION_SORT.contains(key))) {
             // value-collection sort observes PURE semantics (null largest)
             return new TypedSort(n.args().get(0),
                     List.of(new TypedSort.TypedSortKey(

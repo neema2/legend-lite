@@ -54,7 +54,7 @@ public final class BodyCompiler {
             SpecCompiler specs, StatementExecutor.ExecEnv env0) {
         Segments seg = new Segments(env0, specs);
         Map<String, StatementExecutor.ExecFrame> execFrames = new java.util.LinkedHashMap<>();
-        Map<String, Boolean> effectMemo = new java.util.HashMap<>();
+        Map<com.legend.model.FunctionId, Boolean> effectMemo = new java.util.HashMap<>();
         for (int i = 0; i < stmts.size(); i++) {
             boolean effect = StatementExecutor.containsEffect(stmts.get(i), specs, effectMemo);
             boolean generator = Compiler.containsTdgGenerator(stmts.get(i));
@@ -86,8 +86,8 @@ public final class BodyCompiler {
                     rhs = rf.source();
                 }
                 if (rhs instanceof TypedNativeCall ec
-                        && (com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().qualifiedName())
-                            || com.legend.builtin.NativeFn.Handle.of(ec.callee().qualifiedName()).orElse(null)
+                        && (com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().id())
+                            || com.legend.builtin.NativeFn.Handle.of(ec.callee().id()).orElse(null)
                                     == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
                     // a FRAME: planned here, its CTE defined on the batch when a reader
                     // splices it (rung 12: a plain class frame as its root rows)

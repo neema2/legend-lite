@@ -13,7 +13,7 @@ import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
 import com.legend.model.DerivedPropertyNames;
 import com.legend.model.FunctionDefinition;
-import com.legend.platform.FunctionId;
+import com.legend.model.FunctionId;
 import com.legend.platform.Implementation;
 import org.junit.jupiter.api.Test;
 
@@ -76,7 +76,7 @@ class PickByTableTest {
         assertFalse(at.isEmpty(), lifted);
         for (TypedFunction f : at) {
             Implementation row = ctx.implementations().of(FunctionId.of(f.definition()));
-            assertInstanceOf(Implementation.Intrinsic.class, row, f.signatureKey());
+            assertInstanceOf(Implementation.Intrinsic.class, row, f.id().toString());
             assertEquals(Set.of(NativeFn.RowGetter.class), ((Implementation.Intrinsic) row).families());
             assertInstanceOf(TypedNativeCall.class, CallNodes.mint(ctx.implementations(), f, List.of(),
                     new ExprType(f.returnType(), f.returnMultiplicity())));

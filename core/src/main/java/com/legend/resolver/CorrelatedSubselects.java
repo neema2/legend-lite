@@ -2094,7 +2094,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
      * carries the subtype's columns. */
     private static void collectSubTypeFqns(TypedSpec n, Set<String> out) {
         if (n instanceof TypedNativeCall nc
-                && com.legend.builtin.NativeFn.SubtypeForm.of(nc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
+                && com.legend.builtin.NativeFn.SubtypeForm.of(nc.callee().id()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
                 && !nc.args().isEmpty()
                 && nc.args().get(0) instanceof TypedVariable
                 && Type.asClassType(nc.info().type()) instanceof Type.ClassType ct) {
@@ -2154,7 +2154,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         if (n instanceof TypedPropertyAccess outer
                 && outer.source() instanceof TypedPropertyAccess mid
                 && mid.source() instanceof TypedNativeCall msc
-                && com.legend.builtin.NativeFn.SubtypeForm.of(msc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
+                && com.legend.builtin.NativeFn.SubtypeForm.of(msc.callee().id()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
                 && !msc.args().isEmpty()
                 && Type.asClassType(msc.info().type()) instanceof Type.ClassType msct
                 && Type.asClassType(msc.args().get(0).info().type())
@@ -2182,14 +2182,11 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         // filtered-nav head and the PREDICATE's depth-1 subtype reads
         // rename to their stc columns (the union frame's flat spellings)
         if (n instanceof TypedNativeCall em && !em.args().isEmpty()
-                && (com.legend.builtin.Pure.nativeNamed("exists",
-                                em.callee().signatureKey())
-                        || com.legend.builtin.Pure.nativeNamed("isEmpty",
-                                em.callee().signatureKey())
-                        || com.legend.builtin.Pure.nativeNamed("isNotEmpty",
-                                em.callee().signatureKey()))
+                && ((com.legend.builtin.Pure.AT_COLLECTION_EXISTS.contains(em.callee().id()) || com.legend.builtin.Pure.AT_RELATION_EXISTS.contains(em.callee().id()))
+                        || com.legend.builtin.Pure.AT_COLLECTION_IS_EMPTY.contains(em.callee().id())
+                        || com.legend.builtin.Pure.AT_COLLECTION_IS_NOT_EMPTY.contains(em.callee().id()))
                 && em.args().get(0) instanceof TypedNativeCall sc0
-                && com.legend.builtin.NativeFn.SubtypeForm.of(sc0.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
+                && com.legend.builtin.NativeFn.SubtypeForm.of(sc0.callee().id()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
                 && !sc0.args().isEmpty()
                 && Type.asClassType(sc0.info().type()) instanceof Type.ClassType sct0
                 && Type.asClassType(sc0.args().get(0).info().type())
@@ -2212,7 +2209,7 @@ static void scanLambda(TypedLambda lambda, Set<List<String>> out) {
         }
         if (!(n instanceof TypedPropertyAccess pa)
                 || !(pa.source() instanceof TypedNativeCall sc)
-                || com.legend.builtin.NativeFn.SubtypeForm.of(sc.callee().qualifiedName()).orElse(null) != com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
+                || com.legend.builtin.NativeFn.SubtypeForm.of(sc.callee().id()).orElse(null) != com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
                 || sc.args().isEmpty()
                 || !(Type.asClassType(sc.info().type()) instanceof Type.ClassType sct)
                 || !(Type.asClassType(sc.args().get(0).info().type())

@@ -51,7 +51,7 @@ public final class NativeDispatch {
          *  the one implementing the qualified property; empty otherwise. */
         public static java.util.Optional<com.legend.builtin.NativeFn.JavaRoutine> routineOf(TypedSpec n) {
             return switch (n) {
-                case TypedNativeCall nc -> com.legend.builtin.NativeFn.JavaRoutine.of(nc.callee().qualifiedName())
+                case TypedNativeCall nc -> com.legend.builtin.NativeFn.JavaRoutine.of(nc.callee().id())
                         .or(() -> com.legend.builtin.NativeFn.JavaRoutine.ofDerived(nc.callee().qualifiedName()));
                 default -> java.util.Optional.empty();
             };
@@ -77,7 +77,7 @@ public final class NativeDispatch {
         // catch): those migrate ONLY together with a real staged
         // environment (lambda boundary + parameter scope).
         if (stmt instanceof TypedNativeCall co
-                && com.legend.builtin.NativeFn.ContextOwner.of(co.callee().qualifiedName()).isPresent()) {
+                && com.legend.builtin.NativeFn.ContextOwner.of(co.callee().id()).isPresent()) {
             // the call OWNS its arguments' evaluation context
             // (assertError's catch): staging does not enter them — the
             // arm's own evaluation stages them INSIDE that context

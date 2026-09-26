@@ -23,6 +23,15 @@ public final class Calls {
         };
     }
 
+    /** The identity of either call kind's callee; null for a non-call. */
+    public static @com.legend.base.Nullable com.legend.model.FunctionId calleeIdOf(TypedSpec n) {
+        return switch (n) {
+            case TypedNativeCall c -> c.callee().id();
+            case TypedUserCall u -> u.callee().id();
+            default -> null;
+        };
+    }
+
     /** The arguments of either call kind; empty for a non-call. */
     public static List<TypedSpec> argsOf(TypedSpec n) {
         return switch (n) {

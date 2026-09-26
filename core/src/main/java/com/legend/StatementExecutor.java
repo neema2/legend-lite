@@ -342,11 +342,10 @@ final class StatementExecutor {
         // evaluated over the PLAN NODE MODEL) returns its value.
         if (preRoot instanceof com.legend.compiler.spec.typed
                         .TypedNativeCall cat) {
-            String catFqn = cat.callee().qualifiedName();
-            if (com.legend.builtin.NativeFn.ContextOwner.of(catFqn).isPresent()) {
+            if (com.legend.builtin.NativeFn.ContextOwner.of(cat.callee().id()).isPresent()) {
                 return new PreparedValue(body, env, lets, null, cat, null);
             }
-            if (com.legend.builtin.NativeFn.Handle.forcesAtValuePosition(catFqn)) {
+            if (com.legend.builtin.NativeFn.Handle.forcesAtValuePosition(cat.callee().id())) {
                 return new PreparedValue(body, env, lets, null, null, cat);
             }
         }
@@ -740,8 +739,7 @@ final class StatementExecutor {
         if (!(ep.args().get(1) instanceof com.legend.compiler.spec.typed.TypedPackageableRef)) {
             flags.add(com.legend.platform.Feature.PUSH_DOWN_ENUM_TRANSFORM);
         }
-        if (com.legend.builtin.Pure.EXECUTION_PLAN__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__EXTENSION_MANY
-                .signatureKey().equals(ep.callee().signatureKey()) && ep.args().size() == 5) {
+        if (com.legend.model.FunctionId.of(com.legend.builtin.Pure.EXECUTION_PLAN__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXECUTION_CONTEXT_1__EXTENSION_MANY).equals(ep.callee().id()) && ep.args().size() == 5) {
             flags.addAll((pc == null ? com.legend.compiler.spec.typed.ExecutionContext.NONE : pc)
                     .withOptions(ep.args().get(3), v -> com.legend.compiler.spec.typed.Lets.bound(v, letPrefix))
                     .features());
@@ -1411,7 +1409,7 @@ final class StatementExecutor {
         // (envelope emitted over the chain — relationRooted is false:
         // the frame's value is one string). The eager run executes the
         // RAW chain (pipeline validation at the let, engine parity).
-        if ((com.legend.builtin.NativeFn.Handle.of(ec.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
+        if ((com.legend.builtin.NativeFn.Handle.of(ec.callee().id()).orElse(null) == com.legend.builtin.NativeFn.Handle.EXECUTE_LEGEND_QUERY)) {
             var lq = com.legend.compiler.spec.ExecuteChainAssembly
                     .prepareLegendQuery(ec, letPrefix, specs);
             var lqChain = com.legend.compiler.spec.ExecuteChainAssembly
@@ -1889,9 +1887,9 @@ final class StatementExecutor {
      * caught loudly at execution time.
      */
     static boolean containsEffect(TypedSpec node, SpecCompiler specs,
-            java.util.Map<String, Boolean> memo) {
+            java.util.Map<com.legend.model.FunctionId, Boolean> memo) {
         if (node instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && com.legend.builtin.NativeFn.Effect.isDbEffect(nc.callee().qualifiedName())) {
+                && com.legend.builtin.NativeFn.Effect.isDbEffect(nc.callee().id())) {
             return true;
         }
         if (node instanceof com.legend.compiler.spec.typed.TypedUserCall uc
@@ -1901,7 +1899,7 @@ final class StatementExecutor {
             return false;
         }
         if (node instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
-            String key = uc.callee().signatureKey();
+            com.legend.model.FunctionId key = uc.callee().id();
             Boolean known = memo.get(key);
             if (known == null) {
                 memo.put(key, false);   // in-progress: cycles score false
@@ -2448,7 +2446,7 @@ final class StatementExecutor {
         // effectful K-natives run their registered arm when evaluation
         // reaches the call — one lookup, no name literals.
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && com.legend.builtin.NativeFn.Effect.of(nc.callee().qualifiedName()).isPresent()) {
+                && com.legend.builtin.NativeFn.Effect.of(nc.callee().id()).isPresent()) {
             EffectRoutine arm = EFFECT_ARMS.get(nc.callee().qualifiedName());
             if (arm == null) {
                 throw new com.legend.error.NotImplementedException(
@@ -2461,7 +2459,7 @@ final class StatementExecutor {
         // the engine walks its Database metamodel, we render from the
         // compiled store model (the lowerer has no model access)
         if (root instanceof com.legend.compiler.spec.typed.TypedNativeCall ds
-                && com.legend.builtin.NativeFn.DdlStatement.of(ds.callee().qualifiedName()).isPresent()) {
+                && com.legend.builtin.NativeFn.DdlStatement.of(ds.callee().id()).isPresent()) {
             return Prelude.answered(new ExecutionResult.Scalar(ddlStatementString(ds, env),
                     ds.info().type()));
         }
@@ -2475,11 +2473,11 @@ final class StatementExecutor {
         if (root instanceof com.legend.compiler.spec.typed.TypedCollection ddlColl
                 && ddlColl.elements().stream().anyMatch(e ->
                         e instanceof com.legend.compiler.spec.typed.TypedNativeCall enc
-                        && com.legend.builtin.NativeFn.DdlStatement.of(enc.callee().qualifiedName()).isPresent())) {
+                        && com.legend.builtin.NativeFn.DdlStatement.of(enc.callee().id()).isPresent())) {
             java.util.List<Object> strs = new java.util.ArrayList<>();
             for (TypedSpec e : ddlColl.elements()) {
                 if (e instanceof com.legend.compiler.spec.typed.TypedNativeCall enc
-                        && com.legend.builtin.NativeFn.DdlStatement.of(enc.callee().qualifiedName()).isPresent()) {
+                        && com.legend.builtin.NativeFn.DdlStatement.of(enc.callee().id()).isPresent()) {
                     strs.add(ddlStatementString(enc, env));
                 } else if (e instanceof com.legend.compiler.spec.typed.TypedCString cs2) {
                     strs.add(cs2.value());
@@ -3319,7 +3317,7 @@ final class StatementExecutor {
     static boolean containsEffectfulNode(java.util.List<TypedSpec> nodes) {
         for (TypedSpec n : nodes) {
             if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                    && com.legend.builtin.NativeFn.Effect.isDbEffect(nc.callee().qualifiedName())
+                    && com.legend.builtin.NativeFn.Effect.isDbEffect(nc.callee().id())
                     && !isLiteralSelect(nc)) {
                 return true;
             }

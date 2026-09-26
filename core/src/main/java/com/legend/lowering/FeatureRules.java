@@ -38,7 +38,7 @@ import java.util.Set;
 final class FeatureRules {
 
     /** Per flag, the rules that win over Scalars' for the same key. */
-    static final Map<Feature, Map<String, Scalars.Rule>> UNDER = new EnumMap<>(Feature.class);
+    static final Map<Feature, Map<com.legend.model.FunctionId, Scalars.Rule>> UNDER = new EnumMap<>(Feature.class);
 
     /** Flags with a consumer that is not a rule here. */
     private static final Set<Feature> LOWERER_CONSUMED = Set.of(
@@ -72,17 +72,17 @@ final class FeatureRules {
     };
 
     static {
-        for (String f : Pure.nativeKeysAt("meta::pure::functions::string::substring")) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_SUBSTRING) {
             under(Feature.CORRECT_SQL_SUBSTRING_INDEXING, f, CORRECTED_SUBSTRING);
         }
     }
 
-    private static void under(Feature flag, String key, Scalars.Rule rule) {
+    private static void under(Feature flag, com.legend.model.FunctionId key, Scalars.Rule rule) {
         UNDER.computeIfAbsent(flag, k -> new HashMap<>()).put(key, rule);
     }
 
     /** The rule {@code features} select for {@code key}, or null for the plain one. */
-    static Scalars.@com.legend.base.Nullable Rule select(String key, Set<Feature> features) {
+    static Scalars.@com.legend.base.Nullable Rule select(com.legend.model.FunctionId key, Set<Feature> features) {
         Scalars.Rule rule = null;
         for (Feature f : features) {
             Scalars.Rule flagged = UNDER.getOrDefault(f, Map.of()).get(key);

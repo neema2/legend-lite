@@ -209,7 +209,7 @@ public final class StatementInline {
                 // implements otherwise (validate: a raw-space desugar). Asked of
                 // the table, so no pass order carries this fact.
                 for (var n : com.legend.builtin.Pure.nativeFunctionsAt(fqn)) {
-                    if (!(ctx.implementations().of(com.legend.platform.FunctionId.of(n))
+                    if (!(ctx.implementations().of(com.legend.model.FunctionId.of(n))
                             instanceof com.legend.platform.Implementation.Body)) {
                         return null;
                     }
@@ -282,7 +282,9 @@ public final class StatementInline {
 
         private boolean reachesStatementOnly(ValueSpecification v) {
             if (v instanceof AppliedFunction af
-                    && ResolvedNames.referents(af).stream().anyMatch(PlatformTypes::isStatementOnly)) {
+                    && ResolvedNames.referents(af).stream()
+                            .flatMap(fqn -> com.legend.builtin.Pure.nativeFunctionsAt(fqn).stream())
+                            .anyMatch(d -> PlatformTypes.isStatementOnly(com.legend.model.FunctionId.of(d)))) {
                 return true;
             }
             return v.children().stream().anyMatch(this::reachesStatementOnly);

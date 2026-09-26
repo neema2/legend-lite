@@ -166,8 +166,8 @@ final class ListEncodings {
      * — testConcatenateTypeInference types the result as the common
      * superclass). One value, one carrier, whichever spelling built it
      * — the hetero-literal arm's doctrine. */
-    static void registerConcatenate(java.util.Map<String, Scalars.Rule> rules) {
-        for (String f : com.legend.builtin.Pure.nativeKeysAt("concatenate")) {
+    static void registerConcatenate(java.util.Map<com.legend.model.FunctionId, Scalars.Rule> rules) {
+        for (com.legend.model.FunctionId f : com.legend.model.FunctionId.all(com.legend.builtin.Pure.AT_COLLECTION_CONCATENATE, com.legend.builtin.Pure.AT_RELATION_CONCATENATE)) {
             rules.put(f, (n, args) -> {
                 // scalar-encoded sides wrap null-guarded (concatSide)
                 List<SqlExpr> args2 = new java.util.ArrayList<>(args.size());
@@ -213,8 +213,8 @@ final class ListEncodings {
      * typedList door: the pair-struct chain then types through
      * LIST_GET/StructLit/LIST_TRANSFORM). zip's c1-literal sides box
      * (DEEP_AUDIT §3). */
-    static void registerZip(java.util.Map<String, Scalars.Rule> rules) {
-        for (String f : com.legend.builtin.Pure.nativeKeysAt("zip")) {
+    static void registerZip(java.util.Map<com.legend.model.FunctionId, Scalars.Rule> rules) {
+        for (com.legend.model.FunctionId f : com.legend.builtin.Pure.AT_COLLECTION_ZIP) {
             rules.put(f, (n, args) -> zip(
                     PureSql.typedList(PureSql.asList(args.get(0),
                             !CollectionLanes.c1Literal(n.args().get(0))),

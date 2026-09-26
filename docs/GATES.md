@@ -5682,6 +5682,91 @@ reproduced with both match orderings. Every earlier slice was checked against ou
 behaviour and against tests most overloads pass either way; this is the first check against the
 reference itself.
 
+## 2026-09-26 — Execution plan step 2 (A2): the lowering registers by declaration identity; one identity
+
+**What it is, plainly.** A lowering rule used to say "I implement `sort`", and the catalog fanned that
+bare name out to every overload that shared it — three packages' worth for `sort`, two for `and`,
+`get`, `in`, `plus` — and to any overload a future upstream adds. Ownership was inferred from
+spelling. Now the catalog generator emits one OVERLOAD GROUP per declared function name
+(`Pure.AT_BOOLEAN_LESS_THAN`, 488 of them, `Pure.java` 2,381 → 2,870 lines, still under the guard),
+and a rule names the groups it implements; an overload nobody registered is `Unimplemented` and
+fails loudly at the point of use. Ownership is declared. This is plumbing on purpose: the
+lowering's shape, the forms, the typer's candidate collection and the four inliners are untouched
+(steps 3–7); it is the key space those steps land on.
+
+**One identity.** The lowering keyed its tables by lite's `signatureKey()` (name + parameter
+spellings) while the tables used upstream's `FunctionId`, bridged by a map in
+`ImplementationTable.build`. Now every rule table (`Scalars.RULES`, `Aggregates.REDUCERS`,
+`Windows.FNS/AGGREGATES`, `FeatureRules.UNDER`), every memo and stack keyed by a callee (the
+inliners', the executor's, the verdict scan's), `Registrations`, `RegistryKeys` and the table are
+`FunctionId`-keyed; `TypedFunction.id()` replaces `signatureKey()`; `Function.signatureKey()` is
+deleted; the bridge is deleted. `FunctionId` moved from `platform` to `model` beside the
+declaration type it names (move group D) — in `platform` it was unreachable from `builtin`, so the
+implementer families could not key their members by it.
+
+**The implementer families** (`NativeFn`, 19 enums) index their members by the identity of each
+overload (`indexById`) and are asked by `of(FunctionId)` — 54 call sites hand the callee's
+identity; the 17 `of(String)` lookups those sites used, and their `BY_FQN` maps, are deleted. The
+two that remain (`Handle`, `Carrier`) serve `PlatformTypes`' category helpers, which now take an
+identity too; `RowGetter.of(spelling)` in the typer and `CoreFn.of(spelling)` are step 3 and 5.
+
+**Deleted.** `Pure.nativeKeysAt` (three overloads), `nativeNamed`, `registeredAt`, `keyIn`,
+`keyInOptional`, `keyPlusString`, `DISTINCT_COLLECTION_KEY`, `PAIR_KEY`, `MAP_GET_KEY`,
+`Index.REGISTERED_BY_BARE`, `Index.KEYS_BY_NAME` (the user-resolvable partition stays, it is a
+bind fact); `Lowerer.isFamily(name)` and `LowererForm.of(name)` become identity membership;
+`Scalars.familyIfPresent` (a passthrough). Registration sites rewritten: 215 in 26 files, by a
+generator that computed, per site, exactly the constants the bare name fanned to (the partition,
+arity and window-class filters reproduced), so the registered SETS are the same by construction.
+
+**Guards.** `IdentityGuardrailTest`: CATALOG_LOOKUP_BY_NAME 170 → 10 (the ten are QUALIFIED
+lookups, `nativeFunctionsAt(fqn)`, step 3's), FAMILY_LOOKUP_BY_NAME 87 → 33 (the pattern no longer
+counts a family asked by identity; the 33 are the typer's spelled lookups), NAME_CUTTING 105 → 104,
+LOCAL_NAME_COMPARE 90 → 87, FUNCTION_CATEGORY_CHECK 13 → 14 — NOT a new site: the statement
+inliner's check was spelled as a method reference the pattern never counted; the pattern sees
+both spellings now. `JavaEvalLedgerTest`: `StatementExecutor` 2415 → 2413 (two one-line
+identity compares where two-line key builds stood); `AssertVerdicts` unchanged (the callee
+identity comes from `Calls.calleeIdOf`, no new helper). `LiteralUnrollLedgerTest`: reads the
+groups a fold names; its old pattern matched only the variable `c`, so the `newMap` shape test
+inside the `get` fold was never in the pinned set — it is now, written down. `ArchitectureTest`
+6h: lowering may consume the declaration identity (`model.FunctionId`), nothing else new; the
+helpers that briefly took the declaration type were retyped to identities instead of widening the
+rule. `NoEagerTypeReferencesTest` unchanged.
+
+**A finding the identity surfaced.** The spec body census refused four "duplicate" declarations
+the spelling-based key had told apart: `EnumerationMapping.toDomainValue`,
+`Mapping.enumerationMappingByName`, `PropertyMappingsImplementation._propertyMappingsByPropertyName`
+and `Database.schema` are QUALIFIED PROPERTIES on their classes, which our model lifts to
+package-level functions with the package name, and each has a real package function of the same
+name and parameter types (`toDomainValue<T>(_this:EnumerationMapping<T>[1], …)`); under the mangled
+identity (type arguments erased, as upstream's ids are) the two are one id. The reference keeps them
+apart because a qualified property is not a package element (its id is `name_<n>` on the class —
+the differential's PROPERTY_AS_CALL rows are the same fact). A call to either name WAS ambiguous
+under our model and the old key hid it; the wall is the honest state. The census's wall pin moved
+1 → 5 with the reason; step A4 (members bound to properties) removes the lift and the walls; task
+#43 tracks the pin. Two test-side consequences: `NativeDispatchTest` built callees with no
+declaration (a test-convenience constructor) and a callee is now dispatched by identity, so its
+callees are catalog natives; the claims ledger's generator counts a reference to an overload GROUP
+as a reference to each member (readers column only; regenerated, 470 rows' readers changed).
+
+**Left for step 3, by count.** 18 `ctx.findFunction("meta::…")` sites in 9 resolver files
+(synthesized callees looked up at a qualified name; they become declaration-table reads when the
+binder owns declarations); `Pure.isToOneCall(qualifiedName)` at ~70 sites (a callee compare by
+FQN text, NAME_COMPARE class, retired with the bound callee); `MatchChecker.nativeNamed(af,
+bare)` and `RowGetter.of(af.function())` (spellings in the typer).
+
+**Test.** Chain green on the final tree: 96/96 and `//tools/deps:all` 3/3 (receipt `step2/chain-final.log`); rosters DuckDB 107 / H2 361/354 fail of 2613, the pinned rosters exactly (no test lost or gained against the pin). **Probe** (`LL_SHADOW=1` over `//spec:corpus_duckdb`, before and after, receipts `receipts/plan-audit-2026-09-26/step2/shadow-{pre,post}-a2.tsv`): 2,163 rows each — CANDIDATES 1,414, PICK 629, FORM 69, OVERLOADS 51 — identical as multisets except the print order of one row's position set (an unordered set's iteration), so every candidate set, every pick and every form dispatch is the same before and after the switch. **Timing — the gate caught a regression before the push.** The first quiet run after the switch
+(`//spec:corpus_duckdb` alone, load 2.9, `--nocache_test_results`): passes 63s and 62s, wall 136.6s,
+against 34s / 43s after steps 0–1 — doubled, and reproduced on a second quiet run (63s / 62s). The
+cause was in the code as written, not in the design: 64 sites built an identity list by mangling
+every constant in a group ON EVERY CALL (`isFamily(n, FunctionId.all(Pure.AT_…))` inside switch
+guards evaluated per lowered node; `FunctionId.all(…).contains(id)` in the resolver), and the typed
+function mangled its declaration on every `id()` access. Fixed at the algorithm, not with a cache:
+the generated groups are identity lists computed once at class initialisation
+(`Pure.AT_X = FunctionId.ofAll(C1, C2, …)`), the membership helpers take groups as varargs and ask
+each group's own `contains` (no per-call allocation), and `TypedFunction` carries its identity as
+a component computed when the function is compiled. After the fix, alone at load 6.4: passes 35s
+and 41s, wall 86.3s — on the curve. `receipts/untangle-4b/corpus-curve-duckdb.txt` has both lines.
+
 ## 2026-09-26 — Execution plan step 1: the reference differential joins call by call
 
 The join keyed on (enclosing function NAME, spelling) and compared sets; overloads of the

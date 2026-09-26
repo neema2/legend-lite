@@ -23,53 +23,53 @@ final class Windows {
     record WindowFn(com.legend.sql.SqlAgg.Fn sqlName, Kind kind) {
     }
 
-    private static final Map<String, WindowFn> FNS = new HashMap<>();
+    private static final Map<com.legend.model.FunctionId, WindowFn> FNS = new HashMap<>();
 
     private Windows() {
     }
 
-    private static void family(com.legend.sql.SqlAgg.Fn sqlName, Kind kind, String pureName) {
-        for (String f : Pure.nativeKeysAt(pureName)) {
+    private static void family(com.legend.sql.SqlAgg.Fn sqlName, Kind kind, java.util.List<com.legend.model.FunctionId> ids) {
+        for (com.legend.model.FunctionId f : ids) {
             FNS.put(f, new WindowFn(sqlName, kind));
         }
     }
 
     /** SQL reducer names for the 4-arg colToAgg window aggregates. */
-    private static final Map<String, com.legend.sql.SqlAgg.Fn> AGGREGATES = new HashMap<>();
+    private static final Map<com.legend.model.FunctionId, com.legend.sql.SqlAgg.Fn> AGGREGATES = new HashMap<>();
 
     /** The signature keys of the window functions — CLAIMS, kind WINDOW_FN
      *  ({@link com.legend.builtin.Claims}). */
-    static java.util.Set<String> fnKeys() {
+    static java.util.Set<com.legend.model.FunctionId> fnKeys() {
         return java.util.Collections.unmodifiableSet(FNS.keySet());
     }
 
     /** The signature keys of the window-only aggregates — CLAIMS, kind WINDOW_AGG. */
-    static java.util.Set<String> aggregateKeys() {
+    static java.util.Set<com.legend.model.FunctionId> aggregateKeys() {
         return java.util.Collections.unmodifiableSet(AGGREGATES.keySet());
     }
 
     static {
-        family(com.legend.sql.SqlAgg.Fn.ROW_NUMBER, Kind.RANKING, "rowNumber");
-        family(com.legend.sql.SqlAgg.Fn.RANK, Kind.RANKING, "rank");
-        family(com.legend.sql.SqlAgg.Fn.DENSE_RANK, Kind.RANKING, "denseRank");
-        family(com.legend.sql.SqlAgg.Fn.PERCENT_RANK, Kind.RANKING, "percentRank");
-        family(com.legend.sql.SqlAgg.Fn.CUME_DIST, Kind.RANKING, "cumulativeDistribution");
-        family(com.legend.sql.SqlAgg.Fn.NTILE, Kind.RANKING, "ntile");
-        family(com.legend.sql.SqlAgg.Fn.LAG, Kind.VALUE, "lag");
-        family(com.legend.sql.SqlAgg.Fn.LEAD, Kind.VALUE, "lead");
-        family(com.legend.sql.SqlAgg.Fn.FIRST_VALUE, Kind.VALUE, "first");
-        family(com.legend.sql.SqlAgg.Fn.LAST_VALUE, Kind.VALUE, "last");
-        family(com.legend.sql.SqlAgg.Fn.NTH_VALUE, Kind.VALUE, "nth");
+        family(com.legend.sql.SqlAgg.Fn.ROW_NUMBER, Kind.RANKING, Pure.AT_RELATION_ROW_NUMBER);
+        family(com.legend.sql.SqlAgg.Fn.RANK, Kind.RANKING, Pure.AT_RELATION_RANK);
+        family(com.legend.sql.SqlAgg.Fn.DENSE_RANK, Kind.RANKING, Pure.AT_RELATION_DENSE_RANK);
+        family(com.legend.sql.SqlAgg.Fn.PERCENT_RANK, Kind.RANKING, Pure.AT_RELATION_PERCENT_RANK);
+        family(com.legend.sql.SqlAgg.Fn.CUME_DIST, Kind.RANKING, Pure.AT_RELATION_CUMULATIVE_DISTRIBUTION);
+        family(com.legend.sql.SqlAgg.Fn.NTILE, Kind.RANKING, Pure.AT_RELATION_NTILE);
+        family(com.legend.sql.SqlAgg.Fn.LAG, Kind.VALUE, Pure.AT_RELATION_LAG);
+        family(com.legend.sql.SqlAgg.Fn.LEAD, Kind.VALUE, Pure.AT_RELATION_LEAD);
+        family(com.legend.sql.SqlAgg.Fn.FIRST_VALUE, Kind.VALUE, com.legend.model.FunctionId.all(Pure.AT_RELATION_FIRST, Pure.AT_COLLECTION_FIRST));
+        family(com.legend.sql.SqlAgg.Fn.LAST_VALUE, Kind.VALUE, com.legend.model.FunctionId.all(Pure.AT_RELATION_LAST, Pure.AT_COLLECTION_LAST));
+        family(com.legend.sql.SqlAgg.Fn.NTH_VALUE, Kind.VALUE, Pure.AT_RELATION_NTH);
         // variance/stdDev window forms exist ONLY in the _Window-bearing
         // overload — the reducer overloads of the same names must stay out.
-        windowOnly(com.legend.sql.SqlAgg.Fn.VARIANCE, Kind.VALUE, "variance");
-        windowOnly(com.legend.sql.SqlAgg.Fn.STDDEV, Kind.VALUE, "stdDev");
+        windowOnly(com.legend.sql.SqlAgg.Fn.VARIANCE, Kind.VALUE, com.legend.model.FunctionId.ofAll());
+        windowOnly(com.legend.sql.SqlAgg.Fn.STDDEV, Kind.VALUE, com.legend.model.FunctionId.ofAll());
         // The 4-arg colToAgg window AGGREGATES — real pure has exactly these
         // (average, stdDevPopulation; everything else windows via the
         // agg-col spelling). Keyed by the _Window-bearing overload only —
         // the REDUCER overloads of the same names are Aggregates' domain.
-        aggregate(com.legend.sql.SqlAgg.Fn.AVG, "average");
-        aggregate(com.legend.sql.SqlAgg.Fn.STDDEV_POP, "stdDevPopulation");
+        aggregate(com.legend.sql.SqlAgg.Fn.AVG, com.legend.model.FunctionId.ofAll(Pure.AVERAGE__RELATION_1__WINDOW_1__T_1__COL_SPEC_1));
+        aggregate(com.legend.sql.SqlAgg.Fn.STDDEV_POP, com.legend.model.FunctionId.ofAll(Pure.STD_DEV_POPULATION__RELATION_1__WINDOW_1__T_1__COL_SPEC_1));
     }
 
     /** Real pure's window-frame class — overload selection is by this
@@ -77,21 +77,23 @@ final class Windows {
     private static final String WINDOW_CLASS =
             "meta::pure::functions::relation::_Window";
 
-    private static void windowOnly(com.legend.sql.SqlAgg.Fn sqlName, Kind kind, String pureName) {
-        for (String key : Pure.nativeKeysAt(pureName, WINDOW_CLASS)) {
+    /** The overloads that take real pure's window-frame class — listed, never
+     *  probed by a parameter FQN (audit 15's key probe retired with the name). */
+    private static void windowOnly(com.legend.sql.SqlAgg.Fn sqlName, Kind kind, java.util.List<com.legend.model.FunctionId> ids) {
+        for (com.legend.model.FunctionId key : ids) {
             FNS.put(key, new WindowFn(sqlName, kind));
         }
     }
 
-    private static void aggregate(com.legend.sql.SqlAgg.Fn sqlName, String pureName) {
-        for (String key : Pure.nativeKeysAt(pureName, WINDOW_CLASS)) {
+    private static void aggregate(com.legend.sql.SqlAgg.Fn sqlName, java.util.List<com.legend.model.FunctionId> ids) {
+        for (com.legend.model.FunctionId key : ids) {
             AGGREGATES.put(key, sqlName);
         }
     }
 
     /** The SQL reducer for a 4-arg window-aggregate callee, or null. */
     static com.legend.sql.SqlAgg.@com.legend.base.Nullable Fn aggregate(TypedFunction callee) {
-        com.legend.sql.SqlAgg.Fn fn = AGGREGATES.get(callee.signatureKey());
+        com.legend.sql.SqlAgg.Fn fn = AGGREGATES.get(callee.id());
         if (fn != null) {
             com.legend.builtin.DecisionProbe.pick(callee.definition(), "WINDOW_AGGREGATE");
         }
@@ -100,7 +102,7 @@ final class Windows {
 
     /** The window fn for a resolved overload, or null when it is not a window native. */
     static @com.legend.base.Nullable WindowFn lookup(TypedFunction callee) {
-        WindowFn fn = FNS.get(callee.signatureKey());
+        WindowFn fn = FNS.get(callee.id());
         if (fn != null) {
             com.legend.builtin.DecisionProbe.pick(callee.definition(), "WINDOW");
         }

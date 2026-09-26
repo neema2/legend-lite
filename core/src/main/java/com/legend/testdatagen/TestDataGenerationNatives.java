@@ -100,7 +100,7 @@ public final class TestDataGenerationNatives {
             }
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && com.legend.builtin.NativeFn.Effect.isSeedSqlForm(nc.callee().qualifiedName())
+                && com.legend.builtin.NativeFn.Effect.isSeedSqlForm(nc.callee().id())
                 && nc.args().size() == 2
                 && deref(nc.args().get(0), letPrefix)
                         instanceof com.legend.compiler.spec.typed
@@ -147,7 +147,7 @@ public final class TestDataGenerationNatives {
 
     private static boolean containsSetUpDataSqls(TypedSpec n) {
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
-                && com.legend.builtin.NativeFn.Effect.isSeedSqlForm(nc.callee().qualifiedName())) {
+                && com.legend.builtin.NativeFn.Effect.isSeedSqlForm(nc.callee().id())) {
             return true;
         }
         for (TypedSpec k : n.children()) {

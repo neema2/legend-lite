@@ -25,8 +25,8 @@ final class StringPredicates {
     private StringPredicates() {
     }
 
-    static void register(Map<String, Scalars.Rule> rules) {
-        for (String f : Pure.nativeKeysAt("isAlphaNumeric")) {
+    static void register(Map<com.legend.model.FunctionId, Scalars.Rule> rules) {
+        for (com.legend.model.FunctionId f : Pure.AT_STRING_IS_ALPHA_NUMERIC) {
             rules.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.REGEXP_FULL_MATCH,
                     args.get(0), new SqlExpr.StringLit("[a-zA-Z0-9]+")));
         }

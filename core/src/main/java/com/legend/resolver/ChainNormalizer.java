@@ -61,7 +61,7 @@ public final class ChainNormalizer {
             }
         }
         if (r instanceof TypedNativeCall c && c.args().size() == 2
-                && Pure.nativeNamed("equal", c.callee().signatureKey())) {
+                && Pure.AT_BOOLEAN_EQUAL.contains(c.callee().id())) {
             TypedSpec a = c.args().get(0);
             TypedSpec b = c.args().get(1);
             TypedSpec rw = identityEquality(c, a, b, ctx, trackedElementClass);
@@ -203,12 +203,12 @@ public final class ChainNormalizer {
 
     private static TypedSpec unwrapSinglePick(TypedSpec n) {
         while (n instanceof TypedNativeCall c && !c.args().isEmpty()) {
-            String key = c.callee().signatureKey();
-            boolean pick = (Pure.nativeNamed("toOne", key) && c.args().size() == 1)
-                    || (Pure.nativeNamed("first", key) && c.args().size() == 1)
+            com.legend.model.FunctionId key = c.callee().id();
+            boolean pick = (Pure.AT_MULTIPLICITY_TO_ONE.contains(key) && c.args().size() == 1)
+                    || ((Pure.AT_RELATION_FIRST.contains(key) || Pure.AT_COLLECTION_FIRST.contains(key)) && c.args().size() == 1)
                     // distinctness does not change WHICH elements: identity-preserving
-                    || (Pure.nativeNamed("removeDuplicates", key) && c.args().size() == 1)
-                    || (Pure.nativeNamed("at", key) && c.args().size() == 2
+                    || (Pure.AT_COLLECTION_REMOVE_DUPLICATES.contains(key) && c.args().size() == 1)
+                    || (Pure.AT_COLLECTION_AT.contains(key) && c.args().size() == 2
                             && c.args().get(1) instanceof com.legend.compiler.spec.typed.TypedCInteger i
                             && i.value().longValue() == 0);
             if (!pick) {

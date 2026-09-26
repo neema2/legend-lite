@@ -135,7 +135,7 @@ public final class RelationalMapperRenames {
 
     private static void readPostProcessor(@com.legend.base.Nullable TypedSpec p, Cfg c) {
         if (!(p instanceof TypedNativeCall call) || call.args().isEmpty()
-                || com.legend.builtin.NativeFn.ResolverForm.of(call.callee().qualifiedName()).orElse(null) != com.legend.builtin.NativeFn.ResolverForm.RELATIONAL_MAPPER_POST_PROCESSOR) {
+                || com.legend.builtin.NativeFn.ResolverForm.of(call.callee().id()).orElse(null) != com.legend.builtin.NativeFn.ResolverForm.RELATIONAL_MAPPER_POST_PROCESSOR) {
             return;   // other postprocessors ride their own channels
         }
         TypedSpec cfg = c.resolve(call.args().get(0));

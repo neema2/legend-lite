@@ -14,3 +14,8 @@ A: com.legend.base <- com.legend.Nullable com.legend.NonNull --inline
 # model only, used by compiler.ModelBuilder (compiler.element <-> compiler).
 B: com.legend.lowering <- com.legend.resolver.AsorRef
 C: com.legend.compiler <- com.legend.compiler.element.StoreLookups
+# Step 2 (2026-09-26): the declaration identity lives beside the declaration type.
+# FunctionId depends on model.Function and model.SignatureMangle only; in platform it
+# was unreachable from builtin (platform depends on builtin), so the enum families
+# could not key their members by id.
+D: com.legend.model <- com.legend.platform.FunctionId

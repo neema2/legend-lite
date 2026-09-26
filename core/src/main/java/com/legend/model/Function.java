@@ -41,28 +41,6 @@ public sealed interface Function
     /** Declared multiplicity parameter names, in source order (may be empty). */
     List<String> multiplicityParameters();
 
-    /**
-     * THE stable overload identity: qualified name + canonical parameter
-     * spellings. Unique across the native catalog (pinned by
-     * NativeFunctionTest's collapse test) and stable across parses — the
-     * dispatch key for identity-keyed consumers (lowering rule tables),
-     * which must not hold parser NODES (AUDIT_2026_07 §1c).
-     */
-    default String signatureKey() {
-        // MEMOIZED: dispatch lookups call this once per lowered node and the
-        // build walks full TypeExpression trees (re-audit M5). Catalog
-        // definitions are singletons, so an identity cache is exact.
-        // Built per call — audit 15 removed a static identity-keyed memo
-        // here: user-parsed definitions flowed through it too, so every
-        // compilation grew the map (and retained its ASTs) forever. The
-        // build is a few appends; memoize per-INSTANCE if it ever shows up
-        // in a profile, never in static state.
-        StringBuilder key = new StringBuilder(qualifiedName()).append('(');
-        for (var p : parameters()) {
-            key.append(p.type()).append(':').append(p.multiplicity()).append(',');
-        }
-        return key.append(')').toString();
-    }
 
     /** Declared parameters, in source order. */
     List<FunctionDefinition.ParameterDefinition> parameters();

@@ -91,7 +91,7 @@ public final class Claims {
     static {
         for (NativeFunctionDefinition d : Pure.all()) {
             BY_OVERLOAD.put(d, new ArrayList<>());
-            String key = d.signatureKey();
+            com.legend.model.FunctionId key = com.legend.model.FunctionId.of(d);
             String fqn = d.qualifiedName();
             String bare = fqn.substring(fqn.lastIndexOf(':') + 1);
             if (RegistryKeys.scalarRules().contains(key)) {

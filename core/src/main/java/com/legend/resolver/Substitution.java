@@ -777,8 +777,7 @@ final class Substitution {
      * (caller keeps the loud wall). */
     private @com.legend.base.Nullable TypedSpec strictReadHoist(
             TypedNativeCall call) {
-        if (!com.legend.builtin.Pure.nativeNamed("isEmpty",
-                        call.callee().signatureKey())
+        if (!com.legend.builtin.Pure.AT_COLLECTION_IS_EMPTY.contains(call.callee().id())
                 || call.args().size() != 1
                 || target.regs().isNotEmptyCallee() == null
                 || target.regs().andCallee() == null) {
@@ -884,7 +883,7 @@ final class Substitution {
         // consumed by the SUBTYPE_KEY switch arm instead
         if (n instanceof TypedPropertyAccess pa0
                 && pa0.source() instanceof TypedNativeCall sc
-                && com.legend.builtin.NativeFn.SubtypeForm.of(sc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
+                && com.legend.builtin.NativeFn.SubtypeForm.of(sc.callee().id()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
                 && !sc.args().isEmpty()
                 && Type.asClassType(sc.info().type()) instanceof Type.ClassType sct) {
             // IDENTITY cast (subType(@Product) over a Product-typed nav —
@@ -942,8 +941,7 @@ final class Substitution {
             // dispatch, the embedded partial owns its mapped leaves.
             if (headPath != null && headPath.size() == 1 && isEmptinessFamily(call)
                     && call.args().size() == 2
-                    && Pure.nativeNamed("exists",
-                            call.callee().signatureKey())
+                    && (Pure.AT_COLLECTION_EXISTS.contains(call.callee().id()) || Pure.AT_RELATION_EXISTS.contains(call.callee().id()))
                     && call.args().get(1) instanceof TypedLambda pl
                     && pl.parameters().size() == 1) {
                 var partial = embeddedPartialOf(
@@ -1049,7 +1047,7 @@ final class Substitution {
                             + " flavor is golden-witnessed)");
                 }
             }
-            if (com.legend.builtin.NativeFn.ResolverForm.of(call.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.ResolverForm.TDS_CONTAINS) {
+            if (com.legend.builtin.NativeFn.ResolverForm.of(call.callee().id()).orElse(null) == com.legend.builtin.NativeFn.ResolverForm.TDS_CONTAINS) {
                 return rewriteTdsContains(call, n);
             }
             if (isEmptinessFamily(call)) {
@@ -1087,9 +1085,9 @@ final class Substitution {
         // crossing is scalar and takes the join row semantics).
         if (n instanceof TypedNativeCall mc && mc.args().size() == 2
                 && target.equalCallee() != null) {
-            String mkey = mc.callee().signatureKey();
-            boolean isContains = Pure.nativeNamed("contains", mkey);
-            boolean isIn = Pure.nativeNamed("in", mkey);
+            com.legend.model.FunctionId mkey = mc.callee().id();
+            boolean isContains = (Pure.AT_COLLECTION_CONTAINS.contains(mkey) || Pure.AT_STRING_CONTAINS.contains(mkey));
+            boolean isIn = (Pure.AT_COLLECTION_IN.contains(mkey) || Pure.AT_RELATION_IN.contains(mkey));
             if (isContains || isIn) {
                 TypedSpec coll = isContains ? mc.args().get(0) : mc.args().get(1);
                 TypedSpec needle = isContains ? mc.args().get(1) : mc.args().get(0);
@@ -1168,8 +1166,7 @@ final class Substitution {
         // a not are ¬∃ over the semi-join, handled by their own arm.
         if (n instanceof TypedNativeCall lc
                 && lc.info().type() == Type.Primitive.BOOLEAN
-                && Pure.nativeNamed("not",
-                        lc.callee().signatureKey())
+                && Pure.AT_BOOLEAN_NOT.contains(lc.callee().id())
                 && !containsEmptinessFamily(lc)
                 && target.filterPosition()) {
             TypedSpec read = toManyCrossingRead(lc);
@@ -1184,25 +1181,18 @@ final class Substitution {
                 // compensated family; other operators are loud until
                 // their engine emission is transcribed.
                 if (!(lc.args().get(0) instanceof TypedNativeCall innerCmp
-                        && (Pure.nativeNamed("equal",
-                                        innerCmp.callee().signatureKey())
-                                || Pure.nativeNamed("in",
-                                        innerCmp.callee().signatureKey())
-                                || Pure.nativeNamed("contains",
-                                        innerCmp.callee().signatureKey())))) {
+                        && (Pure.AT_BOOLEAN_EQUAL.contains(innerCmp.callee().id())
+                                || (Pure.AT_COLLECTION_IN.contains(innerCmp.callee().id()) || Pure.AT_RELATION_IN.contains(innerCmp.callee().id()))
+                                || (Pure.AT_COLLECTION_CONTAINS.contains(innerCmp.callee().id()) || Pure.AT_STRING_CONTAINS.contains(innerCmp.callee().id()))))) {
                     // ORDERING comparisons keep the engine's THREE-VALUED
                     // semantics: no processNotLessThan exists — the
                     // emission is a plain not() over the joined read and
                     // NULL rows DROP (no pass-constant compensation)
                     if (lc.args().get(0) instanceof TypedNativeCall oc2
-                            && (Pure.nativeNamed("lessThan",
-                                            oc2.callee().signatureKey())
-                                    || Pure.nativeNamed("lessThanEqual",
-                                            oc2.callee().signatureKey())
-                                    || Pure.nativeNamed("greaterThan",
-                                            oc2.callee().signatureKey())
-                                    || Pure.nativeNamed("greaterThanEqual",
-                                            oc2.callee().signatureKey()))) {
+                            && (Pure.AT_BOOLEAN_LESS_THAN.contains(oc2.callee().id())
+                                    || Pure.AT_BOOLEAN_LESS_THAN_EQUAL.contains(oc2.callee().id())
+                                    || Pure.AT_BOOLEAN_GREATER_THAN.contains(oc2.callee().id())
+                                    || Pure.AT_BOOLEAN_GREATER_THAN_EQUAL.contains(oc2.callee().id()))) {
                         return lc.withChildren(rewriteAll(lc.args()));
                     }
                     throw new NotImplementedException("negated '"
@@ -2225,7 +2215,7 @@ final class Substitution {
                     elementPath(c);
             // $p->instanceOf(Sub)
             case TypedNativeCall c
-                    when com.legend.builtin.NativeFn.SubtypeForm.of(c.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.INSTANCE_OF
+                    when com.legend.builtin.NativeFn.SubtypeForm.of(c.callee().id()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.INSTANCE_OF
                     && c.args().size() == 2
                     && c.args().get(0) instanceof TypedVariable iv
                     && iv.name().equals(target.userVar()) ->
@@ -2989,10 +2979,10 @@ final class Substitution {
     }
 
     private static boolean isEmptinessFamily(TypedNativeCall c) {
-        String key = c.callee().signatureKey();
-        return Pure.nativeNamed("isEmpty", key)
-                || Pure.nativeNamed("isNotEmpty", key)
-                || Pure.nativeNamed("exists", key);
+        com.legend.model.FunctionId key = c.callee().id();
+        return Pure.AT_COLLECTION_IS_EMPTY.contains(key)
+                || Pure.AT_COLLECTION_IS_NOT_EMPTY.contains(key)
+                || (Pure.AT_COLLECTION_EXISTS.contains(key) || Pure.AT_RELATION_EXISTS.contains(key));
     }
 
     /**
@@ -3035,7 +3025,7 @@ final class Substitution {
      * </ul> */
     private @com.legend.base.Nullable TypedSpec hoistedRewriteArms(TypedSpec n) {
         if (n instanceof TypedNativeCall oc && oc.args().size() == 2
-                && com.legend.builtin.NativeFn.ObjectReference.of(oc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.ObjectReference.OBJECT_REFERENCE_IN
+                && com.legend.builtin.NativeFn.ObjectReference.of(oc.callee().id()).orElse(null) == com.legend.builtin.NativeFn.ObjectReference.OBJECT_REFERENCE_IN
                 && rootsAtUserVar(oc.args().get(0))) {
             return objectReferenceInRewrite(oc);
         }
@@ -3133,7 +3123,7 @@ final class Substitution {
      * registries never saw the scan) stays loud. */
     private @com.legend.base.Nullable TypedSpec subTypeLeafRead(TypedPropertyAccess pa) {
         if (!(pa.source() instanceof TypedNativeCall nc)
-                || com.legend.builtin.NativeFn.SubtypeForm.of(nc.callee().qualifiedName()).orElse(null) != com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
+                || com.legend.builtin.NativeFn.SubtypeForm.of(nc.callee().id()).orElse(null) != com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
                 || nc.args().isEmpty()
                 || !(nc.args().get(0) instanceof TypedVariable v)
                 || !v.name().equals(target.userVar())
@@ -3170,8 +3160,7 @@ final class Substitution {
             }
             branches.add(rewriteExists(call, subs.get(i), List.of(), sibs));
         }
-        TypedFunction fold = Pure.nativeNamed("isEmpty",
-                call.callee().signatureKey())
+        TypedFunction fold = Pure.AT_COLLECTION_IS_EMPTY.contains(call.callee().id())
                 ? target.regs().andCallee() : target.regs().orCallee();
         TypedSpec out = branches.get(0);
         for (int i = 1; i < branches.size(); i++) {
@@ -3393,8 +3382,7 @@ final class Substitution {
             inner = c.args().get(0);
         }
         if (inner instanceof TypedNativeCall oc && oc.args().size() == 2
-                && Pure.nativeNamed(Pure.Lite.OTHERWISE,
-                        oc.callee().signatureKey())
+                && Pure.AT_LEGEND_LITE_OTHERWISE.contains(oc.callee().id())
                 && oc.args().get(0)
                         instanceof TypedNewInstance) {
             return oc;

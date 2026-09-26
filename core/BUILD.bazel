@@ -164,7 +164,7 @@ java_library(
 java_library(
     name = "resolver",
     srcs = glob(["src/main/java/com/legend/resolver/*.java"]),
-    deps = [":base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lowering", ":model", ":plan", ":sql", ":values"],
+    deps = [":base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lowering", ":model", ":plan", ":platform", ":sql", ":values"],
     javacopts = NULLAWAY_OPTS,
     plugins = [":nullaway"],
     visibility = _PRIVATE,
@@ -172,7 +172,7 @@ java_library(
 java_library(
     name = "exec",
     srcs = glob(["src/main/java/com/legend/exec/*.java"]),
-    deps = [":base", ":compiler", ":compiler_element_type", ":error", ":lowering", ":model", ":sql", ":sql_dialect", ":values"],
+    deps = [":base", ":compiler", ":compiler_element_type", ":error", ":lowering", ":model", ":platform", ":sql", ":sql_dialect", ":values"],
     javacopts = NULLAWAY_OPTS,
     plugins = [":nullaway"],
     visibility = _PRIVATE,

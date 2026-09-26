@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 package com.legend.platform;
+import com.legend.model.FunctionId;
 
 import com.legend.builtin.NativeFn;
 import com.legend.model.ClassMember;
@@ -34,8 +35,8 @@ import java.util.Set;
  */
 public record Registrations(
         List<NativeFunctionDefinition> catalog,
-        Map<Implementation.Position, Set<String>> loweringKeys,
-        Map<Feature, Set<String>> featureOverrides,
+        Map<Implementation.Position, Set<FunctionId>> loweringKeys,
+        Map<Feature, Set<FunctionId>> featureOverrides,
         Map<Class<? extends NativeFn.Member>, List<NativeFunctionDefinition>> families,
         Map<CoreFn, Set<String>> forms,
         Map<String, String> walledNatives,

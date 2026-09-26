@@ -57,11 +57,11 @@ final class InnerDemand {
             boolean underEmptiness) {
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
                 && !nc.args().isEmpty()) {
-            String key = nc.callee().signatureKey();
-            if (com.legend.builtin.Pure.nativeNamed("isEmpty", key)
-                    || com.legend.builtin.Pure.nativeNamed("isNotEmpty", key)
-                    || com.legend.builtin.Pure.nativeNamed("exists", key)
-                    || com.legend.builtin.Pure.nativeNamed("forAll", key)) {
+            com.legend.model.FunctionId key = nc.callee().id();
+            if (com.legend.builtin.Pure.AT_COLLECTION_IS_EMPTY.contains(key)
+                    || com.legend.builtin.Pure.AT_COLLECTION_IS_NOT_EMPTY.contains(key)
+                    || (com.legend.builtin.Pure.AT_COLLECTION_EXISTS.contains(key) || com.legend.builtin.Pure.AT_RELATION_EXISTS.contains(key))
+                    || com.legend.builtin.Pure.AT_COLLECTION_FOR_ALL.contains(key)) {
                 existsKindScan(nc.args().get(0), userVar, cs, toManyHead,
                         true);
                 for (int i = 1; i < nc.args().size(); i++) {
@@ -422,10 +422,10 @@ final class InnerDemand {
             return;   // shadowing: the substitution stops here too
         }
         if (n instanceof TypedNativeCall c && !c.args().isEmpty()) {
-            String key = c.callee().signatureKey();
-            if (com.legend.builtin.Pure.nativeNamed("isEmpty", key)
-                    || com.legend.builtin.Pure.nativeNamed("isNotEmpty", key)
-                    || com.legend.builtin.Pure.nativeNamed("exists", key)) {
+            com.legend.model.FunctionId key = c.callee().id();
+            if (com.legend.builtin.Pure.AT_COLLECTION_IS_EMPTY.contains(key)
+                    || com.legend.builtin.Pure.AT_COLLECTION_IS_NOT_EMPTY.contains(key)
+                    || (com.legend.builtin.Pure.AT_COLLECTION_EXISTS.contains(key) || com.legend.builtin.Pure.AT_RELATION_EXISTS.contains(key))) {
                 // an INLINED derived CONCATENATION under the emptiness
                 // call contributes each member's chain (the concat-split
                 // emission consumes the dotted materials per branch)
@@ -641,8 +641,7 @@ final class InnerDemand {
         if (chain instanceof com.legend.compiler.spec.typed
                         .TypedNativeCall dc
                 && dc.args().size() == 1
-                && com.legend.builtin.Pure.nativeNamed("distinct",
-                        dc.callee().signatureKey())) {
+                && (com.legend.builtin.Pure.AT_RELATION_DISTINCT.contains(dc.callee().id()) || com.legend.builtin.Pure.AT_COLLECTION_DISTINCT.contains(dc.callee().id()))) {
             var rel0 = peelInChain(dc.args().get(0), rawResolver);
             return rel0 == null || !com.legend.compiler.element.type.Type
                             .isRelation(rel0.info().type()) ? null
@@ -689,7 +688,7 @@ final class InnerDemand {
             // leaf (stc_<Sub>___<leaf>), exactly as the substitution's
             // own inlining reads it (one funnel, batch 107)
             if (am.source() instanceof com.legend.compiler.spec.typed.TypedNativeCall sc
-                    && com.legend.builtin.NativeFn.SubtypeForm.of(sc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
+                    && com.legend.builtin.NativeFn.SubtypeForm.of(sc.callee().id()).orElse(null) == com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
                     && !sc.args().isEmpty()
                     && Substitution.pathOf(sc.args().get(0), userVar) != null) {
                 for (com.legend.compiler.spec.typed.TypedSpec mb : am.mapper().body()) {
@@ -720,8 +719,7 @@ final class InnerDemand {
             java.util.function.BiConsumer<com.legend.compiler.spec.typed
                     .TypedSpec, String> each) {
         if (!(n instanceof com.legend.compiler.spec.typed.TypedNativeCall tdc)
-                || !com.legend.builtin.Pure.nativeNamed("tdsContains",
-                        tdc.callee().signatureKey())
+                || !com.legend.builtin.Pure.AT_TDS_TDS_CONTAINS.contains(tdc.callee().id())
                 || tdc.args().size() < 2
                 || !(tdc.args().get(0) instanceof
                         com.legend.compiler.spec.typed.TypedVariable ov)
@@ -764,8 +762,7 @@ final class InnerDemand {
             java.util.Map<com.legend.compiler.spec.typed.TypedSpec,
                     Substitution.InQueryRead> out) {
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall tc
-                && com.legend.builtin.Pure.nativeNamed("tdsContains",
-                        tc.callee().signatureKey())
+                && com.legend.builtin.Pure.AT_TDS_TDS_CONTAINS.contains(tc.callee().id())
                 && tc.args().size() >= 3) {
             // tdsContains: the TDS arg is a relation CHAIN (project over
             // a class extent) — resolve it like the in-subquery colls;
@@ -781,10 +778,10 @@ final class InnerDemand {
         }
         if (n instanceof com.legend.compiler.spec.typed.TypedNativeCall c
                 && c.args().size() == 2) {
-            String key = c.callee().signatureKey();
-            boolean isIn = com.legend.builtin.Pure.nativeNamed("in", key);
+            com.legend.model.FunctionId key = c.callee().id();
+            boolean isIn = (com.legend.builtin.Pure.AT_COLLECTION_IN.contains(key) || com.legend.builtin.Pure.AT_RELATION_IN.contains(key));
             boolean isContains =
-                    com.legend.builtin.Pure.nativeNamed("contains", key);
+                    (com.legend.builtin.Pure.AT_COLLECTION_CONTAINS.contains(key) || com.legend.builtin.Pure.AT_STRING_CONTAINS.contains(key));
             if (isIn || isContains) {
                 com.legend.compiler.spec.typed.TypedSpec coll =
                         isContains ? c.args().get(0) : c.args().get(1);
@@ -859,9 +856,9 @@ final class InnerDemand {
             java.util.function.BiPredicate<ClassSource, String> isToManyAssocHead) {
         if (n instanceof TypedNativeCall mc
                 && mc.args().size() == 2) {
-            String key = mc.callee().signatureKey();
-            boolean isContains = com.legend.builtin.Pure.nativeNamed("contains", key);
-            boolean isIn = com.legend.builtin.Pure.nativeNamed("in", key);
+            com.legend.model.FunctionId key = mc.callee().id();
+            boolean isContains = (com.legend.builtin.Pure.AT_COLLECTION_CONTAINS.contains(key) || com.legend.builtin.Pure.AT_STRING_CONTAINS.contains(key));
+            boolean isIn = (com.legend.builtin.Pure.AT_COLLECTION_IN.contains(key) || com.legend.builtin.Pure.AT_RELATION_IN.contains(key));
             if (isContains || isIn) {
                 TypedSpec coll = isContains ? mc.args().get(0) : mc.args().get(1);
                 TypedSpec other = isContains ? mc.args().get(1) : mc.args().get(0);

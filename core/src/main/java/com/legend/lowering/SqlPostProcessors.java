@@ -58,7 +58,7 @@ public final class SqlPostProcessors {
             java.util.function.UnaryOperator<TypedSpec> inline,
             Map<String, String> out) {
         if (n instanceof TypedNativeCall ec
-                && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().qualifiedName())
+                && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().id())
                 && ec.args().size() >= 3) {
             TypedSpec rt = inline.apply(letBound.apply(ec.args().get(2)));
             for (var e : com.legend.compiler.spec.typed.ExecutionContext.reader()

@@ -32,11 +32,19 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 class NativeDispatchTest {
 
+    /** A callee WITH its catalog declaration — a callee is dispatched by its
+     *  identity (execution plan step 2), so a test callee carries one too; a
+     *  name the catalog does not declare is a test bug, loudly. */
     private static TypedNativeCall call(String fqn, TypedSpec... args) {
+        var catalog = com.legend.builtin.Pure.nativeFunctionsAt(fqn);
+        if (catalog.isEmpty()) {
+            throw new IllegalArgumentException("not a catalog native: " + fqn);
+        }
+        com.legend.model.NativeFunctionDefinition def = catalog.get(0);
         TypedFunction callee = new TypedFunction(fqn, List.of(), List.of(),
                 List.of(), Type.Primitive.STRING,
                 com.legend.compiler.element.type.Multiplicity.Bounded.ONE, Optional.empty(),
-                true, null);
+                true, def, com.legend.model.FunctionId.of(def));
         return new TypedNativeCall(callee, List.of(args),
                 ExprType.one(Type.Primitive.STRING));
     }
@@ -44,7 +52,7 @@ class NativeDispatchTest {
     @Test
     @DisplayName("JAVA_ROUTINE calls stage to literals wherever they stand")
     void routineStagesNested() {
-        TypedSpec nested = call("outer::wrapper",
+        TypedSpec nested = call("meta::pure::functions::string::toUpper",
                 call(PlatformTypes.PLAN_TO_STRING));
         TypedSpec staged = NativeDispatch.stage(nested, List.of(),
                 Map.of(PlatformTypes.PLAN_TO_STRING, (c, lets) -> "TEXT"));

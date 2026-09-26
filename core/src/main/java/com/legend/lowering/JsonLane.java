@@ -22,9 +22,9 @@ final class JsonLane {
     private JsonLane() {
     }
 
-    static void register(java.util.Map<String, Scalars.Rule> rules) {
+    static void register(java.util.Map<com.legend.model.FunctionId, Scalars.Rule> rules) {
         // fromJson(String): the string IS the variant — a JSON cast.
-        for (String f : Pure.nativeKeysAt("fromJson")) {
+        for (com.legend.model.FunctionId f : Pure.AT_VARIANT_CONVERT_FROM_JSON) {
             rules.put(f, (n, args) -> new SqlExpr.Cast(args.get(0),
                     SqlType.Scalar.JSON));
         }
@@ -33,7 +33,7 @@ final class JsonLane {
         // with a MISSING COMMA between array object elements —
         // testSubTypeAtRootLevelWithInheritanceMapping's expected text):
         // '}{' reads as '},{' before the strict JSON cast.
-        for (String f : Pure.nativeKeysAt("parseJSON")) {
+        for (com.legend.model.FunctionId f : Pure.AT_JSON_PARSE_JSON) {
             rules.put(f, (n, args) -> new SqlExpr.Cast(
                     SqlExpr.Call.of(SqlFn.REGEXP_REPLACE, args.get(0),
                             new SqlExpr.StringLit("\\}\\s*\\{"),
@@ -41,15 +41,15 @@ final class JsonLane {
                             new SqlExpr.StringLit("g")),
                     SqlType.Scalar.JSON));
         }
-        for (String f : Pure.nativeKeysAt("getValue")) {
+        for (com.legend.model.FunctionId f : Pure.AT_JSON_GET_VALUE) {
             rules.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.VARIANT_GET,
                     args.get(0), args.get(1)));
         }
-        for (String f : Pure.nativeKeysAt("toCompactJSONString")) {
+        for (com.legend.model.FunctionId f : Pure.AT_JSON_TO_COMPACT_JSONSTRING) {
             rules.put(f, (n, args) -> new SqlExpr.Cast(args.get(0),
                     PureSql.type(Type.Primitive.STRING)));
         }
-        for (String f : Pure.nativeKeysAt("toPrettyJSONString")) {
+        for (com.legend.model.FunctionId f : Pure.AT_JSON_TO_PRETTY_JSONSTRING) {
             rules.put(f, (n, args) -> SqlExpr.Call.of(SqlFn.JSON_PRETTY,
                     args.get(0)));
         }

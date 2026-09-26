@@ -40,7 +40,7 @@ public final class SeededStores {
     /** The store FQNs {@code node} seeds; memoized per callee signature,
      * a cycle scores the in-progress callee empty. */
     public static Set<String> of(TypedSpec node, SpecCompiler specs,
-            Map<String, Set<String>> memo) {
+            Map<com.legend.model.FunctionId, Set<String>> memo) {
         Set<String> out = new LinkedHashSet<>();
         collect(node, specs, memo, out, new java.util.HashMap<>());
         return out;
@@ -52,7 +52,7 @@ public final class SeededStores {
      * store exactly so); a typed element reference behind a variable is
      * still a typed element reference, not a computed value. */
     private static void collect(TypedSpec node, SpecCompiler specs,
-            Map<String, Set<String>> memo, Set<String> out,
+            Map<com.legend.model.FunctionId, Set<String>> memo, Set<String> out,
             Map<String, TypedPackageableRef> lets) {
         if (node instanceof TypedNativeCall nc) {
             String fqn = nc.callee().qualifiedName();
@@ -70,7 +70,7 @@ public final class SeededStores {
         }
         if (node instanceof TypedUserCall uc
                 && Subsumed.of(uc.callee().qualifiedName()).isEmpty()) {
-            String key = uc.callee().signatureKey();
+            com.legend.model.FunctionId key = uc.callee().id();
             Set<String> known = memo.get(key);
             if (known == null) {
                 memo.put(key, Set.of());   // in-progress: cycles score empty

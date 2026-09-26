@@ -67,7 +67,7 @@ final class ObjectReferenceArms {
             throw new IllegalStateException(fqn + " is not a registered lite native");
         }
         return new TypedFunction(fqn, List.of(), List.of(), params, ret,
-                Multiplicity.Bounded.ONE, java.util.Optional.empty(), true, defs.get(0));
+                Multiplicity.Bounded.ONE, java.util.Optional.empty(), true, defs.get(0), com.legend.model.FunctionId.of(defs.get(0)));
     }
 
     private static final String GENERATE_REFS = com.legend.builtin.NativeFn.ObjectReference.GENERATE.fqn();

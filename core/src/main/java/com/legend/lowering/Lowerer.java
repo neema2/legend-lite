@@ -581,7 +581,7 @@ public final class Lowerer {
             // (the enclosing-resolver channel); DuckDB joins it per-row via
             // CROSS JOIN LATERAL. Schema = T+V (checker's schema algebra).
             case TypedNativeCall nc when com.legend.builtin.NativeFn.LowererForm
-                    .of(nc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.LowererForm.LATERAL
+                    .of(nc.callee().id()).orElse(null) == com.legend.builtin.NativeFn.LowererForm.LATERAL
                     && nc.args().size() == 2
                     && nc.args().get(1) instanceof TypedLambda lam -> {
                 SqlSelect left = relation(nc.args().get(0));
@@ -644,7 +644,7 @@ public final class Lowerer {
             // result stays row-typed, one row's TABULAR).
             case TypedNativeCall n when n.args().size() == 1
                     && Type.relationValued(n.args().get(0).info())
-                    && (isFamily(n, "first") || isFamily(n, "head")) -> {
+                    && (isFamily(n, Pure.AT_RELATION_FIRST, Pure.AT_COLLECTION_FIRST) || isFamily(n, Pure.AT_COLLECTION_HEAD)) -> {
                 SqlSelect src = relation(n.args().get(0));
                 yield (Fold.limitFolds(src) ? src : isolate(src)).withLimit(1L);
             }
@@ -1211,8 +1211,7 @@ public final class Lowerer {
                     // spells -1 as minus(1) — same literal channel
                     || argSpec instanceof TypedNativeCall neg
                             && neg.args().size() == 1
-                            && com.legend.builtin.Pure.nativeNamed("minus",
-                                    neg.callee().signatureKey())
+                            && com.legend.builtin.Pure.AT_MATH_MINUS.contains(neg.callee().id())
                             && (neg.args().get(0) instanceof TypedCInteger
                                     || neg.args().get(0) instanceof TypedCFloat
                                     || neg.args().get(0) instanceof TypedCDecimal)) {
@@ -1234,7 +1233,7 @@ public final class Lowerer {
         // BI-VARIATE map: rowMapper(value, key) decomposes into the SQL
         // aggregate's two arguments — CORR(a, b), ARG_MAX(v, k), ...
         if (mapBody instanceof TypedNativeCall rm
-                && com.legend.builtin.NativeFn.LowererForm.isBivariateMap(rm.callee().qualifiedName())
+                && com.legend.builtin.NativeFn.LowererForm.isBivariateMap(rm.callee().id())
                 && rm.args().size() == 2) {
             if (descending) {
                 // this arm returns without the within-group order —
@@ -2296,7 +2295,7 @@ public final class Lowerer {
             // dispatch (rowMapper decomposition, composed aggs, casts), and
             // windowize stamps the shared window spec on every reducer.
             case TypedNativeCall call
-                    when com.legend.builtin.NativeFn.LowererForm.of(call.callee().qualifiedName())
+                    when com.legend.builtin.NativeFn.LowererForm.of(call.callee().id())
                             .orElse(null) == com.legend.builtin.NativeFn.LowererForm.REDUCE
                     && call.args().size() == 5
                     && call.args().get(3) instanceof TypedLambda mapFn
@@ -2307,7 +2306,7 @@ public final class Lowerer {
             // zScore(p,w,r,~col): COMPOSED window expression — real zScore.pure
             // is (col - average(...)) / max(stdDevPopulation(...), 1e-10).
             case TypedNativeCall call
-                    when com.legend.builtin.NativeFn.LowererForm.of(call.callee().qualifiedName())
+                    when com.legend.builtin.NativeFn.LowererForm.of(call.callee().id())
                             .orElse(null) == com.legend.builtin.NativeFn.LowererForm.Z_SCORE
                     && call.args().size() == 4
                     && call.args().get(3)
@@ -2837,7 +2836,7 @@ public final class Lowerer {
 
             // Variant navigation: get(v, key) -> JSON access. The MAP
             // overload of the same bare name lowers through its own rule.
-            case TypedNativeCall n when isFamily(n, "get")
+            case TypedNativeCall n when isFamily(n, Pure.AT_VARIANT_NAVIGATION_GET, Pure.AT_COLLECTION_GET)
                     && !PlatformTypes
                             .isMapCarrier(n.args().get(0).info().type()) ->
                     SqlExpr.Call.of(SqlFn.VARIANT_GET,
@@ -2905,7 +2904,7 @@ public final class Lowerer {
             // pure — unrecoverable here (serialization erases identity;
             // PCT inlines captured instances by value): instances keep
             // struct comparison, identity tests ledgered.
-            case TypedNativeCall n when (isFamily(n, "equal") || isFamily(n, "eq"))
+            case TypedNativeCall n when (isFamily(n, Pure.AT_BOOLEAN_EQUAL) || isFamily(n, Pure.AT_BOOLEAN_EQ))
                     && InstanceEquality.staticallyDisjoint(n.args()) -> new SqlExpr.BoolLit(false);
 
             // COLLECTION-VALUED relation nodes in scalar position (the
@@ -2963,7 +2962,7 @@ public final class Lowerer {
             // cell (TDSNull print convention, audit 9); hand-written
             // cell lists never match the roster test.
             case TypedNativeCall n
-                    when (isFamily(n, "makeString") || isFamily(n, "joinStrings"))
+                    when (isFamily(n, Pure.AT_STRING_MAKE_STRING) || isFamily(n, Pure.AT_STRING_JOIN_STRINGS, Pure.AT_RELATION_JOIN_STRINGS))
                     && !n.args().isEmpty()
                     && n.args().get(0)
                             instanceof TypedCollection tc
@@ -2987,7 +2986,7 @@ public final class Lowerer {
             }
             // statically-decided instanceOf folds (Scalars owns the rule)
             case TypedNativeCall n
-                    when isFamily(n, "instanceOf") && n.args().size() == 2 ->
+                    when isFamily(n, Pure.AT_META_INSTANCE_OF) && n.args().size() == 2 ->
                     Scalars.instanceOfFold(n);
             // removeDuplicates/sort over a single-column RELATION read
             // rewrite to RELATION space (ValueCollectionOps — list-space
@@ -3403,11 +3402,17 @@ public final class Lowerer {
         SqlExpr lower(Lowerer lowerer, TypedNativeCall call);
     }
 
-    static boolean isFamily(TypedNativeCall n, String pureName) {
-        // signatureKey membership — the LAST parser-node dispatch the re-audit
-        // found dodging the parser-free wall (ArchUnit cannot see a dependency
-        // reached through definition()'s return type + contains(Object)).
-        return Pure.nativeNamed(pureName, n.callee().signatureKey());
+    /** Whether {@code n}'s callee is one of the declarations in {@code groups}
+     *  — identity membership over the catalog's generated overload groups. */
+    @SafeVarargs
+    static boolean isFamily(TypedNativeCall n, java.util.List<com.legend.model.FunctionId>... groups) {
+        com.legend.model.FunctionId id = n.callee().id();
+        for (java.util.List<com.legend.model.FunctionId> g : groups) {
+            if (g.contains(id)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

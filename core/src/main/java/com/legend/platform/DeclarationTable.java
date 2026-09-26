@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 package com.legend.platform;
+import com.legend.model.FunctionId;
 
 import com.legend.model.Function;
 import com.legend.model.FunctionDefinition;

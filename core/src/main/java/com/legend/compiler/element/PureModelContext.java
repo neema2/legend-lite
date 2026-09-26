@@ -102,13 +102,13 @@ public final class PureModelContext implements ModelContext {
     public static final class CheckedLayer {
         private final java.util.Set<Object> elements =
                 java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
-        private final java.util.Set<String> signatureKeys = new java.util.HashSet<>();
+        private final java.util.Set<com.legend.model.FunctionId> signatureKeys = new java.util.HashSet<>();
 
         boolean contains(Object element) {
             return elements.contains(element);
         }
 
-        java.util.Set<String> signatureKeys() {
+        java.util.Set<com.legend.model.FunctionId> signatureKeys() {
             return signatureKeys;
         }
     }
@@ -122,7 +122,7 @@ public final class PureModelContext implements ModelContext {
         alone.model.classes().forEach(out.elements::add);
         alone.model.functions().forEach(f -> {
             out.elements.add(f);
-            out.signatureKeys.add(f.signatureKey());
+            out.signatureKeys.add(com.legend.model.FunctionId.of(f));
         });
         alone.model.associations().forEach(out.elements::add);
         alone.model.enums().forEach(out.elements::add);
