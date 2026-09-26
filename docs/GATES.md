@@ -5709,8 +5709,13 @@ meaningful number: step 3's gate is OVERLOAD 0 and PACKAGE 0.
 load and passes in 5s alone); rosters DuckDB 107 / H2 361 fail of 2613, LOST 0. Timing: the
 queued quiet `//spec:corpus_duckdb` run from step 0 fired at 11:59 into the first minute of this
 step's own chain (load 2.95 at start, 5 at end): passes 34s and 40s, wall 84.2s, against the
-receipts' 32–36 / 37–40 — plausible, not clean; a second quiet run is queued and its numbers are
-appended here when it lands.
+receipts' 32–36 / 37–40 — plausible, not clean. **The clean run** (12:21, the other account's
+server gone, load 3.2 at start, `--nocache_test_results`): passes 34s and 43s, wall 87.6s, rosters
+identical. The host pass sits on the curve (32–36); the database pass is +3–5s over the curve's
+37–40 and is NOT attributed: steps 0–1 change no runtime code beyond one record field, the load
+was above the rule's 2, and one reading is not a trend. It is re-measured at step 2's gate on a
+quiet machine before anyone calls it drift (`receipts/untangle-4b/corpus-curve-duckdb.txt` has the
+line).
 
 ## 2026-09-26 — Execution plan step 0: the annotations leave the root package, two leaf moves, core becomes 29 targets
 
