@@ -3,7 +3,7 @@ package com.legend.warehouse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.legend.server.Json;
+import com.legend.json.Json;
 import com.legend.warehouse.server.Statements;
 import com.legend.warehouse.sqlapi.NativeBinding;
 import com.legend.warehouse.sqlapi.SqlApi.ResultFormat;

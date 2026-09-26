@@ -3401,12 +3401,12 @@ public final class ProtocolEmitter {
     }
 
     /** RFC-8259 string escaping, matching Jackson's default output —
-     *  the ONE table ({@link Escapes#jsonEscape}, F3.1c), UPPERCASE hex
-     *  (the byte-parity goldens pin Jackson's case). */
+     *  the ONE table ({@link com.legend.json.Json#escapeTo(Appendable, String, boolean)},
+     *  F3.1c), UPPERCASE hex (the byte-parity goldens pin Jackson's case). */
     static void str(StringBuilder b, String v) {
         b.append('"');
         try {
-            Escapes.jsonEscape(b, v, true);
+            com.legend.json.Json.escapeTo(b, v, true);
         } catch (java.io.IOException e) {
             // StringBuilder never throws
             throw new java.io.UncheckedIOException(e);

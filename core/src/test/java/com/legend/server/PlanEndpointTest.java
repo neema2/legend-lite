@@ -1,4 +1,5 @@
 package com.legend.server;
+import com.legend.json.Json;
 
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -51,7 +52,7 @@ class PlanEndpointTest {
         server.stop();
     }
 
-    private static com.legend.server.Json.Obj post(String query) throws Exception {
+    private static com.legend.json.Json.Obj post(String query) throws Exception {
         String body = "{\"code\":\"" + Json.escape(SOURCE + "\n" + query) + "\",\"runtime\":\"test::RT\"}";
         HttpResponse<String> r = HTTP.send(HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + server.getPort() + "/engine/plan"))

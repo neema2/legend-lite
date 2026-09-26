@@ -3,7 +3,7 @@ package com.legend.integration;
 import com.legend.server.serial.SerializerRegistry;
 import com.legend.server.OutputFormat;
 import com.legend.server.QueryService;
-import com.legend.server.Json;
+import com.legend.json.Json;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;

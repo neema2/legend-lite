@@ -1,7 +1,7 @@
 package com.legend.warehouse.server;
 
 import com.legend.base.Nullable;
-import com.legend.server.Json;
+import com.legend.json.Json;
 import com.legend.warehouse.server.duck.Collect;
 import com.legend.warehouse.server.duck.Conn;
 import com.legend.warehouse.server.duck.DuckException;

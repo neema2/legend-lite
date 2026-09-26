@@ -1,6 +1,6 @@
 package com.legend.warehouse.server.duck;
 
-import com.legend.server.Json;
+import com.legend.json.Json;
 import com.legend.warehouse.sqlapi.ApiValues;
 import com.legend.warehouse.sqlapi.Columnar;
 import com.legend.warehouse.sqlapi.DuckType;

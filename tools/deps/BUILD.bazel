@@ -7,7 +7,7 @@ load("//tools/junit:defs.bzl", "junit_test")
 # drivers a running core is given.
 genquery(
     name = "core_closure",
-    expression = "kind(jvm_import, deps(//core:core) except deps(//core:nullaway))",
+    expression = "kind(jvm_import, deps(//core:core) except deps(//tools/nullaway:nullaway))",
     opts = ["--noimplicit_deps"],
     scope = ["//core:core"],
 )
@@ -17,7 +17,7 @@ genquery(
 # running core's classpath (2026-09-23: its jsr305 read as a driver)
 genquery(
     name = "drivers_closure",
-    expression = "kind(jvm_import, deps(//core:drivers) except deps(//core:nullaway))",
+    expression = "kind(jvm_import, deps(//core:drivers) except deps(//tools/nullaway:nullaway))",
     opts = ["--noimplicit_deps"],
     scope = ["//core:drivers"],
 )
@@ -42,6 +42,30 @@ junit_test(
         ":spec_closure",
     ],
     select = ["--select-class=com.legend.tools.deps.CoreClosureTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# Every Java library the warehouse's API, JDBC client and server reach: //base and //json, and
+# no //core target (WarehouseClosureTest).
+genquery(
+    name = "warehouse_closure",
+    expression = "kind(java_library, deps(//warehouse:sqlapi + //warehouse:client + //warehouse:server_lib))",
+    scope = [
+        "//warehouse:client",
+        "//warehouse:server_lib",
+        "//warehouse:sqlapi",
+    ],
+)
+
+junit_test(
+    name = "warehouse_closure_test",
+    size = "small",
+    srcs = ["WarehouseClosureTest.java"],
+    data = [":warehouse_closure"],
+    select = ["--select-class=com.legend.tools.deps.WarehouseClosureTest"],
     deps = [
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",

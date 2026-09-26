@@ -1,0 +1,14 @@
+# The bottom of the repository: the null annotations every Java module carries
+# (com.legend.base.Nullable / NonNull, the vocabulary //tools/nullaway checks). No dependencies,
+# ever. It lived inside core until 2026-09-26; everything depends on it, core included.
+load("@rules_java//java:defs.bzl", "java_library")
+load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
+
+package(default_visibility = ["//visibility:public"])
+
+java_library(
+    name = "base",
+    srcs = glob(["src/main/java/com/legend/base/*.java"]),
+    javacopts = NULLAWAY_OPTS,
+    plugins = [NULLAWAY_PLUGIN],
+)

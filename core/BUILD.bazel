@@ -3,7 +3,8 @@
 # on 2026-09-26 (execution plan step 0c) it became one target per package group
 # — see "CORE AS TARGETS" below — with `:core` kept as the umbrella consumers
 # depend on. Bazel now refuses a back-edge at compile time.
-load("@rules_java//java:defs.bzl", "java_binary", "java_library", "java_plugin")
+load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/junit:defs.bzl", "junit_test")
 
@@ -17,32 +18,8 @@ filegroup(
     srcs = glob(["src/**"]),
 )
 
-# THE NULL GATE. A java_plugin with NO processor_class lands on javac's
-# --processorpath, where Error Prone's ServiceLoader finds NullAway's
-# @AutoService(BugChecker.class) registration.
-java_plugin(
-    name = "nullaway",
-    deps = ["@maven_tools//:com_uber_nullaway_nullaway"],
-)
-
-# The Maven build's flags, minus the three that do not apply under Bazel
-# (feasibility.md Q1): NO -Xplugin:ErrorProne (JavaBuilder instantiates Error
-# Prone itself and rejects the Maven form), and NO -J--add-exports block
-# (rules_java's BASE_JDK9_JVM_OPTS already passes every one of them).
-NULLAWAY_OPTS = [
-    "-XDcompilePolicy=simple",
-    "--should-stop=ifError=FLOW",
-    "-Xmaxerrs",
-    "10000",
-    "-XepDisableAllChecks",
-    "-Xep:NullAway:ERROR",
-    "-XepOpt:NullAway:AnnotatedPackages=com.legend",
-    "-XepOpt:NullAway:CustomNullableAnnotations=com.legend.base.Nullable",
-    "-XepOpt:NullAway:CustomNonnullAnnotations=com.legend.base.NonNull",
-    "-XepOpt:NullAway:JSpecifyMode=true",
-    "-XepOpt:NullAway:CheckOptionalEmptiness=true",
-    "-XDaddTypeAnnotationsToSymbol=true",
-]
+# THE NULL GATE: NullAway's plugin and flags live in //tools/nullaway, shared with every
+# other Java module.
 
 # CORE AS TARGETS (execution plan step 0c, 2026-09-26). One java_library per
 # package group, each naming its direct dependencies, so a reference from a
@@ -59,21 +36,20 @@ NULLAWAY_OPTS = [
 # deliberately. (BUILD files allow no **kwargs, so the three lines repeat.)
 _PRIVATE = ["//visibility:private"]
 
-java_library(name = "base", srcs = glob(["src/main/java/com/legend/base/*.java"]), javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
-java_library(name = "spi", srcs = glob(["src/main/java/com/legend/spi/*.java"]), javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
-java_library(name = "cache", srcs = glob(["src/main/java/com/legend/cache/*.java"]), deps = [":base"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
-java_library(name = "values", srcs = glob(["src/main/java/com/legend/values/*.java"]), deps = [":base"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
-java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), deps = [":base"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
-java_library(name = "lexer", srcs = glob(["src/main/java/com/legend/lexer/*.java"]), deps = [":base"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
-java_library(name = "sql", srcs = glob(["src/main/java/com/legend/sql/*.java"]), deps = [":base"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
-java_library(name = "protocol", srcs = glob(["src/main/java/com/legend/protocol/**/*.java"]), deps = [":base", ":values"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
-java_library(name = "model", srcs = glob(["src/main/java/com/legend/model/*.java"]), deps = [":base", ":protocol"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
+java_library(name = "spi", srcs = glob(["src/main/java/com/legend/spi/*.java"]), javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
+java_library(name = "cache", srcs = glob(["src/main/java/com/legend/cache/*.java"]), deps = ["//base"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
+java_library(name = "values", srcs = glob(["src/main/java/com/legend/values/*.java"]), deps = ["//base"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
+java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), deps = ["//base"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
+java_library(name = "lexer", srcs = glob(["src/main/java/com/legend/lexer/*.java"]), deps = ["//base"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
+java_library(name = "sql", srcs = glob(["src/main/java/com/legend/sql/*.java"]), deps = ["//base"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
+java_library(name = "protocol", srcs = glob(["src/main/java/com/legend/protocol/**/*.java"]), deps = ["//base", "//json", ":values"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
+java_library(name = "model", srcs = glob(["src/main/java/com/legend/model/*.java"]), deps = ["//base", ":protocol"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
 java_library(
     name = "parser",
     srcs = glob(["src/main/java/com/legend/parser/**/*.java"]),
-    deps = [":base", ":error", ":lexer", ":model", ":protocol", ":spi", ":values"],
+    deps = ["//base", ":error", ":lexer", ":model", ":protocol", ":spi", ":values"],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
 )
 
@@ -89,26 +65,26 @@ java_library(
         ["src/main/resources/**"],
         exclude = ["src/main/resources/com/legend/builtin/native-claims.tsv"],
     ),
-    deps = [":base", ":error", ":model", ":parser", ":protocol"],
+    deps = ["//base", ":error", ":model", ":parser", ":protocol"],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
 )
-java_library(name = "platform", srcs = glob(["src/main/java/com/legend/platform/*.java"]), deps = [":base", ":builtin", ":model"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
+java_library(name = "platform", srcs = glob(["src/main/java/com/legend/platform/*.java"]), deps = ["//base", ":builtin", ":model"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
 java_library(
     name = "compiler_element_type",
     srcs = glob(["src/main/java/com/legend/compiler/element/type/*.java"]),
-    deps = [":base", ":builtin", ":model", ":platform", ":protocol", ":sql"],
+    deps = ["//base", ":builtin", ":model", ":platform", ":protocol", ":sql"],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
 )
 java_library(
     name = "sql_dialect",
     srcs = glob(["src/main/java/com/legend/sql/dialect/*.java"]),
-    deps = [":base", ":compiler_element_type", ":sql"],
+    deps = ["//base", ":compiler_element_type", ":sql"],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
 )
 
@@ -116,81 +92,81 @@ java_library(
 java_library(
     name = "compiler",
     srcs = glob(["src/main/java/com/legend/compiler/**/*.java"], exclude = ["src/main/java/com/legend/compiler/element/type/*.java"]),
-    deps = [":base", ":builtin", ":compiler_element_type", ":error", ":model", ":platform", ":protocol", ":sql", ":values"],
+    deps = ["//base", ":builtin", ":compiler_element_type", ":error", ":model", ":platform", ":protocol", ":sql", ":values"],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
 )
 java_library(
     name = "normalizer",
     srcs = glob(["src/main/java/com/legend/normalizer/*.java"]),
-    deps = [":base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":platform", ":protocol"],
+    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":platform", ":protocol"],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
 )
 java_library(
     name = "lineage",
     srcs = glob(["src/main/java/com/legend/lineage/*.java"]),
-    deps = [":base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":platform", ":protocol", ":sql"],
+    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":platform", ":protocol", ":sql"],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
 )
 java_library(
     name = "validation",
     srcs = glob(["src/main/java/com/legend/validation/*.java"]),
-    deps = [":base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":protocol"],
+    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":protocol"],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
 )
 java_library(
     name = "lowering",
     srcs = glob(["src/main/java/com/legend/lowering/*.java"]),
-    deps = [":base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":platform", ":protocol", ":sql", ":values"],
+    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":platform", ":protocol", ":sql", ":values"],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
 )
 java_library(
     name = "plan",
     srcs = glob(["src/main/java/com/legend/plan/*.java"]),
-    deps = [":base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lineage", ":model", ":sql"],
+    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lineage", ":model", ":sql"],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
 )
 java_library(
     name = "resolver",
     srcs = glob(["src/main/java/com/legend/resolver/*.java"]),
-    deps = [":base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lowering", ":model", ":plan", ":platform", ":sql", ":values"],
+    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lowering", ":model", ":plan", ":platform", ":sql", ":values"],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
 )
 java_library(
     name = "exec",
     srcs = glob(["src/main/java/com/legend/exec/*.java"]),
-    deps = [":base", ":compiler", ":compiler_element_type", ":error", ":lowering", ":model", ":platform", ":sql", ":sql_dialect", ":values"],
+    deps = ["//base", ":compiler", ":compiler_element_type", ":error", ":lowering", ":model", ":platform", ":sql", ":sql_dialect", ":values"],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
 )
 java_library(
     name = "probe",
     srcs = glob(["src/main/java/com/legend/probe/*.java"]),
-    deps = [":base", ":builtin", ":lowering", ":model", ":platform"],
+    deps = ["//base", ":builtin", ":lowering", ":model", ":platform"],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
 )
 java_library(
     name = "testdatagen",
     srcs = glob(["src/main/java/com/legend/testdatagen/*.java"]),
-    deps = [":base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":exec", ":lineage", ":model", ":plan", ":protocol", ":resolver", ":sql_dialect", ":values"],
+    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":exec", ":lineage", ":model", ":plan", ":protocol", ":resolver", ":sql_dialect", ":values"],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
 )
 
@@ -199,34 +175,34 @@ java_library(
     name = "driver",
     srcs = glob(["src/main/java/com/legend/*.java"]),
     deps = [
-        ":base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":error", ":exec",
+        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":error", ":exec",
         ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":platform",
         ":protocol", ":resolver", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
     ],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
 )
-java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = [":base", ":lexer", ":model", ":parser"], javacopts = NULLAWAY_OPTS, plugins = [":nullaway"], visibility = _PRIVATE)
+java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":lexer", ":model", ":parser"], javacopts = NULLAWAY_OPTS, plugins = [NULLAWAY_PLUGIN], visibility = _PRIVATE)
 java_library(
     name = "test",
     srcs = glob(["src/main/java/com/legend/test/*.java"]),
-    deps = [":base", ":compiler", ":driver", ":error", ":exec", ":model", ":protocol", ":sql", ":values"],
+    deps = ["//base", ":compiler", ":driver", ":error", ":exec", ":model", ":protocol", ":sql", ":values"],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
 )
 java_library(
     name = "server_lib",
     srcs = glob(["src/main/java/com/legend/server/**/*.java"]),
-    deps = [":base", ":cache", ":compiler_element_type", ":driver", ":error", ":exec", ":lowering", ":model", ":protocol", ":sql_dialect"],
+    deps = ["//base", "//json", ":cache", ":compiler_element_type", ":driver", ":error", ":exec", ":lowering", ":model", ":protocol", ":sql_dialect"],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
 )
 
 _CORE_TARGETS = [
-    ":base", ":spi", ":cache", ":values", ":error", ":lexer", ":sql", ":protocol", ":model", ":parser",
+    "//base", "//json", ":spi", ":cache", ":values", ":error", ":lexer", ":sql", ":protocol", ":model", ":parser",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":exec", ":probe", ":testdatagen",
     ":driver", ":ide", ":test", ":server_lib",
@@ -262,7 +238,7 @@ java_library(
     name = "duckdb_load",
     srcs = glob(["src/main/duckdb/**/*.java"]),
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     resources = glob(["src/main/duckdb/META-INF/**"]),
     resource_strip_prefix = "core/src/main/duckdb",
     deps = [
@@ -478,8 +454,13 @@ java_library(
         "//spec:gen_imports",
         "//spec:gen_natives",
     ],
+    # core's sources import the two modules below core (null annotations, the JSON codec)
+    deps = [
+        "//base",
+        "//json",
+    ],
     javacopts = NULLAWAY_OPTS,
-    plugins = [":nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     resources = glob(
         ["src/main/resources/**"],
         exclude = ["src/main/resources/com/legend/builtin/prelude.pure"],

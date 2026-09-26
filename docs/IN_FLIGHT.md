@@ -68,16 +68,17 @@ h2-fail-roster.txt`.
 
 ## Status lines (update in place; newest first)
 
-- 2026-09-26 14:30 warehouse: **SUPERSEDES the 14:00 line (nothing of it landed). Cross-area
-  cleanup, user-approved while the untangle is paused:** the foundations leave `core`.
-  `//base` (top level; `com.legend.base.Nullable`/`NonNull`, Java package unchanged, so no
-  annotation site changes), `//json` (`com.legend.server.Json` -> `com.legend.json.Json`, moved
-  with `move_classes.py`, group E; the JSON escape-WRITE table moves from `protocol.Escapes`
-  into `Json`, `Escapes` keeps the Pure-literal decoder; ArchitectureTest 7b gains
-  `com.legend.json`), and NullAway's plugin + flags in one place (`//tools/nullaway`, replacing
-  `//core:nullaway` and the flag copies). Touches `core/BUILD.bazel`, `ArchitectureTest`,
-  `tools/untangle/groups.txt`, `tools/deps`, every BUILD that loads the null gate. The warehouse
-  then reaches no `//core` target (a new deps guard pins it). Building until pushed.
+- 2026-09-26 15:50 warehouse: **the foundations left core (this commit).** `//base` (top level,
+  `com.legend.base.Nullable`/`NonNull`, package unchanged: no annotation site changed), `//json`
+  (`com.legend.json.Json`, moved with `move_classes.py --group E`; the JSON escape-WRITE table
+  moved from `protocol.Escapes` into `Json`; `//json:tests`), `//tools/nullaway` (the plugin and
+  `NULLAWAY_OPTS` in one place; `//core:nullaway` and the warehouse's flag copy are gone). Your
+  files touched: `core/BUILD.bazel` (`:base` gone, deps `"//base"`, `server_lib`/`protocol` gain
+  `"//json"`, `core_next` declares `//base` + `//json`), `ArchitectureTest` (7b allows
+  `com.legend.json`), `JavaEvalLedgerTest` (the server register drops `Json.java`), `groups.txt`
+  (group E), `tools/deps` (plugin label; new `warehouse_closure_test`: the warehouse reaches no
+  `//core` target, proven red), `spec/BUILD.bazel` (`claims_generator_lib` declares `//base`).
+  NullAway proven live in base, json, warehouse and core. Chain 99/99 + deps 4/4. NOT building.
 - 2026-09-26 15:15 untangle: **step 3 homework landed** (this commit; GATES.md "Execution plan
   step 3 homework"): the kernel reading, a resolver fix (the normalizer built the resolution
   universe per statement; now once — `NameResolver.resolveQuery(query, imports, modelFqns)` is

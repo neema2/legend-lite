@@ -1,0 +1,13 @@
+# THE NULL GATE, in one place: NullAway's plugin here, its flags in defs.bzl. Every Java target
+# that holds the null discipline loads both (core, warehouse, json, base). It used to live in
+# core, and the warehouse kept its own copy of the flags.
+load("@rules_java//java:defs.bzl", "java_plugin")
+
+package(default_visibility = ["//visibility:public"])
+
+# A java_plugin with NO processor_class lands on javac's --processorpath, where Error Prone's
+# ServiceLoader finds NullAway's @AutoService(BugChecker.class) registration.
+java_plugin(
+    name = "nullaway",
+    deps = ["@maven_tools//:com_uber_nullaway_nullaway"],
+)

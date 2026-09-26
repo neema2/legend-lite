@@ -1,7 +1,7 @@
 package com.legend.warehouse.server;
 
 import com.legend.base.Nullable;
-import com.legend.server.Json;
+import com.legend.json.Json;
 import com.legend.warehouse.server.duck.ArrowStreams;
 import com.legend.warehouse.server.duck.Database;
 import com.legend.warehouse.server.duck.DuckException;

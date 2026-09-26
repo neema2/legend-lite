@@ -1,6 +1,6 @@
 package com.legend.warehouse.sqlapi;
 
-import com.legend.server.Json;
+import com.legend.json.Json;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;

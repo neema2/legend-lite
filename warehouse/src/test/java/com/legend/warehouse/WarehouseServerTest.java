@@ -5,7 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.legend.server.Json;
+import com.legend.json.Json;
 import com.legend.warehouse.client.WarehouseClient;
 import com.legend.warehouse.server.Statements;
 import com.legend.warehouse.sqlapi.NativeBinding;

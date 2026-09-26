@@ -4,35 +4,23 @@ load("@rules_graalvm//graalvm:defs.bzl", "native_image")
 load("@rules_java//java:defs.bzl", "java_binary", "java_library")
 load("//tools/junit:defs.bzl", "junit_test")
 load(":defs.bzl", "jar_entry")
+load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
 
 package(default_visibility = ["//visibility:public"])
 
-# core's null gate, the same flags (core/BUILD.bazel NULLAWAY_OPTS).
-NULLAWAY_OPTS = [
-    "-XDcompilePolicy=simple",
-    "--should-stop=ifError=FLOW",
-    "-Xmaxerrs",
-    "10000",
-    "-XepDisableAllChecks",
-    "-Xep:NullAway:ERROR",
-    "-XepOpt:NullAway:AnnotatedPackages=com.legend",
-    "-XepOpt:NullAway:CustomNullableAnnotations=com.legend.base.Nullable",
-    "-XepOpt:NullAway:CustomNonnullAnnotations=com.legend.base.NonNull",
-    "-XepOpt:NullAway:JSpecifyMode=true",
-    "-XepOpt:NullAway:CheckOptionalEmptiness=true",
-    "-XDaddTypeAnnotationsToSymbol=true",
-]
-
 # THE API, on java.base alone: records, the JSON codec, the bindings. It must
 # compile into the WebAssembly module beside the planner (program ruling 7), so
-# it names no java.sql, no java.net, no JDK server. It uses core only for core's
-# strict JSON parser; when core splits, that narrows to the JSON target.
+# it names no java.sql, no java.net, no JDK server. It depends on //base and //json only:
+# nothing in the warehouse reaches core (//tools/deps:warehouse_closure_test).
 java_library(
     name = "sqlapi",
     srcs = glob(["src/main/java/com/legend/warehouse/sqlapi/**/*.java"]),
     javacopts = NULLAWAY_OPTS,
-    plugins = ["//core:nullaway"],
-    deps = ["//core"],
+    plugins = [NULLAWAY_PLUGIN],
+    deps = [
+        "//base",
+        "//json",
+    ],
 )
 
 # The JVM client: the java.net.http driver for a binding, and a JDBC driver over
@@ -42,12 +30,13 @@ java_library(
     name = "client",
     srcs = glob(["src/main/java/com/legend/warehouse/client/**/*.java"]),
     javacopts = NULLAWAY_OPTS,
-    plugins = ["//core:nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     resources = ["src/main/resources/META-INF/services/java.sql.Driver"],
     resource_strip_prefix = "warehouse/src/main/resources",
     deps = [
         ":sqlapi",
-        "//core",
+        "//base",
+        "//json",
     ],
 )
 
@@ -56,10 +45,11 @@ java_library(
     name = "server_lib",
     srcs = glob(["src/main/java/com/legend/warehouse/server/**/*.java"]),
     javacopts = NULLAWAY_OPTS,
-    plugins = ["//core:nullaway"],
+    plugins = [NULLAWAY_PLUGIN],
     deps = [
         ":sqlapi",
-        "//core",
+        "//base",
+        "//json",
     ],
     # DuckDB's native library, for every platform, rides inside its JDBC jar: the server calls DuckDB's
     # C API through java.lang.foreign and uses no JDBC class (docs/WAREHOUSE_FFM_HOMEWORK_2026_09_26.md).
@@ -86,7 +76,8 @@ java_library(
         ":client",
         ":server_lib",
         ":sqlapi",
-        "//core",
+        "//base",
+        "//json",
         "@maven_warehouse//:org_duckdb_duckdb_jdbc",
         "@maven_test//:org_junit_jupiter_junit_jupiter",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",

@@ -391,7 +391,10 @@ final class ArchitectureTest {
      * It holds everything the parser produces (elements-for-the-wire, the
      * value-spec AST, TypeExpression, Multiplicity, SourceInfo, Realization)
      * and may reach only {@code com.legend.values} (date/time literal
-     * vocabulary — itself JDK-only by 6g) and the JDK. In particular:
+     * vocabulary — itself JDK-only by 6g), {@code com.legend.json} (the JSON
+     * escape table the emitter writes with; amended 2026-09-26 when JSON left
+     * core for its own module //json, which depends on nothing but the null
+     * annotations) and the JDK. In particular:
      * <b>no model, no parser, no lexer</b>. The wire-shape knowledge stays in
      * {@code ProtocolEmitter}; the model adapter lives on the model side
      * ({@code com.legend.model.FromProtocol}).
@@ -403,10 +406,10 @@ final class ArchitectureTest {
             .should().onlyDependOnClassesThat(
                     com.tngtech.archunit.core.domain.JavaClass.Predicates
                             .resideInAnyPackage("com.legend.protocol..",
-                                    "com.legend.values", "java..")
+                                    "com.legend.values", "com.legend.json", "java..")
                             .or(NULLNESS_ANNOTATIONS))
-            .as("Invariant 7b: com.legend.protocol depends only on values and the"
-              + " JDK — it is the bottom layer of the standalone drop-in")
+            .as("Invariant 7b: com.legend.protocol depends only on values, the JSON"
+              + " module and the JDK — it is the bottom layer of the standalone drop-in")
             .check(CORE_PROD_CLASSES);
     }
 

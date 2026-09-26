@@ -1,0 +1,29 @@
+# legend-lite's strict JSON codec (com.legend.json.Json): RFC 8259 parser to a Node tree, a
+# streaming writer, and THE JSON escape table. java.base and the null annotations only. Used by
+# core's server shell and protocol emitter, and by the warehouse, which needs nothing else of
+# core. Lived in core's server package until 2026-09-26.
+load("@rules_java//java:defs.bzl", "java_library")
+load("//tools/junit:defs.bzl", "junit_test")
+load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
+
+package(default_visibility = ["//visibility:public"])
+
+java_library(
+    name = "json",
+    srcs = glob(["src/main/java/com/legend/json/*.java"]),
+    javacopts = NULLAWAY_OPTS,
+    plugins = [NULLAWAY_PLUGIN],
+    deps = ["//base"],
+)
+
+junit_test(
+    name = "tests",
+    size = "small",
+    srcs = glob(["src/test/java/com/legend/json/*.java"]),
+    select = ["--select-package=com.legend.json"],
+    deps = [
+        ":json",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_params",
+    ],
+)

@@ -9,7 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import com.legend.server.Json;
+import com.legend.json.Json;
 import com.legend.warehouse.server.Statements;
 import com.legend.warehouse.sqlapi.SqlApi.ErrorCode;
 import com.legend.warehouse.sqlapi.SqlApi.ResultFormat;

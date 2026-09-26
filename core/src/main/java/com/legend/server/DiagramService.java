@@ -1,4 +1,5 @@
 package com.legend.server;
+import com.legend.json.Json;
 
 import com.legend.model.AssociationDefinition;
 import com.legend.model.ClassDefinition;

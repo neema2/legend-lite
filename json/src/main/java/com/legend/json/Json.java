@@ -1,4 +1,4 @@
-package com.legend.server;
+package com.legend.json;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -42,9 +42,9 @@ import java.util.Objects;
  *       control characters in strings.</li>
  *   <li><b>Configurable depth limit</b> (default 64) — prevents stack overflow from
  *       malicious deeply-nested input.</li>
- *   <li><b>Public escape/unescape</b> — the escape TABLE itself lives once in
- *       {@code protocol/Escapes.jsonEscape} (F3.1c); this class exposes the
- *       server-facing wrappers. The strict READER here is the documented
+ *   <li><b>Public escape/unescape</b> — the JSON escape TABLE lives once, here
+ *       ({@link #escapeTo(Appendable, String, boolean)}, F3.1c); the protocol
+ *       emitter uses it with Jackson's uppercase hex. The strict READER here is the documented
  *       HTTP-boundary exemption to the platform's one reader
  *       ({@code sql/Json}) — different policy on purpose (fail-fast with
  *       positions vs lenient wire reading).</li>
@@ -665,15 +665,49 @@ public final class Json {
     }
 
     /** Streaming escape — emits escaped characters directly to an
-     *  Appendable. F3.1c: the table lives ONCE in
-     *  {@link com.legend.protocol.Escapes#jsonEscape} (lowercase hex —
-     *  the protocol emitter's Jackson-parity uppercase is the one knob). */
+     *  Appendable, with lowercase hex (the server and result writers'
+     *  spelling). */
     public static void escapeTo(Appendable out, String s) {
         if (s == null) return;
         try {
-            com.legend.protocol.Escapes.jsonEscape(out, s, false);
+            escapeTo(out, s, false);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
+        }
+    }
+
+    /** THE JSON string-escape WRITE table (F3.1c) — RFC-8259, matching
+     *  Jackson's default output: quote/backslash and the named controls
+     *  ({@code \b \f \n \r \t}), every other control as {@code \-uXXXX}.
+     *  The ONE knob is hex case: Jackson writes UPPERCASE hex, and the
+     *  protocol emitter's byte-parity goldens pin that; the server and
+     *  result writers historically emit lowercase. Before F3.1c this
+     *  table was spelled three times, differing ONLY in hex case; it lived
+     *  in protocol.Escapes until 2026-09-26, when JSON's own module took it. */
+    public static void escapeTo(Appendable out, String s, boolean upperHex) throws IOException {
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '"' -> out.append("\\\"");
+                case '\\' -> out.append("\\\\");
+                case '\n' -> out.append("\\n");
+                case '\r' -> out.append("\\r");
+                case '\t' -> out.append("\\t");
+                case '\b' -> out.append("\\b");
+                case '\f' -> out.append("\\f");
+                default -> {
+                    if (c < 0x20) {
+                        String hex = Integer.toHexString(c);
+                        out.append("\\u");
+                        for (int p = hex.length(); p < 4; p++) {
+                            out.append('0');
+                        }
+                        out.append(upperHex ? hex.toUpperCase(java.util.Locale.ROOT) : hex);
+                    } else {
+                        out.append(c);
+                    }
+                }
+            }
         }
     }
 

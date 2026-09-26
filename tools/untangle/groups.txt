@@ -19,3 +19,8 @@ C: com.legend.compiler <- com.legend.compiler.element.StoreLookups
 # was unreachable from builtin (platform depends on builtin), so the enum families
 # could not key their members by id.
 D: com.legend.model <- com.legend.platform.FunctionId
+# 2026-09-26 (the warehouse session; user-approved while the untangle was paused; IN_FLIGHT
+# 14:30): the JSON codec leaves core's server package for its own module //json. It is used by
+# core's server shell and protocol emitter and by the warehouse, which needs nothing else of
+# core; in com.legend.server it tied the warehouse to all 29 core targets.
+E: com.legend.json <- com.legend.server.Json

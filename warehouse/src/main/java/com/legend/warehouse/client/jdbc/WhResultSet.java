@@ -1,7 +1,7 @@
 package com.legend.warehouse.client.jdbc;
 
 import com.legend.base.Nullable;
-import com.legend.server.Json;
+import com.legend.json.Json;
 import com.legend.warehouse.sqlapi.DuckType;
 import com.legend.warehouse.sqlapi.SqlApi.Column;
 import com.legend.warehouse.sqlapi.SqlApi.ResultMeta;

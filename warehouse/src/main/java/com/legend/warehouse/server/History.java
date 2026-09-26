@@ -8,7 +8,7 @@ import com.legend.warehouse.server.duck.DuckException;
 import com.legend.warehouse.server.duck.Result;
 import com.legend.warehouse.sqlapi.SqlApi.ApiError;
 import com.legend.warehouse.sqlapi.SqlApi.ResultMeta;
-import com.legend.server.Json;
+import com.legend.json.Json;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -85,7 +85,7 @@ public final class History implements AutoCloseable {
     /** How many statements are recorded for a principal (tests and admin). */
     public synchronized long count(String principal) throws Exception {
         try (Result r = conn.execute("SELECT count(*) FROM query_history WHERE principal = ?", principal)) {
-            return Long.parseLong(((com.legend.server.Json.Str) Collect.json(r, 1).get(0).get(0)).value());
+            return Long.parseLong(((com.legend.json.Json.Str) Collect.json(r, 1).get(0).get(0)).value());
         }
     }
 

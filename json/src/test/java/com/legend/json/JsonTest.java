@@ -1,4 +1,4 @@
-package com.legend.server;
+package com.legend.json;
 
 import java.io.PipedReader;
 import java.io.PipedWriter;

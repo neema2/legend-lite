@@ -1242,7 +1242,7 @@ class JavaEvalLedgerTest {
                     "core/src/main/java/com/legend/exec", EXEC_CLASSES,
                     "core/src/main/java/com/legend/server",
                     java.util.Set.of("ConnectionResolver.java",
-                            "DiagramService.java", "Json.java",
+                            "DiagramService.java",
                             "LegendHttpServer.java", "OutputFormat.java",
                             "PureLspServer.java", "QueryService.java"),
                     "core/src/main/java/com/legend/testdatagen",

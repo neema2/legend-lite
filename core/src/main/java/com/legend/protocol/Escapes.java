@@ -17,50 +17,13 @@ package com.legend.protocol;
  * property-name position (audit §5; the parser side was fixed
  * 2026-08-12, the wire copy was not). Protocol is the BOTTOM parse-
  * product layer (ArchitectureTest 7b: protocol → values + JDK only),
- * so the parser delegates DOWN — never a second table.
+ * so the parser delegates DOWN — never a second table. (The JSON escape
+ * WRITE table that also lived here moved to {@code com.legend.json.Json} on
+ * 2026-09-26: JSON escaping belongs to the JSON module.)
  */
 public final class Escapes {
 
     private Escapes() {
-    }
-
-    /** THE JSON string-escape WRITE table (F3.1c) — RFC-8259, matching
-     *  Jackson's default output: quote/backslash and the named controls
-     *  ({@code \b \f \n \r \t}), every other control as {@code \-uXXXX}.
-     *  The ONE knob is hex case: Jackson writes UPPERCASE hex, and the
-     *  protocol emitter's byte-parity goldens pin that; the server and
-     *  result writers historically emit lowercase. Before F3.1c this
-     *  table was spelled three times (server/Json.escapeTo,
-     *  ProtocolEmitter.str, server Json) differing ONLY in
-     *  hex case — all three now delegate here. */
-    public static void jsonEscape(Appendable out, String s,
-            boolean upperHex) throws java.io.IOException {
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            switch (c) {
-                case '"' -> out.append("\\\"");
-                case '\\' -> out.append("\\\\");
-                case '\n' -> out.append("\\n");
-                case '\r' -> out.append("\\r");
-                case '\t' -> out.append("\\t");
-                case '\b' -> out.append("\\b");
-                case '\f' -> out.append("\\f");
-                default -> {
-                    if (c < 0x20) {
-                        String hex = Integer.toHexString(c);
-                        out.append("\\u");
-                        for (int p = hex.length(); p < 4; p++) {
-                            out.append('0');
-                        }
-                        out.append(upperHex
-                                ? hex.toUpperCase(java.util.Locale.ROOT)
-                                : hex);
-                    } else {
-                        out.append(c);
-                    }
-                }
-            }
-        }
     }
 
     /** Decode; throws {@link IllegalArgumentException} on a unicode

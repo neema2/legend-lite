@@ -1,7 +1,7 @@
 package com.legend.warehouse.client.jdbc;
 
 import com.legend.base.Nullable;
-import com.legend.server.Json;
+import com.legend.json.Json;
 import com.legend.warehouse.sqlapi.DuckType;
 import java.math.BigDecimal;
 import java.math.BigInteger;
