@@ -78,13 +78,22 @@ try {
     (note1 ?? '').slice(0, 50)}…"`);
   if (rows1 === rows0 && note1 === '') bad('choosing did nothing');
 
-  // And the button must actually produce a file.
+  // The download link must still produce a file.
   const [dl] = await Promise.all([
     page.waitForEvent('download', { timeout: 60_000 }),
-    page.click('#samplecsv'),
+    page.click('#sampledownload'),
   ]);
   console.log(`downloaded: ${dl.suggestedFilename()}`);
   if (!/\.csv$/.test(dl.suggestedFilename())) bad('not a csv');
+
+  // And Open must load it straight into the cube, no file step.
+  await page.selectOption('#samplepick', 'orders-json');
+  await page.fill('#samplerows', '300');
+  await page.click('#sampleopen');
+  await page.waitForFunction(() => /300 rows, 7 columns/.test(
+    document.getElementById('uploadnote')?.textContent ?? ''),
+  null, { timeout: 60_000 });
+  console.log(`opened: ${await page.textContent('#uploadnote')}`);
 
   // THE PAGE MUST STILL SAY WHERE PLANNING HAPPENS.
   //
@@ -226,7 +235,7 @@ try {
       return 'rgb(255,255,255)';
     };
     const out = {};
-    for (const id of ['samplepick', 'samplerows', 'uploadnote', 'samplecsv']) {
+    for (const id of ['samplepick', 'samplerows', 'uploadnote', 'sampleopen']) {
       const el = document.getElementById(id);
       if (!el) continue;
       const a = lum(getComputedStyle(el).color);

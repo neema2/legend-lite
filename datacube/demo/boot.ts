@@ -21,7 +21,12 @@ import { mountRemote } from '../src/remote.ts';
 import { ingestFile } from '../src/upload.ts';
 import { makeWindow, type WindowSpec } from '../src/ui/window.ts';
 import type { MenuItem } from '../src/ui/menu.ts';
-import { SAMPLES, sampleById, sampleFileName } from '../src/samples.ts';
+import {
+  SAMPLES,
+  sampleById,
+  sampleFileName,
+  type Sample,
+} from '../src/samples.ts';
 import type { ColumnFormat } from '../src/format.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 
@@ -519,99 +524,144 @@ export async function boot(makePlanner: MakePlanner): Promise<void> {
       const s = sampleById(pick.value);
       if (!s) return;
       rowsInput.value = String(s.defaultRows);
-      must('samplecsv').textContent = s.format === 'jsonl'
-        ? 'Get JSON' : 'Get CSV';
-      note.classList.remove('bad');
+            note.classList.remove('bad');
       note.textContent = s.about;
     };
     pick.addEventListener('change', showPick);
     showPick();
 
-    must('samplecsv').addEventListener('click', () => {
-      const s = sampleById(pick.value);
-      if (!s) return;
-      const rows = Math.max(1, Math.min(2_000_000,
-        Number(rowsInput.value) || s.defaultRows));
-      const name = sampleFileName(s);
-      // Generating 200k rows is a second of synchronous string
-      // building; say so before starting rather than looking hung.
+    // Narrowed once: the check above does not reach into a function.
+    const useModel = setModel;
+    async function openFile(file: File): Promise<void> {
       note.classList.remove('bad');
-      note.textContent = `building ${name}…`;
+      note.textContent = `reading ${file.name}…`;
+      try {
+        const opened = await ingestFile(engine, db, file);
+        useModel(opened.model, opened.runtime);
+        // A freshly opened file groups by nothing: show the rows as
+        // they are and let the user build the cube up. Guessing at
+        // dimensions and measures would be wrong more often than
+        // the guess is worth.
+        app.dispose();
+        app = makeApp(
+          {
+            source: { expression: opened.source },
+            columns: opened.columns,
+            derived: [],
+            rows: [],
+            pivotOn: [],
+            measures: [],
+            sorts: [],
+            epoch: 1,
+          },
+          {
+            ...DEFAULT_CONFIGURATION,
+            reportTitle: opened.fileName,
+            // A numeric column the inference judged key-like -- a
+            // year, an id, a postcode -- must not get thousands
+            // separators. "2,019" is the kind of wrong that reads
+            // as a bug in the data rather than in the formatting.
+            columns: Object.fromEntries(
+              opened.columns
+                .filter((c) => c.kind === 'dimension'
+                  && (c.type === 'Integer' || c.type === 'Float'))
+                .map((c) => [c.name, {
+                  format: {
+                    kind: 'number' as const,
+                    displayCommas: false,
+                    maximumFractionDigits: 0,
+                  },
+                }]),
+            ),
+          },
+          [],
+        );
+        // open() is what runs the first query; without it the
+        // chrome renders and the grid stays empty.
+        await app.open();
+        note.textContent = `${opened.fileName}: `
+          + `${opened.rowCount.toLocaleString()} rows, `
+          + `${opened.columns.length} columns`;
+      } catch (e) {
+        // Say what failed and about which file. An uploaded file is
+        // the one input the user can actually fix.
+        note.classList.add('bad');
+        note.textContent = `could not open ${file.name}: `
+          + (e instanceof Error ? e.message : String(e));
+      }
+    }
+
+    // Build the chosen sample. No row cap: the one hard limit is the
+    // browser's longest string (about 512M characters, some millions
+    // of rows), and past it the build throws a RangeError -- said in
+    // plain words below rather than guessed at with a ceiling here.
+    const buildSample = (): { s: Sample; text: string; name: string;
+      rows: number } | undefined => {
+      const s = sampleById(pick.value);
+      if (!s) return undefined;
+      const rows = Math.max(1, Math.floor(Number(rowsInput.value))
+        || s.defaultRows);
+      return { s, text: s.build(rows), name: sampleFileName(s), rows };
+    };
+    const tooBig = (e: unknown): string =>
+      e instanceof RangeError
+        ? `${Number(rowsInput.value).toLocaleString()} rows is more than `
+          + 'this tab can hold as one file -- try fewer'
+        : e instanceof Error ? e.message : String(e);
+    const mimeOf = (s: Sample): string =>
+      s.format === 'jsonl' ? 'application/x-ndjson' : 'text/csv';
+
+    // Open: generate and load it, the same path a picked file takes.
+    must('sampleopen').addEventListener('click', () => {
+      note.classList.remove('bad');
+      note.textContent = `building ${Number(rowsInput.value)
+        .toLocaleString()} rows…`;
+      // Generating 200k rows is a second of synchronous string
+      // building; let the note paint before starting.
       setTimeout(() => {
+        let built;
+        try {
+          built = buildSample();
+        } catch (e) {
+          note.classList.add('bad');
+          note.textContent = tooBig(e);
+          return;
+        }
+        if (!built) return;
+        void openFile(new File([built.text], built.name,
+          { type: mimeOf(built.s) }));
+      }, 0);
+    });
+
+    // Or keep it: the same file, saved, for sharing or reopening.
+    must('sampledownload').addEventListener('click', (ev) => {
+      ev.preventDefault();
+      note.classList.remove('bad');
+      setTimeout(() => {
+        let built;
+        try {
+          built = buildSample();
+        } catch (e) {
+          note.classList.add('bad');
+          note.textContent = tooBig(e);
+          return;
+        }
+        if (!built) return;
         const url = URL.createObjectURL(
-          new Blob([s.build(rows)], { type: s.format === 'jsonl'
-            ? 'application/x-ndjson' : 'text/csv' }));
+          new Blob([built.text], { type: mimeOf(built.s) }));
         const a = document.createElement('a');
         a.href = url;
-        a.download = name;
+        a.download = built.name;
         a.click();
         URL.revokeObjectURL(url);
-        note.textContent = `${name} saved (${rows.toLocaleString()} rows)`
-          + ' — now open it above';
+        note.textContent = `${built.name} saved `
+          + `(${built.rows.toLocaleString()} rows)`;
       }, 0);
     });
 
     input.addEventListener('change', () => {
       const file = input.files?.[0];
-      if (!file) return;
-      note.classList.remove('bad');
-      note.textContent = `reading ${file.name}…`;
-      void (async () => {
-        try {
-          const opened = await ingestFile(engine, db, file);
-          setModel(opened.model, opened.runtime);
-          // A freshly opened file groups by nothing: show the rows as
-          // they are and let the user build the cube up. Guessing at
-          // dimensions and measures would be wrong more often than
-          // the guess is worth.
-          app.dispose();
-          app = makeApp(
-            {
-              source: { expression: opened.source },
-              columns: opened.columns,
-              derived: [],
-              rows: [],
-              pivotOn: [],
-              measures: [],
-              sorts: [],
-              epoch: 1,
-            },
-            {
-              ...DEFAULT_CONFIGURATION,
-              reportTitle: opened.fileName,
-              // A numeric column the inference judged key-like -- a
-              // year, an id, a postcode -- must not get thousands
-              // separators. "2,019" is the kind of wrong that reads
-              // as a bug in the data rather than in the formatting.
-              columns: Object.fromEntries(
-                opened.columns
-                  .filter((c) => c.kind === 'dimension'
-                    && (c.type === 'Integer' || c.type === 'Float'))
-                  .map((c) => [c.name, {
-                    format: {
-                      kind: 'number' as const,
-                      displayCommas: false,
-                      maximumFractionDigits: 0,
-                    },
-                  }]),
-              ),
-            },
-            [],
-          );
-          // open() is what runs the first query; without it the
-          // chrome renders and the grid stays empty.
-          await app.open();
-          note.textContent = `${opened.fileName}: `
-            + `${opened.rowCount.toLocaleString()} rows, `
-            + `${opened.columns.length} columns`;
-        } catch (e) {
-          // Say what failed and about which file. An uploaded file is
-          // the one input the user can actually fix.
-          note.classList.add('bad');
-          note.textContent = `could not open ${file.name}: `
-            + (e instanceof Error ? e.message : String(e));
-        }
-      })();
+      if (file) void openFile(file);
     });
   }
 }

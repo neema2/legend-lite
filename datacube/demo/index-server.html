@@ -133,12 +133,13 @@
   }
   #samplepick { min-width: 20em; max-width: 30em; }
   #samplerows { width: 7em; }
-  #samplecsv {
+  #sampledownload { font-size: 12px; opacity: .75; }
+  #sampleopen {
     font: inherit; cursor: pointer; padding: 2px 8px;
     border: 1px solid rgba(128,128,128,.4); border-radius: 3px;
     background: transparent; color: inherit;
   }
-  #samplecsv:hover { border-color: rgba(128,128,128,.8); }
+  #sampleopen:hover { border-color: rgba(128,128,128,.8); }
   #uploadnote.bad { color: #b00020; }
 </style>
 </head>
@@ -190,10 +191,11 @@
         <span class="dc-sep">or</span>
         <label for="samplepick">try</label>
         <select id="samplepick"></select>
-        <input id="samplerows" type="number" min="1" max="2000000"
+        <input id="samplerows" type="number" min="1"
                step="1000" title="rows">
-        <button id="samplecsv" type="button">Get CSV</button>
-        <span id="uploadnote">CSV or Parquet. It stays in this tab.</span>
+        <button id="sampleopen" type="button">Open</button>
+        <a id="sampledownload" href="#" title="save the generated file instead">download</a>
+        <span id="uploadnote">CSV, Parquet or JSON. It stays in this tab.</span>
       </div>
     </div>
   </div>
