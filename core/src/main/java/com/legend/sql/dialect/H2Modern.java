@@ -81,7 +81,7 @@ public class H2Modern extends H2 {
      * spellings: {@code JSON '...'} for literals, {@code (x FORMAT
      * JSON)} for dynamic text (both probed to navigate). TO_VARIANT
      * keeps the quoting CAST — that IS toVariant's string semantics. */
-    private @com.legend.Nullable String jsonParseCast(SqlExpr.Cast c) {
+    private @com.legend.base.Nullable String jsonParseCast(SqlExpr.Cast c) {
         if (c.target() != com.legend.sql.SqlType.Scalar.JSON) {
             return null;
         }

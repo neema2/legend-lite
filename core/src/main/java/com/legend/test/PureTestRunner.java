@@ -69,8 +69,8 @@ public final class PureTestRunner implements AutoCloseable {
      *  verdict is then a failure) — each may be set; null means the event
      *  did not happen for this assert. */
     public record Verdict(String assertName, boolean pass,
-            @com.legend.Nullable String declinedReason, @com.legend.Nullable String refereeOutcome,
-            @com.legend.Nullable String unjudgedReason) {
+            @com.legend.base.Nullable String declinedReason, @com.legend.base.Nullable String refereeOutcome,
+            @com.legend.base.Nullable String unjudgedReason) {
     }
 
     /** One test's outcome with its reason and its verdict log.
@@ -99,21 +99,21 @@ public final class PureTestRunner implements AutoCloseable {
     private static final ValueSpecification INERT_SETUP = new CBoolean(true);
 
     private final ModelContext ctx;
-    private final @com.legend.Nullable String runtimeFqn;
+    private final @com.legend.base.Nullable String runtimeFqn;
     private final Sessions sessions;
     private final List<String> sharedSetups;
     private final Map<String, List<String>> setupsByPackage;
     private final TestObserver observer;
 
-    private @com.legend.Nullable Connection sessionConn;
-    private @com.legend.Nullable String sessionPkg;
+    private @com.legend.base.Nullable Connection sessionConn;
+    private @com.legend.base.Nullable String sessionPkg;
     private final Set<String> setupsDone = new LinkedHashSet<>();
     /** Each setup's resolved program (or {@link #INERT_SETUP}) — derived once. */
     private final Map<String, ValueSpecification> setupPrograms = new HashMap<>();
     /** Fixture on demand: store FQN → the setups (every package's and the
      * shared fixture's) whose program seeds it, from the platform's
      * {@code ProgramFacts.seedsStores}; built once, at the first ask. */
-    private @com.legend.Nullable Map<String, List<String>> fixturesByStore;
+    private @com.legend.base.Nullable Map<String, List<String>> fixturesByStore;
     /** setup → the stores its program seeds (the same fact, by setup). */
     private final Map<String, Set<String>> setupStores = new HashMap<>();
     private final Set<String> inertSetups = new LinkedHashSet<>();
@@ -127,7 +127,7 @@ public final class PureTestRunner implements AutoCloseable {
      * @param setupsByPackage {@code BeforePackage} functions by package ({@link PureTests.Discovery})
      * @param observer       the caller's instruments, or {@link TestObserver#NONE}
      */
-    public PureTestRunner(ModelContext ctx, @com.legend.Nullable String runtimeFqn, Sessions sessions,
+    public PureTestRunner(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn, Sessions sessions,
             List<String> sharedSetups, Map<String, List<String>> setupsByPackage, TestObserver observer) {
         this(ctx, runtimeFqn, sessions, sharedSetups, setupsByPackage, observer,
                 ExecuteOptions.JudgeMode.HOST);
@@ -135,7 +135,7 @@ public final class PureTestRunner implements AutoCloseable {
 
     /** @param judgeMode the run's assert judge (one mode per run, on every
      *                   test's options — {@link ExecuteOptions.JudgeMode}) */
-    public PureTestRunner(ModelContext ctx, @com.legend.Nullable String runtimeFqn, Sessions sessions,
+    public PureTestRunner(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn, Sessions sessions,
             List<String> sharedSetups, Map<String, List<String>> setupsByPackage, TestObserver observer,
             ExecuteOptions.JudgeMode judgeMode) {
         this.ctx = ctx;
@@ -398,7 +398,7 @@ public final class PureTestRunner implements AutoCloseable {
      * ({@link ProgramFacts#shape()}) by test — read by the corpus lanes. */
     private final java.util.Map<String, String> bodyShapes = new java.util.HashMap<>();
 
-    public @com.legend.Nullable String bodyShape(String fqn) {
+    public @com.legend.base.Nullable String bodyShape(String fqn) {
         return bodyShapes.get(fqn);
     }
 
@@ -458,7 +458,7 @@ public final class PureTestRunner implements AutoCloseable {
     }
 
     private Result judge(PureTests.TestCase t, ValueSpecification resolved, ProgramFacts facts,
-            Connection conn, ExecuteOptions options, @com.legend.Nullable SqlReplayOracle oracle)
+            Connection conn, ExecuteOptions options, @com.legend.base.Nullable SqlReplayOracle oracle)
             throws SQLException {
         boolean effectful = facts.effects();
         List<Verdict> verdicts = new ArrayList<>();
@@ -477,7 +477,7 @@ public final class PureTestRunner implements AutoCloseable {
                 Compiler.executeResolved(resolved, ctx, runtimeFqn, conn,
                         new AssertListener() {
                             @Override
-                            public void verdict(String name, boolean pass, @com.legend.Nullable String detail) {
+                            public void verdict(String name, boolean pass, @com.legend.base.Nullable String detail) {
                                 int i = verdicts.size();
                                 verdicts.add(new Verdict(name, pass,
                                         declinedAhead.get(i), refereedAhead.get(i),
@@ -554,7 +554,7 @@ public final class PureTestRunner implements AutoCloseable {
     /** The platform's message, WHOLE, on one line: a runner never truncates
      * what the platform said; lines join with {@code " | "} so every failure
      * stays one greppable line. */
-    public static String whole(@com.legend.Nullable String s) {
+    public static String whole(@com.legend.base.Nullable String s) {
         if (s == null) {
             return "null";
         }

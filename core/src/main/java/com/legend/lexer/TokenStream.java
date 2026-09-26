@@ -70,7 +70,7 @@ public final class TokenStream {
      */
     public record SectionHeader(String name, int nameOffset,
             int contentStartOffset,
-            @com.legend.Nullable String residueToken,
+            @com.legend.base.Nullable String residueToken,
             int residueLine, int residueCol) {
 
         // residueToken non-null = non-comment residue after the name on
@@ -172,7 +172,7 @@ public final class TokenStream {
      * after. {@code null} until first use — benign racy initialization: two threads may both build
      * it, and both results are identical and immutable.
      */
-    private volatile int @com.legend.Nullable [] lineStarts;
+    private volatile int @com.legend.base.Nullable [] lineStarts;
 
     private int[] lineStarts() {
         int[] ls = lineStarts;
@@ -225,7 +225,7 @@ public final class TokenStream {
      * uniform ~1.5x parse-time tax on the corpus gate. One monotonic pass builds all
      * four arrays; same benign-racy lazy init as {@link #lineStarts}.
      */
-    private volatile int @com.legend.Nullable [][] tokenPositions;
+    private volatile int @com.legend.base.Nullable [][] tokenPositions;
 
     private int[][] tokenPositions() {
         int[][] tp = tokenPositions;

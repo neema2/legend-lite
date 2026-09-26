@@ -2740,7 +2740,7 @@ final class Scalars {
     }
 
     /** datePrecision, or null where the abstract Date makes it undecidable. */
-    private static PureDateLiteral.@com.legend.Nullable Precision datePrecisionOrUnknown(TypedSpec arg) {
+    private static PureDateLiteral.@com.legend.base.Nullable Precision datePrecisionOrUnknown(TypedSpec arg) {
         try {
             return datePrecision(arg);
         } catch (IllegalStateException undecidable) {
@@ -2814,7 +2814,7 @@ final class Scalars {
     /** The provenance-carrying guard: the raising call's source span rides
      * the raise ({@link PureSql#raise}) — assertError's position channel. */
     static SqlExpr guarded(SqlExpr cond, SqlExpr msg, SqlExpr value,
-            com.legend.protocol.@com.legend.Nullable SourceInfo pos) {
+            com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(cond,
                 PureSql.raise(msg, pos))), value);
     }
@@ -3300,7 +3300,7 @@ final class Scalars {
     }
 
     /** Pure's default date print for a format slot, or null when not a date. */
-    static @com.legend.Nullable SqlExpr datePrintOf(TypedSpec typed, SqlExpr e) {
+    static @com.legend.base.Nullable SqlExpr datePrintOf(TypedSpec typed, SqlExpr e) {
         Type t = typed.info().type();
         SqlExpr lit = dateLiteralPrint(typed, t);
         if (lit != null) {
@@ -3329,7 +3329,7 @@ final class Scalars {
      * normalized to +0000 (the parser already shifted zone-carrying
      * literals to GMT). {@code null} for non-literal args.
      */
-    private static @com.legend.Nullable SqlExpr dateLiteralPrint(TypedSpec spec, Type t) {
+    private static @com.legend.base.Nullable SqlExpr dateLiteralPrint(TypedSpec spec, Type t) {
         if (!(spec instanceof TypedCDate cd)) {
             return null;
         }
@@ -3340,7 +3340,7 @@ final class Scalars {
     /** Partial-date-literal precision: 1 = year, 2 = year-month; null otherwise. */
     /** Split-part FIELD COUNT of a partial (year / year-month) literal —
      * derived from the one precision ladder, not a second scale. */
-    static @com.legend.Nullable Integer partialPrecision(TypedSpec t) {
+    static @com.legend.base.Nullable Integer partialPrecision(TypedSpec t) {
         if (t instanceof TypedCDate d) {
             return switch (d.value().precision()) {
                 case YEAR -> 1;
@@ -3366,7 +3366,7 @@ final class Scalars {
      * ListShapes. Package-private: {@code Lowerer#scalarRoot} uses the
      * recognizer half to spot the SAME shape at the statement root,
      * where it keeps the LIST instead (egress slice A). */
-    static @com.legend.Nullable SqlExpr aggStrip(SqlExpr e) {
+    static @com.legend.base.Nullable SqlExpr aggStrip(SqlExpr e) {
         if (!(e instanceof SqlExpr.ScalarSubquery sq
                 && sq.subquery() instanceof SqlSelect ss
                 && ss.projections().size() == 1

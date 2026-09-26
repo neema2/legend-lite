@@ -90,7 +90,7 @@ public final class PlatformTypes {
      * ({@code Function<{…}>}, {@code LambdaFunction<{…}>}, …); {@code null}
      * when {@code t} is not function-valued (including carriers whose
      * argument is nominal, e.g. {@code FunctionDefinition<Any>}). */
-    public static Type.@com.legend.Nullable FunctionType functionTypeOf(Type t) {
+    public static Type.@com.legend.base.Nullable FunctionType functionTypeOf(Type t) {
         if (t instanceof Type.FunctionType ft) {
             return ft;
         }
@@ -373,7 +373,7 @@ public final class PlatformTypes {
      * or a handle whose result is not a class (preval's function value).
      * No per-FQN table: NativeFn.Handle labels the kind, the signature
      * names the class. */
-    public static @com.legend.Nullable String handleRowClass(String fqn, Type returnType) {
+    public static @com.legend.base.Nullable String handleRowClass(String fqn, Type returnType) {
         if (com.legend.builtin.NativeFn.Handle.of(fqn).isEmpty()) {
             return null;
         }
@@ -578,7 +578,7 @@ public final class PlatformTypes {
     /** The plan-text simple name of a relational connection class, given
      * its FQN or (in an UNCHECKED helper body) its bare class name; null
      * for any other class. */
-    public static @com.legend.Nullable String relationalConnectionSimpleName(String nameOrFqn) {
+    public static @com.legend.base.Nullable String relationalConnectionSimpleName(String nameOrFqn) {
         if (DATABASE_CONNECTION.equals(nameOrFqn) || "DatabaseConnection".equals(nameOrFqn)) {
             return "DatabaseConnection";
         }

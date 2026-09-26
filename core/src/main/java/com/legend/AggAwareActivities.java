@@ -44,7 +44,7 @@ final class AggAwareActivities {
     }
 
     /** The routed print for an aggregation-aware frame, else null. */
-    static @Nullable String rewrittenQuery(TypedSpec chain, ModelContext ctx,
+    static @com.legend.base.Nullable String rewrittenQuery(TypedSpec chain, ModelContext ctx,
             com.legend.compiler.spec.SpecCompiler specs) {
         String mappingFqn = null;
         TypedSpec cur = chain;

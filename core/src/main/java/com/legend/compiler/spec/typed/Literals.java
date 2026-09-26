@@ -25,7 +25,7 @@ public final class Literals {
 
     /** The constant value of {@code e} — a String, a Number, or a List of those — or
      * null when {@code e} is not a literal-only expression over {@code lets}. */
-    public static @com.legend.Nullable Object fold(TypedSpec e, List<TypedSpec> lets) {
+    public static @com.legend.base.Nullable Object fold(TypedSpec e, List<TypedSpec> lets) {
         return switch (e) {
             case TypedCString s -> s.value();
             case TypedCInteger i -> i.value();
@@ -94,7 +94,7 @@ public final class Literals {
     }
 
     /** Every argument folded and flattened to strings; null when any is not a string. */
-    private static @com.legend.Nullable List<String> strings(List<TypedSpec> args, List<TypedSpec> lets) {
+    private static @com.legend.base.Nullable List<String> strings(List<TypedSpec> args, List<TypedSpec> lets) {
         List<String> out = new ArrayList<>();
         for (TypedSpec a : args) {
             Object v = fold(a, lets);

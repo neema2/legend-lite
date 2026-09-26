@@ -8,7 +8,7 @@ package com.legend.protocol.spec;
  * syntax; semantic interpretation (which milestone, in which store)
  * happens at compile / resolve time. Mirrors the engine record exactly.
  */
-public record CLatestDate(@com.legend.Nullable com.legend.protocol.SourceInfo pos)
+public record CLatestDate(@com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
 
     /** Position-free convenience constructor. */

@@ -30,7 +30,7 @@ public final class CsvSeed {
      *  decimal arithmetic then answered with the wrong scale (940 stress
      *  rows: {@code notional / riskScore} = 3571428.571, not the declared
      *  type's 3571428.5714285714). */
-    public static List<String> sqls(String csvBlocks, @com.legend.Nullable String dbFqn,
+    public static List<String> sqls(String csvBlocks, @com.legend.base.Nullable String dbFqn,
             ModelContext ctx, com.legend.sql.dialect.SqlDialect dialect) {
         return steps(csvBlocks, dbFqn, ctx, dialect).stream().map(st -> st.text(dialect)).toList();
     }
@@ -56,7 +56,7 @@ public final class CsvSeed {
 
     /** The seed as {@link Step}s &mdash; {@link #sqls}' statements, the rows
      *  still rows. */
-    public static List<Step> steps(String csvBlocks, @com.legend.Nullable String dbFqn,
+    public static List<Step> steps(String csvBlocks, @com.legend.base.Nullable String dbFqn,
             ModelContext ctx, com.legend.sql.dialect.SqlDialect dialect) {
         List<Step> out = new ArrayList<>();
         // block separators: a line of dashes — '-' (the Alloy '\n-\n'
@@ -77,7 +77,7 @@ public final class CsvSeed {
         return out;
     }
 
-    private static void blockSqls(String csv, @com.legend.Nullable String dbFqn, ModelContext ctx,
+    private static void blockSqls(String csv, @com.legend.base.Nullable String dbFqn, ModelContext ctx,
             com.legend.sql.dialect.SqlDialect dialect, List<Step> out) {
         String[] lines = csv.split("\n");
         while (lines.length > 0 && lines[0].isBlank()) {
@@ -200,7 +200,7 @@ public final class CsvSeed {
      * (batch 85): every value rides as TEXT and the DATABASE casts it to the
      * column's type (F7.2); an empty or {@code ---null---} cell, or one past
      * the row's end, is NULL. Null when no rows. */
-    public static @com.legend.Nullable RowLoad rowLoad(@com.legend.Nullable String schema,
+    public static @com.legend.base.Nullable RowLoad rowLoad(@com.legend.base.Nullable String schema,
             String table, String[] cols, List<String[]> rows) {
         if (rows.isEmpty()) {
             return null;

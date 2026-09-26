@@ -42,7 +42,7 @@ final class NavReducer {
 
     /** The reducer's argument as head + element mapper: a {@code map} over
      *  the head, or a leaf read {@code head.leaf}; null for other shapes. */
-    static @com.legend.Nullable Shape shapeOf(TypedNativeCall rc, String thisVar) {
+    static @com.legend.base.Nullable Shape shapeOf(TypedNativeCall rc, String thisVar) {
         if (rc.args().size() != 1) {
             return null;
         }

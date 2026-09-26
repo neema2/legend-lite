@@ -145,7 +145,7 @@ public final class Conn implements AutoCloseable {
      * Runs one statement with parameters ({@code ?}), each a String, a Long or null; the caller closes
      * the result. For the warehouse's own tables (history), never a user's SQL.
      */
-    public Result execute(String sql, @com.legend.Nullable Object... params) throws DuckException {
+    public Result execute(String sql, @com.legend.base.Nullable Object... params) throws DuckException {
         MemorySegment ps;
         try (Arena a = Arena.ofConfined()) {
             MemorySegment out = a.allocate(ADDRESS);

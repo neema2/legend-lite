@@ -88,7 +88,7 @@ public final class KnowledgeLayer {
      * walks: a PRIMITIVE is not a class there (scalar detection reads
      * "no class at this name") even though the catalog declares its
      * lattice node as a native Class; a null name is no class. */
-    public Optional<ClassDefinition> hierarchyClass(@com.legend.Nullable String fqn) {
+    public Optional<ClassDefinition> hierarchyClass(@com.legend.base.Nullable String fqn) {
         if (fqn == null
                 || com.legend.compiler.element.type.Type.Primitive.findByFqn(fqn).isPresent()) {
             return Optional.empty();
@@ -148,7 +148,7 @@ public final class KnowledgeLayer {
      * climbed through it (an ancestor reached only through {@code root}
      * stays out; one reached along another parent chain stays in). */
     public java.util.LinkedHashSet<String> ancestorsBelow(String cls,
-            @com.legend.Nullable String root) {
+            @com.legend.base.Nullable String root) {
         java.util.LinkedHashSet<String> out = new java.util.LinkedHashSet<>();
         java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>();
         work.add(cls);
@@ -246,13 +246,13 @@ public final class KnowledgeLayer {
      * injected onto it, else the same on each superclass in turn
      * (association ends are inherited too). Null when nothing declares
      * it; null class, null answer. */
-    public @com.legend.Nullable TypeExpression propertyType(
-            @com.legend.Nullable ClassDefinition cd, String name) {
+    public @com.legend.base.Nullable TypeExpression propertyType(
+            @com.legend.base.Nullable ClassDefinition cd, String name) {
         return propertyType(cd, name, new java.util.HashSet<>());
     }
 
-    private @com.legend.Nullable TypeExpression propertyType(
-            @com.legend.Nullable ClassDefinition cd, String name, java.util.Set<String> visited) {
+    private @com.legend.base.Nullable TypeExpression propertyType(
+            @com.legend.base.Nullable ClassDefinition cd, String name, java.util.Set<String> visited) {
         if (cd == null || !visited.add(cd.qualifiedName())) {
             return null;
         }
@@ -276,13 +276,13 @@ public final class KnowledgeLayer {
 
     /** The stored-property DEFINITION {@code name} on {@code cd} or the
      * nearest superclass declaring it (no association ends). */
-    public ClassDefinition.@com.legend.Nullable PropertyDefinition propertyDef(
-            @com.legend.Nullable ClassDefinition cd, String name) {
+    public ClassDefinition.@com.legend.base.Nullable PropertyDefinition propertyDef(
+            @com.legend.base.Nullable ClassDefinition cd, String name) {
         return propertyDef(cd, name, new java.util.HashSet<>());
     }
 
-    private ClassDefinition.@com.legend.Nullable PropertyDefinition propertyDef(
-            @com.legend.Nullable ClassDefinition cd, String name, java.util.Set<String> visited) {
+    private ClassDefinition.@com.legend.base.Nullable PropertyDefinition propertyDef(
+            @com.legend.base.Nullable ClassDefinition cd, String name, java.util.Set<String> visited) {
         if (cd == null || !visited.add(cd.qualifiedName())) {
             return null;
         }
@@ -302,7 +302,7 @@ public final class KnowledgeLayer {
 
     /** The declared multiplicity of stored property {@code name} on
      * {@code cd} or the nearest superclass declaring it. */
-    public com.legend.protocol.@com.legend.Nullable Multiplicity propertyMultiplicity(
+    public com.legend.protocol.@com.legend.base.Nullable Multiplicity propertyMultiplicity(
             ClassDefinition cd, String name) {
         ClassDefinition.PropertyDefinition pd = propertyDef(cd, name);
         return pd == null ? null : pd.multiplicity();
@@ -311,13 +311,13 @@ public final class KnowledgeLayer {
     /** The zero-argument, single-expression INLINE derived property
      * {@code name} on {@code cd} or the nearest superclass declaring one
      * &mdash; the only shape a join-condition inliner serves. */
-    public com.legend.protocol.@com.legend.Nullable DerivedPropertyDefinition derivedInline(
-            @com.legend.Nullable ClassDefinition cd, String name) {
+    public com.legend.protocol.@com.legend.base.Nullable DerivedPropertyDefinition derivedInline(
+            @com.legend.base.Nullable ClassDefinition cd, String name) {
         return derivedInline(cd, name, new java.util.HashSet<>());
     }
 
-    private com.legend.protocol.@com.legend.Nullable DerivedPropertyDefinition derivedInline(
-            @com.legend.Nullable ClassDefinition cd, String name, java.util.Set<String> visited) {
+    private com.legend.protocol.@com.legend.base.Nullable DerivedPropertyDefinition derivedInline(
+            @com.legend.base.Nullable ClassDefinition cd, String name, java.util.Set<String> visited) {
         if (cd == null || !visited.add(cd.qualifiedName())) {
             return null;
         }
@@ -355,7 +355,7 @@ public final class KnowledgeLayer {
      * transitively. Empty for a null spelling, an unknown database, or a
      * view. */
     public Optional<DatabaseDefinition.TableDefinition> table(
-            @com.legend.Nullable String dbFqn, @com.legend.Nullable String table) {
+            @com.legend.base.Nullable String dbFqn, @com.legend.base.Nullable String table) {
         if (dbFqn == null || table == null) {
             return Optional.empty();
         }
@@ -364,7 +364,7 @@ public final class KnowledgeLayer {
 
     /** The physical COLUMN {@code column} of {@link #table}, by exact name. */
     public Optional<DatabaseDefinition.ColumnDefinition> column(
-            @com.legend.Nullable String dbFqn, @com.legend.Nullable String table, String column) {
+            @com.legend.base.Nullable String dbFqn, @com.legend.base.Nullable String table, String column) {
         return table(dbFqn, table).flatMap(td -> td.columns().stream()
                 .filter(cd -> cd.name().equals(column)).findFirst());
     }
@@ -373,11 +373,11 @@ public final class KnowledgeLayer {
      * column of a table OR of a VIEW — a view column that reads one
      * physical column (a ColumnRef) has that column's kind, through views
      * of views; null when nothing physical is behind the name. */
-    public @com.legend.Nullable String columnKind(String db, String table, String col) {
+    public @com.legend.base.Nullable String columnKind(String db, String table, String col) {
         return columnKind(db, table, col, new java.util.HashSet<>());
     }
 
-    private @com.legend.Nullable String columnKind(String db, String table, String col,
+    private @com.legend.base.Nullable String columnKind(String db, String table, String col,
             java.util.Set<String> seen) {
         if (!seen.add(db + "@" + table + "." + col)) {
             return null;
@@ -430,7 +430,7 @@ public final class KnowledgeLayer {
      * {@code wallSink} and adopts nothing from it.
      */
     public static ParsedModel adoptAssociationQualifiedProperties(ParsedModel parsed,
-            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
         Objects.requireNonNull(parsed, "parsed");
         Map<String, List<DerivedPropertyDefinition>> adoptions =
                 new LinkedHashMap<>();

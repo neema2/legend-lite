@@ -1,6 +1,6 @@
 package com.legend.warehouse.client.jdbc;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import com.legend.warehouse.client.WarehouseClient;
 import com.legend.warehouse.sqlapi.SqlApi;
 import com.legend.warehouse.sqlapi.SqlApi.StatementRequest;
@@ -179,7 +179,7 @@ final class WhStatement implements java.sql.PreparedStatement {
     }
 
     @Override
-    public @com.legend.Nullable SQLWarning getWarnings() {
+    public @com.legend.base.Nullable SQLWarning getWarnings() {
         return null;
     }
 

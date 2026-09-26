@@ -26,7 +26,7 @@ final class M2mRouteGuards {
      * the declared name; the VALUE keeps its all-versions read). An
      * undeclared key throws (normalize-phase contract).  */
     static String m2mBindingKey(ClassMapping.Pure.PropertyBinding pb,
-            @com.legend.Nullable ClassDefinition tgt,
+            @com.legend.base.Nullable ClassDefinition tgt,
             ResolvedMapping md,
             java.util.function.Predicate<String> declared) {
         if (tgt == null || declared.test(pb.propertyName())) {
@@ -61,7 +61,7 @@ final class M2mRouteGuards {
      * must name this very set; a mismatch is a model shape we don't route.
      */
     static void requireBenignRoute(ClassMapping.Pure.PropertyBinding pb,
-            ClassMapping.Pure pcm, @com.legend.Nullable ClassDefinition tgt,
+            ClassMapping.Pure pcm, @com.legend.base.Nullable ClassDefinition tgt,
             ResolvedMapping md, ModelBuilder model) {
         if (pb.sourceSetId() == null && pb.targetSetId() == null) {
             return;
@@ -118,7 +118,7 @@ final class M2mRouteGuards {
      * engine-default id is the class FQN with '_' for '::' (short name
      * accepted too — includes-era corpora spell it either way).
      */
-    private static boolean setIdMatches(ClassMapping cm, @com.legend.Nullable String id) {
+    private static boolean setIdMatches(ClassMapping cm, @com.legend.base.Nullable String id) {
         if (id == null) {
             return false;
         }
@@ -140,7 +140,7 @@ final class M2mRouteGuards {
      * cannot hold both, and silent retargeting was the original bug). */
     static com.legend.protocol.spec.KeyExpression localField(
             com.legend.model.ClassMapping.Pure.PropertyBinding pb,
-            com.legend.model.@com.legend.Nullable ClassDefinition tgt,
+            com.legend.model.@com.legend.base.Nullable ClassDefinition tgt,
             ResolvedMapping md,
             com.legend.compiler.ModelBuilder model, boolean collides) {
         if (tgt != null && collides) {

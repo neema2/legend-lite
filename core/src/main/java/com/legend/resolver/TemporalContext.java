@@ -36,16 +36,16 @@ import java.util.List;
  * cross-dimension asks answer {@code null} (engine capability rule: a
  * business date never filters processing columns).
  */
-record TemporalContext(@com.legend.Nullable TypedSpec processing,
-                       @com.legend.Nullable TypedSpec business,
-                       @com.legend.Nullable TypedSpec rangeStart,
-                       @com.legend.Nullable TypedSpec rangeEnd,
-                       @com.legend.Nullable MilestoningStrategy rangeDim) {
+record TemporalContext(@com.legend.base.Nullable TypedSpec processing,
+                       @com.legend.base.Nullable TypedSpec business,
+                       @com.legend.base.Nullable TypedSpec rangeStart,
+                       @com.legend.base.Nullable TypedSpec rangeEnd,
+                       @com.legend.base.Nullable MilestoningStrategy rangeDim) {
 
     static final TemporalContext NONE =
             new TemporalContext(null, null, null, null, null);
 
-    static TemporalContext single(@com.legend.Nullable MilestoningStrategy strategy,
+    static TemporalContext single(@com.legend.base.Nullable MilestoningStrategy strategy,
             TypedSpec date) {
         // audit 23: EXHAUSTIVE — the old else built a BUSINESS context
         // for ANY other strategy (a bitemporal class with one date, or a
@@ -77,7 +77,7 @@ record TemporalContext(@com.legend.Nullable TypedSpec processing,
     /** A validity-overlap window IN ONE DIMENSION ({@code rangeDim} = the
      * swept class's strategy) — the old size-2 date list left range vs
      * bi-temporal vs dimension a per-site guess. */
-    static TemporalContext range(@com.legend.Nullable MilestoningStrategy strategy,
+    static TemporalContext range(@com.legend.base.Nullable MilestoningStrategy strategy,
             TypedSpec start,
             TypedSpec end) {
         return new TemporalContext(null, null, start, end, strategy);
@@ -101,8 +101,8 @@ record TemporalContext(@com.legend.Nullable TypedSpec processing,
      * filter), when the context is a RANGE, or when {@code strategy} is
      * null/bitemporal (a bi-temporal consumer takes both via the
      * dimension-specific accessors). */
-    @com.legend.Nullable TypedSpec dateFor(
-            @com.legend.Nullable MilestoningStrategy strategy) {
+    @com.legend.base.Nullable TypedSpec dateFor(
+            @com.legend.base.Nullable MilestoningStrategy strategy) {
         if (strategy == MilestoningStrategy.PROCESSING) {
             return processing;
         }

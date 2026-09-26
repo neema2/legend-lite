@@ -48,7 +48,7 @@ final class RelOpTranslator {
 
     /** The registry entry of a mapping-expression call, or null when the engine
      *  registers no dynafunction of that name (a plain pure function call). */
-    private static @com.legend.Nullable DynaFn dyna(RelationalOperation.FunctionCall call) {
+    private static @com.legend.base.Nullable DynaFn dyna(RelationalOperation.FunctionCall call) {
         return DynaFn.of(call.name()).orElseGet(MissProbe::miss);
     }
 
@@ -59,18 +59,18 @@ final class RelOpTranslator {
         boolean hasSlots();
 
         /** Alias of the hoisted join step for {@code chain}; loud if absent. */
-        @com.legend.Nullable String slotFor(List<JoinChainElement> chain);
+        @com.legend.base.Nullable String slotFor(List<JoinChainElement> chain);
 
-        @com.legend.Nullable String targetTable(@com.legend.Nullable String alias);
+        @com.legend.base.Nullable String targetTable(@com.legend.base.Nullable String alias);
 
         /** Whether the hoisted slot's target relation declares {@code column}
          * (unquoted-identifier case rules). */
-        boolean targetHasColumn(@com.legend.Nullable String alias, String column);
+        boolean targetHasColumn(@com.legend.base.Nullable String alias, String column);
 
         /** Outside any pipeline: nothing is ambiguous, no slots exist. */
         PipelineView NONE = new PipelineView() {
             @Override public boolean targetHasColumn(
-                    @com.legend.Nullable String alias, String column) {
+                    @com.legend.base.Nullable String alias, String column) {
                 return false;
             }
             @Override public Set<String> ambiguousTables() {
@@ -82,8 +82,8 @@ final class RelOpTranslator {
             @Override public String slotFor(List<JoinChainElement> chain) {
                 throw new IllegalStateException("no pipeline slots in this context");
             }
-            @Override public @com.legend.Nullable String targetTable(
-                    @com.legend.Nullable String alias) {
+            @Override public @com.legend.base.Nullable String targetTable(
+                    @com.legend.base.Nullable String alias) {
                 return null;
             }
         };
@@ -126,7 +126,7 @@ final class RelOpTranslator {
     private static List<ValueSpecification> translateArgs(
             RelationalOperation.FunctionCall call,
             Map<String, ValueSpecification> tableScope,
-            @com.legend.Nullable ValueSpecification targetVarOrNull, @com.legend.Nullable Variable rowBindOrNull,
+            @com.legend.base.Nullable ValueSpecification targetVarOrNull, @com.legend.base.Nullable Variable rowBindOrNull,
             PipelineView pipeline) {
         return call.args().stream()
                 .map(a -> {
@@ -215,8 +215,8 @@ final class RelOpTranslator {
 
     static ValueSpecification translate(RelationalOperation op,
                                                     Map<String, ValueSpecification> tableScope,
-                                                    @com.legend.Nullable ValueSpecification targetVarOrNull,
-                                                    @com.legend.Nullable Variable rowBindOrNull,
+                                                    @com.legend.base.Nullable ValueSpecification targetVarOrNull,
+                                                    @com.legend.base.Nullable Variable rowBindOrNull,
                                                     PipelineView pipeline) {
         return switch (op) {
             case RelationalOperation.ColumnRef ref -> {
@@ -397,8 +397,8 @@ final class RelOpTranslator {
      * preserved — the split is at an arm boundary). */
     private static ValueSpecification translateTail(RelationalOperation op,
             Map<String, ValueSpecification> tableScope,
-            @com.legend.Nullable ValueSpecification targetVarOrNull,
-            @com.legend.Nullable Variable rowBindOrNull,
+            @com.legend.base.Nullable ValueSpecification targetVarOrNull,
+            @com.legend.base.Nullable Variable rowBindOrNull,
             PipelineView pipeline) {
         return switch (op) {
             case RelationalOperation.FunctionCall call
@@ -613,8 +613,8 @@ final class RelOpTranslator {
     private static ValueSpecification joinNavigation(
             RelationalOperation.JoinNavigation jn,
             Map<String, ValueSpecification> tableScope,
-            @com.legend.Nullable ValueSpecification targetVarOrNull,
-            @com.legend.Nullable Variable rowBindOrNull,
+            @com.legend.base.Nullable ValueSpecification targetVarOrNull,
+            @com.legend.base.Nullable Variable rowBindOrNull,
             PipelineView pipeline) {
         if (rowBindOrNull == null || !pipeline.hasSlots()) {
             throw new ModelException(LegendCompileException.Phase.NORMALIZE,

@@ -48,11 +48,11 @@ final class ElementReferences {
     private final ModelContext ctx;
     private final ClassSources sources;
     private final BiFunction<StoreResolver.Context, String, String> dispatch;
-    private final Supplier<@com.legend.Nullable TypedFunction> equalCallee;
+    private final Supplier<@com.legend.base.Nullable TypedFunction> equalCallee;
 
     ElementReferences(ModelContext ctx, ClassSources sources,
             BiFunction<StoreResolver.Context, String, String> dispatch,
-            Supplier<@com.legend.Nullable TypedFunction> equalCallee) {
+            Supplier<@com.legend.base.Nullable TypedFunction> equalCallee) {
         this.ctx = ctx;
         this.sources = sources;
         this.dispatch = dispatch;
@@ -62,7 +62,7 @@ final class ElementReferences {
     /** The metaclass FQN when {@code pr} references a tracked, system-mapped
      * element (a seeded extent AND a row: a Database reference is a value
      * today — no rows); else null. */
-    @com.legend.Nullable String trackedElementClass(TypedPackageableRef pr) {
+    @com.legend.base.Nullable String trackedElementClass(TypedPackageableRef pr) {
         // BARE metaclass type only: a CLASS reference is typed Class<X>
         // (Typer.classReference) and stays a VALUE at a chain root
         // (PCT letFn: TestClass->removeDuplicates() returns the element,
@@ -206,7 +206,7 @@ final class ElementReferences {
 
     /** {@code db->schema('S')->table('T')} (StoreElementIdentity): the row
      * id of that table in the system store; null otherwise. */
-    @com.legend.Nullable String storeTableKey(TypedSpec n) {
+    @com.legend.base.Nullable String storeTableKey(TypedSpec n) {
         var r = com.legend.compiler.spec.typed.StoreElementIdentity.tableRef(n,
                 java.util.function.UnaryOperator.identity());
         if (r == null) {
@@ -221,7 +221,7 @@ final class ElementReferences {
                 declaring == null ? r.dbFqn() : declaring, r.schema(), r.table());
     }
 
-    private @com.legend.Nullable String declaringDatabase(String dbFqn, String schema,
+    private @com.legend.base.Nullable String declaringDatabase(String dbFqn, String schema,
             String table, java.util.Set<String> seen) {
         if (!seen.add(dbFqn)) {
             return null;
@@ -263,7 +263,7 @@ final class ElementReferences {
      * CONSTRUCTED instance (the tree's scope). Null when {@code cur} is
      * none of them.
      */
-    @com.legend.Nullable RootRow rowRoot(TypedSpec cur, StoreResolver.Context context,
+    @com.legend.base.Nullable RootRow rowRoot(TypedSpec cur, StoreResolver.Context context,
             ConstructedInstances constructed,
             java.util.function.Predicate<TypedNativeCall> planHandle,
             Supplier<String> freshVar) {

@@ -152,7 +152,7 @@ final class MatchChecker {
 
     /** Build the runtime-dispatch node when static selection is unsound
      * (see caller comment); null when the static rule applies. */
-    private static @com.legend.Nullable TypedSpec runtimeMatch(Typer t, TypedSpec input,
+    private static @com.legend.base.Nullable TypedSpec runtimeMatch(Typer t, TypedSpec input,
             Optional<TypedSpec> extra, List<LambdaFunction> branches, Env env,
             Optional<TypedSpec> dynamicArms) {
         Type inputType = input.info().type();
@@ -237,7 +237,7 @@ final class MatchChecker {
     /** The runtime-count dispatch emission for a {@code [0..1]} input over
      * multiplicity-discriminating branches; null when the static rule
      * applies (single accepting branch / not optional / mixed shapes). */
-    private static @com.legend.Nullable TypedSpec optionalRuntimeDispatch(Typer t, TypedSpec input,
+    private static @com.legend.base.Nullable TypedSpec optionalRuntimeDispatch(Typer t, TypedSpec input,
             Optional<TypedSpec> extra, List<LambdaFunction> branchList, Env env) {
         if (extra.isPresent()) {
             return null;
@@ -312,7 +312,7 @@ final class MatchChecker {
      * boundOverride} pins the param's multiplicity for the presence arm). */
     private static TypedSpec branchMatch(Typer t, TypedSpec input,
             LambdaFunction branch, Env env,
-            @com.legend.Nullable Multiplicity boundOverride) {
+            @com.legend.base.Nullable Multiplicity boundOverride) {
         Variable param = branch.parameters().get(0);
         Type branchType = t.namedType(java.util.Objects.requireNonNull(
                 param.type(), "match branch parameter requires a type"));
@@ -376,7 +376,7 @@ final class MatchChecker {
 
     /** The spelled lambda collection inside the engine's
      * {@code <prefix>->concatenate([arms])->toOneMany()} idiom, or null. */
-    private static @com.legend.Nullable ValueSpecification spelledArmsOf(ValueSpecification vs) {
+    private static @com.legend.base.Nullable ValueSpecification spelledArmsOf(ValueSpecification vs) {
         if (vs instanceof AppliedFunction af && af.parameters().size() == 1
                 && nativeNamed(af, "toOneMany")) {
             return spelledArmsOf(af.parameters().get(0));

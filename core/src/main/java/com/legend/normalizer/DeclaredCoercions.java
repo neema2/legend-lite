@@ -50,7 +50,7 @@ final class DeclaredCoercions {
      * 'true'/'false' (where the two agree).
      */
     static ValueSpecification coerceToDeclaredNumeric(ValueSpecification value,
-            String propName, @com.legend.Nullable String ownerClassFqn, ModelBuilder model) {
+            String propName, @com.legend.base.Nullable String ownerClassFqn, ModelBuilder model) {
         String simple = declaredPlatformKind(propName, ownerClassFqn, model);
         if (simple == null || !Set.of("Float", "Integer", "Decimal",
                 "Number", "DateTime", "StrictDate", "Date", "Boolean")
@@ -71,8 +71,8 @@ final class DeclaredCoercions {
      * spelling (not shadowed by a user class — {@code m::Number} must never
      * coerce) or the full platform FQN. Suffix-matching is the banned idiom.
      */
-    private static @com.legend.Nullable String declaredPlatformKind(String propName,
-            @com.legend.Nullable String ownerClassFqn, ModelBuilder model) {
+    private static @com.legend.base.Nullable String declaredPlatformKind(String propName,
+            @com.legend.base.Nullable String ownerClassFqn, ModelBuilder model) {
         if (ownerClassFqn == null) {
             return null;
         }

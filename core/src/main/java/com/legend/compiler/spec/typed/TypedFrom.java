@@ -23,7 +23,7 @@ import java.util.Optional;
  * @param info    the source type unchanged
  */
 public record TypedFrom(TypedSpec source, ExecutionContext context,
-                        boolean executedExtent, @com.legend.Nullable String extentFrame,
+                        boolean executedExtent, @com.legend.base.Nullable String extentFrame,
                         ExprType info) implements TypedSpec {
 
     public TypedFrom(TypedSpec source, ExecutionContext context, ExprType info) {
@@ -82,7 +82,7 @@ public record TypedFrom(TypedSpec source, ExecutionContext context,
         return context.csvSetups();
     }
 
-    public @com.legend.Nullable String connectionName() {
+    public @com.legend.base.Nullable String connectionName() {
         return context.connectionName();
     }
 

@@ -68,7 +68,7 @@ final class Callees {
     }
 
     /** Any registered equal overload — membership-crossing emission. */
-    @com.legend.Nullable TypedFunction equal() {
+    @com.legend.base.Nullable TypedFunction equal() {
         // exact FQN (audit 23 A3): a user-defined 'equal' must never
         // become the membership callee
         var fns = ctx.findFunction("meta::pure::functions::boolean::equal");

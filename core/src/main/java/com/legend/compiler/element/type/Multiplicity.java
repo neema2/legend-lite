@@ -153,7 +153,7 @@ public sealed interface Multiplicity permits Multiplicity.Bounded, Multiplicity.
      * @param upper maximum cardinality, {@code null} for unbounded ({@code *});
      *              otherwise {@code >= lower}
      */
-    record Bounded(int lower, @com.legend.Nullable Integer upper) implements Multiplicity {
+    record Bounded(int lower, @com.legend.base.Nullable Integer upper) implements Multiplicity {
 
         public Bounded {
             if (lower < 0) {

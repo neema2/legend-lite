@@ -276,7 +276,7 @@ public final class DiagramService {
      * tags of the same name (the prelude's own warning), so matching by name
      * alone would pick one arbitrarily.
      */
-    private static @com.legend.Nullable String documentation(ClassDefinition cd,
+    private static @com.legend.base.Nullable String documentation(ClassDefinition cd,
             boolean docIsPlatform) {
         for (TaggedValue tv : cd.taggedValues()) {
             if (!DOC_TAG.equals(tv.tagName())) {

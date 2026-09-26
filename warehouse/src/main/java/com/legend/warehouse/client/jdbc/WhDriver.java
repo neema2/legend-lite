@@ -1,6 +1,6 @@
 package com.legend.warehouse.client.jdbc;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import com.legend.warehouse.client.WarehouseClient;
 import com.legend.warehouse.sqlapi.NativeBinding;
 import com.legend.warehouse.sqlapi.SqlApi;

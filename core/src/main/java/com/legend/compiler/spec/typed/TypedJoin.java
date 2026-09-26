@@ -20,7 +20,7 @@ import java.util.List;
  */
 public record TypedJoin(TypedSpec left, TypedSpec right, TypedEnumValue kind,
                         TypedLambda condition, java.util.Optional<String> prefix,
-                        @com.legend.Nullable String frameName, ExprType info,
+                        @com.legend.base.Nullable String frameName, ExprType info,
                         boolean userCondition) implements TypedSpec {
 
     // frameName: the RIGHT side's derived-table identity (a view-backed

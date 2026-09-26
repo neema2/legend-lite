@@ -17,7 +17,7 @@ import java.util.Optional;
 public interface StoreLookups {
 
     /** The full store definition of {@code dbFqn}. */
-    Optional<DatabaseDefinition> findDatabase(@com.legend.Nullable String dbFqn);
+    Optional<DatabaseDefinition> findDatabase(@com.legend.base.Nullable String dbFqn);
 
     /** The TABLE {@code name} ({@code T} or {@code SCHEMA.T}) reached from
      *  {@code dbFqn}, with its declared columns. */

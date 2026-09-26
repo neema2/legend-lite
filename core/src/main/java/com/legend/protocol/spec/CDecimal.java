@@ -13,8 +13,8 @@ import java.util.Objects;
  * record, so cross-codebase corpora compare byte-for-byte after a
  * parser swap.
  */
-public record CDecimal(BigDecimal value, @com.legend.Nullable String written,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
+public record CDecimal(BigDecimal value, @com.legend.base.Nullable String written,
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) implements ValueSpecification {
 
     /** Position-free convenience constructor. */
     public CDecimal(BigDecimal value) {

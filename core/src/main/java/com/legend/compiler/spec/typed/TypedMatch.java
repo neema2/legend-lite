@@ -22,7 +22,7 @@ import java.util.Optional;
 public record TypedMatch(TypedSpec input, String param, TypedSpec body,
                          Optional<String> extraParam, Optional<TypedSpec> extra,
                          ExprType info,
-                         @com.legend.Nullable ExprType declaredInfo) implements TypedSpec {
+                         @com.legend.base.Nullable ExprType declaredInfo) implements TypedSpec {
 
     /** Emission-narrowing form (the optional-dispatch builder): the
      * declared type falls back to the selected body's. */

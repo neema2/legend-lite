@@ -27,7 +27,7 @@ public record DerivedPropertyDefinition(
         Multiplicity multiplicity,
         List<Protocol.PStereotype> stereotypes,
         List<Protocol.PTaggedValue> taggedValues,
-        @com.legend.Nullable SourceInfo pos) {
+        @com.legend.base.Nullable SourceInfo pos) {
     public DerivedPropertyDefinition {
         Objects.requireNonNull(name, "Derived property name cannot be null");
         Objects.requireNonNull(type, "Derived property type cannot be null");

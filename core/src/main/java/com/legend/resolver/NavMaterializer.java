@@ -53,7 +53,7 @@ final class NavMaterializer {
                   Map<String, Substitution.SubNav> subNavs) {}
 
     NavMat navTargetMaterialized(TemporalFrame temporal, ClassSource target, String mappingFqn,
-            String targetClassFqn, @com.legend.Nullable String scope,
+            String targetClassFqn, @com.legend.base.Nullable String scope,
             List<List<String>> tails) {
         return navTargetMaterialized(temporal, target, mappingFqn, targetClassFqn, scope, tails,
                 null, TemporalContext.NONE);
@@ -64,9 +64,9 @@ final class NavMaterializer {
      * propagation flows hop-to-hop through temporal classes (engine
      * getMilestoningContextForQualifiedProperty), not only from the root. */
     NavMat navTargetMaterialized(TemporalFrame temporal, ClassSource target, String mappingFqn,
-            String targetClassFqn, @com.legend.Nullable String scope,
+            String targetClassFqn, @com.legend.base.Nullable String scope,
             List<List<String>> tails,
-            @com.legend.Nullable String chainPrefix, TemporalContext inherited) {
+            @com.legend.base.Nullable String chainPrefix, TemporalContext inherited) {
         return navTargetMaterialized(temporal, target, mappingFqn, targetClassFqn, scope,
                 tails, chainPrefix, inherited, List.of());
     }
@@ -75,9 +75,9 @@ final class NavMaterializer {
      * target — their DIRECT slot-alias reads (β-inlined qualifier bodies)
      * join the demand; property-path reads ride {@code tails}. */
     NavMat navTargetMaterialized(TemporalFrame temporal, ClassSource target, String mappingFqn,
-            String targetClassFqn, @com.legend.Nullable String scope,
+            String targetClassFqn, @com.legend.base.Nullable String scope,
             List<List<String>> tails,
-            @com.legend.Nullable String chainPrefix, TemporalContext inherited,
+            @com.legend.base.Nullable String chainPrefix, TemporalContext inherited,
             List<TypedLambda> parkedPreds) {
         return navTargetMaterialized(temporal, target, mappingFqn, targetClassFqn, scope,
                 tails, chainPrefix, inherited, parkedPreds, Set.of());
@@ -95,9 +95,9 @@ final class NavMaterializer {
      * routed union when it carries routes, else the class through the
      * set-id dispatch). This method materializes; it never resolves. */
     NavMat navTargetMaterialized(TemporalFrame temporal, ClassSource target, String mappingFqn,
-            String targetClassFqn, @com.legend.Nullable String scope,
+            String targetClassFqn, @com.legend.base.Nullable String scope,
             List<List<String>> tails,
-            @com.legend.Nullable String chainPrefix, TemporalContext inherited,
+            @com.legend.base.Nullable String chainPrefix, TemporalContext inherited,
             List<TypedLambda> parkedPreds, Set<String> splitChains) {
         // H5 SET-ID DISPATCH: a route naming a specific set of a
         // (possibly rootless) multi-set target resolves through the
@@ -555,7 +555,7 @@ final class NavMaterializer {
      * stamp in-pipe (W40). */
     private static TypedSpec stampSlotTargets(TemporalFrame temporal,
             ClassSource t, Pipelines.Materialized matM,
-            TemporalContext slotCtx, @com.legend.Nullable String chainPrefix) {
+            TemporalContext slotCtx, @com.legend.base.Nullable String chainPrefix) {
         return !slotCtx.isEmpty()
                 && temporal.hasMilestonedSlotTarget(t.pipeline())
                 ? temporal.filterMilestonedJoinTargets(matM.pipeline(),
@@ -569,7 +569,7 @@ final class NavMaterializer {
      * navTargetMaterialized). */
     private void demandUnboundTail(TemporalFrame temporal, ClassSource t,
             List<String> tail, String mappingFqn, String targetClassFqn,
-            @com.legend.Nullable String chainPrefix, TemporalContext hopCtx,
+            @com.legend.base.Nullable String chainPrefix, TemporalContext hopCtx,
             Set<String> tDemand, Set<String> memberKeyDemand,
             Map<String, Set<String>> assocSubLeaves,
             Map<String, Set<List<String>>> assocSubTails) {
@@ -639,7 +639,7 @@ final class NavMaterializer {
             ClassSource t, String mappingFqn,
             Map<String, List<List<String>>> subTails,
             Map<String, String> midByAlias, Map<String, NavMat> subMats,
-            Map<String, String> subClsByAlias, @com.legend.Nullable String chainPrefix,
+            Map<String, String> subClsByAlias, @com.legend.base.Nullable String chainPrefix,
             TemporalContext hopCtx, Map<String, TypedSpec> compositeByAlias) {
         return new Pipelines.TargetResolver() {
             @Override
@@ -686,11 +686,11 @@ final class NavMaterializer {
 };
     }
 
-    private @com.legend.Nullable TypedSpec subPipeFor(TemporalFrame temporal, ClassSource t,
+    private @com.legend.base.Nullable TypedSpec subPipeFor(TemporalFrame temporal, ClassSource t,
             String alias, String cls, String mappingFqn,
             Map<String, List<List<String>>> subTails,
             Map<String, String> midByAlias, Map<String, NavMat> subMats,
-            Map<String, String> subClsByAlias, @com.legend.Nullable String chainPrefix,
+            Map<String, String> subClsByAlias, @com.legend.base.Nullable String chainPrefix,
             TemporalContext hopCtx) {
 
             String midProp = midByAlias.get(alias);
@@ -784,7 +784,7 @@ final class NavMaterializer {
             Map<String, com.legend.compiler.spec.typed.TypedNavigate> tNavSteps,
             Set<String> tDemand, Set<String> tNavs,
             Map<String, List<List<String>>> subTails,
-            @com.legend.Nullable String chainPrefix, TemporalContext hopCtx) {
+            @com.legend.base.Nullable String chainPrefix, TemporalContext hopCtx) {
         String mappingFqn = t.mappingFqn();
         // a BARE class-typed TO-ONE tail joins too (qualifier-truncated
         // demand — the qualifier body's leaves never reach the scan, but
@@ -895,7 +895,7 @@ final class NavMaterializer {
             TypedSpec pipe, Map<String, Substitution.SubNav> subTree,
             Map<String, Set<String>> assocSubLeaves,
             Map<String, Set<List<String>>> assocSubTails,
-            @com.legend.Nullable String chainPrefix) {
+            @com.legend.base.Nullable String chainPrefix) {
         for (var e : assocSubLeaves.entrySet()) {
             String prop = e.getKey();
             String subChain = chainPrefix == null ? prop
@@ -956,7 +956,7 @@ final class NavMaterializer {
             Map<String, String> extraSubHeads,
             Map<String, List<List<String>>> extraSubTails,
             Map<String, com.legend.compiler.spec.typed.TypedNavigate> tNavSteps,
-            @com.legend.Nullable String chainPrefix, TemporalContext hopCtx) {
+            @com.legend.base.Nullable String chainPrefix, TemporalContext hopCtx) {
         for (var e : extraSubHeads.entrySet()) {
             String prop = e.getKey();
             String alias = e.getValue();
@@ -1051,7 +1051,7 @@ final class NavMaterializer {
             Pipelines.Materialized matM, Map<String, String> subClsByAlias,
             Map<String, List<List<String>>> subTails,
             Map<String, com.legend.compiler.spec.typed.TypedNavigate> tNavSteps,
-            @com.legend.Nullable String chainPrefix, TemporalContext hopCtx,
+            @com.legend.base.Nullable String chainPrefix, TemporalContext hopCtx,
             Set<String> splitChains) {
         if (System.getenv("LEGEND_LITE_SPLIT_TRACE") != null) {
             System.err.println("[split] chainPrefix=" + chainPrefix
@@ -1137,7 +1137,7 @@ final class NavMaterializer {
 
     /** The materialized join carrying {@code prefix} (the first copy of a
      * split sub-step); null when the shape holds no such join. */
-    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedJoin joinWithPrefix(
+    private static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedJoin joinWithPrefix(
             TypedSpec pipe, String prefix) {
         if (pipe instanceof com.legend.compiler.spec.typed.TypedJoin j
                 && j.prefix().map(prefix::equals).orElse(false)) {
@@ -1166,7 +1166,7 @@ final class NavMaterializer {
     private record EmbeddedDrill(List<String> embPath, List<String> tail,
             TypedSpec binding) {}
 
-    private static @com.legend.Nullable EmbeddedDrill drillEmbedded(ClassSource t,
+    private static @com.legend.base.Nullable EmbeddedDrill drillEmbedded(ClassSource t,
             List<String> tail) {
         if (tail.size() < 2) {
             return null;
@@ -1224,7 +1224,7 @@ final class NavMaterializer {
                 node.bindings(), kids));
     }
 
-    private static Map<String, TypedSpec> ctorProps(@com.legend.Nullable TypedSpec expr) {
+    private static Map<String, TypedSpec> ctorProps(@com.legend.base.Nullable TypedSpec expr) {
         return expr != null && Pipelines.unwrapToOne(expr)
                 instanceof com.legend.compiler.spec.typed.TypedNewInstance ni
                 ? ni.properties() : Map.of();

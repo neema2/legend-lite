@@ -54,7 +54,7 @@ public final class SerializerRegistry {
     /**
      * Gets a serializer by format ID, or null if not found.
      */
-    public static @com.legend.Nullable ResultSerializer getOrNull(String formatId) {
+    public static @com.legend.base.Nullable ResultSerializer getOrNull(String formatId) {
         return SERIALIZERS.get(formatId);
     }
 

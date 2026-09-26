@@ -35,7 +35,7 @@ public final class PctTdsWrap {
     }
 
     public static SqlQuery wrap(SqlQuery plan, Type.RelationType schema,
-            com.legend.sql.@com.legend.Nullable PlanProbe probe,
+            com.legend.sql.@com.legend.base.Nullable PlanProbe probe,
             java.util.function.Function<String, Type> sqlTypeToPure) {
         List<SqlSelect.SortKey> lifted = List.of();
         SqlQuery inner0 = plan;
@@ -63,7 +63,7 @@ public final class PctTdsWrap {
      * JDBC type name. */
     private static List<Type.Column> typedColumns(List<OutputCol> outs,
             Type.RelationType schema, SqlQuery plan,
-            com.legend.sql.@com.legend.Nullable PlanProbe probe,
+            com.legend.sql.@com.legend.base.Nullable PlanProbe probe,
             java.util.function.Function<String, Type> sqlTypeToPure) {
         Map<String, Type.Column> byName = new LinkedHashMap<>();
         for (Type.Column c : schema.columns()) {
@@ -198,7 +198,7 @@ public final class PctTdsWrap {
         return out;
     }
 
-    private static String slotName(@com.legend.Nullable SqlType t) {
+    private static String slotName(@com.legend.base.Nullable SqlType t) {
         if (t instanceof SqlType.Scalar sc) {
             return sc.name();
         }

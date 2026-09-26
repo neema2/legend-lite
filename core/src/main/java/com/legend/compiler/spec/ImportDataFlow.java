@@ -123,7 +123,7 @@ public final class ImportDataFlow {
     }
 
     /** The first class root ({@code getAll}) under {@code n} in tree order. */
-    static @com.legend.Nullable TypedGetAll rootClass(TypedSpec n) {
+    static @com.legend.base.Nullable TypedGetAll rootClass(TypedSpec n) {
         if (n instanceof TypedGetAll g) {
             return g;
         }

@@ -1,6 +1,6 @@
 package com.legend.warehouse.sqlapi;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import java.nio.ByteBuffer;
 import java.util.List;
 

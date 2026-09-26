@@ -88,7 +88,7 @@ public final class ColumnLineageRows {
 
     /** {db fqn, schema, table} of the ONE table the plan named; null when
      * none of {@code dbs} defines it. */
-    private static String @com.legend.Nullable [] ownerOf(List<DatabaseDefinition> dbs,
+    private static String @com.legend.base.Nullable [] ownerOf(List<DatabaseDefinition> dbs,
             String spelled) {
         String schemaHint = spelled.contains(".")
                 ? spelled.substring(0, spelled.lastIndexOf('.')) : null;

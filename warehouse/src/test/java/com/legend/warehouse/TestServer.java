@@ -1,6 +1,6 @@
 package com.legend.warehouse;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import com.legend.warehouse.server.Statements;
 import com.legend.warehouse.server.WarehouseServer;
 import java.io.BufferedReader;

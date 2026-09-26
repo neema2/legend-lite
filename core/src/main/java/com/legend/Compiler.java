@@ -84,7 +84,7 @@ public final class Compiler {
      *              mappings, services, runtimes, ...).
      * @return the populated, queryable {@link ModelContext}.
      */
-    public static ModelContext compileModel(@com.legend.Nullable String model) {
+    public static ModelContext compileModel(@com.legend.base.Nullable String model) {
         Objects.requireNonNull(model, "model");
         ParsedModel parsed = ElementParser.parse(model,
                 com.legend.parser.Dialect.LEGEND_LITE);
@@ -149,7 +149,7 @@ public final class Compiler {
      * throwaway-parse pattern). Null = strict (first parse error throws).
      */
     public static ParsedModule parseSources(List<ModelSource> sources,
-            java.util.function.@com.legend.Nullable BiConsumer<String, String> parseWallSink) {
+            java.util.function.@com.legend.base.Nullable BiConsumer<String, String> parseWallSink) {
         return parseSources(sources, parseWallSink,
                 com.legend.parser.Dialect.LEGEND_LITE);
     }
@@ -158,7 +158,7 @@ public final class Compiler {
      *  provenance level (the corpus runner's m2 corpus is
      *  LEGEND_PLATFORM; user batches are LEGEND_LITE). */
     public static ParsedModule parseSources(List<ModelSource> sources,
-            java.util.function.@com.legend.Nullable BiConsumer<String, String> parseWallSink,
+            java.util.function.@com.legend.base.Nullable BiConsumer<String, String> parseWallSink,
             com.legend.parser.Dialect dialect) {
         Objects.requireNonNull(sources, "sources");
         List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>();
@@ -250,7 +250,7 @@ public final class Compiler {
      * layers (boot, graph) enter here.
      */
     private static Layer normalizeLayer(ParsedModel resolved,
-            java.util.@com.legend.Nullable Map<String, String> walls) {
+            java.util.@com.legend.base.Nullable Map<String, String> walls) {
         ParsedModel adopted = KnowledgeLayer.adoptAssociationQualifiedProperties(resolved, walls);
         ModelBuilder index = ModelBuilder.from(adopted);
         return new Layer(ModelNormalizer.normalize(adopted, index, walls), index);
@@ -370,7 +370,7 @@ public final class Compiler {
      * is an error (SystemMetamodel.withoutSystemShadows).
      */
     private static Layer normalizeWithSystem(ParsedModel resolved,
-            java.util.@com.legend.Nullable Map<String, String> walls) {
+            java.util.@com.legend.base.Nullable Map<String, String> walls) {
         Layer user = normalizeLayer(
                 com.legend.builtin.SystemMetamodel.withoutSystemShadows(
                         withoutPreludeShadows(resolved)), walls);
@@ -508,7 +508,7 @@ public final class Compiler {
     }
 
     private static Lowered lowerQuery(String model, String query,
-            @com.legend.Nullable String runtime, boolean streaming) {
+            @com.legend.base.Nullable String runtime, boolean streaming) {
         ModelContext ctx = compileModel(model);
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(
@@ -541,7 +541,7 @@ public final class Compiler {
      * to consult. {@code out} is flushed per row and never closed.
      */
     public static void executeStreaming(String model, String query,
-            @com.legend.Nullable String runtimeFqn, java.sql.Connection connection,
+            @com.legend.base.Nullable String runtimeFqn, java.sql.Connection connection,
             java.io.Writer out) throws java.io.IOException {
         Lowered l = lowerQuery(model, query, runtimeFqn, true);
         com.legend.sql.dialect.SqlDialect dialect =
@@ -574,7 +574,7 @@ public final class Compiler {
      * results are already DB-built JSON and pass verbatim (JSON only).
      */
     public static java.util.List<String> executeWire(String model,
-            String query, @com.legend.Nullable String runtimeFqn,
+            String query, @com.legend.base.Nullable String runtimeFqn,
             java.sql.Connection connection,
             com.legend.lowering.WireRender.Format format, java.io.Writer out)
             throws java.io.IOException {
@@ -637,7 +637,7 @@ public final class Compiler {
      * today's reference path, unchanged).
      */
     static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
-            @com.legend.Nullable String runtimeFqn,
+            @com.legend.base.Nullable String runtimeFqn,
             java.sql.Connection connection) {
         String product = metadata(connection, true);
         if (!"H2".equals(product)) {
@@ -696,7 +696,7 @@ public final class Compiler {
     }
 
     static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
-            @com.legend.Nullable String runtimeFqn) {
+            @com.legend.base.Nullable String runtimeFqn) {
         if (runtimeFqn == null) {
             return new com.legend.sql.dialect.DuckDb();
         }
@@ -796,7 +796,7 @@ public final class Compiler {
      * execution context in the query itself ({@code ->from(...)}) on this
      * overload; the 4-arg overload supplies a driver runtime.
      */
-    public static com.legend.exec.@com.legend.Nullable ExecutionResult execute(
+    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult execute(
             String model, String query,
             java.sql.Connection connection) {
         return execute(model, query, null, connection);
@@ -809,9 +809,9 @@ public final class Compiler {
      * resolves class queries against the runtime's mapping between G and
      * I; an explicit {@code from()} in the query always wins.
      */
-    public static com.legend.exec.@com.legend.Nullable ExecutionResult execute(
+    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult execute(
             String model, String query,
-            @com.legend.Nullable String runtimeFqn,
+            @com.legend.base.Nullable String runtimeFqn,
             java.sql.Connection connection) {
         return execute(model, query, null, runtimeFqn, connection);
     }
@@ -823,19 +823,19 @@ public final class Compiler {
      * for a query written in an import-bearing section. A {@code null}
      * scope is the sectionless-query behavior.
      */
-    public static com.legend.exec.@com.legend.Nullable ExecutionResult execute(
+    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult execute(
             String model, String query,
-            com.legend.model.@com.legend.Nullable ImportScope imports,
-            @com.legend.Nullable String runtimeFqn,
+            com.legend.model.@com.legend.base.Nullable ImportScope imports,
+            @com.legend.base.Nullable String runtimeFqn,
             java.sql.Connection connection) {
         return execute(model, query, imports, runtimeFqn, connection, ExecuteOptions.NONE);
     }
 
     /** With the caller's execute OPTIONS (the PCT adapter's wire render). */
-    public static com.legend.exec.@com.legend.Nullable ExecutionResult execute(
+    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult execute(
             String model, String query,
-            com.legend.model.@com.legend.Nullable ImportScope imports,
-            @com.legend.Nullable String runtimeFqn,
+            com.legend.model.@com.legend.base.Nullable ImportScope imports,
+            @com.legend.base.Nullable String runtimeFqn,
             java.sql.Connection connection, ExecuteOptions options) {
         ModelContext ctx = compileModel(model);
         // the ONE front door (resolveQuery: names, the statement splice, the
@@ -858,9 +858,9 @@ public final class Compiler {
      * EngineTestExecutor's handle-splice path) comes through here; a second
      * hand-rolled sequence is an orchestrator bug (audit 15 unified two).
      */
-    public static com.legend.exec.@com.legend.Nullable ExecutionResult executeResolved(
+    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult executeResolved(
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.Nullable String runtimeFqn,
+            @com.legend.base.Nullable String runtimeFqn,
             java.sql.Connection connection) {
         return StatementExecutor.execute(resolved, ctx,
                 runtimeFqn, dialectOf(ctx, runtimeFqn, connection), connection);
@@ -1006,11 +1006,11 @@ public final class Compiler {
 
     /** Listener overload — the runner's scoring seam: observes each
      * statement-root assert verdict; the platform keeps the judgment. */
-    public static com.legend.exec.@com.legend.Nullable ExecutionResult executeResolved(
+    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult executeResolved(
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.Nullable String runtimeFqn,
+            @com.legend.base.Nullable String runtimeFqn,
             java.sql.Connection connection,
-            com.legend.exec.@com.legend.Nullable AssertListener assertListener) {
+            com.legend.exec.@com.legend.base.Nullable AssertListener assertListener) {
         return executeResolved(resolved, ctx, runtimeFqn, connection,
                 assertListener, null);
     }
@@ -1018,22 +1018,22 @@ public final class Compiler {
     /** Registration overload (SQLTEXT charter §2): the harness supplies
      * its {@link com.legend.exec.SqlReplayOracle} beside the listener;
      * the env carries both. Production never calls this arity. */
-    public static com.legend.exec.@com.legend.Nullable ExecutionResult executeResolved(
+    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult executeResolved(
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.Nullable String runtimeFqn,
+            @com.legend.base.Nullable String runtimeFqn,
             java.sql.Connection connection,
-            com.legend.exec.@com.legend.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle) {
+            com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
+            com.legend.exec.@com.legend.base.Nullable SqlReplayOracle replayOracle) {
         return executeResolved(resolved, ctx, runtimeFqn, connection, assertListener,
                 replayOracle, ExecuteOptions.NONE);
     }
 
-    public static com.legend.exec.@com.legend.Nullable ExecutionResult executeResolved(
+    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult executeResolved(
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.Nullable String runtimeFqn,
+            @com.legend.base.Nullable String runtimeFqn,
             java.sql.Connection connection,
-            com.legend.exec.@com.legend.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.Nullable SqlReplayOracle replayOracle,
+            com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
+            com.legend.exec.@com.legend.base.Nullable SqlReplayOracle replayOracle,
             ExecuteOptions options) {
         return StatementExecutor.execute(resolved, ctx,
                 runtimeFqn, dialectOf(ctx, runtimeFqn, connection), connection,
@@ -1067,7 +1067,7 @@ public final class Compiler {
     public static com.legend.sql.SqlQuery lowerResolved(
             com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
             String runtimeFqn, boolean relationalRootForm,
-            @com.legend.Nullable String explicitMappingFqn) {
+            @com.legend.base.Nullable String explicitMappingFqn) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
         body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);

@@ -64,7 +64,7 @@ final class FunctionBodyRows {
      * — the compiler's inferred multiplicity stamped as the node's
      * Multiplicity rows (an unbounded upper bound is NULL). */
     private static void nodeRows(List<List<String>> vs, String id, String scope,
-            int ordinal, @com.legend.Nullable String parent, int depth, TypedSpec n) {
+            int ordinal, @com.legend.base.Nullable String parent, int depth, TypedSpec n) {
         Multiplicity m = n.info().multiplicity();
         String lower = "0";
         String upper = "";

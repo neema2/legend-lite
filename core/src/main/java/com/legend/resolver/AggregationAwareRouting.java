@@ -83,7 +83,7 @@ public final class AggregationAwareRouting {
     /** The aggregate view set id the query rewrites to, or null when the
      * root class is not aggregation-aware-mapped, the query is not a
      * rewritable groupBy, or no view matches (the main set serves). */
-    public static @com.legend.Nullable String chooseSet(ModelContext ctx, SpecCompiler specs,
+    public static @com.legend.base.Nullable String chooseSet(ModelContext ctx, SpecCompiler specs,
             String mappingFqn, TypedGetAll root, List<TypedSpec> ops, TypedSpec top) {
         List<MappingDefinition.ClassBinding.AggregateViewFacts> views =
                 viewsOf(ctx, mappingFqn, root.classFqn());
@@ -166,7 +166,7 @@ public final class AggregationAwareRouting {
 
     /** The AggregationAware main set's id for a class in a mapping (its
      * includes closed), or null when the class is not so mapped. */
-    public static @com.legend.Nullable String mainSetId(ModelContext ctx, String mappingFqn,
+    public static @com.legend.base.Nullable String mainSetId(ModelContext ctx, String mappingFqn,
             String classFqn) {
         var md = ctx.findMapping(mappingFqn).orElse(null);
         if (md == null) {

@@ -118,7 +118,7 @@ public final class StableScanOrder extends SqlRewriter {
     /** A frame reference with its threaded ordinals in scope: the
      * reference re-exports them (its outputs widened) so a reader can
      * order by them; null when the frame threads none. */
-    private com.legend.sql.SqlSource.@com.legend.Nullable Cte widened(
+    private com.legend.sql.SqlSource.@com.legend.base.Nullable Cte widened(
             com.legend.sql.SqlSource.Cte c) {
         java.util.List<String> ords = cteOrds.get(c.name());
         if (ords == null) {
@@ -322,7 +322,7 @@ public final class StableScanOrder extends SqlRewriter {
     /** Whether {@code alias} names a BASE TABLE scan in the from tree —
      * the rowid pseudo-column is only valid there. */
     private static boolean aliasIsBaseTable(com.legend.sql.SqlSource src,
-            @com.legend.Nullable String alias) {
+            @com.legend.base.Nullable String alias) {
         return switch (src) {
             case com.legend.sql.SqlSource.Table t -> t.alias().equals(alias) && !t.call();
             case com.legend.sql.SqlSource.Join j -> aliasIsBaseTable(j.left(), alias)
@@ -374,7 +374,7 @@ public final class StableScanOrder extends SqlRewriter {
      * for every base-table rowid reachable probe-major through its
      * from tree (recursing through plain subselect frames); null when
      * the shape refuses (set semantics or star frames). */
-    private @com.legend.Nullable Threaded threadScan(
+    private @com.legend.base.Nullable Threaded threadScan(
             com.legend.sql.SqlSelect sel) {
         if (sel.distinct() || !sel.groupBy().isEmpty()
                 || sel.limit() != null || sel.offset() != null
@@ -514,7 +514,7 @@ public final class StableScanOrder extends SqlRewriter {
     /** A union leg with {@code __agg_leg} (its index) and
      * {@code __agg_legord} (its first probe-major scan ordinal, NULL
      * when none) appended; null when the leg's shape refuses. */
-    private com.legend.sql.@com.legend.Nullable SqlSelect
+    private com.legend.sql.@com.legend.base.Nullable SqlSelect
             unionLegOrdinals(com.legend.sql.SqlSelect leg, int index) {
         if (leg.distinct() || !leg.groupBy().isEmpty()
                 || leg.limit() != null || leg.offset() != null

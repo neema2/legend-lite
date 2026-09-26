@@ -100,7 +100,7 @@ public final class SignatureMangle {
      */
     public static <F> Resolution<F> resolve(String ref,
             java.util.function.Function<String, List<F>> lookup,
-            java.util.function.Function<F, com.legend.model.@com.legend.Nullable Function> def) {
+            java.util.function.Function<F, com.legend.model.@com.legend.base.Nullable Function> def) {
         int from = Math.max(ref.lastIndexOf("::") + 2, 0);
         boolean baseExists = false;
         for (int i = ref.length() - 1; i > from; i--) {

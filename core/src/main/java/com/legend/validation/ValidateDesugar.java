@@ -332,7 +332,7 @@ public final class ValidateDesugar {
             ValueSpecification chain,
             ConstraintDefinition c,
             List<ValueSpecification> userCols,
-            Object @com.legend.Nullable [] override) {
+            Object @com.legend.base.Nullable [] override) {
         ValueSpecification body = c.expression();
         // engine negatedFunctionExpression: not(not(x)) collapses
         ValueSpecification negated = body instanceof AppliedFunction nf

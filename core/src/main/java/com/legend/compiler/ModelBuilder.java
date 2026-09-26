@@ -123,7 +123,7 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
      * scans. Built on first use after a batch (all associations are
      * interned by then) and dropped when a batch is added.
      */
-    private @com.legend.Nullable Map<String, Map<String, List<InjectedEnd>>>
+    private @com.legend.base.Nullable Map<String, Map<String, List<InjectedEnd>>>
             associationEndsByOwner;
 
     /** One association end injected onto a class. */
@@ -615,7 +615,7 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
         }
     }
 
-    private static <T> @com.legend.Nullable T idGet(ArrayList<T> list, int id) {
+    private static <T> @com.legend.base.Nullable T idGet(ArrayList<T> list, int id) {
         if (id < 0 || id >= list.size()) return null;
         return list.get(id);
     }
@@ -627,13 +627,13 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
     /** Lazily built DIRECT subclass index over the model's classes (super
      * FQN &rarr; declaring classes, ingest order); the model is fully
      * ingested before any consumer asks. */
-    private @com.legend.Nullable Map<String, List<String>> directSubclasses;
+    private @com.legend.base.Nullable Map<String, List<String>> directSubclasses;
 
     /** THE knowledge kernel over this index (F1): class lookup
      * native-first, the memoized subtype relation, the ancestor and
      * subtree walks — one implementation for Phase E and Phase F alike.
      * Derived from the index and rebuilt when a batch is added. */
-    private @com.legend.Nullable KnowledgeLayer knowledge;
+    private @com.legend.base.Nullable KnowledgeLayer knowledge;
 
     public KnowledgeLayer knowledge() {
         KnowledgeLayer k = knowledge;
@@ -673,7 +673,7 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
     }
 
     /** O(1). Returns {@link ClassDefinition} for {@code fqn}, if any. */
-    public Optional<ClassDefinition> findClass(@com.legend.Nullable String fqn) {
+    public Optional<ClassDefinition> findClass(@com.legend.base.Nullable String fqn) {
         if (fqn == null) {
             return Optional.empty();
         }
@@ -830,7 +830,7 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
 
     /** O(1). Returns {@link DatabaseDefinition} for {@code fqn}, if any. */
     @Override
-    public Optional<DatabaseDefinition> findDatabase(@com.legend.Nullable String fqn) {
+    public Optional<DatabaseDefinition> findDatabase(@com.legend.base.Nullable String fqn) {
         if (fqn == null) {
             return Optional.empty();
         }
@@ -884,7 +884,7 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
     }
 
     /** O(1). Returns {@link RuntimeDefinition} for {@code fqn}, if any. */
-    public Optional<RuntimeDefinition> findRuntime(@com.legend.Nullable String fqn) {
+    public Optional<RuntimeDefinition> findRuntime(@com.legend.base.Nullable String fqn) {
         if (fqn == null) {
             return Optional.empty();
         }
@@ -936,14 +936,14 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
      * {@code filters} and {@code multiGrainFilters} (the shapes are
      * structurally identical).
      */
-    public Optional<FilterDefinition> findFilter(@com.legend.Nullable String dbFqn,
+    public Optional<FilterDefinition> findFilter(@com.legend.base.Nullable String dbFqn,
             String filterName) {
         return findFilter(dbFqn, filterName, new java.util.HashSet<>());
     }
 
     /** Include-closure aware, mirroring {@link #findJoin}: an including
      * database resolves the included database's filters. Own wins. */
-    private Optional<FilterDefinition> findFilter(@com.legend.Nullable String dbFqn,
+    private Optional<FilterDefinition> findFilter(@com.legend.base.Nullable String dbFqn,
             String filterName, java.util.Set<String> seen) {
         if (dbFqn == null) {
             return Optional.empty();
@@ -974,7 +974,7 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
      * O(1). Returns the {@link JoinDefinition} named {@code joinName}
      * inside database {@code dbFqn}, if any.
      */
-    public Optional<JoinDefinition> findJoin(@com.legend.Nullable String dbFqn,
+    public Optional<JoinDefinition> findJoin(@com.legend.base.Nullable String dbFqn,
             String joinName) {
         return findJoin(dbFqn, joinName, new java.util.HashSet<>());
     }
@@ -982,7 +982,7 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
     /** Include-closure aware (real Legend: Database MyDb ( include db )
      * resolves db's joins — the store-substitution corpus family,
      * testSubtypeMapping.pure:170-172). Own definitions win. */
-    private Optional<JoinDefinition> findJoin(@com.legend.Nullable String dbFqn,
+    private Optional<JoinDefinition> findJoin(@com.legend.base.Nullable String dbFqn,
             String joinName,
             java.util.Set<String> seen) {
         if (dbFqn == null) {
@@ -1068,7 +1068,7 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
 
     /** {@link #findView} by schema and name: the {@code default} schema (or
      *  none) is the bare spelling, any other schema the dotted one. */
-    public Optional<ViewDefinition> findView(String dbFqn, @com.legend.Nullable String schema,
+    public Optional<ViewDefinition> findView(String dbFqn, @com.legend.base.Nullable String schema,
             String viewName) {
         return findView(dbFqn, schema == null || "default".equals(schema)
                 ? viewName : schema + "." + viewName);
@@ -1130,7 +1130,7 @@ public final class ModelBuilder implements com.legend.compiler.element.StoreLook
         return tables.iterator().next();
     }
 
-    private @com.legend.Nullable String joinOnlyViewRoot(String dbFqn, ViewDefinition view) {
+    private @com.legend.base.Nullable String joinOnlyViewRoot(String dbFqn, ViewDefinition view) {
         Set<String> terminals = new LinkedHashSet<>();
         com.legend.model.JoinChainElement first = null;
         for (ViewDefinition.ViewColumnMapping vc : view.columnMappings()) {

@@ -18,12 +18,12 @@ import java.util.List;
  */
 public final class EffectSink {
 
-    public record Entry(String executed, @com.legend.Nullable String recorded, boolean query) {
+    public record Entry(String executed, @com.legend.base.Nullable String recorded, boolean query) {
     }
 
     private final List<Entry> entries = new ArrayList<>();
 
-    public void add(String executed, @com.legend.Nullable String recorded) {
+    public void add(String executed, @com.legend.base.Nullable String recorded) {
         entries.add(new Entry(executed, recorded, com.legend.sql.RawSql.isSingleQuery(executed)));
         Census.inc(Census.Key.EFFECTS_IN_SCRIPT);
     }

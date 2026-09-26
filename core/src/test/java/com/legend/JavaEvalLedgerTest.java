@@ -1182,7 +1182,11 @@ class JavaEvalLedgerTest {
                     // classification of static types, no value evaluated
                     "KindClass.java",
                     "CrossStoreGuard.java", "LiteralFold.java",
-                    "NonNull.java", "Nullable.java",
+                    // Nullable.java / NonNull.java left the root package for
+                    // com.legend.base on 2026-09-26 (execution plan step 0:
+                    // the two marker annotations were the edge that made
+                    // core one 26-package cycle); they are annotations, not
+                    // funnel classes, and need no register row there
                     // metamodel-as-relations step 3 (2026-09-02): the
                     // system store's SEED derivations — compile-time
                     // facts (mappings, class mappings, include closure,

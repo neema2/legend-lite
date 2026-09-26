@@ -29,7 +29,7 @@ public sealed interface Realization permits Realization.Ref, Realization.Inline 
      *  expression, so emission needs the original node, not just the name. Excluded from
      *  equality like every span carrier. */
     record Ref(String functionFqn,
-               @com.legend.Nullable ValueSpecification source) implements Realization {
+               @com.legend.base.Nullable ValueSpecification source) implements Realization {
         public Ref {
             Objects.requireNonNull(functionFqn, "functionFqn");
         }

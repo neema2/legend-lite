@@ -71,7 +71,7 @@ final class Substitution {
                     Set<String> strippedSlots,
                     Map<String, String> slotPrefixes,
                     Map<String, String> milestoneColumns,
-                    @com.legend.Nullable String castGate) {
+                    @com.legend.base.Nullable String castGate) {
         /** Without a cast gate (ClassSource.castGate). */
         RowScope(String userVar, String freshRowVar, String classFqn,
                  String mappingFqn, String sourceRowVar,
@@ -93,30 +93,30 @@ final class Substitution {
                       Map<String, ExistsSub> existsSubs,
                       Map<TypedSpec, AggRead> aggReads,
                       Map<TypedSpec, InQueryRead> inQueryReads,
-                      @com.legend.Nullable TypedFunction isNotEmptyCallee,
-                      @com.legend.Nullable TypedFunction equalCallee,
+                      @com.legend.base.Nullable TypedFunction isNotEmptyCallee,
+                      @com.legend.base.Nullable TypedFunction equalCallee,
                       List<String> pkColumns,
-                      @com.legend.Nullable TypedFunction inCallee,
-                      @com.legend.Nullable TypedFunction andCallee,
-                      @com.legend.Nullable TypedFunction orCallee,
-                      @com.legend.Nullable TypedFunction failCallee,
+                      @com.legend.base.Nullable TypedFunction inCallee,
+                      @com.legend.base.Nullable TypedFunction andCallee,
+                      @com.legend.base.Nullable TypedFunction orCallee,
+                      @com.legend.base.Nullable TypedFunction failCallee,
                       /** the model's SUBTYPE relation (child, parent) — a cast
                        * over a navigated read is the identity when the routed
                        * rows' class conforms (Column leg, batch 166); null =
                        * exact-class only (nested / association registries) */
-                      java.util.function.@com.legend.Nullable BiPredicate<String, String> conforms) {
+                      java.util.function.@com.legend.base.Nullable BiPredicate<String, String> conforms) {
 
         Registries(Map<String, AssocSub> assocs, Set<String> assocEnds,
                    Map<String, ExistsSub> existsSubs,
                    Map<TypedSpec, AggRead> aggReads,
                    Map<TypedSpec, InQueryRead> inQueryReads,
-                   @com.legend.Nullable TypedFunction isNotEmptyCallee,
-                   @com.legend.Nullable TypedFunction equalCallee,
+                   @com.legend.base.Nullable TypedFunction isNotEmptyCallee,
+                   @com.legend.base.Nullable TypedFunction equalCallee,
                    List<String> pkColumns,
-                   @com.legend.Nullable TypedFunction inCallee,
-                   @com.legend.Nullable TypedFunction andCallee,
-                   @com.legend.Nullable TypedFunction orCallee,
-                   @com.legend.Nullable TypedFunction failCallee) {
+                   @com.legend.base.Nullable TypedFunction inCallee,
+                   @com.legend.base.Nullable TypedFunction andCallee,
+                   @com.legend.base.Nullable TypedFunction orCallee,
+                   @com.legend.base.Nullable TypedFunction failCallee) {
             this(assocs, assocEnds, existsSubs, aggReads, inQueryReads,
                     isNotEmptyCallee, equalCallee, pkColumns, inCallee,
                     andCallee, orCallee, failCallee, null);
@@ -126,12 +126,12 @@ final class Substitution {
                    Map<String, ExistsSub> existsSubs,
                    Map<TypedSpec, AggRead> aggReads,
                    Map<TypedSpec, InQueryRead> inQueryReads,
-                   @com.legend.Nullable TypedFunction isNotEmptyCallee,
-                   @com.legend.Nullable TypedFunction equalCallee,
+                   @com.legend.base.Nullable TypedFunction isNotEmptyCallee,
+                   @com.legend.base.Nullable TypedFunction equalCallee,
                    List<String> pkColumns,
-                   @com.legend.Nullable TypedFunction inCallee,
-                   @com.legend.Nullable TypedFunction andCallee,
-                   @com.legend.Nullable TypedFunction orCallee) {
+                   @com.legend.base.Nullable TypedFunction inCallee,
+                   @com.legend.base.Nullable TypedFunction andCallee,
+                   @com.legend.base.Nullable TypedFunction orCallee) {
             this(assocs, assocEnds, existsSubs, aggReads, inQueryReads,
                     isNotEmptyCallee, equalCallee, pkColumns, inCallee,
                     andCallee, orCallee, null);
@@ -141,8 +141,8 @@ final class Substitution {
                    Map<String, ExistsSub> existsSubs,
                    Map<TypedSpec, AggRead> aggReads,
                    Map<TypedSpec, InQueryRead> inQueryReads,
-                   @com.legend.Nullable TypedFunction isNotEmptyCallee,
-                   @com.legend.Nullable TypedFunction equalCallee) {
+                   @com.legend.base.Nullable TypedFunction isNotEmptyCallee,
+                   @com.legend.base.Nullable TypedFunction equalCallee) {
             this(assocs, assocEnds, existsSubs, aggReads, inQueryReads,
                     isNotEmptyCallee, equalCallee, List.of(), null, null,
                     null);
@@ -152,10 +152,10 @@ final class Substitution {
                    Map<String, ExistsSub> existsSubs,
                    Map<TypedSpec, AggRead> aggReads,
                    Map<TypedSpec, InQueryRead> inQueryReads,
-                   @com.legend.Nullable TypedFunction isNotEmptyCallee,
-                   @com.legend.Nullable TypedFunction equalCallee,
+                   @com.legend.base.Nullable TypedFunction isNotEmptyCallee,
+                   @com.legend.base.Nullable TypedFunction equalCallee,
                    List<String> pkColumns,
-                   @com.legend.Nullable TypedFunction inCallee) {
+                   @com.legend.base.Nullable TypedFunction inCallee) {
             this(assocs, assocEnds, existsSubs, aggReads, inQueryReads,
                     isNotEmptyCallee, equalCallee, pkColumns, inCallee,
                     null, null);
@@ -164,8 +164,8 @@ final class Substitution {
         Registries(Map<String, AssocSub> assocs, Set<String> assocEnds,
                    Map<String, ExistsSub> existsSubs,
                    Map<TypedSpec, AggRead> aggReads,
-                   @com.legend.Nullable TypedFunction isNotEmptyCallee,
-                   @com.legend.Nullable TypedFunction equalCallee) {
+                   @com.legend.base.Nullable TypedFunction isNotEmptyCallee,
+                   @com.legend.base.Nullable TypedFunction equalCallee) {
             this(assocs, assocEnds, existsSubs, aggReads, Map.of(),
                     isNotEmptyCallee, equalCallee);
         }
@@ -181,8 +181,8 @@ final class Substitution {
      * property-function dates — legacy list shapes at this boundary. */
     record TemporalView(List<TypedSpec> rootTemporalDates,
                         Map<String, List<TypedSpec>> headTemporalDates,
-                        @com.legend.Nullable TemporalContext rootCtx,
-                        @com.legend.Nullable String forEachDateColumn) {
+                        @com.legend.base.Nullable TemporalContext rootCtx,
+                        @com.legend.base.Nullable String forEachDateColumn) {
 
         TemporalView(List<TypedSpec> rootTemporalDates,
                 Map<String, List<TypedSpec>> headTemporalDates) {
@@ -197,7 +197,7 @@ final class Substitution {
          * a cross-dimension ask under a dimensioned context is LOUD (the
          * legacy positional list silently served the wrong dimension).
          * Null when no root context (callers fall through). */
-        @com.legend.Nullable TypedSpec rootContextDate(String prop) {
+        @com.legend.base.Nullable TypedSpec rootContextDate(String prop) {
             if (rootCtx == null || rootCtx.isEmpty()) {
                 return null;
             }
@@ -221,7 +221,7 @@ final class Substitution {
      * — engine temp-table semantics ≡ IN-subquery ≡ EXISTS-equality):
      * the resolved single-column relation + its column, identity-keyed by
      * the in/contains call node (task #78 scalar-subquery IN). */
-    record InQueryRead(TypedSpec relation, @com.legend.Nullable String column) {
+    record InQueryRead(TypedSpec relation, @com.legend.base.Nullable String column) {
     }
 
     record Target(RowScope row, Registries regs, TemporalView temporal,
@@ -287,11 +287,11 @@ final class Substitution {
             return regs.aggReads();
         }
 
-        @com.legend.Nullable TypedFunction isNotEmptyCallee() {
+        @com.legend.base.Nullable TypedFunction isNotEmptyCallee() {
             return regs.isNotEmptyCallee();
         }
 
-        @com.legend.Nullable TypedFunction equalCallee() {
+        @com.legend.base.Nullable TypedFunction equalCallee() {
             return regs.equalCallee();
         }
 
@@ -307,7 +307,7 @@ final class Substitution {
     /** An aggregated-navigation column read: {@code column} on the joined
      * row; {@code zeroWhenEmpty} wraps count-family reads (COUNT over no
      * children is pure 0, but the LEFT join delivers NULL). */
-    record AggRead(String column, @com.legend.Nullable TypedSpec whenEmpty) {}
+    record AggRead(String column, @com.legend.base.Nullable TypedSpec whenEmpty) {}
 
     /** A to-many association head consumable under exists/isEmpty/isNotEmpty.
      * {@code targetSlotPrefixes}: the target's DEMANDED slots, materialized
@@ -401,8 +401,8 @@ final class Substitution {
                     Map<String, TypedSpec> targetBindings, String targetClassFqn,
                     Set<String> targetSlotAliases,
                     Map<String, String> targetSlotPrefixes,
-                    @com.legend.Nullable String readVar,
-                    Type.@com.legend.Nullable RelationType readRowType,
+                    @com.legend.base.Nullable String readVar,
+                    Type.@com.legend.base.Nullable RelationType readRowType,
                     Map<String, String> targetMilestoneColumns,
                     Map<String, SubNav> subNavs,
                     boolean filteredTarget) {
@@ -411,8 +411,8 @@ final class Substitution {
                  Map<String, TypedSpec> targetBindings, String targetClassFqn,
                  Set<String> targetSlotAliases,
                  Map<String, String> targetSlotPrefixes,
-                 @com.legend.Nullable String readVar,
-                 Type.@com.legend.Nullable RelationType readRowType,
+                 @com.legend.base.Nullable String readVar,
+                 Type.@com.legend.base.Nullable RelationType readRowType,
                  Map<String, String> targetMilestoneColumns,
                  Map<String, SubNav> subNavs) {
             this(prefix, targetRowVar, targetBindings, targetClassFqn,
@@ -450,8 +450,8 @@ final class Substitution {
                  Map<String, TypedSpec> targetBindings, String targetClassFqn,
                  Set<String> targetSlotAliases,
                  Map<String, String> targetSlotPrefixes,
-                 @com.legend.Nullable String readVar,
-                 Type.@com.legend.Nullable RelationType readRowType,
+                 @com.legend.base.Nullable String readVar,
+                 Type.@com.legend.base.Nullable RelationType readRowType,
                  Map<String, String> targetMilestoneColumns) {
             this(prefix, targetRowVar, targetBindings, targetClassFqn,
                     targetSlotAliases, targetSlotPrefixes, readVar, readRowType,
@@ -519,7 +519,7 @@ final class Substitution {
      * the user's lambda variable, its property name; else {@code null}.
      * (H3 extends this to multi-hop paths; DemandScan shares it.)
      */
-    static @com.legend.Nullable String propertyOnUserVar(TypedSpec n, String userVar) {
+    static @com.legend.base.Nullable String propertyOnUserVar(TypedSpec n, String userVar) {
         List<String> p = pathOf(n, userVar);
         return p != null && p.size() == 1 ? p.get(0) : null;
     }
@@ -774,7 +774,7 @@ final class Substitution {
      * join presence over the ~filtered set; plain pierced leaf read —
      * per-row IS NULL). Null when the shape is not the witnessed one
      * (caller keeps the loud wall). */
-    private @com.legend.Nullable TypedSpec strictReadHoist(
+    private @com.legend.base.Nullable TypedSpec strictReadHoist(
             TypedNativeCall call) {
         if (!com.legend.builtin.Pure.nativeNamed("isEmpty",
                         call.callee().signatureKey())
@@ -843,7 +843,7 @@ final class Substitution {
      * contracts (root-only reads, unwrap-tracking peels) legitimately
      * stay bespoke — forcing them through this API would contort them
      * for purity without payoff (the D3-class ruling's lesson). */
-    static @com.legend.Nullable List<String> pathOf(TypedSpec n, String userVar) {
+    static @com.legend.base.Nullable List<String> pathOf(TypedSpec n, String userVar) {
         // toOne() look-through: $p.employer->toOne().legal is the idiomatic
         // spelling after an optional navigation — the coercion is
         // multiplicity-only and transparent to the path (audit R3).
@@ -926,7 +926,7 @@ final class Substitution {
      * contains/in, negation isolation) — null when none matches and
      * the walk continues (their original fall-through). Order within
      * is load-bearing. */
-    private @com.legend.Nullable TypedSpec rewriteCallArms(TypedSpec n) {
+    private @com.legend.base.Nullable TypedSpec rewriteCallArms(TypedSpec n) {
         TypedSpec typeDispatch = typeDispatchArms(n);
         if (typeDispatch != null) {
             return typeDispatch;
@@ -1496,7 +1496,7 @@ final class Substitution {
     /** The CHAIN KEY + SUB-NAV TAIL read of {@link #rewriteMultiHop}
      * ($a.links.rs.c.name): null when no registered chain prefix carries
      * the tail as a SubNav descent. */
-    private @com.legend.Nullable TypedSpec chainKeySubNavRead(List<String> path,
+    private @com.legend.base.Nullable TypedSpec chainKeySubNavRead(List<String> path,
             String chainKey, TypedSpec n) {
         // CHAIN KEY + SUB-NAV TAIL ($a.links.rs.c.name — the demand scan
         // registered the association hops up to 'links.rs' and the
@@ -1560,7 +1560,7 @@ final class Substitution {
     /** A 1-HOP head read: bindings, generated temporal dates, honest
      * bare-head errors — resolves, throws loud, or (no match) NULL to
      * continue the walk. */
-    private @com.legend.Nullable TypedSpec rewriteHeadProp(String prop, TypedSpec n) {
+    private @com.legend.base.Nullable TypedSpec rewriteHeadProp(String prop, TypedSpec n) {
         if (prop != null) {
             TypedSpec binding = target.bindings().get(prop);
             if (binding != null) {
@@ -2163,7 +2163,7 @@ final class Substitution {
 
     /** The three dispatch forms over the instance variable; null when
      * {@code n} is none of them (the walk continues). */
-    private @com.legend.Nullable TypedSpec typeDispatchArms(TypedSpec n) {
+    private @com.legend.base.Nullable TypedSpec typeDispatchArms(TypedSpec n) {
         return switch (n) {
             // $p.slot(.sub…)->cast(@T).prop — a cast over a NAVIGATED read:
             // the navigated rows are the ROUTED set's (owner[tbl] under the
@@ -2235,7 +2235,7 @@ final class Substitution {
 
     /** The class a type-valued argument names: {@code @X} (TypedTypeRef)
      * or a bare class reference (TypedPackageableRef); null otherwise. */
-    static @com.legend.Nullable String typeTargetFqn(TypedSpec typeArg) {
+    static @com.legend.base.Nullable String typeTargetFqn(TypedSpec typeArg) {
         return switch (typeArg) {
             case com.legend.compiler.spec.typed.TypedTypeRef tr ->
                     Type.asClassType(tr.target()) instanceof Type.ClassType c ? c.fqn() : null;
@@ -2637,7 +2637,7 @@ final class Substitution {
      * the two-name check captured a third in-scope name (triply-nested
      * exists, a user var literally named t_n; audit 23 #75). */
     private String freshTargetBinder(String tVar, TypedLambda cond,
-            @com.legend.Nullable TypedSpec extra) {
+            @com.legend.base.Nullable TypedSpec extra) {
         java.util.Set<String> taken = new java.util.LinkedHashSet<>();
         taken.add(target.freshRowVar());
         taken.add(target.userVar());
@@ -2836,7 +2836,7 @@ final class Substitution {
      * TWO DISTINCT to-many heads is LOUD (audit 23 B1): the isolation
      * null-guard covers one read — guarding only the first silently
      * inverts booleans for parents empty on the other head. */
-    private @com.legend.Nullable TypedSpec toManyCrossingRead(TypedSpec n) {
+    private @com.legend.base.Nullable TypedSpec toManyCrossingRead(TypedSpec n) {
         List<TypedSpec> all = new ArrayList<>();
         collectToManyCrossings(n, all);
         if (all.isEmpty()) {
@@ -2874,8 +2874,8 @@ final class Substitution {
 
     /** The embedded ctor of a binding: a bare {@code ^Inner(...)} (with
      * toOne look-through) or an otherwise composition's partial. */
-    static @com.legend.Nullable TypedNewInstance embeddedPartialOf(
-            @com.legend.Nullable TypedSpec binding) {
+    static @com.legend.base.Nullable TypedNewInstance embeddedPartialOf(
+            @com.legend.base.Nullable TypedSpec binding) {
         if (binding == null) {
             return null;
         }
@@ -2924,7 +2924,7 @@ final class Substitution {
     /** Substitute the predicate over the PARENT row: {@code $b.prop} becomes
      * the embedded partial's binding expression; everything else (outer
      * reads) runs through THIS substitution. */
-    private @com.legend.Nullable TypedSpec rewriteEmbeddedExists(TypedLambda pl,
+    private @com.legend.base.Nullable TypedSpec rewriteEmbeddedExists(TypedLambda pl,
             TypedNewInstance partial) {
         // audit 23: a multi-statement predicate body would silently DROP
         // its leading statements (a let's variable then leaks through the
@@ -3032,7 +3032,7 @@ final class Substitution {
      *   row, and the keyed decode matches row columns; a joined nav's
      *   missing columns stay loud at pkColRead.</li>
      * </ul> */
-    private @com.legend.Nullable TypedSpec hoistedRewriteArms(TypedSpec n) {
+    private @com.legend.base.Nullable TypedSpec hoistedRewriteArms(TypedSpec n) {
         if (n instanceof TypedNativeCall oc && oc.args().size() == 2
                 && com.legend.builtin.NativeFn.ObjectReference.of(oc.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.ObjectReference.OBJECT_REFERENCE_IN
                 && rootsAtUserVar(oc.args().get(0))) {
@@ -3055,7 +3055,7 @@ final class Substitution {
     /** The registered EXISTS head a project-over-instance source reads
      * ({@code $this.<head>->project(..)}), null when unregistered — ONE
      * recognizer for the direct arm and the groupBy-source gate. */
-    private @com.legend.Nullable String instanceProjectPath(TypedProject tp) {
+    private @com.legend.base.Nullable String instanceProjectPath(TypedProject tp) {
         List<String> pp = pathOf(InnerDemand.instanceProjectSource(tp),
                 target.userVar());
         return pp != null && pp.size() == 1
@@ -3130,7 +3130,7 @@ final class Substitution {
      * the instance variable; a cast whose subtype has no registration
      * (unmapped subtype, own-source subtype, or a nested position whose
      * registries never saw the scan) stays loud. */
-    private @com.legend.Nullable TypedSpec subTypeLeafRead(TypedPropertyAccess pa) {
+    private @com.legend.base.Nullable TypedSpec subTypeLeafRead(TypedPropertyAccess pa) {
         if (!(pa.source() instanceof TypedNativeCall nc)
                 || com.legend.builtin.NativeFn.SubtypeForm.of(nc.callee().qualifiedName()).orElse(null) != com.legend.builtin.NativeFn.SubtypeForm.SUB_TYPE
                 || nc.args().isEmpty()
@@ -3385,7 +3385,7 @@ final class Substitution {
      * otherwise composition. The normalizer emits exactly this shape —
      * partial FIRST, fallback slot read second (canonical by construction).
      */
-    static @com.legend.Nullable TypedNativeCall otherwiseOf(TypedSpec binding) {
+    static @com.legend.base.Nullable TypedNativeCall otherwiseOf(TypedSpec binding) {
         TypedSpec inner = binding;
         if (inner instanceof TypedNativeCall c && c.args().size() == 1
                 && com.legend.builtin.Pure.isToOneCall(c.callee().qualifiedName())) {
@@ -3407,7 +3407,7 @@ final class Substitution {
      * Returns the leaf's binding expression (over the sub-target's row
      * var), or {@code null} when any hop is not a ctor property — the
      * caller's loud wall stands. */
-    private static @com.legend.Nullable TypedSpec ctorTailLeaf(SubNav sub, List<String> path,
+    private static @com.legend.base.Nullable TypedSpec ctorTailLeaf(SubNav sub, List<String> path,
             int hop) {
         return descendLeaf(sub.bindings().get(path.get(hop)), path, hop + 1);
     }
@@ -3416,15 +3416,15 @@ final class Substitution {
      * predicate path INSIDE the partial's ctor tree (ledger cluster 49 —
      * the gate and the substitution share this ONE resolver so they
      * cannot drift). A class-typed terminus is not a leaf: stays loud. */
-    private static @com.legend.Nullable TypedSpec partialLeaf(
+    private static @com.legend.base.Nullable TypedSpec partialLeaf(
             TypedNewInstance partial, List<String> path) {
         TypedSpec r = descendLeaf(
                 partial.properties().get(path.get(0)), path, 1);
         return r instanceof TypedNewInstance ? null : r;
     }
 
-    private static @com.legend.Nullable TypedSpec descendLeaf(
-            @com.legend.Nullable TypedSpec cur, List<String> path, int hop) {
+    private static @com.legend.base.Nullable TypedSpec descendLeaf(
+            @com.legend.base.Nullable TypedSpec cur, List<String> path, int hop) {
         int h = hop;
         while (cur != null && h < path.size()) {
             TypedSpec inner = cur;

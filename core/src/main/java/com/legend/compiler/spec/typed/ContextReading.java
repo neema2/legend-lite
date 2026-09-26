@@ -32,11 +32,11 @@ final class ContextReading {
     private final Function<String, Optional<List<ValueSpecification>>> fnBody;
     private final UnaryOperator<TypedSpec> bind;
     private final UnaryOperator<String> canon;
-    private final Function<TypedCopyInstance, @com.legend.Nullable String> dbOfCopy;
+    private final Function<TypedCopyInstance, @com.legend.base.Nullable String> dbOfCopy;
 
     ContextReading(Function<String, Optional<List<ValueSpecification>>> fnBody,
             UnaryOperator<TypedSpec> bind, UnaryOperator<String> canon,
-            Function<TypedCopyInstance, @com.legend.Nullable String> dbOfCopy) {
+            Function<TypedCopyInstance, @com.legend.base.Nullable String> dbOfCopy) {
         this.fnBody = fnBody;
         this.bind = bind;
         this.canon = canon;
@@ -44,7 +44,7 @@ final class ContextReading {
     }
 
     ExecutionContext read(Optional<TypedPackageableRef> mapping,
-            @com.legend.Nullable TypedSpec runtimeArg) {
+            @com.legend.base.Nullable TypedSpec runtimeArg) {
         if (runtimeArg == null) {
             return ExecutionContext.of(mapping, Optional.empty());
         }
@@ -345,7 +345,7 @@ final class ContextReading {
      *  (a computed value, or a name the platform's mirror lacks, is loud: a
      *  flag is a compile-time fact, never guessed). Any other context kind
      *  carries none. */
-    static java.util.Set<Feature> contextFeatures(@com.legend.Nullable TypedSpec contextArg,
+    static java.util.Set<Feature> contextFeatures(@com.legend.base.Nullable TypedSpec contextArg,
             UnaryOperator<TypedSpec> bind) {
         if (contextArg == null) {
             return java.util.Set.of();
@@ -415,7 +415,7 @@ final class ContextReading {
         }
     }
 
-    static boolean contextFlag(String option, @com.legend.Nullable TypedSpec contextArg,
+    static boolean contextFlag(String option, @com.legend.base.Nullable TypedSpec contextArg,
             UnaryOperator<TypedSpec> bind) {
         if (contextArg == null) {
             return false;
@@ -642,7 +642,7 @@ final class ContextReading {
     // ---- setup SQL / CSV -------------------------------------------
 
     private void collectSetups(TypedSpec n, List<String> out, List<ExecutionContext.CsvSetup> csv,
-            @com.legend.Nullable String dbRef) {
+            @com.legend.base.Nullable String dbRef) {
         if (n instanceof TypedVariable) {
             TypedSpec b = chase(n);
             if (b != n) {
@@ -689,7 +689,7 @@ final class ContextReading {
      * its body in a fresh let scope (depth-capped). */
     private void collectSetupsRaw(ValueSpecification v,
             Map<String, ValueSpecification> lets, List<String> out, int depth,
-            List<ExecutionContext.CsvSetup> csv, @com.legend.Nullable String dbRef) {
+            List<ExecutionContext.CsvSetup> csv, @com.legend.base.Nullable String dbRef) {
         switch (v) {
             case com.legend.protocol.spec.AppliedFunction af -> {
                 if (com.legend.compiler.ResolvedNames.names(af,
@@ -753,7 +753,7 @@ final class ContextReading {
     // ---- connection flags -----------------------------------------
 
     /** The FIRST connection instance under the value, or null. */
-    private @com.legend.Nullable TypedNewInstance connectionInstance(TypedSpec runtimeArg) {
+    private @com.legend.base.Nullable TypedNewInstance connectionInstance(TypedSpec runtimeArg) {
         ArrayDeque<TypedSpec> work = new ArrayDeque<>();
         work.add(runtimeArg);
         while (!work.isEmpty()) {
@@ -775,7 +775,7 @@ final class ContextReading {
     }
 
     /** The first ConnectionStore's {@code element} store reference, or null. */
-    private @com.legend.Nullable String storeFqn(TypedSpec runtimeArg) {
+    private @com.legend.base.Nullable String storeFqn(TypedSpec runtimeArg) {
         ArrayDeque<TypedSpec> work = new ArrayDeque<>();
         work.add(runtimeArg);
         while (!work.isEmpty()) {
@@ -807,7 +807,7 @@ final class ContextReading {
      * "DB2")}): the instance's class simple name with its DatabaseType;
      * a helper-constructed runtime's instance lives in the callee's raw
      * body. Null when no connection instance appears. */
-    private @com.legend.Nullable String connectionName(TypedSpec n) {
+    private @com.legend.base.Nullable String connectionName(TypedSpec n) {
         if (n instanceof TypedVariable) {
             TypedSpec b = chase(n);
             return b == n ? null : connectionName(b);
@@ -835,7 +835,7 @@ final class ContextReading {
         return null;
     }
 
-    private @com.legend.Nullable String rawConnectionName(ValueSpecification n) {
+    private @com.legend.base.Nullable String rawConnectionName(ValueSpecification n) {
         if (n instanceof com.legend.protocol.spec.NewInstance ni) {
             String simple = PlatformTypes.relationalConnectionSimpleName(ni.className());
             if (simple != null) {
@@ -898,7 +898,7 @@ final class ContextReading {
 
     /** The connection's {@code timeZone}: the property may be a helper's
      * parameter bound through lets — chased through {@link #bind}. */
-    private @com.legend.Nullable String timeZone(TypedSpec runtimeArg) {
+    private @com.legend.base.Nullable String timeZone(TypedSpec runtimeArg) {
         ArrayDeque<TypedSpec> work = new ArrayDeque<>();
         work.add(runtimeArg);
         java.util.Set<TypedSpec> seen = java.util.Collections.newSetFromMap(
@@ -930,7 +930,7 @@ final class ContextReading {
     /** Bounded constant-fold of the corpus connection-builder idiom
      * ({@code if($q->isEmpty(), |false, |$q->toOne())} over an inlined
      * literal). Null = not statically known; never guesses. */
-    private static @com.legend.Nullable Boolean staticBool(TypedSpec t) {
+    private static @com.legend.base.Nullable Boolean staticBool(TypedSpec t) {
         return switch (t) {
             case TypedCBoolean b -> b.value();
             case TypedNativeCall nc
@@ -951,7 +951,7 @@ final class ContextReading {
         };
     }
 
-    private static @com.legend.Nullable Boolean staticIsEmpty(TypedSpec cond) {
+    private static @com.legend.base.Nullable Boolean staticIsEmpty(TypedSpec cond) {
         if (!(cond instanceof TypedNativeCall nc
                 && PlatformTypes.IS_EMPTY.equals(nc.callee().qualifiedName())
                 && nc.args().size() == 1)) {
@@ -971,7 +971,7 @@ final class ContextReading {
     // ---- literal folding -------------------------------------------
 
     /** A '+'-folded string literal, null when any part is non-literal. */
-    private static @com.legend.Nullable String foldLiteral(@com.legend.Nullable TypedSpec n) {
+    private static @com.legend.base.Nullable String foldLiteral(@com.legend.base.Nullable TypedSpec n) {
         if (n instanceof TypedCString cs) {
             return cs.value();
         }
@@ -1003,7 +1003,7 @@ final class ContextReading {
 
     /** A raw-spec string literal folded through '+' chains, collections
      * and let-bound variables; null when any part is non-literal. */
-    private static @com.legend.Nullable String foldRawLiteral(ValueSpecification v,
+    private static @com.legend.base.Nullable String foldRawLiteral(ValueSpecification v,
             Map<String, ValueSpecification> lets) {
         return switch (v) {
             case com.legend.protocol.spec.CString cs -> cs.value();

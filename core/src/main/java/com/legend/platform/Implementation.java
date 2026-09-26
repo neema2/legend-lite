@@ -63,7 +63,7 @@ public sealed interface Implementation {
 
     /** Whether {@code row} runs the declaration by the platform's own rule or
      *  form — never by the declaration's body. Null (undeclared) is not. */
-    static boolean byRule(@com.legend.Nullable Implementation row) {
+    static boolean byRule(@com.legend.base.Nullable Implementation row) {
         return row instanceof Intrinsic || row instanceof Form;
     }
 

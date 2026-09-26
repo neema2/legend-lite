@@ -62,7 +62,7 @@ import java.util.Optional;
 public final class UserCallInliner {
 
     private final SpecCompiler specs;
-    private final java.util.function.@com.legend.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook;
+    private final java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook;
     private final ArrayDeque<String> stack = new ArrayDeque<>();
     /** Per activation: the size of its literal-structure arguments (the
      * literal unroll's descent measure; 0 = none). */
@@ -114,12 +114,12 @@ public final class UserCallInliner {
      * the argument itself (same reference) when it does not apply.
      */
     public UserCallInliner(SpecCompiler specs,
-            java.util.function.@com.legend.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook) {
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook) {
         this(specs, hook, false);
     }
 
     private UserCallInliner(SpecCompiler specs,
-            java.util.function.@com.legend.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook,
             boolean verdictSource) {
         this.specs = Objects.requireNonNull(specs, "specs");
         this.hook = hook;
@@ -137,7 +137,7 @@ public final class UserCallInliner {
     /** An inliner whose literal arms are ON at the root — for the
      * quantified verdict's SOURCE only (see {@link #reduceVerdictSource}). */
     public static UserCallInliner forVerdictSource(SpecCompiler specs,
-            java.util.function.@com.legend.Nullable BiFunction<TypedSpec,
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec,
                     java.util.Set<String>, TypedSpec> hook) {
         return new UserCallInliner(specs, hook, true);
     }

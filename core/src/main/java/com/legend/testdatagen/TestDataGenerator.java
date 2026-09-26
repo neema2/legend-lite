@@ -63,20 +63,20 @@ public final class TestDataGenerator {
 
     /** The engine's TemporalMilestoningDates: forced dates that FILTER
      * every milestoned table's fetch. */
-    public record MilestoningDates(@com.legend.Nullable String business,
-            @com.legend.Nullable String processing,
-            @com.legend.Nullable String snapshot) {
+    public record MilestoningDates(@com.legend.base.Nullable String business,
+            @com.legend.base.Nullable String processing,
+            @com.legend.base.Nullable String snapshot) {
     }
 
-    public record Result(List<String> sqls, @com.legend.Nullable String dataCsvString,
-            @com.legend.Nullable List<String[]> tables,
-            @com.legend.Nullable List<Fetch> fetches) {
+    public record Result(List<String> sqls, @com.legend.base.Nullable String dataCsvString,
+            @com.legend.base.Nullable List<String[]> tables,
+            @com.legend.base.Nullable List<Fetch> fetches) {
         public Result(List<String> sqls, String dataCsvString) {
             this(sqls, dataCsvString, null, null);
         }
 
-        public Result(List<String> sqls, @com.legend.Nullable String dataCsvString,
-                @com.legend.Nullable List<String[]> tables) {
+        public Result(List<String> sqls, @com.legend.base.Nullable String dataCsvString,
+                @com.legend.base.Nullable List<String[]> tables) {
             this(sqls, dataCsvString, tables, null);
         }
     }
@@ -182,7 +182,7 @@ public final class TestDataGenerator {
 
     public static Result generate(ModelContext ctx,
             LambdaFunction resolvedQuery, String mappingFqn,
-            List<TableRowIds> rowIds, @com.legend.Nullable MilestoningDates dates,
+            List<TableRowIds> rowIds, @com.legend.base.Nullable MilestoningDates dates,
             Connection conn) throws SQLException {
         return generate(ctx, resolvedQuery, mappingFqn, rowIds, dates,
                 false, conn);
@@ -200,7 +200,7 @@ public final class TestDataGenerator {
 
     public static Result generate(ModelContext ctx,
             LambdaFunction resolvedQuery, String mappingFqn,
-            List<TableRowIds> rowIds, @com.legend.Nullable MilestoningDates dates,
+            List<TableRowIds> rowIds, @com.legend.base.Nullable MilestoningDates dates,
             boolean hashStrings, Connection conn) throws SQLException {
         return generate(ctx, resolvedQuery, mappingFqn, rowIds, dates, hashStrings, conn,
                 (db, view, temps) -> {
@@ -212,7 +212,7 @@ public final class TestDataGenerator {
 
     public static Result generate(ModelContext ctx,
             LambdaFunction resolvedQuery, String mappingFqn,
-            List<TableRowIds> rowIds, @com.legend.Nullable MilestoningDates dates,
+            List<TableRowIds> rowIds, @com.legend.base.Nullable MilestoningDates dates,
             boolean hashStrings, Connection conn, ViewSql viewSql) throws SQLException {
         List<ScanRelations.Rel> roots =
                 ScanRelations.relTree(ctx, resolvedQuery, mappingFqn);
@@ -248,7 +248,7 @@ public final class TestDataGenerator {
 
     private static void collectColMap(ModelContext ctx,
             ScanRelations.Rel rel, Map<String, List<String>> colMap,
-            @com.legend.Nullable String parentDb) {
+            @com.legend.base.Nullable String parentDb) {
         rel = expandIfView(ctx, rel, parentDb);
         Located loc = locate(ctx, rel.db(), rel.table());
         String key = loc.schema() + "\n" + rel.table();
@@ -285,7 +285,7 @@ public final class TestDataGenerator {
             List<TableRowIds> rowIds, Statement st, List<String> sqls,
             List<Fetch> fetches,
             Map<String, Fetched> fetched, List<String> temps,
-            Map<String, List<String>> colMap, @com.legend.Nullable MilestoningDates dates,
+            Map<String, List<String>> colMap, @com.legend.base.Nullable MilestoningDates dates,
             ViewSql viewSql)
             throws SQLException {
         // a VIEW-backed root generates for its UNDERLYING tree (engine
@@ -365,7 +365,7 @@ public final class TestDataGenerator {
             List<String> sqls, List<Fetch> fetches,
             Map<String, Fetched> fetched,
             List<String> temps, Map<String, List<String>> colMap,
-            List<TableRowIds> rowIds, @com.legend.Nullable MilestoningDates dates,
+            List<TableRowIds> rowIds, @com.legend.base.Nullable MilestoningDates dates,
             ViewSql viewSql)
             throws SQLException {
         String viewDb = child.db();
@@ -487,7 +487,7 @@ public final class TestDataGenerator {
     }
 
     private static List<List<Object>> captureRows(Statement st, String sql,
-            @com.legend.Nullable List<String> colsOut) throws SQLException {
+            @com.legend.base.Nullable List<String> colsOut) throws SQLException {
         List<List<Object>> rows = new ArrayList<>();
         com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.TDG);
         try (java.sql.ResultSet rs = st.executeQuery(sql)) {
@@ -512,9 +512,9 @@ public final class TestDataGenerator {
      * MILESTONED table's fetch (business/processing from-thru ranges,
      * snapshot equality). A milestoned table without its date is the
      * engine's own assert — a loud wall. */
-    private static @com.legend.Nullable String milestoningFilter(
+    private static @com.legend.base.Nullable String milestoningFilter(
             DatabaseDefinition.TableDefinition def, String alias,
-            @com.legend.Nullable MilestoningDates d) {
+            @com.legend.base.Nullable MilestoningDates d) {
         var ms = def.milestoning();
         if (ms == null || d == null) {
             return null;
@@ -561,7 +561,7 @@ public final class TestDataGenerator {
         return parts.isEmpty() ? null : String.join(" and ", parts);
     }
 
-    private static String requireDate(@com.legend.Nullable String v,
+    private static String requireDate(@com.legend.base.Nullable String v,
             DatabaseDefinition.TableDefinition def, String name) {
         if (v == null) {
             throw new NotImplementedException("testDataGen: table '"
@@ -645,14 +645,14 @@ public final class TestDataGenerator {
     }
 
     private static void addIf(TreeSet<String> out,
-            java.util.Set<String> known, @com.legend.Nullable String col) {
+            java.util.Set<String> known, @com.legend.base.Nullable String col) {
         if (col != null && known.contains(col)) {
             out.add(col);
         }
     }
 
     private static void collectTableCols(RelationalOperation op,
-            @com.legend.Nullable String table, TreeSet<String> out, java.util.Set<String> known) {
+            @com.legend.base.Nullable String table, TreeSet<String> out, java.util.Set<String> known) {
         switch (op) {
             case RelationalOperation.ColumnRef cr -> {
                 if (bare(cr.table()).equals(table) && known.contains(cr.column())) {
@@ -691,7 +691,7 @@ public final class TestDataGenerator {
     // ===== join condition rendering =====
 
     private static String renderCondition(RelationalOperation op,
-            @com.legend.Nullable String parentTable, String childTable, String childAlias,
+            @com.legend.base.Nullable String parentTable, String childTable, String childAlias,
             String joinName) {
         return switch (op) {
             case RelationalOperation.ColumnRef cr -> {
@@ -748,7 +748,7 @@ public final class TestDataGenerator {
      * base columns. {@code parentDb} resolves the connecting join when
      * the view is a CHILD. */
     private static ScanRelations.Rel expandIfView(ModelContext ctx,
-            ScanRelations.Rel r, @com.legend.Nullable String parentDb) {
+            ScanRelations.Rel r, @com.legend.base.Nullable String parentDb) {
         if (!ScanRelations.isView(ctx, r.db(), r.table())) {
             return r;
         }
@@ -830,7 +830,7 @@ public final class TestDataGenerator {
     // ===== lookups =====
 
     private static Located locate(ModelContext ctx, String dbFqn,
-            @com.legend.Nullable String table0) {
+            @com.legend.base.Nullable String table0) {
         String table = java.util.Objects.requireNonNull(table0,
                 "testDataGen: relation without a physical table");
         ArrayDeque<String> work = new ArrayDeque<>();
@@ -882,8 +882,8 @@ public final class TestDataGenerator {
     }
 
     private static DatabaseDefinition.JoinDefinition findJoin(
-            ModelContext ctx, @com.legend.Nullable String name0,
-            @com.legend.Nullable String... dbFqns) {
+            ModelContext ctx, @com.legend.base.Nullable String name0,
+            @com.legend.base.Nullable String... dbFqns) {
         String name = java.util.Objects.requireNonNull(name0,
                 "testDataGen: join edge without a join name");
         ArrayDeque<String> work = new ArrayDeque<>();
@@ -1060,7 +1060,7 @@ public final class TestDataGenerator {
      * numeric spellings, exactly like the engine's route through
      * setUpDataSQLs. Returns null when equal, else a failure message.
      */
-    public static @com.legend.Nullable String compareCsv(ModelContext ctx,
+    public static @com.legend.base.Nullable String compareCsv(ModelContext ctx,
             String dbFqn,
             String expected, String actual, Connection conn)
             throws SQLException {
@@ -1233,8 +1233,8 @@ public final class TestDataGenerator {
         };
     }
 
-    private static String lit(@com.legend.Nullable Object v,
-            @com.legend.Nullable DatabaseDefinition.ColumnDefinition col) {
+    private static String lit(@com.legend.base.Nullable Object v,
+            @com.legend.base.Nullable DatabaseDefinition.ColumnDefinition col) {
         if (v == null) {
             return "NULL";
         }
@@ -1269,7 +1269,7 @@ public final class TestDataGenerator {
      * the fix is this spec port, not the SQL {@code lit()} speller —
      * SQL doubles quotes, Pure backslash-escapes them.)
      * Package-private for the Tier-1 regression pin (PureReprTest). */
-    static String pureRepr(@com.legend.Nullable Object v) {
+    static String pureRepr(@com.legend.base.Nullable Object v) {
         // Phase 2a: toRepresentation has ONE owner (PureAsserts.repr —
         // this port generalized there); only the row-identifier NULL
         // contract stays local (a pk cell must have produced a value)
@@ -1390,9 +1390,9 @@ public final class TestDataGenerator {
     }
 
     private static void planNode(ModelContext ctx, ScanRelations.Rel rel,
-            ScanRelations.@com.legend.Nullable Rel parent, String res,
+            ScanRelations.@com.legend.base.Nullable Rel parent, String res,
             List<TableRowIds> rowIds,
-            @com.legend.Nullable MilestoningDates dates, Map<String, List<String>> colMap,
+            @com.legend.base.Nullable MilestoningDates dates, Map<String, List<String>> colMap,
             StringBuilder out) {
         Located loc = locate(ctx, rel.db(), rel.table());
         String tbl = java.util.Objects.requireNonNull(rel.table(), "rel.table()");
@@ -1450,7 +1450,7 @@ public final class TestDataGenerator {
                 + "]]";
     }
 
-    private static @com.legend.Nullable TableRowIds rootIds(Located loc,
+    private static @com.legend.base.Nullable TableRowIds rootIds(Located loc,
             ScanRelations.Rel rel, List<TableRowIds> rowIds) {
         TableRowIds ids = null;
         for (TableRowIds t : rowIds) {
@@ -1501,7 +1501,7 @@ public final class TestDataGenerator {
 
     private static String planRootSql(Located loc, ScanRelations.Rel rel,
             List<String> cols, List<TableRowIds> rowIds,
-            @com.legend.Nullable MilestoningDates dates) {
+            @com.legend.base.Nullable MilestoningDates dates) {
         TableRowIds ids = rootIds(loc, rel, rowIds);
         if (ids == null) {
             throw new NotImplementedException("testDataGen plan: no row"
@@ -1546,7 +1546,7 @@ public final class TestDataGenerator {
 
     private static String planChildSql(ModelContext ctx, Located loc,
             ScanRelations.Rel parent, ScanRelations.Rel child,
-            List<String> cols, String res, @com.legend.Nullable MilestoningDates dates) {
+            List<String> cols, String res, @com.legend.base.Nullable MilestoningDates dates) {
         String parentRes = res.substring(0, res.lastIndexOf("_c"));
         // the engine's per-query alias-group index: each child fetch SQL
         // joins exactly ONE table by construction, so its group index is
@@ -1573,7 +1573,7 @@ public final class TestDataGenerator {
      * aliased result columns ({@code "root"."col"}), child refs the
      * joined table ({@code "alias".col}). */
     private static String planCond(RelationalOperation op,
-            @com.legend.Nullable String parentTable, String childTable,
+            @com.legend.base.Nullable String parentTable, String childTable,
             String childAlias) {
         return switch (op) {
             case RelationalOperation.ColumnRef r ->
@@ -1609,9 +1609,9 @@ public final class TestDataGenerator {
     }
 
     /** Engine-text milestoning filter — {@code DATE'...'} spelling. */
-    private static @com.legend.Nullable String planMilestone(
+    private static @com.legend.base.Nullable String planMilestone(
             DatabaseDefinition.TableDefinition def, String alias,
-            @com.legend.Nullable MilestoningDates d) {
+            @com.legend.base.Nullable MilestoningDates d) {
         var ms = def.milestoning();
         if (ms == null || d == null) {
             return null;

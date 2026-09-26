@@ -1,6 +1,6 @@
 package com.legend.warehouse.server;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import com.legend.warehouse.server.duck.Collect;
 import com.legend.warehouse.server.duck.Conn;
 import com.legend.warehouse.server.duck.Database;

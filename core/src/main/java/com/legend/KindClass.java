@@ -88,7 +88,7 @@ sealed interface KindClass {
     }
 
     /** The kind class of a stamp; null for a shape with no equality kind. */
-    static @com.legend.Nullable KindClass of(Type t) {
+    static @com.legend.base.Nullable KindClass of(Type t) {
         if (t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT
                 || t == Type.Primitive.DECIMAL
                 // NUMBER is the numeric tower's supertype — the concrete
@@ -126,7 +126,7 @@ sealed interface KindClass {
 
         /** The fine kind a refined stamp names; null for an unrefined
          * Number — decline, never guess. */
-        static @com.legend.Nullable Fine ofType(Type t) {
+        static @com.legend.base.Nullable Fine ofType(Type t) {
             if (t == Type.Primitive.INTEGER) {
                 return INTEGER;
             }
@@ -141,7 +141,7 @@ sealed interface KindClass {
 
         /** The RUNTIME numeric kind of a side's fetched values (uniform, or
          * null when empty / unknowable — the mixed case gated earlier). */
-        static @com.legend.Nullable Fine ofValues(List<Object> vals) {
+        static @com.legend.base.Nullable Fine ofValues(List<Object> vals) {
             Fine kind = null;
             for (Object v : vals) {
                 Fine k = v instanceof java.math.BigDecimal ? DECIMAL

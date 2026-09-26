@@ -40,7 +40,7 @@ public final class SourceSubst {
      * it. Null when any non-terminal statement is not a let — the caller
      * keeps its loud wall (never a silently dropped statement).
      */
-    static @com.legend.Nullable LambdaFunction inlineLets(LambdaFunction lam) {
+    static @com.legend.base.Nullable LambdaFunction inlineLets(LambdaFunction lam) {
         Map<String, ValueSpecification> env = new LinkedHashMap<>();
         for (int i = 0; i < lam.body().size() - 1; i++) {
             CString name = letName(lam.body().get(i));
@@ -130,7 +130,7 @@ public final class SourceSubst {
 
     /** The instance literal {@code v} spells: a bare {@code NewInstance} or
      * the parser's {@code new(<class ptr>, NewInstance)} wrapper. */
-    public static com.legend.protocol.spec.@com.legend.Nullable NewInstance instanceOf(
+    public static com.legend.protocol.spec.@com.legend.base.Nullable NewInstance instanceOf(
             ValueSpecification v) {
         if (v instanceof com.legend.protocol.spec.NewInstance ni) {
             return ni;
@@ -147,7 +147,7 @@ public final class SourceSubst {
     /** The ONE let-shape recognizer (protocol encoding, not user
      * vocabulary): {@code letFunction(<name>, <value>)} — shared by the
      * fold and the lambda-local shadow-stop so the spelling lives once. */
-    public static @com.legend.Nullable CString letName(ValueSpecification st) {
+    public static @com.legend.base.Nullable CString letName(ValueSpecification st) {
         return st instanceof AppliedFunction lf
                 && CoreFn.of(lf.function()).orElse(null) == CoreFn.LET
                 && lf.parameters().size() == 2
@@ -168,7 +168,7 @@ public final class SourceSubst {
      * compiled platform folds statically-known code only). */
     @FunctionalInterface
     public interface PostFold {
-        @com.legend.Nullable ValueSpecification fold(ValueSpecification substituted);
+        @com.legend.base.Nullable ValueSpecification fold(ValueSpecification substituted);
     }
 
     public static ValueSpecification substitute(ValueSpecification v,
@@ -178,7 +178,7 @@ public final class SourceSubst {
 
     public static ValueSpecification substitute(ValueSpecification v,
             Map<String, ValueSpecification> env,
-            @com.legend.Nullable PostFold folder) {
+            @com.legend.base.Nullable PostFold folder) {
         if (env.isEmpty() && folder == null) {
             return v;
         }

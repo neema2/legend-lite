@@ -70,13 +70,13 @@ final class DuckWorkspaces {
     /** The warehouse's deploy jar: set, every connection is a session on a
      *  warehouse this harness starts (W1c, docs/WAREHOUSE_W1_DESIGN_2026_09_26.md);
      *  unset, the in-process DuckDB below. */
-    private static final @com.legend.Nullable String WAREHOUSE_JAR =
+    private static final @com.legend.base.Nullable String WAREHOUSE_JAR =
             System.getProperty("rcorpus.warehouse.server");
 
     /** The instance's root connection: in process, the DuckDB connection the
      *  others duplicate; on a warehouse, a session of its own. */
     private static Connection root;
-    private static @com.legend.Nullable String warehouseUrl;
+    private static @com.legend.base.Nullable String warehouseUrl;
     private static final AtomicInteger IDS = new AtomicInteger();
     private static final Set<String> LIVE = new TreeSet<>();
 
@@ -187,7 +187,7 @@ final class DuckWorkspaces {
 
     /** Attach a fresh aside catalog and make it the CURRENT target: the
      * fixture's unqualified DDL and inserts land there. */
-    static synchronized @com.legend.Nullable String isolateBegin(Connection proxied) throws SQLException {
+    static synchronized @com.legend.base.Nullable String isolateBegin(Connection proxied) throws SQLException {
         String ws = WS_OF.get(proxied);
         if (ws == null) {
             return null;   // not a DuckDB workspace (the H2 lane): no primitive

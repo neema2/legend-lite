@@ -498,7 +498,7 @@ class FixtureAdjudicationTest {
      * parser can read. Returns {@code null} when the text has no top-level
      * keyword to place — counted as unadjudicable rather than guessed at.
      */
-    private static @com.legend.Nullable String withSectionHeaders(String raw) {
+    private static @com.legend.base.Nullable String withSectionHeaders(String raw) {
         String t = raw.strip();
         if (!looksLikeSource(t)) {
             return null;

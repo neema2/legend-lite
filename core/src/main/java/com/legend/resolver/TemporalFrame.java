@@ -68,7 +68,7 @@ final class TemporalFrame {
      * envelope spells it in milestoned qualified-property KEYS
      * ({@code synonyms(2023-10-15T00:00:00+0000)}). Null when the axis
      * carries no context date. */
-    com.legend.compiler.spec.typed.@com.legend.Nullable TypedSpec rootContextDate(
+    com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedSpec rootContextDate(
             boolean business) {
         return business ? root.business() : root.processing();
     }
@@ -81,8 +81,8 @@ final class TemporalFrame {
      * testMilestoneDatePropogationThru*IsIndenpendent...). Null for
      * bitemporal targets (the pair's ordering rides other machinery)
      * and when the root context lacks the strategy's date. */
-    @com.legend.Nullable TemporalSpec contextSpec(
-            @com.legend.Nullable String targetClassFqn) {
+    @com.legend.base.Nullable TemporalSpec contextSpec(
+            @com.legend.base.Nullable String targetClassFqn) {
         MilestoningStrategy strat = targetClassFqn == null ? null
                 : temporalStrategy(targetClassFqn);
         if (strat != MilestoningStrategy.BUSINESS
@@ -157,7 +157,7 @@ final class TemporalFrame {
      * ({@code product.classification -> classification}) so the inner
      * scope's own lookups see them. Null when the hop has no usable
      * single-date spec — the caller keeps the outer frame. */
-    @com.legend.Nullable TemporalFrame nestedFrame(String hopClassFqn, String chainPrefix) {
+    @com.legend.base.Nullable TemporalFrame nestedFrame(String hopClassFqn, String chainPrefix) {
         TemporalSpec hopSpec = specs.get(chainPrefix);
         MilestoningStrategy strat = temporalStrategy(hopClassFqn);
         TemporalFrame nf;
@@ -195,7 +195,7 @@ final class TemporalFrame {
         return root;
     }
 
-    @com.legend.Nullable TemporalSpec spec(String chainKey) {
+    @com.legend.base.Nullable TemporalSpec spec(String chainKey) {
         return specs.get(chainKey);
     }
 
@@ -370,7 +370,7 @@ final class TemporalFrame {
      * {@code orderDetails_settlementDate}, #32: the sunk navigate step
      * exposes it on the head's left row; a wrong candidate dies loud at
      * the window's column lookup, never silently). Null otherwise. */
-    private @com.legend.Nullable String outerRead(TypedSpec d) {
+    private @com.legend.base.Nullable String outerRead(TypedSpec d) {
         List<String> ch = singleVarChain(d);
         return ch == null ? null : String.join("_", ch);
     }
@@ -379,7 +379,7 @@ final class TemporalFrame {
      * the expr may WRAP the read (adjust($o.orderDetails.settlementDate,
      * -1, DAYS)); exactly one chain of 1-2 hops = the outer read, else
      * null (a two-chain date has no single window column). */
-    static @com.legend.Nullable List<String> singleVarChain(TypedSpec d) {
+    static @com.legend.base.Nullable List<String> singleVarChain(TypedSpec d) {
         if (d == null) {
             return null;
         }
@@ -412,7 +412,7 @@ final class TemporalFrame {
      * by {@code colRead} — wrappers (adjust etc.) survive, so the window
      * compares against the TRANSFORMED date (engine: dateadd on the
      * join ON). Null when the date IS the bare read (no wrapper). */
-    private static @com.legend.Nullable TypedSpec wrapOuterDate(TypedSpec specDate,
+    private static @com.legend.base.Nullable TypedSpec wrapOuterDate(TypedSpec specDate,
             TypedSpec colRead) {
         TypedSpec d0 = unwrapToOne(specDate);
         if (d0 instanceof TypedPropertyAccess) {
@@ -484,7 +484,7 @@ final class TemporalFrame {
      * null ONLY the sub columns (LEFT sibling does that), never kill the
      * head match. Returns null when a sub-join is not liftable off the
      * composite's spine (caller falls back to guarded composition). */
-    private @com.legend.Nullable TypedSpec hoistDeferredOuterSubJoins(TypedJoin j,
+    private @com.legend.base.Nullable TypedSpec hoistDeferredOuterSubJoins(TypedJoin j,
             TypedSpec processedLeft, String chainHead, String outerCol,
             String navClass) {
         Type.RelationType rRow = Type.requireRelationSchema(j.right().info().type());
@@ -607,7 +607,7 @@ final class TemporalFrame {
     /** The composite minus the spine join carrying {@code pfx} (returned
      * through {@code found}); filters above it rebuild, a JOIN above it
      * returns null (that shape needs column subtraction — fallback). */
-    private static @com.legend.Nullable TypedSpec detachSpineJoin(TypedSpec pipe, String pfx,
+    private static @com.legend.base.Nullable TypedSpec detachSpineJoin(TypedSpec pipe, String pfx,
             TypedJoin[] found) {
         if (pipe instanceof TypedJoin sj) {
             if (sj.prefix().isPresent() && sj.prefix().orElseThrow().equals(pfx)) {
@@ -686,8 +686,8 @@ final class TemporalFrame {
      * $o.orderDate->toOne()} &rarr; {@code orderDate}'s physical column
      * via the parent binding) — null when the spec is absent, multi-date,
      * sweep, or not an outer-row read. */
-    private @com.legend.Nullable String outerColumnDate(
-            @com.legend.Nullable TemporalSpec spec, ClassSource cs) {
+    private @com.legend.base.Nullable String outerColumnDate(
+            @com.legend.base.Nullable TemporalSpec spec, ClassSource cs) {
         if (spec == null || spec.sweep() || spec.dates().size() != 1) {
             return null;
         }
@@ -698,8 +698,8 @@ final class TemporalFrame {
      * left row (materialized — the ClassSource row still holds raw
      * slots), so a date living on an already-joined row resolves to its
      * composed column and rides the ordinary outer-date calculus. */
-    private @com.legend.Nullable String outerColumnDate(
-            @com.legend.Nullable TemporalSpec spec, ClassSource cs,
+    private @com.legend.base.Nullable String outerColumnDate(
+            @com.legend.base.Nullable TemporalSpec spec, ClassSource cs,
             Type.RelationType leftRow) {
         String own = outerColumnDate(spec, cs);
         if (own != null || spec == null || spec.sweep()
@@ -731,16 +731,16 @@ final class TemporalFrame {
      * parent); else the engine-generated 1-DATE form (the param is the
      * dimension the OWNER lacks, the owner's own fills from the context).
      * Null when underivable. */
-    private @com.legend.Nullable List<TypedSpec> biTemporalDatesFor(
-            @com.legend.Nullable TemporalSpec spec,
+    private @com.legend.base.Nullable List<TypedSpec> biTemporalDatesFor(
+            @com.legend.base.Nullable TemporalSpec spec,
             ClassSource parent) {
         return biTemporalDatesFor(spec, parent, null);
     }
 
-    private @com.legend.Nullable List<TypedSpec> biTemporalDatesFor(
-            @com.legend.Nullable TemporalSpec spec,
+    private @com.legend.base.Nullable List<TypedSpec> biTemporalDatesFor(
+            @com.legend.base.Nullable TemporalSpec spec,
             ClassSource parent,
-            @com.legend.Nullable TemporalSpec parentSpec) {
+            @com.legend.base.Nullable TemporalSpec parentSpec) {
         if (spec != null && !spec.sweep() && spec.dates().size() == 2) {
             return spec.dates();
         }
@@ -780,7 +780,7 @@ final class TemporalFrame {
      * join condition, each date an outer-col read or a literal (engine
      * testBiTemporalDateMilestoning:279; mixed variants :276-277). Null
      * when the head is not bitemporal-with-an-outer-date. */
-    @com.legend.Nullable TypedLambda outerBiDatedJoinCond(TypedLambda cond, TypedSpec left,
+    @com.legend.base.Nullable TypedLambda outerBiDatedJoinCond(TypedLambda cond, TypedSpec left,
             TypedSpec right, ClassSource parent, ClassSource target,
             String head) {
         if (temporalStrategy(target.classFqn()) != MilestoningStrategy.BITEMPORAL) {
@@ -882,7 +882,7 @@ final class TemporalFrame {
     /** ONE date expression's source-row physical column ({@code
      * $o.orderDate->toOne()} &rarr; the parent binding's column), or null
      * when the date is not a direct outer-row read. */
-    private @com.legend.Nullable String outerReadColumn(TypedSpec d, ClassSource cs) {
+    private @com.legend.base.Nullable String outerReadColumn(TypedSpec d, ClassSource cs) {
         d = unwrapToOne(d);
         // NAV-READ date (#32): $o.<hop1>.<leaf> — the date lives on a
         // JOINED row; usable when the parent's materialized row already
@@ -961,7 +961,7 @@ final class TemporalFrame {
     /** The chain-spec date's SOURCE-ROW physical column for {@code head},
      * or null when the spec is absent / not an outer-row read — the
      * callers' switch between pipe-stamping and join-composition. */
-    @com.legend.Nullable String outerDateColumn(String head, ClassSource parent) {
+    @com.legend.base.Nullable String outerDateColumn(String head, ClassSource parent) {
         return outerColumnDate(specs.get(head), parent);
     }
 
@@ -972,7 +972,7 @@ final class TemporalFrame {
     record OuterNavDate(String navHead, String leafColumn) {
     }
 
-    @com.legend.Nullable OuterNavDate outerNavDate(String head, ClassSource cs) {
+    @com.legend.base.Nullable OuterNavDate outerNavDate(String head, ClassSource cs) {
         TemporalSpec spec = specs.get(head);
         if (spec == null || spec.sweep() || spec.dates().size() != 1) {
             return null;
@@ -1013,7 +1013,7 @@ final class TemporalFrame {
     }
 
     /** The TARGET class of a nav-slot head on the outer pipeline. */
-    private @com.legend.Nullable String hopNavClass(String head, ClassSource cs) {
+    private @com.legend.base.Nullable String hopNavClass(String head, ClassSource cs) {
         TypedSpec b = cs.bindings().get(head);
         var navSteps = Pipelines.navSteps(cs.pipeline());
         String alias = b == null ? null
@@ -1024,7 +1024,7 @@ final class TemporalFrame {
     }
 
     /** The materialized prefix of a nav-slot head on the outer frame. */
-    private @com.legend.Nullable String prefixOf(String head, ClassSource cs,
+    private @com.legend.base.Nullable String prefixOf(String head, ClassSource cs,
             Map<String, String> slotPrefixes) {
         TypedSpec b = cs.bindings().get(head);
         String alias = b == null ? null
@@ -1186,7 +1186,7 @@ final class TemporalFrame {
 
     private TypedLambda outerDatedCond(TypedLambda cond, TypedSpec left,
             TypedSpec right, String navClass, String outerCol,
-            @com.legend.Nullable TypedSpec specDate) {
+            @com.legend.base.Nullable TypedSpec specDate) {
         MilestoningStrategy strat = temporalStrategy(navClass);
         TypedTableReference rt = rootTable(right);
         var ms = rt == null ? null
@@ -1237,7 +1237,7 @@ final class TemporalFrame {
     private TypedLambda outerDatedWindowCond(TypedLambda cond, TypedSpec left,
             TypedSpec right, String fromCol, String thruCol,
             boolean inclusive, String outerCol, String navClass,
-            boolean nullTolerant, @com.legend.Nullable TypedSpec specDate) {
+            boolean nullTolerant, @com.legend.base.Nullable TypedSpec specDate) {
         String sv = cond.parameters().get(0);
         String tv = cond.parameters().get(1);
         Type.RelationType lRow = Type.requireRelationSchema(left.info().type());
@@ -1372,9 +1372,9 @@ final class TemporalFrame {
      *  the joined pipe would find the DATES side and silently skip). */
     private TypedSpec stampWithBlock(TypedSpec pipe, TypedSpec date,
             MilestoningStrategy strategy, String classFqn,
-            @com.legend.Nullable TypedTableReference root,
+            @com.legend.base.Nullable TypedTableReference root,
             com.legend.model.DatabaseDefinition.TableDefinition
-                    .@com.legend.Nullable Milestoning ms) {
+                    .@com.legend.base.Nullable Milestoning ms) {
         String fromCol;
         String thruCol;
         String snapCol;
@@ -1803,8 +1803,8 @@ final class TemporalFrame {
 
     /** The pipe's TOP row carries the milestone columns the block needs. */
     private static boolean pipeRowHasMilestoneCols(TypedSpec pipe,
-            @com.legend.Nullable String fromCol,
-            @com.legend.Nullable String thruCol, @com.legend.Nullable String snapCol) {
+            @com.legend.base.Nullable String fromCol,
+            @com.legend.base.Nullable String thruCol, @com.legend.base.Nullable String snapCol) {
         Type.RelationType row = Type.relationSchema(pipe.info().type());
         if (row == null) {
             return false;
@@ -2004,12 +2004,12 @@ final class TemporalFrame {
      * non-temporal class. Drives which milestoning block filters the fetch
      * — engine {@code milestoningCanSupportTemporalStrategy}.
      */
-    @com.legend.Nullable MilestoningStrategy temporalStrategy(String classFqn) {
+    @com.legend.base.Nullable MilestoningStrategy temporalStrategy(String classFqn) {
         return Temporal.strategyOf(ctx, classFqn);
     }
 
     /** The LEFTMOST physical table of a materialized pipeline. */
-    private static @com.legend.Nullable TypedTableReference rootTable(TypedSpec n) {
+    private static @com.legend.base.Nullable TypedTableReference rootTable(TypedSpec n) {
         if (n instanceof TypedTableReference tr) {
             return tr;
         }
@@ -2347,7 +2347,7 @@ final class TemporalFrame {
      * context for HEAD hops only (audit 13 F5: the root date leaked
      * through non-temporal intermediates).
      */
-    TemporalContext contextAt(@com.legend.Nullable String chainPrefix,
+    TemporalContext contextAt(@com.legend.base.Nullable String chainPrefix,
             String targetClassFqn, TemporalContext inherited) {
         TemporalSpec spec = chainPrefix == null ? null
                 : specs.get(chainPrefix);
@@ -2425,7 +2425,7 @@ final class TemporalFrame {
      * physical-slot form of {@link #stampForClassOrDefer}; the silent
      * skip fanned classification versions — W40). */
     TypedSpec filterMilestonedJoinTargets(TypedSpec n,
-            TemporalContext c, @com.legend.Nullable String chainPrefix) {
+            TemporalContext c, @com.legend.base.Nullable String chainPrefix) {
         if (n instanceof TypedJoin j) {
             TypedSpec right = j.right();
             if (right instanceof TypedTableReference) {
@@ -2555,10 +2555,10 @@ final class TemporalFrame {
      *  generated businessDate/processingDate reads THIS column (the
      *  engine projects the calendar date per row), overriding the
      *  table-derived sweep column. */
-    private @com.legend.Nullable String forEachDateColumn;
+    private @com.legend.base.Nullable String forEachDateColumn;
 
     /** The for-each-date DATES column, or null outside that mode. */
-    @com.legend.Nullable String forEachDateColumn() {
+    @com.legend.base.Nullable String forEachDateColumn() {
         return forEachDateColumn;
     }
 

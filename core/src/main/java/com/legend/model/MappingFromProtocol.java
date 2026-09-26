@@ -136,8 +136,8 @@ public final class MappingFromProtocol {
      *  Realization — the same Ref/Inline decision
      *  {@code ElementParser.realizationOf} makes from a parsed body. */
     private static com.legend.protocol.Realization realizationOf(
-            com.legend.protocol.spec.@com.legend.Nullable PackageableElementPtr fn,
-            com.legend.protocol.spec.@com.legend.Nullable LambdaFunction lambda) {
+            com.legend.protocol.spec.@com.legend.base.Nullable PackageableElementPtr fn,
+            com.legend.protocol.spec.@com.legend.base.Nullable LambdaFunction lambda) {
         return fn != null
                 ? new com.legend.protocol.Realization.Ref(fn.fullPath(), fn)
                 : new com.legend.protocol.Realization.Inline(
@@ -225,7 +225,7 @@ public final class MappingFromProtocol {
 
     /** {@code null} when the element is deliberately NOT modelled — see the
      *  Operation and AggregationAware arms. */
-    private static @com.legend.Nullable ClassMapping classMapping(Protocol.PClassMapping cm) {
+    private static @com.legend.base.Nullable ClassMapping classMapping(Protocol.PClassMapping cm) {
         if (cm instanceof Protocol.PServiceStoreClassMapping
                 || cm instanceof Protocol.PClassMappingMongoDb) {
             // a FOREIGN store class mapping rides the protocol only — the
@@ -323,7 +323,7 @@ public final class MappingFromProtocol {
                 + cm.getClass().getSimpleName() + " is not ported yet");
     }
 
-    private static @com.legend.Nullable ClassMapping operation(
+    private static @com.legend.base.Nullable ClassMapping operation(
             Protocol.PClassMappingOperation op) {
         String fn = op.operation() == null ? "" : op.operation();
         if (OP_INHERITANCE.equals(fn)) {
@@ -351,7 +351,7 @@ public final class MappingFromProtocol {
      *  (the wire mints a derived {@code <id>_Main}). The source-route
      *  elision below has to compare against the owner, not the wire's id. */
     private static ClassMapping pureInstance(Protocol.PClassMappingPure pure,
-            @com.legend.Nullable String ownerId) {
+            @com.legend.base.Nullable String ownerId) {
         List<ClassMapping.Pure.PropertyBinding> bindings = new ArrayList<>();
         for (Protocol.PPurePropertyMapping pm : pure.propertyMappings()) {
             bindings.add(new ClassMapping.Pure.PropertyBinding(pm.property(),
@@ -492,7 +492,7 @@ public final class MappingFromProtocol {
         return vs.get(0);
     }
 
-    private static @com.legend.Nullable ClassMapping relational(
+    private static @com.legend.base.Nullable ClassMapping relational(
             Protocol.PClassMappingRel rel) {
         try {
             return relationalInner(rel);
@@ -582,7 +582,7 @@ public final class MappingFromProtocol {
      *  node. It cannot be read back off the model node: the model elides a
      *  self-reference (that is the as-written rule {@code RelOpFromProtocol}
      *  applies), and here the elision is exactly what we need to undo. */
-    private static @com.legend.Nullable String protocolDb(Protocol.PRelOp op) {
+    private static @com.legend.base.Nullable String protocolDb(Protocol.PRelOp op) {
         if (op instanceof Protocol.PColumnRef c) {
             return c.table().database();
         }
@@ -593,7 +593,7 @@ public final class MappingFromProtocol {
     }
 
     private static PropertyMapping propertyMapping(Protocol.PPropertyMapping pm,
-            @com.legend.Nullable String mainDb, Map<String, String> targetSets) {
+            @com.legend.base.Nullable String mainDb, Map<String, String> targetSets) {
         if (pm instanceof Protocol.PInlineEmbeddedPropertyMapping inl) {
             return new PropertyMapping.InlineEmbedded(inl.property(),
                     inl.setImplementationId());
@@ -659,9 +659,9 @@ public final class MappingFromProtocol {
      * its own {@code parsePropertyMappingBody}.
      */
     private static PropertyMapping bodyOf(String property, Protocol.PRelOp rawOp,
-            @com.legend.Nullable String mainDb,
-            @com.legend.Nullable String enumMappingId,
-            @com.legend.Nullable String targetSetId) {
+            @com.legend.base.Nullable String mainDb,
+            @com.legend.base.Nullable String enumMappingId,
+            @com.legend.base.Nullable String targetSetId) {
         // The PM's own database comes off the PROTOCOL node (always
         // resolved); the OPERATION is transformed under that database so
         // inner self-references elide exactly as the legacy parser left
@@ -702,14 +702,14 @@ public final class MappingFromProtocol {
     }
 
     /** A nav's own db may be absent while its FIRST hop carries one. */
-    private static @com.legend.Nullable String chainDb(
+    private static @com.legend.base.Nullable String chainDb(
             RelationalOperation.JoinNavigation jn) {
         return jn.chain().isEmpty() ? null : jn.chain().get(0).databaseName();
     }
 
     @SafeVarargs
-    private static @com.legend.Nullable String firstNonNull(
-            @com.legend.Nullable String... candidates) {
+    private static @com.legend.base.Nullable String firstNonNull(
+            @com.legend.base.Nullable String... candidates) {
         for (String c : candidates) {
             if (c != null) {
                 return c;
@@ -718,8 +718,8 @@ public final class MappingFromProtocol {
         return null;
     }
 
-    private static @com.legend.Nullable String blankToNull(
-            @com.legend.Nullable String s) {
+    private static @com.legend.base.Nullable String blankToNull(
+            @com.legend.base.Nullable String s) {
         return s == null || s.isEmpty() ? null : s;
     }
 
@@ -727,7 +727,7 @@ public final class MappingFromProtocol {
      *  field: "the wire carries no column database" tells a user nothing,
      *  "requires a ~mainTable directive or an explicit [DB] qualifier" tells
      *  them what to type. The legacy parser's messages set that bar. */
-    private static String require(@com.legend.Nullable String v, String what) {
+    private static String require(@com.legend.base.Nullable String v, String what) {
         if (v == null) {
             throw what.contains("requires a database")
                     ? new MissingDatabase(what)

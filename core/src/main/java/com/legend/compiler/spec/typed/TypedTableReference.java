@@ -24,7 +24,7 @@ import java.util.List;
  *              as a call ({@code FROM fn()}), not a table reference
  */
 public record TypedTableReference(String store, String table, ExprType info,
-                                  boolean accessor, @com.legend.Nullable String frame,
+                                  boolean accessor, @com.legend.base.Nullable String frame,
                                   java.util.Set<String> quotedColumns, boolean call)
         implements TypedSpec {
     public TypedTableReference {
@@ -32,7 +32,7 @@ public record TypedTableReference(String store, String table, ExprType info,
     }
 
     public TypedTableReference(String store, String table, ExprType info, boolean accessor,
-            @com.legend.Nullable String frame) {
+            @com.legend.base.Nullable String frame) {
         this(store, table, info, accessor, frame, java.util.Set.of(), false);
     }
 

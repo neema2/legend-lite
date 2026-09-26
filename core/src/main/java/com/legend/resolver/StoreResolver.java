@@ -106,7 +106,7 @@ public final class StoreResolver {
         return this;
     }
 
-    private GraphEmission.@com.legend.Nullable SerializeTypeConfig serializeTypeCfg;
+    private GraphEmission.@com.legend.base.Nullable SerializeTypeConfig serializeTypeCfg;
     private boolean checkedEnvelope;   // graphFetchChecked defect gate
     /** Recursive navigate-target materialization (stateless service). */
     private final NavMaterializer navMaterializer;
@@ -160,14 +160,14 @@ public final class StoreResolver {
      * the query always wins; the driver runtime is the outermost fallback.
      */
     public List<TypedSpec> resolve(List<TypedSpec> body,
-            @com.legend.Nullable String driverRuntimeFqn) { return resolve(body, driverRuntimeFqn, null); }
+            @com.legend.base.Nullable String driverRuntimeFqn) { return resolve(body, driverRuntimeFqn, null); }
 
     /** {@code explicitMappingFqn}: resolve class fetches against THIS
      * mapping (the ~func-pipeline recursion — ClassSources) — an explicit
      * from() in the body still wins. */
     public List<TypedSpec> resolve(List<TypedSpec> body,
-            @com.legend.Nullable String driverRuntimeFqn,
-            @com.legend.Nullable String explicitMappingFqn) {
+            @com.legend.base.Nullable String driverRuntimeFqn,
+            @com.legend.base.Nullable String explicitMappingFqn) {
         return resolve(body, driverRuntimeFqn, explicitMappingFqn,
                 List.of());
     }
@@ -175,8 +175,8 @@ public final class StoreResolver {
     /** {@code chainMappings}: ModelChainConnection mapping FQNs from the
      * DRIVER runtime (execute threads via TypedFrom; plan-text here). */
     public List<TypedSpec> resolve(List<TypedSpec> body,
-            @com.legend.Nullable String driverRuntimeFqn,
-            @com.legend.Nullable String explicitMappingFqn,
+            @com.legend.base.Nullable String driverRuntimeFqn,
+            @com.legend.base.Nullable String explicitMappingFqn,
             List<String> chainMappings) {
         // LAZY: runtime consulted only when a class fetch needs a
         // mapping; the runtime rides ALONGSIDE an explicit mapping
@@ -258,25 +258,25 @@ public final class StoreResolver {
      * that binds the class wins; zero or several binders is loud (plan
      * audit catch 1's precedence rule).
      */
-    record Context(@com.legend.Nullable String explicitMapping,
-            @com.legend.Nullable String runtimeFqn, List<String> chainMappings,
-            Map<String, String> jsonSources, @com.legend.Nullable String constructedScope,
-            boolean executedExtent, @com.legend.Nullable String extentFrame) {
-        Context(@com.legend.Nullable String explicitMapping,
-                @com.legend.Nullable String runtimeFqn, List<String> chainMappings,
-                Map<String, String> jsonSources, @com.legend.Nullable String constructedScope) {
+    record Context(@com.legend.base.Nullable String explicitMapping,
+            @com.legend.base.Nullable String runtimeFqn, List<String> chainMappings,
+            Map<String, String> jsonSources, @com.legend.base.Nullable String constructedScope,
+            boolean executedExtent, @com.legend.base.Nullable String extentFrame) {
+        Context(@com.legend.base.Nullable String explicitMapping,
+                @com.legend.base.Nullable String runtimeFqn, List<String> chainMappings,
+                Map<String, String> jsonSources, @com.legend.base.Nullable String constructedScope) {
             this(explicitMapping, runtimeFqn, chainMappings, jsonSources, constructedScope, false, null);
         }
         /** The planned class frame whose CTE is the extent's root table
          * (TypedFrom.extentFrame — lean ladder rung 12). */
-        Context withExtentFrame(@com.legend.Nullable String frame) {
+        Context withExtentFrame(@com.legend.base.Nullable String frame) {
             return java.util.Objects.equals(frame, extentFrame) ? this
                     : new Context(explicitMapping, runtimeFqn, chainMappings, jsonSources,
                             constructedScope, executedExtent, frame);
         }
-        Context(@com.legend.Nullable String explicitMapping,
-                @com.legend.Nullable String runtimeFqn) { this(explicitMapping, runtimeFqn, List.of(), Map.of(), null); }
-        Context(@com.legend.Nullable String explicitMapping, @com.legend.Nullable String runtimeFqn,
+        Context(@com.legend.base.Nullable String explicitMapping,
+                @com.legend.base.Nullable String runtimeFqn) { this(explicitMapping, runtimeFqn, List.of(), Map.of(), null); }
+        Context(@com.legend.base.Nullable String explicitMapping, @com.legend.base.Nullable String runtimeFqn,
                 List<String> chainMappings) { this(explicitMapping, runtimeFqn, chainMappings, Map.of(), null); }
         Context withConstructedScope(String scope) {
             return new Context(explicitMapping, runtimeFqn, chainMappings, jsonSources, scope, executedExtent, extentFrame);
@@ -299,7 +299,7 @@ public final class StoreResolver {
 
     /** if() over class queries: the condition must be STATICALLY
      * decidable — the chosen branch's thunk body resolves. */
-    private @com.legend.Nullable TypedSpec resolveStaticIf(TypedIf i, Context context) {
+    private @com.legend.base.Nullable TypedSpec resolveStaticIf(TypedIf i, Context context) {
         Boolean cond = LiteralFolds.staticBool(i.condition());
         if (cond == null) {
             throw new NotImplementedException("class query under if()"
@@ -975,7 +975,7 @@ public final class StoreResolver {
      * terminals stamp INNER = the engine READER's null-pk skip (21b F3). */
     private ClassSource flattenSource(ClassSource src, String hop,
             Context context, List<TypedSpec> ops,
-            @com.legend.Nullable TypedSpec top,
+            @com.legend.base.Nullable TypedSpec top,
             Set<String> extraHeads,
             Set<List<String>> extraTails,
             Map<String, Substitution.AssocSub> provOut,
@@ -1353,7 +1353,7 @@ public final class StoreResolver {
     static final String SORT_FQN = "meta::pure::functions::collection::sort";
 
     /** concatenate over two class-collection chains, both fetch-bearing. */
-    private @com.legend.Nullable TypedNativeCall classConcatOf(TypedSpec n) {
+    private @com.legend.base.Nullable TypedNativeCall classConcatOf(TypedSpec n) {
         return n instanceof TypedNativeCall c && c.args().size() == 2
                 && CONCAT_FQN.equals(c.callee().qualifiedName())
                 && anchored(c.args().get(0)) && anchored(c.args().get(1))
@@ -1377,7 +1377,7 @@ public final class StoreResolver {
 
     /** The executor's on-demand handle-row builder (PlanAllocations). */
     public StoreResolver withHandleRegistrar(java.util.function.Function<TypedNativeCall,
-            @com.legend.Nullable Map<String, List<List<String>>>> registrar) {
+            @com.legend.base.Nullable Map<String, List<List<String>>>> registrar) {
         constructed.setHandleRegistrar(registrar);
         return this;
     }
@@ -1398,7 +1398,7 @@ public final class StoreResolver {
     /** table -> rows the resolved body's constructed instances contribute. */
     /** D3 element references + the chain-position cast rules (built on
      * first use: ctx/sources are constructor-assigned). */
-    private @com.legend.Nullable ElementReferences elementsRef;
+    private @com.legend.base.Nullable ElementReferences elementsRef;
 
     private ElementReferences elements() {
         if (elementsRef == null) {
@@ -1408,7 +1408,7 @@ public final class StoreResolver {
         return elementsRef;
     }
 
-    private @com.legend.Nullable String trackedElementClass(
+    private @com.legend.base.Nullable String trackedElementClass(
             com.legend.compiler.spec.typed.TypedPackageableRef pr) {
         return elements().trackedElementClass(pr);
     }
@@ -1969,7 +1969,7 @@ public final class StoreResolver {
      * resolve up front, identity-keyed for the substitution arm. */
     private Map<TypedSpec, Substitution.InQueryRead> inQueryReadsFor(
             List<TypedSpec> ops, TypedSpec top,
-            @com.legend.Nullable List<TypedGraphTree> tree,
+            @com.legend.base.Nullable List<TypedGraphTree> tree,
             Context context) {
         return InnerDemand.inQueryReads(ops,
                 tree == null ? terminalLambdas(top) : List.of(),
@@ -2562,7 +2562,7 @@ public final class StoreResolver {
      * context after in-chain from() re-scoping, and the bound source.
      * Field side-effects (temporal.root(), temporalByHead reset) happen in
      * {@link #collectOpChain} — one construction site. */
-    private record OpChain(TypedSpec top, @com.legend.Nullable List<TypedGraphTree> tree,
+    private record OpChain(TypedSpec top, @com.legend.base.Nullable List<TypedGraphTree> tree,
             boolean implicitSerialize, List<TypedSpec> ops, TypedGetAll getAll,
             Context context, ClassSource cs,
             Map<String, Substitution.AssocSub> flattenAssocs) {}
@@ -2851,7 +2851,7 @@ public final class StoreResolver {
      * split renamed genuine two-date heads before this runs). */
     private Map<String, TemporalFrame.TemporalSpec> collectChainSpecs(
             List<TypedSpec> ops, TypedSpec top,
-            @com.legend.Nullable List<TypedGraphTree> tree) {
+            @com.legend.base.Nullable List<TypedGraphTree> tree) {
         Map<String, TemporalFrame.TemporalSpec> specs =
                 new LinkedHashMap<>();
         for (TypedSpec op : ops) {
@@ -3168,16 +3168,16 @@ public final class StoreResolver {
     /** The class FQN reached after {@code upto} property hops from the
      * source class; null when any hop is not a class-typed property. */
     record AggDemand(TypedNativeCall node,
-            @com.legend.Nullable String leaf, @com.legend.Nullable TypedLambda mapper,
-            @com.legend.Nullable TypedLambda orderKey, boolean orderAsc,
+            @com.legend.base.Nullable String leaf, @com.legend.base.Nullable TypedLambda mapper,
+            @com.legend.base.Nullable TypedLambda orderKey, boolean orderAsc,
             boolean filterPosition) {
 
-        AggDemand(TypedNativeCall node, @com.legend.Nullable String leaf) { this(node, leaf, null, null, true, false); }
-        AggDemand(TypedNativeCall node, @com.legend.Nullable String leaf,
-                @com.legend.Nullable TypedLambda mapper) { this(node, leaf, mapper, null, true, false); }
-        AggDemand(TypedNativeCall node, @com.legend.Nullable String leaf,
-                @com.legend.Nullable TypedLambda mapper,
-                @com.legend.Nullable TypedLambda orderKey, boolean orderAsc) {
+        AggDemand(TypedNativeCall node, @com.legend.base.Nullable String leaf) { this(node, leaf, null, null, true, false); }
+        AggDemand(TypedNativeCall node, @com.legend.base.Nullable String leaf,
+                @com.legend.base.Nullable TypedLambda mapper) { this(node, leaf, mapper, null, true, false); }
+        AggDemand(TypedNativeCall node, @com.legend.base.Nullable String leaf,
+                @com.legend.base.Nullable TypedLambda mapper,
+                @com.legend.base.Nullable TypedLambda orderKey, boolean orderAsc) {
             this(node, leaf, mapper, orderKey, orderAsc, false);
         }
 

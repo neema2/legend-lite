@@ -20,7 +20,7 @@ import java.util.Objects;
  */
 public record MeasureDefinition(
         String qualifiedName,
-        @com.legend.Nullable Unit canonicalUnit,
+        @com.legend.base.Nullable Unit canonicalUnit,
         List<Unit> nonCanonicalUnits) implements PackageableElement {
 
     public MeasureDefinition {
@@ -31,8 +31,8 @@ public record MeasureDefinition(
     /** One unit: name plus its conversion lambda (parameter + body), both
      *  null for a conversion-less unit. */
     public record Unit(String name,
-            @com.legend.Nullable String paramName,
-            com.legend.protocol.spec.@com.legend.Nullable ValueSpecification body) {
+            @com.legend.base.Nullable String paramName,
+            com.legend.protocol.spec.@com.legend.base.Nullable ValueSpecification body) {
         public Unit {
             Objects.requireNonNull(name, "Unit name cannot be null");
         }

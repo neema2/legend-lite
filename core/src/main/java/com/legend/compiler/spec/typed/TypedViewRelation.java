@@ -54,7 +54,7 @@ public record TypedViewRelation(String view, TypedSpec body, ExprType info)
     /** The view's bare name when {@code fn} is a lifted view function
      *  (E.5 provenance, {@link SynthHat#VIEW}: the member IS the view's
      *  name); null for every other callee. ONE reader of the provenance. */
-    public static @com.legend.Nullable String liftedViewName(TypedFunction fn) {
+    public static @com.legend.base.Nullable String liftedViewName(TypedFunction fn) {
         if (!(fn.definition() instanceof FunctionDefinition fd)
                 || fd.synthesizedFrom() == null
                 || fd.synthesizedFrom().hat() != SynthHat.VIEW) {

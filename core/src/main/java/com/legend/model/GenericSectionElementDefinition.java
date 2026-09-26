@@ -21,7 +21,7 @@ public record GenericSectionElementDefinition(
         String kind,
         String qualifiedName,
         Map<String, String> fields,
-        @com.legend.Nullable String bodySource) implements PackageableElement {
+        @com.legend.base.Nullable String bodySource) implements PackageableElement {
 
     public GenericSectionElementDefinition {
         Objects.requireNonNull(section, "Section cannot be null");

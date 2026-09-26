@@ -76,7 +76,7 @@ final class ViewRelation {
 
     /** The owner a message names: the mapping expanding the view, or — for
      *  the E.5 lift, which has no mapping — the store itself. */
-    static String owner(@com.legend.Nullable ResolvedMapping md, String db) {
+    static String owner(@com.legend.base.Nullable ResolvedMapping md, String db) {
         return md == null ? "store=" + db : "mapping=" + md.qualifiedName();
     }
 
@@ -85,7 +85,7 @@ final class ViewRelation {
      *  view's body from the same owner. */
     static ValueSpecification viewRelationExpr(
             DatabaseDefinition.ViewDefinition view, String viewName, String db,
-            ModelBuilder model, @com.legend.Nullable ResolvedMapping md, LiftedViews views,
+            ModelBuilder model, @com.legend.base.Nullable ResolvedMapping md, LiftedViews views,
             com.legend.compiler.element.type.Type.RelationType signature) {
         String phys = model.viewMainTable(db, view);
         // the columns the SIGNATURE declares [1] — a PRIMARY KEY of the view, a

@@ -78,7 +78,7 @@ final class ObjectReferenceArms {
      * {@code newMap([pair, pair])}, or a collection of such maps; a
      * collection of generator calls concatenates. Null = not a generator
      * shape; a generator whose pk maps are not spelled is loud. */
-    static @com.legend.Nullable List<Map<String, Object>> generatorPkMaps(TypedSpec v) {
+    static @com.legend.base.Nullable List<Map<String, Object>> generatorPkMaps(TypedSpec v) {
         if (v instanceof com.legend.compiler.spec.typed.TypedCollection tc) {
             if (tc.elements().isEmpty() || !tc.elements().stream().allMatch(
                     e -> e instanceof TypedNativeCall c && isGenerator(c))) {

@@ -74,7 +74,7 @@ public final class ViewSignatures {
     }
 
     private static Type.Column column(StoreLookups store, String dbFqn,
-            @com.legend.Nullable DatabaseDefinition db,
+            @com.legend.base.Nullable DatabaseDefinition db,
             DatabaseDefinition.ViewDefinition.ViewColumnMapping cm,
             Set<DatabaseDefinition.ViewDefinition> expanding) {
         RelationalOperation expr = cm.expression();
@@ -130,7 +130,7 @@ public final class ViewSignatures {
 
     /** The engine's inferred relational type as a Pure type; Any when the
      *  engine's rule has none or the kind has no scalar Pure type. */
-    private static Type inferred(RelationalOperation expr, @com.legend.Nullable DatabaseDefinition db,
+    private static Type inferred(RelationalOperation expr, @com.legend.base.Nullable DatabaseDefinition db,
             StoreLookups store) {
         RelationalDataType dt = RelationalTypeInference.infer(expr, db, store);
         return dt == null ? new Type.ClassType(PlatformTypes.ANY) : pureType(dt);

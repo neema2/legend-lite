@@ -32,7 +32,7 @@ public final class CarrierStrategies extends SqlRewriter {
     /** The declared slot for {@code name} in a source's output list,
      * or null when the list makes no claim (outputs-from-projections:
      * the rewritten projection carries the slot it preserves). */
-    private static com.legend.sql.@com.legend.Nullable OutputCol slot(
+    private static com.legend.sql.@com.legend.base.Nullable OutputCol slot(
             List<com.legend.sql.OutputCol> outs, String name) {
         for (com.legend.sql.OutputCol c : outs) {
             if (c.name().equals(name)) {
@@ -43,7 +43,7 @@ public final class CarrierStrategies extends SqlRewriter {
     }
 
     /** The single slot of a one-column frame, or null (no claim). */
-    private static com.legend.sql.@com.legend.Nullable OutputCol slot0(
+    private static com.legend.sql.@com.legend.base.Nullable OutputCol slot0(
             List<com.legend.sql.OutputCol> outs) {
         return outs.isEmpty() ? null : outs.get(0);
     }
@@ -157,7 +157,7 @@ public final class CarrierStrategies extends SqlRewriter {
      * {@code LIST_FILTER(list, (x, i) -> ...)} two-parameter filter or its
      * subquery-carrying form {@code (SELECT LIST_FILTER(_ddc.l, ...) AS v
      * FROM (SELECT list AS l) AS _ddc)}. */
-    private static @com.legend.Nullable SqlExpr dedupList(SqlExpr e) {
+    private static @com.legend.base.Nullable SqlExpr dedupList(SqlExpr e) {
         if (e instanceof SqlExpr.Call f
                 && f.fn() == com.legend.sql.SqlFn.LIST_FILTER
                 && f.args().size() == 2
@@ -286,7 +286,7 @@ public final class CarrierStrategies extends SqlRewriter {
      * JOIN null-extends, exactly ASOF's miss behavior. Right sources
      * beyond Table/Subselect (or an unrecognizable inequality) decline
      * to the loud wall. */
-    private static com.legend.sql.@com.legend.Nullable SqlSource asOfEmulation(
+    private static com.legend.sql.@com.legend.base.Nullable SqlSource asOfEmulation(
             com.legend.sql.SqlSource.Join j) {
         String rightAlias = j.right().alias();
         List<SqlExpr> conjuncts = new ArrayList<>();
@@ -351,7 +351,7 @@ public final class CarrierStrategies extends SqlRewriter {
     /** A fresh re-aliased copy of a simple source (Table / Subselect /
      * Values), or null — the correlated-copy pattern the ASOF and FULL
      * emulations share. */
-    private static com.legend.sql.@com.legend.Nullable SqlSource copyWithAlias(
+    private static com.legend.sql.@com.legend.base.Nullable SqlSource copyWithAlias(
             com.legend.sql.SqlSource src, String alias) {
         return switch (src) {
             case com.legend.sql.SqlSource.Table t ->
@@ -464,8 +464,8 @@ public final class CarrierStrategies extends SqlRewriter {
      * WITNESSED arg shapes (R5b), or null (the renderer wall stays).
      * Except the through-subselect arm, every rewriting arm requires a
      * bare Dual source (the exploded form replaces the whole select). */
-    private @com.legend.Nullable com.legend.sql.SqlQuery explode(SqlExpr arg,
-            SqlSelect s, @com.legend.Nullable String alias) {
+    private @com.legend.base.Nullable com.legend.sql.SqlQuery explode(SqlExpr arg,
+            SqlSelect s, @com.legend.base.Nullable String alias) {
         boolean dual = s.from() instanceof com.legend.sql.SqlSource.Dual;
         while (arg instanceof SqlExpr.CompactList cl) {
             // carrier compaction is a no-op over ROWS (a relation holds
@@ -626,7 +626,7 @@ public final class CarrierStrategies extends SqlRewriter {
     /** The collect SELECT beneath a ScalarSubquery — single projection,
      * a bare non-distinct one-arg LIST reducer, no other clauses — or
      * null. */
-    private static @com.legend.Nullable SqlSelect collectSelect(SqlExpr e) {
+    private static @com.legend.base.Nullable SqlSelect collectSelect(SqlExpr e) {
         return e instanceof SqlExpr.ScalarSubquery sq
                 && sq.subquery() instanceof SqlSelect sel
                 && sel.projections().size() == 1
@@ -906,7 +906,7 @@ public final class CarrierStrategies extends SqlRewriter {
      * the element transform SUBSTITUTES into the collect projection
      * (same rows: the transform is element-wise). Order keys carry over
      * (the ordering contract, never re-derived). */
-    private static @com.legend.Nullable SqlExpr fuse(
+    private static @com.legend.base.Nullable SqlExpr fuse(
             SqlExpr.ReduceCollection rc, boolean foldLiterals) {
         SqlExpr coll = rc.collection();
         SqlExpr.Lambda transform = null;
@@ -1139,7 +1139,7 @@ public final class CarrierStrategies extends SqlRewriter {
 
     /** {@code t(e1) || sep || t(e2) || …} over compile-time elements. */
     private static SqlExpr concatJoin(List<SqlExpr> elements,
-            SqlExpr.@com.legend.Nullable Lambda transform, SqlExpr sep) {
+            SqlExpr.@com.legend.base.Nullable Lambda transform, SqlExpr sep) {
         SqlExpr out = null;
         for (SqlExpr e : elements) {
             SqlExpr v = transform == null ? e
@@ -1156,7 +1156,7 @@ public final class CarrierStrategies extends SqlRewriter {
     /** Portable LIST_GET (R5c, witnessed shapes; list_extract contract
      * probed: 1-based, -1 = last, 0 and out-of-range = NULL). Returns
      * null when the shape is unwitnessed (the renderer wall stays). */
-    private static @com.legend.Nullable SqlExpr listGetRule(SqlExpr coll,
+    private static @com.legend.base.Nullable SqlExpr listGetRule(SqlExpr coll,
             SqlExpr idx) {
         if (!(idx instanceof SqlExpr.IntLit ix)) {
             return null;
@@ -1247,7 +1247,7 @@ public final class CarrierStrategies extends SqlRewriter {
 
     /** The compile-time JSON text of a literal variant, or null:
      * CAST('...' AS JSON) and bare JSON-text string literals. */
-    private static @com.legend.Nullable String jsonLiteral(SqlExpr e) {
+    private static @com.legend.base.Nullable String jsonLiteral(SqlExpr e) {
         if (e instanceof SqlExpr.Cast c
                 && c.target() == com.legend.sql.SqlType.Scalar.JSON
                 && c.value() instanceof SqlExpr.StringLit sl) {
@@ -1259,7 +1259,7 @@ public final class CarrierStrategies extends SqlRewriter {
     /** A parsed JSON node re-emitted as the literal it prints as — a
      * JSON cast for composites (further navigation keeps folding),
      * plain literals for scalars. */
-    private static SqlExpr jsonLitExpr(@com.legend.Nullable Object node) {
+    private static SqlExpr jsonLitExpr(@com.legend.base.Nullable Object node) {
         if (node == null) {
             return new SqlExpr.NullLit();
         }
@@ -1319,7 +1319,7 @@ public final class CarrierStrategies extends SqlRewriter {
      * COALESCE(e, neutral) END} (probed: all-null -> NULL, otherwise
      * NULLs drop out). {@code lead} prepends a type-pinning factor. */
     private static SqlExpr litFold(List<SqlExpr> elements, SqlExpr neutral,
-            com.legend.sql.SqlFn op, @com.legend.Nullable SqlExpr lead) {
+            com.legend.sql.SqlFn op, @com.legend.base.Nullable SqlExpr lead) {
         SqlExpr allNull = null;
         SqlExpr chain = lead;
         for (SqlExpr el : elements) {
@@ -1338,8 +1338,8 @@ public final class CarrierStrategies extends SqlRewriter {
                 java.util.Objects.requireNonNull(chain));
     }
 
-    private static SqlSelect.SortKey.@com.legend.Nullable NullOrder flipNulls(
-            SqlSelect.SortKey.@com.legend.Nullable NullOrder n) {
+    private static SqlSelect.SortKey.@com.legend.base.Nullable NullOrder flipNulls(
+            SqlSelect.SortKey.@com.legend.base.Nullable NullOrder n) {
         return n == null ? null
                 : n == SqlSelect.SortKey.NullOrder.NULLS_FIRST
                         ? SqlSelect.SortKey.NullOrder.NULLS_LAST
@@ -1354,7 +1354,7 @@ public final class CarrierStrategies extends SqlRewriter {
      * FALSE. COLLECT subselect: EXISTS with the equality pushed into
      * the WHERE (correlation preserved; the emission sites wrap
      * COALESCE(_, false), which absorbs the NULL-needle edge). */
-    private static @com.legend.Nullable SqlExpr membershipRule(
+    private static @com.legend.base.Nullable SqlExpr membershipRule(
             SqlExpr.Membership m) {
         if (m.collection() instanceof SqlExpr.ArrayLit al) {
             SqlExpr chain = null;

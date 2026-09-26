@@ -29,7 +29,7 @@ public class CDataIpc {
     static final long A_LENGTH = 0, A_NULLS = 8, A_OFFSET = 16, A_NBUF = 24, A_NCHILD = 32, A_BUFFERS = 40, A_CHILDREN = 48, A_DICT = 56, A_RELEASE = 64;
 
     /** One column's Arrow form after our three decisions: format, name, children, and a body writer. */
-    record Node(String format, String name, boolean nullable, List<Node> children, @com.legend.Nullable String tz,
+    record Node(String format, String name, boolean nullable, List<Node> children, @com.legend.base.Nullable String tz,
                 long length, long nulls, List<byte[]> buffers) {}
 
     public static void main(String[] a) throws Throwable {

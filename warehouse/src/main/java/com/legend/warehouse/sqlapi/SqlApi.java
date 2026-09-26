@@ -1,6 +1,6 @@
 package com.legend.warehouse.sqlapi;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import com.legend.server.Json;
 import java.util.List;
 import java.util.Locale;

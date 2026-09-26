@@ -26,7 +26,7 @@ public final class ViewFrames {
      * {@code RelationalSource} STAMP (the Phase-E resolved main source,
      * scope-inference included); the view check below is a DATABASE
      * registry lookup, not mapping semantics. */
-    public static @com.legend.Nullable String frameNameOf(ModelContext ctx, ClassSource cs) {
+    public static @com.legend.base.Nullable String frameNameOf(ModelContext ctx, ClassSource cs) {
         if (ctx == null || cs == null) {
             return null;
         }

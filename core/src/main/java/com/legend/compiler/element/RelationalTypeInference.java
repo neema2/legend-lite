@@ -36,9 +36,9 @@ public final class RelationalTypeInference {
      * (a view's column expressions read their own database), {@code ctx}
      * resolves an op's own {@code [db]} qualifier (mapping expressions
      * carry it). */
-    public static @com.legend.Nullable RelationalDataType infer(RelationalOperation op,
-            @com.legend.Nullable DatabaseDefinition db,
-            @com.legend.Nullable StoreLookups ctx) {
+    public static @com.legend.base.Nullable RelationalDataType infer(RelationalOperation op,
+            @com.legend.base.Nullable DatabaseDefinition db,
+            @com.legend.base.Nullable StoreLookups ctx) {
         return switch (op) {
             case RelationalOperation.ColumnRef c ->
                     columnType(db, ctx, c.databaseName(), c.table(), c.column());
@@ -169,9 +169,9 @@ public final class RelationalTypeInference {
      * types keep; DECIMAL beats int/double/float as-is; two decimals
      * widen to DECIMAL(maxIntDigits+maxScale, maxScale); DOUBLE beats
      * integers. Null operands pass the other side through. */
-    private static @com.legend.Nullable RelationalDataType safe(
-            @com.legend.Nullable RelationalDataType a,
-            @com.legend.Nullable RelationalDataType b) {
+    private static @com.legend.base.Nullable RelationalDataType safe(
+            @com.legend.base.Nullable RelationalDataType a,
+            @com.legend.base.Nullable RelationalDataType b) {
         if (a == null) {
             return b;
         }
@@ -235,7 +235,7 @@ public final class RelationalTypeInference {
             RelationalDataType.TinyInt.class, RelationalDataType.SmallInt.class,
             RelationalDataType.Integer_.class, RelationalDataType.BigInt.class);
 
-    private static Integer @com.legend.Nullable [] decimalOf(
+    private static Integer @com.legend.base.Nullable [] decimalOf(
             RelationalDataType t) {
         if (t instanceof RelationalDataType.Decimal d) {
             return new Integer[]{d.precision(), d.scale()};
@@ -253,10 +253,10 @@ public final class RelationalTypeInference {
      * (view-on-view). The op's own name is tried first as spelled: a
      * legacy surface (the metamodel seed's input) still carries an
      * UNQUALIFIED [db], which resolves to nothing and falls to the scope. */
-    private static @com.legend.Nullable RelationalDataType columnType(
-            @com.legend.Nullable DatabaseDefinition scope,
-            @com.legend.Nullable StoreLookups ctx,
-            @com.legend.Nullable String opDb,
+    private static @com.legend.base.Nullable RelationalDataType columnType(
+            @com.legend.base.Nullable DatabaseDefinition scope,
+            @com.legend.base.Nullable StoreLookups ctx,
+            @com.legend.base.Nullable String opDb,
             String table, String column) {
         DatabaseDefinition db = scope;
         if (opDb != null && ctx != null) {

@@ -47,7 +47,7 @@ public sealed interface Property permits Property.Stored, Property.Derived {
      * the class body). */
     record Stored(String name, Type type, Multiplicity multiplicity,
                   boolean equalityKey, boolean hasDefault,
-                  com.legend.protocol.spec.@com.legend.Nullable ValueSpecification defaultValue)
+                  com.legend.protocol.spec.@com.legend.base.Nullable ValueSpecification defaultValue)
             implements Property {
         public Stored {
             Objects.requireNonNull(name, "name");

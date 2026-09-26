@@ -124,7 +124,7 @@ public final class PlanSupportFunctions {
     /** {@code relationalPlanSupportFunctions(connection)} — population
      * order preserved; {@code timeZone} null/GMT omits the TZ pair. */
     public static List<String> relationalPlanSupportFunctions(
-            @com.legend.Nullable String timeZone) {
+            @com.legend.base.Nullable String timeZone) {
         List<String> out = new ArrayList<>();
         if (timeZone != null && !timeZone.equals("GMT")
                 && !timeZone.equals("UTC")) {

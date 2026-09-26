@@ -225,7 +225,7 @@ final class RelationPredicates {
                 .withProjections(List.of(new SqlSelect.Projection(col, null, null)));
     }
 
-    static Lowerer.@com.legend.Nullable RelationPredicate of(TypedNativeCall n) {
+    static Lowerer.@com.legend.base.Nullable RelationPredicate of(TypedNativeCall n) {
         var quantifier = com.legend.builtin.NativeFn.RelationQuantifier.of(n.callee().qualifiedName());
         if (quantifier.isPresent()) {
             return quantifier(quantifier.get());

@@ -43,7 +43,7 @@ final class FlattenOps {
             java.util.Set<String> hopTailHeads) {}
 
     static BelowSplit splitBelowOps(List<TypedSpec> belowOps,
-            ClassSource src, @com.legend.Nullable String alias,
+            ClassSource src, @com.legend.base.Nullable String alias,
             java.util.Set<String> navStepKeys) {
         List<TypedSpec> hoisted = new java.util.ArrayList<>();
         List<TypedSpec> spliceOps = new java.util.ArrayList<>();
@@ -180,7 +180,7 @@ final class FlattenOps {
      * the flatten's downstream demand (task #63: the hop target must
      * materialize WITH the nav/slot steps those heads dispatch through). */
     static java.util.Set<String> downstreamHeads(List<TypedSpec> ops,
-            @com.legend.Nullable TypedSpec top) {
+            @com.legend.base.Nullable TypedSpec top) {
         java.util.Set<String> heads = new java.util.LinkedHashSet<>();
         collectLambdaHeads(ops == null ? List.of() : ops, heads);
         if (top != null) {
@@ -194,7 +194,7 @@ final class FlattenOps {
      * navigate slots as tails needs the whole path so a slot-of-slot
      * read composes (the depth leg, 2026-09-02). */
     static java.util.Set<List<String>> downstreamPaths(List<TypedSpec> ops,
-            @com.legend.Nullable TypedSpec top) {
+            @com.legend.base.Nullable TypedSpec top) {
         java.util.Set<List<String>> paths = new java.util.LinkedHashSet<>();
         collectLambdaPaths(ops == null ? List.of() : ops, paths);
         if (top != null) {
@@ -245,7 +245,7 @@ final class FlattenOps {
      * stamped INNER, or null when absent. The composed walk serves the
      * multi-hop flatten: an inner hop's navigate join nests inside the
      * previous hop's join-right with only its local prefix. */
-    private static @com.legend.Nullable TypedSpec innerizeOrNull(TypedSpec pipe, String prefix,
+    private static @com.legend.base.Nullable TypedSpec innerizeOrNull(TypedSpec pipe, String prefix,
             String acc) {
         if (pipe instanceof com.legend.compiler.spec.typed.TypedJoin j) {
             String composed = j.prefix().map(p -> acc + p).orElse(null);
@@ -338,7 +338,7 @@ final class FlattenOps {
      * segment counts too. */
     static java.util.Set<List<String>> nextTails(int i, List<String> hops,
             List<Boolean> many, List<List<TypedSpec>> segs,
-            List<TypedSpec> ops, @com.legend.Nullable TypedSpec top) {
+            List<TypedSpec> ops, @com.legend.base.Nullable TypedSpec top) {
         java.util.Set<List<String>> out = new java.util.LinkedHashSet<>();
         List<String> chain = new java.util.ArrayList<>();
         boolean rowSetSeen = !many.get(i)

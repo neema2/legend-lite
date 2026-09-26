@@ -45,7 +45,7 @@ final class ObjectReferenceDecode {
         return walk(stmt, null, ctx, sources);
     }
 
-    private static TypedSpec walk(TypedSpec n, @com.legend.Nullable TypedSerializeGraph graph,
+    private static TypedSpec walk(TypedSpec n, @com.legend.base.Nullable TypedSerializeGraph graph,
             ModelContext ctx, ClassSources sources) {
         if (n instanceof TypedNativeCall c && com.legend.builtin.NativeFn.ObjectReference.of(c.callee().qualifiedName()).orElse(null) == com.legend.builtin.NativeFn.ObjectReference.DECODE
                 && c.args().size() == 3) {
@@ -87,7 +87,7 @@ final class ObjectReferenceDecode {
         return same ? n : n.withChildren(out);
     }
 
-    private static @com.legend.Nullable TypedSerializeGraph findGraph(TypedSpec n) {
+    private static @com.legend.base.Nullable TypedSerializeGraph findGraph(TypedSpec n) {
         if (n instanceof TypedSerializeGraph g) {
             return g;
         }

@@ -635,7 +635,7 @@ public final class ElementParser implements TokenStreamCursor {
 
     /** Char ranges of NON-Pure lexed sections — the strict section-binding
      *  gate's lookup (lazy; only strict parses consult it). */
-    private long @com.legend.Nullable [][] nonPureRanges;
+    private long @com.legend.base.Nullable [][] nonPureRanges;
 
     private boolean inNonPureSection(int offset) {
         if (nonPureRanges == null) {
@@ -825,7 +825,7 @@ public final class ElementParser implements TokenStreamCursor {
     /** {@code documentation? CLASS stereotypes? taggedValues? ...}; the
      *  element's own range starts at the documentation, as in the engine. */
     private com.legend.protocol.Protocol.PClass parseClassDefinition(boolean isNative,
-            int classStartTok, @com.legend.Nullable Documentation doc) {
+            int classStartTok, @com.legend.base.Nullable Documentation doc) {
         expect(TokenType.CLASS);
         List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
         List<com.legend.protocol.Protocol.PTaggedValue> taggedValues =
@@ -1296,7 +1296,7 @@ public final class ElementParser implements TokenStreamCursor {
     /** The bare level name of a parsed ~enforcementLevel value —
      * {@code Error} / {@code Warn} spellings arrive as refs or enum-style
      * accesses; the projection wants the simple name. */
-    private static @com.legend.Nullable String enforcementLevelName(ValueSpecification lv) {
+    private static @com.legend.base.Nullable String enforcementLevelName(ValueSpecification lv) {
         if (lv instanceof com.legend.protocol.spec.PackageableElementPtr p) {
             String f = p.fullPath();
             return f.contains("::") ? f.substring(f.lastIndexOf("::") + 2) : f;
@@ -1588,7 +1588,7 @@ public final class ElementParser implements TokenStreamCursor {
     /** {@code documentation? FUNCTION stereotypes? taggedValues? ...} — the
      *  documentation, when the caller read it (before {@code native}), is
      *  folded in first. */
-    private FunctionSignature parseFunctionSignature(int declStart, @com.legend.Nullable Documentation doc) {
+    private FunctionSignature parseFunctionSignature(int declStart, @com.legend.base.Nullable Documentation doc) {
         expect(TokenType.FUNCTION);
         List<com.legend.protocol.Protocol.PStereotype> stereotypes = parseStereotypes();
         List<com.legend.protocol.Protocol.PTaggedValue> taggedValues =
@@ -2399,7 +2399,7 @@ public final class ElementParser implements TokenStreamCursor {
      *  coordinates — see {@link #islandReparseSpan}. */
     private com.legend.protocol.Protocol.PTestPayload.RelationElement relationBlock(
             String source, int a, int semi,
-            @com.legend.Nullable com.legend.protocol.SourceInfo assertSpan) {
+            @com.legend.base.Nullable com.legend.protocol.SourceInfo assertSpan) {
         String body = source.substring(a, semi);
         List<String> paths = new ArrayList<>();
         int colon = pathColonOf(body);
@@ -2498,7 +2498,7 @@ public final class ElementParser implements TokenStreamCursor {
      */
     /** STRAIGHT-TO-MODEL — not yet migrated; see docs/PROTOCOL_MIGRATION_CENSUS.md. */
     private NativeFunctionDefinition nativeFunctionElement(int declStart,
-            @com.legend.Nullable Documentation doc) {
+            @com.legend.base.Nullable Documentation doc) {
         FunctionSignature sig = parseFunctionSignature(declStart, doc);
         expect(TokenType.SEMI_COLON);
         return new NativeFunctionDefinition(

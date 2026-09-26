@@ -58,12 +58,12 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
                                Map<String, String> jsonSources,
                                List<String> sqlSetups,
                                List<CsvSetup> csvSetups,
-                               @com.legend.Nullable String connectionName,
+                               @com.legend.base.Nullable String connectionName,
                                boolean quoteIdentifiers,
-                               @com.legend.Nullable String timeZone,
-                               @com.legend.Nullable String databaseType,
-                               @com.legend.Nullable TypedNewInstance connectionInstance,
-                               @com.legend.Nullable String storeFqn,
+                               @com.legend.base.Nullable String timeZone,
+                               @com.legend.base.Nullable String databaseType,
+                               @com.legend.base.Nullable TypedNewInstance connectionInstance,
+                               @com.legend.base.Nullable String storeFqn,
                                boolean driverTablePk,
                                List<com.legend.compiler.element.type.Type.Column> importDataFlowColumns,
                                PostProcessors postProcessors,
@@ -88,7 +88,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
     /** A {@code testDataSetupCsv} block with the DATABASE it seeds (the
      * enclosing connection store's {@code element}; null when no store is
      * in view). */
-    public record CsvSetup(String csv, @com.legend.Nullable String dbFqn) {
+    public record CsvSetup(String csv, @com.legend.base.Nullable String dbFqn) {
     }
 
     public ExecutionContext {
@@ -102,7 +102,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
     /** Whether an execute call's ExecutionContext argument asks for the
      * engine's {@code importDataFlow} option (a literal flag on a
      * RelationalExecutionContext instance, let-bound or literal). */
-    public static boolean importDataFlowRequested(@com.legend.Nullable TypedSpec contextArg,
+    public static boolean importDataFlowRequested(@com.legend.base.Nullable TypedSpec contextArg,
             java.util.function.UnaryOperator<TypedSpec> bind) {
         return ContextReading.contextFlag("importDataFlow", contextArg, bind);
     }
@@ -164,7 +164,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
 
     /** This context with the execution OPTIONS read off an execute call's
      * ExecutionContext argument (the engine's exeCtx overload). */
-    public ExecutionContext withOptions(@com.legend.Nullable TypedSpec contextArg,
+    public ExecutionContext withOptions(@com.legend.base.Nullable TypedSpec contextArg,
             java.util.function.UnaryOperator<TypedSpec> bind) {
         boolean pk = ContextReading.contextFlag("addDriverTablePkForProject", contextArg, bind);
         ExecutionContext out = pk == driverTablePk ? this
@@ -255,7 +255,7 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
             /** Canonicalizes a class name read from an unchecked helper body. */
             UnaryOperator<String> canon,
             /** The database a COPIED connection seeds (structural resolution). */
-            Function<TypedCopyInstance, @com.legend.Nullable String> dbOfCopy) {
+            Function<TypedCopyInstance, @com.legend.base.Nullable String> dbOfCopy) {
 
         public Reader() {
             this(f -> Optional.empty(), UnaryOperator.identity(), UnaryOperator.identity(),
@@ -274,12 +274,12 @@ public record ExecutionContext(Optional<TypedPackageableRef> mapping,
             return new Reader(fnBody, bind, c, dbOfCopy);
         }
 
-        public Reader dbOfCopy(Function<TypedCopyInstance, @com.legend.Nullable String> d) {
+        public Reader dbOfCopy(Function<TypedCopyInstance, @com.legend.base.Nullable String> d) {
             return new Reader(fnBody, bind, canon, d);
         }
 
         public ExecutionContext read(Optional<TypedPackageableRef> mapping,
-                @com.legend.Nullable TypedSpec runtimeArg) {
+                @com.legend.base.Nullable TypedSpec runtimeArg) {
             return new ContextReading(fnBody, bind, canon, dbOfCopy).read(mapping, runtimeArg);
         }
 

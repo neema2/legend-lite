@@ -1,6 +1,6 @@
 package com.legend.warehouse.server;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;

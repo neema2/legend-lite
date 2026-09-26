@@ -340,7 +340,7 @@ final class Typer {
      * isNull/isNotNull cell tests, get()->toString() TDSNull print,
      * and the untyped $r.get('COL') getter (row frame: toOne cell;
      * relation frame: TDSNull-total auto-map). Null = not one of these. */
-    private @com.legend.Nullable TypedSpec tdsGetterDesugars(AppliedFunction af, Env env) {
+    private @com.legend.base.Nullable TypedSpec tdsGetterDesugars(AppliedFunction af, Env env) {
         // $r.isNotNull('COL') / isNull — TDSRow null tests on the named
         // cell (tds.pure); the cell read is optional-typed, so the tests
         // ARE emptiness (same conform-by-emission as the dynafunction
@@ -697,7 +697,7 @@ final class Typer {
      * bodies), desugared to modern natives or folded to literals; null when
      * none applies — the caller continues down the ordinary dispatch.
      */
-    private @com.legend.Nullable TypedSpec tdsSchemaDesugars(AppliedFunction af, Env env) {
+    private @com.legend.base.Nullable TypedSpec tdsSchemaDesugars(AppliedFunction af, Env env) {
         // renameColumn(tds,'a','b') / renameColumns(tds, pair('a','b')...)
         // — desugar to the modern rename native (STATIC pair literals only)
         if (com.legend.builtin.TdsLegacy.RENAME_COLUMN.matches(af) && af.parameters().size() == 3
@@ -798,7 +798,7 @@ final class Typer {
      * The agg form's column becomes the {p,w,r|$r.col} map lambda with the user's
      * reducer; a bare rank lambda becomes the modern window-function call. Null on
      * any other shape — the unknown-function wall stays loud. */
-    private static @com.legend.Nullable AppliedFunction olapGroupByDesugar(AppliedFunction af) {
+    private static @com.legend.base.Nullable AppliedFunction olapGroupByDesugar(AppliedFunction af) {
         List<ValueSpecification> ps = af.parameters();
         if (ps.size() < 3 || !(ps.get(ps.size() - 1) instanceof CString outName)) {
             return null;
@@ -887,7 +887,7 @@ final class Typer {
 
     /** The modern window-function name behind a legacy rank lambda
      * ({@code x|$x->rank()}); null for anything unrecognized. */
-    private static @com.legend.Nullable String legacyRankName(LambdaFunction lam) {
+    private static @com.legend.base.Nullable String legacyRankName(LambdaFunction lam) {
         if (lam.parameters().size() != 1 || lam.body().size() != 1
                 || !(lam.body().get(0) instanceof AppliedFunction call)
                 || call.parameters().size() != 1
@@ -932,7 +932,7 @@ final class Typer {
      * returns exactly the declared names in declaration order (hidden
      * inputs drop there). Null when no window col is present; the
      * sortInfo/rank overload variants keep the loud project wall. */
-    private static @com.legend.Nullable AppliedFunction windowColsProjectDesugar(AppliedFunction af) {
+    private static @com.legend.base.Nullable AppliedFunction windowColsProjectDesugar(AppliedFunction af) {
         List<ValueSpecification> ps = af.parameters();
         if (ps.size() != 2 || !(ps.get(1) instanceof PureCollection cols)) {
             return null;
@@ -1016,7 +1016,7 @@ final class Typer {
     /** {@code projectWithColumnSubset} as plain {@code project} over the
      * subset-named columns (subset-list order, engine parity); null when the
      * shape is not the static legacy spelling — the generic path stays loud. */
-    private static @com.legend.Nullable AppliedFunction projectWithColumnSubsetDesugar(AppliedFunction af) {
+    private static @com.legend.base.Nullable AppliedFunction projectWithColumnSubsetDesugar(AppliedFunction af) {
         List<ValueSpecification> ps = af.parameters();
         java.util.LinkedHashMap<String, LambdaFunction> byName = new java.util.LinkedHashMap<>();
         List<String> subset;
@@ -1068,7 +1068,7 @@ final class Typer {
                 new PureCollection(outLams), new PureCollection(outNames)));
     }
 
-    private static @com.legend.Nullable List<String> literalStrings(PureCollection c) {
+    private static @com.legend.base.Nullable List<String> literalStrings(PureCollection c) {
         List<String> out = new ArrayList<>(c.values().size());
         for (ValueSpecification v : c.values()) {
             if (!(v instanceof CString s)) {
@@ -1085,7 +1085,7 @@ final class Typer {
      * the qualified property filters columns by name, so a literal
      * argument IS the name; non-literal column expressions stay null and
      * the caller's arm passes). */
-    private static @com.legend.Nullable String literalColName(ValueSpecification v) {
+    private static @com.legend.base.Nullable String literalColName(ValueSpecification v) {
         if (v instanceof CString cs) {
             return cs.value();
         }
@@ -1123,7 +1123,7 @@ final class Typer {
      * over the same read is the column count. Only a single-row PICK
      * receiver diverts here — the bare {@code .values} flatten (whole-row
      * list compares) keeps its identity in the property arm. */
-    private @com.legend.Nullable TypedSpec tdsRowCellIndexRead(
+    private @com.legend.base.Nullable TypedSpec tdsRowCellIndexRead(
             AppliedFunction af, Env env) {
         boolean isAt = ROW_CELL_AT_FNS.contains(af.function());
         if ((!isAt && !ROW_CELL_SIZE_FNS.contains(af.function()))
@@ -1276,7 +1276,7 @@ final class Typer {
      * name constant-folds to the enum VALUE so downstream enum-literal
      * consumers (adjust's DurationUnit arm) see it; a non-literal name is
      * loud, never a silent string. Null = arg0 not Enumeration-shaped. */
-    private @com.legend.Nullable TypedSpec extractEnumValueFold(AppliedFunction af, Env env) {
+    private @com.legend.base.Nullable TypedSpec extractEnumValueFold(AppliedFunction af, Env env) {
         TypedSpec e0 = synth(af.parameters().get(0), env);
         if (!(e0.info().type() instanceof Type.GenericType gt)
                 || !gt.rawFqn().equals(com.legend.compiler.element.type.PlatformTypes.ENUMERATION)
@@ -1506,7 +1506,7 @@ final class Typer {
      * {@code Property.Derived} at matching arity, and the rewrite
      * re-enters through the ordinary externalized-body route (the
      * shadow target is a user function, so no re-shadowing recursion). */
-    private @com.legend.Nullable TypedSpec derivedShadow(AppliedFunction af,
+    private @com.legend.base.Nullable TypedSpec derivedShadow(AppliedFunction af,
             Application a, Env env) {
         if (af.parameters().isEmpty() || !a.chosen().isNative()
                 || a.chosen().parameters().isEmpty()
@@ -1744,7 +1744,7 @@ final class Typer {
      * Exactly one arity-matching NormalizeRequired candidate with a body
      * expands; anything else returns null and the checker's wall stands.
      */
-    @com.legend.Nullable ValueSpecification rawSchemaErasedExpansion(ValueSpecification v) {
+    @com.legend.base.Nullable ValueSpecification rawSchemaErasedExpansion(ValueSpecification v) {
         if (!(v instanceof AppliedFunction af)) {
             return null;
         }
@@ -1810,7 +1810,7 @@ final class Typer {
     /** {@link #checkGeneric(AppliedFunction, Env)} with the caller's EXPECTED
      *  type of the call's value (bidirectional inference — the deferred slot
      *  of an enclosing call knows the parameter type it is filling). */
-    Application checkGeneric(AppliedFunction af, Env env, @com.legend.Nullable Type expected) {
+    Application checkGeneric(AppliedFunction af, Env env, @com.legend.base.Nullable Type expected) {
         af = expandFunctionValuedHelperArgs(af);
         if (af.parameters().stream().anyMatch(DeferredArgs::deferredArg)) {
             return checkWithDeferred(af, env);
@@ -1831,7 +1831,7 @@ final class Typer {
     }
 
     Application checkGenericTyped(AppliedFunction af, List<TypedSpec> args,
-            @com.legend.Nullable Type expected) {
+            @com.legend.base.Nullable Type expected) {
         List<ExprType> argTypes = args.stream().map(TypedSpec::info).toList();
         List<TypedFunction> candidates = functionCandidates(af);
         if (candidates.isEmpty()) {
@@ -2132,7 +2132,7 @@ final class Typer {
      *  misfits filtered; empty = the same loud no-overload error. */
     private List<TypedFunction> selectRankedByPresentArgs(String name,
             List<TypedFunction> arity, TypedSpec[] typed,
-            @com.legend.Nullable List<ValueSpecification> raw) {
+            @com.legend.base.Nullable List<ValueSpecification> raw) {
         List<ExprType> argTypes = new ArrayList<>(typed.length);
         for (TypedSpec t : typed) {
             argTypes.add(t == null ? null : t.info());
@@ -2211,7 +2211,7 @@ final class Typer {
      * made {@code lambdaAritiesFit} reject {@code c}, spelled for the
      * no-overload diagnostic ("lambda has 2 parameter(s) but the
      * function type expects 1"). */
-    private static @com.legend.Nullable String lambdaArityMismatch(
+    private static @com.legend.base.Nullable String lambdaArityMismatch(
             TypedFunction c, List<ValueSpecification> raw, TypedSpec[] typed) {
         for (int i = 0; i < raw.size() && i < c.parameters().size(); i++) {
             if (typed[i] != null
@@ -2379,7 +2379,7 @@ final class Typer {
     /** Unwrap a {@code Function<{…}>} (or a bare {@code FunctionType}) parameter to its function type. */
     /** The function type a declared type carries — bare or Function<{...}>
      * wrapped — or null when it is not function-typed at all. */
-    private static Type.@com.legend.Nullable FunctionType asFunctionType(Type t) {
+    private static Type.@com.legend.base.Nullable FunctionType asFunctionType(Type t) {
         if (t instanceof Type.FunctionType ft) {
             return ft;
         }
@@ -2859,7 +2859,7 @@ final class Typer {
      * BOUNDARY RESOLVER (RawGridSchema) substitutes them against the
      * stamped schema, and reaching the Lowerer instead is a loud wall,
      * never a silent guess. Null = not such a read. */
-    static @com.legend.Nullable TypedSpec lateBoundGridMarker(
+    static @com.legend.base.Nullable TypedSpec lateBoundGridMarker(
             TypedSpec source, AppliedProperty ap, Type.RelationType rt2) {
         if (!rt2.isLateBound()) {
             return null;
@@ -3179,7 +3179,7 @@ final class Typer {
      * {@code String[1]}, never {@code [*]}. */
     /** A property of the lambda literal's m3 classifier (LambdaFunction ⊆
      * FunctionDefinition): $f.expressionSequence; null when none. */
-    private @com.legend.Nullable ExprType lambdaClassifierProperty(String name) {
+    private @com.legend.base.Nullable ExprType lambdaClassifierProperty(String name) {
         return ctx.findProperty(com.legend.compiler.element.type.PlatformTypes.LAMBDA_FUNCTION, name)
                 .map(pd -> new ExprType(pd.type(), pd.multiplicity())).orElse(null);
     }

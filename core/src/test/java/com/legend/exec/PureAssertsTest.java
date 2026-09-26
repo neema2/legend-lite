@@ -26,7 +26,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * adjudicated wire policies the platform owner carries.
  */
 class PureAssertsTest {
-    private static boolean same(@com.legend.Nullable Object e, @com.legend.Nullable Object a) {
+    private static boolean same(@com.legend.base.Nullable Object e, @com.legend.base.Nullable Object a) {
         return Equality.same(Equality.Typed.of(e), Equality.Typed.of(a));
     }
 

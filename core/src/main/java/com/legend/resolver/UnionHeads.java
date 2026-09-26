@@ -60,11 +60,11 @@ final class UnionHeads {
     private final ClassSources sources;
     private final SyntheticHeads synthetics;
     private final AssociationJoins joins;
-    private final @com.legend.Nullable NavMaterializer navMaterializer;
+    private final @com.legend.base.Nullable NavMaterializer navMaterializer;
 
     UnionHeads(ModelContext ctx, ClassSources sources,
             SyntheticHeads synthetics, AssociationJoins joins,
-            @com.legend.Nullable NavMaterializer navMaterializer) {
+            @com.legend.base.Nullable NavMaterializer navMaterializer) {
         this.ctx = ctx;
         this.sources = sources;
         this.synthetics = synthetics;
@@ -243,8 +243,8 @@ final class UnionHeads {
         return b;
     }
 
-    private static TypedSpec requireLeaf(@com.legend.Nullable TypedSpec b,
-            String classFqn, @com.legend.Nullable String via, String leaf) {
+    private static TypedSpec requireLeaf(@com.legend.base.Nullable TypedSpec b,
+            String classFqn, @com.legend.base.Nullable String via, String leaf) {
         if (b == null) {
             throw new MappingResolutionException("property '" + leaf
                     + "' of class '" + classFqn + "'"

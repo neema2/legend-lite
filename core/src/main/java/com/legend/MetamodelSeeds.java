@@ -363,7 +363,7 @@ public final class MetamodelSeeds {
          * declaring mapping's include closure (the engine's
          * classMappingById walk — own sets first, then the includes in
          * order). */
-        @com.legend.Nullable SetRow superOf(SetRow set) {
+        @com.legend.base.Nullable SetRow superOf(SetRow set) {
             String superId = set.binding().extendsSetId();
             if (superId == null) {
                 return null;
@@ -475,7 +475,7 @@ public final class MetamodelSeeds {
 
     /** {schema, table} the view's columns read, through views of views;
      * null when unresolvable (a non-column column mapping). */
-    private static String @com.legend.Nullable [] viewBaseTable(DatabaseDefinition db,
+    private static String @com.legend.base.Nullable [] viewBaseTable(DatabaseDefinition db,
             DatabaseDefinition.ViewDefinition v, Set<String> seen) {
         if (!seen.add(v.name())) {
             return null;
@@ -569,9 +569,9 @@ public final class MetamodelSeeds {
 
     /** The element id of a set's main relation: the VIEW's when the name
      * is a view of the store, else the table's. */
-    private static @com.legend.Nullable String mainElementId(ModelContext ctx,
-            @com.legend.Nullable String dbFqn, @com.legend.Nullable String schema,
-            @com.legend.Nullable String name) {
+    private static @com.legend.base.Nullable String mainElementId(ModelContext ctx,
+            @com.legend.base.Nullable String dbFqn, @com.legend.base.Nullable String schema,
+            @com.legend.base.Nullable String name) {
         if (dbFqn == null || schema == null || name == null) {
             return null;
         }
@@ -602,9 +602,9 @@ public final class MetamodelSeeds {
 
     /** {schema, table}: the base TABLE behind a main-table name — the
      * table itself, or a view's base resolved through views of views. */
-    private static String @com.legend.Nullable [] baseTableOf(ModelContext ctx,
-            @com.legend.Nullable String dbFqn, @com.legend.Nullable String schema,
-            @com.legend.Nullable String name) {
+    private static String @com.legend.base.Nullable [] baseTableOf(ModelContext ctx,
+            @com.legend.base.Nullable String dbFqn, @com.legend.base.Nullable String schema,
+            @com.legend.base.Nullable String name) {
         if (dbFqn == null || schema == null || name == null) {
             return null;
         }

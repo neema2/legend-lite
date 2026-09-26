@@ -19,7 +19,7 @@ import java.util.List;
  * $kv.key.value == key)} member idiom.
  */
 public record TypedJsonAccess(TypedSpec source, Op op,
-        @com.legend.Nullable TypedSpec key, ExprType info) implements TypedSpec {
+        @com.legend.base.Nullable TypedSpec key, ExprType info) implements TypedSpec {
 
     public enum Op {
         /** {@code keyValuePairs->filter(kv|$kv.key.value == key)} / getValue(key): one member. */

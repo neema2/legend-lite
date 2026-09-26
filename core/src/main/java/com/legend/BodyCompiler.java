@@ -50,7 +50,7 @@ public final class BodyCompiler {
      * live session at plan time (a frame's wire types after seeding, a raw read's
      * schema — homework §19). A test-data generator's fold reads the session too, so the
      * pending script is sent before it folds. The body's value is its last statement's. */
-    static @com.legend.Nullable ExecutionResult execute(List<TypedSpec> stmts, List<TypedSpec> letPrefix,
+    static @com.legend.base.Nullable ExecutionResult execute(List<TypedSpec> stmts, List<TypedSpec> letPrefix,
             SpecCompiler specs, StatementExecutor.ExecEnv env0) {
         Segments seg = new Segments(env0, specs);
         Map<String, StatementExecutor.ExecFrame> execFrames = new java.util.LinkedHashMap<>();
@@ -171,13 +171,13 @@ public final class BodyCompiler {
         /** The database judge's batch; null under the host judge, which has no deferral:
          * its arm executes and compares at the assert, its value statements run in walk
          * order — the loop's own order, kept exactly (cleanup move 2c). */
-        @com.legend.Nullable VerdictBatch batch;
+        @com.legend.base.Nullable VerdictBatch batch;
         private final List<StatementExecutor.PreparedValue> values = new java.util.ArrayList<>();
         private com.legend.exec.EffectSink sink = new com.legend.exec.EffectSink();
         private int effectFrom = -1;
         private int effectTo = -1;
-        private @com.legend.Nullable ExecutionResult last;
-        private @com.legend.Nullable ExecutionResult pendingVerdict;
+        private @com.legend.base.Nullable ExecutionResult last;
+        private @com.legend.base.Nullable ExecutionResult pendingVerdict;
         private boolean lastIsValue;
 
         Segments(StatementExecutor.ExecEnv env0, SpecCompiler specs) {
@@ -282,7 +282,7 @@ public final class BodyCompiler {
 
     /** The verdict rows an assert root deferred, named in the fragment map. */
     private static void nameRows(Map<String, String> fragments, VerdictBatch batch, int from,
-            @com.legend.Nullable String callee, int ordinal) {
+            @com.legend.base.Nullable String callee, int ordinal) {
         String name = callee == null ? "assert" : callee.substring(callee.lastIndexOf(':') + 1);
         for (int ix = from; ix < batch.pendingCount(); ix++) {
             fragments.put(com.legend.lowering.VerdictSql.INDEX + "=" + ix,

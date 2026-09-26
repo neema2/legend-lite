@@ -90,7 +90,7 @@ final class Windows {
     }
 
     /** The SQL reducer for a 4-arg window-aggregate callee, or null. */
-    static com.legend.sql.SqlAgg.@com.legend.Nullable Fn aggregate(TypedFunction callee) {
+    static com.legend.sql.SqlAgg.@com.legend.base.Nullable Fn aggregate(TypedFunction callee) {
         com.legend.sql.SqlAgg.Fn fn = AGGREGATES.get(callee.signatureKey());
         if (fn != null) {
             com.legend.builtin.DecisionProbe.pick(callee.definition(), "WINDOW_AGGREGATE");
@@ -99,7 +99,7 @@ final class Windows {
     }
 
     /** The window fn for a resolved overload, or null when it is not a window native. */
-    static @com.legend.Nullable WindowFn lookup(TypedFunction callee) {
+    static @com.legend.base.Nullable WindowFn lookup(TypedFunction callee) {
         WindowFn fn = FNS.get(callee.signatureKey());
         if (fn != null) {
             com.legend.builtin.DecisionProbe.pick(callee.definition(), "WINDOW");
@@ -113,7 +113,7 @@ final class Windows {
      */
     static SqlExpr windowize(SqlExpr e, List<SqlExpr> partitionBy,
             List<SqlSelect.SortKey> orderBy,
-            SqlExpr.WindowCall.@com.legend.Nullable Frame frame) {
+            SqlExpr.WindowCall.@com.legend.base.Nullable Frame frame) {
         return switch (e) {
             case SqlExpr.TempTableInSplice t -> t;
             case SqlAgg.Reducer r ->
@@ -220,7 +220,7 @@ final class Windows {
 
     /** The bound's SIGNED numeric offset (Preceding negative,
      * Following positive, CurrentRow zero); null = unbounded. */
-    static @com.legend.Nullable Double numericOf(
+    static @com.legend.base.Nullable Double numericOf(
             com.legend.compiler.spec.typed.WindowFrame.Bound b) {
         return switch (b) {
             case com.legend.compiler.spec.typed.WindowFrame.Bound

@@ -17,7 +17,7 @@ public record ParameterDefinition(
         String name,
         TypeExpression type,
         Multiplicity multiplicity,
-        @com.legend.Nullable SourceInfo pos) {
+        @com.legend.base.Nullable SourceInfo pos) {
     public ParameterDefinition {
         Objects.requireNonNull(name, "Parameter name cannot be null");
         Objects.requireNonNull(type, "Parameter type cannot be null");

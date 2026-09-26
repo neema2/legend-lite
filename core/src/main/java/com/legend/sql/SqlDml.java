@@ -15,7 +15,7 @@ public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTab
 
     /** {@code INSERT INTO [schema.]table [(columns)] VALUES (row), ...};
      *  {@code columns} empty: every column in declared order. */
-    record InsertValues(@com.legend.Nullable String schema, String table, List<String> columns,
+    record InsertValues(@com.legend.base.Nullable String schema, String table, List<String> columns,
                         List<List<SqlExpr>> rows) implements SqlDml {
         public InsertValues {
             columns = List.copyOf(columns);
@@ -25,7 +25,7 @@ public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTab
 
     /** {@code INSERT INTO [schema.]table [(columns)] SELECT * FROM source}: a
      *  staged table's rows, cast by the database into the target's columns. */
-    record InsertFromTable(@com.legend.Nullable String schema, String table, List<String> columns,
+    record InsertFromTable(@com.legend.base.Nullable String schema, String table, List<String> columns,
                            String source) implements SqlDml {
         public InsertFromTable {
             columns = List.copyOf(columns);
@@ -33,6 +33,6 @@ public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTab
     }
 
     /** {@code DELETE FROM [schema.]table}: every row. */
-    record DeleteAll(@com.legend.Nullable String schema, String table) implements SqlDml {
+    record DeleteAll(@com.legend.base.Nullable String schema, String table) implements SqlDml {
     }
 }

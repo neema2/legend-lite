@@ -614,7 +614,7 @@ public final class Render {
 
     /** Whether the DATE-family value prints date-only (a DATE slot) or
      * as a full DateTime. */
-    private static boolean dateOnly(Type t, @com.legend.Nullable SqlType slot) {
+    private static boolean dateOnly(Type t, @com.legend.base.Nullable SqlType slot) {
         return t == Type.Primitive.STRICT_DATE
                 || (t == Type.Primitive.DATE
                         && slot == SqlType.Scalar.DATE);
@@ -710,7 +710,7 @@ public final class Render {
     @SuppressWarnings("unchecked")
     private static List<SqlSelect.SortKey> hoistOrder(SqlSelect inner,
             List<OutputCol> cols, String rowAlias, String aggAlias,
-            @com.legend.Nullable List<SqlSelect.Projection> carry) {
+            @com.legend.base.Nullable List<SqlSelect.Projection> carry) {
         List<SqlSelect.SortKey> aggOrder = new ArrayList<>();
         int ord = 0;
         for (SqlSelect.SortKey k : inner.orderBy()) {

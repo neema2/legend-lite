@@ -66,7 +66,7 @@ public record AppliedFunction(
         String function,
         List<ValueSpecification> parameters,
         List<String> candidateFqns,
-        @com.legend.Nullable com.legend.protocol.SourceInfo pos,
+        @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
         boolean propertyCall,
         boolean grouped,
         boolean infix) implements ValueSpecification {
@@ -90,7 +90,7 @@ public record AppliedFunction(
 
     /** Six-component compatibility constructor (non-infix). */
     public AppliedFunction(String function, List<ValueSpecification> parameters,
-            List<String> candidateFqns, @com.legend.Nullable com.legend.protocol.SourceInfo pos,
+            List<String> candidateFqns, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
             boolean propertyCall, boolean grouped) {
         this(function, parameters, candidateFqns, pos, propertyCall, grouped, false);
     }
@@ -118,13 +118,13 @@ public record AppliedFunction(
 
     /** Span-carrying form for ordinary (non-dot) applications. */
     public AppliedFunction(String function, List<ValueSpecification> parameters,
-            List<String> candidateFqns, @com.legend.Nullable com.legend.protocol.SourceInfo pos) {
+            List<String> candidateFqns, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) {
         this(function, parameters, candidateFqns, pos, false, false);
     }
 
     /** Dot-call form. */
     public AppliedFunction(String function, List<ValueSpecification> parameters,
-            List<String> candidateFqns, @com.legend.Nullable com.legend.protocol.SourceInfo pos,
+            List<String> candidateFqns, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
             boolean propertyCall) {
         this(function, parameters, candidateFqns, pos, propertyCall, false);
     }

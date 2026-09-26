@@ -88,7 +88,7 @@ public final class ClassSources {
      * otherwise (union targets always fall back — member set ids never
      * bind class-level). */
     ClassSource getForNav(String mappingFqn, String classFqn, String head,
-            @com.legend.Nullable String scope) {
+            @com.legend.base.Nullable String scope) {
         // an un-routed navigation lands on the class (its root under the
         // queried mapping): every pin is a route the navigator carries
         return get(mappingFqn, classFqn, scope);
@@ -170,7 +170,7 @@ public final class ClassSources {
     }
 
     /** The leaf arms of a stack source (null for a non-stack source). */
-    @com.legend.Nullable List<ClassSource> stackLeaves(ClassSource cs) {
+    @com.legend.base.Nullable List<ClassSource> stackLeaves(ClassSource cs) {
         return stacks.leavesOf(cs);
     }
 
@@ -191,7 +191,7 @@ public final class ClassSources {
      * resolved under {@code scope} — the SOURCE's scope when fetching a
      * target for it ({@link ClassSource#scope()}), null at a graph root. */
     public ClassSource get(String mappingFqn, String classFqn,
-            @com.legend.Nullable String scope) {
+            @com.legend.base.Nullable String scope) {
         return get(mappingFqn, classFqn, null, "", scope);
     }
 
@@ -203,8 +203,8 @@ public final class ClassSources {
      * resolution to this mapping (+ includes).
      */
     public ClassSource get(String mappingFqn, String classFqn,
-            @com.legend.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
-            String contextKey, @com.legend.Nullable String scope) {
+            @com.legend.base.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
+            String contextKey, @com.legend.base.Nullable String scope) {
         return get(mappingFqn, classFqn, null, upstreamMapping, contextKey, scope);
     }
 
@@ -214,9 +214,9 @@ public final class ClassSources {
      * serves (union targets: member set ids never bind class-level, the
      * fallback lands on the union). */
     public ClassSource get(String mappingFqn, String classFqn,
-            @com.legend.Nullable String setId,
-            @com.legend.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
-            String contextKey, @com.legend.Nullable String scope) {
+            @com.legend.base.Nullable String setId,
+            @com.legend.base.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
+            String contextKey, @com.legend.base.Nullable String scope) {
         // The context key participates in memoization because an M2M
         // composition resolves its UPSTREAM through the runtime dispatch —
         // the same mapping::class composed under different runtimes reads
@@ -259,7 +259,7 @@ public final class ClassSources {
      * arms' class-typed steps lifted above the stack as routes.
      */
     private ClassSource mixedUnionSource(String mappingFqn, String classFqn,
-            List<String> memberSetIds, @com.legend.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
+            List<String> memberSetIds, @com.legend.base.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
             String contextKey) {
         MappingDefinition mapping = ctx.findMapping(mappingFqn).orElseThrow(() ->
                 new MappingResolutionException("unknown mapping '" + mappingFqn + "'", mappingFqn));
@@ -293,7 +293,7 @@ public final class ClassSources {
      */
     ClassSource routedUnionSource(String mappingFqn, String classFqn,
             List<com.legend.compiler.spec.typed.TypedNavigate.Route> routes,
-            @com.legend.Nullable String scope) {
+            @com.legend.base.Nullable String scope) {
         // one source per (navigate step's routes, mapping, scope): every
         // lookup for the step — materialization, substitution, predicates —
         // reads the same bindings
@@ -330,7 +330,7 @@ public final class ClassSources {
      * route-less case. No caller routes on its own.
      */
     ClassSource navTarget(ClassSource source, String classFqn,
-            com.legend.compiler.spec.typed.@com.legend.Nullable TypedNavigate step, String head) {
+            com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNavigate step, String head) {
         if (step != null && !step.routes().isEmpty()) {
             // the routed union is the STEP's target class's (its routes are
             // the navigator's, its rows carry every arm's subtype columns and
@@ -350,7 +350,7 @@ public final class ClassSources {
 
     /** The navigate step {@code alias} names in {@code source}'s pipeline,
      * or null (a synthetic head the pipeline does not spell). */
-    static com.legend.compiler.spec.typed.@com.legend.Nullable TypedNavigate stepOf(
+    static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedNavigate stepOf(
             ClassSource source, String alias) {
         // the OUTERMOST step of that alias: a stack's lifted navigate above
         // its arms' own same-named steps inside the concatenate
@@ -359,7 +359,7 @@ public final class ClassSources {
 
     private ClassSource buildRoutedUnionSource(String mappingFqn, String classFqn,
             List<com.legend.compiler.spec.typed.TypedNavigate.Route> routes,
-            @com.legend.Nullable String scope) {
+            @com.legend.base.Nullable String scope) {
         // one ARM per (route, leaf of the route's target): a route naming a
         // set's function is one leaf; a route naming a class extent that is
         // a STACK spreads over its leaves — each leaf projects the route's
@@ -422,7 +422,7 @@ public final class ClassSources {
 
     /** The set id a route's target names (its set's function), or null for
      * a class extent. */
-    private @com.legend.Nullable String routeSetId(MappingDefinition mapping, TypedSpec target) {
+    private @com.legend.base.Nullable String routeSetId(MappingDefinition mapping, TypedSpec target) {
         if (!(target instanceof com.legend.compiler.spec.typed.TypedUserCall uc)) {
             return null;
         }
@@ -457,7 +457,7 @@ public final class ClassSources {
      * whose realizing function it is, under this mapping's closure), or a
      * class extent (class-level dispatch). */
     private ClassSource routeTarget(String mappingFqn, String classFqn, TypedSpec target,
-            @com.legend.Nullable String scope) {
+            @com.legend.base.Nullable String scope) {
         if (target instanceof com.legend.compiler.spec.typed.TypedUserCall uc) {
             MappingDefinition mapping = ctx.findMapping(mappingFqn).orElseThrow(() ->
                     new MappingResolutionException("unknown mapping '" + mappingFqn + "'",
@@ -485,7 +485,7 @@ public final class ClassSources {
      * — under the mapping's closure: own bindings first, then the includes.
      * Set ids are unique across a closure (the engine rejects duplicates),
      * so the first match is the answer. */
-    MappingDefinition.@com.legend.Nullable ClassBinding findBindingBySetId(
+    MappingDefinition.@com.legend.base.Nullable ClassBinding findBindingBySetId(
             MappingDefinition mapping, String setId, java.util.Set<String> seen) {
         if (!seen.add(mapping.qualifiedName())) {
             return null;
@@ -512,7 +512,7 @@ public final class ClassSources {
         return com.legend.model.SetId.of(cb);
     }
 
-    MappingDefinition.@com.legend.Nullable ClassBinding findBindingByFunction(
+    MappingDefinition.@com.legend.base.Nullable ClassBinding findBindingByFunction(
             MappingDefinition mapping, String functionFqn, java.util.Set<String> seen) {
         if (!seen.add(mapping.qualifiedName())) {
             return null;
@@ -607,7 +607,7 @@ public final class ClassSources {
      * declares none.
      */
     java.util.Set<String> ownPropertiesOf(String mappingFqn, String classFqn,
-            @com.legend.Nullable String setId) {
+            @com.legend.base.Nullable String setId) {
         MappingDefinition mapping = ctx.findMapping(mappingFqn).orElse(null);
         if (mapping == null) {
             return java.util.Set.of();
@@ -658,8 +658,8 @@ public final class ClassSources {
     }
 
     private ClassSource build(String mappingFqn, String classFqn,
-            @com.legend.Nullable String setId,
-            @com.legend.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
+            @com.legend.base.Nullable String setId,
+            @com.legend.base.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
             String contextKey) {
         MappingDefinition mapping = ctx.findMapping(mappingFqn).orElseThrow(() ->
                 new MappingResolutionException(
@@ -907,7 +907,7 @@ public final class ClassSources {
     private ClassSource composeModelToModel(String mappingFqn, String classFqn,
             MappingDefinition.ClassBinding binding, TypedSpec pipeline,
             TypedLambda mapper, TypedNewInstance ctor, Type.ClassType srcType,
-            @com.legend.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
+            @com.legend.base.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
             String contextKey) {
         // Ops between the extent and the constructor: instance-space
         // FILTERS compose (their predicates substitute through the
@@ -1328,7 +1328,7 @@ public final class ClassSources {
         return plainRoot(pipeline) != null;
     }
 
-    private static com.legend.compiler.spec.typed.@com.legend.Nullable TypedTableReference
+    private static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedTableReference
             plainRoot(TypedSpec pipeline) {
         TypedSpec p = pipeline;
         while (p instanceof TypedFilter f) {
@@ -1353,7 +1353,7 @@ public final class ClassSources {
                 cs.composedPrefix(), cs.castGate(), cs.scope());
     }
 
-    static com.legend.compiler.spec.typed.@com.legend.Nullable TypedTableReference
+    static com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedTableReference
             rootTableOf(TypedSpec n) {
         if (n instanceof com.legend.compiler.spec.typed.TypedTableReference tr) {
             return tr;
@@ -1367,7 +1367,7 @@ public final class ClassSources {
         return null;
     }
 
-    private MappingDefinition.@com.legend.Nullable ClassBinding findBinding(MappingDefinition mapping,
+    private MappingDefinition.@com.legend.base.Nullable ClassBinding findBinding(MappingDefinition mapping,
                                                        String classFqn,
                                                        LinkedHashSet<String> visited) {
         return findBinding(mapping, classFqn, null, visited);
@@ -1379,9 +1379,9 @@ public final class ClassSources {
      * bindings (engine .all() = root only); a rootless multi-set class
      * yields no class-level binding (the normalizer's implicit-union
      * poison explains the 0-binder error). */
-    MappingDefinition.@com.legend.Nullable ClassBinding findBinding(MappingDefinition mapping,
+    MappingDefinition.@com.legend.base.Nullable ClassBinding findBinding(MappingDefinition mapping,
                                                        String classFqn,
-                                                       @com.legend.Nullable String setId,
+                                                       @com.legend.base.Nullable String setId,
                                                        LinkedHashSet<String> visited) {
         List<MappingDefinition.ClassBinding> local = new ArrayList<>();
         for (MappingDefinition.ClassBinding cb : mapping.bindings().ofClass(classFqn)) {
@@ -1451,8 +1451,8 @@ public final class ClassSources {
     }
 
     /** Per-class dispatch: the runtime candidate that BINDS the class wins. */
-    String dispatch(@com.legend.Nullable String explicitMapping,
-            @com.legend.Nullable String runtimeFqn,
+    String dispatch(@com.legend.base.Nullable String explicitMapping,
+            @com.legend.base.Nullable String runtimeFqn,
             java.util.List<String> chainMappings, String classFqn) {
         return dispatch(explicitMapping, runtimeFqn, chainMappings, classFqn,
                 null);
@@ -1460,10 +1460,10 @@ public final class ClassSources {
 
     /** {@code exclude} non-null names a mapping the dispatch must NOT
      * pick — a SELF-SOURCED M2M's upstream layer (composeModelToModel). */
-    String dispatch(@com.legend.Nullable String explicitMapping,
-            @com.legend.Nullable String runtimeFqn,
+    String dispatch(@com.legend.base.Nullable String explicitMapping,
+            @com.legend.base.Nullable String runtimeFqn,
             java.util.List<String> chainMappings, String classFqn,
-            @com.legend.Nullable String exclude) {
+            @com.legend.base.Nullable String exclude) {
         if (explicitMapping != null) {
             // MAPPING CHAIN (XStore leg slice 1): a class the explicit
             // mapping does NOT bind resolves through the runtime value's

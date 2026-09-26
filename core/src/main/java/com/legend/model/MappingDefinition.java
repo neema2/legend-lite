@@ -37,7 +37,7 @@ public record MappingDefinition(
         List<ClassBinding> classBindings,
         List<AssociationBinding> associationBindings,
         List<EnumerationMapping> enumerationMappings,
-        @com.legend.Nullable String testSuitesSource,
+        @com.legend.base.Nullable String testSuitesSource,
         java.util.Map<String, String> resolvedStores,
         NormalizationFacts facts)
         implements PackageableElement {
@@ -48,7 +48,7 @@ public record MappingDefinition(
             List<ClassBinding> classBindings,
             List<AssociationBinding> associationBindings,
             List<EnumerationMapping> enumerationMappings,
-            @com.legend.Nullable String testSuitesSource) {
+            @com.legend.base.Nullable String testSuitesSource) {
         this(qualifiedName, includes, classBindings, associationBindings,
                 enumerationMappings, testSuitesSource, java.util.Map.of(),
                 NormalizationFacts.NONE);
@@ -125,7 +125,7 @@ public record MappingDefinition(
 
     /** This mapping's OWN binding for association {@code associationFqn}
      * (the first declared), else null. */
-    public @com.legend.Nullable AssociationBinding associationBinding(String associationFqn) {
+    public @com.legend.base.Nullable AssociationBinding associationBinding(String associationFqn) {
         return ((AssociationBindings) associationBindings).byAssociation.get(associationFqn);
     }
 
@@ -203,18 +203,18 @@ public record MappingDefinition(
         }
 
         /** {@code classFqn}'s bindings, declaration order; empty when none. */
-        public List<ClassBinding> ofClass(@com.legend.Nullable String classFqn) {
+        public List<ClassBinding> ofClass(@com.legend.base.Nullable String classFqn) {
             List<ClassBinding> hit = classFqn == null ? null : byClass.get(classFqn);
             return hit == null ? List.of() : hit;
         }
 
         /** The first binding whose effective set id is {@code setId}, else null. */
-        public @com.legend.Nullable ClassBinding withSetId(String setId) {
+        public @com.legend.base.Nullable ClassBinding withSetId(String setId) {
             return bySetId.get(setId);
         }
 
         /** The first binding realized by {@code functionFqn}, else null. */
-        public @com.legend.Nullable ClassBinding realizedBy(String functionFqn) {
+        public @com.legend.base.Nullable ClassBinding realizedBy(String functionFqn) {
             return byFunction.get(functionFqn);
         }
 
@@ -247,8 +247,8 @@ public record MappingDefinition(
     public sealed interface ClassBinding permits ClassBinding.Relational, ClassBinding.Pure,
             ClassBinding.Operation {
         String classFqn();
-        @com.legend.Nullable String setId();
-        @com.legend.Nullable String extendsSetId();
+        @com.legend.base.Nullable String setId();
+        @com.legend.base.Nullable String extendsSetId();
         boolean root();
         String functionFqn();
         List<String> primaryKeyColumns();
@@ -262,8 +262,8 @@ public record MappingDefinition(
          * precedence walks across the extends chain. */
         record Relational(
                 String classFqn,
-                @com.legend.Nullable String setId,
-                @com.legend.Nullable String extendsSetId,
+                @com.legend.base.Nullable String setId,
+                @com.legend.base.Nullable String extendsSetId,
                 boolean root,
                 String functionFqn,
                 List<String> primaryKeyColumns,
@@ -355,8 +355,8 @@ public record MappingDefinition(
          * one bare table are the table's rows once, cast per row). */
         record Operation(
                 String classFqn,
-                @com.legend.Nullable String setId,
-                @com.legend.Nullable String extendsSetId,
+                @com.legend.base.Nullable String setId,
+                @com.legend.base.Nullable String extendsSetId,
                 boolean root,
                 String functionFqn,
                 List<String> primaryKeyColumns,
@@ -380,8 +380,8 @@ public record MappingDefinition(
         /** A pure (m2m) class binding: no physical source exists. */
         record Pure(
                 String classFqn,
-                @com.legend.Nullable String setId,
-                @com.legend.Nullable String extendsSetId,
+                @com.legend.base.Nullable String setId,
+                @com.legend.base.Nullable String extendsSetId,
                 boolean root,
                 String functionFqn,
                 List<String> primaryKeyColumns) implements ClassBinding {

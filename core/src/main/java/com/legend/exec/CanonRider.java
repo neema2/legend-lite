@@ -51,10 +51,10 @@ public final class CanonRider {
      * abstract-Enum side: the wire holds the NAME, the declaration on the
      * other side names the enumeration (Rule 2: at the boundary the
      * declared kind is assigned). Null = no framing. */
-    private final @com.legend.Nullable String enumFrame;
+    private final @com.legend.base.Nullable String enumFrame;
     private final List<String[]> rows = new ArrayList<>();
-    private @com.legend.Nullable Wrap wrap;
-    private @com.legend.Nullable String declined = "non-sql-arm";
+    private @com.legend.base.Nullable Wrap wrap;
+    private @com.legend.base.Nullable String declined = "non-sql-arm";
 
     public CanonRider(boolean canonicalOrder) {
         this(canonicalOrder, false);
@@ -65,13 +65,13 @@ public final class CanonRider {
     }
 
     public CanonRider(boolean canonicalOrder, boolean canonicalJsonKeys,
-            @com.legend.Nullable String enumFrame) {
+            @com.legend.base.Nullable String enumFrame) {
         this.canonicalOrder = canonicalOrder;
         this.canonicalJsonKeys = canonicalJsonKeys;
         this.enumFrame = enumFrame;
     }
 
-    public @com.legend.Nullable String enumFrame() {
+    public @com.legend.base.Nullable String enumFrame() {
         return enumFrame;
     }
 
@@ -95,7 +95,7 @@ public final class CanonRider {
         return rows;
     }
 
-    public @com.legend.Nullable String declined() {
+    public @com.legend.base.Nullable String declined() {
         return declined;
     }
 

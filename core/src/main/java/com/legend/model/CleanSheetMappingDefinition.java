@@ -38,7 +38,7 @@ public record CleanSheetMappingDefinition(
         List<ClassBinding> classBindings,
         List<AssociationBinding> associationBindings,
         List<EnumerationMapping> enumerationMappings,
-        @com.legend.Nullable String testSuitesSource)
+        @com.legend.base.Nullable String testSuitesSource)
         implements PackageableElement {
 
     public CleanSheetMappingDefinition {
@@ -61,8 +61,8 @@ public record CleanSheetMappingDefinition(
     public record ClassBinding(
             String classFqn,
             Kind kind,
-            @com.legend.Nullable String setId,
-            @com.legend.Nullable String extendsSetId,
+            @com.legend.base.Nullable String setId,
+            @com.legend.base.Nullable String extendsSetId,
             boolean root,
             Realization realization,
             List<String> primaryKeyColumns) {

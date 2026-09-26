@@ -45,7 +45,7 @@ public record TypedRawSqlRelation(String sql, ExprType info)
      * grid cell expression — the trust-name rule's read shape; null
      * otherwise. Consumers treat such a cell as PHYSICAL (the
      * database's own value, never the Any-JSON carrier). */
-    public static @com.legend.Nullable TypedPropertyAccess lateBoundCellRead(
+    public static @com.legend.base.Nullable TypedPropertyAccess lateBoundCellRead(
             TypedSpec n) {
         while (n instanceof TypedNativeCall w && w.args().size() == 1
                 && com.legend.builtin.Pure.isToOneCall(w.callee().qualifiedName())) {

@@ -1076,7 +1076,7 @@ public final class InferenceKernel {
      *  (over<T>(cols:ColSpec<(?:?)⊆T>):_Window<T>, T = the enclosing extend's
      *  relation schema) is bound from the context, never guessed. */
     public Resolution resolveOverload(List<TypedFunction> candidates, List<ExprType> args,
-            @com.legend.Nullable Type expected) {
+            @com.legend.base.Nullable Type expected) {
         // Diagnostics carry the FUNCTION NAME (from the candidates — every
         // caller has homogeneous candidates); "no overload accepts 2
         // argument(s)" with no callee was an audit finding.
@@ -1264,7 +1264,7 @@ public final class InferenceKernel {
 
     /** Unify the chosen overload's parameters against the args, then resolve its output. */
     private Resolution resolveChosen(TypedFunction c, List<ExprType> args, String name,
-            @com.legend.Nullable Type expected) {
+            @com.legend.base.Nullable Type expected) {
         // the callee's own parameters RENAMED APART from the variables the
         // arguments carry (the enclosing function's own T, m): bindings are
         // keyed by name, and a coincident name is still another variable
@@ -1820,7 +1820,7 @@ public final class InferenceKernel {
     }
 
     /** The lattice FQN of a nominal type ({@code PrecisionDecimal -> Decimal}); {@code null} for non-nominal. */
-    private static @com.legend.Nullable String nominalFqn(Type t) {
+    private static @com.legend.base.Nullable String nominalFqn(Type t) {
         return switch (t) {
             case Type.Primitive p -> p.qualifiedName();
             case Type.PrecisionDecimal pd -> pd.basePrimitive().qualifiedName();
@@ -1837,7 +1837,7 @@ public final class InferenceKernel {
     /** The unique candidate whose class formals sit nearest in each
      * argument's linearized supertype order; null when none is unique or
      * a formal is not a plain class. */
-    private @com.legend.Nullable TypedFunction nearestInLinearization(
+    private @com.legend.base.Nullable TypedFunction nearestInLinearization(
             List<TypedFunction> cands, List<ExprType> args) {
         TypedFunction best = null;
         long bestRank = Long.MAX_VALUE;
@@ -1936,7 +1936,7 @@ public final class InferenceKernel {
     }
 
     /** The lattice FQN a primitive-ish type collapses to ({@code PrecisionDecimal -> Decimal}). */
-    private static @com.legend.Nullable String primitiveFqn(Type t) {
+    private static @com.legend.base.Nullable String primitiveFqn(Type t) {
         if (t instanceof Type.Primitive p) {
             return p.qualifiedName();
         }
@@ -1999,7 +1999,7 @@ public final class InferenceKernel {
     /** The one candidate whose parameter types are pairwise at least as
      * specific as every other's, strictly more specific than each in at
      * least one class-typed position; null when no such candidate. */
-    private @com.legend.Nullable TypedFunction mostSpecific(List<TypedFunction> cands) {
+    private @com.legend.base.Nullable TypedFunction mostSpecific(List<TypedFunction> cands) {
         TypedFunction best = null;
         for (TypedFunction c : cands) {
             boolean beatsAll = true;

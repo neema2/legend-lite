@@ -31,7 +31,7 @@ public final class CatalogGrids {
      * compile-time recognizable (a variable pattern) — the call keeps
      * its declared type and WALLS loudly at the pipeline. All four grids
      * read the LIVE catalog (batch 71: primary keys too). */
-    public static @com.legend.Nullable String sql(
+    public static @com.legend.base.Nullable String sql(
             com.legend.compiler.spec.typed.TypedNativeCall nc) {
         String fqn = nc.callee().qualifiedName();
         var kind = java.util.Objects.requireNonNull(com.legend.builtin.NativeFn.Carrier.fetchDbGrid(fqn));
@@ -53,11 +53,11 @@ public final class CatalogGrids {
      * a literal, {@link #BAD} = not compile-time recognizable. */
     private static final String BAD = " bad";
 
-    private static boolean bad(@com.legend.Nullable String s) {
+    private static boolean bad(@com.legend.base.Nullable String s) {
         return BAD.equals(s);
     }
 
-    private static @com.legend.Nullable String literalPattern(
+    private static @com.legend.base.Nullable String literalPattern(
             com.legend.compiler.spec.typed.TypedNativeCall nc, int i) {
         var a = nc.args().get(i);
         if (a instanceof com.legend.compiler.spec.typed.TypedCString cs) {
@@ -78,9 +78,9 @@ public final class CatalogGrids {
     /** The catalog query TEXT alone — the E4.e grid-read compiler
      * composes further SQL over it (the chain projection). */
     public static String fetchSql(String nativeFqn,
-            @com.legend.Nullable String schemaPattern,
-            @com.legend.Nullable String tablePattern,
-            @com.legend.Nullable String columnPattern) {
+            @com.legend.base.Nullable String schemaPattern,
+            @com.legend.base.Nullable String tablePattern,
+            @com.legend.base.Nullable String columnPattern) {
         return switch (java.util.Objects.requireNonNull(com.legend.builtin.NativeFn.Carrier.fetchDbGrid(nativeFqn))) {
             case SCHEMAS -> "SELECT upper(schema_name) AS \"TABLE_SCHEM\","
                     + " upper(catalog_name) AS \"TABLE_CATALOG\""
@@ -203,7 +203,7 @@ public final class CatalogGrids {
     /** JDBC LIKE-pattern filter ({@code %}/{@code _} wildcards — the
      * DatabaseMetaData pattern contract); a null pattern matches all. */
     private static String like(String expr,
-            @com.legend.Nullable String pattern) {
+            @com.legend.base.Nullable String pattern) {
         return pattern == null ? ""
                 : " AND " + expr + " LIKE '" + pattern.replace("'", "''")
                         + "'";

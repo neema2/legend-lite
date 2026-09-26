@@ -21,7 +21,7 @@ import java.util.List;
  * @param width   the number of cells in every row
  * @param rows    the rows; each exactly {@code width} cells
  */
-public record RowLoad(@com.legend.Nullable String schema, String table, List<String> columns,
+public record RowLoad(@com.legend.base.Nullable String schema, String table, List<String> columns,
                       int width, List<List<String>> rows) {
 
     public RowLoad {

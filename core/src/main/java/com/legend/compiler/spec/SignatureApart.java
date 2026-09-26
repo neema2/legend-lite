@@ -41,7 +41,7 @@ final class SignatureApart {
     /** {@code c}, with any type or multiplicity parameter whose name is free
      * in {@code args} (or {@code expected}) renamed to a fresh spelling. */
     static TypedFunction of(TypedFunction c, List<ExprType> args,
-            @com.legend.Nullable Type expected) {
+            @com.legend.base.Nullable Type expected) {
         if (c.typeParameters().isEmpty() && c.multiplicityParameters().isEmpty()) {
             return c;
         }

@@ -4,7 +4,7 @@ import com.legend.warehouse.sqlapi.DuckType;
 import java.sql.SQLException;
 import java.sql.Struct;
 import java.util.LinkedHashMap;
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import java.util.List;
 import java.util.Map;
 

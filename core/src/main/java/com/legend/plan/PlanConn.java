@@ -18,9 +18,9 @@ import java.util.List;
  * @param type the DatabaseType name ({@code H2})
  */
 public record PlanConn(String kind, String type,
-        @com.legend.Nullable String testDataSetupCsv,
+        @com.legend.base.Nullable String testDataSetupCsv,
         List<String> testDataSetupSqls,
-        @com.legend.Nullable DsSpec datasourceSpecification) {
+        @com.legend.base.Nullable DsSpec datasourceSpecification) {
 
     public PlanConn {
         testDataSetupSqls = testDataSetupSqls == null ? List.of()
@@ -30,7 +30,7 @@ public record PlanConn(String kind, String type,
     /** The datasource-specification handle
      * ({@code LocalH2DatasourceSpecification}). */
     public record DsSpec(String kind,
-            @com.legend.Nullable String testDataSetupCsv,
+            @com.legend.base.Nullable String testDataSetupCsv,
             List<String> testDataSetupSqls) {
         public DsSpec {
             testDataSetupSqls = testDataSetupSqls == null ? List.of()

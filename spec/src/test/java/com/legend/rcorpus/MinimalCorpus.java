@@ -532,14 +532,14 @@ public final class MinimalCorpus {
      * recorder with the session's seed ledger, and the text-decided census —
      * everything the harness adds to a run, and nothing it judges. */
     private final class CorpusObserver implements TestObserver {
-        private @com.legend.Nullable Connection mirrorConn;
+        private @com.legend.base.Nullable Connection mirrorConn;
         /** The session's non-query statements so far — the referee's seed
          * ledger prefix for every later test of the session. */
         private final List<com.legend.sql.dialect.RawSqlBoundary.Raw> seedLedger = new ArrayList<>();
-        private @com.legend.Nullable com.legend.sql.dialect.RawSqlBoundary.Recorder recorder;
-        private @com.legend.Nullable com.legend.harness.ReplayOracle oracle;
-        private com.legend.sql.dialect.RawSqlBoundary.Recorder.@com.legend.Nullable Mark mark;
-        private @com.legend.Nullable String currentTest;
+        private @com.legend.base.Nullable com.legend.sql.dialect.RawSqlBoundary.Recorder recorder;
+        private @com.legend.base.Nullable com.legend.harness.ReplayOracle oracle;
+        private com.legend.sql.dialect.RawSqlBoundary.Recorder.@com.legend.base.Nullable Mark mark;
+        private @com.legend.base.Nullable String currentTest;
 
         @Override
         public void testStarted(PureTests.TestCase t) {
@@ -607,7 +607,7 @@ public final class MinimalCorpus {
         }
 
         @Override
-        public com.legend.exec.@com.legend.Nullable SqlReplayOracle oracle(PureTests.TestCase t) {
+        public com.legend.exec.@com.legend.base.Nullable SqlReplayOracle oracle(PureTests.TestCase t) {
             return oracle;
         }
 
@@ -656,10 +656,10 @@ public final class MinimalCorpus {
         /** A clashing fixture gets an ASIDE catalog of the workspace
          * (DuckWorkspaces): names stay as written, the session's own
          * tables keep winning, the fixture's tables resolve last. */
-        private @com.legend.Nullable Connection asideConn;
+        private @com.legend.base.Nullable Connection asideConn;
 
         @Override
-        public @com.legend.Nullable Connection isolateFixture(Connection conn, String setupFqn)
+        public @com.legend.base.Nullable Connection isolateFixture(Connection conn, String setupFqn)
                 throws SQLException {
             String aside = DuckWorkspaces.isolateBegin(conn);
             if (aside == null) {
@@ -738,7 +738,7 @@ public final class MinimalCorpus {
      *  (the strength ladder is read off the runner's verdict log). */
     /** The body's shape letters ({@link com.legend.ProgramFacts#shape()}) of a test this
      * corpus ran — the block-compiler homework's census. */
-    public @com.legend.Nullable String bodyShape(String fqn) {
+    public @com.legend.base.Nullable String bodyShape(String fqn) {
         return runner.bodyShape(fqn);
     }
 
@@ -798,7 +798,7 @@ public final class MinimalCorpus {
 
 
     /** The platform's message, WHOLE, on one line ({@link PureTestRunner#whole}). */
-    static String whole(@com.legend.Nullable String s) {
+    static String whole(@com.legend.base.Nullable String s) {
         return PureTestRunner.whole(s);
     }
 }

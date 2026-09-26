@@ -3,7 +3,7 @@ package com.legend.warehouse.client.jdbc;
 import com.legend.warehouse.sqlapi.DuckType;
 import java.sql.Array;
 import java.sql.SQLException;
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import java.util.List;
 
 /** A list value, as DuckDB's driver hands one back: its elements, and its printed form. */

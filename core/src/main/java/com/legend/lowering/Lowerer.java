@@ -183,9 +183,9 @@ public final class Lowerer {
 
     /** The connection's time zone DateTime literals spell in (engine
      * convertDateToSqlString: the dbTimeZone, default GMT) — batch 86. */
-    private @com.legend.Nullable String dbTimeZone;
+    private @com.legend.base.Nullable String dbTimeZone;
 
-    public Lowerer withDbTimeZone(@com.legend.Nullable String zone) {
+    public Lowerer withDbTimeZone(@com.legend.base.Nullable String zone) {
         this.dbTimeZone = zone;
         return this;
     }
@@ -240,7 +240,7 @@ public final class Lowerer {
     /** F13 site-id minter (driver opt-in, rides an identity layout):
      * {@code __id} mints per construction-site NODE, never per
      * evaluation. Null = a lane with no identity. */
-    private @com.legend.Nullable Function<Object, String> instanceIdOf;
+    private @com.legend.base.Nullable Function<Object, String> instanceIdOf;
 
     /** F13c/D91 — the driver-supplied {@code <<equality.Key>>} resolver
      * (EqualityKeys.resolve over the model): the in-SQL eq/equal arm
@@ -249,8 +249,8 @@ public final class Lowerer {
      * key relation wherever it lowers; only the IDENTITY pieces (eq,
      * keyless equal) stay verdict-lane-gated via {@code instanceIdOf}
      * and the {@code __id} layout field. */
-    private @com.legend.Nullable Function<Type,
-            com.legend.compiler.element.@com.legend.Nullable EqualityKeys>
+    private @com.legend.base.Nullable Function<Type,
+            com.legend.compiler.element.@com.legend.base.Nullable EqualityKeys>
             instanceKeysOf;
 
     public Lowerer withInstanceIds(Function<Object, String> ids) {
@@ -260,7 +260,7 @@ public final class Lowerer {
 
     public Lowerer withInstanceKeys(
             Function<Type, com.legend.compiler.element
-                    .@com.legend.Nullable EqualityKeys> keys) {
+                    .@com.legend.base.Nullable EqualityKeys> keys) {
         this.instanceKeysOf = keys;
         return this;
     }
@@ -475,7 +475,7 @@ public final class Lowerer {
      * @return the guarded root expression, or {@code null} when this is
      *         not the required-one egress shape (caller lowers normally)
      */
-    private @com.legend.Nullable SqlExpr requiredOneEgress(TypedSpec spec) {
+    private @com.legend.base.Nullable SqlExpr requiredOneEgress(TypedSpec spec) {
         if (!(spec instanceof com.legend.compiler.spec.typed.TypedNativeCall tc
                 // the recognizer minus its trustOne member: conformance
                 // wraps never guard (the C2 provenance split)
@@ -1094,7 +1094,7 @@ public final class Lowerer {
     }
 
     private AggCols aggCols(SqlSelect base, List<TypedAggCol> aggs,
-            java.util.@com.legend.Nullable Map<TypedAggCol, CalendarAgg.Ctx> cal,
+            java.util.@com.legend.base.Nullable Map<TypedAggCol, CalendarAgg.Ctx> cal,
             List<OutputCol> contract) {
         List<SqlSelect.Projection> ps = new ArrayList<>(aggs.size());
         for (TypedAggCol a : aggs) {
@@ -1147,7 +1147,7 @@ public final class Lowerer {
     }
 
     private SqlExpr aggValue(SqlSelect base, TypedAggCol a,
-            CalendarAgg.@com.legend.Nullable Ctx calendar) {
+            CalendarAgg.@com.legend.base.Nullable Ctx calendar) {
         TypedSpec reduceBody = LambdaBinding.last(a.reduce());
         // A cast WRAPPING the reducer (y|$y->plus()->cast(@Integer)) rides
         // AROUND the SQL aggregate: unwrap, lower the inner reducer, re-wrap
@@ -1409,7 +1409,7 @@ public final class Lowerer {
     }
 
     /** One pass; null when any column's refs would not fold against {@code base}. */
-    private @com.legend.Nullable SqlSelect tryComputedColumns(SqlSelect base, List<TypedFuncCol> columns,
+    private @com.legend.base.Nullable SqlSelect tryComputedColumns(SqlSelect base, List<TypedFuncCol> columns,
                                          ExprType info,
                                          boolean keepExisting,
                                          boolean wireForm, String[] miss) {
@@ -1547,7 +1547,7 @@ public final class Lowerer {
      *  operands (direct, or inside an arithmetic run) lowers as the
      *  aggregate, the rest as literals (no row scope), the scalar's rule
      *  applies around it; null for any other shape. */
-    private @com.legend.Nullable SqlExpr aroundReducer(SqlSelect base, TypedAggCol a,
+    private @com.legend.base.Nullable SqlExpr aroundReducer(SqlSelect base, TypedAggCol a,
             TypedNativeCall call) {
         if (Aggregates.reducerOrNull(call.callee()) != null || call.args().isEmpty()) {
             return null;
@@ -1590,7 +1590,7 @@ public final class Lowerer {
     private final java.util.IdentityHashMap<SqlExpr, WhereMerge.Zones>
             whereZones = new java.util.IdentityHashMap<>();
 
-    private SqlExpr mergeWhere(@com.legend.Nullable SqlExpr existing,
+    private SqlExpr mergeWhere(@com.legend.base.Nullable SqlExpr existing,
             SqlExpr predicate,
             com.legend.compiler.spec.typed.TypedFilter.Stamp stamp) {
         return WhereMerge.merge(whereZones, existing, predicate, stamp);
@@ -1633,7 +1633,7 @@ public final class Lowerer {
     }
 
     /** Resolve refs via projections, noting whether any substituted a window call. */
-    private @com.legend.Nullable WindowPredicate tryWindowPredicate(SqlSelect select, TypedLambda lambda) {
+    private @com.legend.base.Nullable WindowPredicate tryWindowPredicate(SqlSelect select, TypedLambda lambda) {
         var saw = new AtomicBoolean();
         return switch (attempt(() -> scalar(LambdaBinding.last(lambda), (v, name) -> {
             SqlExpr resolved = projectionExprOrThrow(select, name);
@@ -1648,7 +1648,7 @@ public final class Lowerer {
     }
 
     /** A post-aggregation ref: the projection's expression, computed or not. */
-    private SqlExpr projectionExprOrThrow(SqlSelect select, @com.legend.Nullable String column) {
+    private SqlExpr projectionExprOrThrow(SqlSelect select, @com.legend.base.Nullable String column) {
         if (column == null) {
             // a bare-variable read has no projection to substitute
             throw new UnfoldableRef("<whole variable>");
@@ -1661,7 +1661,7 @@ public final class Lowerer {
         throw new UnfoldableRef(column);
     }
 
-    SqlExpr resolveOrThrow(SqlSelect select, @com.legend.Nullable String column) {
+    SqlExpr resolveOrThrow(SqlSelect select, @com.legend.base.Nullable String column) {
         // bare-variable read ($var whole): over a SINGLE-COLUMN select the
         // row IS the cell (the encoding's value semantics); wider rows
         // stay unfoldable (isolate-or-loud), never NPE
@@ -2043,13 +2043,13 @@ public final class Lowerer {
 
     private SqlSelect joined(SqlSource.Join source, Optional<String> prefix,
                              TypedSpec rightNode, ExprType info,
-                             @com.legend.Nullable List<SqlSelect.Projection> leftCarry) {
+                             @com.legend.base.Nullable List<SqlSelect.Projection> leftCarry) {
         return joined(source, prefix, rightNode, info, leftCarry, name -> true);
     }
 
     private SqlSelect joined(SqlSource.Join source, Optional<String> prefix,
                              TypedSpec rightNode, ExprType info,
-                             @com.legend.Nullable List<SqlSelect.Projection> leftCarry,
+                             @com.legend.base.Nullable List<SqlSelect.Projection> leftCarry,
                              Predicate<String> renameWhen) {
         SqlSelect out = SqlSelect.starOf(source);
         if (prefix.isEmpty()) {
@@ -2114,7 +2114,7 @@ public final class Lowerer {
 
     /** {@code frameName}: the derived table's model identity (a view-
      * backed join target) — rides the Subselect for dialect grouping. */
-    private SqlSource asRightSide(SqlSelect side, @com.legend.Nullable String frameName) {
+    private SqlSource asRightSide(SqlSelect side, @com.legend.base.Nullable String frameName) {
         return isBareSelect(side) && !(side.from() instanceof SqlSource.Join)
                 ? side.from()
                 : new SqlSource.Subselect(side, nextAlias(), frameName);
@@ -2138,7 +2138,7 @@ public final class Lowerer {
     }
 
     private SqlExpr sideCondition(TypedLambda lambda, SqlSource left, SqlSource right,
-                                  @com.legend.Nullable List<SqlSelect.Projection> leftCarry) {
+                                  @com.legend.base.Nullable List<SqlSelect.Projection> leftCarry) {
         String leftVar = lambda.parameters().get(0);
         return scalar(LambdaBinding.last(lambda), (var, prop) -> {
             boolean isLeft = leftVar.equals(var);
@@ -2228,7 +2228,7 @@ public final class Lowerer {
     }
 
     private record Over(List<SqlExpr> partitionBy, List<SqlSelect.SortKey> orderBy,
-                        SqlExpr.WindowCall.@com.legend.Nullable Frame frame) {
+                        SqlExpr.WindowCall.@com.legend.base.Nullable Frame frame) {
     }
 
     /** Partition/order/frame of an over(...) — DESC→NULLS FIRST, ASC→NULLS LAST (master's pin). */
@@ -3333,7 +3333,7 @@ public final class Lowerer {
     }
 
     /** One pass; null when any target column would not fold against {@code base}. */
-    private @com.legend.Nullable SqlSelect tryRelationCast(SqlSelect base, Map<String, Type.Column> src,
+    private @com.legend.base.Nullable SqlSelect tryRelationCast(SqlSelect base, Map<String, Type.Column> src,
                                       Type.RelationType tgtRow,
                                       TypedCast c) {
         List<SqlSelect.Projection> ps = new ArrayList<>(tgtRow.columns().size());

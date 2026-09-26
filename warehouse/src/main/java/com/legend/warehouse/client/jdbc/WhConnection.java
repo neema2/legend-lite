@@ -121,7 +121,7 @@ final class WhConnection implements java.sql.Connection {
     }
 
     @Override
-    public @com.legend.Nullable SQLWarning getWarnings() {
+    public @com.legend.base.Nullable SQLWarning getWarnings() {
         return null;
     }
 
@@ -303,7 +303,7 @@ final class WhConnection implements java.sql.Connection {
     }
 
     @Override
-    public java.lang.@com.legend.Nullable String getClientInfo(java.lang.String p0) throws java.sql.SQLException {
+    public java.lang.@com.legend.base.Nullable String getClientInfo(java.lang.String p0) throws java.sql.SQLException {
         // resultFormat: how this connection's results travel (arrow unless the URL said json)
         return p0.equals("resultFormat") ? format.wire() : null;
     }

@@ -5,7 +5,7 @@ import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import com.legend.warehouse.sqlapi.Columnar;
 import com.legend.warehouse.sqlapi.DuckType;
 import java.lang.foreign.MemorySegment;

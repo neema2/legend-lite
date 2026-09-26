@@ -49,7 +49,7 @@ final class ChainedExists {
 
     /** The exploded 2-hop EXISTS material for {@code path} (mid.leaf)
      * over {@code cs}, or null when the shape is outside the rung. */
-    static Substitution.@com.legend.Nullable ExistsSub explodedTwoHop(
+    static Substitution.@com.legend.base.Nullable ExistsSub explodedTwoHop(
             ClassSources sources, TemporalFrame temporal, ClassSource cs,
             List<String> path, List<TypedSpec> ops,
             BiFunction<ClassSource, TypedSpec, StoreResolver.NestedScope>
@@ -209,7 +209,7 @@ final class ChainedExists {
 
     /** The parent's navigate step behind {@code head}'s binding, or null
      * (unmapped head, non-nav binding, association-mapped head). */
-    private static @com.legend.Nullable TypedNavigate navStep(
+    private static @com.legend.base.Nullable TypedNavigate navStep(
             ClassSource parent, String head) {
         var navSteps = Pipelines.navSteps(parent.pipeline());
         String alias = InnerDemand.navSlotAlias(parent.bindings().get(head),

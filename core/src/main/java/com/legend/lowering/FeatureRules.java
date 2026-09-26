@@ -82,7 +82,7 @@ final class FeatureRules {
     }
 
     /** The rule {@code features} select for {@code key}, or null for the plain one. */
-    static Scalars.@com.legend.Nullable Rule select(String key, Set<Feature> features) {
+    static Scalars.@com.legend.base.Nullable Rule select(String key, Set<Feature> features) {
         Scalars.Rule rule = null;
         for (Feature f : features) {
             Scalars.Rule flagged = UNDER.getOrDefault(f, Map.of()).get(key);

@@ -197,7 +197,7 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<Calendar> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<Calendar> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
@@ -259,7 +259,7 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<Verdict> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<Verdict> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
@@ -296,7 +296,7 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<Frame> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<Frame> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
@@ -342,7 +342,7 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<LowererForm> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<LowererForm> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
@@ -378,7 +378,7 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<LiteralForm> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<LiteralForm> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
@@ -414,7 +414,7 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<ContextOption> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<ContextOption> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
@@ -537,7 +537,7 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<PlanWrapper> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<PlanWrapper> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
@@ -575,7 +575,7 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<ObjectReference> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<ObjectReference> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
@@ -613,7 +613,7 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<SubtypeForm> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<SubtypeForm> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
@@ -655,7 +655,7 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<ResolverForm> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<ResolverForm> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
@@ -691,7 +691,7 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<LiteDesugar> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<LiteDesugar> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
@@ -727,7 +727,7 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<TyperForm> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<TyperForm> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
@@ -754,19 +754,19 @@ public final class NativeFn {
         private final String fqn;
         private final List<NativeFunctionDefinition> overloads;
         /** The lifted qualified property this routine implements, or null. */
-        private final @com.legend.Nullable String implementedDerived;
+        private final @com.legend.base.Nullable String implementedDerived;
 
         JavaRoutine(String fqn, NativeFunctionDefinition... overloads) {
             this(fqn, null, overloads);
         }
 
-        JavaRoutine(String fqn, @com.legend.Nullable String derivedOwner,
+        JavaRoutine(String fqn, @com.legend.base.Nullable String derivedOwner,
                 NativeFunctionDefinition... overloads) {
             this(fqn, derivedOwner, null, overloads);
         }
 
-        JavaRoutine(String fqn, @com.legend.Nullable String derivedOwner,
-                @com.legend.Nullable String derivedProperty, NativeFunctionDefinition... overloads) {
+        JavaRoutine(String fqn, @com.legend.base.Nullable String derivedOwner,
+                @com.legend.base.Nullable String derivedProperty, NativeFunctionDefinition... overloads) {
             this.fqn = fqn;
             this.overloads = List.of(overloads);
             this.implementedDerived = derivedOwner == null || derivedProperty == null ? null
@@ -785,7 +785,7 @@ public final class NativeFn {
             return overloads;
         }
 
-        private final com.legend.model.@com.legend.Nullable ClassMember implementedMember;
+        private final com.legend.model.@com.legend.base.Nullable ClassMember implementedMember;
 
         /** The class member (a qualified property) this routine implements, if any. */
         public Optional<com.legend.model.ClassMember> implementedMember() {
@@ -798,7 +798,7 @@ public final class NativeFn {
         }
 
         /** The routine implementing a lifted qualified-property callee, or empty. */
-        public static Optional<JavaRoutine> ofDerived(@com.legend.Nullable String liftedFqn) {
+        public static Optional<JavaRoutine> ofDerived(@com.legend.base.Nullable String liftedFqn) {
             for (JavaRoutine r : values()) {
                 if (r.implementedDerived != null && r.implementedDerived.equals(liftedFqn)) {
                     return Optional.of(r);
@@ -811,7 +811,7 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<JavaRoutine> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<JavaRoutine> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
@@ -861,12 +861,12 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<Handle> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<Handle> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
 
         /** The two execute spellings (router / executionPlan): the result frame. */
-        public static boolean isExecute(@com.legend.Nullable String fqn) {
+        public static boolean isExecute(@com.legend.base.Nullable String fqn) {
             Handle h = fqn == null ? null : BY_FQN.get(fqn);
             return h == EXECUTE || h == EXECUTION_PLAN_EXECUTE;
         }
@@ -874,7 +874,7 @@ public final class NativeFn {
         /** Which handle forces EAGERLY when consumed at a statement's value
          *  position: execute's frame run IS the value; plan handles stay
          *  symbolic (navigated by the plan reader). */
-        public static boolean forcesAtValuePosition(@com.legend.Nullable String fqn) {
+        public static boolean forcesAtValuePosition(@com.legend.base.Nullable String fqn) {
             Handle h = fqn == null ? null : BY_FQN.get(fqn);
             return h == EXECUTE || h == EXECUTE_LEGEND_QUERY;
         }
@@ -928,12 +928,12 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<Effect> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<Effect> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
 
         /** The DATABASE effects (raw SQL, DDL, CSV load): statement-ordered, session-bound. */
-        public static boolean isDbEffect(@com.legend.Nullable String fqn) {
+        public static boolean isDbEffect(@com.legend.base.Nullable String fqn) {
             Effect e = fqn == null ? null : BY_FQN.get(fqn);
             return e == EXECUTE_IN_DB || e == DROP_AND_CREATE_TABLE_IN_DB
                     || e == DROP_AND_CREATE_SCHEMA_IN_DB || e == LOAD_CSV_TO_DB_TABLE
@@ -941,13 +941,13 @@ public final class NativeFn {
         }
 
         /** The seed-SQL forms (setUpDataSQLs / V2). */
-        public static boolean isSeedSqlForm(@com.legend.Nullable String fqn) {
+        public static boolean isSeedSqlForm(@com.legend.base.Nullable String fqn) {
             Effect e = fqn == null ? null : BY_FQN.get(fqn);
             return e == SET_UP_DATA_SQLS || e == SET_UP_DATA_SQLS_V2;
         }
 
         /** print / println — inert diagnostics (no value, no rows). */
-        public static boolean isInertDiagnostic(@com.legend.Nullable String fqn) {
+        public static boolean isInertDiagnostic(@com.legend.base.Nullable String fqn) {
             Effect e = fqn == null ? null : BY_FQN.get(fqn);
             return e == PRINT || e == PRINTLN;
         }
@@ -992,7 +992,7 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<Carrier> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<Carrier> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
 
@@ -1001,7 +1001,7 @@ public final class NativeFn {
         public enum FetchDbGrid { SCHEMAS, TABLES, COLUMNS, PRIMARY_KEYS }
 
         /** The metadata grid of a fetchDb* callee, or null when the callee is not one. */
-        public static @com.legend.Nullable FetchDbGrid fetchDbGrid(@com.legend.Nullable String fqn) {
+        public static @com.legend.base.Nullable FetchDbGrid fetchDbGrid(@com.legend.base.Nullable String fqn) {
             Carrier c = fqn == null ? null : BY_FQN.get(fqn);
             if (c == null) {
                 return null;
@@ -1043,7 +1043,7 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<ContextOwner> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<ContextOwner> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
@@ -1081,7 +1081,7 @@ public final class NativeFn {
 
         /** The member a callee FQN resolves to — empty when the callee is not
          *  in this family (a normal fall-through, never an error). */
-        public static Optional<DdlStatement> of(@com.legend.Nullable String calleeFqn) {
+        public static Optional<DdlStatement> of(@com.legend.base.Nullable String calleeFqn) {
             return calleeFqn == null ? Optional.empty() : Optional.ofNullable(BY_FQN.get(calleeFqn));
         }
     }
@@ -1171,7 +1171,7 @@ public final class NativeFn {
         }
 
         /** The accessor an APPLIED (bare) name spells, or empty. */
-        public static Optional<RowGetter> of(@com.legend.Nullable String appliedName) {
+        public static Optional<RowGetter> of(@com.legend.base.Nullable String appliedName) {
             if (appliedName == null) {
                 return Optional.empty();
             }
@@ -1192,7 +1192,7 @@ public final class NativeFn {
         }
 
         /** The accessor a lifted derived-property callee spells, or empty. */
-        public static Optional<RowGetter> ofLifted(@com.legend.Nullable String liftedFqn) {
+        public static Optional<RowGetter> ofLifted(@com.legend.base.Nullable String liftedFqn) {
             String[] ref = liftedFqn == null ? null : com.legend.model.DerivedPropertyNames.split(liftedFqn);
             if (ref == null) {
                 return Optional.empty();

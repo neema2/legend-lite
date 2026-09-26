@@ -12,7 +12,7 @@ import com.legend.compiler.element.type.Type;
  * The multiplicity rides since F5.2.
  */
 public record Column(String name, Type pureType,
-        com.legend.compiler.element.type.@com.legend.Nullable Multiplicity
+        com.legend.compiler.element.type.@com.legend.base.Nullable Multiplicity
                 multiplicity) {
 
     /** Pre-F5.2 arity — multiplicity unknown at this construction site

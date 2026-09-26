@@ -81,7 +81,7 @@ final class VariantShapes {
                 scalar.apply(vc.source()));
     }
 
-    static @com.legend.Nullable TypedCast variantCastBase(TypedSpec spec) {
+    static @com.legend.base.Nullable TypedCast variantCastBase(TypedSpec spec) {
         TypedSpec cur = spec;
         while (cur instanceof TypedPropertyAccess pa) {
             cur = pa.source();

@@ -69,7 +69,7 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
      * {@code __} (my::A__B and my::A::B mint the same prefix), so the
      * inverse is a lookup against the model, never string surgery
      * (text-surgery audit §1.1 #1). Null when no candidate matches. */
-    static @com.legend.Nullable String classOfWitnessPrefix(
+    static @com.legend.base.Nullable String classOfWitnessPrefix(
             String pfx, java.util.Collection<String> candidates) {
         for (String fqn : candidates) {
             if (subTypeColumnPrefix(fqn).equals(pfx)) {
@@ -120,7 +120,7 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
      * cast class's column PREFIX it belongs to (audit 23 B4 — key matching
      * through the contract, never substring surgery). Null when not a
      * witness key. */
-    static @com.legend.Nullable String witnessPrefixOf(String key) {
+    static @com.legend.base.Nullable String witnessPrefixOf(String key) {
         String tail = "___" + memberWitness();
         return isSubTypeColumn(key) && key.endsWith(tail)
                 ? key.substring(0, key.length() - memberWitness().length())
@@ -212,18 +212,18 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
 
     record Relational(
             String className,
-            @com.legend.Nullable String setId,
-            @com.legend.Nullable String extendsSetId,
+            @com.legend.base.Nullable String setId,
+            @com.legend.base.Nullable String extendsSetId,
             boolean root,
-            @com.legend.Nullable LegacyMappingDefinition.TableReference mainTable,
-            @com.legend.Nullable FilterMapping filter,
+            @com.legend.base.Nullable LegacyMappingDefinition.TableReference mainTable,
+            @com.legend.base.Nullable FilterMapping filter,
             boolean distinct,
             List<RelationalOperation> groupBy,
             List<RelationalOperation> primaryKey,
             List<PropertyMapping> propertyMappings,
-            @com.legend.Nullable String sourceUrl,
+            @com.legend.base.Nullable String sourceUrl,
             java.util.Map<String, String> propertyTargetSets,
-            @com.legend.Nullable AggregationAware aggregation) implements ClassMapping {
+            @com.legend.base.Nullable AggregationAware aggregation) implements ClassMapping {
 
         // NO short overload: a defaulted propertyTargetSets silently dropped
         // prop[setId] routing at rebuild sites (remediation T2.2); every
@@ -296,8 +296,8 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
      */
     record Pure(
             String className,
-            @com.legend.Nullable String setId,
-            @com.legend.Nullable String extendsSetId,
+            @com.legend.base.Nullable String setId,
+            @com.legend.base.Nullable String extendsSetId,
             boolean root,
             /**
              * The {@code ~src} class, or {@code null} when the mapping
@@ -317,8 +317,8 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
              * still meaningful to parse, compile and analyse, which is why
              * engine's own corpus contains them.
              */
-            @com.legend.Nullable String sourceClass,
-            @com.legend.Nullable ValueSpecification filter,
+            @com.legend.base.Nullable String sourceClass,
+            @com.legend.base.Nullable ValueSpecification filter,
             List<PropertyBinding> propertyBindings) implements ClassMapping {
 
         public Pure {
@@ -364,9 +364,9 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
          */
         public record PropertyBinding(String propertyName,
                 ValueSpecification expression,
-                @com.legend.Nullable String sourceSetId, @com.legend.Nullable String targetSetId,
+                @com.legend.base.Nullable String sourceSetId, @com.legend.base.Nullable String targetSetId,
                 boolean explode, boolean local,
-                @com.legend.Nullable String enumMappingId) {
+                @com.legend.base.Nullable String enumMappingId) {
             public PropertyBinding {
                 Objects.requireNonNull(propertyName, "Property name cannot be null");
                 Objects.requireNonNull(expression, "Property binding expression cannot be null");
@@ -375,8 +375,8 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
             /** No enum transformer (the overwhelmingly common shape). */
             public PropertyBinding(String propertyName,
                     ValueSpecification expression,
-                    @com.legend.Nullable String sourceSetId,
-                    @com.legend.Nullable String targetSetId,
+                    @com.legend.base.Nullable String sourceSetId,
+                    @com.legend.base.Nullable String targetSetId,
                     boolean explode, boolean local) {
                 this(propertyName, expression, sourceSetId, targetSetId,
                         explode, local, null);
@@ -404,8 +404,8 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
      */
     record Union(
             String className,
-            @com.legend.Nullable String setId,
-            @com.legend.Nullable String extendsSetId,
+            @com.legend.base.Nullable String setId,
+            @com.legend.base.Nullable String extendsSetId,
             boolean root,
             List<String> memberSetIds) implements ClassMapping {
         public Union {
@@ -423,8 +423,8 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
      */
     record Inheritance(
             String className,
-            @com.legend.Nullable String setId,
-            @com.legend.Nullable String extendsSetId,
+            @com.legend.base.Nullable String setId,
+            @com.legend.base.Nullable String extendsSetId,
             boolean root) implements ClassMapping {
         public Inheritance {
             Objects.requireNonNull(className, "Class name cannot be null");
@@ -452,11 +452,11 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
      */
     record RelationFunction(
             String className,
-            @com.legend.Nullable String setId,
-            @com.legend.Nullable String extendsSetId,
+            @com.legend.base.Nullable String setId,
+            @com.legend.base.Nullable String extendsSetId,
             boolean root,
-            @com.legend.Nullable String funcRef,
-            @com.legend.Nullable com.legend.protocol.spec.ValueSpecification inlineSource,
+            @com.legend.base.Nullable String funcRef,
+            @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification inlineSource,
             List<Col> columns,
             List<String> primaryKey) implements ClassMapping {
         public RelationFunction {
@@ -473,26 +473,26 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
 
         /** A relation mapping with no {@code ~primaryKey} of its own. */
         public RelationFunction(String className,
-                @com.legend.Nullable String setId,
-                @com.legend.Nullable String extendsSetId, boolean root,
+                @com.legend.base.Nullable String setId,
+                @com.legend.base.Nullable String extendsSetId, boolean root,
                 String funcRef, List<Col> columns) {
             this(className, setId, extendsSetId, root, funcRef, null, columns,
                     List.of());
         }
 
         /** One {@code property: COLUMN} binding. */
-        public record Col(String property, @com.legend.Nullable String column, boolean local,
-                @com.legend.Nullable String enumMappingId, List<Col> embedded,
-                @com.legend.Nullable String inlineSetId,
-                @com.legend.Nullable com.legend.protocol.spec.ValueSpecification expr) {
+        public record Col(String property, @com.legend.base.Nullable String column, boolean local,
+                @com.legend.base.Nullable String enumMappingId, List<Col> embedded,
+                @com.legend.base.Nullable String inlineSetId,
+                @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification expr) {
             public Col {
                 embedded = embedded == null ? List.of() : List.copyOf(embedded);
             }
 
             /** Column-name form (no row expression). */
-            public Col(String property, @com.legend.Nullable String column, boolean local,
-                    @com.legend.Nullable String enumMappingId, List<Col> embedded,
-                    @com.legend.Nullable String inlineSetId) {
+            public Col(String property, @com.legend.base.Nullable String column, boolean local,
+                    @com.legend.base.Nullable String enumMappingId, List<Col> embedded,
+                    @com.legend.base.Nullable String inlineSetId) {
                 this(property, column, local, enumMappingId, embedded, inlineSetId, null);
             }
 
@@ -509,14 +509,14 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
             }
 
             /** An EMBEDDED block ({@code prop ( sub: COL, ... )}). */
-            public Col(String property, @com.legend.Nullable String column, boolean local,
-                    @com.legend.Nullable String enumMappingId, List<Col> embedded) {
+            public Col(String property, @com.legend.base.Nullable String column, boolean local,
+                    @com.legend.base.Nullable String enumMappingId, List<Col> embedded) {
                 this(property, column, local, enumMappingId, embedded, null);
             }
 
             /** Enum-decoded column binding (no embedded block). */
-            public Col(String property, @com.legend.Nullable String column, boolean local,
-                    @com.legend.Nullable String enumMappingId) {
+            public Col(String property, @com.legend.base.Nullable String column, boolean local,
+                    @com.legend.base.Nullable String enumMappingId) {
                 this(property, column, local, enumMappingId, List.of(), null);
             }
 

@@ -35,7 +35,7 @@ final class CallNodes {
      * named-call convention) rides the native node — the raise-emission
      * provenance channel (leg 2). */
     static TypedSpec mint(ImplementationTable implementations, TypedFunction chosen,
-            List<TypedSpec> args, ExprType out, com.legend.protocol.@com.legend.Nullable SourceInfo pos) {
+            List<TypedSpec> args, ExprType out, com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
         // A call is a NATIVE node when the platform runs the declaration by its
         // own rule or form (the table's row), or when there is no body to run;
         // a bodied declaration the platform REFUSES stays a user call — the

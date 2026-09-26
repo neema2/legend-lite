@@ -52,8 +52,8 @@ final class ModelIntegrity {
      * layer. */
     static void check(ModelBuilder model, TypeClassifier classifier,
             FunctionCompiler functions,
-            java.util.@com.legend.Nullable Map<String, String> wallSink,
-            PureModelContext.@com.legend.Nullable CheckedLayer prior) {
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink,
+            PureModelContext.@com.legend.base.Nullable CheckedLayer prior) {
         java.util.function.Predicate<Object> fresh = prior == null ? el -> true
                 : el -> !prior.contains(el);
         // D6b: element-identity first, so a duplicated FQN poisons with
@@ -85,7 +85,7 @@ final class ModelIntegrity {
 
     /** Attach the element FQN to escaping ModelExceptions (positions wave). */
     private static void withElement(String elementFqn, Runnable work,
-            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
         try {
             work.run();
         } catch (com.legend.error.ModelException e) {
@@ -155,7 +155,7 @@ final class ModelIntegrity {
      * rejects the second definition; silently letting one win answers
      * calls with an arbitrary body. */
     private static void checkDuplicateSignatures(ModelBuilder model,
-            java.util.@com.legend.Nullable Map<String, String> wallSink,
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink,
             java.util.function.Predicate<Object> fresh, java.util.Set<String> priorKeys) {
         java.util.Set<String> seen = new java.util.HashSet<>();
         for (Function f : model.functions().filter(fresh).toList()) {
@@ -256,7 +256,7 @@ final class ModelIntegrity {
      * the classify checks' concern, not this walk's. */
     private static void checkInheritanceAcyclic(ModelBuilder model,
             TypeClassifier classifier,
-            java.util.@com.legend.Nullable Map<String, String> wallSink,
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink,
             java.util.function.Predicate<Object> fresh) {
         // a prior layer cannot reach a graph class (it was checked alone),
         // so every cycle through a graph class starts at one

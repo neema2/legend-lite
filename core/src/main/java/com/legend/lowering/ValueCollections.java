@@ -134,7 +134,7 @@ final class ValueCollections {
     }
 
     /** Delegates to the canonical reader on the node itself. */
-    static @com.legend.Nullable String autoMapHop(TypedSpec spec) {
+    static @com.legend.base.Nullable String autoMapHop(TypedSpec spec) {
         return com.legend.compiler.spec.typed.TypedMap.singleHopProperty(spec);
     }
 

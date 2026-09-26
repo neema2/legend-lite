@@ -77,7 +77,7 @@ public final class ChainNormalizer {
 
     /** {@code n} with its nearest sortBy (through filter / cast) reversed;
      * null when no sort is beneath. */
-    private static @com.legend.Nullable TypedSpec flipNearestSort(TypedSpec n) {
+    private static @com.legend.base.Nullable TypedSpec flipNearestSort(TypedSpec n) {
         return switch (n) {
             case TypedSortBy sb -> new TypedSortBy(sb.source(), sb.key(),
                     !sb.ascending(), sb.keyAlias(), sb.info());
@@ -101,7 +101,7 @@ public final class ChainNormalizer {
 
     /** {@code equal(<class-typed row read>, <tracked element reference>)}
      * as key-equality; null when the pair is not that shape. */
-    private static @com.legend.Nullable TypedSpec identityEquality(TypedNativeCall eq,
+    private static @com.legend.base.Nullable TypedSpec identityEquality(TypedNativeCall eq,
             TypedSpec row, TypedSpec ref, ModelContext ctx,
             Function<TypedPackageableRef, java.util.Optional<String>> trackedElementClass) {
         // the row read's class: bare or parameterized (the spec's
@@ -152,7 +152,7 @@ public final class ChainNormalizer {
      * source registers it), the one instance's key against the reference's
      * path. Null when the pair is not that shape or the metaclass has no
      * single key column. */
-    private static @com.legend.Nullable TypedSpec keyIdentity(TypedNativeCall eq,
+    private static @com.legend.base.Nullable TypedSpec keyIdentity(TypedNativeCall eq,
             TypedSpec row, TypedPackageableRef pr, ModelContext ctx,
             Function<TypedPackageableRef, java.util.Optional<String>> trackedElementClass) {
         String rowCls = Type.classFqn(row.info().type());

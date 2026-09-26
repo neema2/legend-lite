@@ -19,7 +19,7 @@ import java.util.List;
  * @param info      {@code SortInfo<(column:…)>[1]}, from the signature
  */
 public record TypedSortInfo(String column, boolean ascending,
-        @com.legend.Nullable NullOrder nullOrder, ExprType info) implements TypedSpec {
+        @com.legend.base.Nullable NullOrder nullOrder, ExprType info) implements TypedSpec {
 
     /** Upstream's {@code meta::pure::functions::relation::NullOrder}. */
     public enum NullOrder { FIRST, LAST }

@@ -33,7 +33,7 @@ public final class QuotedSpecParser {
      * {@code null} when the call is not foldable — it then stays a plain
      * {@code AppliedFunction}, typed {@code Any[1]} like the engine's
      * native. */
-    public static com.legend.protocol.spec.@com.legend.Nullable QuotedTreeCall
+    public static com.legend.protocol.spec.@com.legend.base.Nullable QuotedTreeCall
             fold(com.legend.protocol.spec.AppliedFunction call,
                     Dialect payloadDialect) {
         return fold(call, payloadDialect, name -> null);
@@ -47,10 +47,10 @@ public final class QuotedSpecParser {
      * spelling — is the same quote/eval literal as the inline form, and
      * folds at the same place. A name the scope does not carry (or one
      * shadowed by a lambda parameter) resolves to null = not foldable. */
-    public static com.legend.protocol.spec.@com.legend.Nullable QuotedTreeCall
+    public static com.legend.protocol.spec.@com.legend.base.Nullable QuotedTreeCall
             fold(com.legend.protocol.spec.AppliedFunction call,
                     Dialect payloadDialect,
-                    java.util.function.Function<String, @com.legend.Nullable String>
+                    java.util.function.Function<String, @com.legend.base.Nullable String>
                             constants) {
         if (!(call.function().equals("compileLegendValueSpecification")
                 || call.function().equals(
@@ -79,9 +79,9 @@ public final class QuotedSpecParser {
      * the USER grammar. Any other payload (a model in a string) or a
      * parse refusal returns {@code null} — the call stays a plain
      * {@code AppliedFunction} and walls loudly as the unported native. */
-    public static com.legend.protocol.spec.@com.legend.Nullable QuotedGrammarCall
+    public static com.legend.protocol.spec.@com.legend.base.Nullable QuotedGrammarCall
             foldGrammar(com.legend.protocol.spec.AppliedFunction call,
-                    java.util.function.Function<String, @com.legend.Nullable String>
+                    java.util.function.Function<String, @com.legend.base.Nullable String>
                             constants) {
         if (!COMPILE_LEGEND_GRAMMAR.contains(call.function())
                 || call.parameters().size() != 1) {
@@ -122,8 +122,8 @@ public final class QuotedSpecParser {
      * value, or null when any operand is not a literal string (a
      * {@code $variable} operand is a literal when {@code constants} says
      * so — a let-bound constant of the same body). */
-    public static @com.legend.Nullable String foldStringConcat(ValueSpecification v,
-            java.util.function.Function<String, @com.legend.Nullable String> constants) {
+    public static @com.legend.base.Nullable String foldStringConcat(ValueSpecification v,
+            java.util.function.Function<String, @com.legend.base.Nullable String> constants) {
         if (v instanceof com.legend.protocol.spec.CString cs) {
             return cs.value();
         }
@@ -159,7 +159,7 @@ public final class QuotedSpecParser {
     /** Parse tree-literal SOURCE ({@code #{Class{...}}#}) to its
      * {@link ColSpecArray}, or {@code null} when the text is not a tree
      * literal the grammar carries (callers keep their own loud walls). */
-    public static @com.legend.Nullable ValueSpecification parseTree(String source,
+    public static @com.legend.base.Nullable ValueSpecification parseTree(String source,
             Dialect dialect) {
         try {
             ValueSpecification v = SpecParser.parse(source.trim(), dialect);

@@ -33,8 +33,8 @@ final class RelationReads {
 
     /** {@code $this.p}/{@code $that.p} → column reads on the two relation rows. */
     static ValueSpecification xstore(ValueSpecification v,
-            Variable thisRow, ClassMapping.@com.legend.Nullable RelationFunction thisRf,
-            Variable thatRow, ClassMapping.@com.legend.Nullable RelationFunction thatRf,
+            Variable thisRow, ClassMapping.@com.legend.base.Nullable RelationFunction thisRf,
+            Variable thatRow, ClassMapping.@com.legend.base.Nullable RelationFunction thatRf,
             String assocName, ResolvedMapping md, ModelBuilder model) {
         return rewrite(v,
                 Map.of("this", thisRow, "that", thatRow),
@@ -49,7 +49,7 @@ final class RelationReads {
             Map<String, Variable> rowByVar,
             Map<String, ClassMapping.RelationFunction> rfByVar,
             String assocName, ResolvedMapping md,
-            @com.legend.Nullable Map<String, Map<String, Map<String, String>>> nestedCols) {
+            @com.legend.base.Nullable Map<String, Map<String, Map<String, String>>> nestedCols) {
         return rewrite(v, rowByVar, rfByVar, assocName, md,
                 nestedCols, null);
     }
@@ -58,8 +58,8 @@ final class RelationReads {
             Map<String, Variable> rowByVar,
             Map<String, ClassMapping.RelationFunction> rfByVar,
             String assocName, ResolvedMapping md,
-            @com.legend.Nullable Map<String, Map<String, Map<String, String>>> nestedCols,
-            @com.legend.Nullable ModelBuilder model) {
+            @com.legend.base.Nullable Map<String, Map<String, Map<String, String>>> nestedCols,
+            @com.legend.base.Nullable ModelBuilder model) {
         return rewrite(v, rowByVar, rfByVar, assocName, md, nestedCols, model, 0);
     }
 
@@ -71,8 +71,8 @@ final class RelationReads {
             Map<String, Variable> rowByVar,
             Map<String, ClassMapping.RelationFunction> rfByVar,
             String assocName, ResolvedMapping md,
-            @com.legend.Nullable Map<String, Map<String, Map<String, String>>> nestedCols,
-            @com.legend.Nullable ModelBuilder model, int derivedDepth) {
+            @com.legend.base.Nullable Map<String, Map<String, Map<String, String>>> nestedCols,
+            @com.legend.base.Nullable ModelBuilder model, int derivedDepth) {
         // NESTED hop read: $end.assocProp.leaf resolves to the nested
         // target's column on the END's composite row
         if (v instanceof AppliedProperty ap0

@@ -40,8 +40,8 @@ public final class PureModelContext implements ModelContext {
     private final ModelBuilder model;
     /** The platform's registrations — the implementation table's input beside the declarations. */
     private final com.legend.platform.Registrations registrations;
-    private com.legend.platform.@com.legend.Nullable DeclarationTable declarations;
-    private com.legend.platform.@com.legend.Nullable ImplementationTable implementations;
+    private com.legend.platform.@com.legend.base.Nullable DeclarationTable declarations;
+    private com.legend.platform.@com.legend.base.Nullable ImplementationTable implementations;
     private final TypeClassifier classifier;
     private final FunctionCompiler functions;
     private final ClassCompiler classes;
@@ -55,8 +55,8 @@ public final class PureModelContext implements ModelContext {
     /** DRIVER-SUPPLIED execution elements (PHASE_K_EXECUTION.md §4):
      * an overlay VIEW resolves exactly these two fqns to the supplied
      * records; null on ordinary contexts. */
-    private final com.legend.model.@com.legend.Nullable RuntimeDefinition overlayRuntime;
-    private final com.legend.model.@com.legend.Nullable ConnectionDefinition overlayConnection;
+    private final com.legend.model.@com.legend.base.Nullable RuntimeDefinition overlayRuntime;
+    private final com.legend.model.@com.legend.base.Nullable ConnectionDefinition overlayConnection;
 
     public PureModelContext(ModelBuilder model, com.legend.platform.Registrations registrations) {
         this(model, null, registrations);
@@ -66,14 +66,14 @@ public final class PureModelContext implements ModelContext {
      * collects EVERY failing element in one pass; the caller drops them
      * and rebuilds — the strict form throws on the first. */
     public PureModelContext(ModelBuilder model,
-            java.util.@com.legend.Nullable Map<String, String> wallSink,
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink,
             com.legend.platform.Registrations registrations) {
         this(model, wallSink, null, registrations);
     }
 
     private PureModelContext(ModelBuilder model,
-            java.util.@com.legend.Nullable Map<String, String> wallSink,
-            @com.legend.Nullable CheckedLayer prior,
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink,
+            @com.legend.base.Nullable CheckedLayer prior,
             com.legend.platform.Registrations registrations) {
         this.model = Objects.requireNonNull(model, "model");
         this.registrations = Objects.requireNonNull(registrations, "registrations");
@@ -145,15 +145,15 @@ public final class PureModelContext implements ModelContext {
 
     /** {@link #from} with a tolerant integrity wall sink (module compile). */
     public static PureModelContext from(com.legend.model.NormalizedModel normalized,
-            ModelBuilder index, java.util.@com.legend.Nullable Map<String, String> wallSink,
+            ModelBuilder index, java.util.@com.legend.base.Nullable Map<String, String> wallSink,
             com.legend.platform.Registrations registrations) {
         return from(normalized, index, wallSink, null, registrations);
     }
 
     /** {@link #from} over a graph that includes an already-checked layer. */
     public static PureModelContext from(com.legend.model.NormalizedModel normalized,
-            ModelBuilder index, java.util.@com.legend.Nullable Map<String, String> wallSink,
-            @com.legend.Nullable CheckedLayer prior, com.legend.platform.Registrations registrations) {
+            ModelBuilder index, java.util.@com.legend.base.Nullable Map<String, String> wallSink,
+            @com.legend.base.Nullable CheckedLayer prior, com.legend.platform.Registrations registrations) {
         // THE Phase-E -> Phase-F gate (T4.1 step 2): the index Phase E read
         // gains Phase E's products — the compiled mappings (their facts
         // stamped on them), the lifted functions — and the boot layer's
@@ -187,7 +187,7 @@ public final class PureModelContext implements ModelContext {
     /** A class's reach, and the first class on it that failed to compile
      * (a poisoned or unknown super): its supers are not walked. */
     private record Walked(java.util.Set<String> classes,
-            com.legend.error.@com.legend.Nullable LegendCompileException failure) {
+            com.legend.error.@com.legend.base.Nullable LegendCompileException failure) {
     }
 
     @Override
@@ -460,14 +460,14 @@ public final class PureModelContext implements ModelContext {
      * property's routed target class — stamped at Phase E from the
      * authored mapping's surface; nothing here re-reads a legacy record. */
     @Override
-    public java.util.@com.legend.Nullable List<String> unionMemberClasses(
+    public java.util.@com.legend.base.Nullable List<String> unionMemberClasses(
             String mappingFqn, String classFqn) {
         return model.findMapping(mappingFqn)
                 .map(md -> md.facts().unionMembers().get(classFqn)).orElse(null);
     }
 
     @Override
-    public @com.legend.Nullable String routedTargetClass(String mappingFqn,
+    public @com.legend.base.Nullable String routedTargetClass(String mappingFqn,
             String ownerClass, String prop) {
         return model.findMapping(mappingFqn)
                 .map(md -> md.facts().routedTargetClasses().getOrDefault(ownerClass, java.util.Map.of())
@@ -476,14 +476,14 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
-    public java.util.@com.legend.Nullable List<String> mixedUnionMembers(String mappingFqn,
+    public java.util.@com.legend.base.Nullable List<String> mixedUnionMembers(String mappingFqn,
             String classFqn) {
         return model.findMapping(mappingFqn)
                 .map(md -> md.facts().mixedUnions().get(classFqn)).orElse(null);
     }
 
     @Override
-    public java.util.@com.legend.Nullable List<com.legend.model.KeyThread> unionKeyThreads(
+    public java.util.@com.legend.base.Nullable List<com.legend.model.KeyThread> unionKeyThreads(
             String mappingFqn, String classFqn) {
         return model.findMapping(mappingFqn)
                 .map(md -> md.facts().unionKeyThreads().get(classFqn)).orElse(null);
@@ -515,7 +515,7 @@ public final class PureModelContext implements ModelContext {
     }
 
     public java.util.Optional<com.legend.model.RuntimeDefinition> findRuntime(
-            @com.legend.Nullable String fqn) {
+            @com.legend.base.Nullable String fqn) {
         Objects.requireNonNull(fqn, "fqn");
         if (overlayRuntime != null
                 && overlayRuntime.qualifiedName().equals(fqn)) {
@@ -679,7 +679,7 @@ public final class PureModelContext implements ModelContext {
 
     @Override
     public Optional<com.legend.model.DatabaseDefinition.ViewDefinition> findView(String dbFqn,
-            @com.legend.Nullable String schema, String name) {
+            @com.legend.base.Nullable String schema, String name) {
         return model.findView(dbFqn, schema, name);
     }
 
@@ -747,7 +747,7 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
-    public java.util.@com.legend.Nullable List<String> classifierInstances(
+    public java.util.@com.legend.base.Nullable List<String> classifierInstances(
             String classifierFqn) {
         // the registry table (METAMODEL_STORE_HANDOFF.md §3): tracked
         // classifiers answer their extent (the seeds read it), everything
@@ -796,13 +796,13 @@ public final class PureModelContext implements ModelContext {
 
     @Override
     public Optional<com.legend.model.DatabaseDefinition>
-            findDatabase(@com.legend.Nullable String dbFqn) {
+            findDatabase(@com.legend.base.Nullable String dbFqn) {
         return model.findDatabase(dbFqn);
     }
 
     @Override
     public Optional<com.legend.model.DatabaseDefinition.JoinDefinition>
-            findJoinDefinition(@com.legend.Nullable String dbFqn, String joinName) {
+            findJoinDefinition(@com.legend.base.Nullable String dbFqn, String joinName) {
         return model.findJoin(dbFqn, joinName);
     }
 

@@ -17,7 +17,7 @@ import java.util.List;
  * @param info      the source type unchanged ({@code T[m]})
  */
 public record TypedSortBy(TypedSpec source, TypedLambda key, boolean ascending,
-                          @com.legend.Nullable String keyAlias, ExprType info) implements TypedRelationOp {
+                          @com.legend.base.Nullable String keyAlias, ExprType info) implements TypedRelationOp {
 
     /** The common alias-less sort ({@code keyAlias} is the engine's
      * {@code !alias} path suffix — a sortBy path key materializes as the

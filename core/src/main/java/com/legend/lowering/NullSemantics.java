@@ -174,7 +174,7 @@ final class NullSemantics {
      *  {@code not(in)} gains the unconditional {@code OR L IS NULL}
      *  (dbExtension.pure processNotIn); null = no special arm, the
      *  caller emits the BARE not. */
-    static @com.legend.Nullable SqlExpr negate(SqlExpr inner,
+    static @com.legend.base.Nullable SqlExpr negate(SqlExpr inner,
             boolean enumInvolved) {
         if (!(inner instanceof SqlExpr.Call c)) {
             return null;

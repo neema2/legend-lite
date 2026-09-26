@@ -101,7 +101,7 @@ final class Comparators {
      * ascending, {@code {x,y|$y->compare($x)}} descending; anything richer
      * has no relational sort shape (null).
      */
-    static @com.legend.Nullable Boolean direction(TypedSpec spec) {
+    static @com.legend.base.Nullable Boolean direction(TypedSpec spec) {
         if (!(spec instanceof TypedLambda cmp)
                 || cmp.parameters().size() != 2 || cmp.body().size() != 1
                 || !(cmp.body().get(0) instanceof TypedNativeCall cc)

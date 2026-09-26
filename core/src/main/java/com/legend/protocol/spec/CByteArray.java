@@ -8,6 +8,6 @@ package com.legend.protocol.spec;
  * here is the BASE64 text exactly as the wire carries it.
  */
 public record CByteArray(String value,
-                         @com.legend.Nullable com.legend.protocol.SourceInfo pos)
+                         @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
         implements ValueSpecification {
 }

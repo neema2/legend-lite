@@ -126,7 +126,7 @@ final class SyntheticHeads {
         return JoinIdentity.of(head).kind() == JoinIdentity.Kind.FILTERED;
     }
 
-    @com.legend.Nullable TypedLambda pred(String head) {
+    @com.legend.base.Nullable TypedLambda pred(String head) {
         return preds.get(head);
     }
 
@@ -136,7 +136,7 @@ final class SyntheticHeads {
     }
 
     /** The positional pick parked on {@code head} ({@code #pN}), or null. */
-    @com.legend.Nullable Integer positionalPick(String head) {
+    @com.legend.base.Nullable Integer positionalPick(String head) {
         return positional.get(head);
     }
 
@@ -187,7 +187,7 @@ final class SyntheticHeads {
     }
 
     /** The CORRELATED predicate parked on {@code head}, or null. */
-    @com.legend.Nullable TypedLambda correlatedPred(String head) {
+    @com.legend.base.Nullable TypedLambda correlatedPred(String head) {
         return corrPreds.get(head);
     }
 
@@ -283,7 +283,7 @@ final class SyntheticHeads {
      * ({@link #rebaseToElement}) — part of the identity: two chains off
      * different heads never share one re-based predicate. */
     private String parkFiltered(String prop, TypedLambda pred,
-            boolean valuePosition, @com.legend.Nullable ElementScope scope) {
+            boolean valuePosition, @com.legend.base.Nullable ElementScope scope) {
         boolean closed = predClosedOverParam(pred);
         java.util.Map<String, TypedLambda> pool = closed ? preds : corrPreds;
         TypedSpec canon = alphaCanonicalBody(pred);
@@ -323,7 +323,7 @@ final class SyntheticHeads {
     private final Map<String, ElementScope> elementScopes =
             new LinkedHashMap<>();
 
-    @com.legend.Nullable ElementScope elementScope(String head) {
+    @com.legend.base.Nullable ElementScope elementScope(String head) {
         return elementScopes.get(head);
     }
 
@@ -348,7 +348,7 @@ final class SyntheticHeads {
      * it), the predicate reads another outer variable, or any outer read
      * does not pass through the first hop (those keep their loud walls —
      * a wrong row is never a gap). */
-    private @com.legend.Nullable Rebased rebaseToElement(TypedLambda pred,
+    private @com.legend.base.Nullable Rebased rebaseToElement(TypedLambda pred,
             TypedSpec below) {
         if (pred.parameters().size() != 1 || pred.body().size() != 1) {
             return null;
@@ -559,7 +559,7 @@ final class SyntheticHeads {
     }
 
     private TypedSpec liftFilteredHeads(TypedSpec n, boolean enabled,
-            @com.legend.Nullable FilterCtx fc) {
+            @com.legend.base.Nullable FilterCtx fc) {
         TypedSpec r = liftArms(n, enabled, fc);
         if (fc != null && !fc.pending().isEmpty()
                 && r.info().type() == Type.Primitive.BOOLEAN
@@ -587,7 +587,7 @@ final class SyntheticHeads {
     }
 
     private TypedSpec liftArms(TypedSpec n, boolean enabled,
-            @com.legend.Nullable FilterCtx fc) {
+            @com.legend.base.Nullable FilterCtx fc) {
         if (enabled) {
             n = canon.apply(n);
         }
@@ -735,7 +735,7 @@ final class SyntheticHeads {
     /** The structural descent: every node kind the lift walks through,
      * rebuilt with lifted children (unknown kinds pass unchanged). */
     private TypedSpec descend(TypedSpec n, boolean enabled,
-            @com.legend.Nullable FilterCtx fc) {
+            @com.legend.base.Nullable FilterCtx fc) {
         return switch (n) {
             case TypedProject p ->
                     new TypedProject(
@@ -933,7 +933,7 @@ final class SyntheticHeads {
      * navigation head — {@code $t.columns->at(k)[->cast(@C)].name} — lifts
      * into the synthetic head {@code columns#pN} (a to-one read: the k-th
      * row by the store ordinal); null for any other shape. */
-    private @com.legend.Nullable TypedSpec liftPositionalRead(TypedPropertyAccess pa) {
+    private @com.legend.base.Nullable TypedSpec liftPositionalRead(TypedPropertyAccess pa) {
         TypedSpec src = pa.source();
         Type castTo = null;
         while (true) {
@@ -976,7 +976,7 @@ final class SyntheticHeads {
      * the hop) — is {@code if(pred[$r], | $r.hops.leaf, | [])}, spelled so
      * every scan demands the hops on the instance and the substitution's
      * plain arms serve the reads. One owner for every hop count. */
-    private static @com.legend.Nullable TypedSpec instanceFilterNavRead(TypedSpec n,
+    private static @com.legend.base.Nullable TypedSpec instanceFilterNavRead(TypedSpec n,
             java.util.function.UnaryOperator<TypedSpec> canon) {
         List<TypedPropertyAccess> hops = new java.util.ArrayList<>();
         TypedSpec cur = n;
@@ -1020,7 +1020,7 @@ final class SyntheticHeads {
      * {@code map(map(xs, t | f), u | $u.leaf)} and the auto-map sugar
      * {@code map(xs, t | f).leaf} — fused to {@code map(xs, t | f.leaf)}
      * when {@code f} is class-typed. Null when not that shape. */
-    private static @com.legend.Nullable TypedSpec fuseLeafOverClassMap(TypedSpec n) {
+    private static @com.legend.base.Nullable TypedSpec fuseLeafOverClassMap(TypedSpec n) {
         TypedMap inner;
         String leaf;
         ExprType leafInfo;
@@ -1062,7 +1062,7 @@ final class SyntheticHeads {
     }
 
     private TypedSpec liftFilteredReadArm(TypedPropertyAccess pa,
-            TypedFilter f, @com.legend.Nullable FilterCtx fc) {
+            TypedFilter f, @com.legend.base.Nullable FilterCtx fc) {
         if (fc != null && f.predicate().body().size() == 1) {
             TypedSpec headF = liftFilteredHeads(f.source(), true, fc);
             TypedSpec renamedF;
@@ -1156,7 +1156,7 @@ final class SyntheticHeads {
         }
     }
 
-    private @com.legend.Nullable TypedSpec liftAggBareFilter(
+    private @com.legend.base.Nullable TypedSpec liftAggBareFilter(
             TypedNativeCall agg, boolean enabled) {
         if (agg.args().isEmpty()
                 || !CorrelatedSubselects.isAggregate(agg)
@@ -1307,7 +1307,7 @@ final class SyntheticHeads {
      * (null = unfiltered branch). Null when any branch refuses — the
      * caller falls through to the loud wall.
      */
-    private @com.legend.Nullable TypedSpec liftConcatStreams(TypedNativeCall cc,
+    private @com.legend.base.Nullable TypedSpec liftConcatStreams(TypedNativeCall cc,
             TypedPropertyAccess leafRead) {
         List<TypedSpec> streams = new java.util.ArrayList<>();
         flattenConcat(cc, streams);
@@ -1444,7 +1444,7 @@ final class SyntheticHeads {
      * a navigation body propagates null — β-inline the mapper so the leaf
      * read lands on the filter and the leaf-read arm lifts the DIRECT
      * spelling (the exploding-sub machinery). Null when not this shape. */
-    private @com.legend.Nullable TypedSpec liftMapWrappedFilterLeaf(
+    private @com.legend.base.Nullable TypedSpec liftMapWrappedFilterLeaf(
             TypedSpec n) {
         if (n instanceof TypedPropertyAccess paM
                 && paM.source() instanceof TypedMap mw
@@ -1471,7 +1471,7 @@ final class SyntheticHeads {
      * target is the UNION ALL of the branch pipelines (engine: one
      * unionalias subselect, LEFT-joined, row-exploding). Null = not
      * this shape. */
-    private @com.legend.Nullable TypedSpec liftConcatArm(TypedSpec n) {
+    private @com.legend.base.Nullable TypedSpec liftConcatArm(TypedSpec n) {
         if (!(n instanceof TypedPropertyAccess pa2)) {
             return null;
         }
@@ -1530,7 +1530,7 @@ final class SyntheticHeads {
      * caller falls through to the loud wall. Equal (variable, class,
      * branches) share ONE identity (engine merge-by-identity: the same
      * concatenated stream in two columns rides one union join). */
-    private @com.legend.Nullable TypedSpec liftUnionHead(TypedNativeCall cc,
+    private @com.legend.base.Nullable TypedSpec liftUnionHead(TypedNativeCall cc,
             Type.ClassType leafClass, TypedPropertyAccess leafRead) {
         List<TypedSpec> streams = new java.util.ArrayList<>();
         flattenConcat(cc, streams);
@@ -1622,7 +1622,7 @@ final class SyntheticHeads {
      *       the scalar first-row read).</li>
      * </ul>
      */
-    private @com.legend.Nullable TypedSpec foldWrappedSpelling(TypedSpec n) {
+    private @com.legend.base.Nullable TypedSpec foldWrappedSpelling(TypedSpec n) {
         if (n instanceof TypedNativeCall ex
                 && ex.callee().qualifiedName()
                         .equals("meta::pure::functions::collection::exists")
@@ -1905,7 +1905,7 @@ final class SyntheticHeads {
                 new LinkedHashMap<>(), new int[]{0});
     }
 
-    private static TypedSpec alphaNormalize(@com.legend.Nullable TypedSpec n,
+    private static TypedSpec alphaNormalize(@com.legend.base.Nullable TypedSpec n,
             Map<String, String> env, int[] counter) {
         if (n instanceof TypedVariable v) {
             String canonical = env.get(v.name());
@@ -1931,7 +1931,7 @@ final class SyntheticHeads {
     }
 
     /** The variable a liftable navigation chain bottoms at. */
-    private static String bottomVarOf(@com.legend.Nullable TypedSpec n) {
+    private static String bottomVarOf(@com.legend.base.Nullable TypedSpec n) {
         return switch (n) {
             case TypedVariable v -> v.name();
             case TypedPropertyAccess pa -> bottomVarOf(pa.source());

@@ -1292,7 +1292,7 @@ public class AnsiSqlRenderer implements SqlDialect {
     }
 
     /** {@code schema.table}; the default schema spells bare. */
-    protected String ddlQualified(@com.legend.Nullable String schema, String table) {
+    protected String ddlQualified(@com.legend.base.Nullable String schema, String table) {
         return schema == null || schema.isEmpty() || "default".equals(schema)
                 ? table : schema + "." + table;
     }

@@ -1,6 +1,6 @@
 package com.legend.warehouse.client;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import com.legend.server.Json;
 import com.legend.warehouse.sqlapi.ApiValues;
 import com.legend.warehouse.sqlapi.ArrowIpcReader;

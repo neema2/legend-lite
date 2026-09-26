@@ -364,7 +364,7 @@ class SqlTypingTest {
     // §E3-S WHERE≡INNER: a null-rejecting WHERE neutralizes the pad.
     // ------------------------------------------------------------------
 
-    private static SqlSelect starJoin(@com.legend.Nullable SqlExpr where) {
+    private static SqlSelect starJoin(@com.legend.base.Nullable SqlExpr where) {
         SqlSource.Table a = new SqlSource.Table("A", "a0", List.of(
                 new OutputCol("ID", SqlType.Scalar.BIGINT, false)), false);
         SqlSource.Table b = new SqlSource.Table("B", "b0", List.of(

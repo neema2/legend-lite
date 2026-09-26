@@ -61,7 +61,7 @@ final class Sectionize {
      * has no recorded offset); an EMPTY list means every element already
      * sits in its section.
      */
-    static @com.legend.Nullable List<Insertion> plan(String text) {
+    static @com.legend.base.Nullable List<Insertion> plan(String text) {
         com.legend.model.ParsedModel pm;
         java.util.List<com.legend.lexer.TokenStream.SectionHeader> headers;
         try {
@@ -101,7 +101,7 @@ final class Sectionize {
 
     /** {@link #plan(String)} applied in decoded space: each header on its
      *  own line ({@code \n###X\n}). Null/identity mirror plan()'s verdicts. */
-    static @com.legend.Nullable String apply(String text) {
+    static @com.legend.base.Nullable String apply(String text) {
         List<Insertion> inserts = plan(text);
         if (inserts == null) {
             return null;

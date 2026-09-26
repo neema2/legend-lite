@@ -1,6 +1,6 @@
 package com.legend.warehouse.server.duck;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;

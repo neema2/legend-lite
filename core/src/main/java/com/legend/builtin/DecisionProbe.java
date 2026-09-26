@@ -3,7 +3,7 @@
 
 package com.legend.builtin;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import com.legend.model.Function;
 
 import java.util.List;

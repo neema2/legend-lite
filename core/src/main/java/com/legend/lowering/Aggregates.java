@@ -112,7 +112,7 @@ public final class Aggregates {
      * second parameter, audit L7).
      */
     /** Nullable variant of {@link #reducerFor} — for is-this-a-reducer probes. */
-    static com.legend.sql.SqlAgg.@com.legend.Nullable Fn reducerOrNull(TypedFunction callee) {
+    static com.legend.sql.SqlAgg.@com.legend.base.Nullable Fn reducerOrNull(TypedFunction callee) {
         return REDUCERS.get(callee.signatureKey());
     }
 

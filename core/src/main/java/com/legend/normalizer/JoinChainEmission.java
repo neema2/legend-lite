@@ -224,7 +224,7 @@ final class JoinChainEmission {
      * (the one touching the main table).
      */
     private static List<JoinChainElement> perArmHops(Pipeline p,
-            @com.legend.Nullable String propName, @com.legend.Nullable String targetClassFqn,
+            @com.legend.base.Nullable String propName, @com.legend.base.Nullable String targetClassFqn,
             List<JoinChainElement> hops) {
         if (targetClassFqn == null || hops.size() < 2) {
             return hops;
@@ -246,11 +246,11 @@ final class JoinChainEmission {
      * {@link Pipeline#aliasToTargetTable}.
      */
     static void emitJoinChain(Pipeline p, List<JoinChainElement> hops,
-                                     @com.legend.Nullable String chainDb,
-                                     @com.legend.Nullable String propName,
-                                     @com.legend.Nullable String ownerClassFqn, String mainDb,
+                                     @com.legend.base.Nullable String chainDb,
+                                     @com.legend.base.Nullable String propName,
+                                     @com.legend.base.Nullable String ownerClassFqn, String mainDb,
                                      String mainTable, Variable rowBind,
-                                     ModelBuilder model, @com.legend.Nullable ResolvedMapping md,
+                                     ModelBuilder model, @com.legend.base.Nullable ResolvedMapping md,
                                      boolean classTypedTerminus) {
         emitJoinChain(p, hops, chainDb, propName, ownerClassFqn, mainDb, mainTable,
                 rowBind, model, md, classTypedTerminus, null);
@@ -265,13 +265,13 @@ final class JoinChainEmission {
      * entries ({@code vehicles[p, car]} + {@code vehicles[p, bike]}) keep
      * the per-arm union dispatch. */
     static void emitJoinChain(Pipeline p, List<JoinChainElement> hops,
-                                     @com.legend.Nullable String chainDb,
-                                     @com.legend.Nullable String propName,
-                                     @com.legend.Nullable String ownerClassFqn, String mainDb,
+                                     @com.legend.base.Nullable String chainDb,
+                                     @com.legend.base.Nullable String propName,
+                                     @com.legend.base.Nullable String ownerClassFqn, String mainDb,
                                      String mainTable, Variable rowBind,
-                                     ModelBuilder model, @com.legend.Nullable ResolvedMapping md,
+                                     ModelBuilder model, @com.legend.base.Nullable ResolvedMapping md,
                                      boolean classTypedTerminus,
-                                     @com.legend.Nullable String routedSetId) {
+                                     @com.legend.base.Nullable String routedSetId) {
         // a CLASS-TYPED chain is a mapping's; the view lift (E.5) emits
         // physical hops only and carries no mapping
         ResolvedMapping owner = classTypedTerminus
@@ -494,8 +494,8 @@ final class JoinChainEmission {
      * plain function reference, resolved under the queried mapping.
      */
     private static List<ValueSpecification> routeList(Pipeline p,
-            List<UnionSynthesis.UnionRoute> routes, @com.legend.Nullable String propName,
-            @com.legend.Nullable String prevTable, @com.legend.Nullable String prevAlias,
+            List<UnionSynthesis.UnionRoute> routes, @com.legend.base.Nullable String propName,
+            @com.legend.base.Nullable String prevTable, @com.legend.base.Nullable String prevAlias,
             String mainTable, Variable s, Variable t, ModelBuilder model,
             ResolvedMapping md) {
         boolean perArm = !UnionSynthesis.uniformChainedRoutes(
@@ -653,7 +653,7 @@ final class JoinChainEmission {
      * is the dedup identity; readers recover the name via {@link #slotFor}.
      */
     static String uniqueSlotName(Pipeline p,
-            @com.legend.Nullable List<String> path) {
+            @com.legend.base.Nullable List<String> path) {
         String base = String.join("__", path);
         if (!p.aliasToTargetTable.containsKey(base)) return base;
         int n = 2;
@@ -690,8 +690,8 @@ final class JoinChainEmission {
         return slot;
     }
 
-    static @com.legend.Nullable String classTypedTargetIfMapped(
-            @com.legend.Nullable String ownerClassFqn,
+    static @com.legend.base.Nullable String classTypedTargetIfMapped(
+            @com.legend.base.Nullable String ownerClassFqn,
             String propName, ModelBuilder model, MappingLedger ledger) {
         ClassDefinition owner = MissProbe.knownMiss(model.knowledge().hierarchyClass(ownerClassFqn));
         if (owner == null) return null;
@@ -712,8 +712,8 @@ final class JoinChainEmission {
     /** The declared class of a class-typed property, mapped or not (a
      * parameterized declaration targets its raw class); null when the
      * property is not class-typed. */
-    static @com.legend.Nullable String classTypedTarget(
-            @com.legend.Nullable String ownerClassFqn, String propName, ModelBuilder model) {
+    static @com.legend.base.Nullable String classTypedTarget(
+            @com.legend.base.Nullable String ownerClassFqn, String propName, ModelBuilder model) {
         ClassDefinition owner = MissProbe.knownMiss(model.knowledge().hierarchyClass(ownerClassFqn));
         if (owner == null) return null;
         TypeExpression propType = model.knowledge().propertyType(owner, propName);
@@ -730,7 +730,7 @@ final class JoinChainEmission {
                 model.findClass(c).isPresent() && ledger.isMapped(c));
     }
 
-    record JoinNavSpec(List<JoinChainElement> chain, @com.legend.Nullable String chainDb) {}
+    record JoinNavSpec(List<JoinChainElement> chain, @com.legend.base.Nullable String chainDb) {}
 
     static void collectJoinNavigationsInPms(List<PropertyMapping> pms,
                                                    List<JoinNavSpec> out) {
@@ -741,7 +741,7 @@ final class JoinChainEmission {
      * referenced set's expression-level {@code @Join} navigations hoist
      * into the OWNER pipeline exactly like a direct embedded block. */
     static void collectJoinNavigationsInPms(List<PropertyMapping> pms,
-            List<JoinNavSpec> out, @com.legend.Nullable ResolvedMapping md) {
+            List<JoinNavSpec> out, @com.legend.base.Nullable ResolvedMapping md) {
         for (PropertyMapping pm : pms) {
             switch (pm) {
                 case PropertyMapping.EnumeratedExpression ee -> collectJoinNavigations(ee.expression(), out);
@@ -813,13 +813,13 @@ final class JoinChainEmission {
      * its identity in {@code view} — the emission arms expand it as the
      * view's RELATION frame instead of a tableReference. */
     private record HopTarget(RelationalOperation cond, String table,
-            @com.legend.Nullable String view) {
+            @com.legend.base.Nullable String view) {
     }
 
     private static HopTarget hopTarget(RelationalOperation joinCond,
-            @com.legend.Nullable String viewTarget, @com.legend.Nullable String prevTable, String hopDb,
-            String joinName, @com.legend.Nullable String propName, int i, Pipeline p,
-            ModelBuilder model, @com.legend.Nullable ResolvedMapping md) {
+            @com.legend.base.Nullable String viewTarget, @com.legend.base.Nullable String prevTable, String hopDb,
+            String joinName, @com.legend.base.Nullable String propName, int i, Pipeline p,
+            ModelBuilder model, @com.legend.base.Nullable ResolvedMapping md) {
         if (viewTarget != null) {
             return new HopTarget(joinCond, viewTarget, viewTarget);
         }
@@ -846,9 +846,9 @@ final class JoinChainEmission {
      * cond replaces the expansion. Null = keep the expansion: a non-plain
      * view (filter/groupBy/distinct — a REAL relation the join lands on),
      * a foreign table's view, or an unmapped target class. */
-    private static @com.legend.Nullable RelationalOperation plainClassViewCond(
+    private static @com.legend.base.Nullable RelationalOperation plainClassViewCond(
             RelationalOperation joinCond, String viewTarget,
-            @com.legend.Nullable String targetClassFqn, String hopDb, ModelBuilder model,
+            @com.legend.base.Nullable String targetClassFqn, String hopDb, ModelBuilder model,
             ResolvedMapping md) {
         if (targetClassFqn == null) {
             return null;
@@ -1047,7 +1047,7 @@ final class JoinChainEmission {
      * column mappings, else the physical table's columns; empty when
      * unknown (the terminal rebase then leaves the column where spelled). */
     private static Set<String> targetColumnNames(String dbFqn, String targetTable,
-            @com.legend.Nullable String viewTarget, ModelBuilder model) {
+            @com.legend.base.Nullable String viewTarget, ModelBuilder model) {
         Set<String> out = new java.util.LinkedHashSet<>();
         if (viewTarget != null) {
             model.findView(dbFqn, viewTarget).ifPresent(v ->

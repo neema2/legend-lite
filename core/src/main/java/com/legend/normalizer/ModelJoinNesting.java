@@ -34,15 +34,15 @@ final class ModelJoinNesting {
     private ModelJoinNesting() {
     }
 
-    record Composed(@com.legend.Nullable ValueSpecification pipeA,
-            @com.legend.Nullable ValueSpecification pipeB,
+    record Composed(@com.legend.base.Nullable ValueSpecification pipeA,
+            @com.legend.base.Nullable ValueSpecification pipeB,
             Map<String, Map<String, Map<String, String>>> nestedCols) {}
 
     static Composed compose(ResolvedMapping md, ModelBuilder model,
             AssociationMapping.ModelJoin mj, AssociationDefinition ad2,
             String classA, String classB, String aVar, String bVar,
             Map<String, ClassMapping.RelationFunction> rfByVar,
-            @com.legend.Nullable ValueSpecification pipeA0, @com.legend.Nullable ValueSpecification pipeB0) {
+            @com.legend.base.Nullable ValueSpecification pipeA0, @com.legend.base.Nullable ValueSpecification pipeB0) {
         // NESTED HOPS ($employees.address.city): the mid property is
         // ANOTHER ModelJoin association — the END's pipeline composes
         // with the nested target joined in (the engine golden's side
@@ -145,7 +145,7 @@ final class ModelJoinNesting {
      * property-name rule — never suffix matching. */
     static String[] pairEndVars(String assocName,
             AssociationDefinition ad2, String classA, String classB,
-            Variable p0, Variable p1, @com.legend.Nullable String t0, @com.legend.Nullable String t1) {
+            Variable p0, Variable p1, @com.legend.base.Nullable String t0, @com.legend.base.Nullable String t1) {
         if (!classA.equals(classB) && classA.equals(t0) && classB.equals(t1)) {
             return new String[] {p0.name(), p1.name()};
         }

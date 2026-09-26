@@ -324,7 +324,7 @@ public class LegendHttpServer {
     /**
      * Extract the Runtime name from the Pure source.
      */
-    private @com.legend.Nullable String extractRuntimeName(String source) {
+    private @com.legend.base.Nullable String extractRuntimeName(String source) {
         Matcher matcher = RUNTIME_PATTERN.matcher(source);
         if (matcher.find()) {
             return matcher.group(1);

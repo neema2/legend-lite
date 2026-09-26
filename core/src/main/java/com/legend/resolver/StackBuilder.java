@@ -105,7 +105,7 @@ final class StackBuilder {
     }
 
     /** The leaf arms of a stack source; null for a non-stack source. */
-    @com.legend.Nullable List<ClassSource> leavesOf(ClassSource cs) {
+    @com.legend.base.Nullable List<ClassSource> leavesOf(ClassSource cs) {
         return leaves.get(cs);
     }
 
@@ -182,12 +182,12 @@ final class StackBuilder {
      * pipeline it projects (its own, or a route's rows re-rooted onto it),
      * and the route it came from (null for an operation's own member). */
     record Arm(ClassSource src, TypedSpec pipe,
-            com.legend.compiler.spec.typed.TypedNavigate.@com.legend.Nullable Route route) {
+            com.legend.compiler.spec.typed.TypedNavigate.@com.legend.base.Nullable Route route) {
     }
 
     ClassSource build(String mappingFqn, String classFqn, MappingDefinition mapping,
             MappingDefinition.ClassBinding.Operation op,
-            @com.legend.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
+            @com.legend.base.Nullable java.util.function.BiFunction<String, String, String> upstreamMapping,
             String contextKey) {
         List<Arm> arms = new ArrayList<>(op.memberSetIds().size());
         for (String setId : op.memberSetIds()) {
@@ -472,7 +472,7 @@ final class StackBuilder {
      * and the arm — are that table's rows ONCE, each row cast per arm; a
      * stack would thread every physical row once per member. The shared
      * table, or null when the arms are not that shape. */
-    private com.legend.compiler.spec.typed.@com.legend.Nullable TypedTableReference collapsedTable(
+    private com.legend.compiler.spec.typed.@com.legend.base.Nullable TypedTableReference collapsedTable(
             MappingDefinition mapping, String classFqn, List<Arm> arms) {
         if (arms.size() < 2) {
             return null;
@@ -566,7 +566,7 @@ final class StackBuilder {
 
     /** The top embedded property an {@code emb__} column belongs to, or
      * null for a plain column. */
-    private static @com.legend.Nullable String embeddedTopOf(String col, Embedded emb) {
+    private static @com.legend.base.Nullable String embeddedTopOf(String col, Embedded emb) {
         for (String top : emb.tops()) {
             if (col.startsWith(embCol(top, ""))) {
                 return top;
@@ -596,7 +596,7 @@ final class StackBuilder {
                 new ExprType(lFn, one)));
     }
 
-    static @com.legend.Nullable Type.Column columnOf(Type.RelationType row, String name) {
+    static @com.legend.base.Nullable Type.Column columnOf(Type.RelationType row, String name) {
         for (Type.Column c : row.columns()) {
             if (c.name().equals(name)) {
                 return c;
@@ -740,7 +740,7 @@ final class StackBuilder {
         };
     }
 
-    private static @com.legend.Nullable TypedNewInstance ctorAtPath(Map<String, TypedSpec> bindings,
+    private static @com.legend.base.Nullable TypedNewInstance ctorAtPath(Map<String, TypedSpec> bindings,
             String path) {
         String[] segs = path.split("\\.");
         TypedSpec b = bindings.get(segs[0]);
@@ -938,7 +938,7 @@ final class StackBuilder {
      * in the table's place; the fact survives), else the pipeline's root
      * scan. */
     private boolean overTable(MappingDefinition mapping, ClassSource arm,
-            @com.legend.Nullable String store, @com.legend.Nullable String table) {
+            @com.legend.base.Nullable String store, @com.legend.base.Nullable String table) {
         if (store == null || table == null) {
             return false;
         }
@@ -994,7 +994,7 @@ final class StackBuilder {
     private record Lift(String alias, Type targetType, TypedSpec target, List<Col> srcCols,
             List<TypedNavigate.Route> routes, Type.RelationType urow,
             java.util.function.Function<Type.RelationType, TypedLambda> predicate,
-            java.util.function.@com.legend.Nullable Function<Type.RelationType, TypedLambda> paired) {
+            java.util.function.@com.legend.base.Nullable Function<Type.RelationType, TypedLambda> paired) {
         TypedSpec step(TypedSpec source, Type.RelationType srcRow, Type.RelationType outRow) {
             var one = Multiplicity.Bounded.ONE;
             return new TypedNavigate(source, Optional.of(alias), target, predicate.apply(srcRow),
@@ -1081,7 +1081,7 @@ final class StackBuilder {
         return out;
     }
 
-    private @com.legend.Nullable Lift liftOf(String alias, int liftIx, String targetClass,
+    private @com.legend.base.Nullable Lift liftOf(String alias, int liftIx, String targetClass,
             MappingDefinition mapping, Map<Integer, TypedNavigate> steps, List<ClassSource> arms,
             List<Type.RelationType> armRows) {
         var one = Multiplicity.Bounded.ONE;
@@ -1621,7 +1621,7 @@ final class StackBuilder {
 
     /** The read path of {@code n} off {@code var}: {@code col} or
      * {@code slot.col} (one joined sub-row deep); null otherwise. */
-    static @com.legend.Nullable String readPath(TypedSpec n, String var) {
+    static @com.legend.base.Nullable String readPath(TypedSpec n, String var) {
         if (n instanceof TypedPropertyAccess pa) {
             if (pa.source() instanceof TypedVariable v && v.name().equals(var)) {
                 return pa.property();
@@ -1735,12 +1735,12 @@ final class StackBuilder {
 
     /** A row type from either spelling: a lambda parameter is typed as the
      * bare row, a relation value as {@code Relation<row>}. */
-    static Type.@com.legend.Nullable RelationType rowOf(Type t) {
+    static Type.@com.legend.base.Nullable RelationType rowOf(Type t) {
         Type.RelationType r = Type.relationSchema(t);
         return r != null ? r : t instanceof Type.RelationType bare ? bare : null;
     }
 
-    static @com.legend.Nullable Type pathType(Type.RelationType row, String path) {
+    static @com.legend.base.Nullable Type pathType(Type.RelationType row, String path) {
         Type.RelationType at = row;
         Type found = null;
         String[] parts = path.split("\\.");
@@ -1782,7 +1782,7 @@ final class StackBuilder {
      * which disagreed with the rule that resolves the arm it is deciding
      * about — and the answer decides which union arms are DEAD and read as
      * typed NULLs (audit 2026-09-15 P2-3). */
-    private MappingDefinition.@com.legend.Nullable ClassBinding findBinding(MappingDefinition mapping,
+    private MappingDefinition.@com.legend.base.Nullable ClassBinding findBinding(MappingDefinition mapping,
             String classFqn) {
         return sources.findBinding(mapping, classFqn, null, new LinkedHashSet<>());
     }
@@ -1794,7 +1794,7 @@ final class StackBuilder {
     /** The set ids of the LEAF sets a class resolves to under the queried
      * mapping: its root binding's members (operations expanded), or the
      * root/sole set itself; null when the class has no such binding. */
-    @com.legend.Nullable Set<String> leafSetIds(MappingDefinition mapping,
+    @com.legend.base.Nullable Set<String> leafSetIds(MappingDefinition mapping,
             String classFqn) {
         MappingDefinition.ClassBinding tb = findBinding(mapping, classFqn);
         if (tb == null) {
@@ -1828,7 +1828,7 @@ final class StackBuilder {
         }
     }
 
-    private @com.legend.Nullable String targetSetIdOf(MappingDefinition mapping, TypedSpec target) {
+    private @com.legend.base.Nullable String targetSetIdOf(MappingDefinition mapping, TypedSpec target) {
         if (!(target instanceof TypedUserCall uc)) {
             return null;
         }
@@ -1942,7 +1942,7 @@ final class StackBuilder {
      * its {@code targetParam}-th parameter's row — a union target's
      * threads project the link keys they publish, so this is a no-op
      * unless a consumer materialized the target without them. */
-    static TypedSpec demandForCondition(TypedSpec pipe, @com.legend.Nullable TypedLambda cond,
+    static TypedSpec demandForCondition(TypedSpec pipe, @com.legend.base.Nullable TypedLambda cond,
             int targetParam) {
         if (cond == null || cond.parameters().size() <= targetParam) {
             return pipe;

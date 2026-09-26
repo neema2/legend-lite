@@ -45,7 +45,7 @@ final class MappingPrePass {
      * absent from the result) or thrown under a strict one &mdash; exactly
      * the driver's own per-mapping discipline. */
     static Map<String, ResolvedMapping> run(ParsedModel parsed, ModelBuilder model,
-            java.util.@com.legend.Nullable Map<String, String> wallSink, LiftedViews views) {
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink, LiftedViews views) {
         Map<String, ResolvedMapping> pre = new LinkedHashMap<>();
         for (PackageableElement el : parsed.elements()) {
             if (!(el instanceof LegacyMappingDefinition md)) {

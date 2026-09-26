@@ -1,6 +1,6 @@
 package com.legend.warehouse.client.jdbc;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import com.legend.server.Json;
 import com.legend.warehouse.sqlapi.DuckType;
 import com.legend.warehouse.sqlapi.SqlApi.Column;
@@ -303,7 +303,7 @@ final class WhResultSet implements java.sql.ResultSet {
     }
 
     @Override
-    public @com.legend.Nullable SQLWarning getWarnings() {
+    public @com.legend.base.Nullable SQLWarning getWarnings() {
         return null;
     }
 

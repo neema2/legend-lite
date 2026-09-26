@@ -88,7 +88,7 @@ final class StaticFold {
     /** The expression as a fully static LITERAL, or null — the Typer's
      * TDSColumn-metadata fold ({@code X.columns->map(c|$c.name...)} asserts)
      * only rewrites when the whole computation is schema facts. */
-    @com.legend.Nullable ValueSpecification foldToLiteral(ValueSpecification v) {
+    @com.legend.base.Nullable ValueSpecification foldToLiteral(ValueSpecification v) {
         return reify(eval(v, Map.of()));
     }
 
@@ -211,7 +211,7 @@ final class StaticFold {
      * call's arity — among the call's OWN candidates (the resolver's, or the
      * bare-name rule's), never a bare re-lookup — and not already on the
      * fold's stack (a recursive program never terminates statically). */
-    private com.legend.compiler.element.@com.legend.Nullable TypedFunction bodiedCallee(AppliedFunction af) {
+    private com.legend.compiler.element.@com.legend.base.Nullable TypedFunction bodiedCallee(AppliedFunction af) {
         List<com.legend.compiler.element.TypedFunction> bodied = new ArrayList<>();
         for (var f : typer.functionCandidates(af)) {
             if (f.body().isPresent() && f.parameters().size() == af.parameters().size()) {
@@ -222,7 +222,7 @@ final class StaticFold {
                 ? bodied.get(0) : null;
     }
 
-    private @com.legend.Nullable ValueSpecification inlineUserCall(AppliedFunction af,
+    private @com.legend.base.Nullable ValueSpecification inlineUserCall(AppliedFunction af,
             Map<String, Object> scope) {
         List<ValueSpecification> ps = af.parameters();
         var callee = bodiedCallee(af);
@@ -261,7 +261,7 @@ final class StaticFold {
 
     /** The callee's body as ONE expression (its lets inlined through the shared
      * funnel), or null when it has non-let intermediate statements. */
-    private static @com.legend.Nullable ValueSpecification singleBody(
+    private static @com.legend.base.Nullable ValueSpecification singleBody(
             com.legend.compiler.element.TypedFunction callee) {
         LambdaFunction lets = SourceSubst.inlineLets(new LambdaFunction(List.of(),
                 callee.body().orElseThrow()));
@@ -273,7 +273,7 @@ final class StaticFold {
      * library function with a body — natives evaluate by their fold row).
      * Null = not such a call, or not static; a callee already on the stack is
      * a recursive program and is left to the ordinary path. */
-    private @com.legend.Nullable Object evalUserCall(AppliedFunction af, Map<String, Object> scope) {
+    private @com.legend.base.Nullable Object evalUserCall(AppliedFunction af, Map<String, Object> scope) {
         List<ValueSpecification> ps = af.parameters();
         var callee = bodiedCallee(af);
         if (callee == null) {
@@ -303,7 +303,7 @@ final class StaticFold {
     // eval — the static interpreter (null = not static)
     // =====================================================================
 
-    private @com.legend.Nullable Object eval(ValueSpecification v, Map<String, Object> scope) {
+    private @com.legend.base.Nullable Object eval(ValueSpecification v, Map<String, Object> scope) {
         if (v instanceof LambdaFunction) {
             // a lambda LITERAL is an opaque static value: a pair list of
             // (type, accessor lambda) filters statically to the one
@@ -334,7 +334,7 @@ final class StaticFold {
         };
     }
 
-    private @com.legend.Nullable Object evalProperty(AppliedProperty ap, Map<String, Object> scope) {
+    private @com.legend.base.Nullable Object evalProperty(AppliedProperty ap, Map<String, Object> scope) {
         if (ap.property().equals("columns")) {
             Object recv = eval(ap.receiver(), scope);
             if (recv == null) {
@@ -379,7 +379,7 @@ final class StaticFold {
     /** The TDSColumn facts of a relation-typed receiver — TYPED speculatively
      * (the receiver re-types when the folded body synths; the Typer is
      * effect-free on failure). Null when it does not type to a relation. */
-    private @com.legend.Nullable List<Object> relationColumns(ValueSpecification receiver) {
+    private @com.legend.base.Nullable List<Object> relationColumns(ValueSpecification receiver) {
         try {
             var typed = typer.synth(receiver, env);
             if (Type.schemaView(typed.info().type()) instanceof Type.RelationType rt) {
@@ -435,7 +435,7 @@ final class StaticFold {
         }
 
         /** The operation {@code af} names, or null when it names none of them. */
-        static @com.legend.Nullable FoldOp of(AppliedFunction af) {
+        static @com.legend.base.Nullable FoldOp of(AppliedFunction af) {
             java.util.List<String> referents = com.legend.compiler.ResolvedNames.referents(af);
             for (FoldOp op : values()) {
                 for (String r : referents) {
@@ -448,7 +448,7 @@ final class StaticFold {
         }
     }
 
-    private @com.legend.Nullable Object evalCall(AppliedFunction af, Map<String, Object> scope) {
+    private @com.legend.base.Nullable Object evalCall(AppliedFunction af, Map<String, Object> scope) {
         List<ValueSpecification> ps = af.parameters();
         FoldOp op = FoldOp.of(af);
         if (op == null) {
@@ -729,7 +729,7 @@ final class StaticFold {
         return folded.body().get(0);
     }
 
-    private @com.legend.Nullable Object evalWith(LambdaFunction lam, Object arg, Map<String, Object> scope) {
+    private @com.legend.base.Nullable Object evalWith(LambdaFunction lam, Object arg, Map<String, Object> scope) {
         if (lam.body().size() != 1) {
             return null;
         }
@@ -746,7 +746,7 @@ final class StaticFold {
                 ? run.values() : af.parameters();
     }
 
-    private @com.legend.Nullable List<Object> evalAll(List<ValueSpecification> ps, Map<String, Object> scope) {
+    private @com.legend.base.Nullable List<Object> evalAll(List<ValueSpecification> ps, Map<String, Object> scope) {
         List<Object> out = new ArrayList<>(ps.size());
         for (ValueSpecification p : ps) {
             Object e = eval(p, scope);
@@ -758,7 +758,7 @@ final class StaticFold {
         return out;
     }
 
-    private @com.legend.Nullable List<Object> evalList(ValueSpecification v, Map<String, Object> scope) {
+    private @com.legend.base.Nullable List<Object> evalList(ValueSpecification v, Map<String, Object> scope) {
         Object e = eval(v, scope);
         return switch (e) {
             case List<?> l -> new ArrayList<>(l);
@@ -771,7 +771,7 @@ final class StaticFold {
         };
     }
 
-    private static @com.legend.Nullable String stringify(@com.legend.Nullable Object v) {
+    private static @com.legend.base.Nullable String stringify(@com.legend.base.Nullable Object v) {
         return switch (v) {
             case String s -> s;
             case Long l -> String.valueOf(l);
@@ -803,7 +803,7 @@ final class StaticFold {
     // reify — static value back to a literal AST (null = keep the AST)
     // =====================================================================
 
-    private static @com.legend.Nullable ValueSpecification reify(@com.legend.Nullable Object v) {
+    private static @com.legend.base.Nullable ValueSpecification reify(@com.legend.base.Nullable Object v) {
         return switch (v) {
             case String s -> new CString(s);
             case Long l -> new CInteger(l);

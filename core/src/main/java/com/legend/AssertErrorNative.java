@@ -132,7 +132,7 @@ final class AssertErrorNative {
 
     /** {@code Integer[0..1]} argument: a literal, {@code []}, or absent
      * (the 2-arg overload). Null = empty. */
-    private static @com.legend.Nullable Long optionalInt(TypedNativeCall ae,
+    private static @com.legend.base.Nullable Long optionalInt(TypedNativeCall ae,
             int i) {
         if (ae.args().size() <= i) {
             return null;

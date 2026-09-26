@@ -84,7 +84,7 @@ final class MappingFacts {
         return out;
     }
 
-    private static @com.legend.Nullable String routedTargetClass(LegacyMappingDefinition lm,
+    private static @com.legend.base.Nullable String routedTargetClass(LegacyMappingDefinition lm,
             String ownerClass, String prop) {
         for (ClassMapping cm : lm.classMappings()) {
             if (!(cm instanceof ClassMapping.Relational rcm) || !rcm.className().equals(ownerClass)) {

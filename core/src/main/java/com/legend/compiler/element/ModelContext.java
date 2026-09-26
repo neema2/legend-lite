@@ -132,7 +132,7 @@ public interface ModelContext extends StoreLookups {
      * {@code ->from(...)} or through the driver's execution context).
      */
     Optional<com.legend.model.RuntimeDefinition> findRuntime(
-            @com.legend.Nullable String fqn);
+            @com.legend.base.Nullable String fqn);
 
     /** The {@code ###Data} element for {@code fqn}, if present &mdash; what a
      *  test suite's {@code Reference #{ path }#} names. */
@@ -166,7 +166,7 @@ public interface ModelContext extends StoreLookups {
      * classes); null when the class is not union-mapped there or a member
      * set is not declared in that mapping — the chain-position cast rule
      * (StoreResolver) reads the extent's real membership. */
-    default java.util.@com.legend.Nullable List<String> unionMemberClasses(
+    default java.util.@com.legend.base.Nullable List<String> unionMemberClasses(
             String mappingFqn, String classFqn) {
         return null;
     }
@@ -174,12 +174,12 @@ public interface ModelContext extends StoreLookups {
     /** The class of the set a class-typed property mapping ROUTES to
      * ({@code prop[setId]: @J} on {@code ownerClass}'s Relational set in
      * {@code mappingFqn}); null when unrouted or unknown. */
-    default @com.legend.Nullable String routedTargetClass(String mappingFqn,
+    default @com.legend.base.Nullable String routedTargetClass(String mappingFqn,
             String ownerClass, String prop) {
         return null;
     }
 
-    default java.util.@com.legend.Nullable List<String> mixedUnionMembers(String mappingFqn,
+    default java.util.@com.legend.base.Nullable List<String> mixedUnionMembers(String mappingFqn,
             String classFqn) {
         return null;
     }
@@ -188,7 +188,7 @@ public interface ModelContext extends StoreLookups {
      * under {@code mappingFqn} (member order, {@code <col>_<ordinal>} with
      * the column's Pure kind) — the engine's importDataFlow columns; null
      * when the class is not a union there. */
-    default java.util.@com.legend.Nullable List<com.legend.model.KeyThread> unionKeyThreads(
+    default java.util.@com.legend.base.Nullable List<com.legend.model.KeyThread> unionKeyThreads(
             String mappingFqn, String classFqn) {
         return null;
     }
@@ -248,7 +248,7 @@ public interface ModelContext extends StoreLookups {
     /** {@link #findView} by schema and name — the index spells the key
      *  ({@code default} or no schema: bare; any other: {@code SCHEMA.NAME}). */
     Optional<com.legend.model.DatabaseDefinition.ViewDefinition> findView(String dbFqn,
-            @com.legend.Nullable String schema, String name);
+            @com.legend.base.Nullable String schema, String name);
 
     /** The view's LIFTED function (E.5: {@code <owner>$view$<spelling>}, its
      *  one body expression the view's relation), reached from {@code dbFqn}
@@ -270,7 +270,7 @@ public interface ModelContext extends StoreLookups {
      * join by joining the registry. {@code null} = the registry does not
      * TRACK this classifier (a user class — the store lane owns it); an
      * empty list is an honest empty extent. Deterministic: sorted by FQN. */
-    default java.util.@com.legend.Nullable List<String> classifierInstances(
+    default java.util.@com.legend.base.Nullable List<String> classifierInstances(
             String classifierFqn) {
         return null;
     }
@@ -304,14 +304,14 @@ public interface ModelContext extends StoreLookups {
      * driven seeding) enumerates a module's databases through this. */
     @Override
     default Optional<com.legend.model.DatabaseDefinition>
-            findDatabase(@com.legend.Nullable String dbFqn) {
+            findDatabase(@com.legend.base.Nullable String dbFqn) {
         return Optional.empty();
     }
 
     /** A join by name, INCLUDE-CLOSURE aware (real Legend: Database
      * MyDb ( include db ) resolves db's joins; own definitions win). */
     default Optional<com.legend.model.DatabaseDefinition.JoinDefinition>
-            findJoinDefinition(@com.legend.Nullable String dbFqn, String joinName) {
+            findJoinDefinition(@com.legend.base.Nullable String dbFqn, String joinName) {
         return Optional.empty();
     }
 

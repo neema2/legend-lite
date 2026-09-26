@@ -206,7 +206,7 @@ public final class ImplementationTable {
     }
 
     /** The implementation of the declaration {@code id}, or null if the table does not declare it. */
-    public @com.legend.Nullable Implementation of(FunctionId id) {
+    public @com.legend.base.Nullable Implementation of(FunctionId id) {
         return rows.get(id);
     }
 
@@ -224,7 +224,7 @@ public final class ImplementationTable {
 
     /** Whether the platform runs {@code declaration} by its own rule or form
      *  (never by the declaration's body); false for null or an undeclared one. */
-    public boolean runsByRule(com.legend.model.@com.legend.Nullable Function declaration) {
+    public boolean runsByRule(com.legend.model.@com.legend.base.Nullable Function declaration) {
         return declaration != null && Implementation.byRule(of(FunctionId.of(declaration)));
     }
 

@@ -40,7 +40,7 @@ final class CalendarAgg {
     record Ctx(String cal0, String cal1) {
     }
 
-    static @com.legend.Nullable TypedNativeCall calendarCallOf(TypedSpec mapBody) {
+    static @com.legend.base.Nullable TypedNativeCall calendarCallOf(TypedSpec mapBody) {
         return mapBody instanceof TypedNativeCall c
                 && NativeFn.Calendar.of(c.callee().qualifiedName()).isPresent()
                 && c.args().size() == 4

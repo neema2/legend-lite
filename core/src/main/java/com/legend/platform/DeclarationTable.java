@@ -67,7 +67,7 @@ public final class DeclarationTable {
     }
 
     /** The declaration with exactly this id, or null. */
-    public @com.legend.Nullable Function get(FunctionId id) {
+    public @com.legend.base.Nullable Function get(FunctionId id) {
         return byId.get(id);
     }
 

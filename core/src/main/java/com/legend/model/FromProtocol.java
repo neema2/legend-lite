@@ -222,7 +222,7 @@ public final class FromProtocol {
 
     /** The wire carries a LIST of milestoning entries, one per dimension;
      *  the model carries one record with a business and a processing slot. */
-    private static DatabaseDefinition.TableDefinition.@com.legend.Nullable Milestoning
+    private static DatabaseDefinition.TableDefinition.@com.legend.base.Nullable Milestoning
             milestoning(List<com.legend.protocol.Protocol.PMilestoning> ms) {
         if (ms == null || ms.isEmpty()) {
             return null;
@@ -259,7 +259,7 @@ public final class FromProtocol {
 
     private static DatabaseDefinition.ViewDefinition view(
             com.legend.protocol.Protocol.PDbView v,
-            @com.legend.Nullable String enclosingDb) {
+            @com.legend.base.Nullable String enclosingDb) {
         List<DatabaseDefinition.ViewDefinition.ViewColumnMapping> cms =
                 new java.util.ArrayList<>();
         for (com.legend.protocol.Protocol.PViewColumnMapping cm : v.columnMappings()) {
@@ -277,8 +277,8 @@ public final class FromProtocol {
                 groupBy, v.distinct(), cms);
     }
 
-    private static @com.legend.Nullable FilterMapping filterMapping(
-            com.legend.protocol.Protocol.@com.legend.Nullable PViewFilter f) {
+    private static @com.legend.base.Nullable FilterMapping filterMapping(
+            com.legend.protocol.Protocol.@com.legend.base.Nullable PViewFilter f) {
         if (f == null) {
             return null;
         }

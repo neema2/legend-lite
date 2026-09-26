@@ -74,7 +74,7 @@ final class TableIndex {
     }
 
     /** The table {@code name} spells in this database, or null. */
-    @com.legend.Nullable TableDefinition find(String name) {
+    @com.legend.base.Nullable TableDefinition find(String name) {
         int dot = name.indexOf('.');
         if (dot <= 0) {
             return bare.get(name);

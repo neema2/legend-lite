@@ -135,7 +135,7 @@ public final class Shadow implements DecisionProbe {
     /** Decision point 2: what lowering picked for {@code callee} ({@code today}
      *  names the pick) against the implementation table's row for its id. */
     @Override
-    public void onPick(@com.legend.Nullable Function definition, String today) {
+    public void onPick(@com.legend.base.Nullable Function definition, String today) {
         if (definition == null) {
             return;
         }
@@ -161,7 +161,7 @@ public final class Shadow implements DecisionProbe {
      *  spelled name — recorded whole, so a resolver change is measured by the
      *  sets it changes, call by call. */
     @Override
-    public void onCandidates(String name, String source, Stream<@com.legend.Nullable Function> candidates) {
+    public void onCandidates(String name, String source, Stream<@com.legend.base.Nullable Function> candidates) {
         Set<String> ids = new TreeSet<>();
         candidates.filter(java.util.Objects::nonNull).forEach(f -> ids.add(FunctionId.of(f).qualified()));
         write("CANDIDATES", name, String.valueOf(ids.size()), String.join(",", ids), source);

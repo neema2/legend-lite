@@ -40,7 +40,7 @@ record SqlTextInputs(TypedSpec query, TypedSpec mapping, TypedSpec dialect,
      * receiver form over something that is not a {@code toSQL} handle, or
      * a direct form short of its three structured arguments (a caller
      * that owns a wall throws its own). */
-    static @Nullable SqlTextInputs of(com.legend.compiler.spec.NativeDispatch.RoutineCall call,
+    static @com.legend.base.Nullable SqlTextInputs of(com.legend.compiler.spec.NativeDispatch.RoutineCall call,
             List<TypedSpec> letPrefix) {
         String fqn = call.fqn();
         // the RECEIVER form: SQLResult's qualified property toSQLString(dbType,

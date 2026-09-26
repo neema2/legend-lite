@@ -142,7 +142,7 @@ final class LiftedViews {
 
     /** E.5, eager like E.2–E.4: every view lifted; a wall recorded under the
      *  lifted FQN when a sink exists, thrown under the strict entry. */
-    void liftAll(java.util.@com.legend.Nullable Map<String, String> wallSink) {
+    void liftAll(java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
         for (DatabaseDefinition.ViewDefinition v : order) {
             try {
                 body(v);

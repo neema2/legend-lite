@@ -1,6 +1,6 @@
 package com.legend.warehouse.server;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Files;

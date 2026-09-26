@@ -100,7 +100,7 @@ final class OperatorParts {
      * parameter with a node built from it; otherwise &rarr; build with the
      * accumulator as the initial (left) value.
      */
-    private static Acc processOp(ArithPart p, @com.legend.Nullable Acc acc,
+    private static Acc processOp(ArithPart p, @com.legend.base.Nullable Acc acc,
             ValueSpecification initial) {
         if (acc == null) {
             return new Acc(buildArithPart(p, initial), p.fn());

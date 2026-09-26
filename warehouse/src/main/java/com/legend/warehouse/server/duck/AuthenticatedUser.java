@@ -3,7 +3,7 @@ package com.legend.warehouse.server.duck;
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;

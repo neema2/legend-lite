@@ -1,6 +1,6 @@
 package com.legend.warehouse.server;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;

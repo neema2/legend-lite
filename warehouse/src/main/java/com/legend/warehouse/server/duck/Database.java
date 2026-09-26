@@ -2,7 +2,7 @@ package com.legend.warehouse.server.duck;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.nio.file.Path;

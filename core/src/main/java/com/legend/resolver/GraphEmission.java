@@ -165,7 +165,7 @@ final class GraphEmission {
      * date when one exists (point fetch), else the row's own
      * validity-start milestone column (version sweep); {@code null} when
      * the property is not a generated date here. */
-    @com.legend.Nullable TypedSpec generatedDateLeaf(ClassSource cs, String prop,
+    @com.legend.base.Nullable TypedSpec generatedDateLeaf(ClassSource cs, String prop,
             Type.RelationType rowType,
             String rowVar) {
         if ((!prop.equals("businessDate") && !prop.equals("processingDate"))
@@ -259,7 +259,7 @@ final class GraphEmission {
             ExprType info, boolean checked) {
         pipeline = demandAssociationParentKeys(cs, pipeline, tree);
         var rowType = Type.requireRelationSchema(pipeline.info().type());
-        java.util.function.Function<@com.legend.Nullable TypedSpec, TypedSpec> toRow = v -> new TypedVariable(
+        java.util.function.Function<@com.legend.base.Nullable TypedSpec, TypedSpec> toRow = v -> new TypedVariable(
                 rowVar, new ExprType(rowType,
                         com.legend.compiler.element.type.Multiplicity.Bounded.ONE));
         List<TypedFuncCol> leaves = new ArrayList<>();
@@ -517,7 +517,7 @@ final class GraphEmission {
      * lowering treats them ASC and best-effort. */
     private List<TypedFuncCol> pkOrderKeys(ClassSource cs, TypedSpec pipeline,
             Type.RelationType rowType, String rowVar,
-            java.util.function.Function<@com.legend.Nullable TypedSpec, TypedSpec> toRow) {
+            java.util.function.Function<@com.legend.base.Nullable TypedSpec, TypedSpec> toRow) {
         List<TypedFuncCol> keys = new ArrayList<>();
         for (String pk : RelationalRootForm.primaryKeyColumns(
                 cs.classFqn(), pipeline, cs.mappingFqn(), ctx)) {
@@ -548,7 +548,7 @@ final class GraphEmission {
     private TypedSerializeGraph withChecked(TypedSerializeGraph node,
             ClassSource cs, Map<String, String> slotPrefixes,
             Set<String> stripped, String rowVar, Type.RelationType rowType,
-            StoreResolver.Context context, java.util.function.Function<@com.legend.Nullable TypedSpec, TypedSpec> toRow) {
+            StoreResolver.Context context, java.util.function.Function<@com.legend.base.Nullable TypedSpec, TypedSpec> toRow) {
         // CHECKED + ->subType patches: the engine's checked value carries
         // ONLY the subtype projection — base leaves/children drop
         // (RootSubType...Checked golden: {"value":{"coordinate":…,
@@ -576,7 +576,7 @@ final class GraphEmission {
             checkedConstraints(ClassSource cs,
             Map<String, String> slotPrefixes, Set<String> stripped,
             String rowVar, Type.RelationType rowType,
-            StoreResolver.Context context, java.util.function.Function<@com.legend.Nullable TypedSpec, TypedSpec> toRow) {
+            StoreResolver.Context context, java.util.function.Function<@com.legend.base.Nullable TypedSpec, TypedSpec> toRow) {
         java.util.List<TypedSerializeGraph.CheckedConstraint> out =
                 new ArrayList<>();
         java.util.ArrayDeque<String> work = new java.util.ArrayDeque<>();
@@ -618,7 +618,7 @@ final class GraphEmission {
     private TypedFuncCol constraintFnCol(String name, String bodyFqn,
             ClassSource cs, Map<String, String> slotPrefixes,
             Set<String> stripped, String rowVar, Type.RelationType rowType,
-            StoreResolver.Context context, java.util.function.Function<@com.legend.Nullable TypedSpec, TypedSpec> toRow) {
+            StoreResolver.Context context, java.util.function.Function<@com.legend.base.Nullable TypedSpec, TypedSpec> toRow) {
         var cf = sources.compileSynthFn(bodyFqn);
         String thisVar = cf.signature().parameters().get(0).name();
         TypedSpec body = inlineThis(cf.body().get(cf.body().size() - 1),
@@ -675,7 +675,7 @@ final class GraphEmission {
      * Temporal targets stay un-rewritten (the per-hop date calculus does
      * not thread here) — their reads keep the loud H4b wall.
      */
-    private @com.legend.Nullable TypedSpec correlateStrippedNavReads(TypedSpec n, ClassSource cs,
+    private @com.legend.base.Nullable TypedSpec correlateStrippedNavReads(TypedSpec n, ClassSource cs,
             String rowVar, Type.RelationType rowType, Set<String> stripped,
             StoreResolver.Context context) {
         var navSteps = Pipelines.outerNavSteps(cs.pipeline());
@@ -764,7 +764,7 @@ final class GraphEmission {
      * DECLARED property multiplicity is the guard (the raw read types
      * per COLUMN [0..1], masking the property's [*] — same rule as the
      * whole-source path). Null when the shape does not match. */
-    private TypedSerializeGraph.@com.legend.Nullable Child primitiveArrayLeaf(ClassSource cs,
+    private TypedSerializeGraph.@com.legend.base.Nullable Child primitiveArrayLeaf(ClassSource cs,
             com.legend.compiler.spec.typed.TypedGraphTree node,
             TypedSpec inner, String rowVar, Type.RelationType rowType) {
         var declLeaf = ctx.findProperty(cs.classFqn(), node.property())
@@ -1099,7 +1099,7 @@ final class GraphEmission {
      * λ(sourceRow, targetRow) correlates them.
      */
     TypedSerializeGraph.Child navSlotChild(ClassSource cs, TypedGraphTree node,
-            TypedNavigate nav, @com.legend.Nullable String castClassFqn,
+            TypedNavigate nav, @com.legend.base.Nullable String castClassFqn,
             StoreResolver.Context context, String parentRowVar,
             Type.RelationType parentRowType) {
         return navSlotChild(cs, cs.classFqn(), node, nav, castClassFqn,
@@ -1111,7 +1111,7 @@ final class GraphEmission {
      * inside an embedded ctor (the pipeline/row stay the source's). */
     TypedSerializeGraph.Child navSlotChild(ClassSource cs,
             String ownerClassFqn, TypedGraphTree node,
-            TypedNavigate nav, @com.legend.Nullable String castClassFqn,
+            TypedNavigate nav, @com.legend.base.Nullable String castClassFqn,
             StoreResolver.Context context, String parentRowVar,
             Type.RelationType parentRowType) {
         String key = (context.explicitMapping() == null ? "" : context.explicitMapping())
@@ -1219,7 +1219,7 @@ final class GraphEmission {
      * validity — the engine serializes [] at any date (the AllVersions
      * fetch still serves the rows). The child emits with a FALSE
      * correlation; null when not this shape. */
-    private TypedSerializeGraph.@com.legend.Nullable Child
+    private TypedSerializeGraph.@com.legend.base.Nullable Child
             datedNonTemporalChild(ClassSource cs, TypedGraphTree node,
             TypedSpec inner, StoreResolver.Context context,
             String parentRowVar, Type.RelationType parentRowType) {
@@ -1439,7 +1439,7 @@ final class GraphEmission {
     /** The implicit full tree of a childless class-typed leaf: the child
      * class's primitive/enum-typed properties as leaves; null when the
      * child class is unresolvable. */
-    private java.util.@com.legend.Nullable List<TypedGraphTree>
+    private java.util.@com.legend.base.Nullable List<TypedGraphTree>
             implicitLeaves(ClassSource cs, TypedGraphTree node,
                     StoreResolver.Context context) {
         var p = ctx.findProperty(cs.classFqn(), node.property()).orElse(null);
@@ -1483,7 +1483,7 @@ final class GraphEmission {
                 && d.parameters().size() == node.args().size();
     }
 
-    private TypedSerializeGraph.@com.legend.Nullable Child derivedChild(ClassSource cs,
+    private TypedSerializeGraph.@com.legend.base.Nullable Child derivedChild(ClassSource cs,
             TypedGraphTree node, StoreResolver.Context context,
             String parentRowVar, Type.RelationType parentRowType) {
         var p = ctx.findProperty(cs.classFqn(), node.property()).orElse(null);
@@ -1619,10 +1619,10 @@ final class GraphEmission {
      * first association join, h1↔child via the second, the mid filter
      * substituted through h1's bindings (engine: nested per-hop join
      * chain; the EXISTS form is the [0..1]-safe emission). */
-    private TypedSerializeGraph.@com.legend.Nullable Child chainedDerivedChild(
+    private TypedSerializeGraph.@com.legend.base.Nullable Child chainedDerivedChild(
             ClassSource cs, TypedGraphTree node, StoreResolver.Context context,
             String parentRowVar, Type.RelationType parentRowType,
-            String h1, @com.legend.Nullable TypedLambda midPred, String h2,
+            String h1, @com.legend.base.Nullable TypedLambda midPred, String h2,
             com.legend.compiler.element.Property.Derived d, String thisVar) {
         HopJoin j1 = hopJoin(cs, h1, context);
         HopJoin j2 = j1 == null ? null : hopJoin(j1.target(), h2, context);
@@ -1731,7 +1731,7 @@ final class GraphEmission {
     /** ONE navigation hop resolved to (target, pipeline, row, condition)
      * — association ends AND join-slot-backed class properties (the two
      * navHeadRelation arms, hop-composable). Null when neither resolves. */
-    private @com.legend.Nullable HopJoin hopJoin(ClassSource src, String prop,
+    private @com.legend.base.Nullable HopJoin hopJoin(ClassSource src, String prop,
             StoreResolver.Context context) {
         try {
             var aj = assocMaterial.associationJoin(temporal, src, prop,
@@ -1844,7 +1844,7 @@ final class GraphEmission {
     private TypedSerializeGraph.Child embeddedChild(ClassSource cs,
             TypedGraphTree node, TypedNewInstance ctor,
             StoreResolver.Context context, TypedSpec parentPipeline,
-            @com.legend.Nullable TypedSpec otherwiseFallback) {
+            @com.legend.base.Nullable TypedSpec otherwiseFallback) {
         return embeddedChild(cs, cs.classFqn(), node, ctor, context,
                 parentPipeline, otherwiseFallback);
     }
@@ -1856,7 +1856,7 @@ final class GraphEmission {
     private TypedSerializeGraph.Child embeddedChild(ClassSource cs,
             String ownerFqn, TypedGraphTree node, TypedNewInstance ctor,
             StoreResolver.Context context, TypedSpec parentPipeline,
-            @com.legend.Nullable TypedSpec otherwiseFallback) {
+            @com.legend.base.Nullable TypedSpec otherwiseFallback) {
         var prop = ctx.findProperty(ownerFqn, node.property())
                 .orElseThrow(() -> new IllegalStateException(
                         "resolver bug: graph child '" + node.property()
@@ -2080,7 +2080,7 @@ final class GraphEmission {
     /** The INLINED typed body of a parameterless derived property, its
      * {@code $this} reads substituted to the class's row bindings —
      * null when the name is not a parameterless derived property. */
-    private @com.legend.Nullable TypedSpec derivedLeaf(ClassSource cs, TypedGraphTree node,
+    private @com.legend.base.Nullable TypedSpec derivedLeaf(ClassSource cs, TypedGraphTree node,
             StoreResolver.Context context, String rowVar,
             Type.RelationType rowType) {
         return derivedLeaf(cs, cs.classFqn(), node, context, rowVar, rowType);
@@ -2091,7 +2091,7 @@ final class GraphEmission {
      * patch (the body's {@code $this} reads still resolve through the
      * SOURCE's bindings: inherited navs live there; subtype-only stored
      * reads fall to the louder walls). */
-    private @com.legend.Nullable TypedSpec derivedLeaf(ClassSource cs, String ownerClassFqn,
+    private @com.legend.base.Nullable TypedSpec derivedLeaf(ClassSource cs, String ownerClassFqn,
             TypedGraphTree node,
             StoreResolver.Context context, String rowVar,
             Type.RelationType rowType) {
@@ -2144,7 +2144,7 @@ final class GraphEmission {
      * lowering renders a correlated scalar aggregate subquery (the T1.7
      * reducer catalog is the one membership test). Null when the shape
      * does not match (the inline route's louder walls take over). */
-    private @com.legend.Nullable TypedSpec navAggSubquery(ClassSource cs, TypedSpec body,
+    private @com.legend.base.Nullable TypedSpec navAggSubquery(ClassSource cs, TypedSpec body,
             String thisVar, StoreResolver.Context context,
             String parentRowVar, Type.RelationType parentRowType) {
         if (!(body instanceof TypedNativeCall agg && agg.args().size() == 1
@@ -2210,7 +2210,7 @@ final class GraphEmission {
     /** The FIRST property read off the row var when {@code n} is a
      * SCALAR-resulting access chain crossing at least one CLASS-typed
      * hop; null otherwise. */
-    private @com.legend.Nullable String chainHeadAlias(TypedSpec n,
+    private @com.legend.base.Nullable String chainHeadAlias(TypedSpec n,
             String rowVar) {
         TypedSpec b = unwrapToOneFirst(n);
         if (!(b instanceof TypedPropertyAccess leaf)
@@ -2270,7 +2270,7 @@ final class GraphEmission {
             TypedSpec rel) {
     }
 
-    private @com.legend.Nullable HeadRel navHeadRelation(SubqueryEnv env, TypedSpec hop,
+    private @com.legend.base.Nullable HeadRel navHeadRelation(SubqueryEnv env, TypedSpec hop,
             String thisVar) {
         ClassSource cs = env.cs();
         StoreResolver.Context context = env.context();
@@ -2441,7 +2441,7 @@ final class GraphEmission {
      * scalar subquery. Null when the shape does not match (the inline
      * route and its louder walls take over).
      */
-    private @com.legend.Nullable TypedSpec navLeafSubquery(ClassSource cs, TypedSpec body,
+    private @com.legend.base.Nullable TypedSpec navLeafSubquery(ClassSource cs, TypedSpec body,
             String thisVar, StoreResolver.Context context, String parentRowVar,
             Type.RelationType parentRowType) {
         TypedSpec b = body;
@@ -2661,13 +2661,13 @@ final class GraphEmission {
                                 .Multiplicity.Bounded.ZERO_ONE));
     }
 
-    private @com.legend.Nullable TypedSpec derivedLeaf(Map<String, TypedSpec> bindings,
+    private @com.legend.base.Nullable TypedSpec derivedLeaf(Map<String, TypedSpec> bindings,
             String classFqn, TypedGraphTree node) {
         return derivedLeaf(bindings, classFqn, node, null);
     }
 
-    private @com.legend.Nullable TypedSpec derivedLeaf(Map<String, TypedSpec> bindings,
-            String classFqn, TypedGraphTree node, @com.legend.Nullable SubqueryEnv env) {
+    private @com.legend.base.Nullable TypedSpec derivedLeaf(Map<String, TypedSpec> bindings,
+            String classFqn, TypedGraphTree node, @com.legend.base.Nullable SubqueryEnv env) {
         String prop = node.property();
         var p = ctx.findProperty(classFqn, prop).orElse(null);
         if (!(p instanceof com.legend.compiler.element.Property.Derived d)
@@ -2716,7 +2716,7 @@ final class GraphEmission {
 
     private TypedSpec inlineThis(TypedSpec n, String thisVar,
             Map<String, TypedSpec> binds, Map<String, TypedSpec> bindings,
-            String classFqn, String prop, @com.legend.Nullable SubqueryEnv env) {
+            String classFqn, String prop, @com.legend.base.Nullable SubqueryEnv env) {
         if (n instanceof TypedVariable bv && binds.containsKey(bv.name())) {
             return binds.get(bv.name());
         }
@@ -2943,7 +2943,7 @@ final class GraphEmission {
     private TypedSerializeGraph.SubTypePatch subTypePatch(ClassSource cs,
             TypedGraphTree node, StoreResolver.Context context, String rowVar,
             Type.RelationType rowType,
-            java.util.function.Function<@com.legend.Nullable TypedSpec, TypedSpec> toRow) {
+            java.util.function.Function<@com.legend.base.Nullable TypedSpec, TypedSpec> toRow) {
         List<TypedFuncCol> patch = new ArrayList<>();
         List<TypedSerializeGraph.Child> patchChildren = new ArrayList<>();
         for (TypedGraphTree sub : node.children()) {
@@ -3048,12 +3048,12 @@ final class GraphEmission {
     /** The supported serialize-config surface: includeType (+ typeKeyName,
      * fullyQualifiedTypePath) emit the type key; every OTHER envelope-
      * changing flag walls loudly — never a silently-ignored config. */
-    record SerializeTypeConfig(@com.legend.Nullable String typeKey,
+    record SerializeTypeConfig(@com.legend.base.Nullable String typeKey,
             boolean fq, boolean includeEnumType, boolean removeNull,
             boolean removeEmpty, boolean includeObjectReference) {
     }
 
-    static @com.legend.Nullable SerializeTypeConfig serializeTypeConfig(TypedSpec cfg) {
+    static @com.legend.base.Nullable SerializeTypeConfig serializeTypeConfig(TypedSpec cfg) {
         // the alloyConfig ctor family (graphFetch.pure:126-171): decode
         // the CALL positionally by arity into the same flag surface
         if (cfg instanceof TypedNativeCall cc
@@ -3148,7 +3148,7 @@ final class GraphEmission {
     static TypedSerializeGraph withTypeKey(TypedSerializeGraph g,
             SerializeTypeConfig c,
             com.legend.compiler.element.TypedFunction plusCallee,
-            @com.legend.Nullable String objectRefPrefix) {
+            @com.legend.base.Nullable String objectRefPrefix) {
         List<TypedFuncCol> leaves = c.includeEnumType()
                 ? g.leaves().stream().map(l ->
                         enumPrefixed(l, plusCallee)).toList()
@@ -3201,7 +3201,7 @@ final class GraphEmission {
         return r == null ? mappingFqn : r;
     }
 
-    private static @com.legend.Nullable String definingMapping0(
+    private static @com.legend.base.Nullable String definingMapping0(
             ModelContext mc, String mappingFqn, String classFqn) {
         var m = mc.findMapping(mappingFqn).orElse(null);
         if (m == null) {

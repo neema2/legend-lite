@@ -82,7 +82,7 @@ public sealed interface TypeAnnotation
      * prototype value {@code Any[m]}, so a {@code |z} signature binds z from it
      * (parser leg, batch 174). */
     record MultiplicityRef(com.legend.protocol.Multiplicity multiplicity,
-            @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements TypeAnnotation {
+            @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) implements TypeAnnotation {
         public MultiplicityRef {
             Objects.requireNonNull(multiplicity, "multiplicity");
         }
@@ -105,7 +105,7 @@ public sealed interface TypeAnnotation
      * @param type the structured type expression; never {@code null}
      */
     record Named(TypeExpression type,
-            @com.legend.Nullable com.legend.protocol.SourceInfo pos) implements TypeAnnotation {
+            @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) implements TypeAnnotation {
 
         /** Position-free form. The parser sets the span of the whole @Type annotation. */
         public Named(TypeExpression type) {
@@ -141,9 +141,9 @@ public sealed interface TypeAnnotation
      *                {@code null}, may be empty
      */
     record RelationShape(List<Column> columns,
-                         @com.legend.Nullable String spelledName,
-                         @com.legend.Nullable com.legend.protocol.SourceInfo typeSpan,
-                         @com.legend.Nullable com.legend.protocol.SourceInfo pos)
+                         @com.legend.base.Nullable String spelledName,
+                         @com.legend.base.Nullable com.legend.protocol.SourceInfo typeSpan,
+                         @com.legend.base.Nullable com.legend.protocol.SourceInfo pos)
             implements TypeAnnotation {
         public RelationShape {
             Objects.requireNonNull(columns, "columns");
@@ -193,17 +193,17 @@ public sealed interface TypeAnnotation
          *                     when absent
          */
         public record Column(
-                @com.legend.Nullable String name,
+                @com.legend.base.Nullable String name,
                 TypeAnnotation type,
-                @com.legend.Nullable Multiplicity multiplicity,
-                @com.legend.Nullable com.legend.protocol.SourceInfo pos) {
+                @com.legend.base.Nullable Multiplicity multiplicity,
+                @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) {
             public Column {
                 Objects.requireNonNull(type, "type");
             }
 
             /** Span-free convenience constructor. */
-            public Column(@com.legend.Nullable String name, TypeAnnotation type,
-                          @com.legend.Nullable Multiplicity multiplicity) {
+            public Column(@com.legend.base.Nullable String name, TypeAnnotation type,
+                          @com.legend.base.Nullable Multiplicity multiplicity) {
                 this(name, type, multiplicity, null);
             }
 

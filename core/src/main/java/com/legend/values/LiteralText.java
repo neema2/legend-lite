@@ -28,7 +28,7 @@ public final class LiteralText {
     }
 
     /** Parse one LITERAL cell. Null stays null (the empty value). */
-    public static @com.legend.Nullable Object parse(@com.legend.Nullable String s) {
+    public static @com.legend.base.Nullable Object parse(@com.legend.base.Nullable String s) {
         if (s == null) {
             return null;
         }

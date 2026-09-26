@@ -185,7 +185,7 @@ public final class CanonicalDivergence {
     /** The byte-channel comparison key: kindClass + canonical text
      * (spec §3 amendment — the render alone is not injective across
      * kinds), or a residue marker. */
-    private static String keyOf(@com.legend.Nullable Object v) {
+    private static String keyOf(@com.legend.base.Nullable Object v) {
         return switch (CanonicalForm.render(v)) {
             case CanonicalForm.Result.Text t -> kindClass(v) + "\u0000" + t.value();
             case CanonicalForm.Result.Residue r -> "residue:" + r.reason();
@@ -195,7 +195,7 @@ public final class CanonicalDivergence {
     /** Pure's equality kind classes: the numeric tower is ONE class
      * (cross-kind numeric equality); everything else compares only
      * within its own kind. */
-    private static String kindClass(@com.legend.Nullable Object v) {
+    private static String kindClass(@com.legend.base.Nullable Object v) {
         return switch (v) {
             case null -> "null";
             case Number n -> "numeric";

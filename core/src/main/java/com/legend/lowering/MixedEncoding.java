@@ -68,7 +68,7 @@ final class MixedEncoding {
      * element identity from the TYPED elements (encodeMixed), never from
      * the carrier (the numeric UNWRAP is {@link Numerics#numList}).
      * Non-carrier shapes pass through untouched. */
-    static @com.legend.Nullable MixedElems mixedElems(TypedSpec arg,
+    static @com.legend.base.Nullable MixedElems mixedElems(TypedSpec arg,
                                  SqlExpr lowered) {
         if (!(arg instanceof TypedCollection c)
                 || c.elements().size() < 2
@@ -84,7 +84,7 @@ final class MixedEncoding {
     }
 
     /** The n-ary form: max(2D, 1.23) — each ARG one element. */
-    static @com.legend.Nullable MixedElems mixedArgs(List<TypedSpec> args,
+    static @com.legend.base.Nullable MixedElems mixedArgs(List<TypedSpec> args,
                                 List<SqlExpr> lowered) {
         Set<Type> kinds = new HashSet<>();
         for (var a : args) {
@@ -93,7 +93,7 @@ final class MixedEncoding {
         return kinds.size() > 1 ? encodeAll(args, lowered) : null;
     }
 
-    private static @com.legend.Nullable MixedElems encodeAll(
+    private static @com.legend.base.Nullable MixedElems encodeAll(
             List<TypedSpec> elems,
             List<SqlExpr> lowered) {
         List<SqlExpr> ids = new ArrayList<>();
@@ -174,7 +174,7 @@ final class MixedEncoding {
      * Any-position carrier, by its STATIC kind. Null = unspellable
      * (instances; variants; carriers — an enum spells Enumeration.NAME) — the caller keeps the JSON lane for the whole
      * collection. A previously-boxed element unwraps first. */
-    static @com.legend.Nullable SqlExpr elementLiteral(TypedSpec e,
+    static @com.legend.base.Nullable SqlExpr elementLiteral(TypedSpec e,
             SqlExpr x) {
         if (e instanceof com.legend.compiler.spec.typed.TypedTypeRef
                 || e instanceof com.legend.compiler.spec.typed.TypedPackageableRef) {
@@ -199,7 +199,7 @@ final class MixedEncoding {
      * one spelling owner is {@link LiteralSpelling#writtenTemporalText}
      * — disagree-9 burn, testDayOfMonth receipt). Null = not that
      * shape. */
-    private static @com.legend.Nullable SqlExpr staticSubsecondSpelling(
+    private static @com.legend.base.Nullable SqlExpr staticSubsecondSpelling(
             TypedSpec e) {
         return e instanceof TypedCDate cd && cd.value()
                 instanceof PureDateLiteral.DateWithSubsecond d
@@ -213,7 +213,7 @@ final class MixedEncoding {
      * kinds; conform-by-emission: the actual side spells with the SAME
      * grammar owner the claimed expected side used, so grid asserts
      * byte-compare). */
-    static @com.legend.Nullable SqlExpr spellByKind(Type t, SqlExpr x,
+    static @com.legend.base.Nullable SqlExpr spellByKind(Type t, SqlExpr x,
             List<com.legend.sql.DateFmt> dateTimeFmt) {
         if (t == Type.Primitive.INTEGER || t == Type.Primitive.FLOAT
                 || t == Type.Primitive.BOOLEAN
@@ -250,7 +250,7 @@ final class MixedEncoding {
      * numeric/date arms run before the rank fallback) — and within a
      * group by the group's own channel. Null = an element outside the
      * spellable primitives (the caller keeps its current lane). */
-    static @com.legend.Nullable MixedElems rankedElems(TypedSpec arg,
+    static @com.legend.base.Nullable MixedElems rankedElems(TypedSpec arg,
             SqlExpr lowered) {
         if (!(arg instanceof TypedCollection c)
                 || c.elements().size() < 2
@@ -287,7 +287,7 @@ final class MixedEncoding {
      * boolean spellings order 'false' &lt; 'true' textually. Decimal
      * (D-suffix spelling) and temporal (%-form) kinds bail — their
      * spellings don't cast back; the caller keeps its lane. */
-    private static @com.legend.Nullable SqlExpr rankedComparable(
+    private static @com.legend.base.Nullable SqlExpr rankedComparable(
             TypedSpec e, SqlExpr x) {
         Type t = e.info().type();
         int group;
@@ -350,7 +350,7 @@ final class MixedEncoding {
      * {@code make_timestamp(split_part(x,'-',i)...)} per the STATIC
      * precision; null when the precision is not a known partial form.
      */
-    private static @com.legend.Nullable SqlExpr partialComparable(TypedSpec e,
+    private static @com.legend.base.Nullable SqlExpr partialComparable(TypedSpec e,
                                              SqlExpr x) {
         PureDateLiteral.Precision prec = Scalars.datePrecision(e);
         if (prec.atLeast(PureDateLiteral.Precision.HOUR)) {
@@ -377,7 +377,7 @@ final class MixedEncoding {
      * type — 'TDSNull' vs INT32, the TDS-getter witness); NULL stays the
      * bare empty carrier. Same-kind or non-Any ifs emit raw branches. */
     static SqlExpr lubCase(Type lub, TypedSpec thenB,
-            @com.legend.Nullable TypedSpec elseB, SqlExpr cond,
+            @com.legend.base.Nullable TypedSpec elseB, SqlExpr cond,
             SqlExpr thenS, SqlExpr elseS) {
         boolean mixed = lub instanceof Type.ClassType ifCt
                 && PlatformTypes.isAny(ifCt)
@@ -682,8 +682,8 @@ final class MixedEncoding {
      * instance) and WORLD_MAP §4 {@code __type} (the constructed class, so
      * a polymorphic slot's value is judged by its own classifier). Null for
      * a model field. */
-    static SqlExpr.StructLit.@com.legend.Nullable Field syntheticField(
-            Type.Column c, @com.legend.Nullable String siteId, String classFqn) {
+    static SqlExpr.StructLit.@com.legend.base.Nullable Field syntheticField(
+            Type.Column c, @com.legend.base.Nullable String siteId, String classFqn) {
         if (com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID.equals(c.name())
                 && siteId != null) {
             return new SqlExpr.StructLit.Field(c.name(), new SqlExpr.StringLit(siteId));

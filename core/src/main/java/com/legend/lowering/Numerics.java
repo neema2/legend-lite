@@ -20,7 +20,7 @@ final class Numerics {
      * chain — DuckDB's list aggregates and LIST_REDUCE run DOUBLE
      * (probed 2026-08-20) while binary decimal arithmetic is exact;
      * null = not that shape (the aggregate path continues). */
-    static @com.legend.Nullable SqlExpr decimalChain(SqlExpr list,
+    static @com.legend.base.Nullable SqlExpr decimalChain(SqlExpr list,
             SqlFn op) {
         return decimalChain(list, op, java.util.function.UnaryOperator.identity());
     }
@@ -28,7 +28,7 @@ final class Numerics {
     /** {@code widen} rewrites each operand as it joins the chain (the
      *  near-INT64-edge literal widening — an all-integer literal run folds
      *  here first). */
-    static @com.legend.Nullable SqlExpr decimalChain(SqlExpr list,
+    static @com.legend.base.Nullable SqlExpr decimalChain(SqlExpr list,
             SqlFn op, java.util.function.UnaryOperator<SqlExpr> widen) {
         // fires for DECIMAL-bearing literal lists (exact binary decimal
         // arithmetic vs LIST_PRODUCT's DOUBLE degradation) AND — Part-1
@@ -65,7 +65,7 @@ final class Numerics {
      * list aggregate (which SKIPS NULL elements). Real collections (a
      * to-many read, a non-literal list) keep the aggregate. Null = not
      * that shape. */
-    static @com.legend.Nullable SqlExpr scalarChain(
+    static @com.legend.base.Nullable SqlExpr scalarChain(
             com.legend.compiler.spec.typed.TypedSpec typedArg, SqlExpr list,
             SqlFn op) {
         return scalarChain(typedArg, list, op, java.util.function.UnaryOperator.identity());
@@ -73,7 +73,7 @@ final class Numerics {
 
     /** {@code widen} rewrites each operand before it joins the chain (the
      *  near-INT64-edge literal widening). */
-    static @com.legend.Nullable SqlExpr scalarChain(
+    static @com.legend.base.Nullable SqlExpr scalarChain(
             com.legend.compiler.spec.typed.TypedSpec typedArg, SqlExpr list,
             SqlFn op, java.util.function.UnaryOperator<SqlExpr> widen) {
         if (!(typedArg instanceof com.legend.compiler.spec.typed.TypedCollection tc)

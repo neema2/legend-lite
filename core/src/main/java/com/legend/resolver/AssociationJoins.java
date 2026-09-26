@@ -62,7 +62,7 @@ final class AssociationJoins {
      * pred applies in the exploding sub's WHERE (the tail-pred loop)
      * and can never compose on the flat step's ON. Null when the chain
      * composes on the slot spine. */
-    @com.legend.Nullable TypedLambda explodingReroutePred(
+    @com.legend.base.Nullable TypedLambda explodingReroutePred(
             List<String> path, int mid) {
         if (mid != 1) {
             return null;
@@ -99,7 +99,7 @@ final class AssociationJoins {
      * side) or the stop is not an association (today's loud wall). */
     record PassThrough(ClassSource root, int startHop) {}
 
-    @com.legend.Nullable PassThrough embeddedPassThrough(ClassSource cs, java.util.List<String> path) {
+    @com.legend.base.Nullable PassThrough embeddedPassThrough(ClassSource cs, java.util.List<String> path) {
         TypedSpec cur = cs.bindings().get(SyntheticHeads.realHead(path.get(0)));
         int hop = 1;
         while (hop + 1 <= path.size() - 1) {
@@ -335,7 +335,7 @@ final class AssociationJoins {
         return ctx.findAssociationOf(cs.classFqn(), real).isPresent();
     }
 
-    static @com.legend.Nullable String embeddedAggAlias(ClassSource cs,
+    static @com.legend.base.Nullable String embeddedAggAlias(ClassSource cs,
             com.legend.compiler.spec.typed.TypedNewInstance ctor) {
         Set<String> aliases = new LinkedHashSet<>(
                 Pipelines.navSteps(cs.pipeline()).keySet());
@@ -343,7 +343,7 @@ final class AssociationJoins {
         return embeddedAggAlias(cs, ctor, aliases);
     }
 
-    private static @com.legend.Nullable String embeddedAggAlias(ClassSource cs,
+    private static @com.legend.base.Nullable String embeddedAggAlias(ClassSource cs,
             com.legend.compiler.spec.typed.TypedNewInstance ctor,
             java.util.Set<String> navAliases) {
         Set<String> reads = new LinkedHashSet<>();
@@ -359,7 +359,7 @@ final class AssociationJoins {
      * from {@code $row.alias.col} onto the target row (leaves reading the
      * parent row directly are omitted — loud at aggColFor if demanded);
      * condition = the slot predicate, unchanged. */
-    private @com.legend.Nullable AssocJoin embeddedAggJoin(TemporalFrame temporal, ClassSource cs,
+    private @com.legend.base.Nullable AssocJoin embeddedAggJoin(TemporalFrame temporal, ClassSource cs,
             String head, com.legend.compiler.spec.typed.TypedNewInstance ctor,
             java.util.Map<String, com.legend.compiler.spec.typed
                     .TypedNavigate> navSteps) {
@@ -419,7 +419,7 @@ final class AssociationJoins {
     /** {@code $row.alias.col} reads become {@code $tv.col}; any OTHER
      * read rooted at {@code rowVar} (a parent column, a different alias)
      * makes the leaf unrebasable — null. */
-    private static @com.legend.Nullable TypedSpec rebaseAliasReads(TypedSpec n, String rowVar,
+    private static @com.legend.base.Nullable TypedSpec rebaseAliasReads(TypedSpec n, String rowVar,
             String alias, String tv, ExprType tVarInfo) {
         boolean[] bad = {false};
         TypedSpec out = rebaseWalk(n, rowVar, alias, tv, tVarInfo, bad);
@@ -454,7 +454,7 @@ final class AssociationJoins {
      * scanColumns testQualifier pins that ordinary filters never do);
      * null otherwise (hybrid replaceScan stamps, pre-filtered pipes,
      * views keep the in-pipe form for every consumer). */
-    private @com.legend.Nullable OnForm onFormOf(TypedSpec stamped, TypedLambda cond) {
+    private @com.legend.base.Nullable OnForm onFormOf(TypedSpec stamped, TypedLambda cond) {
         java.util.List<TypedLambda> stamps = new java.util.ArrayList<>();
         TypedSpec cur = stamped;
         while (cur instanceof com.legend.compiler.spec.typed.TypedFilter tf0
@@ -561,11 +561,11 @@ final class AssociationJoins {
     record AssocJoin(String prefix, ClassSource target,
                              TypedSpec targetPipeline,
                              Type.RelationType targetRow,
-                             @com.legend.Nullable TypedLambda condition,
+                             @com.legend.base.Nullable TypedLambda condition,
                              Map<String, String> targetSlotPrefixes,
                              Map<String, Substitution.SubNav> targetSubNavs,
-                             @com.legend.Nullable TypedLambda corrSubPred,
-                             @com.legend.Nullable OnForm onForm,
+                             @com.legend.base.Nullable TypedLambda corrSubPred,
+                             @com.legend.base.Nullable OnForm onForm,
                              boolean rowDropping) {
 
         AssocJoin withCondition(TypedLambda cond) {
@@ -677,8 +677,8 @@ final class AssociationJoins {
      * construction — it needs THIS instance): a tail continuing through a
      * target's navigate slot materializes that slot's target too, at any
      * depth (the depth leg, 2026-09-02). */
-    private @com.legend.Nullable NavMaterializer navMaterializer;
-    private @com.legend.Nullable UnionHeads unionHeads;
+    private @com.legend.base.Nullable NavMaterializer navMaterializer;
+    private @com.legend.base.Nullable UnionHeads unionHeads;
 
     private UnionHeads unionHeads() {
         if (unionHeads == null) {
@@ -823,7 +823,7 @@ final class AssociationJoins {
     /** The class a hop lands on: a declared class-typed property, or an
      * association end (the walk's own dispatch — findProperty alone
      * misses association-declared ends). */
-    @com.legend.Nullable String hopTargetClass(String clsFqn, String prop) {
+    @com.legend.base.Nullable String hopTargetClass(String clsFqn, String prop) {
         if (clsFqn == null) {
             return null;
         }
@@ -1162,7 +1162,7 @@ final class AssociationJoins {
      * form (String set-id args, class-typed cond params), and — for that
      * form — the pinned TARGET set id. */
     record PredMaterial(TypedLambda cond, boolean reverse,
-            boolean propertySpace, @com.legend.Nullable String targetSetId) {}
+            boolean propertySpace, @com.legend.base.Nullable String targetSetId) {}
 
     /** The property that walks a self-association's join AS WRITTEN: the
      *  synthesized predicate's provenance names it (the mapping's first
@@ -1184,7 +1184,7 @@ final class AssociationJoins {
      *  through the bindings — no physical key to demand). */
     record ParentSide(TypedLambda cond, int parentParam) {}
 
-    @com.legend.Nullable ParentSide associationParentSide(ClassSource cs, String prop) {
+    @com.legend.base.Nullable ParentSide associationParentSide(ClassSource cs, String prop) {
         var assoc = ctx.findAssociationOf(cs.classFqn(), prop).orElse(null);
         var targetClass = assoc == null ? java.util.Optional.<String>empty()
                 : assocTargetClassOf(cs.classFqn(), prop);
@@ -1647,7 +1647,7 @@ final class AssociationJoins {
      * depth-1 SubNavs). Same alpha/capture discipline as the ON-clause
      * composition (audit 22a).
      */
-    TypedLambda corrPredOnJoinedRow(@com.legend.Nullable TypedLambda pred, ClassSource parent,
+    TypedLambda corrPredOnJoinedRow(@com.legend.base.Nullable TypedLambda pred, ClassSource parent,
             ClassSource target, String targetPrefix,
             Map<String, String> targetSlotPrefixes,
             Map<String, Substitution.SubNav> targetSubNavs,
@@ -1840,7 +1840,7 @@ final class AssociationJoins {
      * demand plus NESTED-association reads (the navigate() rule) —
      * returns the condition's target param name (null when the
      * predicate shape is unrecognized). Extracted seam (guardrail). */
-    private @com.legend.Nullable String scanCondTargetReads(ClassSource cs,
+    private @com.legend.base.Nullable String scanCondTargetReads(ClassSource cs,
             com.legend.model.AssociationDefinition assoc, String real,
             String targetClass, ClassSource target, Set<String> targetSlots,
             Set<String> targetDemand, Set<String> navStepKeys,
@@ -2024,7 +2024,7 @@ final class AssociationJoins {
     /** The condition with nested-association reads re-pointed at the
      * WIDENED target row's prefixed columns. */
     static TypedLambda rewriteNestedAssocCondReads(TypedLambda cond,
-            @com.legend.Nullable String tgtVar, Map<String, String> prefixByProp,
+            @com.legend.base.Nullable String tgtVar, Map<String, String> prefixByProp,
             Type.RelationType row) {
         if (tgtVar == null || prefixByProp.isEmpty()) {
             return cond;

@@ -96,12 +96,12 @@ public enum OrderView {
      * INCIDENTAL — a bag compare that would hide an ORDER BY (USER
      * 2026-09-18: the bag only without a top-level sort). */
     public static OrderView of(TypedSpec s0, List<TypedSpec> letPrefix,
-            java.util.function.@com.legend.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook) {
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook) {
         return of(s0, letPrefix, new java.util.HashSet<>(), hook);
     }
 
     private static OrderView of(TypedSpec s, List<TypedSpec> lets, java.util.Set<String> seen,
-            java.util.function.@com.legend.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook) {
+            java.util.function.@com.legend.base.Nullable BiFunction<TypedSpec, java.util.Set<String>, TypedSpec> hook) {
         if (s instanceof com.legend.compiler.spec.typed.TypedSort
                 || s instanceof com.legend.compiler.spec.typed.TypedSortBy) {
             return OrderView.SORTED;

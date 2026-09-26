@@ -166,7 +166,7 @@ public final class NameResolver {
      * throwing — one pass walls them all. Null = strict (throw on first).
      */
     public static ParsedModel resolve(ParsedModel parsed,
-            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
         Objects.requireNonNull(parsed, "parsed");
         // USER scopes stay pure — the platform prelude is a FALLBACK
         // consulted inside resolveNameMulti, never merged into the
@@ -180,7 +180,7 @@ public final class NameResolver {
      * elements reference by import exactly like each other's (they are not
      * in the graph's parsed elements: they are prepared once per process). */
     public static ParsedModel resolveAlongside(ParsedModel parsed, Set<String> alsoKnown,
-            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
         Objects.requireNonNull(parsed, "parsed");
         Set<String> known = new java.util.HashSet<>(knownFqns(parsed.elements()));
         known.addAll(alsoKnown);
@@ -199,7 +199,7 @@ public final class NameResolver {
 
     /** {@link #resolve(ParsedModel, Set)} with an optional tolerant wall sink. */
     public static ParsedModel resolve(ParsedModel model, Set<String> knownFqns,
-            java.util.@com.legend.Nullable Map<String, String> wallSink) {
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
         return resolve(model, knownFqns, wallSink, false);
     }
 
@@ -245,7 +245,7 @@ public final class NameResolver {
             "meta::pure::precisePrimitives");
 
     private static ParsedModel resolve(ParsedModel model, Set<String> knownFqns,
-            java.util.@com.legend.Nullable Map<String, String> wallSink,
+            java.util.@com.legend.base.Nullable Map<String, String> wallSink,
             boolean preludeOn) {
         // SECTION-scoped resolution (real pure): each element resolves in
         // ITS OWN section's imports when recorded; the union scope is the
@@ -560,8 +560,8 @@ public final class NameResolver {
         return Scope.preludeOf(new ImportScope.Builder().build(), Set.copyOf(known));
     }
 
-    private static @com.legend.Nullable TypeExpression resolveType(
-            @com.legend.Nullable TypeExpression t, Scope scope) {
+    private static @com.legend.base.Nullable TypeExpression resolveType(
+            @com.legend.base.Nullable TypeExpression t, Scope scope) {
         if (t == null) return null;
         return switch (t) {
             case TypeExpression.NameRef nr -> {
@@ -1029,8 +1029,8 @@ public final class NameResolver {
     /** The AggregationAware node's views resolve with the node: each view
      * set like any class mapping, its specification lambdas like any
      * mapping expression. */
-    private static ClassMapping.@com.legend.Nullable AggregationAware resolveAggregation(
-            ClassMapping.@com.legend.Nullable AggregationAware agg, Scope scope) {
+    private static ClassMapping.@com.legend.base.Nullable AggregationAware resolveAggregation(
+            ClassMapping.@com.legend.base.Nullable AggregationAware agg, Scope scope) {
         if (agg == null) {
             return null;
         }
@@ -1195,8 +1195,8 @@ public final class NameResolver {
                         resolvePropertyMapping(x, sc)), scope);
     }
 
-    private static @com.legend.Nullable PropertyMapping resolvePropertyMapping(
-            @com.legend.Nullable PropertyMapping pm, Scope scope) {
+    private static @com.legend.base.Nullable PropertyMapping resolvePropertyMapping(
+            @com.legend.base.Nullable PropertyMapping pm, Scope scope) {
         if (pm == null) return null;
         return switch (pm) {
             case PropertyMapping.Column c -> {
@@ -1465,15 +1465,15 @@ public final class NameResolver {
     // Shared nested-AST walkers
     // =================================================================
 
-    private static @com.legend.Nullable TableReference resolveTableReference(
-            @com.legend.Nullable TableReference t, Scope scope) {
+    private static @com.legend.base.Nullable TableReference resolveTableReference(
+            @com.legend.base.Nullable TableReference t, Scope scope) {
         if (t == null) return null;
         String db = resolveName(t.database(), scope);
         return db.equals(t.database()) ? t : new TableReference(db, t.table());
     }
 
-    private static @com.legend.Nullable FilterMapping resolveFilterMapping(
-            @com.legend.Nullable FilterMapping fm, Scope scope) {
+    private static @com.legend.base.Nullable FilterMapping resolveFilterMapping(
+            @com.legend.base.Nullable FilterMapping fm, Scope scope) {
         if (fm == null) return null;
         return switch (fm) {
             case FilterMapping.Direct d -> {
@@ -1527,8 +1527,8 @@ public final class NameResolver {
     // RelationalOperation (10 variants)
     // =================================================================
 
-    private static @com.legend.Nullable RelationalOperation resolveRelOp(
-            @com.legend.Nullable RelationalOperation op, Scope scope) {
+    private static @com.legend.base.Nullable RelationalOperation resolveRelOp(
+            @com.legend.base.Nullable RelationalOperation op, Scope scope) {
         if (op == null) return null;
         return switch (op) {
             case RelationalOperation.ColumnRef cr -> {
@@ -1638,8 +1638,8 @@ public final class NameResolver {
     // ValueSpecification
     // =================================================================
 
-    private static @com.legend.Nullable ValueSpecification resolveVs(
-            @com.legend.Nullable ValueSpecification vs, Scope scope) {
+    private static @com.legend.base.Nullable ValueSpecification resolveVs(
+            @com.legend.base.Nullable ValueSpecification vs, Scope scope) {
         if (vs == null) return null;
         return switch (vs) {
             // A path literal KEEPS its node through resolution (its navigation
@@ -1920,7 +1920,7 @@ public final class NameResolver {
 
     /** The passthrough invariant, asserted: a non-null input resolved
      * a non-null output (every resolve* is null-in-null-out). */
-    private static <T> T nn(@com.legend.Nullable T v) {
+    private static <T> T nn(@com.legend.base.Nullable T v) {
         return Objects.requireNonNull(v, "resolver passthrough");
     }
 
@@ -2004,7 +2004,7 @@ public final class NameResolver {
             ImportScope imports,
             Set<String> knownFqns,
             Set<String> typeParams,
-            @com.legend.Nullable String ownPackage,
+            @com.legend.base.Nullable String ownPackage,
             boolean prelude) {
 
         public Scope {

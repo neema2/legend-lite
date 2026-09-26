@@ -1,6 +1,6 @@
 package com.legend.warehouse.sqlapi;
 
-import com.legend.Nullable;
+import com.legend.base.Nullable;
 import com.legend.server.Json;
 import com.legend.warehouse.sqlapi.SqlApi.ApiError;
 import com.legend.warehouse.sqlapi.SqlApi.Chunk;

@@ -216,7 +216,7 @@ final class InstanceProjection {
     private record Unnest(String alias, SqlType elemT) {
     }
 
-    private static @com.legend.Nullable List<Seg> pathOf(TypedFuncCol col) {
+    private static @com.legend.base.Nullable List<Seg> pathOf(TypedFuncCol col) {
         String param = col.fn().parameters().get(0);
         ArrayDeque<Seg> path = new ArrayDeque<>();
         TypedSpec cur = col.fn().body().get(col.fn().body().size() - 1);

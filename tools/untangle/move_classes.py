@@ -34,11 +34,10 @@ Usage:
 """
 import argparse, os, re, subprocess, sys
 
-ROOTS = ["core", "spec", "pct", "parser-equivalence"]
-SRC_DIRS = ["src/main/java", "src/test/java"]
 TEXT_EXT = (".java",)
 CONFIG_NAMES = ("pom.xml", "BUILD.bazel", "BUILD")
 CONFIG_EXT = (".bzl",)
+SKIP_DIRS = (".git", "target", "node_modules")
 
 
 def blank(m):
@@ -52,23 +51,28 @@ def code_only(s):
     return re.sub(r'"(?:\\.|[^"\\\n])*"', blank, s)
 
 
+def walk(repo):
+    for dp, dns, fns in os.walk(repo):
+        dns[:] = [x for x in dns if x not in SKIP_DIRS and not x.startswith("bazel-")]
+        for fn in fns:
+            yield os.path.join(dp, fn)
+
+
 def java_files(repo):
-    for r in ROOTS:
-        for d in SRC_DIRS:
-            base = os.path.join(repo, r, d)
-            for dp, _, fns in os.walk(base):
-                for fn in fns:
-                    if fn.endswith(".java"):
-                        yield os.path.join(dp, fn)
+    """Every .java file in the repository, whichever module or experiment holds
+    it. Step 0 of the 2026-09-26 execution plan learned that a fixed root list
+    (core, spec, pct, parser-equivalence) missed 28 files under warehouse/ and
+    two under experiments/ and docs/parked/ — a partial move compiles nowhere."""
+    for p in walk(repo):
+        if p.endswith(TEXT_EXT):
+            yield p
 
 
 def config_files(repo):
-    for dp, dns, fns in os.walk(repo):
-        dns[:] = [x for x in dns if x not in (".git", "target", "node_modules")
-                  and not x.startswith("bazel-")]
-        for fn in fns:
-            if fn in CONFIG_NAMES or fn.endswith(CONFIG_EXT):
-                yield os.path.join(dp, fn)
+    for p in walk(repo):
+        fn = os.path.basename(p)
+        if fn in CONFIG_NAMES or fn.endswith(CONFIG_EXT):
+            yield p
 
 
 def pkg_of_file(path, text):

@@ -18,14 +18,14 @@ public final class LazyRows extends java.util.AbstractMap<String, List<List<Stri
 
     private final Supplier<Map<String, List<List<String>>>> compute;
     /** Null until computed; then the rows, or empty for none. */
-    private java.util.@com.legend.Nullable Optional<Map<String, List<List<String>>>> computed;
+    private java.util.@com.legend.base.Nullable Optional<Map<String, List<List<String>>>> computed;
 
     public LazyRows(Supplier<Map<String, List<List<String>>>> compute) {
         this.compute = compute;
     }
 
     /** The rows, computed on the first call; null when there are none. */
-    public @com.legend.Nullable Map<String, List<List<String>>> rows() {
+    public @com.legend.base.Nullable Map<String, List<List<String>>> rows() {
         java.util.Optional<Map<String, List<List<String>>>> c = computed;
         if (c == null) {
             c = java.util.Optional.ofNullable(compute.get());

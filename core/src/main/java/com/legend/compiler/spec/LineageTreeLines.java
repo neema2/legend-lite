@@ -63,7 +63,7 @@ public final class LineageTreeLines {
 
     /** The assert rewritten over lines, or null when the statement is not the
      * shape (not assertEquals of a tree print against a tree print). */
-    public static @com.legend.Nullable TypedSpec asLines(TypedSpec bare, List<TypedSpec> letPrefix,
+    public static @com.legend.base.Nullable TypedSpec asLines(TypedSpec bare, List<TypedSpec> letPrefix,
             ModelContext ctx) {
         TypedFunction callee;
         List<TypedSpec> args;
@@ -117,7 +117,7 @@ public final class LineageTreeLines {
     /** The print's lines with every decorated alias in a join label resolved
      * to the node name it decorates; blank lines dropped. */
     public static List<String> goldenLines(String print) {
-        record Row(String indent, String kind, String name, @com.legend.Nullable String label,
+        record Row(String indent, String kind, String name, @com.legend.base.Nullable String label,
                 String cols) {
         }
         List<Row> rows = new ArrayList<>();
@@ -165,7 +165,7 @@ public final class LineageTreeLines {
 
     /** The golden as a STRING: spelled inline, through a let, or as a
      * concatenation of literals. */
-    private static @com.legend.Nullable String spelled(TypedSpec e, List<TypedSpec> lets) {
+    private static @com.legend.base.Nullable String spelled(TypedSpec e, List<TypedSpec> lets) {
         if (e instanceof TypedCString s) {
             return s.value();
         }

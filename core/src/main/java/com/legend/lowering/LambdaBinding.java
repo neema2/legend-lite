@@ -130,7 +130,7 @@ final class LambdaBinding {
      * field's declared type when the param's fact is a Struct claiming
      * the field — identical emission (qualified column), supplied
      * fact. Null = no claim (the caller's plain resolution stands). */
-    private static SqlExpr.@com.legend.Nullable Column structFieldRead(
+    private static SqlExpr.@com.legend.base.Nullable Column structFieldRead(
             String var, String prop, TypeFact paramFact) {
         if (paramFact instanceof TypeFact.Typed t
                 && t.type() instanceof SqlType.Struct st) {
@@ -336,7 +336,7 @@ final class LambdaBinding {
         return out;
     }
 
-    private static @com.legend.Nullable SqlExpr lastDefiniteArray(
+    private static @com.legend.base.Nullable SqlExpr lastDefiniteArray(
             List<SqlExpr> lowered) {
         for (int i = lowered.size() - 1; i >= 0; i--) {
             if (lowered.get(i).type() instanceof TypeFact.Typed t
