@@ -10,6 +10,7 @@ import {
   NULL_GROUP,
   filterExpression,
   ident,
+  detailSnapshot,
   literal,
   serialize,
 } from '../src/serialize.ts';
@@ -1077,3 +1078,51 @@ describe('a Variant column', () => {
     );
   });
 });
+
+describe('drilling into a JSON group', () => {
+  // Grouping by a Variant column worked and opening a group returned
+  // nothing: the key came back as `$x.customer == '{...}'`, which
+  // compares the document to a JSON STRING holding its text.
+  const ORDERS: CubeSnapshot = {
+    source: { expression: 't' },
+    columns: [
+      { name: 'region', type: 'String' },
+      { name: 'customer', type: 'Variant' },
+      { name: 'tags', type: 'Variant' },
+      { name: 'total', type: 'Float' },
+    ],
+    derived: [],
+    rows: ['customer'],
+    pivotOn: [],
+    measures: [{ name: 'revenue', column: 'total', fn: 'sum' }],
+    sorts: [],
+    epoch: 1,
+  };
+  const doc = '{"name":"Acme","tier":"gold"}';
+
+  it('compares an object key as a document', () => {
+    const out = serialize(ORDERS, { level: 2, parent: [doc] });
+    assert.ok(out.includes(`$x.customer == fromJson('${doc}')`), out);
+  });
+
+  it('compares an array key, and the empty array, as documents', () => {
+    const tags = { ...ORDERS, rows: ['tags'] };
+    assert.ok(serialize(tags, { level: 2, parent: ['["gift","b2b"]'] })
+      .includes(`$x.tags == fromJson('["gift","b2b"]')`));
+    assert.ok(serialize(tags, { level: 2, parent: ['[]'] })
+      .includes(`$x.tags == fromJson('[]')`));
+  });
+
+  it('opens the detail rows under a pivot with the same key', () => {
+    const pivoted = { ...ORDERS, pivotOn: ['region'] };
+    const out = serialize(detailSnapshot(pivoted, [doc]));
+    assert.ok(out.includes(`fromJson('${doc}')`), out);
+  });
+
+  it('escapes a quote inside the document', () => {
+    const odd = '{"name":"O\'Brien"}';
+    const out = serialize(ORDERS, { level: 2, parent: [odd] });
+    assert.ok(out.includes(`fromJson('{"name":"O\\'Brien"}')`), out);
+  });
+});
+

@@ -27,6 +27,7 @@
 
 import {
   isNumericType,
+  isJsonValue,
   isRelativeDate,
   isVariantType,
   type FilterCondition,
@@ -675,11 +676,13 @@ function itemText(value: FilterValue): string {
     return dateText(value, value.getHours() + value.getMinutes()
       + value.getSeconds() > 0);
   }
+  if (isJsonValue(value)) return value.json;
   return isRelativeDate(value) ? `${value.relative}()` : String(value);
 }
 
 function scalarText(value: FilterValue): string {
   if (isRelativeDate(value)) return `${value.relative}()`;
+  if (isJsonValue(value)) return value.json;
   if (value instanceof Date) {
     return dateText(value, value.getHours() + value.getMinutes()
       + value.getSeconds() > 0);

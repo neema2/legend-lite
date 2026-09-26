@@ -475,7 +475,24 @@ export interface RelativeDate {
   readonly relative: 'today' | 'now';
 }
 
-export type FilterValue = string | number | boolean | Date | RelativeDate;
+/**
+ * A JSON document, compared as one: `fromJson('{"a":1}')`. What a group
+ * key on a Variant column turns back into when its group is drilled --
+ * the key IS the document's JSON text, and comparing a Variant to a
+ * plain string compares it to a JSON STRING (`to_json('{...}')`), which
+ * matches nothing.
+ */
+export interface JsonValue {
+  readonly json: string;
+}
+
+export function isJsonValue(v: unknown): v is JsonValue {
+  return typeof v === 'object' && v !== null && !(v instanceof Date)
+    && typeof (v as { json?: unknown }).json === 'string';
+}
+
+export type FilterValue = string | number | boolean | Date | RelativeDate
+  | JsonValue;
 
 export function isRelativeDate(v: unknown): v is RelativeDate {
   return typeof v === 'object' && v !== null && !(v instanceof Date)

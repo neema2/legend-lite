@@ -24,6 +24,7 @@ import {
   LEAF_COUNT_COLUMN,
   columnType,
   isNumericType,
+  isJsonValue,
   isVariantType,
   isRelativeDate,
   referencedColumns,
@@ -111,6 +112,7 @@ export function temporalLiteral(v: Date): string {
 
 export function literal(v: FilterValue): string {
   if (isRelativeDate(v)) return v.relative === 'today' ? 'today()' : 'now()';
+  if (isJsonValue(v)) return `fromJson('${escapePure(v.json)}')`;
   if (typeof v === 'string') return `'${escapePure(v)}'`;
   if (typeof v === 'boolean') return v ? 'true' : 'false';
   if (v instanceof Date) return temporalLiteral(v);
@@ -515,6 +517,10 @@ const TEMPORAL = new Set(['Date', 'StrictDate', 'DateTime']);
  * one that silently matches nothing.
  */
 function keyValue(type: string | undefined, value: string): FilterValue {
+  // A Variant key is the document's JSON text, exactly as the database
+  // printed it -- so it matches as a document (DuckDB compares JSON as
+  // text, and this is that text).
+  if (isVariantType(type)) return { json: value };
   if (type === undefined || !TEMPORAL.has(type)) return value;
   const at = new Date(value);
   return Number.isNaN(at.getTime()) ? value : at;

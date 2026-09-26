@@ -40,7 +40,7 @@ import type {
 } from '../snapshot.ts';
 import type { CalcStage } from '../calc.ts';
 import { temporalLiteral } from '../serialize.ts';
-import { isRelativeDate } from '../snapshot.ts';
+import { isJsonValue, isRelativeDate } from '../snapshot.ts';
 import { PIVOT_SEPARATOR } from '../grid/columns.ts';
 
 /**
@@ -360,6 +360,7 @@ const OPERATOR_LABEL: Readonly<Partial<Record<FilterOperator, string>>> = {
  */
 export function valueLabel(value: FilterValue): string {
   if (isRelativeDate(value)) return value.relative === 'today' ? 'TODAY' : 'NOW';
+  if (isJsonValue(value)) return value.json;
   if (value instanceof Date) return temporalLiteral(value).slice(1).replace('T', ' ');
   // Text QUOTED, as upstream's: "region = 'EMEA'", so a value that
   // looks like a number or is blank still reads as the text it is.
