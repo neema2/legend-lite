@@ -84,6 +84,27 @@ another language would win nothing measurable here, and would cost the
 shared Java code: the authorizer, the SQL-API records, and the bindings
 that also compile to WebAssembly.
 
+### For the production module (what the probe teaches)
+
+- **The agent records only what the run exercised.** The probe touched
+  integers, text, doubles and dates. DuckDB's C++ builds other Java
+  objects (through JNI, by name) for decimals, time-zone timestamps,
+  blobs, lists and structs, UUIDs, intervals, errors, the appender and
+  prepared-statement metadata. Generate the reachability metadata from
+  a thorough run, and check it in.
+- **Test the native binary itself** in CI (the conformance suite and the
+  corpus against the executable), so a missing entry is a red test, not
+  a production failure.
+- **One build per platform**, since native-image does not
+  cross-compile: Linux x86_64/arm64 in containers, macOS, Windows. Each
+  ships with the matching DuckDB library, loaded from disk (the
+  `-nolib` driver).
+- **Keep the no-reflection rule** for our own code: that is why our side
+  needed no metadata; only the driver's JNI callbacks did.
+
+**User, 2026-09-26: good enough to move on.** The Linux, Lambda and
+cold-data items below stay open, measured when deployment is built.
+
 ### Still to measure before this is closed
 
 1. **Linux**, which Lambda runs: the same probe as a native image built
