@@ -31,6 +31,7 @@ public final class Catalogs implements AutoCloseable {
     public Catalogs(Path dataDir, List<String> names) throws IOException, DuckException {
         this.dataDir = dataDir;
         Files.createDirectories(dataDir);
+        Files.createDirectories(dataDir.resolve("import"));
         for (String n : names) open(n);
     }
 
@@ -40,7 +41,14 @@ public final class Catalogs implements AutoCloseable {
 
     private void open(String name) throws DuckException {
         if (!validName(name)) throw new IllegalArgumentException("bad catalog name: " + name);
-        databases.put(name, Database.open(dataDir.resolve(name + ".duckdb")));
+        Database db = Database.open(dataDir.resolve(name + ".duckdb"));
+        db.lockDown(importDir());
+        databases.put(name, db);
+    }
+
+    /** Where an owner puts files to load: the one directory a catalog may read files from. */
+    public Path importDir() {
+        return dataDir.resolve("import");
     }
 
     public List<String> names() {

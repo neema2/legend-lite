@@ -71,6 +71,25 @@ public final class Database implements AutoCloseable {
         return conn;
     }
 
+    /**
+     * Closes the database off from the machine, for good (measured on 1.5.5: nothing turns it back on
+     * while the database runs): files and URLs, ATTACH, COPY, INSTALL and LOAD are refused, except
+     * files under {@code importDir} (an owner loads data from there), when given. Settings stay open:
+     * an owner's session sets its TimeZone; a reader can only send a SELECT.
+     */
+    public void lockDown(@Nullable Path importDir) throws DuckException {
+        Conn c = new Conn(this, rawConnect());
+        try {
+            // the allowed directories first: they cannot change once external access is off
+            if (importDir != null) {
+                c.exec("SET allowed_directories = ['" + importDir.toAbsolutePath().toString().replace("'", "''") + "']");
+            }
+            c.exec("SET enable_external_access = false");
+        } finally {
+            c.close();
+        }
+    }
+
     private MemorySegment rawConnect() throws DuckException {
         try (Arena a = Arena.ofConfined()) {
             MemorySegment out = a.allocate(ADDRESS);

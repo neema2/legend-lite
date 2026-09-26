@@ -453,6 +453,13 @@ class JsonTest {
             assertTrue(n.isInteger());
         }
 
+        @Test void parseIntegerPastALongExactly() {
+            Json.Num n = (Json.Num) Json.parse("18446744073709551615");
+            assertEquals(new java.math.BigDecimal("18446744073709551615"), n.decimalValue());
+            assertEquals("[18446744073709551615]", Json.toCompact(new Json.Arr(java.util.List.of(n))));
+            assertEquals(Long.MIN_VALUE, ((Json.Num) Json.parse("-9223372036854775808")).longValue());
+        }
+
         @Test void parseNegativeInteger() {
             Json.Num n = (Json.Num) Json.parse("-17");
             assertEquals(-17L, n.longValue());

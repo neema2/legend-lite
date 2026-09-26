@@ -19,8 +19,10 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
@@ -58,7 +60,6 @@ public final class Statements implements AutoCloseable {
         volatile @Nullable Instant finished;
         volatile @Nullable ResultMeta result;
         volatile @Nullable ApiError error;
-        /** A JSON result's chunks, each {@code {"index", "rows"}} already written. */
         /** The result's chunks (JSON or Arrow, already written), once it has some. */
         volatile ResultStore.@Nullable Stored stored;
         /** The connection running it, while it runs: what a cancel interrupts. */
@@ -110,6 +111,13 @@ public final class Statements implements AutoCloseable {
      * {@code resultMemory}: bytes of finished results held in memory, across every result; past it,
      * results spill to files ({@link ResultStore}).
      */
+    /** The server's own principal: its internal statements (the catalog API) run as it, an owner. */
+    public static final String SERVER = "warehouse";
+
+    /** Who may do what: owners anything; every other user a reader, checked by the authorizer. */
+    public record Access(List<String> owners, Grants grants, Authorizer authorizer) {
+    }
+
     public record Limits(int concurrency, int queue, long maxRows, Duration retain, long resultMemory) {
         public static final long DEFAULT_RESULT_MEMORY = 1L << 30;
 
@@ -121,6 +129,8 @@ public final class Statements implements AutoCloseable {
     private final Catalogs catalogs;
     private final Sessions sessions;
     private final ResultStore results;
+    private final Access access;
+    private final Set<String> owners;
     private final History history;
     private final Limits limits;
     private final Clock clock;
@@ -132,9 +142,14 @@ public final class Statements implements AutoCloseable {
     });
     private final Map<String, Run> runs = new ConcurrentHashMap<>();
 
-    public Statements(Catalogs catalogs, Sessions sessions, ResultStore results, History history, Limits limits,
-            Clock clock) {
+    public Statements(Catalogs catalogs, Sessions sessions, ResultStore results, History history, Access access,
+            Limits limits, Clock clock) {
         this.results = results;
+        this.access = access;
+        Set<String> o = new HashSet<>();
+        for (String owner : access.owners()) o.add(Grants.norm(owner));
+        o.add(SERVER);
+        this.owners = Set.copyOf(o);
         this.catalogs = catalogs;
         this.sessions = sessions;
         this.history = history;
@@ -248,18 +263,47 @@ public final class Statements implements AutoCloseable {
         }
     }
 
-    /** One statement (or script) on one connection, which already belongs to the run's principal. */
+    public boolean isOwner(String principal) {
+        return owners.contains(Grants.norm(principal));
+    }
+
+    /**
+     * One statement (or script) on one connection, which already belongs to the run's principal. An
+     * owner's statement runs as written, or manages grants; a reader's must pass the authorizer first.
+     */
     private void runOn(Run run, Conn c) {
         run.running = c;
         try {
             if (run.cancelRequested) throw DuckException.cancelledBeforeStart();
-            if (run.request.describeOnly()) {
-                // What the statement will return, from DuckDB's prepare; nothing runs.
-                run.result = new ResultMeta(ResultEncoder.api(c.describe(run.request.sql())), 0, 0);
+            boolean owner = isOwner(run.principal);
+            AdminStatements.Admin admin = AdminStatements.parse(run.request.sql(), run.request.catalog());
+            if (admin != null && !owner) {
+                finish(run, State.FAILED, new ApiError(ErrorCode.FORBIDDEN, "only an owner may manage grants"));
+                return;
+            }
+            if (admin != null && !(admin instanceof AdminStatements.ShowGrants)) {
+                if (!run.request.describeOnly()) administer(admin);   // describing a change makes none
+                run.result = new ResultMeta(List.of(), run.request.describeOnly() ? 0 : -1, 0);
                 finish(run, State.SUCCEEDED, null);
                 return;
             }
-            try (Result r = c.execute(run.request.sql())) {
+            if (!owner) {
+                try {
+                    access.authorizer().check(c, run.request.sql(), run.request.catalog(), run.principal);
+                } catch (Authorizer.Denied d) {
+                    finish(run, State.FAILED, new ApiError(d.parse ? ErrorCode.SQL_PARSE : ErrorCode.FORBIDDEN,
+                            String.valueOf(d.getMessage())));
+                    return;
+                }
+            }
+            String sql = admin != null ? showGrants() : run.request.sql();
+            if (run.request.describeOnly()) {
+                // What the statement will return, from DuckDB's prepare; nothing runs.
+                run.result = new ResultMeta(ResultEncoder.api(c.describe(sql)), 0, 0);
+                finish(run, State.SUCCEEDED, null);
+                return;
+            }
+            try (Result r = c.execute(sql)) {
                 if (r.hasRows()) {
                     collect(run, r);
                 } else {
@@ -268,6 +312,8 @@ public final class Statements implements AutoCloseable {
                 }
             }
             finish(run, State.SUCCEEDED, null);
+        } catch (IllegalArgumentException e) {
+            finish(run, State.FAILED, new ApiError(ErrorCode.BAD_REQUEST, String.valueOf(e.getMessage())));
         } catch (ResultEncoder.Unsupported e) {
             finish(run, State.FAILED, new ApiError(ErrorCode.UNSUPPORTED_TYPE, String.valueOf(e.getMessage())));
         } catch (Collect.TooLarge e) {
@@ -302,6 +348,41 @@ public final class Statements implements AutoCloseable {
             into.free();
             throw e;
         }
+    }
+
+    private void administer(AdminStatements.Admin admin) throws DuckException {
+        Grants g = access.grants();
+        switch (admin) {
+            case AdminStatements.CreateRole r -> g.createRole(r.role());
+            case AdminStatements.DropRole r -> g.dropRole(r.role());
+            case AdminStatements.Select s -> {
+                if (s.grant()) g.grantSelect(s.target());
+                else g.revokeSelect(s.target());
+            }
+            case AdminStatements.Membership m -> {
+                if (m.grant()) g.grantRole(m.role(), m.member());
+                else g.revokeRole(m.role(), m.member());
+            }
+            case AdminStatements.ShowGrants s -> throw new IllegalStateException("SHOW GRANTS is a query");
+        }
+    }
+
+    /** SHOW GRANTS: a query over the grants, so it answers like any result, in either format. */
+    private String showGrants() {
+        List<Grants.Grant> all = access.grants().all();
+        StringBuilder sb = new StringBuilder("SELECT * FROM (VALUES ");
+        if (all.isEmpty()) sb.append("(NULL::VARCHAR, NULL::VARCHAR, NULL::VARCHAR, NULL::VARCHAR)");
+        for (int i = 0; i < all.size(); i++) {
+            Grants.Grant g = all.get(i);
+            sb.append(i == 0 ? "(" : ", (").append(lit(g.catalog())).append(", ").append(lit(g.schema()))
+                    .append(", ").append(lit(g.name())).append(", ").append(lit(g.grantee())).append(')');
+        }
+        sb.append(") AS g(catalog, schema_name, name, grantee)");
+        return all.isEmpty() ? sb.append(" WHERE false").toString() : sb.append(" ORDER BY ALL").toString();
+    }
+
+    private static String lit(String s) {
+        return "'" + s.replace("'", "''") + "'";
     }
 
     /** DuckDB's error kinds, as the API's codes. */

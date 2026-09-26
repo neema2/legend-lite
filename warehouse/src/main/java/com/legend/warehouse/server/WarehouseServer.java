@@ -3,6 +3,7 @@ package com.legend.warehouse.server;
 import com.legend.Nullable;
 import com.legend.server.Json;
 import com.legend.warehouse.server.duck.ArrowStreams;
+import com.legend.warehouse.server.duck.Database;
 import com.legend.warehouse.server.duck.DuckException;
 import com.legend.warehouse.server.duck.DuckLibrary;
 import com.legend.warehouse.sqlapi.ApiJson;
@@ -57,19 +58,26 @@ public final class WarehouseServer implements AutoCloseable {
             byte @Nullable [] tokenKey,
             Duration tokenLife,
             Statements.Limits limits,
-            @Nullable Path duckdbLibrary) {
+            @Nullable Path duckdbLibrary,
+            List<String> owners) {
 
         /** DuckDB's library from the classpath (DuckDB's JDBC jar carries it). */
         public Config(int port, Path dataDir, List<String> catalogs, List<String[]> users,
                 byte @Nullable [] tokenKey, Duration tokenLife, Statements.Limits limits) {
-            this(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, null);
+            this(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, null, List.of());
+        }
+
+        public Config withOwners(List<String> owners) {
+            return new Config(port, dataDir, catalogs, users, tokenKey, tokenLife, limits, duckdbLibrary, owners);
         }
     }
 
     private final HttpServer http;
     private final Identity identity;
     private final Catalogs catalogs;
+    private final Database system;
     private final History history;
+    private final Grants grants;
     private final Sessions sessions;
     private final Statements statements;
     private final ResultStore results;
@@ -86,12 +94,27 @@ public final class WarehouseServer implements AutoCloseable {
             new SecureRandom().nextBytes(key);
         }
         identity = new Identity(key, config.tokenLife(), clock);
-        for (String[] u : config.users()) identity.addUser(u[0], u[1]);
+        for (String[] u : config.users()) {
+            if (u[0].equalsIgnoreCase(Statements.SERVER)) throw new IllegalArgumentException("'" + u[0] + "' is the server's own name");
+            identity.addUser(u[0], u[1]);
+        }
         catalogs = new Catalogs(config.dataDir(), config.catalogs());
-        history = new History(config.dataDir());
+        system = Database.open(config.dataDir().resolve("system.duckdb"));
+        system.lockDown(null);
+        history = new History(system);
+        grants = new Grants(system);
         sessions = new Sessions(catalogs, Duration.ofMinutes(30), clock);
         results = new ResultStore(config.dataDir().resolve("results"), config.limits().resultMemory());
-        statements = new Statements(catalogs, sessions, results, history, config.limits(), clock);
+        Authorizer authorizer;
+        try (var c = system.connect(Statements.SERVER)) {
+            authorizer = new Authorizer(grants, Authorizer.builtins(c));
+        } catch (DuckException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException("could not read DuckDB's functions", e);
+        }
+        statements = new Statements(catalogs, sessions, results, history,
+                new Statements.Access(config.owners(), grants, authorizer), config.limits(), clock);
         http = HttpServer.create(new InetSocketAddress("127.0.0.1", config.port()), 0);
         http.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         http.createContext("/", this::handle);
@@ -307,10 +330,11 @@ public final class WarehouseServer implements AutoCloseable {
     }
 
     private void objects(String principal, String catalog) throws Reply {
-        // W1 lists everything in the catalog; W2 filters by the caller's grants.
+        // Read by the server itself (a reader may not call duckdb_columns()), then filtered to what the
+        // caller may see: an owner everything, a reader what is granted to it.
         Statements.Run run;
         try {
-            run = statements.submit(principal, new StatementRequest("""
+            run = statements.submit(Statements.SERVER, new StatementRequest("""
                     SELECT c.schema_name AS schema, c.table_name AS name,
                            CASE WHEN v.view_name IS NULL THEN 'table' ELSE 'view' END AS kind,
                            c.column_name, c.data_type
@@ -323,12 +347,17 @@ public final class WarehouseServer implements AutoCloseable {
         }
         waitFor(run, 30_000);
         byte[] written = run.chunk(0);
+        statements.forget(run);
         Chunk c = written == null ? null : ApiJson.parseChunk(new String(written, StandardCharsets.UTF_8));
         if (c == null) throw Reply.error(500, ErrorCode.INTERNAL, "the catalog could not be read");
         LinkedHashMap<String, LinkedHashMap<String, Json.Node>> byObject = new LinkedHashMap<>();
         LinkedHashMap<String, List<Json.Node>> columns = new LinkedHashMap<>();
+        boolean owner = statements.isOwner(principal);
+        java.util.Set<String> principals = grants.principals(principal);
         for (List<Json.Node> row : c.rows()) {
-            String key = ((Json.Str) row.get(0)).value() + "." + ((Json.Str) row.get(1)).value();
+            String schema = ((Json.Str) row.get(0)).value(), name = ((Json.Str) row.get(1)).value();
+            if (!owner && !grants.canSelect(principals, catalog, schema, name)) continue;
+            String key = schema + "." + name;
             byObject.computeIfAbsent(key, k -> {
                 LinkedHashMap<String, Json.Node> f = new LinkedHashMap<>();
                 f.put("schema", row.get(0));
@@ -406,12 +435,15 @@ public final class WarehouseServer implements AutoCloseable {
         statements.close();
         sessions.close();
         history.close();
+        grants.close();
+        system.close();
         catalogs.close();
     }
 
     /**
      * {@code --port N --data DIR --catalog NAME... --user NAME:PASSWORD...
-     * --concurrency N --queue N --max-rows N --retain-minutes N --result-memory-mb N --duckdb-library FILE}.
+     * --concurrency N --queue N --max-rows N --retain-minutes N --result-memory-mb N --duckdb-library FILE
+     * --owner NAME...}. An owner may do anything; every other user is a reader (§3 of the server program).
      */
     public static void main(String[] args) throws Exception {
         int port = 8765;
@@ -424,6 +456,7 @@ public final class WarehouseServer implements AutoCloseable {
         long retainMinutes = 10;
         long resultMemoryMb = Statements.Limits.DEFAULT_RESULT_MEMORY >> 20;
         Path library = null;
+        List<String> owners = new ArrayList<>();
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
                 case "--port" -> port = Integer.parseInt(args[++i]);
@@ -433,6 +466,7 @@ public final class WarehouseServer implements AutoCloseable {
                 case "--concurrency" -> concurrency = Integer.parseInt(args[++i]);
                 case "--queue" -> queue = Integer.parseInt(args[++i]);
                 case "--duckdb-library" -> library = Path.of(args[++i]);
+                case "--owner" -> owners.add(args[++i]);
                 case "--max-rows" -> maxRows = Long.parseLong(args[++i]);
                 case "--retain-minutes" -> retainMinutes = Long.parseLong(args[++i]);
                 case "--result-memory-mb" -> resultMemoryMb = Long.parseLong(args[++i]);
@@ -442,7 +476,7 @@ public final class WarehouseServer implements AutoCloseable {
         if (cats.isEmpty()) cats.add(StatementRequest.DEFAULT_CATALOG);
         WarehouseServer s = new WarehouseServer(new Config(port, data, cats, users, null, Duration.ofHours(1),
                 new Statements.Limits(concurrency, queue, maxRows, Duration.ofMinutes(retainMinutes), resultMemoryMb << 20),
-                library));
+                library, owners));
         System.err.println("warehouse listening on 127.0.0.1:" + s.port() + ", catalogs " + cats);
     }
 }

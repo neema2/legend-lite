@@ -134,10 +134,13 @@ final class DuckWorkspaces {
      *  classpath: the warehouse runs DuckDB 1.5.5.1, this harness 1.4.4. */
     private static String startWarehouse(String jar) throws SQLException {
         try {
-            java.nio.file.Path data = java.nio.file.Files.createTempDirectory("rcorpus-warehouse");
+            // rcorpus.warehouse.data: keep the warehouse's data (its query history) where it can be read after
+            String keep = System.getProperty("rcorpus.warehouse.data");
+            java.nio.file.Path data = keep != null ? java.nio.file.Files.createDirectories(java.nio.file.Path.of(keep))
+                    : java.nio.file.Files.createTempDirectory("rcorpus-warehouse");
             String launcher = java.nio.file.Path.of(System.getProperty("java.home"), "bin", "java").toString();
             Process p = new ProcessBuilder(launcher, "--enable-native-access=ALL-UNNAMED", "-jar", jar,
-                    "--port", "0", "--data", data.toString(), "--user", "rcorpus:rcorpus",
+                    "--port", "0", "--data", data.toString(), "--user", "rcorpus:rcorpus", "--owner", "rcorpus",
                     "--concurrency", "4")
                     .redirectOutput(ProcessBuilder.Redirect.INHERIT)
                     .start();

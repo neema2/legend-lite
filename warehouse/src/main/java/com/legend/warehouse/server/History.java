@@ -9,7 +9,6 @@ import com.legend.warehouse.server.duck.Result;
 import com.legend.warehouse.sqlapi.SqlApi.ApiError;
 import com.legend.warehouse.sqlapi.SqlApi.ResultMeta;
 import com.legend.server.Json;
-import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -24,12 +23,11 @@ public final class History implements AutoCloseable {
 
     private static final String WAREHOUSE = "warehouse";
 
-    private final Database db;
     private final Conn conn;
 
-    public History(Path dataDir) throws DuckException {
-        db = Database.open(dataDir.resolve("system.duckdb"));
-        conn = db.connect(WAREHOUSE);
+    /** The history in the warehouse's system database (opened, and closed, by the server). */
+    public History(Database system) throws DuckException {
+        conn = system.connect(WAREHOUSE);
         conn.execute("""
                 CREATE TABLE IF NOT EXISTS query_history (
                   statement_id VARCHAR PRIMARY KEY,
@@ -99,6 +97,5 @@ public final class History implements AutoCloseable {
     @Override
     public synchronized void close() {
         conn.close();
-        db.close();
     }
 }

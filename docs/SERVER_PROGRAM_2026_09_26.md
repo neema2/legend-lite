@@ -205,6 +205,61 @@ render its dialect, which is a separate leg per vendor.
 
 The warehouse enforces them. Nothing upstream of it is trusted.
 
+**W2 as built (2026-09-26): lockdown, owners and readers, SELECT grants.** The user cut the plan
+below to the simplest thing that holds: *deploy tables, views and table functions, and let users
+query them if they have grants*. What exists:
+
+- **Lockdown, for everyone.** Every database the server opens (each catalog, and its own
+  `system.duckdb`) is set `allowed_directories = [<data>/import]` and then
+  `enable_external_access = false`, which DuckDB will not turn back on. No file outside the import
+  directory, no URL, no `ATTACH` of a file, no `COPY … TO` a file, no `INSTALL`/`LOAD`.
+  `lock_configuration` is not used: it also blocks `SET TimeZone`, which sessions need. (Measured:
+  `ATTACH ':memory:'` still works, so `//spec:corpus_warehouse` is unchanged, pass 2,474 / fail 107.)
+- **Owners and readers.** `--owner NAME` (repeatable) names the users who may do anything:
+  DDL, DML, grants, loading from the import directory. Everyone else is a **reader**. The server
+  runs its own internal statements as the reserved principal `warehouse`, which is an owner.
+- **A reader runs one SELECT**, checked before it runs by `Authorizer` (allow or deny, never
+  rewrite), which walks DuckDB's own parse (`json_serialize_sql`, which refuses anything but
+  SELECT):
+  - every table or view it names, every table function it calls, and every function that is not
+    one of DuckDB's own (a deployed macro) must be **granted** to the reader or one of its roles;
+  - `range`, `generate_series` and `unnest` need no grant; `query()`/`query_table()` never (they
+    read a table named in a string); `sleep_ms`, `pg_sleep`, `nextval`, `currval`, `setseed`,
+    `current_setting` and `write_log` never;
+  - CTE names are scoped the way DuckDB binds them: a CTE's own body does not see its name, and in
+    a recursive CTE only the recursive term does. **Found while testing:** in
+    `WITH RECURSIVE secret AS (SELECT * FROM secret UNION …)` DuckDB binds the anchor's `secret`
+    to the base table, so a check that put the name in scope for the whole CTE would have let a
+    reader read it;
+  - only kinds the check knows pass (query nodes, table references, modifiers, sort directions,
+    type details); anything else (`SHOW`, a kind a later DuckDB adds) is denied.
+  - Denied is `FORBIDDEN`; SQL DuckDB cannot parse is `SQL_PARSE`. `describeOnly` is checked the
+    same way.
+- **Grants**, in Postgres's spelling, parsed by the server (`AdminStatements`), owners only, kept
+  in the system database's `security_roles`, `security_members` and `security_grants` (no catalog
+  can reach them):
+  `CREATE ROLE r`, `DROP ROLE r`, `GRANT r TO user_or_role`, `REVOKE r FROM …`,
+  `GRANT SELECT ON [TABLE|VIEW|FUNCTION] [[catalog.]schema.]name TO grantee`,
+  `GRANT SELECT ON SCHEMA [catalog.]schema TO grantee` (everything in it), `REVOKE SELECT … FROM`,
+  `SHOW GRANTS` (a result like any other).
+- **What a grant gives:** a view or table macro runs with its owner's rights, as in Postgres, so a
+  reader granted `sales.v_orders` reads through it without any grant on `sales.orders`. Row
+  filtering is a view over `system.main.authenticated_user()` (0b below; pinned by
+  `aViewCanFilterRowsByWhoIsAsking`).
+- **The catalog API** (`/sql/v1/catalogs/{c}/objects`) is read by the server and filtered: an owner
+  sees everything, a reader what it may SELECT.
+- **Proof:** `WarehouseEntitlementsTest`, run in process and against the native binary: 23 statements
+  a reader must not run (base tables through subqueries, CTEs, the CTE-name tricks, lateral, set
+  operations, scalar subqueries, other catalogs, `duckdb_tables()`, `query()`, file paths, an
+  ungranted macro), 19 that are not SELECT, and 15 ordinary SELECTs that must pass (casts, sorted
+  windows, QUALIFY, GROUPING SETS, ASOF and positional joins, UNPIVOT, lambdas, FROM-first).
+
+**Not built, and why:** USAGE/EXECUTE as separate privileges (SELECT covers "may read this
+object"), `CREATE USER` (users come from `--user`), PUBLIC, role schemas with `search_path`, and
+`information_schema` filtering (readers cannot query `information_schema` at all; the catalog API
+is the filtered view). Each is a later leg if a use needs it. The numbered plan below is the
+original design, kept for the reasoning.
+
 **Measured on DuckDB 1.4.4 (2026-09-26):**
 
 | What | Result |
@@ -327,7 +382,7 @@ Each leg lands with its proof, and CI is green before the next starts.
 |---|---|---|
 | **W0** | Homework: DuckDB's concurrency model under a server (one process, a connection per session, the writer), `json_serialize_sql` coverage for the authorizer (every SELECT form; CTE names vs objects; multi-statement text), views over external data with file access denied to users, Arrow IPC streaming from DuckDB JDBC, **what TeaVM's WebAssembly accepts for a sans-I/O binding** (JSON handling, byte arrays, the driver seam to `fetch`), the Windows lane. Measured, written down | the homework doc, with probes |
 | **W1** | Warehouse core: process, catalogs, users/roles/tokens, sessions, the **HTTP SQL API** natively (§2a), Arrow + JSON results, limits, cancel, query history | a Java client suite over HTTP; **legend-lite's DuckDB corpus run against the warehouse through the HTTP API as a connection type**, so thousands of queries prove "the same as DuckDB, remotely" |
-| **W2** | Entitlements: role schemas, views, identity variables, the authorizer (§3) | the entitlement differential; the adversarial deny suite |
+| **W2** | Entitlements: lockdown, owners and readers, SELECT grants, row views over `authenticated_user()`, the authorizer (§3, **built 2026-09-26**) | the entitlement differential; the adversarial deny suite (`WarehouseEntitlementsTest`) |
 | **D1** | **DataCube Direct mode:** a warehouse source (URL + sign-in), the tab plans, the SQL-API client runs it, Arrow in; the catalog call lists what the user may see | the browser harness over a running warehouse; the **mode differential**: Local vs Direct, identical rows for every harness cube |
 | **W3** | PostgreSQL wire protocol, on the same sessions, auth and authorizer | psql and the Postgres JDBC driver; the corpus again, over JDBC |
 | **E1** | legend-lite **Engine mode**: warehouse connection types (JDBC, HTTP), identity pass-through, `execute` and `generatePlan` in legend-engine's exact JSON (contract P1, E8/P4, E9/P5), DataCube calling only the engine API (C1) | the mode differential across all three modes; the per-user entitlement differential through legend-lite |

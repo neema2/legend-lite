@@ -927,6 +927,11 @@ public final class Json {
 
             String num = src.substring(start, pos);
             if (isFloat) return Num.ofDecimal(new java.math.BigDecimal(num));
+            // an integer past a long (DuckDB writes UINT64's max) is still a JSON number: kept exact
+            if (num.length() >= 19) {
+                java.math.BigInteger big = new java.math.BigInteger(num);
+                if (big.bitLength() > 63) return Num.ofDecimal(new java.math.BigDecimal(big));
+            }
             return Num.ofLong(Long.parseLong(num));
         }
 
