@@ -85,6 +85,11 @@ by the moves, not by exemptions. Corpus timing unchanged (no compiler code chang
 
 ### Step 1 — The differential becomes a gate (half a day)
 
+> **Done 2026-09-26** (GATES.md entry of that date; numbers in `tools/reference/README.md`): AGREE
+> 42,589 / OVERLOAD 450 / PACKAGE 11 / SOURCE_DRIFT 52,266 / ABSENT 42,174 / PROPERTY_AS_CALL 31 /
+> EXTRA 12,971. Two findings for steps 3 and 6 fell out: our typer inserts `toOne` (2,504) and
+> `elementToPath` (1,518) calls the reference never makes.
+
 **What it is.** Today `tools/reference/join.py` joins by (enclosing function NAME, spelling) and
 compares sets, so overloads of the enclosing function merge, a call we elide shows as a
 disagreement, and version-drift rows count. "Zero" is not yet a meaningful number.

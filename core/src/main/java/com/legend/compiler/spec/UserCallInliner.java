@@ -242,7 +242,7 @@ public final class UserCallInliner {
         if (programs.size() != 1) {
             return src;
         }
-        return inlineCall(new TypedUserCall(programs.get(0), nc.args(), nc.info()), env);
+        return inlineCall(new TypedUserCall(programs.get(0), nc.args(), nc.info(), nc.pos()), env);
     }
 
     /** The UNROLL BUDGET: expansions one compile may perform before the
@@ -313,14 +313,14 @@ public final class UserCallInliner {
             args.add(rewrite(a, env));
         }
         if (configMode || isStoreElementIdentity(call.callee().qualifiedName(), args)) {
-            return new TypedUserCall(call.callee(), args, call.info());
+            return new TypedUserCall(call.callee(), args, call.info(), call.pos());
         }
         // a SUBSUMED ENGINE PROGRAM (Refused(MOOT) in the table): the body is
         // never spliced — the call stays a typed opaque value, typed by
         // upstream's own declaration; its value is dead by governance test
         if (row instanceof com.legend.platform.Implementation.Refused) {
             com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "SUBSUMED");
-            return new TypedUserCall(call.callee(), args, call.info());
+            return new TypedUserCall(call.callee(), args, call.info(), call.pos());
         }
         com.legend.builtin.DecisionProbe.pick(call.callee().definition(), "BODY");
         // signatureKey identifies the OVERLOAD — name/arity conflated two
@@ -424,7 +424,7 @@ public final class UserCallInliner {
             // (host call frames; the plan seam reads postprocessor config
             // structurally); SQL lowering keeps its loud TypedUserCall
             // frontier wall.
-            return new TypedUserCall(call.callee(), args, call.info());
+            return new TypedUserCall(call.callee(), args, call.info(), call.pos());
         } finally {
             stack.pop();
             literalSizes.pop();
@@ -518,7 +518,7 @@ public final class UserCallInliner {
         for (com.legend.compiler.element.TypedFunction body
                 : specs.ctx().findFunction(d.bodyFunctionFqn())) {
             if (body.parameters().size() == c.args().size()) {
-                return inlineCall(new TypedUserCall(body, c.args(), c.info()), Map.of());
+                return inlineCall(new TypedUserCall(body, c.args(), c.info(), c.pos()), Map.of());
             }
         }
         return walked;
@@ -551,7 +551,7 @@ public final class UserCallInliner {
         return switch (reduced) {
             case TypedNativeCall c -> new TypedNativeCall(c.callee(), c.args(), ni, c.pos());
             case com.legend.compiler.spec.typed.TypedCollection tc -> tc.withInfo(ni);
-            case TypedUserCall uc -> new TypedUserCall(uc.callee(), uc.args(), ni);
+            case TypedUserCall uc -> new TypedUserCall(uc.callee(), uc.args(), ni, uc.pos());
             default -> reduced;
         };
     }

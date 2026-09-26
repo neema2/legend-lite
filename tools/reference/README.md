@@ -9,7 +9,14 @@ function's declared name and its signature id, and the enclosing function's.
 It is the oracle for name binding and overload choice: our compiler's answer for the same call
 is right when it equals this, and every difference is either our bug or an upstream fact we did
 not know. `spec/.../OurResolutionsTest` produces our side in the same shape
-(`-Dour.resolutions=<module>`); the join is by enclosing function and spelling.
+(`-Dour.resolutions=<module>`, run as
+`bazel test //spec:spec_tests --test_env=JAVA_TOOL_OPTIONS=-Dour.resolutions=core_relational
+--test_arg=--select-class=com.legend.generators.OurResolutionsTest`; the dump lands in the lane's
+`test.outputs/`). Since 2026-09-26 (execution plan step 1) the join is CALL BY CALL, by the
+call-name token's (source, line, column): `join.py`'s docstring has the rules, `source_drift.py`
+marks the sources whose text differs between the jar's version and our pinned trees (241 of
+1,218: a position there means nothing), and the docstring names the two spellings that need
+their own rule (operator runs, property reads).
 
 ## Running it (no build system, no install)
 
@@ -30,7 +37,26 @@ Loading and compiling the whole system takes a few minutes and ~10 GB. `loadAndC
 must precede `loadAndCompileSystem()` (the M3 bootstrap creates the Root package the system
 compile walks).
 
-## What it found on 2026-09-25 (receipts in the study directory, `receipts/reference-differential/`)
+## What the positional join found on 2026-09-26 (receipts: `join-positional-pre-step2.txt`, `source-drift-4.138.5-vs-4.145.0.tsv`)
+
+Functions: the reference typed 11,973 names, we 16,101 (1,480 failed); 11,480 in both; 493 the
+reference typed that we never saw (the 32 walls); 1,319 the reference typed that we FAILED. Calls
+in bodies both typed, outside drifted sources: AGREE 42,589; OVERLOAD 450 (`isEmpty` 283, `average`
+32, `elementToPath` 24, `max` 21, `hasGeneratedMilestoningPropertyStereotype` 34, `min` 18,
+`stdDevSample` 10, `median` 8, `or` 6, `sum` 5, the rest ≤2); PACKAGE 11 (`size` 8 — our TDS
+erasure at typing time, `homework-2026-09-26.md` §1; `divide` 3 — an operator-span artefact);
+SOURCE_DRIFT 52,266; ABSENT 42,174 (what the reference has as calls and we as nodes or rewrites:
+`letFunction` 10,956, `map` 4,490 of which most are the automap rewrite, `new` 4,259, `cast` 2,383,
+`getAll` 1,958, `if` 1,854, `eval` 1,548, `filter` 1,486, `project` 1,264, `extractEnumValue` 1,205,
+`colSpec` 1,162, `plus` 946 from run splitting, `match` 716 …); PROPERTY_AS_CALL 31
+(`connectionByElement`, a qualified property we model as a function — step A4); EXTRA 12,971
+(calls of ours the reference has none for: `toOne` 2,504 and `elementToPath` 1,518 are calls our
+typer INSERTS — a finding for steps 3 and 6; `string::plus` 1,001 run splitting; `isEmpty` 620,
+`equal` 369 …). Every OVERLOAD row is an instance of the reference's match orderings
+(`docs/plan-audit-2026-09-26/reference-matching.md` 7–10); the acceptance test for step 3 is
+OVERLOAD 0 and PACKAGE 0 with the `divide` artefact explained or fixed in the parser's span.
+
+## What the first (name-keyed) join found on 2026-09-25 (superseded; receipts in the study directory, `receipts/reference-differential/`)
 
 Over 10,161 function bodies both compilers type: the reference resolved 66,608 calls to exactly
 the overload we chose; 28 to a function in a different package (`sort` and `distinct` on relations

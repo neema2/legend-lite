@@ -34,7 +34,13 @@ import java.util.stream.Stream;
  * function, the node kind, the callee the typer chose (its declaration's full
  * name and signature key). A form's node is a row too, by its kind, so the
  * differential can tell "resolved to X" from "typed as a form" from "absent".
- * Opt-in: {@code -Dour.resolutions=<module>}; writes {@code our-resolutions-<module>.tsv}.
+ * Since execution plan step 1 (2026-09-26) every call row carries the call-name
+ * token's line and column and the source id in the REFERENCE's spelling
+ * ({@code /module/path.pure}), so {@code tools/reference/join.py} joins the two
+ * dumps call by call instead of by (function name, spelling) — which merged
+ * overloads of the enclosing function and counted an elided call as a
+ * disagreement. Opt-in: {@code -Dour.resolutions=<module>}; writes
+ * {@code our-resolutions-<module>.txt}.
  */
 public class OurResolutionsTest {
 
@@ -91,9 +97,9 @@ public class OurResolutionsTest {
         long failed = 0;
         try (PrintWriter w = new PrintWriter(Files.newBufferedWriter(
                 Repo.out("our-resolutions-" + target + ".txt"), StandardCharsets.UTF_8))) {
-            w.println("source\tenclosing\tkind\tresolved\tsignatureKey");
+            w.println("sourceId\tline\tcolumn\tkind\tresolvedFqn\tresolvedId\tenclosingFqn\tenclosingId");
             for (String fqn : new java.util.TreeSet<>(ctx.functionFqns())) {
-                String src = elementSources.getOrDefault(fqn, "?");
+                String src = referenceSourceId(elementSources.get(fqn));
                 List<TypedFunction> overloads;
                 try {
                     overloads = ctx.findFunction(fqn);
@@ -105,16 +111,17 @@ public class OurResolutionsTest {
                         continue;
                     }
                     functions++;
+                    String enclosing = fqn + "\t" + idOf(fn);
                     CompiledFunction compiled;
                     try {
                         compiled = specs.compile(fn);
                     } catch (RuntimeException | StackOverflowError e) {
                         failed++;
-                        w.println(src + "\t" + fqn + "\tFAILED\t" + e.getClass().getSimpleName() + "\t");
+                        w.println(src + "\t\t\tFAILED\t" + e.getClass().getSimpleName() + "\t\t" + enclosing);
                         continue;
                     }
                     for (TypedSpec stmt : compiled.body()) {
-                        rows += walk(stmt, src, fqn, w);
+                        rows += walk(stmt, src, enclosing, w);
                     }
                 }
             }
@@ -127,19 +134,51 @@ public class OurResolutionsTest {
         return f.definition() == null ? "" : com.legend.platform.FunctionId.of(f.definition()).qualified();
     }
 
+    /** Our {@code module:relative/path} as the reference's {@code /module/relative/path}
+     * (the reference's source id is the repository-relative path; ours already
+     * repeats the module name for most modules and not for {@code platform}). */
+    static String referenceSourceId(String ours) {
+        if (ours == null) {
+            return "?";
+        }
+        int colon = ours.indexOf(':');
+        if (colon < 0) {
+            return ours;
+        }
+        String module = ours.substring(0, colon);
+        String path = ours.substring(colon + 1);
+        return "/" + (path.startsWith(module + "/") ? path : module + "/" + path);
+    }
+
+    /** The call-NAME token's line and column, as the reference prints them: for a
+     * qualified spelling ({@code meta::x::f(...)}) the reference's column is the
+     * LAST segment's start; our span covers the whole spelled name (1-based,
+     * inclusive end), so the last segment starts at end - |simple name| + 1. */
+    private static String at(com.legend.protocol.@com.legend.base.Nullable SourceInfo pos, String qualifiedName) {
+        if (pos == null) {
+            return "\t";
+        }
+        String simple = qualifiedName.substring(qualifiedName.lastIndexOf("::") + 2);
+        int width = pos.endColumn() - pos.startColumn() + 1;
+        int column = pos.startLine() == pos.endLine() && width > simple.length()
+                ? pos.endColumn() - simple.length() + 1
+                : pos.startColumn();
+        return pos.startLine() + "\t" + column;
+    }
+
     private static long walk(TypedSpec node, String src, String enclosing, PrintWriter w) {
         long n = 0;
         if (node instanceof TypedNativeCall c) {
-            w.println(src + "\t" + enclosing + "\tCALL\t" + c.callee().qualifiedName() + "\t" + idOf(c.callee()));
+            w.println(src + "\t" + at(c.pos(), c.callee().qualifiedName()) + "\tCALL\t" + c.callee().qualifiedName() + "\t" + idOf(c.callee()) + "\t" + enclosing);
             n++;
         } else if (node instanceof TypedUserCall c) {
-            w.println(src + "\t" + enclosing + "\tCALL\t" + c.callee().qualifiedName() + "\t" + idOf(c.callee()));
+            w.println(src + "\t" + at(c.pos(), c.callee().qualifiedName()) + "\tCALL\t" + c.callee().qualifiedName() + "\t" + idOf(c.callee()) + "\t" + enclosing);
             n++;
         } else {
             String kind = node.getClass().getSimpleName();
             if (kind.startsWith("Typed") && !kind.equals("TypedLambda") && !kind.equals("TypedVariable")
                     && !kind.equals("TypedLiteral") && !kind.equals("TypedCollection") && !kind.equals("TypedLet")) {
-                w.println(src + "\t" + enclosing + "\tNODE\t" + kind + "\t");
+                w.println(src + "\t\t\tNODE\t" + kind + "\t\t" + enclosing);
             }
         }
         for (TypedSpec child : node.children()) {

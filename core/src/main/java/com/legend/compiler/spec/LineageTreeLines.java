@@ -105,7 +105,7 @@ public final class LineageTreeLines {
                         new Multiplicity.Bounded(expected.size(), expected.size()))),
                 new TypedUserCall(lines.get(0), List.of(p.args().get(0), withJoin), many));
         return bare instanceof TypedUserCall c
-                ? new TypedUserCall(callee, rewritten, c.info())
+                ? new TypedUserCall(callee, rewritten, c.info(), c.pos())
                 : new TypedNativeCall(callee, rewritten, ((TypedNativeCall) bare).info(),
                         ((TypedNativeCall) bare).pos());
     }

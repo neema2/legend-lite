@@ -68,6 +68,9 @@ h2-fail-roster.txt`.
 
 ## Status lines (update in place; newest first)
 
+- 2026-09-26 12:25 untangle: **step 1 landed** (the reference differential joins call by call;
+  one record field on `TypedUserCall`, test and tool code otherwise). Next: step 2 (lowering
+  registration by declaration id: `lowering/`, `builtin/Pure.java`, `resolver/`, `platform/`).
 - 2026-09-26 11:55 untangle: **steps 0a, 0b, 0c landed** (6d39f26df, cbb6a0266, and the split
   commit): `//core` is now an umbrella over 29 targets; consumers' `deps` unchanged; `deps(//core:
   parser)` reaches nothing above the front end. The load since 11:10 (15–80) is the OTHER

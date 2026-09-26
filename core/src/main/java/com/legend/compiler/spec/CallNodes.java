@@ -47,6 +47,6 @@ final class CallNodes {
                 || implementations.runsByRule(chosen.definition());
         return nativeNode
                 ? NormalizeFolds.foldReflection(new TypedNativeCall(chosen, args, out, pos))
-                : new TypedUserCall(chosen, args, out);
+                : new TypedUserCall(chosen, args, out, pos);
     }
 }

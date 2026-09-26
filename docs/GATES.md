@@ -5682,6 +5682,36 @@ reproduced with both match orderings. Every earlier slice was checked against ou
 behaviour and against tests most overloads pass either way; this is the first check against the
 reference itself.
 
+## 2026-09-26 — Execution plan step 1: the reference differential joins call by call
+
+The join keyed on (enclosing function NAME, spelling) and compared sets; overloads of the
+enclosing function merged, a call we elide counted as a disagreement, and 241 of the 1,218
+reference sources have different text in the jar's version (4.138.5) than in our pinned trees
+(4.145.0), so 5 of its 28 "package" rows were artefacts. Now: `TypedUserCall` carries the call-name
+span like `TypedNativeCall` (one record field, threaded through the mint and the inliner's copy
+sites; synthesized calls pass null); `OurResolutionsTest` prints line and column (for a qualified
+spelling the LAST segment's start, as the reference does; our spans are 1-based, inclusive end)
+and the source id in the reference's spelling; `tools/reference/source_drift.py` marks the drifted
+sources; `join.py` joins by position, with two rules that need no column: an infix operator run
+joins the next unmatched same-operator row on its line (the reference sits at the last operator
+token, our parser keeps the engine grammar's span, and the parity test pins that), and a member
+read on the reference's side facing a call of ours is PROPERTY_AS_CALL, step A4's inventory.
+
+**Numbers** (`tools/reference/README.md`, receipts `join-positional-pre-step2.txt`): AGREE 42,589;
+OVERLOAD 450; PACKAGE 11 (`size` 8 = the TDS erasure, `divide` 3 = an operator-span artefact);
+SOURCE_DRIFT 52,266; ABSENT 42,174 (syntax, forms and the reference's rewrites — `letFunction`,
+`map` automap, `new`, `cast`, `if`, `filter`, `project`, `extractEnumValue`, `colSpec`);
+PROPERTY_AS_CALL 31; EXTRA 12,971, of which two are FINDINGS, not artefacts: our typer inserts
+`toOne` (2,504) and `elementToPath` (1,518) calls the reference never makes. Zero is now a
+meaningful number: step 3's gate is OVERLOAD 0 and PACKAGE 0.
+
+**Test.** Chain green (the wasm differential test timed out at 60s under the other account's
+load and passes in 5s alone); rosters DuckDB 107 / H2 361 fail of 2613, LOST 0. Timing: the
+queued quiet `//spec:corpus_duckdb` run from step 0 fired at 11:59 into the first minute of this
+step's own chain (load 2.95 at start, 5 at end): passes 34s and 40s, wall 84.2s, against the
+receipts' 32–36 / 37–40 — plausible, not clean; a second quiet run is queued and its numbers are
+appended here when it lands.
+
 ## 2026-09-26 — Execution plan step 0: the annotations leave the root package, two leaf moves, core becomes 29 targets
 
 The plan (`EXECUTION_PLAN_2026_09_26.md`, after `PLAN_AUDIT_2026_09_26.md`) puts structure before
