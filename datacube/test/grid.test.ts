@@ -676,6 +676,45 @@ describe('buildColumnModel', () => {
     assert.equal(m.headerRows[0]?.[0]?.label, 'RENAMED');
   });
 
+  describe('a column pivot, measure-first', () => {
+    // 2 years x 2 measures, plus the pivot totals.
+    const cols = ['region', '2021__|__notional', '2021__|__pnl',
+      '2022__|__notional', '2022__|__pnl',
+      '__pivot_total____|__notional', '__pivot_total____|__pnl'];
+    const build = (measuresFirst: boolean, placement: 'left' | 'right' = 'right') =>
+      buildColumnModel(table(cols), ['region'], ['notional', 'pnl'], {
+        pivotTotal: { label: 'Total', placement },
+        ...(measuresFirst ? { measuresFirst: true } : {}),
+      }, 1);
+
+    it("value-first is upstream's: each year's block holds the measures", () => {
+      const m = build(false);
+      assert.deepEqual(m.leaves.map((l) => l.name).slice(1, 5),
+        ['2021__|__notional', '2021__|__pnl', '2022__|__notional', '2022__|__pnl']);
+      assert.deepEqual(m.headerRows[0]?.slice(1, 3).map((c) => c.label), ['2021', '2022']);
+    });
+
+    it('measure-first groups by measure, values beneath, each total at its block edge', () => {
+      const m = build(true);
+      assert.deepEqual(m.leaves.map((l) => l.name).slice(1), [
+        '2021__|__notional', '2022__|__notional', '__pivot_total____|__notional',
+        '2021__|__pnl', '2022__|__pnl', '__pivot_total____|__pnl',
+      ]);
+      const top = m.headerRows[0]?.slice(1).map((c) => [c.label, c.colSpan]);
+      assert.deepEqual(top, [['notional', 3], ['pnl', 3]]);
+      assert.deepEqual(m.headerRows[1]?.map((c) => c.label),
+        ['2021', '2022', 'Total', '2021', '2022', 'Total']);
+      // Identity is untouched: the path still ends with the measure.
+      assert.deepEqual(m.leaves[1]?.path, ['2021', 'notional']);
+    });
+
+    it('a left total leads its own measure block', () => {
+      const m = build(true, 'left');
+      assert.deepEqual(m.leaves.map((l) => l.name).slice(1, 4), [
+        '__pivot_total____|__notional', '2021__|__notional', '2022__|__notional']);
+    });
+  });
+
   it('marks a column blurred', () => {
     const m = buildColumnModel(table(['pnl']), [], [], { blurred: ['pnl'] });
     assert.equal(m.leaves[0]?.blurred, true);

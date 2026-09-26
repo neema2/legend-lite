@@ -599,7 +599,7 @@ export class DataGrid {
         const leaf =
           cell.leafIndex !== undefined ? model.leaves[cell.leafIndex] : undefined;
         const title = this.#options.headerTitle?.(
-          (model.leaves[cell.colStart]?.path ?? []).slice(0, level + 1), leaf);
+          cell.path ?? (model.leaves[cell.colStart]?.path ?? []).slice(0, level + 1), leaf);
         if (title) el.title = title;
         if (leaf) {
           el.dataset['col'] = String(cell.leafIndex);

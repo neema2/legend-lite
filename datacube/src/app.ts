@@ -1448,6 +1448,7 @@ export class CubeApp {
         hasHeatmap:
           column !== undefined && this.#heatmapFor(column) !== undefined,
         canGroup: column === undefined || this.#isDimension(column),
+        ...(this.#config.pivotMeasuresFirst ? { measuresFirst: true } : {}),
         // A host mailer, or upstream's way: a .eml draft to download.
         canEmail: this.#options.email !== undefined
           || this.#options.download !== undefined,
@@ -1508,6 +1509,11 @@ export class CubeApp {
         return;
       case 'column.unpin':
         if (column) this.#patchColumn(column, { pinned: undefined });
+        return;
+      case 'pivot.measuresFirst':
+        void this.applyConfiguration({
+          pivotMeasuresFirst: this.#config.pivotMeasuresFirst ? undefined : true,
+        });
         return;
       case 'column.unpinAll':
         for (const name of Object.keys(this.#config.columns)) {
@@ -1723,6 +1729,12 @@ export class CubeApp {
         .map((v, i) => `${keys[i] ?? '?'} = ${v}`).join(', ')} ]`;
     }
     if (leaf) return `Column = ${named(leaf.name)}`;
+    // MEASURE-FIRST: a spanning cell starts with its measure.
+    if (this.#config.pivotMeasuresFirst && path.length > 0) {
+      const [measure, ...values] = path;
+      return `Column = ${named(measure as string)}${values.length > 0
+        ? ` ~ [ ${values.map((v, i) => `${keys[i] ?? '?'} = ${v}`).join(', ')} ]` : ''}`;
+    }
     if (path[0] === (this.#config.pivotStatisticColumnName ?? 'Total')) return '';
     return `[ ${path.map((v, i) => `${keys[i] ?? '?'} = ${v}`).join(', ')} ]`;
   }

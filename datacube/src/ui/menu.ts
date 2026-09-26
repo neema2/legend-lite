@@ -92,6 +92,8 @@ export interface MenuContext {
   readonly pivotTotal?: boolean;
   /** From a header: Properties... opens Column Properties on this. */
   readonly propertiesColumn?: string;
+  /** The column pivot's headers are measure-first (a checked entry). */
+  readonly measuresFirst?: boolean;
   /** Where the column is pinned, if it is: the Pin entries say so. */
   readonly pinned?: 'left' | 'right';
   /**
@@ -170,6 +172,7 @@ export type MenuActionId =
   | 'pivot.addHorizontal'
   | 'pivot.removeHorizontal'
   | 'pivot.clearHorizontal'
+  | 'pivot.measuresFirst'
   | 'column.hide'
   | 'column.autoSize'
   | 'column.autoSizeAll'
@@ -553,6 +556,14 @@ export function buildMenu(ctx: MenuContext): MenuGroup[] {
         {
           id: 'pivot.clearHorizontal',
           label: 'Clear All Horizontal Pivots',
+          disabled: s.pivotOn.length === 0,
+        },
+        // Ours: the header measure-first (notional > 2021, 2022) or
+        // value-first (2021 > notional, pnl, upstream's). Checked when on.
+        {
+          id: 'pivot.measuresFirst',
+          label: 'Measures First in Column Headers',
+          checked: ctx.measuresFirst === true,
           disabled: s.pivotOn.length === 0,
         },
       ],

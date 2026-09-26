@@ -73,7 +73,10 @@ describe('buildMenu', () => {
       canGroup: false,
     };
     assert.equal(
-      enabled(ctx).some((i) => i.startsWith('pivot.') && i !== 'pivot.clearVertical' && i !== 'pivot.clearHorizontal'),
+      // The clears and the header flip are about the cube, not about
+      // pivoting BY this column.
+      enabled(ctx).some((i) => i.startsWith('pivot.') && i !== 'pivot.clearVertical'
+        && i !== 'pivot.clearHorizontal' && i !== 'pivot.measuresFirst'),
       false,
       enabled(ctx).join(', '),
     );
@@ -507,6 +510,16 @@ describe('the Pin and Sort entries report state, as upstream', () => {
     const groups = buildMenu({ snapshot: CUBE, column: '2021__|__notional', pivotBase: 'notional' });
     assert.equal(find(groups, 'Pin Left')?.disabled, true);
     assert.equal(find(groups, 'Pin Right')?.disabled, true);
+  });
+
+  it('offers the measure-first header flip, checked when on, only with a column pivot', () => {
+    const pivoted = { ...CUBE, pivotOn: ['region'] };
+    assert.equal(find(buildMenu({ snapshot: pivoted, measuresFirst: true }),
+      'Measures First in Column Headers')?.checked, true);
+    assert.equal(find(buildMenu({ snapshot: pivoted }),
+      'Measures First in Column Headers')?.checked, false);
+    assert.equal(find(buildMenu({ snapshot: { ...CUBE, pivotOn: [] } }),
+      'Measures First in Column Headers')?.disabled, true);
   });
 
   it('disables an Add that would change nothing', () => {

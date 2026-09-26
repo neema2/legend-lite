@@ -3117,6 +3117,32 @@ try {
       return `${last} moved and the grid followed`;
     });
 
+  await check('a column pivot flips to measures first, and back', async () => {
+    await flatten();
+    await menu(['Pivot', 'Add Vertical Pivot on region'], { col: await needCol('region') });
+    await menu(['Pivot', 'Horizontal Pivot on year'], { col: await needCol('year') });
+    const rows = () => page.evaluate(() =>
+      [1, 2].map((r) => [...document.querySelectorAll(
+        `.dc-head-row[aria-rowindex="${r}"] .dc-th`)].map((e) => e.textContent?.trim() ?? '')));
+    const year = (t) => /^20\d\d$/.test(t);
+    const [top0, second0] = await rows();
+    await menu(['Pivot', 'Measures First in Column Headers'], { requery: false });
+    await page.waitForTimeout(400);
+    const [top1, second1] = await rows();
+    await menu(['Pivot', 'Measures First in Column Headers'], { requery: false });
+    await page.waitForTimeout(400);
+    const [top2] = await rows();
+    await menu(['Pivot', 'Clear All Horizontal Pivots']).catch(() => {});
+    await menu(['Pivot', 'Clear All Vertical Pivots']).catch(() => {});
+    if (!top0.some(year)) throw new Error(`value-first top row has no year: ${top0}`);
+    if (top1.some(year)) throw new Error(`measure-first top row still shows years: ${top1}`);
+    if (!second1.some(year)) throw new Error(`measure-first second row has no years: ${second1}`);
+    const measures = top1.filter((t) => ['notional', 'pnl', 'quantity'].includes(t));
+    if (measures.length === 0) throw new Error(`no measure on the top row: ${top1}`);
+    if (top2.join() !== top0.join()) throw new Error(`flipping back gave ${top2}, not ${top0}`);
+    return `top row ${top0.filter(year).slice(0, 2).join(', ')}… → ${measures.join(', ')}, and back`;
+  });
+
   await check('a pivot zone shows a bar exactly where a dragged column will land', async () => {
     // As the columns list does: a blue bar on the edge of the chip it
     // will land beside -- not a box around the whole zone.

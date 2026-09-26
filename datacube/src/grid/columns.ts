@@ -108,6 +108,8 @@ export interface HeaderCell {
   readonly rowSpan: number;
   /** Leaf column index when this cell sits directly over one. */
   readonly leafIndex?: number;
+  /** The header segments down to this cell (measure first when flipped). */
+  readonly path?: readonly string[];
 }
 
 export interface ColumnModel {
@@ -264,6 +266,18 @@ export interface ColumnLayout {
     readonly label: string;
     readonly placement: 'left' | 'right';
   };
+  /**
+   * The column pivot's header MEASURE-FIRST: `notional > 2021, 2022`
+   * rather than upstream's value-first `2021 > notional, pnl`. Display
+   * only -- the query, and every column's identity path, are the same.
+   */
+  readonly measuresFirst?: boolean;
+}
+
+/** A header cell's segments, measure first when the layout says so. */
+function headerPathOf(leaf: LeafColumn, measuresFirst: boolean): readonly string[] {
+  if (!measuresFirst || leaf.path.length < 2) return leaf.path;
+  return [leaf.path[leaf.path.length - 1] as string, ...leaf.path.slice(0, -1)];
 }
 
 export function buildColumnModel(
@@ -486,6 +500,28 @@ export function buildColumnModel(
     ordered.splice(0, ordered.length, ...reseated);
   }
 
+  // MEASURE-FIRST: the pivot's seats regrouped by measure, in the
+  // order the measures first appear (the configured order), each
+  // measure's values in the order they already have (the pivot's sort
+  // directions) and its total at its own block's edge.
+  if (layout.measuresFirst) {
+    const seats = ordered.flatMap((l, i) => (pivoted(l) ? [i] : []));
+    const inSeats = seats.map((i) => ordered[i] as LeafColumn);
+    const measureOf = (l: LeafColumn): string => l.path[l.path.length - 1] ?? l.name;
+    const order: string[] = [];
+    for (const l of inSeats) if (!order.includes(measureOf(l))) order.push(measureOf(l));
+    const left = layout.pivotTotal?.placement === 'left';
+    const moving = order.flatMap((m) => {
+      const mine = inSeats.filter((l) => measureOf(l) === m);
+      const totals = mine.filter(isTotal);
+      const values = mine.filter((l) => !isTotal(l));
+      return left ? [...totals, ...values] : [...values, ...totals];
+    });
+    const reseated = [...ordered];
+    seats.forEach((seatAt, i) => { reseated[seatAt] = moving[i] as LeafColumn; });
+    ordered.splice(0, ordered.length, ...reseated);
+  }
+
   const widths = layout.widths ?? {};
   const minWidths = layout.minWidths ?? {};
   const maxWidths = layout.maxWidths ?? {};
@@ -524,6 +560,8 @@ export function buildColumnModel(
     };
   });
 
+  const measuresFirst = layout.measuresFirst === true;
+  const hp = (l: LeafColumn): readonly string[] => headerPathOf(l, measuresFirst);
   const depth = Math.max(1, ...sized.map((l) => l.path.length));
 
   // Level by level, merge runs of adjacent leaves that share a prefix.
@@ -543,9 +581,15 @@ export function buildColumnModel(
       }
 
       // The one leaf this cell sits over shows its LABEL (a display
-      // name) where it has one; every other cell shows its path.
+      // name) where it has one; every other cell shows its path -- a
+      // measure on top shows the measure's own display name.
+      const path = hp(leaf);
       const own = leaf.path.length === level + 1;
-      const label = own && leaf.label !== undefined ? leaf.label : leaf.path[level]!;
+      const segment = path[level]!;
+      const label = own && leaf.label !== undefined ? leaf.label
+        : measuresFirst && level === 0 && leaf.path.length > 1
+          ? (displayNames[segment] ?? segment)
+          : segment;
       // Merge while the whole prefix matches, not just this segment:
       // two different years can both have a 'total' beneath them, and
       // merging on the segment alone would fuse unrelated columns.
@@ -553,13 +597,16 @@ export function buildColumnModel(
       while (j < sized.length) {
         const next = sized[j]!;
         if (next.path.length <= level) break;
-        if (!samePrefix(leaf.path, next.path, level)) break;
+        if (!samePrefix(path, hp(next), level)) break;
         j += 1;
       }
 
       const isLeafHere = leaf.path.length === level + 1;
       row.push({
         label,
+        // The segments down to this cell, as the header shows them, so
+        // a tooltip can say what a spanning cell is.
+        path: path.slice(0, level + 1),
         colStart: i,
         colSpan: j - i,
         // A short path spans the remaining header levels, so a row

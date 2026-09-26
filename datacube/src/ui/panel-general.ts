@@ -359,6 +359,22 @@ export const generalPropertiesPanel: PanelBuilder = (ctx) => {
         { placeholder: 'Total', width: 180 },
       ),
     ),
+    // Ours: which comes first in a column pivot's header. Upstream
+    // always puts the pivot's values over the measures.
+    field(
+      doc,
+      'Column Headers:',
+      dropdown(
+        doc,
+        c.pivotMeasuresFirst ? 'measures' : 'values',
+        [
+          { value: 'values' as const, label: 'Values, then measures' },
+          { value: 'measures' as const, label: 'Measures, then values' },
+        ],
+        (v) => setConfig({ pivotMeasuresFirst: v === 'measures' ? true : undefined }),
+        { width: 190 },
+      ),
+    ),
   );
 
   const a = appearance();

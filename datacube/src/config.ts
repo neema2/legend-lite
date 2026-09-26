@@ -164,6 +164,12 @@ export interface CubeConfiguration {
    */
   readonly pivotStatisticColumnName?: string;
   readonly pivotStatisticColumnPlacement?: 'left' | 'right';
+  /**
+   * The column pivot's headers MEASURE-FIRST (`notional > 2021, 2022`)
+   * instead of upstream's value-first (`2021 > notional, pnl`). Ours --
+   * upstream has no such option; display only, the query is the same.
+   */
+  readonly pivotMeasuresFirst?: boolean;
 
   // No grid mode: "Dimensional" was offered and read by nothing
   // (census §2). It returns with Essbase mode, which gives it a meaning.
@@ -420,6 +426,8 @@ export interface ColumnLayoutProjection {
   pivotTotal?: { label: string; placement: 'left' | 'right' };
   /** Columns whose width is fixed, so not drag-resizable. */
   fixed?: readonly string[];
+  /** The column pivot's headers measure-first. */
+  measuresFirst?: boolean;
 }
 
 /**
@@ -477,6 +485,7 @@ export function toColumnLayout(
       placement: config.pivotStatisticColumnPlacement,
     };
   }
+  if (config.pivotMeasuresFirst) out.measuresFirst = true;
   return out;
 }
 
