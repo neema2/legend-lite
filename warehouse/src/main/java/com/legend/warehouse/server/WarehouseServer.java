@@ -72,6 +72,7 @@ public final class WarehouseServer implements AutoCloseable {
     private final History history;
     private final Sessions sessions;
     private final Statements statements;
+    private final ResultStore results;
 
     public WarehouseServer(Config config) throws IOException, DuckException {
         DuckLibrary.load(config.duckdbLibrary());
@@ -89,7 +90,8 @@ public final class WarehouseServer implements AutoCloseable {
         catalogs = new Catalogs(config.dataDir(), config.catalogs());
         history = new History(config.dataDir());
         sessions = new Sessions(catalogs, Duration.ofMinutes(30), clock);
-        statements = new Statements(catalogs, sessions, history, config.limits(), clock);
+        results = new ResultStore(config.dataDir().resolve("results"), config.limits().resultMemory());
+        statements = new Statements(catalogs, sessions, results, history, config.limits(), clock);
         http = HttpServer.create(new InetSocketAddress("127.0.0.1", config.port()), 0);
         http.setExecutor(Executors.newVirtualThreadPerTaskExecutor());
         http.createContext("/", this::handle);
@@ -143,7 +145,11 @@ public final class WarehouseServer implements AutoCloseable {
     private void route(HttpExchange ex) throws IOException, Reply {
         String method = ex.getRequestMethod();
         String path = ex.getRequestURI().getPath();
-        if (path.equals("/health")) throw new Reply(200, "{\"status\":\"ok\"}");
+        if (path.equals("/health")) {
+            // finished results waiting to be fetched: bytes held in memory, and bytes spilled to files
+            throw new Reply(200, "{\"status\":\"ok\",\"results\":{\"inMemoryBytes\":" + results.inMemory()
+                    + ",\"spilledBytes\":" + results.spilled() + "}}");
+        }
         if (path.equals("/sql/v1/login") && method.equals("POST")) {
             login(ex);
             return;
@@ -159,6 +165,11 @@ public final class WarehouseServer implements AutoCloseable {
             statements.cancel(run);
             waitFor(run, 5_000);
             throw new Reply(200, Json.toCompact(ApiJson.status(run.status())));
+        } else if ((m = STATEMENT.matcher(path)).matches() && method.equals("DELETE")) {
+            // the client is done with the result: its memory and files go now, not at expiry
+            Statements.Run run = run(principal, m.group(1));
+            statements.forget(run);
+            throw new Reply(200, "{\"statementId\":\"" + run.id() + "\",\"closed\":true}");
         } else if ((m = STATEMENT.matcher(path)).matches() && method.equals("GET")) {
             Statements.Run run = run(principal, m.group(1));
             waitFor(run, waitMs(ex, 0));
@@ -266,7 +277,7 @@ public final class WarehouseServer implements AutoCloseable {
     private void reply(Statements.Run run, boolean withFirstChunk) throws Reply {
         int status = run.state().done() ? 200 : 202;
         String head = Json.toCompact(ApiJson.status(run.status()));
-        byte[] first = withFirstChunk && run.format() == SqlApi.ResultFormat.JSON ? run.jsonChunk(0) : null;
+        byte[] first = withFirstChunk && run.format() == SqlApi.ResultFormat.JSON ? run.chunk(0) : null;
         if (first == null) throw new Reply(status, head);
         // the first chunk, spliced in as written: {..., "firstChunk": {"index": 0, "rows": [...]}}
         byte[] open = (head.substring(0, head.length() - 1) + ",\"firstChunk\":").getBytes(StandardCharsets.UTF_8);
@@ -280,11 +291,11 @@ public final class WarehouseServer implements AutoCloseable {
     private void chunk(String principal, String id, int index) throws Reply {
         Statements.Run run = run(principal, id);
         if (run.format() == SqlApi.ResultFormat.ARROW) {
-            byte[] a = run.arrowChunk(index);
+            byte[] a = run.chunk(index);
             if (a == null) throw Reply.error(404, ErrorCode.NOT_FOUND, "no chunk " + index + " for statement " + id);
             throw new Reply(200, ArrowStreams.MEDIA_TYPE, a);
         }
-        byte[] c = run.jsonChunk(index);
+        byte[] c = run.chunk(index);
         if (c == null) throw Reply.error(404, ErrorCode.NOT_FOUND, "no chunk " + index + " for statement " + id);
         throw new Reply(200, "application/json", c);
     }
@@ -311,7 +322,7 @@ public final class WarehouseServer implements AutoCloseable {
             throw Reply.error(503, ErrorCode.QUEUE_FULL, String.valueOf(full.getMessage()));
         }
         waitFor(run, 30_000);
-        byte[] written = run.jsonChunk(0);
+        byte[] written = run.chunk(0);
         Chunk c = written == null ? null : ApiJson.parseChunk(new String(written, StandardCharsets.UTF_8));
         if (c == null) throw Reply.error(500, ErrorCode.INTERNAL, "the catalog could not be read");
         LinkedHashMap<String, LinkedHashMap<String, Json.Node>> byObject = new LinkedHashMap<>();
@@ -400,7 +411,7 @@ public final class WarehouseServer implements AutoCloseable {
 
     /**
      * {@code --port N --data DIR --catalog NAME... --user NAME:PASSWORD...
-     * --concurrency N --queue N --max-rows N --retain-minutes N --duckdb-library FILE}.
+     * --concurrency N --queue N --max-rows N --retain-minutes N --result-memory-mb N --duckdb-library FILE}.
      */
     public static void main(String[] args) throws Exception {
         int port = 8765;
@@ -411,6 +422,7 @@ public final class WarehouseServer implements AutoCloseable {
         int queue = 100;
         long maxRows = 10_000_000;
         long retainMinutes = 10;
+        long resultMemoryMb = Statements.Limits.DEFAULT_RESULT_MEMORY >> 20;
         Path library = null;
         for (int i = 0; i < args.length; i++) {
             switch (args[i]) {
@@ -423,12 +435,14 @@ public final class WarehouseServer implements AutoCloseable {
                 case "--duckdb-library" -> library = Path.of(args[++i]);
                 case "--max-rows" -> maxRows = Long.parseLong(args[++i]);
                 case "--retain-minutes" -> retainMinutes = Long.parseLong(args[++i]);
+                case "--result-memory-mb" -> resultMemoryMb = Long.parseLong(args[++i]);
                 default -> throw new IllegalArgumentException("unknown argument " + args[i]);
             }
         }
         if (cats.isEmpty()) cats.add(StatementRequest.DEFAULT_CATALOG);
         WarehouseServer s = new WarehouseServer(new Config(port, data, cats, users, null, Duration.ofHours(1),
-                new Statements.Limits(concurrency, queue, maxRows, Duration.ofMinutes(retainMinutes)), library));
+                new Statements.Limits(concurrency, queue, maxRows, Duration.ofMinutes(retainMinutes), resultMemoryMb << 20),
+                library));
         System.err.println("warehouse listening on 127.0.0.1:" + s.port() + ", catalogs " + cats);
     }
 }

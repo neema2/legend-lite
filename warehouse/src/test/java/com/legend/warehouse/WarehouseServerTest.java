@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.server.Json;
+import com.legend.warehouse.client.WarehouseClient;
 import com.legend.warehouse.server.Statements;
 import com.legend.warehouse.sqlapi.NativeBinding;
 import com.legend.warehouse.sqlapi.SqlApi;
@@ -268,6 +269,68 @@ class WarehouseServerTest {
         String id = ((SqlApiBinding.Poll) API.next(started, t)).statementId();
         HttpResult cancelled = send(API.cancel(id, t));
         assertTrue(cancelled.body().contains("\"cancelled\""), cancelled.body());
+    }
+
+    /** Result bytes the server holds: {in memory, spilled to files} ({@code GET /health}). */
+    static long[] held(TestServer on) throws Exception {
+        HttpResponse<String> r = HTTP.send(HttpRequest.newBuilder(URI.create("http://127.0.0.1:" + on.port() + "/health"))
+                .build(), HttpResponse.BodyHandlers.ofString());
+        Json.Obj results = (Json.Obj) Json.parseObject(r.body()).get("results");
+        return new long[] {results.getLong("inMemoryBytes"), results.getLong("spilledBytes")};
+    }
+
+    @Test
+    void aResultTheClientIsDoneWithIsFreedAtOnce() throws Exception {
+        String t = login("alice", "alice-pw");
+        long before = held(server)[0];
+        SqlApiBinding.Done done = (SqlApiBinding.Done) run(t, new StatementRequest(
+                "SELECT i, 'r' || i AS s FROM range(30000) r(i)", "main", 60_000, 5_000, 10_000));
+        String id = done.status().statementId();
+        assertTrue(held(server)[0] > before, "a finished result is held until fetched");
+        assertEquals(200, send(API.closeStatement(id, t)).status());
+        assertEquals(before, held(server)[0], "closing it gives the memory back at once");
+        assertEquals(404, send(API.fetchChunk(id, 1, t)).status(), "and its chunks are gone");
+    }
+
+    @Test
+    void theClientFreesWhatItHasRead() throws Exception {
+        WarehouseClient client = new WarehouseClient(URI.create("http://127.0.0.1:" + server.port() + "/"), API);
+        client.login("alice", "alice-pw");
+        long before = held(server)[0];
+        for (SqlApi.ResultFormat f : SqlApi.ResultFormat.values()) {
+            WarehouseClient.Result r = client.execute(new StatementRequest(
+                    "SELECT i FROM range(30000) r(i)", "main", 60_000, 5_000, 10_000).as(f));
+            assertEquals(30_000, r.rows().size());
+        }
+        assertEquals(before, held(server)[0], "every chunk read, the client closes the statement");
+    }
+
+    @Test
+    void aResultPastTheMemoryBudgetSpillsToFilesAndReadsTheSame() throws Exception {
+        Path dir = Files.createTempDirectory("warehouse-spill");
+        try (TestServer small = TestServer.start(dir, List.<String[]>of(new String[] {"alice", "alice-pw"}),
+                new Statements.Limits(2, 10, 1_000_000, Duration.ofMinutes(5), 1L << 20))) {
+            TestServer saved = server;
+            server = small;
+            try {
+                String t = login("alice", "alice-pw");
+                SqlApiBinding.Done done = (SqlApiBinding.Done) run(t, new StatementRequest(
+                        "SELECT i, 'row ' || i AS s FROM range(200000) r(i) ORDER BY i", "main", 60_000, 30_000, 20_000));
+                long[] h = held(small);
+                assertTrue(h[0] <= 1L << 20, "memory stays within the budget: " + h[0]);
+                assertTrue(h[1] > 0, "the rest went to files");
+                List<List<Json.Node>> rows = rows(t, done);
+                assertEquals(200_000, rows.size());
+                for (int i : new int[] {0, 19_999, 20_000, 123_456, 199_999}) {
+                    assertEquals(Integer.toString(i), str(rows.get(i).get(0)));
+                    assertEquals("row " + i, str(rows.get(i).get(1)));
+                }
+                assertEquals(200, send(API.closeStatement(done.status().statementId(), t)).status());
+                assertEquals(0, held(small)[1], "closing it deletes the files");
+            } finally {
+                server = saved;
+            }
+        }
     }
 
     @Test

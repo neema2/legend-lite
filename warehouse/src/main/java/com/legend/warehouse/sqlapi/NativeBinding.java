@@ -87,6 +87,11 @@ public final class NativeBinding implements SqlApiBinding {
     }
 
     @Override
+    public HttpCall closeStatement(String statementId, String token) {
+        return new HttpCall("DELETE", "/sql/v1/statements/" + statementId, json(token), null);
+    }
+
+    @Override
     public HttpCall openSession(String catalog, String token) {
         return new HttpCall("POST", "/sql/v1/sessions", json(token), ApiJson.openSession(catalog));
     }

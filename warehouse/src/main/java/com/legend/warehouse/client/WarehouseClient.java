@@ -96,6 +96,8 @@ public final class WarehouseClient {
                 rows.addAll(binding.chunk(send(binding.fetchChunk(s.statementId(), i, t))).rows());
             }
         }
+        // every chunk is read: the server may free the result now, not at expiry
+        if (meta.chunkCount() > 0) send(binding.closeStatement(s.statementId(), t));
         return new Result(s.statementId(), meta, rows);
     }
 

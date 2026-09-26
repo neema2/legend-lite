@@ -46,19 +46,16 @@ public final class Collect {
         return rows;
     }
 
-    /** A result as JSON chunks, each {@code {"index": n, "rows": [...]}} already written, and its row count. */
-    public record JsonChunks(List<byte[]> chunks, long rows) {
-    }
-
     /**
      * Every row as the API's JSON, written straight to each chunk's bytes ({@code rowsPerChunk} rows a
-     * chunk, the last smaller): no tree of objects per value, so a large result costs its text, not
-     * a heap of nodes (measured: 1M rows held 2.7 GB in a native image as trees).
+     * chunk, the last smaller), each handed to {@code sink} as it is finished: no tree of objects per
+     * value, and never the whole result in memory at once. The rows written.
      */
-    public static JsonChunks jsonChunks(Result r, int rowsPerChunk, long maxRows) throws Exception {
+    public static long jsonChunks(Result r, int rowsPerChunk, long maxRows, java.util.function.Consumer<byte[]> sink)
+            throws Exception {
         Duck d = Duck.api();
         List<TypeTree> trees = trees(d, r);
-        List<byte[]> chunks = new ArrayList<>();
+        int[] chunks = {0};
         Json.Writer[] w = {start(0)};
         int[] inChunk = {0};
         long[] total = {0};
@@ -70,8 +67,8 @@ public final class Collect {
                 ApiValues.NestedText texts = (column, row) -> DuckValues.text(d, cols.get(column), trees.get(column), row);
                 for (int row = 0; row < n; row++) {
                     if (inChunk[0] == rowsPerChunk) {
-                        chunks.add(finish(w[0]));
-                        w[0] = start(chunks.size());
+                        sink.accept(finish(w[0]));
+                        w[0] = start(++chunks[0]);
                         inChunk[0] = 0;
                     }
                     w[0].beginArray();
@@ -83,8 +80,8 @@ public final class Collect {
         } finally {
             for (TypeTree t : trees) t.destroy(d);
         }
-        if (inChunk[0] > 0 || chunks.isEmpty()) chunks.add(finish(w[0]));
-        return new JsonChunks(List.copyOf(chunks), total[0]);
+        sink.accept(finish(w[0]));   // the last chunk, or the one empty chunk of an empty result
+        return total[0];
     }
 
     private static Json.Writer start(int index) {
@@ -102,18 +99,18 @@ public final class Collect {
         return w.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8);
     }
 
-    /** A result as Arrow chunks, and how many rows they hold in all. */
-    public record Arrow(List<byte[]> chunks, long rows) {
-    }
-
-    /** Arrow IPC streams, each holding whole batches until it has {@code rowsPerChunk} rows. */
-    public static Arrow arrow(Result r, int rowsPerChunk, long maxRows, boolean cellText) throws Exception {
+    /**
+     * Arrow IPC streams, each holding whole batches until it has {@code rowsPerChunk} rows, each handed
+     * to {@code sink} as it is finished. The rows written.
+     */
+    public static long arrow(Result r, int rowsPerChunk, long maxRows, boolean cellText,
+            java.util.function.Consumer<byte[]> sink) throws Exception {
         Duck d = Duck.api();
         List<TypeTree> trees = trees(d, r);
         List<String> names = new ArrayList<>();
         for (Result.Column c : r.columns()) names.add(c.name());
         ArrowStreams streams = new ArrowStreams(names, trees);
-        List<byte[]> chunks = new ArrayList<>();
+        int[] chunks = {0};
         long[] total = {0};
         try {
             r.chunks((array, n) -> {
@@ -121,13 +118,16 @@ public final class Collect {
                 if (total[0] > maxRows) throw new TooLarge(maxRows);
                 List<Columnar> cols = columns(array, trees);
                 streams.add(cols, (int) n, cellText ? nestedTexts(d, cols, trees, (int) n) : java.util.Map.of());
-                if (streams.rows() >= rowsPerChunk) chunks.add(streams.flush());
+                if (streams.rows() >= rowsPerChunk) {
+                    sink.accept(streams.flush());
+                    chunks[0]++;
+                }
             });
         } finally {
             for (TypeTree t : trees) t.destroy(d);
         }
-        if (streams.rows() > 0 || chunks.isEmpty()) chunks.add(streams.flush());
-        return new Arrow(List.copyOf(chunks), total[0]);
+        if (streams.rows() > 0 || chunks[0] == 0) sink.accept(streams.flush());
+        return total[0];
     }
 
     private static List<TypeTree> trees(Duck d, Result r) {

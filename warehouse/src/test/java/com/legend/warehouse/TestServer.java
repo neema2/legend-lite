@@ -48,7 +48,8 @@ final class TestServer implements AutoCloseable {
         }
         List<String> cmd = new ArrayList<>(List.of(binary, "--port", "0", "--data", data.toString(),
                 "--concurrency", Integer.toString(limits.concurrency()), "--queue", Integer.toString(limits.queue()),
-                "--max-rows", Long.toString(limits.maxRows()), "--retain-minutes", Long.toString(limits.retain().toMinutes())));
+                "--max-rows", Long.toString(limits.maxRows()), "--retain-minutes", Long.toString(limits.retain().toMinutes()),
+                "--result-memory-mb", Long.toString(Math.max(1, limits.resultMemory() >> 20))));
         for (String[] u : users) {
             cmd.add("--user");
             cmd.add(u[0] + ":" + u[1]);

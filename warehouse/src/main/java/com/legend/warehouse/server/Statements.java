@@ -59,8 +59,8 @@ public final class Statements implements AutoCloseable {
         volatile @Nullable ResultMeta result;
         volatile @Nullable ApiError error;
         /** A JSON result's chunks, each {@code {"index", "rows"}} already written. */
-        volatile List<byte[]> jsonChunks = List.of();
-        volatile List<byte[]> arrowChunks = List.of();
+        /** The result's chunks (JSON or Arrow, already written), once it has some. */
+        volatile ResultStore.@Nullable Stored stored;
         /** The connection running it, while it runs: what a cancel interrupts. */
         volatile @Nullable Conn running;
         volatile boolean cancelRequested;
@@ -89,23 +89,16 @@ public final class Statements implements AutoCloseable {
             return done;
         }
 
-        /** The status document; the first chunk only when asked for. */
         /** The status document, without its rows (a JSON result's first chunk is spliced in by the server). */
         public Status status() {
             State s = state;
             return new Status(id, s, s == State.SUCCEEDED ? result : null, error, null);
         }
 
-        /** A JSON result's chunk, already written. */
-        public byte @Nullable [] jsonChunk(int index) {
-            List<byte[]> cs = jsonChunks;
-            return state == State.SUCCEEDED && index >= 0 && index < cs.size() ? cs.get(index) : null;
-        }
-
-        /** An Arrow result's chunk: a whole Arrow IPC stream. */
-        public byte @Nullable [] arrowChunk(int index) {
-            List<byte[]> cs = arrowChunks;
-            return state == State.SUCCEEDED && index >= 0 && index < cs.size() ? cs.get(index) : null;
+        /** Chunk {@code index}, as written (JSON rows, or a whole Arrow stream); null when there is none. */
+        public byte @Nullable [] chunk(int index) {
+            ResultStore.Stored s = stored;
+            return state == State.SUCCEEDED && s != null ? s.get(index) : null;
         }
 
         public ResultFormat format() {
@@ -113,11 +106,21 @@ public final class Statements implements AutoCloseable {
         }
     }
 
-    public record Limits(int concurrency, int queue, long maxRows, Duration retain) {
+    /**
+     * {@code resultMemory}: bytes of finished results held in memory, across every result; past it,
+     * results spill to files ({@link ResultStore}).
+     */
+    public record Limits(int concurrency, int queue, long maxRows, Duration retain, long resultMemory) {
+        public static final long DEFAULT_RESULT_MEMORY = 1L << 30;
+
+        public Limits(int concurrency, int queue, long maxRows, Duration retain) {
+            this(concurrency, queue, maxRows, retain, DEFAULT_RESULT_MEMORY);
+        }
     }
 
     private final Catalogs catalogs;
     private final Sessions sessions;
+    private final ResultStore results;
     private final History history;
     private final Limits limits;
     private final Clock clock;
@@ -129,7 +132,9 @@ public final class Statements implements AutoCloseable {
     });
     private final Map<String, Run> runs = new ConcurrentHashMap<>();
 
-    public Statements(Catalogs catalogs, Sessions sessions, History history, Limits limits, Clock clock) {
+    public Statements(Catalogs catalogs, Sessions sessions, ResultStore results, History history, Limits limits,
+            Clock clock) {
+        this.results = results;
         this.catalogs = catalogs;
         this.sessions = sessions;
         this.history = history;
@@ -285,15 +290,18 @@ public final class Statements implements AutoCloseable {
     private void collect(Run run, Result r) throws Exception {
         List<Column> cols = ResultEncoder.api(r.columns());
         int per = Math.max(1, run.request.rowsPerChunk());
-        if (run.request.format() == ResultFormat.ARROW) {
-            Collect.Arrow a = Collect.arrow(r, per, limits.maxRows(), run.request.cellText());
-            run.arrowChunks = a.chunks();
-            run.result = new ResultMeta(cols, a.rows(), a.chunks().size());
-            return;
+        ResultStore.Stored into = results.open(run.id);
+        try {
+            // each chunk goes to the store as it is written: a large result never sits in memory whole
+            long rows = run.request.format() == ResultFormat.ARROW
+                    ? Collect.arrow(r, per, limits.maxRows(), run.request.cellText(), into::add)
+                    : Collect.jsonChunks(r, per, limits.maxRows(), into::add);
+            run.stored = into;
+            run.result = new ResultMeta(cols, rows, into.count());
+        } catch (Exception e) {
+            into.free();
+            throw e;
         }
-        Collect.JsonChunks j = Collect.jsonChunks(r, per, limits.maxRows());
-        run.jsonChunks = j.chunks();
-        run.result = new ResultMeta(cols, j.rows(), j.chunks().size());
     }
 
     /** DuckDB's error kinds, as the API's codes. */
@@ -317,10 +325,18 @@ public final class Statements implements AutoCloseable {
 
     private void forgetOld() {
         Instant cutoff = clock.instant().minus(limits.retain());
-        runs.values().removeIf(r -> {
+        for (Run r : runs.values()) {
             Instant f = r.finished;
-            return f != null && f.isBefore(cutoff);
-        });
+            if (f != null && f.isBefore(cutoff)) forget(r);
+        }
+    }
+
+    /** The statement is done with: its result freed (memory given back, files deleted), the statement gone. */
+    public void forget(Run run) {
+        if (!run.state.done()) cancel(run);
+        runs.remove(run.id);
+        ResultStore.Stored s = run.stored;
+        if (s != null) s.free();
     }
 
     @Override

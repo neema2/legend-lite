@@ -72,6 +72,9 @@ public interface SqlApiBinding {
 
     HttpCall cancel(String statementId, String token);
 
+    /** The client is done with a statement's result: the server frees it now rather than at expiry. */
+    HttpCall closeStatement(String statementId, String token);
+
     HttpCall openSession(String catalog, String token);
 
     SqlApi.Session session(HttpResult result);

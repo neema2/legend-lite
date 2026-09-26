@@ -80,6 +80,8 @@ GET  /sql/v1/statements/{id}/chunks/{n}
 
 POST /sql/v1/statements/{id}/cancel   → {"statementId", "state": "cancelled"}
 
+DELETE /sql/v1/statements/{id}        → {"statementId", "closed": true}: the result freed now
+
 POST   /sql/v1/sessions       {"catalog": "main"}
   → {"sessionId", "catalog", "engine": "DuckDB", "engineVersion": "v1.5.5"}
 DELETE /sql/v1/sessions/{id}
@@ -345,8 +347,8 @@ identical), kept as bytes, served as they are, and the first chunk spliced into 
 | native: resident after six results held | 2.7 GB | **745 MB** |
 | JVM: total | 0.73–0.95 s | **0.63–0.72 s** |
 
-**Owed:** results are still held in memory for their retention (a size cap and spilling to disk, §2);
-Windows native builds (a separate toolchain setup).
+**Owed:** Windows native builds (a separate toolchain setup). (Results held for their retention:
+done, "Results: freed when done" below.)
 
 ## W1f: the JDBC driver reads Arrow by default (2026-09-26)
 
@@ -371,3 +373,23 @@ defaults too); **our own clients ask for Arrow**.
 **Owed:** the driver still turns each Arrow value into the API's JSON form, then into a Java object
 (~600 ms of the above in both formats); reading straight from `Columnar` would drop that step.
 
+
+## Results: freed when done, spilled past a budget (2026-09-26)
+
+A finished statement's result waits to be fetched: the API is asynchronous, and a client may fetch
+any chunk again. Until now every result stayed in memory for its whole retention (10 minutes), even
+once fetched. Now (`ResultStore`):
+
+- **Freed when the client is done:** `DELETE /sql/v1/statements/{id}` gives the memory back and
+  deletes the files at once; our client sends it once it has read every chunk. The retention stays
+  only as a safety net for a client that never comes back.
+- **A memory budget across every result** (`--result-memory-mb`, 1 GiB by default): past it, a chunk
+  goes to a file under the data directory (`results/<statement>/<chunk>`) and is read from there.
+  Whatever a previous run spilled is removed at start.
+- **Chunks go to the store as they are written:** a large result never sits in memory whole.
+- **`GET /health`** reports `results.inMemoryBytes` and `results.spilledBytes`.
+
+Tests (in process and against the native binary): `aResultTheClientIsDoneWithIsFreedAtOnce`,
+`theClientFreesWhatItHasRead` (both formats), `aResultPastTheMemoryBudgetSpillsToFilesAndReadsTheSame`
+(a 1 MB budget, 200,000 rows: memory within the budget, the rest in files, every checked row right,
+the files deleted on close). `//warehouse:tests` 60/60.
