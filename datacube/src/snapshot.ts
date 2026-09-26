@@ -321,6 +321,21 @@ export const WINDOW_FUNCTIONS: readonly {
   { fn: 'last', label: 'Last value', column: true, ordered: true, framed: true },
 ];
 
+/**
+ * An aggregate of the CHILD GROUPS' figures, shown on their parent: a
+ * region row shows the smallest of its desks' totals. Each level asks
+ * the database for its children's figures (one level deeper) and
+ * aggregates them per group; the deepest group's children are its
+ * source rows. Group level only; not on a pivoted cube.
+ */
+export type ChildAggregateFn = 'min' | 'max' | 'average' | 'median' | 'sum' | 'count';
+
+export interface ChildAggregate {
+  readonly fn: ChildAggregateFn;
+  /** The group-level column whose child figures are aggregated: a measure. */
+  readonly of: string;
+}
+
 export interface DerivedColumn {
   readonly name: string;
   /**
@@ -330,6 +345,8 @@ export interface DerivedColumn {
   readonly expression: string;
   /** A window column instead of an expression: see `WindowSpec`. */
   readonly window?: WindowSpec;
+  /** An aggregate of the child groups instead: see `ChildAggregate`. */
+  readonly childAggregate?: ChildAggregate;
   /**
    * The Pure type the expression turned out to have.
    *
@@ -667,8 +684,11 @@ export function totalOrderSorts(
   // Only this level's grouping columns exist in its result, so a
   // deeper dimension must not be named in the ORDER BY.
   const present = new Set(groupCols);
+  // A child-group aggregate arrives from its own query, beside the
+  // level's; the level's query has no such column to order by.
+  const apart = new Set((s.groupDerived ?? []).filter((d) => d.childAggregate).map((d) => d.name));
   const applicable = s.sorts.filter(
-    (x) => present.has(x.column) || !s.rows.includes(x.column),
+    (x) => (present.has(x.column) || !s.rows.includes(x.column)) && !apart.has(x.column),
   );
 
   // FIRST WINS, and each column appears once. A column sorted twice
@@ -706,6 +726,7 @@ export function totalOrderSorts(
  * planner, and the editor says so.
  */
 function renamedWindow(d: DerivedColumn, one: (n: string) => string): DerivedColumn {
+  if (d.childAggregate) return { ...d, childAggregate: { ...d.childAggregate, of: one(d.childAggregate.of) } };
   const w = d.window;
   if (!w) return d;
   return {

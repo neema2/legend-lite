@@ -26,6 +26,8 @@ import {
   rowColumns,
   type CubeSnapshot,
   type DerivedColumn,
+  type ChildAggregate,
+  type ChildAggregateFn,
   type WindowFrame,
   type WindowFunction,
   type WindowSpec,
@@ -76,14 +78,25 @@ export interface ColumnEditorOptions {
 interface Draft {
   name: string;
   level: ColumnLevel;
-  /** An expression over one row, or a window over the rows around it. */
-  mode: 'expression' | 'window';
+  /**
+   * An expression over one row, a window over the rows around it, or
+   * (group level) an aggregate of the child groups' figures.
+   */
+  mode: 'expression' | 'window' | 'children';
   expression: string;
   window: WindowSpec;
+  child: ChildAggregate;
 }
+
+const CHILD_FUNCTIONS: readonly (readonly [ChildAggregateFn, string])[] = [
+  ['min', 'Minimum'], ['max', 'Maximum'], ['average', 'Average'],
+  ['median', 'Median'], ['sum', 'Sum'], ['count', 'Count'],
+];
 
 /** A window to start from: a running sum, order to be chosen. */
 const NEW_WINDOW: WindowSpec = { fn: 'sum', partition: [], order: [], frame: 'running' };
+/** A child-group aggregate to start from: the smallest child. */
+const NEW_CHILD: ChildAggregate = { fn: 'min', of: '' };
 
 type Check =
   | { readonly state: 'idle' }
@@ -121,7 +134,10 @@ export class ColumnEditor {
     if ('edit' in start) {
       const found = findColumn(options.snapshot(), start.edit);
       this.#original = start.edit;
-      this.#initial = found ?? { name: start.edit, level: 'measure', mode: 'expression', expression: '', window: NEW_WINDOW };
+      this.#initial = found ?? {
+        name: start.edit, level: 'measure', mode: 'expression', expression: '',
+        window: NEW_WINDOW, child: NEW_CHILD,
+      };
     } else {
       this.#original = undefined;
       this.#initial = {
@@ -131,9 +147,10 @@ export class ColumnEditor {
         mode: 'expression',
         expression: start.expression ?? '',
         window: NEW_WINDOW,
+        child: NEW_CHILD,
       };
     }
-    this.#draft = { ...this.#initial, window: { ...this.#initial.window } };
+    this.#draft = { ...this.#initial, window: { ...this.#initial.window }, child: { ...this.#initial.child } };
     this.#render();
     this.#schedule(0);
   }
@@ -171,8 +188,9 @@ export class ColumnEditor {
     const d = this.#draft;
     const next: DerivedColumn = {
       name: d.name.trim(),
-      expression: d.mode === 'window' ? '' : d.expression.trim(),
+      expression: d.mode === 'expression' ? d.expression.trim() : '',
       ...(d.mode === 'window' ? { window: this.#window() } : {}),
+      ...(d.mode === 'children' ? { childAggregate: { ...d.child } } : {}),
       // A group-level column is already past the aggregation, so it has
       // no measure-or-dimension to decide; upstream draws the same line.
       ...(d.level === 'group' ? {} : { kind: d.level }),
@@ -207,6 +225,12 @@ export class ColumnEditor {
     if (d.mode === 'expression') {
       return d.expression.trim().length === 0
         ? 'An expression is required — e.g. $x.notional * 1.05' : null;
+    }
+    if (d.mode === 'children') {
+      const s = this.#options.snapshot();
+      if (d.level !== 'group') return 'Child groups are a Group Level calculation';
+      if (s.pivotOn.length > 0) return 'Not on a cube with column pivots';
+      return d.child.of === '' ? 'Choose the measure whose child figures are aggregated' : null;
     }
     const w = d.window;
     const meta = WINDOW_FUNCTIONS.find((f) => f.fn === w.fn);
@@ -323,7 +347,7 @@ export class ColumnEditor {
   }
 
   #reset(): void {
-    this.#draft = { ...this.#initial, window: { ...this.#initial.window } };
+    this.#draft = { ...this.#initial, window: { ...this.#initial.window }, child: { ...this.#initial.child } };
     this.#refusal = null;
     this.#render();
     this.#schedule(0);
@@ -376,13 +400,16 @@ export class ColumnEditor {
       // The scope changes with the level, so the completion list does.
       this.#paintPicker(picker, expr);
       this.#paintWindow(winBox);
+      this.#paintChildren(childBox);
+      showMode();
     });
 
     // EXPRESSION OR WINDOW: one row in, one value out -- or a value from
     // the rows around it (a running total, a rank, the previous period).
     const modeRow = field(doc, form, 'Calculation:');
     const mode = el(doc, 'select', 'dc-calc-mode', modeRow) as HTMLSelectElement;
-    for (const [value, label] of [['expression', 'Expression'], ['window', 'Window (running, rank, previous…)']] as const) {
+    for (const [value, label] of [['expression', 'Expression'], ['window', 'Window (running, rank, previous…)'],
+      ['children', 'Child groups (min / max / … of the rows beneath)']] as const) {
       const o = doc.createElement('option');
       o.value = value;
       o.textContent = label;
@@ -391,14 +418,24 @@ export class ColumnEditor {
     mode.value = this.#draft.mode;
     const exprBox = el(doc, 'div', 'dc-calc-exprbox', form);
     const winBox = el(doc, 'div', 'dc-calc-window', form);
+    const childBox = el(doc, 'div', 'dc-calc-children', form);
     const showMode = (): void => {
+      // Child groups exist only after grouping: offered at Group Level.
+      const childOption = mode.querySelector<HTMLOptionElement>('option[value="children"]');
+      if (childOption) childOption.disabled = this.#draft.level !== 'group';
+      if (this.#draft.mode === 'children' && this.#draft.level !== 'group') {
+        this.#draft.mode = 'expression';
+        mode.value = 'expression';
+      }
       exprBox.hidden = this.#draft.mode !== 'expression';
       winBox.hidden = this.#draft.mode !== 'window';
+      childBox.hidden = this.#draft.mode !== 'children';
     };
     mode.addEventListener('change', () => {
       this.#draft.mode = mode.value as Draft['mode'];
       showMode();
       this.#paintWindow(winBox);
+      this.#paintChildren(childBox);
       this.#edited();
     });
 
@@ -422,6 +459,7 @@ export class ColumnEditor {
     const picker = el(doc, 'div', 'dc-calc-picker', exprBox);
     this.#paintPicker(picker, expr);
     this.#paintWindow(winBox);
+    this.#paintChildren(childBox);
     showMode();
 
     const footer = el(doc, 'div', 'dc-calc-footer', this.#root);
@@ -482,6 +520,45 @@ export class ColumnEditor {
     problem.textContent = message ?? '';
     problem.hidden = message === null;
     ok.disabled = this.#busy || !this.#canApply();
+  }
+
+  /** The child-groups form: the function, and the measure it reads. */
+  #paintChildren(box: HTMLElement): void {
+    const doc = this.#doc;
+    box.replaceChildren();
+    const s = this.#options.snapshot();
+    const c = this.#draft.child;
+    const derivedNames = new Set((s.groupDerived ?? []).map((d) => d.name));
+    // The group level's figures: measures (or, with none, the columns
+    // the groupBy aggregates) -- not the group keys, not other
+    // calculated columns, which the child query does not compute.
+    const measures = columnsInScope(s, 'group', this.#original).map((x) => x.label)
+      .filter((n) => !s.rows.includes(n) && !derivedNames.has(n));
+    const pick = (label: string, cls: string, options: readonly (readonly [string, string])[],
+      value: string, set: (v: string) => void): void => {
+      const sel = el(doc, 'select', cls, field(doc, box, label)) as HTMLSelectElement;
+      for (const [v, text] of options) {
+        const o = doc.createElement('option');
+        o.value = v;
+        o.textContent = text;
+        sel.append(o);
+      }
+      sel.value = value;
+      sel.addEventListener('change', () => {
+        set(sel.value);
+        this.#edited();
+      });
+    };
+    pick('Function:', 'dc-child-fn', CHILD_FUNCTIONS, c.fn, (v) => {
+      this.#draft.child = { ...this.#draft.child, fn: v as ChildAggregateFn };
+    });
+    pick('Of:', 'dc-child-of', [['', 'Choose a measure…'], ...measures.map((m) => [m, m] as const)],
+      c.of, (v) => {
+        this.#draft.child = { ...this.#draft.child, of: v };
+      });
+    const hint = el(doc, 'p', 'dc-child-hint', box);
+    hint.textContent = 'On each group row: this function over its child groups\' figures — '
+      + 'a region shows the smallest of its desks\' totals. At the deepest group, over its rows.';
   }
 
   /** The window form: function, column, partition, order, frame. */
@@ -731,13 +808,16 @@ function findColumn(s: CubeSnapshot, name: string): Draft | undefined {
       mode: row.window ? 'window' : 'expression',
       expression: row.expression,
       window: row.window ?? NEW_WINDOW,
+      child: NEW_CHILD,
     };
   }
   const group = (s.groupDerived ?? []).find((d) => d.name === name);
   return group
     ? {
-      name, level: 'group', mode: group.window ? 'window' : 'expression',
+      name, level: 'group',
+      mode: group.childAggregate ? 'children' : group.window ? 'window' : 'expression',
       expression: group.expression, window: group.window ?? NEW_WINDOW,
+      child: group.childAggregate ?? NEW_CHILD,
     }
     : undefined;
 }

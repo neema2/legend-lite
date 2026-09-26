@@ -15,6 +15,7 @@ import type { EpochGuard } from './epoch.ts';
 import type { QueryRunner } from './runner.ts';
 import {
   NULL_GROUP,
+  childAggregateQuery,
   detailSnapshot,
   pivotTotalQuery,
   serialize,
@@ -205,9 +206,11 @@ export async function fetchTree(
       );
       const truncated = full.rowCount > maxRows;
       const capped = truncated ? takeRows(full, maxRows) : full;
-      const table = detail ? capped : await withPivotTotals(
-        snapshot, request, capped, pathsOf(request, capped, depth), truncated,
-        { ...deps, snapshot: { ...snapshot, epoch: deps.epoch } },
+      const levelDeps = { ...deps, snapshot: { ...snapshot, epoch: deps.epoch } };
+      const table = detail ? capped : await withChildAggregates(
+        snapshot, request, await withPivotTotals(
+          snapshot, request, capped, pathsOf(request, capped, depth), truncated, levelDeps,
+        ), pathsOf(request, capped, depth), levelDeps,
       );
       levels.set(requestKey(request), {
         request,
@@ -312,6 +315,49 @@ export async function withPivotTotals(
   for (const measure of query.measures) join(measure, pivotTotalColumn(measure));
   // The measures the pivot does not spread, under their own names.
   for (const measure of query.carried) join(measure, measure);
+  return { ...table, columns: [...table.columns, ...added] };
+}
+
+/**
+ * A level's CHILD-GROUP aggregates, from their own query, placed beside
+ * the level's rows by group key -- as the pivot totals are. The figures
+ * are the database's; this only puts each one on its row.
+ */
+export async function withChildAggregates(
+  snapshot: CubeSnapshot,
+  request: LevelRequest,
+  table: ResultTable,
+  paths: readonly RowPath[],
+  deps: {
+    readonly runner: QueryRunner;
+    readonly snapshot: CubeSnapshot;
+    readonly signal?: AbortSignal;
+  },
+): Promise<ResultTable> {
+  const scope: LevelScope = { level: request.level, parent: request.parent };
+  const query = childAggregateQuery(snapshot, scope);
+  if (query === null || table.rowCount === 0) return table;
+  const { rows: found } = await deps.runner.run(query.pure, deps.snapshot, scope, deps.signal);
+  const level = request.level;
+  const at: number[] = [];
+  if (level === 0) {
+    for (let i = 0; i < table.rowCount; i++) at.push(found.rowCount > 0 ? 0 : -1);
+  } else {
+    const keyColumn = found.columns[level - 1];
+    const byKey = new Map<string, number>();
+    keyColumn?.values.forEach((v, i) => {
+      byKey.set(pathKey([...request.parent, groupValue(v)]), i);
+    });
+    for (const p of paths) at.push(byKey.get(pathKey(p)) ?? -1);
+  }
+  const added: ResultColumn[] = query.columns.map((name) => {
+    const source = found.columns.find((c) => c.name === name);
+    return {
+      name,
+      type: source?.type ?? 'Float',
+      values: at.map((i) => (i < 0 || !source ? null : (source.values[i] ?? null))),
+    };
+  });
   return { ...table, columns: [...table.columns, ...added] };
 }
 

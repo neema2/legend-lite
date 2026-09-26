@@ -7,7 +7,7 @@
 // DataCube emits that the hand-written corpus (wasm/corpus) never
 // thought to.
 
-import { detailSnapshot, serialize } from '../../src/serialize.ts';
+import { childAggregateQuery, detailSnapshot, serialize } from '../../src/serialize.ts';
 import { planQueries, type AdHocCube } from '../../src/adhoc/query.ts';
 import { initialGrid, setPov, zoomIn } from '../../src/adhoc/state.ts';
 import type { LevelScope } from '../../src/serialize.ts';
@@ -80,7 +80,7 @@ const SUM_NOTIONAL: CubeSnapshot['measures'] = [
  * real snapshot types, which is the only reason this file catches a
  * shape DataCube would reject.
  */
-export const CASES: { name: string; snapshot: CubeSnapshot; scope?: LevelScope }[] = [
+export const CASES: { name: string; snapshot: CubeSnapshot; scope?: LevelScope; pure?: string }[] = [
   { name: 'flat', snapshot: snap({}) },
   { name: 'measures-only', snapshot: snap({ measures: SUM_NOTIONAL }) },
   {
@@ -311,6 +311,32 @@ const AD_HOC: AdHocCube = {
     scope: { level: 1, parent: [] } });
 }
 
+// CHILD-GROUP AGGREGATES: each level's own query for them, as
+// `withChildAggregates` sends it -- grouped one level deeper, then
+// aggregated per group; at the deepest level, over the source rows.
+// With configured measures and without, two aggregates of one column.
+for (const measures of [SUM_NOTIONAL, []]) {
+  const cube = snap({
+    rows: ['region', 'desk', 'book'],
+    measures,
+    groupDerived: [
+      { name: 'weakest', expression: '', childAggregate: { fn: 'min', of: 'notional' } },
+      { name: 'children', expression: '', childAggregate: { fn: 'count', of: 'notional' } },
+      { name: 'typical', expression: '', childAggregate: { fn: 'median', of: 'notional' } },
+    ],
+  });
+  for (const level of [0, 1, 2, 3]) {
+    const scope = { level, parent: ['EMEA', 'Rates'].slice(0, Math.max(0, level - 1)) };
+    const q = childAggregateQuery(cube, scope);
+    if (!q) throw new Error(`no child query at level ${level}`);
+    CASES.push({ name: `children-${measures.length ? 'measure' : 'nomeasure'}-level-${level}`,
+      snapshot: cube, scope, pure: q.pure });
+    // And the level's own query, which must not carry the column.
+    CASES.push({ name: `children-main-${measures.length ? 'measure' : 'nomeasure'}-level-${level}`,
+      snapshot: cube, scope });
+  }
+}
+
 /** A detail level, exactly as `fetchTree` builds its query. */
 function detailCase(
   name: string,
@@ -323,5 +349,5 @@ function detailCase(
 
 /** Each case's Pure, as DataCube emits it. */
 export function grammars(): { name: string; grammar: string }[] {
-  return CASES.map((c) => ({ name: c.name, grammar: serialize(c.snapshot, c.scope) }));
+  return CASES.map((c) => ({ name: c.name, grammar: c.pure ?? serialize(c.snapshot, c.scope) }));
 }

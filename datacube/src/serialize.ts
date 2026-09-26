@@ -1123,7 +1123,11 @@ export function serialize(
     present: grouping && groupCols.length === 0 ? [ROOT_COLUMN] : groupCols,
     order: shown.length > 0 ? shown : keys,
   };
-  for (const d of snapshot.groupDerived ?? []) parts.push(derivedExtend(d, levelWindow));
+  // A child-group aggregate is not extended here: its figures come
+  // from its own query (childAggregateQuery), placed beside these.
+  for (const d of snapshot.groupDerived ?? []) {
+    if (!d.childAggregate) parts.push(derivedExtend(d, levelWindow));
+  }
 
   // A grand total is a single row; sorting and limiting it is noise
   // that only makes the generated text harder to read in a bug
@@ -1173,6 +1177,91 @@ export function serialize(
  *
  * Returns null when the cube has no pivot or no total.
  */
+/**
+ * The query for a level's CHILD-GROUP aggregates: each group's children
+ * (one level deeper) with their figure, aggregated per group -- the
+ * smallest desk total under each region. At the deepest group level
+ * the children are the source rows, so it is the plain aggregate over
+ * them. Null when the cube has none, is flat, or is pivoted.
+ */
+export function childAggregateQuery(
+  snapshot: CubeSnapshot,
+  scope: LevelScope,
+): { readonly pure: string; readonly columns: readonly string[] } | null {
+  const wanted = (snapshot.groupDerived ?? []).filter((d) => d.childAggregate);
+  if (wanted.length === 0 || snapshot.rows.length === 0 || snapshot.pivotOn.length > 0) return null;
+  const level = Math.max(0, scope.level);
+  const depth = snapshot.rows.length;
+  if (level > depth) return null;
+  const specOf = columnSpecs(snapshot);
+  // The figure a child shows for `of`: its measure, or -- a cube with
+  // no measures -- the column's own default aggregate.
+  const measureOf = (of: string): Measure => {
+    const configured = snapshot.measures.find((m) => m.name === of);
+    if (configured) return configured;
+    const spec = specOf.get(of);
+    const numeric = spec?.kind === 'measure' || (isNumericType(spec?.type) && spec?.kind === undefined);
+    return defaultMeasure(of, spec, numeric ? 'sum' : 'unique');
+  };
+  const {
+    pivotCast: _c, pivotValues: _v, pivotTotal: _t, window: _w, ...rest
+  } = snapshot;
+  void _c; void _v; void _t; void _w;
+  // ONLY what the figures need: the group keys and the columns the
+  // measures read. The select decides what a groupBy aggregates, and
+  // every other column would be aggregated for nothing.
+  const reads = new Set([...snapshot.rows.slice(0, level + 1),
+    ...wanted.map((d) => measureOf(d.childAggregate!.of).column)]);
+  const derivedNeeded = snapshot.derived.some((d) => reads.has(d.name));
+  const base: CubeSnapshot = {
+    ...rest,
+    // A row-stage calculated column may read any source column.
+    columns: derivedNeeded ? snapshot.columns : snapshot.columns.filter((c) => reads.has(c.name)),
+    derived: derivedNeeded ? snapshot.derived : [],
+    pivotOn: [],
+    sorts: [],
+    groupDerived: [],
+    leafCount: false,
+    childCount: false,
+  };
+  const keys = snapshot.rows.slice(0, level);
+  if (level === depth) {
+    // The children are the source rows: aggregate them directly. Each
+    // reads its OWN copy of the column -- two aggregates of one column
+    // (its minimum and its count) are two measures, and measures are
+    // matched to their column one to one.
+    const copies = wanted.map((d) => ({
+      name: `__child_${d.name}`,
+      expression: colRef('x', measureOf(d.childAggregate!.of).column),
+      kind: 'measure' as const,
+    }));
+    const measures = wanted.map((d, i) => ({
+      name: d.name,
+      column: copies[i]!.name,
+      fn: d.childAggregate!.fn,
+    }));
+    return {
+      pure: serialize({ ...base, derived: [...base.derived, ...copies], measures },
+        { level, parent: scope.parent }),
+      columns: wanted.map((d) => d.name),
+    };
+  }
+  const inner = [...new Map(wanted.map((d) => {
+    const m = measureOf(d.childAggregate!.of);
+    return [m.name, m] as const;
+  })).values()];
+  const children = serialize({ ...base, measures: inner }, { level: level + 1, parent: scope.parent });
+  const aggs = wanted.map((d) => aggregateSpec({
+    name: d.name,
+    column: measureOf(d.childAggregate!.of).name,
+    fn: d.childAggregate!.fn,
+  })).join(', ');
+  const regroup = keys.length === 0
+    ? `extend(~[${ident(ROOT_COLUMN)}: x|${literal(ROOT_VALUE)}])->groupBy(~[${ident(ROOT_COLUMN)}], ~[${aggs}])`
+    : `groupBy(~[${keys.map(ident).join(', ')}], ~[${aggs}])`;
+  return { pure: `${children}->${regroup}`, columns: wanted.map((d) => d.name) };
+}
+
 export function pivotTotalQuery(
   snapshot: CubeSnapshot,
   scope: LevelScope | undefined,

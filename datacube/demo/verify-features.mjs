@@ -3042,6 +3042,83 @@ try {
     }
   });
 
+  // ---- child-group aggregates ------------------------------------------
+  const addChildren = async ({ name, fn, of }) => {
+    await openCalc();
+    const ed = (sel) => page.locator(`.dc-coleditor ${sel}`);
+    await page.fill('.dc-coleditor .dc-calc-input-name', name);
+    await ed('.dc-calc-level').selectOption('group');
+    await ed('.dc-calc-mode').selectOption('children');
+    await ed('.dc-child-fn').selectOption(fn);
+    await ed('.dc-child-of').selectOption(of);
+    const verdict = await compiledCheck();
+    if (verdict.state === 'refused') throw new Error(`refused: ${verdict.text}`);
+    const ok = ed('.dc-calc-ok');
+    if (await ok.isDisabled()) throw new Error(`OK is disabled: ${await ed('.dc-calc-check').textContent()}`);
+    const before = await statusNow();
+    await ok.click();
+    await settle(before);
+    await closeCalc();
+  };
+
+  await check('child groups: a region shows the smallest of its desks, a desk the smallest of its trades', async () => {
+    await freshCube();
+    try {
+      await menu(['Pivot', /^Vertical Pivot on/], { col: await needCol('region') });
+      await menu(['Pivot', 'Add Vertical Pivot on desk'], { col: await needCol('desk') });
+      await addChildren({ name: 'weakest', fn: 'min', of: 'notional' });
+      await addChildren({ name: 'children', fn: 'count', of: 'notional' });
+      // Open the first region onto its desks.
+      const opened = await statusNow();
+      await page.locator('.dc-row[aria-expanded=false] .dc-chevron').first().click();
+      await settle(opened);
+      const result = await page.evaluate(async () => {
+        const c = window.__dataCube.controller;
+        const v = c.view;
+        const col = (t, n) => t.columns.find((x) => x.name === n)?.values ?? null;
+        const notional = col(v.rows, 'notional');
+        const weakest = col(v.rows, 'weakest');
+        const children = col(v.rows, 'children');
+        if (!notional || !weakest || !children) return { error: 'columns missing' };
+        const rows = v.treeRows.map((r, i) => ({ path: r.path, level: r.level, i }));
+        const region = rows.find((r) => r.level === 1 && rows.some((x) => x.level === 2 && x.path[0] === r.path[0]));
+        const desks = rows.filter((x) => x.level === 2 && x.path[0] === region.path[0]);
+        // The trades' own minimum per desk, from the raw rows.
+        const raw = await c.query(`${c.snapshot.source.expression}->select(~[region, desk, notional])`, c.snapshot);
+        const rr = col(raw, 'region'); const rd = col(raw, 'desk'); const rn = col(raw, 'notional');
+        const minTrade = new Map();
+        rr.forEach((r, i) => {
+          if (r !== region.path[0] || rn[i] === null) return;
+          const k = String(rd[i]);
+          minTrade.set(k, Math.min(minTrade.get(k) ?? Infinity, Number(rn[i])));
+        });
+        return {
+          region: region.path[0],
+          regionWeakest: weakest[region.i],
+          regionChildren: children[region.i],
+          deskTotals: desks.map((d) => notional[d.i]),
+          desks: desks.map((d) => ({ desk: d.path[1], weakest: weakest[d.i], trade: minTrade.get(String(d.path[1])) })),
+          truncated: v.truncated.length,
+        };
+      });
+      if (result.error) throw new Error(result.error);
+      const near = (a, b) => Math.abs(Number(a) - Number(b)) <= 1e-6 * Math.max(1, Math.abs(Number(b)));
+      const smallestDesk = Math.min(...result.deskTotals.map(Number));
+      if (!near(result.regionWeakest, smallestDesk)) {
+        throw new Error(`${result.region}: weakest ${result.regionWeakest}, its smallest desk total is ${smallestDesk}`);
+      }
+      if (!result.truncated && Number(result.regionChildren) !== result.deskTotals.length) {
+        throw new Error(`${result.region}: ${result.regionChildren} children, ${result.deskTotals.length} desks shown`);
+      }
+      const bad = result.desks.filter((d) => !near(d.weakest, d.trade));
+      if (bad.length) throw new Error(`desk minimum vs its trades: ${JSON.stringify(bad.slice(0, 2))}`);
+      return `${result.region}: weakest desk ${smallestDesk.toFixed(2)} of ${result.deskTotals.length};`
+        + ` each desk's own = its smallest trade`;
+    } finally {
+      await freshCube();
+    }
+  });
+
   await check('calculated columns live in the grid menu, not the hamburger',
     async () => {
       // A check that failed earlier cannot leave its columns behind.

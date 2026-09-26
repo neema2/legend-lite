@@ -14,7 +14,7 @@ import {
 } from './grid/columns.ts';
 import type { CubeSnapshot } from './snapshot.ts';
 import { CubeRefusal, referencedColumns } from './snapshot.ts';
-import { serialize, type LevelScope } from './serialize.ts';
+import { childAggregateQuery, serialize, type LevelScope } from './serialize.ts';
 import type { ResultTable } from './result.ts';
 import { SnapManager } from './snap.ts';
 import {
@@ -228,7 +228,12 @@ export class CubeController {
     } else {
       scopes.push(s.maxRows === undefined ? undefined : { level: 1, parent: [], limit: s.maxRows + 1 });
     }
-    const queries = scopes.map((scope) => serialize(s, scope));
+    // Each level's own query, then its child-group aggregates' -- a
+    // column whose own query the planner refuses must not pass.
+    const queries = scopes.flatMap((scope) => {
+      const child = scope ? childAggregateQuery(s, scope) : null;
+      return child ? [serialize(s, scope), child.pure] : [serialize(s, scope)];
+    });
     for (const pure of queries) {
       try {
         await runner.compile(pure, s, signal);
