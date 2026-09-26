@@ -160,3 +160,72 @@ cold-data items below stay open, measured when deployment is built.
    authorizer's parser coverage, views over external data with file
    access denied to users, Arrow IPC streaming from JDBC, what TeaVM's
    WebAssembly accepts for a sans-I/O binding, and the Windows lane.
+
+
+## Q2. Can a Java function know which connection called it?
+
+**No, measured on DuckDB JDBC 1.5.5.1**
+(`experiments/warehouse-w0/UdfIdentity.java`):
+
+- **Functions are database-wide.** A function registered through
+  connection 1 is visible from connection 2. When connection 2
+  registered the same name, connection 1 got connection 2's version.
+- **A thread-local does not reach it.** Even `SELECT principal()` ran the
+  Java function on a DuckDB worker thread (`Thread-0`), not on the thread
+  that set the identity. The function failed closed ("no principal").
+
+So identity stays a per-connection variable, set by the server before
+every statement, with the authorizer as its guard. The no-extension
+decision stands.
+
+## Q3. Does DuckDB's parser expose every way a statement reaches data?
+
+**The probe:** `experiments/warehouse-w0/authz_probe.py`. It runs 44
+statements through `json_serialize_sql` against a naive rule: one
+statement, every referenced table granted, no table functions.
+
+**Caught (denied):**
+- the base table reached through a subquery, a CTE, a recursive CTE, a
+  CTE shadowing a granted name, a lateral join, a set operation, a
+  scalar subquery, or FROM-first syntax;
+- a file or S3 path used as a table, and another attached database;
+- every table function: `read_csv`, `read_text`, `query('…')`,
+  `query_table`, table macros, `duckdb_secrets()`, `duckdb_tables()`,
+  `glob`, even `range`;
+- two statements in one request;
+- every non-SELECT, which cannot be serialized: `SET VARIABLE`,
+  `PREPARE`/`EXECUTE`, `CALL`, `ATTACH`, `COPY`, `INSERT`,
+  `CREATE TEMP MACRO`, `EXPLAIN`.
+
+**Slipped through the naive rule, each a design rule:**
+
+| Statement | Why | Rule |
+|---|---|---|
+| `SHOW TABLES` | parses as a SELECT over a special source node that the walker did not recognise; it lists every table | **allow-list node types**; deny any node the authorizer does not know |
+| `SELECT current_setting('s3_secret_access_key')` | a scalar function reading server settings | **allow-list scalar functions** by name |
+| `SELECT getenv('HOME')` | a scalar function reading the server's environment | same |
+
+**What legitimate SQL uses:** every query in DataCube's planner
+differential (44 cube shapes, including windows and child groups) was
+catalogued.
+- **Node kinds:** SELECT, subquery, base table, CASE, CAST, column,
+  constant, comparisons, AND/OR, IN, COALESCE, IS [NOT] NULL, NOT, star,
+  ORDER / LIMIT modifiers, and window nodes (aggregate, rank, ntile,
+  lag, last value, cumulative distribution).
+- **Functions:** `avg count count_star cume_dist lag last_value max
+  median min ntile rank sum`.
+
+These seed the allow-lists; each new kind is added deliberately.
+
+**A blocker, with a fix on legend-lite's side:** 4 of the 44, the column
+pivots, **cannot be serialized**. legend-lite emits a **dynamic** DuckDB
+`PIVOT` (`ON "year"` with no value list), which needs a pre-pass over the
+data, and the parser refuses it. A **static** pivot (`ON "year" IN (2021,
+2022)`, or the standard `FROM t PIVOT (… FOR year IN (…))`) serializes,
+exposes its tables, and answers correctly. So for the warehouse,
+legend-lite fetches the pivot values first with a plain `SELECT
+DISTINCT`, itself authorized, and sends a static pivot. This is a dialect
+rule, and the authorizer stays strict.
+
+(Measured with DuckDB 1.4.4's parser via Python; W1 re-runs the suite on
+the warehouse's 1.5.x, as a test.)
