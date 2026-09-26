@@ -286,7 +286,7 @@ public final class Statements implements AutoCloseable {
         List<Column> cols = ResultEncoder.api(r.columns());
         int per = Math.max(1, run.request.rowsPerChunk());
         if (run.request.format() == ResultFormat.ARROW) {
-            Collect.Arrow a = Collect.arrow(r, per, limits.maxRows());
+            Collect.Arrow a = Collect.arrow(r, per, limits.maxRows(), run.request.cellText());
             run.arrowChunks = a.chunks();
             run.result = new ResultMeta(cols, a.rows(), a.chunks().size());
             return;

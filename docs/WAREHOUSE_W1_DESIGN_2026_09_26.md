@@ -348,3 +348,26 @@ identical), kept as bytes, served as they are, and the first chunk spliced into 
 **Owed:** results are still held in memory for their retention (a size cap and spilling to disk, §2);
 Windows native builds (a separate toolchain setup).
 
+## W1f: the JDBC driver reads Arrow by default (2026-09-26)
+
+Decided with the user: the API's default stays JSON (curl, scripts; Snowflake's and Databricks'
+defaults too); **our own clients ask for Arrow**.
+
+- **One set of value rules** (`:sqlapi`, java.base only): `Columnar` (one column of one batch in
+  Arrow's layout) and `ApiValues` (the API's JSON values from it). The server fills `Columnar` from
+  DuckDB's buffers; the driver fills it from an Arrow chunk (`ArrowIpcReader`, plain Java, no Arrow
+  library). So an Arrow result and a JSON result give a client the same values, by construction.
+- **DuckDB's nested text over Arrow:** with `cellText: true`, each batch carries DuckDB's text for its
+  nested cells in the Arrow message's metadata (`legend.cell_text`), where other Arrow readers do
+  not look. INTERVAL text is `Intervals.text`, DuckDB's rule, pinned against DuckDB's own cast over
+  486 intervals (`intervalsSpellAsDuckDBCastsThem`); the server uses it too, so it no longer asks DuckDB.
+- **The driver:** `resultFormat=arrow` (the default) or `resultFormat=json` in the URL;
+  `getClientInfo("resultFormat")` says which. `HttpResult` carries bytes.
+- **Proven:** the whole differential against DuckDB's own driver runs twice, on Arrow
+  (`WarehouseJdbcTest`) and on JSON (`WarehouseJdbcJsonTest`): `//warehouse:tests` 57/57.
+- **1M rows x 8 through the driver, every cell read** (JVM server): executeQuery JSON 910–1,134 ms,
+  Arrow 460–783 ms; in all, JSON 1.53–1.82 s, Arrow 1.07–1.39 s.
+
+**Owed:** the driver still turns each Arrow value into the API's JSON form, then into a Java object
+(~600 ms of the above in both formats); reading straight from `Columnar` would drop that step.
+

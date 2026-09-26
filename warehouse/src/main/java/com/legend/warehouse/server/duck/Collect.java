@@ -1,6 +1,8 @@
 package com.legend.warehouse.server.duck;
 
 import com.legend.server.Json;
+import com.legend.warehouse.sqlapi.ApiValues;
+import com.legend.warehouse.sqlapi.Columnar;
 import com.legend.warehouse.sqlapi.DuckType;
 import java.util.ArrayList;
 import java.util.List;
@@ -30,10 +32,11 @@ public final class Collect {
         try {
             r.chunks((array, n) -> {
                 if (rows.size() + n > maxRows) throw new TooLarge(maxRows);
-                List<ColumnData> cols = columns(array, trees);
+                List<Columnar> cols = columns(array, trees);
+                ApiValues.NestedText texts = (column, row) -> DuckValues.text(d, cols.get(column), trees.get(column), row);
                 for (int row = 0; row < n; row++) {
                     List<Json.Node> out = new ArrayList<>(cols.size());
-                    for (ColumnData c : cols) out.add(JsonCells.cell(d, c, row));
+                    for (int c = 0; c < cols.size(); c++) out.add(ApiValues.cell(cols.get(c), c, row, texts));
                     rows.add(out);
                 }
             });
@@ -63,7 +66,8 @@ public final class Collect {
             r.chunks((array, n) -> {
                 total[0] += n;
                 if (total[0] > maxRows) throw new TooLarge(maxRows);
-                List<ColumnData> cols = columns(array, trees);
+                List<Columnar> cols = columns(array, trees);
+                ApiValues.NestedText texts = (column, row) -> DuckValues.text(d, cols.get(column), trees.get(column), row);
                 for (int row = 0; row < n; row++) {
                     if (inChunk[0] == rowsPerChunk) {
                         chunks.add(finish(w[0]));
@@ -71,7 +75,7 @@ public final class Collect {
                         inChunk[0] = 0;
                     }
                     w[0].beginArray();
-                    for (ColumnData c : cols) JsonCells.writeCell(w[0], d, c, row);
+                    for (int c = 0; c < cols.size(); c++) ApiValues.writeCell(w[0], cols.get(c), c, row, texts);
                     w[0].endArray();
                     inChunk[0]++;
                 }
@@ -103,7 +107,7 @@ public final class Collect {
     }
 
     /** Arrow IPC streams, each holding whole batches until it has {@code rowsPerChunk} rows. */
-    public static Arrow arrow(Result r, int rowsPerChunk, long maxRows) throws Exception {
+    public static Arrow arrow(Result r, int rowsPerChunk, long maxRows, boolean cellText) throws Exception {
         Duck d = Duck.api();
         List<TypeTree> trees = trees(d, r);
         List<String> names = new ArrayList<>();
@@ -115,7 +119,8 @@ public final class Collect {
             r.chunks((array, n) -> {
                 total[0] += n;
                 if (total[0] > maxRows) throw new TooLarge(maxRows);
-                streams.add(columns(array, trees), (int) n);
+                List<Columnar> cols = columns(array, trees);
+                streams.add(cols, (int) n, cellText ? nestedTexts(d, cols, trees, (int) n) : java.util.Map.of());
                 if (streams.rows() >= rowsPerChunk) chunks.add(streams.flush());
             });
         } finally {
@@ -133,10 +138,23 @@ public final class Collect {
         return out;
     }
 
-    private static List<ColumnData> columns(java.lang.foreign.MemorySegment array, List<TypeTree> trees) {
+    /** DuckDB's text for every top-level nested cell of a batch, by column: an Arrow batch's metadata. */
+    private static java.util.Map<Integer, List<String>> nestedTexts(Duck d, List<Columnar> cols, List<TypeTree> trees, int n) {
+        java.util.Map<Integer, List<String>> out = new java.util.LinkedHashMap<>();
+        for (int c = 0; c < cols.size(); c++) {
+            Columnar col = cols.get(c);
+            if (col.type instanceof DuckType.Scalar) continue;
+            List<String> texts = new ArrayList<>(n);
+            for (int row = 0; row < n; row++) texts.add(col.present(row) ? DuckValues.text(d, col, trees.get(c), row) : "");
+            out.put(c, texts);
+        }
+        return out;
+    }
+
+    private static List<Columnar> columns(java.lang.foreign.MemorySegment array, List<TypeTree> trees) {
         java.lang.foreign.MemorySegment a = array.reinterpret(Duck.ARRAY_SIZE);
         java.lang.foreign.MemorySegment kids = a.get(java.lang.foreign.ValueLayout.ADDRESS, 48).reinterpret(8L * trees.size());
-        List<ColumnData> out = new ArrayList<>(trees.size());
+        List<Columnar> out = new ArrayList<>(trees.size());
         for (int i = 0; i < trees.size(); i++) out.add(ColumnData.copy(kids.getAtIndex(java.lang.foreign.ValueLayout.ADDRESS, i), trees.get(i)));
         return out;
     }

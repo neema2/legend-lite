@@ -38,6 +38,7 @@ public final class ApiJson {
         if (session != null) f.put("sessionId", Json.str(session));
         if (r.describeOnly()) f.put("describeOnly", Json.bool(true));
         if (r.format() != SqlApi.ResultFormat.JSON) f.put("resultFormat", Json.str(r.format().wire()));
+        if (r.cellText()) f.put("cellText", Json.bool(true));
         return Json.toCompact(new Json.Obj(f));
     }
 
@@ -57,7 +58,8 @@ public final class ApiJson {
                 o.getIntOr("rowsPerChunk", StatementRequest.DEFAULT_ROWS_PER_CHUNK),
                 o.getStringOr("sessionId", null),
                 o.getBoolOr("describeOnly", false),
-                format == null ? SqlApi.ResultFormat.JSON : SqlApi.ResultFormat.ofWire(format));
+                format == null ? SqlApi.ResultFormat.JSON : SqlApi.ResultFormat.ofWire(format),
+                o.getBoolOr("cellText", false));
     }
 
     public static String openSession(String catalog) {

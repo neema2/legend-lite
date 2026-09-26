@@ -76,27 +76,37 @@ public final class SqlApi {
             int rowsPerChunk,
             @Nullable String sessionId,
             boolean describeOnly,
-            ResultFormat format) {
+            ResultFormat format,
+            boolean cellText) {
 
         public StatementRequest(String sql, String catalog, long timeoutMs, long waitMs, int rowsPerChunk) {
-            this(sql, catalog, timeoutMs, waitMs, rowsPerChunk, null, false, ResultFormat.JSON);
+            this(sql, catalog, timeoutMs, waitMs, rowsPerChunk, null, false, ResultFormat.JSON, false);
         }
 
         public StatementRequest(String sql, String catalog, long timeoutMs, long waitMs, int rowsPerChunk,
                 @Nullable String sessionId) {
-            this(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, false, ResultFormat.JSON);
+            this(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, false, ResultFormat.JSON, false);
         }
 
         public StatementRequest inSession(String session) {
-            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, session, describeOnly, format);
+            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, session, describeOnly, format, cellText);
         }
 
         public StatementRequest describe() {
-            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, true, format);
+            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, true, format, cellText);
         }
 
         public StatementRequest as(ResultFormat f) {
-            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, describeOnly, f);
+            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, describeOnly, f, cellText);
+        }
+
+        /**
+         * With Arrow: each batch also carries DuckDB's own text for its nested cells (the JSON format's
+         * {@code "text"}), in the batch's metadata, where other Arrow readers do not look. For clients that
+         * show a nested value as DuckDB prints it (a JDBC driver's {@code getString}).
+         */
+        public StatementRequest withCellText() {
+            return new StatementRequest(sql, catalog, timeoutMs, waitMs, rowsPerChunk, sessionId, describeOnly, format, true);
         }
 
         public static final String DEFAULT_CATALOG = "main";

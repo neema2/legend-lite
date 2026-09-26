@@ -76,6 +76,12 @@ public final class NativeBinding implements SqlApiBinding {
     }
 
     @Override
+    public byte[] arrowChunk(HttpResult result) {
+        if (result.status() != 200) throw new IllegalStateException(failure(result).message());
+        return result.bytes();
+    }
+
+    @Override
     public HttpCall cancel(String statementId, String token) {
         return new HttpCall("POST", "/sql/v1/statements/" + statementId + "/cancel", json(token), null);
     }

@@ -27,8 +27,15 @@ public interface SqlApiBinding {
         }
     }
 
-    /** What came back. */
-    record HttpResult(int status, String body) {
+    /** What came back: the body's bytes (an Arrow chunk is binary), and its text when it is text. */
+    record HttpResult(int status, byte[] bytes) {
+        public HttpResult(int status, String body) {
+            this(status, body.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        }
+
+        public String body() {
+            return new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
+        }
     }
 
     /** What the driver does next with a statement. */
@@ -59,6 +66,9 @@ public interface SqlApiBinding {
     HttpCall fetchChunk(String statementId, int index, String token);
 
     Chunk chunk(HttpResult result);
+
+    /** An Arrow result's chunk: a whole Arrow IPC stream. */
+    byte[] arrowChunk(HttpResult result);
 
     HttpCall cancel(String statementId, String token);
 

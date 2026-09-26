@@ -49,6 +49,7 @@ public final class WhDriver implements Driver {
         String catalog = path.isEmpty() ? StatementRequest.DEFAULT_CATALOG : path;
         String user = info.getProperty("user");
         String password = info.getProperty("password");
+        String format = info.getProperty("resultFormat", "arrow");
         String query = uri.getRawQuery();
         if (query != null) {
             for (String part : query.split("&")) {
@@ -58,6 +59,7 @@ public final class WhDriver implements Driver {
                 String v = URLDecoder.decode(part.substring(eq + 1), StandardCharsets.UTF_8);
                 if (k.equals("user") && user == null) user = v;
                 if (k.equals("password") && password == null) password = v;
+                if (k.equals("resultFormat")) format = v;
             }
         }
         if (user == null || password == null) throw new SQLException("a user and a password are required");
@@ -84,7 +86,13 @@ public final class WhDriver implements Driver {
         } catch (IllegalStateException refused) {
             throw new SQLException("no session on catalog '" + catalog + "': " + refused.getMessage(), refused);
         }
-        return new WhConnection(client, catalog, session, url);
+        SqlApi.ResultFormat resultFormat;
+        try {
+            resultFormat = SqlApi.ResultFormat.ofWire(format);
+        } catch (IllegalArgumentException bad) {
+            throw new SQLException("resultFormat must be arrow or json, not " + format);
+        }
+        return new WhConnection(client, catalog, session, url, resultFormat);
     }
 
     @Override

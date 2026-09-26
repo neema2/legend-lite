@@ -2,6 +2,7 @@ package com.legend.warehouse.client.jdbc;
 
 import com.legend.Nullable;
 import com.legend.warehouse.client.WarehouseClient;
+import com.legend.warehouse.sqlapi.SqlApi;
 import com.legend.warehouse.sqlapi.SqlApi.StatementRequest;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -51,6 +52,8 @@ final class WhStatement implements java.sql.PreparedStatement {
         try {
             StatementRequest request = new StatementRequest(sql, conn.catalog, timeoutMs,
                     StatementRequest.DEFAULT_WAIT_MS, StatementRequest.DEFAULT_ROWS_PER_CHUNK, conn.session);
+            // Arrow (with DuckDB's text for nested cells, for getString) unless the URL chose JSON
+            if (conn.format == SqlApi.ResultFormat.ARROW) request = request.as(SqlApi.ResultFormat.ARROW).withCellText();
             r = conn.client.execute(describe ? request.describe() : request, id -> inFlight = id);
         } catch (WarehouseClient.Failure f) {
             throw new SQLException(f.error().message(), f.error().code().name(), f);

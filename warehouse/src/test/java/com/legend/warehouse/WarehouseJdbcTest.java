@@ -44,12 +44,15 @@ class WarehouseJdbcTest {
     static Connection remote;
     static Connection local;
 
+    /** How this run's results travel: the driver's default (Arrow), or JSON in {@link WarehouseJdbcJsonTest}. */
+    static String format = "arrow";
+
     @BeforeAll
-    static void start() throws Exception {
+    static void start(org.junit.jupiter.api.TestInfo info) throws Exception {
+        format = info.getTestClass().orElseThrow() == WarehouseJdbcJsonTest.class ? "json" : "arrow";
         Path data = Files.createTempDirectory("warehouse-jdbc");
         server = TestServer.start(data, List.<String[]>of(new String[] {"alice", "alice-pw"}), new Statements.Limits(2, 50, 1_000_000, Duration.ofMinutes(5)));
-        remote = DriverManager.getConnection("jdbc:warehouse:http://127.0.0.1:" + server.port()
-                + "/main?user=alice&password=alice-pw");
+        remote = connect();
         local = DriverManager.getConnection("jdbc:duckdb:");
         for (Connection c : List.of(remote, local)) {
             try (Statement s = c.createStatement()) {
@@ -206,6 +209,38 @@ class WarehouseJdbcTest {
     }
 
     @Test
+    void theDriverSaysHowItsResultsTravel() throws SQLException {
+        assertEquals(format, remote.getClientInfo("resultFormat"), "Arrow by default; JSON when the URL asks");
+    }
+
+    @Test
+    void intervalsSpellAsDuckDBCastsThem() throws SQLException {
+        // the API's (and the driver's) interval text is Intervals.text: every combination here against
+        // DuckDB's own cast to VARCHAR
+        StringBuilder sql = new StringBuilder("SELECT v, CAST(v AS VARCHAR) FROM (VALUES ");
+        int[] months = {0, 1, -1, 11, 12, 13, -13, 25, 1200};
+        int[] days = {0, 1, -1, 2, 45, -300};
+        long[] micros = {0, 1, -1, 500_000, 3_600_000_000L, -3_600_000_001L, 86_399_999_999L, 360_000_000_000_000L, 1_000_000};
+        boolean first = true;
+        for (int m : months) for (int d : days) for (long u : micros) {
+            sql.append(first ? "" : ", ").append("(to_months(").append(m).append(") + to_days(").append(d)
+                    .append(") + to_microseconds(").append(u).append("))");
+            first = false;
+        }
+        sql.append(") t(v)");
+        int checked = 0;
+        try (Statement r = remote.createStatement(); ResultSet rr = r.executeQuery(sql.toString());
+             Statement l = local.createStatement(); ResultSet lr = l.executeQuery(sql.toString())) {
+            while (lr.next()) {
+                rr.next();
+                assertEquals(lr.getString(2), rr.getString(1), "the interval " + lr.getString(2));
+                checked++;
+            }
+        }
+        assertEquals(months.length * days.length * micros.length, checked);
+    }
+
+    @Test
     void manyRowsAcrossChunks() throws SQLException {
         same("SELECT i, i * 1.5 AS d, 'r' || i AS s FROM range(25000) t(i) ORDER BY i");
     }
@@ -240,8 +275,9 @@ class WarehouseJdbcTest {
     }
 
     static Connection connect() throws SQLException {
-        return DriverManager.getConnection("jdbc:warehouse:http://127.0.0.1:" + server.port()
-                + "/main?user=alice&password=alice-pw");
+        String url = "jdbc:warehouse:http://127.0.0.1:" + server.port() + "/main?user=alice&password=alice-pw"
+                + (format.equals("json") ? "&resultFormat=json" : "");
+        return DriverManager.getConnection(url);
     }
 
     @Test

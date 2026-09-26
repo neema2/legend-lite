@@ -20,11 +20,14 @@ final class WhConnection implements java.sql.Connection {
     final String session;
     final String engine;
     final String engineVersion;
+    /** How results travel: Arrow unless the URL says {@code resultFormat=json}. */
+    final SqlApi.ResultFormat format;
     private final String url;
     private volatile boolean closed;
     private boolean autoCommit = true;
 
-    WhConnection(WarehouseClient client, String catalog, SqlApi.Session session, String url) {
+    WhConnection(WarehouseClient client, String catalog, SqlApi.Session session, String url, SqlApi.ResultFormat format) {
+        this.format = format;
         this.client = client;
         this.catalog = catalog;
         this.session = session.sessionId();
@@ -300,8 +303,9 @@ final class WhConnection implements java.sql.Connection {
     }
 
     @Override
-    public java.lang.String getClientInfo(java.lang.String p0) throws java.sql.SQLException {
-        throw Unsupported.of("Connection.getClientInfo");
+    public java.lang.@com.legend.Nullable String getClientInfo(java.lang.String p0) throws java.sql.SQLException {
+        // resultFormat: how this connection's results travel (arrow unless the URL said json)
+        return p0.equals("resultFormat") ? format.wire() : null;
     }
 
     @Override

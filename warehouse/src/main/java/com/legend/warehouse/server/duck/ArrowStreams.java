@@ -1,5 +1,8 @@
 package com.legend.warehouse.server.duck;
 
+import com.legend.server.Json;
+import com.legend.warehouse.sqlapi.ApiValues;
+import com.legend.warehouse.sqlapi.Columnar;
 import com.legend.warehouse.sqlapi.DuckType;
 import java.io.ByteArrayOutputStream;
 import java.nio.ByteBuffer;
@@ -38,15 +41,21 @@ public final class ArrowStreams {
         b.startTable(4);
         b.fieldShort(0, 0);   // little-endian
         b.fieldOffset(1, fv);
-        this.schema = frame(message(b, SCHEMA, b.endTable(), 0), new byte[0]);
+        this.schema = frame(message(b, SCHEMA, b.endTable(), 0, 0), new byte[0]);
         current.writeBytes(schema);
     }
 
-    /** One chunk's columns as a record batch of the current stream. */
-    void add(List<ColumnData> columns, int count) {
+    /** The batch metadata key under which a batch carries DuckDB's text for its nested cells. */
+    public static final String CELL_TEXT = "legend.cell_text";
+
+    /**
+     * One chunk's columns as a record batch of the current stream; {@code texts} (column index to each
+     * row's text, empty for none) goes in the batch's metadata as JSON, under {@link #CELL_TEXT}.
+     */
+    void add(List<Columnar> columns, int count, java.util.Map<Integer, List<String>> texts) {
         List<long[]> nodes = new ArrayList<>();
         List<byte[]> buffers = new ArrayList<>();
-        for (ColumnData c : columns) layout(c, nodes, buffers);
+        for (Columnar c : columns) layout(c, nodes, buffers);
         ByteArrayOutputStream body = new ByteArrayOutputStream();
         long[] offsets = new long[buffers.size()], lengths = new long[buffers.size()];
         for (int i = 0; i < buffers.size(); i++) {
@@ -67,7 +76,24 @@ public final class ArrowStreams {
         b.fieldOffset(1, nv);
         b.fieldOffset(2, bv);
         int batch = b.endTable();
-        current.writeBytes(frame(message(b, RECORD_BATCH, batch, body.size()), body.toByteArray()));
+        int metadata = 0;
+        if (!texts.isEmpty()) {
+            Json.Writer w = Json.compactWriter();
+            w.beginObject();
+            for (var e : texts.entrySet()) {
+                w.name(Integer.toString(e.getKey()));
+                w.beginArray();
+                for (String t : e.getValue()) w.writeString(t);
+                w.endArray();
+            }
+            w.endObject();
+            int key = b.string(CELL_TEXT), value = b.string(w.toString());
+            b.startTable(2);   // KeyValue {key, value}
+            b.fieldOffset(0, key);
+            b.fieldOffset(1, value);
+            metadata = b.offsets(new int[] {b.endTable()});
+        }
+        current.writeBytes(frame(message(b, RECORD_BATCH, batch, body.size(), metadata), body.toByteArray()));
         rows += count;
     }
 
@@ -153,7 +179,7 @@ public final class ArrowStreams {
             case "TINYINT", "SMALLINT", "INTEGER", "BIGINT", "UTINYINT", "USMALLINT", "UINTEGER", "UBIGINT" -> {
                 id = 2;
                 b.startTable(2);
-                b.fieldInt(0, 8 * ColumnData.width(base));
+                b.fieldInt(0, 8 * Columnar.width(base));
                 b.fieldBool(1, !base.startsWith("U"));
             }
             case "FLOAT", "DOUBLE" -> { id = 3; b.startTable(1); b.fieldShort(0, base.equals("FLOAT") ? 1 : 2); }
@@ -194,21 +220,21 @@ public final class ArrowStreams {
     // -- a batch's body ------------------------------------------------------------------
 
     /** The column's nodes and buffers, depth first, as a record batch lists them. */
-    private static void layout(ColumnData c, List<long[]> nodes, List<byte[]> buffers) {
+    private static void layout(Columnar c, List<long[]> nodes, List<byte[]> buffers) {
         nodes.add(new long[] {c.length, c.nulls});
         byte[] v = c.validity;
         buffers.add(v == null ? new byte[0] : v);
-        switch (c.tree.type) {
+        switch (c.type) {
             case DuckType.ListOf l -> {
                 if (c.offsets != null) buffers.add(ints(c.offsets));
                 layout(c.children.get(0), nodes, buffers);
             }
             case DuckType.StructOf s -> {
-                for (ColumnData k : c.children) layout(k, nodes, buffers);
+                for (Columnar k : c.children) layout(k, nodes, buffers);
             }
             case DuckType.MapOf m -> {
                 buffers.add(ints(java.util.Objects.requireNonNull(c.offsets)));
-                ColumnData key = c.children.get(0);
+                Columnar key = c.children.get(0);
                 nodes.add(new long[] {key.length, 0});   // the entries struct: never null
                 buffers.add(new byte[0]);
                 layout(key, nodes, buffers);
@@ -227,12 +253,12 @@ public final class ArrowStreams {
         }
     }
 
-    private static void uhugeintText(ColumnData c, List<byte[]> buffers) {
+    private static void uhugeintText(Columnar c, List<byte[]> buffers) {
         ByteBuffer offs = ByteBuffer.allocate(4 * (c.length + 1)).order(ByteOrder.LITTLE_ENDIAN);
         ByteArrayOutputStream data = new ByteArrayOutputStream();
         offs.putInt(0);
         for (int i = 0; i < c.length; i++) {
-            if (c.present(i)) data.writeBytes(JsonCells.int128(c.values, i, false).toString().getBytes(StandardCharsets.UTF_8));
+            if (c.present(i)) data.writeBytes(ApiValues.int128(c.values, i, false).toString().getBytes(StandardCharsets.UTF_8));
             offs.putInt(data.size());
         }
         buffers.add(offs.array());
@@ -251,10 +277,12 @@ public final class ArrowStreams {
 
     // -- framing -------------------------------------------------------------------------
 
-    private static byte[] message(FlatBuilder b, byte type, int header, long bodyLength) {
+    /** A Message table; {@code metadata}: a KeyValue vector's offset, or 0 for none. */
+    private static byte[] message(FlatBuilder b, byte type, int header, long bodyLength, int metadata) {
         b.startTable(5);
         b.fieldLong(3, bodyLength);
         b.fieldOffset(2, header);
+        if (metadata != 0) b.fieldOffset(4, metadata);
         b.fieldShort(0, V5);
         b.fieldByte(1, type);
         return b.finish(b.endTable());
