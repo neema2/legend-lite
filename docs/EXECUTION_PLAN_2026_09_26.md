@@ -108,9 +108,10 @@ shape (study `receipts/plan-audit-2026-09-26/differential-join-747ff1c11.tsv`): 
 `[0..1]` vs `[*]`, then `average`/`median` Integer vs Number, `max`/`min` `[1..*]` vs `[*]`,
 `between` DateTime/StrictDate vs Date, the comparison operators `[1]` vs `[0..1]`,
 `elementToPath(Type)` vs `(PackageableElement)`, `map` `[m]`/`[0..1]` vs `[*]`.
-**Homework owed.** Explain the 8 `size` rows before step 3 (is `Result<T>` given a relation-shaped
-type by our `execute`, or did the sum let an exact `[1]` outweigh a type mismatch?
-`PlatformTypes.RELATION_CARRIERS` excludes `Result`).
+**Homework owed.** None: the 8 `size` rows are explained in `plan-audit-2026-09-26/homework-2026-09-26.md`
+§1 (our TDS erasure at typing time makes the legacy `project`'s result relation-shaped, so
+`relation::size` wins where the reference keeps `TabularDataSet` a class and picks `collection::size`;
+32 vs 14 across the module; the two overloads count different things).
 **Gate.** The join prints per-cause counts; every remaining row is attributed to a rule in
 `reference-matching.md` or to a listed elision. Receipts saved.
 **Stop rule.** None; this step only measures.
@@ -143,9 +144,9 @@ A1 and semantics-preserving, so it is the first code slice.
 
 **Homework done.** `lowering.md` §1–2 (what the registries are, who reads them, the recommended
 registry shape, the many-to-one precedent, the DynaFn 4th column). Registration counts by file.
-**Homework owed.** The list of the 93 `signatureKey()` readers by fate (dispatch → id; display →
-keep; delete). The 3 `new TypedFunction(` sites (`ObjectReferenceArms`, `SignatureApart`,
-`FunctionCompiler`): confirm each passes a definition, since `TypedFunction.definition` is nullable.
+**Homework owed.** None: the 81 `signatureKey()` readers are classified by fate and the three
+`new TypedFunction(` sites confirmed to pass a definition in `plan-audit-2026-09-26/homework-2026-09-26.md`
+§2–3 (61 become `FunctionId` compares or lookups, 14 are deleted with the index and the bridge).
 **Gate.** Probe PICK rows identical before/after (the receipt from step 1's run); CATALOG_LOOKUP_BY_NAME
 170 → 0 and its pin deleted; rosters LOST 0; conformance unchanged; timing at the curve; the table's
 kind counts exact (Intrinsic 664, Form 217, Refused 20, Body 2194, Unimplemented 71, or the new
@@ -217,7 +218,8 @@ cascade, the tolerant modes); the 28 rows; the 799 by shape.
 **Homework owed** (each a line in the slice's GATES.md record):
 - Read the twelve reference methods in `reference-matching.md`'s list, in that order, before
   writing the kernel.
-- The 8 `size`-on-`Result` rows (step 1).
+- TDS erasure leaves the typer (`homework-2026-09-26.md` §1): `TdsErasure.refineResult` stops
+  rewriting typed results; the matcher treats `TabularDataSet` as a class.
 - The probe count of tier-1-only bare names in Pure source.
 - Measure `ResolvedNames.names` (33 sites in 17 files, each rebuilding `BareNames.catalog(name)`)
   with a real profile on a quiet machine (`jstack` from the Bazel JDK against the
