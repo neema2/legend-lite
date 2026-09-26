@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 package com.legend.compiler.element;
+import com.legend.compiler.StoreLookups;
 
 import com.legend.model.DatabaseDefinition;
 import com.legend.model.RelationalDataType;

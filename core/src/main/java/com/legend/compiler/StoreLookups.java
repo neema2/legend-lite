@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.compiler.element;
+package com.legend.compiler;
 
 import com.legend.model.DatabaseDefinition;
 

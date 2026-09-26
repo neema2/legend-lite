@@ -94,7 +94,7 @@ import java.util.stream.Stream;
  * class deliberately accepts last-write-wins for top-level kinds to
  * preserve current normalizer behavior.
  */
-public final class ModelBuilder implements com.legend.compiler.element.StoreLookups {
+public final class ModelBuilder implements com.legend.compiler.StoreLookups {
 
     // ====================================================================
     // Storage

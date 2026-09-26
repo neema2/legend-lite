@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 package com.legend.resolver;
+import com.legend.lowering.AsorRef;
 
 import com.legend.compiler.element.MilestoningStrategy;
 import com.legend.compiler.element.ModelContext;

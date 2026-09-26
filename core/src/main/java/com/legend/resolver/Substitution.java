@@ -1,4 +1,5 @@
 package com.legend.resolver;
+import com.legend.lowering.AsorRef;
 
 import com.legend.builtin.Pure;
 import com.legend.compiler.element.TypedFunction;

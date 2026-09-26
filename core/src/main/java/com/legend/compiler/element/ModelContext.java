@@ -1,4 +1,5 @@
 package com.legend.compiler.element;
+import com.legend.compiler.StoreLookups;
 
 import com.legend.compiler.element.type.Type;
 

@@ -6,3 +6,11 @@
 # lines instead of resolving conflicts.
 
 A: com.legend.base <- com.legend.Nullable com.legend.NonNull --inline
+
+# Step 0b (2026-09-26, EXECUTION_PLAN step 0): the two leaf classes whose placement
+# carried a cycle. AsorRef: lowering.SnapshotEnvelope read two of its constants
+# (resolver <-> lowering, 132 files); it has no com.legend out-edges, and the
+# correct direction is resolver -> lowering. StoreLookups: an interface over
+# model only, used by compiler.ModelBuilder (compiler.element <-> compiler).
+B: com.legend.lowering <- com.legend.resolver.AsorRef
+C: com.legend.compiler <- com.legend.compiler.element.StoreLookups
