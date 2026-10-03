@@ -48,7 +48,7 @@
 
 **Process gates (C4, added 2026-10-03).** These apply to every item, alongside its own Proof:
 
-- **Every PR** gets an independent review, by an agent or a person who did not write it, recorded in the PR (P0-15's template), and CI green on all platforms, every Windows job included. Once D17 is decided, P0-14's ruleset makes the CI half mechanical.
+- **Every PR** gets an independent review, by an agent or a person who did not write it, recorded in the PR (P0-15's template), and CI green on all platforms, every Windows job included. Under D17's fast loop (decided), that applies to the changes that go through PRs: Windows-sensitive paths and larger plan items. Direct pushes need a green `//gates:local` and revert-on-red (P0-14).
 - **Every phase ends with an audit item** (P0-90 … P7-90). It checks each Done-when of the phase on `main`, and each §6 row that names the phase's items, against the code. The results go into §6.5. A milestone checkpoint (§7.3) closes only when the audits of the phases it completes are done.
 - **The plan ends with P8-01,** a full re-audit against every finding: the seven audits, the spikes, the script review, the two coverage checks, the end-state ledger and C1–C5.
 
@@ -356,10 +356,15 @@ The four records carry wall-clock timestamps (`createdAt`, `lastUpdatedAt`, `las
 | (c) Status quo | no protection | no workflow change | Windows CI cannot block; the plan's Windows criteria (P3-32, P5-09) are unenforced |
 
 - **Recommendation: (a), yes.** Independent review (C4) stays a process gate recorded in the PR, not a required GitHub approval: agent sessions run under the user's own account, and GitHub does not let an account approve its own PR, so a required approval count would block every agent PR.
-- Required checks plus `paths-ignore` would leave a docs-only PR pending forever, so P0-14 removes `paths-ignore` from the `pull_request` trigger in the same change.
+- (Applied only under option (a): required checks plus `paths-ignore` would leave a docs-only PR pending forever. Not applicable under the decided fast loop.)
 - **Blocks:** P0-14.
 
-**Status: OPEN** (recommended: (a)).
+**Status: DECIDED, 2026-10-03: the fast loop with three guardrails** (the user's choice, replacing the recommended ruleset (a)). Sessions may push to `main` directly when:
+1. **The local gate is green:** `bazel test //gates:local` after rebasing onto the latest `origin/main`, with Bazel's cache doing the work.
+2. **Windows-sensitive changes go through a PR with all-platform CI green.** The paths are the ones `.github/CODEOWNERS` lists, so PR #14's contributor is asked. This is enforced by convention plus CODEOWNERS, not by a GitHub rule; a hard guarantee would need option (a).
+3. **Revert on red:** the session that pushed watches `main`'s CI and, if it goes red, reverts its own commit immediately, then fixes it in a PR; the user is notified either way.
+
+P0-14 implements this; no ruleset is applied.
 
 ### D18. Python programs that start Java (D3 rows 1, 2 and 5)
 
@@ -373,7 +378,13 @@ D3 kept `scripts/corpus/run.py`, the 15 `probe_*.py` and `scripts/projects/{chec
 - **Recommendation: (a).** The probes are developer diagnostics under `bazel run`. The spawn is one function, over a binary from runfiles, and G5 guards it. A probe that later becomes a gate becomes a test at that point.
 - **Blocks:** P3-25, P7-03, P6-05 (its Python row).
 
-**Status: OPEN** (recommended: (a)).
+**Status: DECIDED, 2026-10-03** (the user, after reading what the probes are):
+- **Exploratory probes** (the 16 `probe_*.py`) become `bazel run` tools: `py_binary` targets starting `//tools/engine-runner:testable` from runfiles, through `run.py`'s one `launch()`, with one G5 row.
+- **Anything that writes a committed file** becomes a real Bazel action with a diff test: `probe_functions --record` and `docs/FUNCTIONS_EXECUTED.tsv` (P2-18).
+- **Anything that produces a verdict** becomes a test, not a tool:
+  - `run.py`'s whole-corpus portability check against legend-engine becomes a manual-tagged Bazel test in the weekly heavy suite (P5-08);
+  - `check.py` is replaced by P3-23's per-project compile tests (its interim gate is a `py_test`);
+  - `loadtime.py`, a measurement, stays a `bazel run` tool.
 
 ### D19. `bazel run` tools that call host programs
 
@@ -388,7 +399,15 @@ D3 kept `scripts/corpus/run.py`, the 15 `probe_*.py` and `scripts/projects/{chec
 - **Recommendation: (c)** (lead's correction, 2026-10-03). (b)'s plan to print the repin, regenerate and test commands for a person to run turns one command into a hand-run recipe, which the plan removes. Take everything else from (b): tag commits over GitHub's REST API, `release.MODULE.bazel` through `include()` instead of regex, upstream-drift reading the pinned `@legend_*_src`, and file operations instead of `git mv` where the move tool allows. Keep Bump's nested `bazel` through `$BAZEL_REAL` (the pinned version bazelisk exports) as one recorded G5 exception, because a new pin takes effect only in the next Bazel invocation. Original note: Bazel's downloader was considered for Bump's tag lookup (a repository rule doing `rctx.download` of the API URL under `--repo_env=BUMP_TAG=…`), but a repository rule cannot write the source tree, so Bump stays a `bazel run` program either way, and `java.net.http` is simpler.
 - **Blocks:** P2-10, P7-02, P7-03, P6-05 (its rows).
 
-**Status: OPEN** (recommended: (c)).
+**Status: DECIDED, 2026-10-03** (the user, after the risk discussion):
+- **`git` stays** in the two `bazel run` tools that act on the user's own checkout:
+  - Bump: `git ls-remote` to find a release tag's commit;
+  - `tools/untangle/move_classes.py`, the untangle codemod (not part of Bump): `git mv`.
+  - `git` is a declared prerequisite (the repository is a git checkout).
+  - G5 allows it **only** under `tools/bump/**` and `tools/untangle/**`; `git` in any build action or test fails the guard.
+- **`upstream-drift.py` reads the Bazel-fetched `@legend_engine_src` / `@legend_pure_src`,** not host checkouts, and stops shelling out to `curl`/`git` for them.
+- **Bump calls Bazel through `$BAZEL_REAL`** (the pinned version bazelisk exports) for its nested repin, regenerate and test calls. It stays one command, and the nested `bazel` is one recorded G5 exception.
+- Bump's regex edit of `MODULE.bazel` is replaced by a `release.MODULE.bazel` segment pulled in with `include()` (P2-10). That is a hygiene change, independent of git.
 
 ### D20. `/bin/bash` on macOS and Linux as a declared host prerequisite (ledger G-9)
 
@@ -403,7 +422,7 @@ rules_java's Unix `java_binary`/`java_test` stub, rules_js's launchers, bazel_li
 - **Recommendation: (a).**
 - **Blocks:** P5-07 (its Unix half).
 
-**Status: OPEN** (recommended: (a)).
+**Status: DECIDED (a), 2026-10-03:** `/bin/bash` on macOS and Linux (and Git's bash on Windows) is a declared host prerequisite, because Bazel's own rules (rules_java launcher stubs, rules_js launchers, bazel_lib's update scripts) generate bash. It is listed in the README (P5-07), and measured once with `aquery` (the ledger's G-9) into the guard allowlist. None of our own targets may add shell.
 
 ### D21. `datacube/bench/model/*.py`: `py_binary` or history (G-18)
 
@@ -511,7 +530,7 @@ flowchart TD
     P7_14[P7-14 debug switches] --> P6_20[P6-20 G20]
     AUD[Pn-90 phase audits] --> P8_01[P8-01 final re-audit]
   end
-  D17{{D17 branch protection}} --> P0_14[P0-14 ruleset and CODEOWNERS]
+  D17{{D17 branch protection}} --> P0_14[P0-14 fast-loop guardrails and CODEOWNERS]
   P0_03 --> P0_14
   D18{{D18 Python probes}} --> P7_x
   D19{{D19 host-calling tools}} --> P7_x
@@ -523,11 +542,11 @@ flowchart TD
 
 This order respects every *Depends on* field in §4 and §5 (checked mechanically on 2026-10-03). Items on one line have no dependencies between them and can run in parallel, subject to the heavy-lane cap. Decisions are listed where they first gate something.
 
-1. **Ask all decisions:** D1–D16 are recorded; **D17–D21 are OPEN** (user time; they do not block step 2).
+1. **All decisions D1–D21 are recorded** (2026-10-03).
 2. P0-01, P0-03, P0-04, P0-06, P0-07, P0-09, P0-10, P0-11, P0-12, P0-13, P0-15
-3. P0-02, P0-05, P0-08, P0-14 (D17), P5-09
-4. P1-01, P1-03, P1-07 (D12), P1-09, P1-13, P1-14, P1-15, P1-17, P1-18, P1-19, P1-20, P1-22, P1-23, P1-26, P1-28, P6-00, P6-14, P6-17, P0-90
-5. P1-02, P1-04, P1-05, P1-06, P1-08, P1-10 (D1), P1-11 (D5), P1-12, P1-16, P1-21, P1-24, P1-25, P1-25b, P1-27 (D10), P6-19, P7-10, P7-12
+3. P0-02, P0-05, P0-08, P5-09
+4. P0-14 (D17), P1-01, P1-03, P1-07 (D12), P1-09, P1-13, P1-14, P1-15, P1-17, P1-18, P1-19, P1-20, P1-22, P1-23, P1-26, P1-28, P6-00, P6-14, P6-17
+5. P0-90, P1-02, P1-04, P1-05, P1-06, P1-08, P1-10 (D1), P1-11 (D5), P1-12, P1-16, P1-21, P1-24, P1-25, P1-25b, P1-27 (D10), P6-19, P7-10, P7-12
 6. P6-10, P6-11, P6-16, P2-01 (D13), P2-07, P2-08, P2-11, P2-17, P3-02, P3-03, P3-11, P3-15, P3-24, P3-26, P3-31, P7-06, P7-11, P1-90
 7. P2-02, P2-04 (D3), P2-05, P2-06 (D14), P2-10 (D19), P2-12 (D9), P2-13, P2-19, P3-01, P3-04, P3-07, P3-08, P3-10, P3-12, P3-14, P3-16, P3-17, P3-19, P3-20, P3-21, P3-27, P3-28, P3-29, P4-14, P4-16
 8. P2-03, P2-09, P2-14, P2-16 (D9), P2-18 (D3), P3-05, P3-09 (D2, D6), P3-13, P3-18 (D3), P3-22, P3-23, P3-25 (D18), P3-27b, P3-30, P3-34, P4-01, P4-11 (D3b), P4-12, P4-15 (D21)
@@ -714,18 +733,18 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | The `app` CI lane on macOS and Linux now builds the native image (about 2–3 min more). P5-03 removes lanes altogether. |
 | Done when | `bazel test //datacube:tests` includes `live_snap_test`, and only one corpus suite exists. |
 
-#### P0-14 · A ruleset on `main` requires every CI check, Windows included; `.github/CODEOWNERS` requests the Windows contributor (D17)
+#### P0-14 · The fast loop's guardrails: `//gates:local`, `.github/CODEOWNERS`, revert-on-red (D17)
 
 | Field | Content |
 |---|---|
 | ID | P0-14 |
-| Why | C1: `main` has no branch protection or ruleset, so no check is required to merge, and other sessions push directly to `main`. A red Windows job cannot block a regression. C3: the Windows contributor (GitHub `johnnymads`, PR #14) is not asked to review changes to his surface. |
-| Change | Per D17 (OPEN; recommended (a)):<ul><li>A repository ruleset on `main`, applied by the user in the repository settings from a committed `.github/rulesets/main.json` (GitHub's ruleset export format), so the policy is reviewable: require a pull request, with 0 required approvals (C4's independent review is recorded in the PR, because agent sessions run under the user's own account); require status checks: every lane job of `gate.yml` on Linux, macOS and Windows, `lint workflows`, and the PowerShell desk lane (P5-09) once it exists; block force pushes and deletion; bypass for repository admins only.</li><li>`gate.yml`: delete `paths-ignore` from the `pull_request` trigger in the same change. A required check that never runs leaves a docs-only PR pending forever. `push` keeps its filter until P5-04.</li><li>New `.github/CODEOWNERS` with `@johnnymads` on `warehouse/defs.bzl`, `warehouse/BUILD.bazel`, `.bazelrc`, `.gitattributes`, `tools/junit/**`, `testing/**`, the launcher and runfiles code (`warehouse/src/main/java/com/legend/warehouse/server/ServerRunfiles.java`, `warehouse/src/main/java/com/legend/warehouse/launcher/**`, `tools/browser/pinned-chromium.mjs`, `tools/js/defs.bzl`, `tools/platforms/**`) and `.github/workflows/**`. A request only, unless D17 is (b). He needs write access for the request to work.</li><li>The workflow change (every session works on a branch and opens a PR) is stated at the top of `docs/IN_FLIGHT.md`. `AGENTS.md` is not edited, since it is load-bearing.</li></ul> |
-| Proof | A scratch PR with a Windows-only failing test shows the required check red and the merge blocked; a direct `git push` to `main` from a session is rejected; a PR touching `warehouse/defs.bzl` auto-requests `@johnnymads`; a docs-only PR gets every required check. **Windows proof (C2)** (§1). |
-| Depends on | D17, P0-03 |
+| Why | C1, C3, decided by D17 (fast loop): sessions push to `main` when local gates are green; CI reports after. That is safe for Windows only with a defined local gate, a PR path for Windows-sensitive files, and a revert-on-red discipline. |
+| Change | <ul><li>**`//gates:local`:** a root `test_suite` in `gates/BUILD.bazel` of the gate targets a session runs before pushing. Light and cached: `//:generated`, `//tools/deps:all`, `//core:guardrails`, `//core:census`, `//core:core_tests`, `//spec:spec_tests`, `//json:tests`, `//datacube:tests`, `//wasm:all`, `//warehouse:tests`, `//query:tests` and the `misc` lane. The 9 GB PCT and the corpus lanes stay CI-only (two-heavy-jobs cap). It becomes the gate suites in P5-01.</li><li>**`.github/CODEOWNERS`:** `@johnnymads` on `warehouse/defs.bzl`, `warehouse/BUILD.bazel`, `warehouse/src/main/java/com/legend/warehouse/server/**`, `.bazelrc`, `.gitattributes`, `MODULE.bazel`, `tools/junit/**`, `tools/java_run/**`, `testing/**`, `.github/workflows/**` and the launcher and runfiles code once P1-16/P4-12 exist. Review is requested, not required.</li><li>**The rule, written in `AGENTS.md`** (a new short section, "Pushing to main"): rebase, run `bazel test //gates:local`, push only if green. A change under a CODEOWNERS path goes through a PR with all-platform CI green. After any push, watch `main`'s CI; on red, revert your own commit immediately and fix it in a PR.</li></ul> |
+| Proof | `bazel test //gates:local` passes on `main`. A PR touching `warehouse/defs.bzl` auto-requests `@johnnymads`. `AGENTS.md` carries the rule. **Windows proof (C2)** (§1): the Windows lanes are green on the PR that adds CODEOWNERS. |
+| Depends on | D17, P0-02, P0-03 |
 | Size | S (0.5 d) |
-| Risk/rollback | Check names change when lanes change (P0-03, P5-03); each such PR updates `.github/rulesets/main.json` and the ruleset. A check that cannot pass blocks every merge; an admin bypasses, and the PR says so. Rollback: disable the ruleset. |
-| Done when | No change reaches `main` without a PR whose CI is green on every platform, and every Windows-sensitive PR requests the Windows contributor. |
+| Risk/rollback | Convention, not enforcement: a session can skip the local gate. Each phase audit (P0-90 … P7-90) checks `main`'s CI history for reds and that each was reverted. If reds recur, move to D17 (a). Rollback: delete the files. |
+| Done when | `//gates:local` exists and passes, CODEOWNERS requests the Windows contributor on Windows-sensitive PRs, and AGENTS.md states the push rule. |
 
 #### P0-15 · Process gates: independent review and all-platform CI on every PR (C4)
 
@@ -737,7 +756,7 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Proof | The next PR after this one shows the filled template, with a reviewer who is not its author. |
 | Depends on | — |
 | Size | S (0.25 d) |
-| Risk/rollback | A template is advisory until P0-14; each phase audit (P0-90 … P7-90) checks that the phase's PRs used it. |
+| Risk/rollback | Under D17's fast loop, PRs are the path for Windows-sensitive changes and for plan items large enough to need review. Direct pushes record the local gate run in the commit message instead. Each phase audit (P0-90 … P7-90) checks both. |
 | Done when | Every PR of this plan names an independent reviewer and shows all-platform CI. |
 
 #### P0-90 · Phase 0 audit: done-criteria checked against the coverage table (C4)
@@ -1280,7 +1299,7 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 |---|---|
 | ID | P2-10 |
 | Why | Plan 2.6; SP K19; SC-§1c; Part 6 row "Bump" (`$BAZEL_REAL`, `release.bzl` instead of regex). `tools/oracle-pins.env` duplicates eight values held equal by `//tools/deps:one_release`. **Correction to the plan:** `MODULE.bazel` cannot `load()` a `.bzl`, so "a `release.bzl` that MODULE.bazel loads" is not possible. |
-| Change | <ul><li>In `MODULE.bazel`, beside `LEGEND_ENGINE_RELEASE`/`LEGEND_PURE_RELEASE`, add constants for the repo, SHA and describe values. Pass them into each upstream `http_archive`'s `build_file_content` as a `write_file(name = "pin", out = "pin.env", content = [...])`, so `@legend_engine_src//:pin` and `@legend_pure_src//:pin` carry them.</li><li>New `//tools:oracle_pins` (a bazel_lib `concat`-style `write_file`) combines the two into `oracle-pins.env` **as a build output**. `OraclePins.java` and the 5 parser-equivalence readers take it as data through `Runfile.of`.</li><li>Delete the committed `tools/oracle-pins.env`, `OneReleaseTest.java` and `//tools/deps:one_release`. `diagnostics.yml:12, 20` triggers on `MODULE.bazel` instead.</li><li>`Bump.java` rewrites only the `MODULE.bazel` constants (the regex for `oracle-pins.env` is deleted), runs `$BAZEL_REAL` when set (bazelisk's variable), otherwise `bazel`, and prints no mirror commands (D10 (c), G-23).</li></ul> **(A20, D19)** Per D19 (OPEN; recommended (b)). Under (b): Bump resolves the tag SHA through GitHub's REST API (`GET /repos/{owner}/{repo}/git/ref/tags/{tag}`) with its existing `HttpClient`, not `git ls-remote`; the release constants move into a `release.MODULE.bazel` segment pulled in with `include()` from the root `MODULE.bazel`, and Bump rewrites that whole file, with no regex; Bump prints the repin, regenerate and test commands instead of running nested Bazel, and P0-04's `--lockfile_mode=error` fails CI until they are run. Under (a) or (c), each kept host call gets a dated G5 row and a §8 entry. |
+| Change | <ul><li>In `MODULE.bazel`, beside `LEGEND_ENGINE_RELEASE`/`LEGEND_PURE_RELEASE`, add constants for the repo, SHA and describe values. Pass them into each upstream `http_archive`'s `build_file_content` as a `write_file(name = "pin", out = "pin.env", content = [...])`, so `@legend_engine_src//:pin` and `@legend_pure_src//:pin` carry them.</li><li>New `//tools:oracle_pins` (a bazel_lib `concat`-style `write_file`) combines the two into `oracle-pins.env` **as a build output**. `OraclePins.java` and the 5 parser-equivalence readers take it as data through `Runfile.of`.</li><li>Delete the committed `tools/oracle-pins.env`, `OneReleaseTest.java` and `//tools/deps:one_release`. `diagnostics.yml:12, 20` triggers on `MODULE.bazel` instead.</li><li>`Bump.java` rewrites only the `MODULE.bazel` constants (the regex for `oracle-pins.env` is deleted), runs `$BAZEL_REAL` when set (bazelisk's variable), otherwise `bazel`, and prints no mirror commands (D10 (c), G-23).</li></ul> **(A20, D19)** Per D19 (decided 2026-10-03: see §2; was OPEN; recommended (b)). Under (b): Bump resolves the tag SHA through GitHub's REST API (`GET /repos/{owner}/{repo}/git/ref/tags/{tag}`) with its existing `HttpClient`, not `git ls-remote`; the release constants move into a `release.MODULE.bazel` segment pulled in with `include()` from the root `MODULE.bazel`, and Bump rewrites that whole file, with no regex; Bump prints the repin, regenerate and test commands instead of running nested Bazel, and P0-04's `--lockfile_mode=error` fails CI until they are run. Under (a) or (c), each kept host call gets a dated G5 row and a §8 entry. |
 | Proof | `bazel build //tools:oracle_pins`; its content equals today's committed file. **Heavy: H-pe**: `bazel test //parser-equivalence:parser_parity`. `bazel build //tools/bump`. Under D19 (b), `git grep -n "ls-remote\|ProcessBuilder" tools/bump` is empty; under (a) or (c), it matches only G5-allowlisted lines. |
 | Depends on | P0-05, P1-04, P1-05, D19 |
 | Size | M (2 d: 1 d, plus 1 d for D19 (b)'s API lookup, `include()` segment and printed commands) |
