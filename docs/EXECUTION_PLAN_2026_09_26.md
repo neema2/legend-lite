@@ -663,6 +663,12 @@ and its number; every rewrite ends by carving its stage as a target (rule 0b.12)
   D, an extension after E. Refuse model↔model duplicate ids now; native↔model twins wait for W2.8. A collision guard on the
   mangle (`Pure.java:616`). `FunctionId.of/ofAll(Function)` moves out of the id type. Gate: CANDIDATES identical; boot time
   within budget. Size 2–3.
+  *Finding 2026-10-03 (`docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md` §3.2, C4):* the `ExecutionContext` reader (`ContextReading`) does not follow
+  `->from(m, ^Runtime(connectionStores = helper()))` or some `toSQLString` runtime forms; four `"H2"` defaults stand in
+  for what it cannot read (`ContextReading` ~:803/:845, `StatementExecutor` ~:471/:760, `planConnOf`). Instrumented:
+  they fire in exactly 21 corpus tests, every one of which DECLARES its database (e.g. `shared::getConnection()` →
+  `TestDatabaseConnection(type = DatabaseType.H2)`). Upstream's `DatabaseConnection.type` is `[1]`, no default. Fix:
+  read the declaration; refuse by name what cannot be read; delete the defaults.
 - **W2.2 Import groups per section**, the structural completion of W0.6 pushes 6/6b: every `elementImports`/`elementOffsets`
   reader reads sections. The core group becomes the reference's 29 for Pure source only after a probe of resolutions
   served only by `variant`, `relation`, `precisePrimitives`. Gate: CANDIDATES identical, or the probe's rows explained.
@@ -850,6 +856,19 @@ and its number; every rewrite ends by carving its stage as a target (rule 0b.12)
   and naming pass); W1.10 green per step. Deletes: the one-pass resolver's state. Size 19–32 (re-sized at C1).
 - **W4.4a Load by manifest, non-M2M walls** (after D9); **W4.4b** M2M on the new passes, scope boundary from C1. Gate:
   census pins, boot-time growth within budget. Size 2–4 (W4.4b open-ended until its C1 boundary).
+  *Finding 2026-10-03 (`docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md` §4 A2):* `StatementExecutor.containsEffect` catches `TypeInferenceException` and scores
+  an un-typeable callee non-effectful. Measured over the full suite: 23 callees — 17 upstream library functions (all in
+  the pinned trees, so legend-pure compiles them) and 6 deliberately ill-typed core test helpers; "it never runs" is
+  FALSE for 6 of the 17 (the inliner hits them too); 40 corpus tests reach it, 19 rostered, 21 PASS only because the
+  failing `match` arm is not taken (20 of them `toPostgresModel::tests`). Causes: platform functions we lack
+  (`isDigit`, `containsAny`, `orElse`, 2-argument `replace` — part of the 191 missing overloads, W2.1), typer gaps on
+  valid upstream Pure (generics left as `V`; `Union` where `QuerySpecification` is expected; two multiplicity checks),
+  upstream functions absent from the loaded graph (`toRelation::transform`, `getMappingsFromRuntime`,
+  `featureFlag::contextHasFlag`, `relation`), and upstream compiler machinery reached as an entry (router, the SQL
+  printer's extension builders, pureToSqlQuery aliases, toPostgresModel). Under D10 the scan should be demand-precise on
+  user paths and compile-all should report every broken body; whether upstream's unit tests of its own compiler
+  internals belong in the world is D9's question (the user's lean: fix what is general, wall upstream's internal-
+  structure entries by name).
 
 ### W5 — The back end (catalogue; W5.0–W5.2 and W5.6 in Phase 3, the rest in Phase 5)
 
@@ -909,6 +928,13 @@ If C3 chooses "stop the middle rebuild", W5.1c is dropped and W5.2's determinism
   G½, H, I (W1.3 routed them; now the copies are deleted); the census and env tracing become an injected observer;
   global static state removed; `Executor.decodeAny` and the `WireTypes` rewrite named and typed by the plan. Gate: the
   nested-run register (W1.3) empty; rosters; the snapshot. Size 3–5.
+  *Finding 2026-10-03 (the database-owner line, `docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md` §3.3–§3.5, C2):* the plan/execution split is measured and
+  ready: every plan-side library is free of `java.sql`; the root package splits into a `planner` library (`Compiler`'s
+  ~20 plan methods + 9 clean classes, no `:exec` dep) and the execution side (`Compiler`'s 11 execution entry points
+  → an `Execution` front door, with `StatementExecutor`, `BodyCompiler`, the judges, `LiteralFold`, `PlanEnvelope`,
+  `VerdictArm`, `CsvLoad`, `SeedSqlForms`, `PlanAllocations`); `//wasm:boundary` then depends on `:planner` only. The
+  one plan→execution crossing is the effect analysis (`programFacts` → `StatementExecutor.containsEffect`; and
+  `Compiler.containsTdgGenerator` used by `BodyCompiler`): it moves to the compiler first. Not done there: this item's.
 - **W6.4 Periphery**: lineage over the typed HIR plus H's binding map; test-data generation through the MIR; the server a
   thin adapter; test runners and the probe out of the product jar. Gate: the product jar's contents list.
 

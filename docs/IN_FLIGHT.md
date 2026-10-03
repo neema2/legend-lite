@@ -172,6 +172,29 @@ calls go through the client; `query/BUILD.bazel`, `query/tsconfig.json`, `query/
 `src/saved-queries.ts` loses its own client. Then one site serving both apps from one origin, so the browser store is
 shared. Nothing in `core/`.
 
+## A fourth line, 2026-10-03: one owner for every database decision (the user's ask, rule 5)
+
+`docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md` (homework done; its §4 the steps). The user: "make sure
+there is really only one owner and one single place through the whole code that makes this decision". **This line
+does ONLY B1 and C3** of that plan; everything that lives in the rebuild's areas is handed to the execution plan (see
+below), not done here.
+
+**Announced cross-area edits (each lands with the full chain):**
+- B1, the guards: `core/BUILD.bazel` (`//core:guardrails` also loads `:duckdb_load`, so `exec/DuckDbAppenderLoad` is
+  checked), `core/src/test/java/com/legend/ArchitectureTest.java` (`CORE_PROD_CLASSES` = exactly the product: test
+  support `com.legend.testing..`/`com.legend.tools..` out; F1.3b's text says it measures JDBC API use).
+- C3, the database registry: a new `com.legend.database` (one entry per `DatabaseType`, data and plan-side objects
+  only, no `java.sql`), and its consumers, edited only where they decide by database: `Compiler.dialectFor` /
+  `executesOn`; `StatementExecutor`'s engine-text renderer selection (`toSQLString`, `planDialect`, `H2_DDL`,
+  `ENGINE_TEXT`) and `PlanAllocations`; `plan/InProtocol`; `SqlTextVerdicts`; `exec/SystemDatabase`;
+  `exec/JdbcMetadata`; `server/ConnectionResolver`; `test/StorelessRuntime`; `sql/dialect/AnsiSqlRenderer` and its
+  subclasses (the `jdbcProduct` constructor argument leaves); `DialectBoundaryTest`; `tools/deps/core-layers.txt`.
+
+**Handed to the rebuild (not touched here):** the effect scan's swallowed compile errors (`StatementExecutor
+.containsEffect`; D10's demand-driven rule), the `ExecutionContext` reader's `"H2"` defaults (`ContextReading`), the
+missing platform functions (W2.1 / W4.4a, decision D9), the plan/execution split (W6.2's first cut) — each with its
+measurements in the plan document above.
+
 ## Rules between sessions
 
 1. Never force-push; never bare `git stash` (the stash stack is shared by every worktree).
