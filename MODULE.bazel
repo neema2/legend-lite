@@ -76,6 +76,9 @@ maven.install(
         "org.duckdb:duckdb_jdbc:1.4.4.0",
         "org.xerial:sqlite-jdbc:3.47.1.0",
         "com.h2database:h2:2.1.214",
+        # the server's Postgres arm (ConnectionResolver: jdbc:postgresql://); the version the upstream
+        # pool resolved before core owned it, so the repository keeps ONE Postgres driver
+        "org.postgresql:postgresql:42.7.4",
     ],
     fail_if_repin_required = False,
     lock_file = "//:maven_core_install.json",
@@ -202,6 +205,7 @@ maven.install(
         "com.h2database:h2",
         "org.duckdb:duckdb_jdbc",
         "org.xerial:sqlite-jdbc",
+        "org.postgresql:postgresql",
         "org.junit.jupiter:junit-jupiter",
         "org.junit.jupiter:junit-jupiter-api",
         "org.junit.jupiter:junit-jupiter-engine",

@@ -158,7 +158,7 @@ _POSTGRES_FLAGS = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres/
 
 _POSTGRES_DEPS = [
     ":pct_tests_lib",
-    "@maven_upstream//:org_postgresql_postgresql",
+    "@maven_core//:org_postgresql_postgresql",
 ]
 
 junit_test(
