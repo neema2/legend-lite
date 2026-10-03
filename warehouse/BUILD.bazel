@@ -186,7 +186,7 @@ jar_entry(
         ":linux_x86_64": "libduckdb_java.so_linux_amd64",
         ":linux_aarch64": "libduckdb_java.so_linux_arm64",
         ":windows_x86_64": "libduckdb_java.so_windows_amd64",
-    }),
+    }, no_match_error = "DuckDB's JDBC jar carries no native library for this platform (warehouse/BUILD.bazel duckdb_library)"),
     jar = "@maven_warehouse//:org_duckdb_duckdb_jdbc",
     target_compatible_with = NOT_ON_WINDOWS_ARM64,
 )

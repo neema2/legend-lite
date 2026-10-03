@@ -15,7 +15,7 @@ package(default_visibility = ["//visibility:public"])
 # what upstream says they should be).
 filegroup(
     name = "srcs",
-    srcs = glob(["src/**"]),
+    srcs = glob(["src/**"], exclude = ["**/*.md"]),
 )
 
 # THE NULL GATE: NullAway's plugin and flags live in //tools/nullaway, shared with every
@@ -275,7 +275,8 @@ java_binary(
 # nothing is read by accident. Behaviour tests read core's own tree; the stress
 # lanes also read the corpus's linked projects; the CENSUS lane (below) reads
 # every module it walks.
-_CORE_READS = glob(["src/**"])
+# (no .md: prose is never a test input, so CI's docs-only paths-ignore stays true)
+_CORE_READS = glob(["src/**"], exclude = ["**/*.md"])
 
 _STRESS_READS = _CORE_READS + ["//projects:srcs"]
 
@@ -293,8 +294,11 @@ java_library(
     srcs = glob(["src/test/java/**/*.java"]),
     resources = glob(
         ["src/test/resources/**"],
-        # the shadow binding rides :shadow_binding, once
-        exclude = ["src/test/resources/META-INF/services/com.legend.builtin.DecisionProbe"],
+        # the shadow binding rides :shadow_binding, once; prose is never a test input
+        exclude = [
+            "**/*.md",
+            "src/test/resources/META-INF/services/com.legend.builtin.DecisionProbe",
+        ],
     ),
     runtime_deps = [":shadow_binding"],
     deps = [

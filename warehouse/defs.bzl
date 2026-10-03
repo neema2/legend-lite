@@ -48,7 +48,7 @@ POSTGRES_EXTENSION = select({
     "//warehouse:linux_x86_64": "@duckdb_postgres_extension_linux_amd64//file",
     "//warehouse:linux_aarch64": "@duckdb_postgres_extension_linux_arm64//file",
     "//warehouse:windows_x86_64": "@duckdb_postgres_extension_windows_amd64//file",
-})
+}, no_match_error = "no DuckDB postgres extension is pinned for this platform (MODULE.bazel, duckdb_postgres_extension_*; warehouse/defs.bzl POSTGRES_EXTENSION)")
 
 # Windows on ARM: DuckDB's JDBC jar carries no windows_arm64 library, MODULE.bazel pins no postgres
 # extension for it, and hermetic-launcher registers no windows/aarch64 stub. Its native targets are
