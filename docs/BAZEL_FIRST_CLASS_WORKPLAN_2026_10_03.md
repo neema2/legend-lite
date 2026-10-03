@@ -651,8 +651,8 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | Field | Content |
 |---|---|
 | ID | P1-09 |
-| Why | Plan 1.3 (the C toolchain row); WH-N15; BZ-N7. S3: Linux aarch64 GO (built in a gcc-less Debian 12 container); x86_64 inferred. |
-| Change | <ul><li>Port `spike/s3-hermetic-cc` (`d1a4d7deb`), Linux parts.</li><li>`MODULE.bazel`: `bazel_dep` `toolchains_llvm` 1.11.0 and `zlib` 1.3.2.bcr.2; `llvm.toolchain(llvm_version = "20.1.8")`; `llvm.sysroot` for `linux-aarch64` and `linux-x86_64`; `http_archive`s `linux_sysroot_arm64` (sha256 `c7176a4c…86d8`) and `linux_sysroot_amd64` (sha256 `52d61d44…2e1d`) with `type = "tar.xz"`; `register_toolchains` for both.</li><li>`warehouse/BUILD.bazel` `server_native`: `static_zlib = "@zlib"` and `c_compiler_option = ["-fuse-ld=lld"]` (not on Windows, via `//tools/platforms` once P1-19 lands).</li><li>`third_party/rules_graalvm_command_line_tools.patch` gains the sysroot branch, tried first, and is renamed `third_party/rules_graalvm_sysroot.patch`.</li><li>`.bazelrc`: `build:linux --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1`, so a missing hermetic match fails rather than falling back to the host.</li><li>**Investigate first (D7):** an LLVM archive whose `lld` does not need `libxml2.so.2`.</li><li>**Sub-step:** run on an x86_64 runner (S3 Q5).</li></ul> |
+| Why | Plan 1.3 (the C toolchain row); WH-N15; BZ-N7. S3: Linux aarch64 GO (built in a gcc-less Debian 12 container). **Confirmed on real GitHub hardware, 2026-10-03:** in bare `debian:bookworm-slim` containers with no compiler and no zlib headers, `//warehouse:tests_native` passes on both `ubuntu-24.04` (x86_64) and `ubuntu-24.04-arm`, and the binaries record `Linker: LLD 20.1.8` (run 37139357779, branch `spike/s3-linux-ci` @ `37154181f`; the S3 write-up's CI section). |
+| Change | <ul><li>Port `spike/s3-hermetic-cc` (`d1a4d7deb`), Linux parts.</li><li>`MODULE.bazel`: `bazel_dep` `toolchains_llvm` 1.11.0 and `zlib` 1.3.2.bcr.2; `llvm.toolchain(llvm_version = "20.1.8")`; `llvm.sysroot` for `linux-aarch64` and `linux-x86_64`; `http_archive`s `linux_sysroot_arm64` (sha256 `c7176a4c…86d8`) and `linux_sysroot_amd64` (sha256 `52d61d44…2e1d`) with `type = "tar.xz"`. **Each sysroot declares its own files:** x86_64 adds `lib64/**`, where glibc's `libc.so` linker script names the dynamic loader; arm64 has no `lib64/`, and an empty glob fails analysis. Both failures were hit in CI and fixed; see the S3 write-up's CI section; `register_toolchains` for both.</li><li>`warehouse/BUILD.bazel` `server_native`: `static_zlib = "@zlib"` and `c_compiler_option = ["-fuse-ld=lld"]` (not on Windows, via `//tools/platforms` once P1-19 lands).</li><li>`third_party/rules_graalvm_command_line_tools.patch` gains the sysroot branch, tried first, and is renamed `third_party/rules_graalvm_sysroot.patch`.</li><li>`.bazelrc`: `build:linux --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1`, so a missing hermetic match fails rather than falling back to the host.</li><li>**Investigate first (D7):** an LLVM archive whose `lld` does not need `libxml2.so.2`.</li><li>x86_64 is verified on a real x86_64 runner (S3 Q5 closed).</li></ul> |
 | Proof | **Heavy: H-docker**: in a `debian:bookworm-slim` container with no cc, binutils, headers or zlib-dev, `bazel build //warehouse:server_native` succeeds (S3 E5: 2 min 41 s, 1.49 GB). `readelf -p .comment` shows "LLD 20.1.8", and NEEDED has no `libz.so.1`. **`CI`**: the Linux x86_64 native lane passes `//warehouse:tests_native`. |
 | Depends on | D7 (final form only) |
 | Size | M (1.5 d; S3: 0.5 d for MODULE and BUILD, plus CI and x86 validation) |
@@ -698,13 +698,13 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | Risk/rollback | Upstream may decline. The patch then stays, documented. |
 | Done when | The patch is gone, or carries a link to the upstream PR; the GraalVM toolchain declares its platform. |
 
-#### P1-13 · Investigation: the Linux aarch64 native server crashes at start
+#### P1-13 · Linux arm64 joins CI permanently (the crash investigation is closed)
 
 | Field | Content |
 |---|---|
 | ID | P1-13 |
 | Why | S3 open question 1. A segfault in `CodeSynchronizationOperations.clearCache` under Docker Desktop on Apple silicon, with **both** toolchains. |
-| Change | **Question:** does `//warehouse:tests_native` pass on a real arm64 Linux host? Add a `workflow_dispatch`-only job on `ubuntu-24.04-arm` running `bazel test //warehouse:tests_native`. If it passes, record "Docker Desktop's kernel only" in `docs/WAREHOUSE_W1_DESIGN_2026_09_26.md`. If it fails, open a GraalVM issue with the logs. No build change either way. |
+| Change | **Answered 2026-10-03:** on a real `ubuntu-24.04-arm` runner, `//warehouse:tests_native` passes with today's `main` and host gcc, and with the hermetic toolchain (run 37139357779). So the crash is Docker Desktop's VM on Apple silicon only; record that in `docs/WAREHOUSE_W1_DESIGN_2026_09_26.md`. The real gap it exposed: CI had never run Linux arm64. Add `ubuntu-24.04-arm` as a fourth platform for the `native` lane (and, once P5-03 lands, for the gate suites that judge the binary), so Linux arm64 stays verified. |
 | Proof | `CI`: the arm64 job's result. |
 | Depends on | — |
 | Size | S (0.5 d) |

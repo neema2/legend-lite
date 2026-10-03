@@ -345,3 +345,28 @@ Total for macOS and Linux: about 2–3 days, of which 1 day is gated on the SDK 
   - `logs/`: `a1-baseline-host`, `a2-zig-build`, `a3-llvm-build`, `a4-llvm-build-libxml2`, `a5-tests-native`, `c1-gcc-control-tests-native`, `m0-mac-host-blocked`, `m1-mac-llvm-build` and `m2-mac-tests-native`.
 - `runs/spike-s3/runs/s3-sdk/MacOSX15.5.sdk.tar.gz`: the local SDK stand-in. Do not publish.
 - Docker volume `s3-bazel-arm64` (kept). No spike containers are running.
+
+## Addendum, 2026-10-03: real Linux hardware (GitHub CI)
+
+The Linux half was re-run on GitHub's own runners, so that Docker Desktop's VM was out of the picture. It used a temporary branch, `spike/s3-linux-ci`: this spike's commit with the macOS SDK and darwin toolchain removed, so no Apple or Microsoft licensed content was included. Every job ran in a bare `debian:bookworm-slim` container on real hardware:
+- **control:** `main` itself, with the host gcc and zlib1g-dev the docs require;
+- **hermetic:** this spike, with no compiler and no zlib headers installed.
+
+**Final run 37139357779 @ `37154181f`: all four jobs pass.**
+
+| Job | `//warehouse:tests_native` | Linker recorded in the binary |
+|---|---|---|
+| control, `ubuntu-24.04` (x86_64) | pass | GNU (host gcc) |
+| control, `ubuntu-24.04-arm` | **pass** | GNU (host gcc) |
+| hermetic, `ubuntu-24.04` (x86_64) | **pass** | `Linker: LLD 20.1.8`, `clang version 20.1.8` |
+| hermetic, `ubuntu-24.04-arm` | **pass** | `Linker: LLD 20.1.8`, `clang version 20.1.8` |
+
+The other `GCC:` version strings in the hermetic binaries come from prebuilt objects that are linked in: the Debian sysroot's C start-up files, and GraalVM's own static libraries. No host compiler is involved.
+
+**What this settles:**
+1. **Open question 1 is closed.** The startup segfault in `clearCache` happens only under Docker Desktop's VM on Apple silicon. On a real arm64 Linux host the native server passes, with host gcc and with LLVM. It also exposed a real gap: CI had never run Linux arm64 at all. Workplan P1-13 now adds it permanently.
+2. **Open question 5 (x86_64) is closed.** The hermetic toolchain works on x86_64 too.
+3. **Two spike defects were found and fixed on the way.** Both are now in the workplan (P1-09):
+   - The sysroot file list omitted `lib64/`. On x86_64, glibc's `libc.so` linker script names `/lib64/ld-linux-x86-64.so.2`, so ld.lld failed under the sandbox (run 37138531716).
+   - Adding `lib64/**` to the list shared by both architectures then failed analysis on arm64, which has no `lib64/`: an empty glob is an error (run 37138920043).
+   - The fix is one declared file list per architecture.
