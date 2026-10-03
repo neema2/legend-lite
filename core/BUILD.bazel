@@ -310,13 +310,12 @@ java_library(
         ":core",
         "//testing",
         "@maven_test//:com_tngtech_archunit_archunit",
+        # H2VersionPinTest reads org.h2.engine.Constants.VERSION
         "@maven_core//:com_h2database_h2",
         "@maven_test//:com_tngtech_archunit_archunit_junit5",
-        "@maven_core//:org_duckdb_duckdb_jdbc",
         "@maven_test//:org_junit_jupiter_junit_jupiter",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@maven_test//:org_junit_jupiter_junit_jupiter_params",
-        "@maven_core//:org_xerial_sqlite_jdbc",
     ],
 )
 

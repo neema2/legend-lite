@@ -49,7 +49,6 @@ java_library(
         ":generators",
         "//core",
         "//testing",
-        "@maven_core//:com_h2database_h2",
         "@maven_test//:com_tngtech_archunit_archunit",
         "@maven_test//:com_tngtech_archunit_archunit_junit5",
         "@maven_core//:org_duckdb_duckdb_jdbc",
