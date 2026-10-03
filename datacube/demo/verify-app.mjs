@@ -153,10 +153,22 @@ try {
     // handle and Windows may have given the PID to another process, whose tree /t /f would then stop.
     if (server.exitCode === null && server.signalCode === null) {
       const r = spawnSync('taskkill', ['/pid', String(server.pid), '/t', '/f'], { encoding: 'utf8' });
-      // a taskkill that failed leaves the server running, still holding its port and its data directory
       if (r.error) bad(`taskkill did not run: ${r.error.message}`);
-      else if (r.status !== 0) {
-        bad(`taskkill did not stop the warehouse (status ${r.status}): ${r.stdout}${r.stderr}`.trim());
+      else {
+        // taskkill's status is not the verdict: it stops the server first, the launcher may then exit on its
+        // own before taskkill reaches it, and taskkill reports 255 for a tree it did stop (CI, 2026-10-03).
+        // The verdict is the outcome: the launcher has exited and nothing answers on the port. A server
+        // still up holds its port and its data directory.
+        const until = Date.now() + 10_000;
+        while (server.exitCode === null && server.signalCode === null && Date.now() < until) {
+          await new Promise((res) => setTimeout(res, 100));
+        }
+        const exited = server.exitCode !== null || server.signalCode !== null;
+        const answers = await fetch(new URL(address).origin).then(() => true, () => false);
+        if (!exited || answers) {
+          bad(`taskkill did not stop the warehouse (status ${r.status}; launcher exited: ${exited}; `
+            + `port answers: ${answers}): ${r.stdout}${r.stderr}`.trim());
+        }
       }
     }
   } else server.kill('SIGTERM');

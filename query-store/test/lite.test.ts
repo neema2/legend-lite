@@ -24,6 +24,7 @@ const freePort = (): Promise<number> => new Promise((resolve, reject) => {
 
 let server: ChildProcess | undefined;
 let api = '';
+let health = '';
 let log = '';
 
 before(async () => {
@@ -43,9 +44,10 @@ before(async () => {
     await new Promise((r) => setTimeout(r, 250));
   }
   api = `http://127.0.0.1:${port}/api`;
+  health = `http://127.0.0.1:${port}/health`;
 });
 
-after(() => {
+after(async () => {
   if (server?.pid === undefined) return;
   // On Windows the server is Bazel's launcher (server.exe), whose child is the JVM: a kill stops the
   // launcher alone, and the orphaned JVM kept serving and held the pipes open, so the suite never
@@ -55,10 +57,20 @@ after(() => {
     // its handle and Windows may have given the PID to another process, whose tree /t /f would then stop.
     if (server.exitCode === null && server.signalCode === null) {
       const r = spawnSync('taskkill', ['/pid', String(server.pid), '/t', '/f'], { encoding: 'utf8' });
-      // a taskkill that failed leaves the JVM serving: the TIMEOUT above, so it is not ignored
       if (r.error) throw new Error(`taskkill did not run: ${r.error.message}`);
-      if (r.status !== 0) {
-        throw new Error(`taskkill did not stop the server (status ${r.status}): ${r.stdout}${r.stderr}`.trim());
+      // taskkill's status is not the verdict: it stops the JVM first, the launcher may then exit on its own
+      // before taskkill reaches it, and taskkill reports 255 for a tree it did stop (CI, 2026-10-03). The
+      // verdict is the outcome: the launcher has exited and nothing answers on the port. A server still up
+      // leaves the JVM serving: the TIMEOUT above, so it is not ignored.
+      const until = Date.now() + 10_000;
+      while (server.exitCode === null && server.signalCode === null && Date.now() < until) {
+        await new Promise((res) => setTimeout(res, 100));
+      }
+      const exited = server.exitCode !== null || server.signalCode !== null;
+      const answers = await fetch(health).then(() => true, () => false);
+      if (!exited || answers) {
+        throw new Error(`taskkill did not stop the server (status ${r.status}; launcher exited: ${exited}; `
+          + `port answers: ${answers}): ${r.stdout}${r.stderr}`.trim());
       }
     }
   } else server.kill();
