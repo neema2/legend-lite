@@ -189,6 +189,9 @@ below), not done here.
   `ENGINE_TEXT`) and `PlanAllocations`; `plan/InProtocol`; `SqlTextVerdicts`; `exec/SystemDatabase`;
   `exec/JdbcMetadata`; `server/ConnectionResolver`; `test/StorelessRuntime`; `sql/dialect/AnsiSqlRenderer` and its
   subclasses (the `jdbcProduct` constructor argument leaves); `DialectBoundaryTest`; `tools/deps/core-layers.txt`.
+  C3a landed 2026-10-03: `//core:database` (`core/BUILD.bazel`, `tools/deps/BUILD.bazel`), `PlanEnvelope`,
+  `ArchitectureTest`'s library map, and the `dialectFor` callers `wasm/.../Wasm.java` and
+  `datacube/tools/catalogfacts/CatalogFacts.java` (now `Databases.dialect`).
 
 **Handed to the rebuild (not touched here):** the effect scan's swallowed compile errors (`StatementExecutor
 .containsEffect`; D10's demand-driven rule), the `ExecutionContext` reader's `"H2"` defaults (`ContextReading`), the

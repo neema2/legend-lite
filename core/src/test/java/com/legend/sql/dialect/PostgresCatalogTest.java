@@ -128,7 +128,7 @@ class PostgresCatalogTest {
 
     @Test
     void aDatabaseTypeReadsItsCatalogWithItsOwnDialect() {
-        assertTrue(com.legend.Compiler.dialectFor(com.legend.model.ConnectionDefinition.DatabaseType.Postgres) instanceof Postgres);
-        assertTrue(com.legend.Compiler.dialectFor(com.legend.model.ConnectionDefinition.DatabaseType.DuckDB) instanceof DuckDb);
+        assertTrue(com.legend.database.Databases.dialect(com.legend.model.ConnectionDefinition.DatabaseType.Postgres) instanceof Postgres);
+        assertTrue(com.legend.database.Databases.dialect(com.legend.model.ConnectionDefinition.DatabaseType.DuckDB) instanceof DuckDb);
     }
 }

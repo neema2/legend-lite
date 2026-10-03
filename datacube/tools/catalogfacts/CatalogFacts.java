@@ -257,7 +257,7 @@ public final class CatalogFacts {
                         .append(", convertible: ").append(c.convertible()).append(" },\n    expected: ");
                 try {
                     CatalogModel.Database db = CatalogModel.database(c.path(), c.schema(), c.table(), columns,
-                            com.legend.Compiler.dialectFor(com.legend.model.ConnectionDefinition.DatabaseType.valueOf(c.databaseType())),
+                            com.legend.database.Databases.dialect(com.legend.database.Databases.named(c.databaseType())),
                             c.convertible());
                     // the accessor's protocol, as the in-tab module gives it: the compiler's parse of its own text
                     Json.Obj lambda = Json.parseObject(SourceInformation.strip(

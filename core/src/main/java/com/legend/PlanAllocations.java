@@ -40,7 +40,7 @@ final class PlanAllocations {
             com.legend.compiler.spec.SpecCompiler specs, StatementExecutor.ExecEnv env,
             java.util.Map<String, com.legend.sql.SqlExpr.PlanParam> params,
             java.util.Map<String, String> paramSpells,
-            boolean quote, @com.legend.base.Nullable String timeZone, @com.legend.base.Nullable String dbType) {
+            boolean quote, @com.legend.base.Nullable String timeZone, com.legend.model.ConnectionDefinition.DatabaseType dbType) {
         String literal = switch (let.value()) {
             case com.legend.compiler.spec.typed.TypedCString cs -> cs.value();
             case com.legend.compiler.spec.typed.TypedCInteger ci ->
@@ -80,7 +80,7 @@ final class PlanAllocations {
         }
         StatementExecutor.EngineSql es = StatementExecutor.engineSql(java.util.List.of(let.value()),
                 mappingFqn, specs, env,
-                StatementExecutor.planDialect(dbType, quote, timeZone), params,
+                EngineText.enginePlanText(dbType, quote, timeZone), params,
                 java.util.function.UnaryOperator.identity());
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass);
@@ -110,7 +110,7 @@ final class PlanAllocations {
                 sel.distinct(), sel.from(), sel.where(), sel.groupBy(),
                 sel.having(), sel.qualify(), sel.orderBy(), sel.limit(),
                 sel.offset(), sel.outputs());
-        var renderer = StatementExecutor.planDialect(dbType, quote, timeZone);
+        var renderer = EngineText.enginePlanText(dbType, quote, timeZone);
         String bareSql = renderer.render(bareSel);
         String inner = com.legend.plan.PlanText.scalarRelational(env.ctx(),
                 impl[2], sel, typeName, size, bareSql,
@@ -228,7 +228,8 @@ final class PlanAllocations {
             return null;
         }
         try {
-            var renderer = new com.legend.sql.dialect.EngineStyleH2();
+            // C4 (handed off): the execute call's runtime type is not read here yet
+            var renderer = EngineText.engineText(EngineText.ENGINE_TEST_DATABASE);
             StatementExecutor.EngineSql es = StatementExecutor.engineSql(
                     java.util.List.of(chain), mappingFqn, specs, env, renderer,
                     java.util.Map.of(), java.util.function.UnaryOperator.identity());

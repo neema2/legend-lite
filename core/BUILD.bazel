@@ -88,6 +88,18 @@ java_library(
     visibility = _PRIVATE,
 )
 
+# THE plan-side owner of every per-database decision (C3 of
+# docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): a declared DatabaseType -> its dialect,
+# legend-engine's text for it, its plan facts. No JDBC: the browser planner carries it.
+java_library(
+    name = "database",
+    srcs = glob(["src/main/java/com/legend/database/*.java"]),
+    deps = ["//base", ":error", ":model", ":sql_dialect"],
+    javacopts = NULLAWAY_OPTS,
+    plugins = [NULLAWAY_PLUGIN],
+    visibility = _PRIVATE,
+)
+
 # the compiler quartet: resolver-of-names, element compiler, typer, typed tree
 java_library(
     name = "compiler",
@@ -132,7 +144,7 @@ java_library(
 java_library(
     name = "plan",
     srcs = glob(["src/main/java/com/legend/plan/*.java"]),
-    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lineage", ":model", ":sql"],
+    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":database", ":error", ":lineage", ":model", ":sql"],
     javacopts = NULLAWAY_OPTS,
     plugins = [NULLAWAY_PLUGIN],
     visibility = _PRIVATE,
@@ -175,7 +187,7 @@ java_library(
     name = "driver",
     srcs = glob(["src/main/java/com/legend/*.java"]),
     deps = [
-        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":error", ":exec",
+        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":error", ":exec",
         ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":platform",
         ":protocol", ":resolver", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
     ],
@@ -203,7 +215,7 @@ java_library(
 
 _CORE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":lexer", ":sql", ":protocol", ":model", ":parser",
-    ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":compiler", ":normalizer",
+    ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
     ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":exec", ":probe", ":testdatagen",
     ":driver", ":ide", ":test", ":server_lib",
 ]

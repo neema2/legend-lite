@@ -29,9 +29,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * <p>Two seams legitimately name a target outside the package, and they
  * are pinned BY FILE AND COUNT, shrink-only:
  * <ul>
- *   <li><b>dialect resolution</b> — {@code Compiler.dialectOf} maps a
- *       connection's declared {@code DatabaseType} and the JDBC product to
- *       a dialect instance: the ONE place a name becomes a dialect;</li>
+ *   <li><b>the database owner</b> — {@code com.legend.database.Databases} maps a
+ *       connection's declared {@code DatabaseType} to its dialect, engine text and
+ *       plan facts: the ONE place a type becomes a decision;</li>
  *   <li><b>the raw-SQL boundary</b> — {@code StatementExecutor.adaptRaw}
  *       translates HAND-WRITTEN H2 corpus text for a non-H2 session
  *       ({@code RawSqlBoundary}); text whose origin really is another
@@ -61,8 +61,19 @@ class DialectBoundaryTest {
     // DECLARED type (Compiler.executesOn, upstream's createDbConfig(connection.type)); a session is only
     // checked, against the dialect's own jdbcProduct(). The one name left is the platform rule: a runtime
     // with no database runs its model data on DuckDB (SEMANTICS_REGISTER S27)
+    // Compiler.java 1 -> 0, Databases.java 0 -> 2, EngineText.java 0 -> 1 (2026-10-03, C3a of
+    // docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): every per-database decision on the plan side
+    // has ONE owner, com.legend.database.Databases — except legend-engine's golden text, whose renderers are
+    // root-layer only (invariant 4d), so its one owner is com.legend.EngineText; the names left are platform facts
     private static final Map<String, Integer> DATABASE_TYPE_DECISIONS = Map.of(
-            "Compiler.java", 1);            // executesOn — the platform's engine for model-only runtimes
+            "Databases.java", 2,            // PLATFORM (S27), REPLAY_ORACLE
+            "EngineText.java", 1);          // ENGINE_TEST_DATABASE
+
+    /** Lines deciding by a database's NAME as a string ({@code "DB2".equals(t)}, {@code case "H2" ->}) outside the
+     *  dialect package, by file. Added 2026-10-03 (C3a), pinned at what is left; shrink-only. */
+    private static final Map<String, Integer> DATABASE_NAME_DECISIONS = Map.of(
+            "ConnectionSectionGrammar.java", 3,   // the grammar: a specification keyword parses per database, as upstream's
+            "SystemDatabase.java", 3);            // C3b: the execution-side owner opens sessions by the declared type
 
     @Test
     void targetsAreDecidedInsideTheDialect() throws IOException {
@@ -75,6 +86,12 @@ class DialectBoundaryTest {
                 census(Pattern.compile("\\bDatabaseType\\s*\\.\\s*(H2|DuckDB|Postgres)\\b")),
                 "DatabaseType comparisons outside com.legend.sql.dialect drifted —"
                         + " only dialect resolution maps a declared type to a dialect");
+        assertEquals(new TreeMap<>(DATABASE_NAME_DECISIONS),
+                census(Pattern.compile("\"(H2|DB2|Composite|DuckDB|Postgres|PostgreSQL|SQLite)\"\\s*\\.\\s*equals"
+                        + "|\\.equals\\(\\s*\"(H2|DB2|Composite|DuckDB|Postgres|PostgreSQL|SQLite)\"\\s*\\)"
+                        + "|\\bcase\\s+\"(H2|DB2|Composite|DuckDB|Postgres|PostgreSQL|SQLite)\"")),
+                "a decision by a database's name drifted — com.legend.database.Databases owns it,"
+                        + " by the declared DatabaseType");
         assertEquals(new TreeMap<>(), census(Pattern.compile("\\bFlavor\\.(H2_EXEC|DUCK_EXEC|ENGINE_TEXT)\\b")),
                 "a target-flavor enum reappeared: DDL and every other target-dependent"
                         + " text is rendered by the dialect from an IR node");

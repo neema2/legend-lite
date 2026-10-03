@@ -746,7 +746,7 @@ public final class Compiler {
             @com.legend.base.Nullable String runtimeFqn,
             java.sql.Connection connection) {
         com.legend.model.ConnectionDefinition.DatabaseType declared = executesOn(ctx, runtimeFqn);
-        com.legend.sql.dialect.SqlDialect dialect = dialectFor(declared);
+        com.legend.sql.dialect.SqlDialect dialect = com.legend.database.Databases.dialect(declared);
         String session = metadata(connection, true);
         if (!dialect.jdbcProduct().equals(session)) {
             throw new com.legend.error.NotImplementedException("runtime '" + runtimeFqn + "' executes on " + declared
@@ -774,7 +774,7 @@ public final class Compiler {
     /** THE dialect of a query planned without a session: the database its runtime executes on. */
     static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
             @com.legend.base.Nullable String runtimeFqn) {
-        return dialectFor(executesOn(ctx, runtimeFqn));
+        return com.legend.database.Databases.dialect(executesOn(ctx, runtimeFqn));
     }
 
     /** A query given no runtime: where it executes is undeclared. */
@@ -827,31 +827,10 @@ public final class Compiler {
             return distinct.first();
         }
         if (modelData) {
-            return com.legend.model.ConnectionDefinition.DatabaseType.DuckDB;
+            return com.legend.database.Databases.PLATFORM;
         }
         throw new com.legend.error.NotImplementedException("runtime '" + runtimeFqn
                 + "' binds no connection: a query executes on a runtime's declared connection");
-    }
-
-    /** THE dialect a database type plans with -- a query's ({@link #dialectOf}), and the one that
-     *  reads a catalog of that database ({@code SqlDialect.catalogType}: a table's model). Upstream's
-     *  {@code loadDbExtension}: one entry per database, the rest refused by name. */
-    public static com.legend.sql.dialect.SqlDialect dialectFor(com.legend.model.ConnectionDefinition.DatabaseType type) {
-        return switch (type) {
-            case DuckDB -> new com.legend.sql.dialect.DuckDb();
-            case H2 -> new com.legend.sql.dialect.H2();
-            case Postgres -> new com.legend.sql.dialect.Postgres();
-            // SQLite differs from the ANSI baseline ONLY lexically — it is a
-            // Lexicon row, not a dialect subclass (remediation T3.2).
-            case SQLite -> new com.legend.sql.dialect.AnsiSqlRenderer("SQLite",
-                    com.legend.sql.dialect.Lexicon.SQLITE,
-                    com.legend.sql.dialect.TypeNames.ANSI,
-                    com.legend.sql.dialect.Spellings.DUCKDB);
-            case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Snowflake, Presto, Trino, BigQuery,
-                 Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora ->
-                    throw new com.legend.error.NotImplementedException(
-                            "SQL dialect for database type '" + type + "' is not implemented yet");
-        };
     }
 
     /** THE query front door: raw-space desugars (the relational

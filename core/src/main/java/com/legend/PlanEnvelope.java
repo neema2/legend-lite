@@ -21,7 +21,7 @@ final class PlanEnvelope {
             java.util.List<String> children, StatementExecutor.ExecEnv env,
             String rootClass, String[] impl, String mappingFqn,
             TypedSpec term, @com.legend.base.Nullable String connName,
-            @com.legend.base.Nullable String dbType,
+            com.legend.model.ConnectionDefinition.DatabaseType dbType,
             com.legend.sql.dialect.EngineStyleH2 pd, boolean hasParams) {
         var inp = com.legend.plan.InProtocol.apply(es.plan(),
                 com.legend.plan.InProtocol.thresholdFor(connName, dbType),

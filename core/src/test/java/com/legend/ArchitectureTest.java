@@ -121,6 +121,7 @@ final class ArchitectureTest {
             java.util.Map.entry("platform", "com.legend.platform.WalledBodies"),
             java.util.Map.entry("compiler_element_type", "com.legend.compiler.element.type.ExprType"),
             java.util.Map.entry("sql_dialect", "com.legend.sql.dialect.SqlDialect"),
+            java.util.Map.entry("database", "com.legend.database.Databases"),
             java.util.Map.entry("compiler", "com.legend.compiler.NameResolver"),
             java.util.Map.entry("normalizer", "com.legend.normalizer.ModelNormalizer"),
             java.util.Map.entry("lineage", "com.legend.lineage.ColumnLineageRows"),

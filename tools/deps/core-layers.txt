@@ -6,6 +6,8 @@
 #   - a REMOVED edge fails too: delete it here in the same push, so this file only ever says what is true.
 # Each rewrite wave ends with its stage carved out as its own target and its line moved toward the plan's
 # target map (EXECUTION_PLAN_2026_09_26.md §1b). Baseline 2026-09-29, before any carve-out.
+# 2026-10-03 C3a (PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): `database`, the plan-side database owner;
+# plan (the IN-list facts) and driver reach it.
 spi	
 cache	base
 values	base
@@ -19,17 +21,18 @@ builtin	base error model parser protocol
 platform	base builtin model
 compiler_element_type	base builtin model platform protocol sql
 sql_dialect	base sql
+database	base error model sql_dialect
 compiler	base builtin compiler_element_type error model platform protocol sql values
 normalizer	base builtin compiler compiler_element_type error model platform protocol
 lineage	base builtin compiler compiler_element_type error model platform protocol sql
 validation	base builtin compiler compiler_element_type error model protocol
 lowering	base builtin compiler compiler_element_type error model platform protocol sql values
-plan	base builtin compiler compiler_element_type error lineage model sql
+plan	base builtin compiler compiler_element_type database error lineage model sql
 resolver	base builtin compiler compiler_element_type error lowering model plan platform sql values
 exec	base compiler compiler_element_type error lowering model plan platform sql sql_dialect values
 probe	base builtin lowering model platform
 testdatagen	base builtin compiler compiler_element_type error exec lineage model plan protocol resolver sql_dialect values
-driver	base builtin cache compiler compiler_element_type error exec lineage lowering model normalizer parser plan platform protocol resolver sql sql_dialect testdatagen validation values
+driver	base builtin cache compiler compiler_element_type database error exec lineage lowering model normalizer parser plan platform protocol resolver sql sql_dialect testdatagen validation values
 ide	base lexer model parser
 test	base compiler driver error exec model protocol sql values
 server_lib	base cache compiler_element_type driver error exec json lowering model parser plan protocol sql_dialect

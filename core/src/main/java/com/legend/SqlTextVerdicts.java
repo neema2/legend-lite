@@ -152,7 +152,7 @@ final class SqlTextVerdicts {
                             + " none is registered on this env (correct"
                             + " outside tests: there are no goldens)");
         }
-        if (!"H2".equals(dbType)) {
+        if (!com.legend.database.Databases.REPLAY_ORACLE.name().equals(dbType)) {
             // §4 FOREIGN-DIALECT residue: no oracle database for this
             // dialect — text stays the contract, counted forever
             declined(env, name, "foreign-dialect:" + dbType);

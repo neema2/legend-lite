@@ -7,7 +7,7 @@ W6.2) and announced in `docs/IN_FLIGHT.md` ("A fourth line"):
 | step | owner | why |
 |---|---|---|
 | B1 guards see exactly the product | **this line** | test code and the guardrail target only |
-| C3 database registry (one owner) | **this line** | dialects, exec, server; small, announced edits to `Compiler`/`StatementExecutor` |
+| C3 one owner per concern (two owners, like upstream) | **this line** | dialects, exec, server; small, announced edits to `Compiler`/`StatementExecutor` |
 | C1 / B3 effect analysis and its catch | the rebuild (W4.4a finding; D10) | `compiler/spec`, under the D24 cleanup; D10 already rules demand-driven user paths + compile-all diagnostics |
 | B2 missing platform functions | the rebuild (W2.1 / W4.4a; D9) | part of the 191 missing overloads; never hand-ported one by one |
 | C4 the reader's `"H2"` defaults | the rebuild (W2.1 finding) | `ContextReading`, `compiler/spec/typed` |
@@ -299,20 +299,101 @@ run, and are removed before any commit.
     execution classes; a rule that `planner`'s packages do not depend on `java.sql`/`javax.sql`), every guard of §3.5,
     AGENTS.md's entry-point table (§"Entry points") and pipeline text.
   - Gate: `PlannerRunsOnJavaBaseTest`; `jdeps` on `:planner`'s closure shows no `java.sql`; the full chain.
-- **C3. The database registry — one owner.** `Databases.of(DatabaseType)` on the PLANNER side, every type listed, no
-  `default` arm; each entry declares its capabilities as DATA and plan-side objects (no `java.sql` type):
-  execution dialect; JDBC product name; legend-engine text renderer (H2, DB2, Composite); IN-list temp-table facts;
-  replay-oracle availability; in-memory-instance JDBC URL; session JDBC URL from a spec; storeless declaration.
-  `Databases.named(String)` for consumers holding a Pure enum name (the Pure enum has `SparkSQL`, `DebugPrint`, which
-  the Java enum lacks: refused by name). `Databases.PLATFORM` (DuckDB) for D3. The execution side does the JDBC work
-  from that data. Replaces §3.1 rows 1–10: `Compiler.dialectFor`, both `StatementExecutor` renderer switches and the
-  `planDialect` fallback, `InProtocol`'s DB2 strings, `SqlTextVerdicts`'s H2 string, `SystemDatabase`'s product switch,
-  `ConnectionResolver`'s per-type switch (and its first-binding pick: the database comes from `executesOn`),
-  `StorelessRuntime`'s switch (declaring the REAL session: the embedded Postgres's actual port), `AnsiSqlRenderer`'s
-  `jdbcProduct` constructor argument, `H2_DDL`/`ENGINE_TEXT`/`PlanAllocations` constructions. D3 per the user's
-  choice; with (a), a server-path test of a JSON-only runtime (fails today: "Connection not found").
-  `DialectBoundaryTest` extended to ZERO outside the registry and `sql/dialect`: database-type literals, renderer
-  construction, product strings, `jdbc:` URLs, `case "H2"`-style string decisions.
+- **C3. One owner per concern, keyed by the declared `DatabaseType` — the two-owner design (PROPOSED 2026-10-03, after
+  the complete sweep below).** Upstream keeps two per-database registries — SQL generation (`dbExtension.pure`,
+  `loadDbExtension`) and connection management (Java `DatabaseManager`s) — and so do we:
+  1. **The plan-side owner** (java.base only, no JDBC concepts): execution dialect (`dialectFor`, delegated);
+     legend-engine text renderer (H2, DB2, Composite); IN-list temp-table facts (DB2); replay-oracle availability (H2).
+     Consumers: `Compiler.dialectFor`, `StatementExecutor` (`ENGINE_TEXT`, `H2_DDL`, the `toSQLString` switch :471–478,
+     `planDialect` :1178–1189 and its `null`/`default` fallbacks, :1270, :1433), `PlanAllocations` :231, `plan/InProtocol`
+     :71/:132, `SqlTextVerdicts` :155, `//wasm` (via `dialectFor`), `tools/census/RenderCensus` (debug tool, by name).
+     `named(String)` turns a Pure enum name into a `DatabaseType` once (refusing `SparkSQL`, `DebugPrint`).
+  2. **The execution-side owner** (in `exec`): the JDBC product name (the session check — moves OFF the dialect: the
+     `jdbcProduct` constructor argument added in `2defa10e7` leaves `AnsiSqlRenderer`, `EngineStyleH2`'s meaningless
+     `"H2"` with it); a session's JDBC URL from a connection spec; a private in-memory instance (DuckDB, H2, SQLite;
+     Postgres refused by name); `PLATFORM` = DuckDB (D3). Consumers: `Compiler.dialectOf` (product check, then
+     `forServer`/`sessionSetup` stay dialect capabilities), `exec/SystemDatabase` (keyed by the declared type, not the
+     session's product: its one caller, `StatementExecutor` :2142, has `ctx` and `runtimeFqn`, so `executesOn` gives it),
+     `server/ConnectionResolver` (its per-type URL switch; and the database comes from `executesOn`, ending the
+     first-binding pick and the loose simple-name runtime lookup), `test/StorelessRuntime` (declares the REAL session).
+  3. **The dialect, for what is the dialect's**: `exec/CsvSeed`'s seed-identifier quoting (today the union of DuckDB's and
+     H2's reserved words — Postgres is not in it) uses the session dialect's own identifier spelling; the DuckDB
+     driver's `JsonNode` decode (`Executor` :638, a driver class name) moves to `DuckDb.normalize` beside H2's `byte[]`
+     JSON decode — IF the M2M/JSON paths allow it (checked when editing).
+  - **D3, decided (user 2026-10-03): the platform's own DuckDB.** A runtime with no database runs on a private DuckDB the
+    execution-side owner opens (as `SystemDatabase` does); a server-path test of a JSON-only runtime (fails today:
+    "Connection not found").
+  - **The server path compiles once**: `QueryService` compiles the model and hands the SAME context to
+    `ConnectionResolver` (which needs `executesOn`, i.e. a compiled model) and to execution; today `compileModel` caches
+    nothing, so resolving from a second compile would double the work.
+  - **The guard**: `DialectBoundaryTest` pins ZERO outside the two owners and `sql/dialect`: database-type literals,
+    renderer construction, type-name/product strings, `jdbc:` URLs, `ConnectionSpecification`-kind decisions about a
+    database.
+  - **The complete sweep this rests on (2026-10-03, `runs/db-sweep/`)**: every main tree (core, wasm, warehouse,
+    testing, tools, datacube/tools) for 12 shapes — type literals, `switch` over a type, type-name strings, dialect
+    `instanceof`/constructors/class names, `ConnectionSpecification`/`AuthenticationSpec` kinds, `jdbc:` URLs, driver
+    class names, `H2Settings`/`Lexicon`/`TypeNames`/`Spellings` outside the dialects, and dialect capability calls.
+    Out of scope by reading: the connection grammar (`ConnectionSectionGrammar`: the parser validates type names),
+    `Lexer`'s `H2` keyword, `PureAsserts` (Pure TYPE names), protocol `switch (type)` (node kinds), the warehouse's own
+    `TypeNames` and catalog constants (a separate program), `EmbeddedPostgres` and `datacube/tools/catalogfacts`
+    (test/tool support that opens what it means to), `CsvSeed`'s `LocalH2` test-data check (a property of that spec
+    kind, upstream's too), and dialect capability calls (`sessionSetup`, `needsStaticPivot`, `rawH2IsNative`,
+    `forServer`: consumers asking the dialect — the right shape).
+- **C3 audit (2026-10-03, before code) — what the proposal above got wrong or left open, and the fix:**
+  1. **Two engine-text mappings disagree on purpose.** `toSQLString` maps `Composite` → `EngineStyleComposite` ("the
+     engine-DEFAULT spellings"); plan text maps `Composite` → `EngineStyleDB2` ("the plan goldens pin Composite to the
+     DB2-family spelling"). One "engine-text renderer" per database would be wrong. **Fix:** the plan-side owner has
+     TWO capabilities, `toSqlStringRenderer` and `planTextRenderer`, each refusing what it does not cover by name — and
+     `planDialect`'s `default ->` H2 (any other type silently printed as H2) becomes a refusal.
+  2. **The `null` → H2 defaults are C4's, not C3's.** `planDialect(null)` and `dbBound == null ? "H2"` stand in for the
+     reader gap (§3.2, handed to the rebuild with 21 corpus tests depending on it). C3 cannot delete them without C4.
+     **Fix:** C3 leaves those null branches exactly where they are, at the call sites, marked "C4 (handed off)", and
+     the owner only ever maps a KNOWN type — no default arm, no null inside the owner.
+  3. **`executesOn` needs no compiled model.** It reads runtime bindings and connection declarations, which a PARSED
+     model already has. Compiling in `ConnectionResolver` would double the server's compile work; restructuring
+     `QueryService` to compile once is out of scope. **Fix:** `executesOn` takes a narrow input (find a runtime, find a
+     connection, is-a-model-connection) — ONE implementation, adapted from a `ModelContext` (the compiler) and from a
+     `ParsedModel` (the server's resolver).
+  4. **D3 belongs to whoever chooses the session.** For the server path that is `ConnectionResolver`: a runtime with no
+     database resolves to a private platform DuckDB (from the execution-side owner). A direct API caller still hands
+     its own connection, checked against `executesOn` as today; swapping a caller's connection behind its back would
+     surprise. **Fix:** D3 implemented in the resolver; the session check stays for direct callers.
+  5. **The session product check moves OFF the dialect.** `jdbcProduct` lives on the execution-side owner; the
+     `AnsiSqlRenderer` constructor argument and `EngineStyleH2`'s meaningless `"H2"` are deleted (they were added in
+     `2defa10e7`).
+  6. **`StorelessRuntime` must declare the real session.** The embedded Postgres listens on a random port; PCT knows it
+     (`EmbeddedPostgres.shared().port()`). **Fix:** the execution-side owner renders a connection declaration from a
+     session's coordinates; `StorelessRuntime.with(model, type)` keeps its shape for in-memory DuckDB/H2 and gains the
+     coordinates for a server session (Postgres).
+  7. **`CsvSeed`'s identifier quoting** — every call site is inside `CsvSeed`, which already holds the session dialect
+     when it seeds. **Fix:** quote by the dialect's own identifier rule; the DuckDB+H2 union goes.
+  8. **The DuckDB `JsonNode` decode** — `decodeAny`'s callers have the dialect in scope, and `unwrap` normalizes every
+     leaf through `dialect.normalize` first. **Fix:** `DuckDb.normalize` turns its driver's JSON node into text under
+     a JSON label (the class named there, in the dialect that owns its driver's quirks), and `decodeAny` loses the
+     driver class name. Kept only if the JSON lanes (corpus, PCT Variant) stay green; else recorded and left.
+  9. **The guard needs an explicit allowlist** of what is NOT a database decision (grammar, lexer, `PureAsserts`,
+     protocol, warehouse, test/tool support), each with its reason — a pattern census alone flags them.
+  **Order:** C3a the plan-side owner (+ its consumers, guard step 1); C3b the execution-side owner (product check,
+  `SystemDatabase`, `ConnectionResolver` + D3 + `executesOn`'s narrow input, `StorelessRuntime`); C3c the dialect's own
+  (`CsvSeed` quoting, `DuckDb.normalize`); then the guard at zero. Each a push on the full chain.
+- **C3a — DONE 2026-10-03** (full chain `runs/c3a-full.log`). `//core:database` (`com.legend.database.Databases`; deps
+  base, error, model, sql_dialect — no JDBC) owns: `dialect(type)` (was `Compiler.dialectFor`, DELETED, its wasm,
+  `datacube/tools/catalogfacts` and test callers moved), `named(String)`, `inListTempTables(type)`, and two platform
+  facts: `PLATFORM` (D3, used by `executesOn`) and `REPLAY_ORACLE`. legend-engine's golden TEXT for a type has its own
+  one owner, `com.legend.EngineText` (root layer): `engineText(type)` (toSQLString: H2/DB2/Composite),
+  `enginePlanText(type, quote, tz)` (plan text: H2; DB2 and Composite → DB2-family) and `ENGINE_TEST_DATABASE`. Why
+  apart: the first run put them in `Databases`, and `ArchitectureTest`'s invariant 4d (engine-style renderers are root
+  layer only — an execution path reaching one would run engine-H2 TEXT against a real session) refused it; `exec`
+  will depend on `Databases` in C3b, so the quarantine is kept, not widened. Consumers switched:
+  `StatementExecutor` (`H2_DDL`, `ENGINE_TEXT`, the `toSQLString` switch, `planDialect` DELETED with its `default` → H2,
+  the `PlanConn` "H2"s, the activity SQL), `PlanAllocations`, `PlanEnvelope`, `plan/InProtocol`, `SqlTextVerdicts`.
+  The plan's database is now a `DatabaseType` read ONCE (`StatementExecutor.planDatabase`), not a string compared in
+  five files. Found while switching: `planModel` (the plan NODE model) ignored the connection's declared type and
+  always printed H2 — it now reads it through the same `planDatabase`. The `null` → H2 branches stay at their call
+  sites marked "C4 (handed off)" and all spell `Databases.ENGINE_TEST_DATABASE`. Guard step 1: `DialectBoundaryTest`'s
+  type census moves Compiler 1 → 0, Databases 0 → 2, EngineText 0 → 1; a new census of decisions by database NAME (`"DB2".equals`,
+  `case "H2"`) is pinned at what is left: the grammar (3, out of scope) and `SystemDatabase` (3, C3b).
+  `tools/census/RenderCensus` is left: a debug tool that renders every dialect by design.
 - **C4. The reader fix.** The static `ExecutionContext` reader follows `->from(m, ^Runtime(connectionStores =
   helper()))`, `toSQLString`'s runtime forms and helper bodies; the four `"H2"` defaults (§3.2) are DELETED; a context
   that truly cannot be read is refused by name. Gate: the 21 corpus tests pass reading their real declarations.

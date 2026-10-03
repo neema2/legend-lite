@@ -89,12 +89,13 @@ final class StatementExecutor {
      * failures per SETUP UNIT and keeps its emptiness guard). */
     /** The raw-SQL ledger append (Phase 2b): the caller's recorder, when it
      * handed one through the options; the executor never keeps one. */
-    /** The H2 replay ledger records DDL in H2's spelling on EVERY session. */
-    private static final com.legend.sql.dialect.SqlDialect H2_DDL = new com.legend.sql.dialect.H2();
+    /** The replay ledger records DDL in its oracle database's spelling on EVERY session. */
+    private static final com.legend.sql.dialect.SqlDialect H2_DDL =
+            com.legend.database.Databases.dialect(com.legend.database.Databases.REPLAY_ORACLE);
 
-    /** The engine's golden DDL TEXT renderer (root layer only — invariant 4d). */
-    static final com.legend.sql.dialect.SqlDialect ENGINE_TEXT =
-            new com.legend.sql.dialect.EngineStyleH2();
+    /** The engine's golden DDL TEXT renderer (root layer only — invariant 4d): the text of the database
+     *  legend-engine's test connections declare. */
+    static final com.legend.sql.dialect.SqlDialect ENGINE_TEXT = EngineText.engineText(EngineText.ENGINE_TEST_DATABASE);
 
     private static void record(ExecEnv env, String sql, boolean query) {
         var r = env.options().recorder();
@@ -468,18 +469,11 @@ final class StatementExecutor {
             String dbBound = com.legend.compiler.spec.typed.ExecutionContext.reader()
                     .bind(v -> com.legend.compiler.spec.typed.Lets.bound(v, letPrefix))
                     .read(java.util.Optional.empty(), dbArg).databaseType();
-            db = dbBound == null ? "H2" : dbBound;
+            // C4 (handed off, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): an unread type is the
+            // reader's gap, read as the engine test connection's database until the rebuild reads it
+            db = dbBound == null ? EngineText.ENGINE_TEST_DATABASE.name() : dbBound;
         }
-        com.legend.sql.dialect.EngineStyleH2 renderer = switch (db) {
-            case "H2" -> new com.legend.sql.dialect.EngineStyleH2();
-            case "DB2" -> new com.legend.sql.dialect.EngineStyleDB2();
-            // Composite = the engine-DEFAULT spellings (native trim/pad/
-            // cbrt, plain char_length); divergent goldens fail honestly
-            case "Composite" -> new com.legend.sql.dialect.EngineStyleComposite();
-            default -> throw new com.legend.error.NotImplementedException(
-                    "toSQLString for DatabaseType." + db
-                    + " — only the H2/DB2 engine-style renderers are built");
-        };
+        com.legend.sql.dialect.EngineStyleH2 renderer = EngineText.engineText(com.legend.database.Databases.named(db));
         if (!(in.query()
                 instanceof com.legend.compiler.spec.typed.TypedLambda lam)) {
             throw new com.legend.error.NotImplementedException(
@@ -757,7 +751,7 @@ final class StatementExecutor {
         String connName = pc != null && pc.connectionName() != null ? pc.connectionName()
                 : fromConn != null ? fromConn
                 : "TestDatabaseConnection(type = \"H2\")";
-        String dbType = pc != null && pc.databaseType() != null ? pc.databaseType() : "H2";
+        com.legend.model.ConnectionDefinition.DatabaseType dbType = planDatabase(pc);
         if (!lam.parameters().isEmpty() || lam.body().size() > 1
                 // a lone LET is a sequence too (E2E §4.4 cluster 1):
                 // the engine prints Allocation, never bare Relational
@@ -774,7 +768,7 @@ final class StatementExecutor {
             if (tr == null) {
                 throw new com.legend.error.NotImplementedException("planToString: no getAll or table root (multi-node plans pending)");
             }
-            EngineSql tes = engineSql(lam.body(), mappingFqn, specs, env, planDialect(dbType, quote, tz),
+            EngineSql tes = engineSql(lam.body(), mappingFqn, specs, env, EngineText.enginePlanText(dbType, quote, tz),
                     java.util.Map.of(), java.util.function.UnaryOperator.identity(), java.util.List.of());
             return new ExecutionResult.Scalar(com.legend.plan.PlanText.singleRelationRoot(env.ctx(), tr.store(),
                     tr.accessor(), tes.plan(), tes.sql(), lam.body(), connName),
@@ -790,7 +784,7 @@ final class StatementExecutor {
             return crossDb;
         }
         EngineSql es = engineSql(lam.body(), mappingFqn, specs, env,
-                planDialect(dbType, quote, tz), java.util.Map.of(),
+                EngineText.enginePlanText(dbType, quote, tz), java.util.Map.of(),
                 java.util.function.UnaryOperator.identity(), chainMaps);
         return new ExecutionResult.Scalar(
                 com.legend.plan.PlanText.single(env.ctx(), rootClass,
@@ -816,7 +810,7 @@ final class StatementExecutor {
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env, boolean quote, @com.legend.base.Nullable String tz,
             @com.legend.base.Nullable String connName,
-            @com.legend.base.Nullable String dbType, String rootClass,
+            com.legend.model.ConnectionDefinition.DatabaseType dbType, String rootClass,
             java.util.List<String> chainMaps) {
         TypedSpec term = lam.body().get(lam.body().size() - 1);
         com.legend.compiler.spec.typed.TypedJoin xj = null;
@@ -885,13 +879,13 @@ final class StatementExecutor {
                 return null;
             }
             EngineSql aEs = engineSql(java.util.List.of(at), mappingFqn,
-                    specs, env, planDialect(dbType, quote, tz),
+                    specs, env, EngineText.enginePlanText(dbType, quote, tz),
                     java.util.Map.of(),
                     java.util.function.UnaryOperator.identity(), chainMaps);
             String aSql = prevVar == null ? aEs.sql()
                     : com.legend.plan.PlanText.spliceLeftVar(aEs.plan(),
                             prevVar,
-                            planDialect(dbType, quote, tz)::render);
+                            EngineText.enginePlanText(dbType, quote, tz)::render);
             if (aSql == null) { return null; }
             String[] aImpl = com.legend.lineage.ScanRelations.rootImpl(
                     env.ctx(), mappingFqn, aRoot, chainMaps);
@@ -912,11 +906,11 @@ final class StatementExecutor {
             prevVar = var;
         }
         EngineSql fullEs = engineSql(lam.body(), mappingFqn, specs, env,
-                planDialect(dbType, quote, tz), java.util.Map.of(),
+                EngineText.enginePlanText(dbType, quote, tz), java.util.Map.of(),
                 java.util.function.UnaryOperator.identity(), chainMaps);
         String splicedSql = com.legend.plan.PlanText.spliceLeftVar(
                 fullEs.plan(), java.util.Objects.requireNonNull(prevVar),
-                planDialect(dbType, quote, tz)::render);
+                EngineText.enginePlanText(dbType, quote, tz)::render);
         if (splicedSql == null) { return null; }
         String terminal = com.legend.plan.PlanText.single(env.ctx(),
                 rootClass, mappingFqn, fullEs.plan(), splicedSql,
@@ -980,7 +974,7 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.TypedLambda lam,
             String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             ExecEnv env, boolean quote, @com.legend.base.Nullable String timeZone,
-            @com.legend.base.Nullable String connName, @com.legend.base.Nullable String dbType) {
+            @com.legend.base.Nullable String connName, com.legend.model.ConnectionDefinition.DatabaseType dbType) {
         var fnType = lam.functionType();
         java.util.LinkedHashMap<String, com.legend.sql.SqlExpr.PlanParam>
                 params = new java.util.LinkedHashMap<>();
@@ -1055,7 +1049,7 @@ final class StatementExecutor {
                     "plan: sequence terminal without a getAll root");
         }
         EngineSql es = engineSql(java.util.List.of(term), mappingFqn, specs,
-                env, planDialect(dbType, quote, timeZone), params,
+                env, EngineText.enginePlanText(dbType, quote, timeZone), params,
                 java.util.function.UnaryOperator.identity());
         String[] impl = com.legend.lineage.ScanRelations.rootImpl(
                 env.ctx(), mappingFqn, rootClass);
@@ -1064,7 +1058,7 @@ final class StatementExecutor {
         return PlanEnvelope.emit(es, children, env, rootClass, impl,
                 mappingFqn, term, connName, dbType,
                 (com.legend.sql.dialect.EngineStyleH2)
-                        planDialect(dbType, quote, timeZone),
+                        EngineText.enginePlanText(dbType, quote, timeZone),
                 !lam.parameters().isEmpty());
     }
 
@@ -1079,7 +1073,8 @@ final class StatementExecutor {
             com.legend.compiler.spec.typed.@com.legend.base.Nullable ExecutionContext pc, ExecEnv env) {
         if (pc == null) {
             return new com.legend.plan.PlanConn(
-                    "TestDatabaseConnection", "H2", null,
+                    // C4 (handed off): no readable connection — the engine test connection's database
+                    "TestDatabaseConnection", EngineText.ENGINE_TEST_DATABASE.name(), null,
                     java.util.List.of(), null);
         }
         var ni = pc.connectionInstance();
@@ -1091,7 +1086,8 @@ final class StatementExecutor {
                 f -> env.ctx().findDatabase(f);
         if (ni == null) {
             return new com.legend.plan.PlanConn(
-                    "TestDatabaseConnection", "H2", null,
+                    // C4 (handed off): no readable connection — the engine test connection's database
+                    "TestDatabaseConnection", EngineText.ENGINE_TEST_DATABASE.name(), null,
                     java.util.List.of(), null);
         }
         String kind = com.legend.compiler.element.type.PlatformTypes
@@ -1173,21 +1169,13 @@ final class StatementExecutor {
                 .read(java.util.Optional.empty(), value);
     }
 
-    /** The engine-style PLAN renderer for a connection DatabaseType —
-     * the plan goldens pin Composite to the DB2-family spelling
-     * (paren-wrapped conjunctions, quoted boolean placeholders). */
-    static com.legend.sql.dialect.EngineStyleH2 planDialect(
-            @com.legend.base.Nullable String dbType, boolean quote,
-            @com.legend.base.Nullable String tz) {
-        if (dbType == null) {
-            return new com.legend.sql.dialect.EngineStyleH2(quote, tz);
-        }
-        return switch (dbType) {
-            case "DB2", "Composite" ->
-                    new com.legend.sql.dialect.EngineStyleDB2(quote, tz);
-            default ->
-                    new com.legend.sql.dialect.EngineStyleH2(quote, tz);
-        };
+    /** The database a plan's connection declares. C4 (handed off,
+     * docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): a plan whose connection the reader cannot
+     * read is the reader's gap, planned for the engine test connection's database until the rebuild reads it. */
+    private static com.legend.model.ConnectionDefinition.DatabaseType planDatabase(
+            com.legend.compiler.spec.typed.@com.legend.base.Nullable ExecutionContext pc) {
+        String declared = pc == null ? null : pc.databaseType();
+        return declared != null ? com.legend.database.Databases.named(declared) : EngineText.ENGINE_TEST_DATABASE;
     }
 
     // ===== the plan-handle WALK vocabulary (plan node model) =========
@@ -1267,8 +1255,8 @@ final class StatementExecutor {
         firstFromChainMappings(term).stream()
                 .filter(m2 -> !chainMaps.contains(m2)).forEach(chainMaps::add);
         EngineSql es = engineSql(java.util.List.of(term), pmFqn,
-                specs, env, new com.legend.sql.dialect.EngineStyleH2(quote,
-                        tz), params, mapperRenames, chainMaps);
+                specs, env, EngineText.enginePlanText(planDatabase(pc2), quote, tz),
+                params, mapperRenames, chainMaps);
         com.legend.plan.PlanNode sqlNode = new com.legend.plan.PlanNode(
                 "SQLExecutionNode", java.util.List.of(), es.sql(),
                 java.util.List.of(),
@@ -1430,7 +1418,8 @@ final class StatementExecutor {
                     try {
                         activitySql = engineSql(java.util.List.of(lqChain.chain()),
                                 mappingFqn, specs, env,
-                                new com.legend.sql.dialect.EngineStyleH2(),
+                                // C4 (handed off): the runtime's type is not read here yet
+                                EngineText.engineText(EngineText.ENGINE_TEST_DATABASE),
                                 java.util.Map.of(),
                                 java.util.function.UnaryOperator.identity()).sql();
                     } catch (com.legend.error.LegendCompileException

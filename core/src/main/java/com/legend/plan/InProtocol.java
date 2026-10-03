@@ -64,12 +64,11 @@ public final class InProtocol {
     /** Scan-and-rewrite; null when no site triggers. */
     public static @com.legend.base.Nullable Result apply(SqlQuery plan,
             @com.legend.base.Nullable Integer threshold,
-            @com.legend.base.Nullable String dbType) {
+            com.legend.model.ConnectionDefinition.DatabaseType dbType) {
         if (threshold == null) {
             return null;
         }
-        String tempPrefix = "DB2".equals(dbType)
-                ? "SESSION.tempTableForIn_" : "tempTableForIn_";
+        String tempPrefix = com.legend.database.Databases.inListTempTables(dbType).tablePrefix();
         List<Site> sites = new ArrayList<>();
         int[] mixedId = {MIXED_SUFFIX_BASE};
         SqlRewriter rw = new SqlRewriter() {
@@ -124,12 +123,12 @@ public final class InProtocol {
     /** The engine threshold rule (see class doc). */
     public static @com.legend.base.Nullable Integer thresholdFor(
             @com.legend.base.Nullable String connName,
-            @com.legend.base.Nullable String dbType) {
+            com.legend.model.ConnectionDefinition.DatabaseType dbType) {
         if (connName != null
                 && connName.startsWith("TestDatabaseConnection")) {
             return 50;
         }
-        return "DB2".equals(dbType) ? 32767 : null;
+        return com.legend.database.Databases.inListTempTables(dbType).threshold();
     }
 
     /** Every site's node texts in emission order — the caller-facing
@@ -137,7 +136,7 @@ public final class InProtocol {
      * threshold rule only fires with one). */
     public static List<String> allNodeTexts(Result inp,
             @com.legend.base.Nullable String connName,
-            @com.legend.base.Nullable String dbType,
+            com.legend.model.ConnectionDefinition.DatabaseType dbType,
             java.util.function.Function<SqlExpr.PlanParam, String> splice) {
         String conn = java.util.Objects.requireNonNull(connName,
                 "in-protocol threshold without a connection spelling");

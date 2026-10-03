@@ -109,7 +109,7 @@ junit_test(
 # them, one genquery per target; CoreLayeringTest compares them with core-layers.txt.
 _CORE_LAYERS = [
     "spi", "cache", "values", "error", "lexer", "sql", "protocol", "model", "parser", "builtin", "platform",
-    "compiler_element_type", "sql_dialect", "compiler", "normalizer", "lineage", "validation", "lowering", "plan",
+    "compiler_element_type", "sql_dialect", "database", "compiler", "normalizer", "lineage", "validation", "lowering", "plan",
     "resolver", "exec", "probe", "testdatagen", "driver", "ide", "test", "server_lib",
 ]
 
