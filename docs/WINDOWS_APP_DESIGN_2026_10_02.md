@@ -7,7 +7,9 @@ same. Today both are refused on Windows (`docs/DATACUBE_ON_POSTGRES.md`: "Window
 yet").
 
 **Baseline** (the same day, ahead of this design): the Windows developer setup. `.gitattributes`
-(`* -text`: every file checked out as committed, whatever `core.autocrlf` says); `.bazelrc` names Git
+(`* text=auto eol=lf`: text files LF in every working tree, whatever `core.autocrlf` says, and an
+editor's CRLF normalized on commit; the four committed files that carry CR are `-text`. The first cut
+was `* -text`, which also dropped commit-side normalization: changed in review, 2026-10-03); `.bazelrc` names Git
 for Windows' bash (`BAZEL_SH`, `--shell_executable`), without which no Maven repository fetched from a
 PowerShell or cmd prompt; two tests that failed on a Windows desk and not on CI's runners
 (`WarehouseJdbcTest`'s reference session zone, `query-store`'s `lite_test` stopping only the launcher
@@ -66,7 +68,10 @@ published with the Linux build).
 
 ### 1. Toolchain and targets
 
-- **Windows x64 only.** DuckDB's jar carries no Windows ARM64 library.
+- **Windows x64 only.** DuckDB's jar carries no Windows ARM64 library. On Windows ARM64 the native
+  targets are incompatible (`NOT_ON_WINDOWS_ARM64` on `server_native`, `duckdb_library` and
+  `warehouse_run`'s targets; a `windows_aarch64` `config_setting`), so `bazel build //...` skips them
+  there instead of failing analysis on a `select` with no arm for it (added in review, 2026-10-03).
 - `//warehouse:server_native` drops `NOT_ON_WINDOWS`; on Windows it is an `.exe`.
 - `//warehouse:duckdb_library` gains a `windows_x86_64` arm (a new `config_setting` beside
   `linux_x86_64`) naming `libduckdb_java.so_windows_amd64`, out of the same pinned jar.
@@ -126,6 +131,9 @@ published with the Linux build).
      so the fixed argument arrived), and `GET /` answers the site's `index.html` (so the site's
      directory resolved through runfiles). Added 2026-10-03, review: no automated test ran a
      launcher with a site or fixed arguments before.
+  4. `//warehouse:serve` with `BUILD_WORKING_DIRECTORY` set to a temporary directory and no `--data`:
+     the server's default `warehouse-data` is made there, not in the runfiles folder the launcher
+     starts it in (added in review, 2026-10-03; `AppModeTest` holds the resolution itself).
 - **`//datacube:verify_app`** (manual) takes the launcher from Bazel
   (`env = {"WAREHOUSE_SERVE": "$(rlocationpath //warehouse:serve)"}`) instead of naming
   `warehouse/serve.sh`, and stops it with `taskkill /t /f` on Windows (the launcher and the server
@@ -155,14 +163,17 @@ published with the Linux build).
 ## Known limits on Windows (documented, not fixed here)
 
 1. **The server runs in Bazel's runfiles folder**, not where `bazel run` was started: hermetic-launcher
-   has no working-directory option, so a relative path among the caller's arguments resolves in the
-   runfiles folder, and `//warehouse:serve`'s default `--data warehouse-data` lands in Bazel's output
-   tree. The app's usual arguments (a URL, `--table`, `--port`) are unaffected, and its data goes to a
-   temporary directory. `bazel run --run_in_cwd` runs it where it was started, per command.
+   has no working-directory option. A relative `--data`, `//warehouse:serve`'s default `warehouse-data`
+   among them, is still where `bazel run` was started: the server resolves it against
+   `BUILD_WORKING_DIRECTORY`, on every platform (added in review, 2026-10-03: the first cut put it in
+   Bazel's output tree, where `bazel clean` deletes it). Any other relative path among the caller's
+   arguments (a `--token-key-file`, an `sslrootcert` in a URL) resolves in the runfiles folder. The
+   app's usual arguments (a URL, `--table`, `--port`) are unaffected. `bazel run --run_in_cwd` runs it
+   where it was started, per command.
 2. **An argument containing `"` arrives mangled**, and a quoted argument ending in `\` gains a `\`
    (hermetic-launcher 0.0.16's Windows quoting; `bazel run` straight to the `.exe` passes both
    intact). Postgres URLs and libpq DSNs, which quote with `'`, contain neither.
-3. **Windows x64 only.**
+3. **Windows x64 only.** On Windows ARM64 the native targets are skipped.
 4. **Visual Studio installed after Bazel first ran** needs `bazel fetch --configure --force` once.
 5. **`bazel run //datacube:verify_app` leaves a temporary directory behind.** It stops the app with
    `taskkill /t /f` (TerminateProcess), so the server's shutdown hook does not run, and each run on
@@ -170,6 +181,11 @@ published with the Linux build).
    remove it by hand.
 
 1 and 2 are for hermetic-launcher upstream: a request for a working-directory option and a bug report.
+
+Also fixed in review (2026-10-03): `--single-user` takes the account running it as its one principal,
+and a principal holds only `[A-Za-z0-9_.@-]`, so a Windows account name with a space (`John Madsen`)
+stopped the app at start. Each character a principal cannot hold is now written as `_`
+(`Identity.accountPrincipal`: `John_Madsen`).
 
 ## Done when
 

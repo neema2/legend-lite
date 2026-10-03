@@ -32,6 +32,8 @@ public final class Identity {
 
     /** What a principal may look like: it is written into SQL as a string literal. */
     private static final Pattern PRINCIPAL = Pattern.compile("[A-Za-z0-9_.@-]{1,128}");
+    /** One character a principal cannot hold: {@link #accountPrincipal} writes {@code _} for it. */
+    private static final Pattern NOT_PRINCIPAL = Pattern.compile("[^A-Za-z0-9_.@-]");
     private static final int ITERATIONS = 120_000;
 
     /** How long one sign-in lasts, refreshes included: past it, only the password signs in again. */
@@ -79,6 +81,20 @@ public final class Identity {
 
     public static boolean validPrincipal(String name) {
         return PRINCIPAL.matcher(name).matches();
+    }
+
+    /**
+     * The operating-system account running the single-user app, as a principal: each character a principal
+     * cannot hold becomes {@code _}, so a Windows account name with a space ({@code John Madsen}) is
+     * {@code John_Madsen} rather than a server that will not start (review of neema2/legend-lite#14,
+     * 2026-10-03). Only a name with nothing to keep (empty, or longer than a principal) is refused.
+     */
+    public static String accountPrincipal(String account) {
+        String principal = NOT_PRINCIPAL.matcher(account).replaceAll("_");
+        if (!validPrincipal(principal)) {
+            throw new IllegalArgumentException("--single-user: the account name '" + account + "' cannot be a warehouse user");
+        }
+        return principal;
     }
 
     /** Add a user; only the password's salted hash is kept. */

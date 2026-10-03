@@ -312,10 +312,13 @@ macOS and Linux use. Three differences:
 
 - **The app runs in Bazel's folder, not yours.** A relative path among your arguments (say
   `?sslrootcert=ca.pem`) is read from Bazel's runfiles folder: give it as an absolute path, or run
-  `bazel run --run_in_cwd //datacube:app -- ...`, which starts the app where you are.
+  `bazel run --run_in_cwd //datacube:app -- ...`, which starts the app where you are. A relative
+  `--data` is the exception: it is always where you ran `bazel run`.
 - **An argument containing `"` arrives changed** (and a quoted argument ending in `\` gains a `\`).
   Postgres URLs and connection strings, which quote with `'`, are unaffected.
-- **x64 only.** Windows on ARM is not supported.
+- **x64 only.** Windows on ARM is not supported: there `bazel build //...` skips the app.
+- **Your account name becomes your user name in the app**, with each character a user name cannot
+  hold written as `_`: an account `John Madsen` signs in as `John_Madsen`.
 
 Ctrl+C stops the app as on the other platforms; PowerShell then shows the exit code as `-1073741510`,
 which is `0xC000013A` (stopped by Ctrl+C) and not an error.

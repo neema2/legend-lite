@@ -1,6 +1,13 @@
-# Every file is checked out exactly as committed, on every platform. Git for Windows defaults to
-# core.autocrlf=true, which rewrites LF to CRLF on checkout -- and the tests read their inputs byte
-# for byte: the .pure corpus (parser parity is byte-exact), the generated files (each diff-tested
-# against its generator), the goldens. Nor are endings normalized on commit: a few committed files
-# carry CRLF or mixed endings (core's prelude.pure among them), and normalizing would change them.
-* -text
+# Text files are LF in the repository and in every working tree, whatever core.autocrlf says: the
+# tests read their inputs byte for byte (the .pure corpus: parser parity is byte-exact; the generated
+# files, each diff-tested against its generator; the goldens). Git for Windows defaults to
+# core.autocrlf=true, which would check them out as CRLF; eol=lf keeps them LF, and text=auto still
+# normalizes a CRLF saved by an editor to LF on commit. Binary files are detected and left alone.
+* text=auto eol=lf
+
+# The four committed files that carry CR on purpose (CRLF or mixed endings), kept byte for byte:
+# normalizing them would change them (review of neema2/legend-lite#14, 2026-10-03).
+core/src/main/resources/com/legend/builtin/prelude.pure -text
+docs/burndown-2026-08-14/master-classification.csv -text
+docs/e2e-diagnosis-2026-08-15/diagnoses.csv -text
+docs/type-audit-2026-08/data/A21-fallback-census.csv -text

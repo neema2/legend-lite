@@ -270,10 +270,10 @@ counterpart that supersedes it. See `AGENTS.md`.
   native warehouse, which links with MSVC. Install it before Bazel first runs, or run
   `bazel fetch --configure --force` once after, since Bazel keeps the C++ toolchain it found first.
 
-Line endings need nothing in a fresh clone: `.gitattributes` checks every file out exactly as
-committed, whatever `core.autocrlf` says (the corpus and the generated files are compared byte for
-byte). A clone made with `core.autocrlf=true` before `.gitattributes` existed keeps its CRLF files
-until they are checked out once more.
+Line endings need nothing in a fresh clone: `.gitattributes` keeps text files LF in the working
+tree, whatever `core.autocrlf` says, and normalizes an editor's CRLF to LF on commit (the corpus and
+the generated files are compared byte for byte). A clone made with `core.autocrlf=true` before
+`.gitattributes` existed keeps its CRLF files until they are checked out once more.
 
 ### Build & Test
 

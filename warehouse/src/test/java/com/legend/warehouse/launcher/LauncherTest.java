@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.legend.base.Nullable;
 import com.legend.testing.EmbeddedPostgres;
 import com.legend.testing.Repo;
 import java.io.BufferedReader;
@@ -92,13 +93,35 @@ class LauncherTest {
         }
     }
 
+    @Test
+    void theDefaultDataDirectoryIsWhereBazelRunWasStarted() throws Exception {
+        // `bazel run` from here: on Windows the launcher starts the server in its runfiles folder, where
+        // `bazel clean` would take the default --data warehouse-data with it
+        Path startedIn = Files.createTempDirectory(Path.of(required("TEST_TMPDIR")), "started-in");
+        Process p = start(LAUNCHER, List.of("--port", "0", "--user", "alice:alice-pw"), startedIn);
+        try {
+            awaitLine(p, "warehouse listening on ");
+            assertTrue(Files.isDirectory(startedIn.resolve("warehouse-data")),
+                    "no warehouse-data in " + startedIn);
+        } finally {
+            stop(p);
+        }
+    }
+
     private static Process start(Path launcher, List<String> args) throws IOException {
+        return start(launcher, args, null);
+    }
+
+    /** {@code startedIn}: where `bazel run` was started ({@code BUILD_WORKING_DIRECTORY}), or null. */
+    private static Process start(Path launcher, List<String> args, @Nullable Path startedIn) throws IOException {
         List<String> command = new ArrayList<>();
         command.add(launcher.toString());
         command.addAll(args);
         ProcessBuilder b = new ProcessBuilder(command).redirectErrorStream(true);
         // the launcher finds the server, DuckDB's library and the extension in this test's runfiles
         b.environment().put("RUNFILES_DIR", Repo.root().getParent().toString());
+        b.environment().remove("BUILD_WORKING_DIRECTORY");
+        if (startedIn != null) b.environment().put("BUILD_WORKING_DIRECTORY", startedIn.toString());
         return b.start();
     }
 

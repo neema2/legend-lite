@@ -4,7 +4,7 @@ load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@rules_graalvm//graalvm:defs.bzl", "native_image")
 load("@rules_java//java:defs.bzl", "java_binary", "java_library")
 load("//tools/junit:defs.bzl", "junit_test")
-load(":defs.bzl", "POSTGRES_EXTENSION", "jar_entry", "warehouse_run")
+load(":defs.bzl", "NOT_ON_WINDOWS_ARM64", "POSTGRES_EXTENSION", "jar_entry", "warehouse_run")
 load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
 
 package(default_visibility = ["//visibility:public"])
@@ -110,6 +110,7 @@ native_image(
         "--enable-native-access=ALL-UNNAMED",
     ],
     main_class = "com.legend.warehouse.server.WarehouseServer",
+    target_compatible_with = NOT_ON_WINDOWS_ARM64,
     deps = [":server_lib"],
 )
 
@@ -168,6 +169,15 @@ config_setting(
     ],
 )
 
+# Windows on ARM: no native targets there (NOT_ON_WINDOWS_ARM64, warehouse/defs.bzl).
+config_setting(
+    name = "windows_aarch64",
+    constraint_values = [
+        "@platforms//os:windows",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
 # DuckDB's native library for this platform, out of its JDBC jar: what the image loads.
 jar_entry(
     name = "duckdb_library",
@@ -178,6 +188,7 @@ jar_entry(
         ":windows_x86_64": "libduckdb_java.so_windows_amd64",
     }),
     jar = "@maven_warehouse//:org_duckdb_duckdb_jdbc",
+    target_compatible_with = NOT_ON_WINDOWS_ARM64,
 )
 
 # The same suite, judging the native binary instead of an in-process server (TestServer).
@@ -200,9 +211,9 @@ junit_test(
 # THE WAREHOUSE, BUILT AND RUN IN ONE STEP: the native server, DuckDB's library and DuckDB's postgres
 # extension (pinned per platform in MODULE.bazel), all from Bazel. Flags pass through:
 #   bazel run //warehouse:serve -- --postgres shop='host=db dbname=shop user=reader password=secret'
-# On Windows the server runs in Bazel's runfiles folder (the launcher has no working-directory option),
-# so the default `--data warehouse-data` lands in Bazel's output tree, which `bazel clean` removes: pass
-# an absolute --data, or run `bazel run --run_in_cwd //warehouse:serve -- ...`.
+# A relative --data, the default `warehouse-data` among them, is where `bazel run` was started, on every
+# platform: the server resolves it against BUILD_WORKING_DIRECTORY (on Windows the launcher starts it in
+# the runfiles folder, which `bazel clean` removes).
 warehouse_run(
     name = "serve",
     library = ":duckdb_library",
@@ -253,6 +264,7 @@ junit_test(
     jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
     select = ["--select-class=com.legend.warehouse.launcher.LauncherTest"],
     deps = [
+        "//base",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],

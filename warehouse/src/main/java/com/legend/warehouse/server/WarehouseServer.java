@@ -794,8 +794,20 @@ public final class WarehouseServer implements AutoCloseable {
         return commandLine(args).config();
     }
 
-    /** The command line: the server's Config and the launcher's {@code --open} and {@code --table}. */
+    /**
+     * The command line: the server's Config and the launcher's {@code --open} and {@code --table}. Under
+     * {@code bazel run}, a relative {@code --data} (its default {@code warehouse-data} among them) is where the
+     * command was started ({@code BUILD_WORKING_DIRECTORY}): a launcher may start the server elsewhere, in its
+     * runfiles folder (hermetic-launcher on Windows has no working-directory option), where {@code bazel clean}
+     * would delete the data (review of neema2/legend-lite#14, 2026-10-03).
+     */
     public static CommandLine commandLine(String[] args) throws IOException {
+        String startedIn = System.getenv("BUILD_WORKING_DIRECTORY");
+        return commandLine(args, startedIn == null || startedIn.isEmpty() ? null : Path.of(startedIn));
+    }
+
+    /** {@link #commandLine(String[])} with {@code BUILD_WORKING_DIRECTORY} given: null when not under {@code bazel run}. */
+    static CommandLine commandLine(String[] args, @Nullable Path startedIn) throws IOException {
         int port = 8765;
         Path data = Path.of("warehouse-data");
         List<String> cats = new ArrayList<>();
@@ -870,6 +882,7 @@ public final class WarehouseServer implements AutoCloseable {
                 default -> throw new IllegalArgumentException("unknown argument " + args[i]);
             }
         }
+        if (startedIn != null && !data.isAbsolute()) data = startedIn.resolve(data);
         if (cats.isEmpty()) cats.add(StatementRequest.DEFAULT_CATALOG);
         for (String n : postgres.keySet()) {
             if (!Catalogs.validName(n)) throw new IllegalArgumentException("bad catalog name: " + n);
@@ -885,10 +898,7 @@ public final class WarehouseServer implements AutoCloseable {
         String user = null;
         if (singleUser) {
             // the warehouse's one principal is the account running it; each Postgres catalog connects as its own user
-            user = System.getProperty("user.name", "");
-            if (!Identity.validPrincipal(user)) {
-                throw new IllegalArgumentException("--single-user: the account name '" + user + "' cannot be a warehouse user");
-            }
+            user = Identity.accountPrincipal(System.getProperty("user.name", ""));
         }
         if (open && (site == null || !singleUser)) {
             throw new IllegalArgumentException("--open opens the page: it needs --site and --single-user");

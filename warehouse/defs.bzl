@@ -50,6 +50,15 @@ POSTGRES_EXTENSION = select({
     "//warehouse:windows_x86_64": "@duckdb_postgres_extension_windows_amd64//file",
 })
 
+# Windows on ARM: DuckDB's JDBC jar carries no windows_arm64 library, MODULE.bazel pins no postgres
+# extension for it, and hermetic-launcher registers no windows/aarch64 stub. Its native targets are
+# incompatible there, so `bazel build //...` skips them rather than failing analysis on a select that
+# has no arm for it (review of neema2/legend-lite#14, 2026-10-03).
+NOT_ON_WINDOWS_ARM64 = select({
+    "//warehouse:windows_aarch64": ["@platforms//:incompatible"],
+    "//conditions:default": [],
+})
+
 def _duckdb_extensions_impl(ctx):
     # DuckDB loads an extension file by name: the download is gzipped, so it is unpacked here, under the
     # exact name the server looks for, into a directory of its own -- what --duckdb-extensions names, and
@@ -124,7 +133,9 @@ def warehouse_run(name, server, library, postgres_extension_gz, site = None, arg
     caller's arguments. On macOS and Linux a bash script execs the server where `bazel run` was started.
     On Windows `bazel run` can start no script, and a .bat or Bazel's bash launcher splits a Postgres URL
     at '&', so a hermetic-launcher stub starts the server with its arguments intact; it runs the server in
-    the runfiles folder (docs/WINDOWS_APP_DESIGN_2026_10_02.md, §2 and its known limits).
+    the runfiles folder, so the server resolves a relative --data against BUILD_WORKING_DIRECTORY itself
+    (docs/WINDOWS_APP_DESIGN_2026_10_02.md, §2 and its known limits). Windows x64 only: on Windows ARM64
+    the targets are incompatible (NOT_ON_WINDOWS_ARM64).
 
     Args:
         name: the target `bazel run` runs (an alias of <name>_posix or <name>_windows).
@@ -136,7 +147,12 @@ def warehouse_run(name, server, library, postgres_extension_gz, site = None, arg
         testonly: for a launcher only tests run (//warehouse:launcher_test_serve_site).
     """
     extensions = name + "_extensions"
-    _duckdb_extensions(name = extensions, gz = postgres_extension_gz, testonly = testonly)
+    _duckdb_extensions(
+        name = extensions,
+        gz = postgres_extension_gz,
+        testonly = testonly,
+        target_compatible_with = NOT_ON_WINDOWS_ARM64,
+    )
     _posix_launcher(
         name = name + "_posix",
         server = server,
@@ -174,7 +190,10 @@ def warehouse_run(name, server, library, postgres_extension_gz, site = None, arg
         embedded_args = embedded + args_before,
         data = data,
         testonly = testonly,
-        target_compatible_with = ["@platforms//os:windows"],
+        target_compatible_with = select({
+            "//warehouse:windows_x86_64": [],
+            "//conditions:default": ["@platforms//:incompatible"],
+        }),
     )
     native.alias(
         name = name,
