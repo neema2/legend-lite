@@ -77,7 +77,7 @@ maven.install(
         "org.xerial:sqlite-jdbc:3.47.1.0",
         "com.h2database:h2:2.1.214",
     ],
-    fail_if_repin_required = False,
+    fail_if_repin_required = True,
     lock_file = "//:maven_core_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -88,7 +88,7 @@ maven.install(
 maven.install(
     name = "maven_warehouse",
     artifacts = ["org.duckdb:duckdb_jdbc:1.5.5.1"],
-    fail_if_repin_required = False,
+    fail_if_repin_required = True,
     lock_file = "//:maven_warehouse_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -99,7 +99,7 @@ maven.install(
 maven.install(
     name = "maven_h2_modern",
     artifacts = ["com.h2database:h2:2.4.240"],
-    fail_if_repin_required = False,
+    fail_if_repin_required = True,
     lock_file = "//:maven_h2_modern_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -121,7 +121,7 @@ maven.install(
     ],
     boms = ["org.junit:junit-bom:5.11.3"],
     resolver = "maven",
-    fail_if_repin_required = False,
+    fail_if_repin_required = True,
     lock_file = "//:maven_test_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -213,7 +213,7 @@ maven.install(
     ],
     # one version of every artifact across this pool; listed versions win
     version_conflict_policy = "pinned",
-    fail_if_repin_required = False,
+    fail_if_repin_required = True,
     lock_file = "//:maven_upstream_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -247,7 +247,7 @@ maven.install(
     ],
     boms = ["org.finos.legend.engine:legend-engine:" + LEGEND_ENGINE_RELEASE],
     resolver = "maven",
-    fail_if_repin_required = False,
+    fail_if_repin_required = True,
     lock_file = "//:maven_runner_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -259,7 +259,7 @@ maven.install(
 maven.install(
     name = "maven_tools",
     artifacts = ["com.uber.nullaway:nullaway:0.13.8"],
-    fail_if_repin_required = False,
+    fail_if_repin_required = True,
     lock_file = "//:maven_tools_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -274,7 +274,7 @@ maven.install(
         "org.teavm:teavm-classlib:0.15.0",
         "org.teavm:teavm-jso:0.15.0",
     ],
-    fail_if_repin_required = False,
+    fail_if_repin_required = True,
     lock_file = "//:maven_teavm_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
