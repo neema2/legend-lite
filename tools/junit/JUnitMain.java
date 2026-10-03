@@ -22,7 +22,8 @@ import org.junit.platform.console.ConsoleLauncher;
  * need a shell (docs/STANDARD_BUILD_PROGRAM.md rule 5: Windows has none).
  *
  * <p>Arguments are passed through unchanged; the reports directory is added
- * only under Bazel. Outside Bazel this behaves exactly like ConsoleLauncher.
+ * only under Bazel. It runs only under Bazel: it refuses to start without
+ * {@code TEST_TMPDIR}, which it makes the JVM's temp directory (see pinTempDirectory).
  *
  * <p>OUTPUT PATHS. A system property may name {@code ${TEST_UNDECLARED_OUTPUTS_DIR}};
  * it is replaced here, portably, by the directory Bazel collects into
@@ -42,6 +43,7 @@ public final class JUnitMain {
     private static final String OUTPUTS_TOKEN = "${TEST_UNDECLARED_OUTPUTS_DIR}";
 
     public static void main(String[] args) throws IOException, InterruptedException {
+        pinTempDirectory();
         String outputs = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
         expandOutputs(outputs);
         String prerun = System.getProperty("legend.prerun");
@@ -57,6 +59,20 @@ public final class JUnitMain {
             all.add("--reports-dir=" + outputs + "/junit");
         }
         ConsoleLauncher.main(all.toArray(String[]::new));
+    }
+
+    /**
+     * The JVM's temp directory is the test's own ({@code TEST_TMPDIR}, which Bazel creates per test and
+     * cleans), never the host's /tmp, where files outlive the run and collide across runs. Set before
+     * anything creates a temp file: the JDK reads {@code java.io.tmpdir} on first use. A Bazel test
+     * always has TEST_TMPDIR; without it this is not a Bazel test.
+     */
+    private static void pinTempDirectory() {
+        String tmp = System.getenv("TEST_TMPDIR");
+        if (tmp == null || tmp.isEmpty()) {
+            throw new IllegalStateException("TEST_TMPDIR is not set: JUnitMain runs under `bazel test`");
+        }
+        System.setProperty("java.io.tmpdir", tmp);
     }
 
     /** Replaces the outputs token in every system property. Outside Bazel there is

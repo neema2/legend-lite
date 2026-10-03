@@ -35,7 +35,7 @@ import java.util.regex.Pattern;
  *       engine's root pom manages are read from it.</li>
  *   <li>MOVE — MODULE.bazel (the two releases, both source archives' sha256
  *       computed from the download, the engine-managed third-party versions) and
- *       tools/oracle-pins.env; then the upstream jar pool is repinned.</li>
+ *       tools/oracle-pins.env; then every jar pool keyed on the engine release is repinned.</li>
  *   <li>REGENERATE and CHECK — {@code bazel run //:update_generated} (every
  *       generated file, from the new pins; a generator that REFUSES — "the new
  *       thing we cannot parse yet" — stops the bump: fix the platform first, then
@@ -49,6 +49,9 @@ import java.util.regex.Pattern;
 public final class Bump {
 
     private static final String CENTRAL = "https://repo1.maven.org/maven2";
+
+    /** The jar pools keyed on LEGEND_ENGINE_RELEASE in MODULE.bazel: each is repinned by a bump. */
+    private static final List<String> RELEASE_POOLS = List.of("maven_upstream", "maven_runner");
 
     private final Path ws;
 
@@ -95,7 +98,7 @@ public final class Bump {
         managed.put("com.google.guava:guava", property(enginePom, "guava.version", release));
         System.out.println("   engine-managed at " + release + ": " + managed);
 
-        step("phase 1: move — MODULE.bazel, tools/oracle-pins.env, the upstream jar pool");
+        step("phase 1: move — MODULE.bazel, tools/oracle-pins.env, the release's jar pools");
         String engineArchive = "https://github.com/" + pins.get("LEGEND_ENGINE_REPO") + "/archive/refs/tags/"
                 + engineTag + ".tar.gz";
         String pureArchive = "https://github.com/" + pins.get("LEGEND_PURE_REPO") + "/archive/refs/tags/"
@@ -128,8 +131,13 @@ public final class Bump {
         Files.writeString(pinsFile, p, StandardCharsets.UTF_8);
         System.out.println("   tools/oracle-pins.env -> " + release + " / " + pure);
 
-        bazel(Map.of("REPIN", "1"), "the upstream jar pool could not be repinned at " + release,
-                "run", "@maven_upstream//:pin");
+        // every jar pool whose artifacts or BOM name the engine release (MODULE.bazel: maven_upstream,
+        // maven_runner). MODULE.bazel sets fail_if_repin_required on every pool, so a pool left
+        // unpinned here fails the build instead of resolving stale jars silently.
+        for (String pool : RELEASE_POOLS) {
+            bazel(Map.of("REPIN", "1"), "the " + pool + " jar pool could not be repinned at " + release,
+                    "run", "@" + pool + "//:pin");
+        }
         if (pinsOnly) {
             step("pins only — stopping before regeneration");
             git("status", "--short");

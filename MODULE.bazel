@@ -76,8 +76,11 @@ maven.install(
         "org.duckdb:duckdb_jdbc:1.4.4.0",
         "org.xerial:sqlite-jdbc:3.47.1.0",
         "com.h2database:h2:2.1.214",
+        # the server's Postgres arm (ConnectionResolver: jdbc:postgresql://); the version the upstream
+        # pool resolved before core owned it, so the repository keeps ONE Postgres driver
+        "org.postgresql:postgresql:42.7.4",
     ],
-    fail_if_repin_required = False,
+    fail_if_repin_required = True,
     lock_file = "//:maven_core_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -88,7 +91,7 @@ maven.install(
 maven.install(
     name = "maven_warehouse",
     artifacts = ["org.duckdb:duckdb_jdbc:1.5.5.1"],
-    fail_if_repin_required = False,
+    fail_if_repin_required = True,
     lock_file = "//:maven_warehouse_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -99,7 +102,7 @@ maven.install(
 maven.install(
     name = "maven_h2_modern",
     artifacts = ["com.h2database:h2:2.4.240"],
-    fail_if_repin_required = False,
+    fail_if_repin_required = True,
     lock_file = "//:maven_h2_modern_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -121,7 +124,7 @@ maven.install(
     ],
     boms = ["org.junit:junit-bom:5.11.3"],
     resolver = "maven",
-    fail_if_repin_required = False,
+    fail_if_repin_required = True,
     lock_file = "//:maven_test_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -202,6 +205,7 @@ maven.install(
         "com.h2database:h2",
         "org.duckdb:duckdb_jdbc",
         "org.xerial:sqlite-jdbc",
+        "org.postgresql:postgresql",
         "org.junit.jupiter:junit-jupiter",
         "org.junit.jupiter:junit-jupiter-api",
         "org.junit.jupiter:junit-jupiter-engine",
@@ -213,7 +217,7 @@ maven.install(
     ],
     # one version of every artifact across this pool; listed versions win
     version_conflict_policy = "pinned",
-    fail_if_repin_required = False,
+    fail_if_repin_required = True,
     lock_file = "//:maven_upstream_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -247,7 +251,7 @@ maven.install(
     ],
     boms = ["org.finos.legend.engine:legend-engine:" + LEGEND_ENGINE_RELEASE],
     resolver = "maven",
-    fail_if_repin_required = False,
+    fail_if_repin_required = True,
     lock_file = "//:maven_runner_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -259,7 +263,7 @@ maven.install(
 maven.install(
     name = "maven_tools",
     artifacts = ["com.uber.nullaway:nullaway:0.13.8"],
-    fail_if_repin_required = False,
+    fail_if_repin_required = True,
     lock_file = "//:maven_tools_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -274,7 +278,7 @@ maven.install(
         "org.teavm:teavm-classlib:0.15.0",
         "org.teavm:teavm-jso:0.15.0",
     ],
-    fail_if_repin_required = False,
+    fail_if_repin_required = True,
     lock_file = "//:maven_teavm_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -349,7 +353,7 @@ http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_
 [http_file(
     name = "duckdb_postgres_extension_" + platform,
     sha256 = sha,
-    urls = ["http://extensions.duckdb.org/v1.5.5/" + platform + "/postgres_scanner.duckdb_extension.gz"],
+    urls = ["https://extensions.duckdb.org/v1.5.5/" + platform + "/postgres_scanner.duckdb_extension.gz"],
 ) for platform, sha in {
     "osx_arm64": "4fb5079e67b00e6643e6ee91545a355010004d1dad50b43f1c060de0cb789c8e",
     "osx_amd64": "b8764ed496be635fbac3e5e6a6c8e3e3c2dbfcaa862ce0422c21cad6fcc6c353",

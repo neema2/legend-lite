@@ -15,7 +15,7 @@ package(default_visibility = ["//visibility:public"])
 # what upstream says they should be).
 filegroup(
     name = "srcs",
-    srcs = glob(["src/**"]),
+    srcs = glob(["src/**"], exclude = ["**/*.md"]),
 )
 
 # THE NULL GATE: NullAway's plugin and flags live in //tools/nullaway, shared with every
@@ -241,6 +241,7 @@ java_library(
         "@maven_core//:com_h2database_h2",
         "@maven_core//:org_duckdb_duckdb_jdbc",
         "@maven_core//:org_xerial_sqlite_jdbc",
+        "@maven_core//:org_postgresql_postgresql",
     ],
 )
 
@@ -275,7 +276,8 @@ java_binary(
 # nothing is read by accident. Behaviour tests read core's own tree; the stress
 # lanes also read the corpus's linked projects; the CENSUS lane (below) reads
 # every module it walks.
-_CORE_READS = glob(["src/**"])
+# (no .md: prose is never a test input, so CI's docs-only paths-ignore stays true)
+_CORE_READS = glob(["src/**"], exclude = ["**/*.md"])
 
 _STRESS_READS = _CORE_READS + ["//projects:srcs"]
 
@@ -290,24 +292,30 @@ _CENSUS_READS = _CORE_READS + [
 java_library(
     name = "core_tests_lib",
     testonly = True,
-    srcs = glob(["src/test/java/**/*.java"]),
+    # PostgresArmTest is :postgres_arm_test's alone: it needs the embedded Postgres in its runfiles
+    srcs = glob(
+        ["src/test/java/**/*.java"],
+        exclude = ["src/test/java/com/legend/server/PostgresArmTest.java"],
+    ),
     resources = glob(
         ["src/test/resources/**"],
-        # the shadow binding rides :shadow_binding, once
-        exclude = ["src/test/resources/META-INF/services/com.legend.builtin.DecisionProbe"],
+        # the shadow binding rides :shadow_binding, once; prose is never a test input
+        exclude = [
+            "**/*.md",
+            "src/test/resources/META-INF/services/com.legend.builtin.DecisionProbe",
+        ],
     ),
     runtime_deps = [":shadow_binding"],
     deps = [
         ":core",
         "//testing",
         "@maven_test//:com_tngtech_archunit_archunit",
+        # H2VersionPinTest reads org.h2.engine.Constants.VERSION
         "@maven_core//:com_h2database_h2",
         "@maven_test//:com_tngtech_archunit_archunit_junit5",
-        "@maven_core//:org_duckdb_duckdb_jdbc",
         "@maven_test//:org_junit_jupiter_junit_jupiter",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@maven_test//:org_junit_jupiter_junit_jupiter_params",
-        "@maven_core//:org_xerial_sqlite_jdbc",
     ],
 )
 
@@ -341,6 +349,27 @@ junit_test(
     runtime_deps = [
         ":core_tests_lib",
         ":drivers",
+    ],
+)
+
+# THE SERVER'S POSTGRES ARM (Bazel workplan P0-08): a type: Postgres connection resolves through
+# ConnectionResolver and the product's own driver set (:drivers), against the Postgres 16 that
+# gate 7P starts (@embedded_postgres, //testing EmbeddedPostgres). Light: one class, one query.
+junit_test(
+    name = "postgres_arm_test",
+    size = "medium",
+    srcs = ["src/test/java/com/legend/server/PostgresArmTest.java"],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.server.PostgresArmTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )
 

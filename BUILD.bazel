@@ -15,6 +15,19 @@ exports_files([
 ])
 
 
+# EVERY committed generated file's diff test, in one suite: what CI's checks lane runs
+# (`bazel test //:generated`). Each package's write_source_files makes its own suite; a package
+# that adds generated files adds its suite here. A missing suite fails the build, not silently.
+test_suite(
+    name = "generated",
+    tests = [
+        "//core:update_generated_tests",
+        "//datacube:update_generated_tests",
+        "//docs:update_generated_tests",
+        "//parser-equivalence:update_generated_tests",
+    ],
+)
+
 # EVERY generated file in the repository, written into the checkout from the pinned
 # upstream release: `bazel run //:update_generated`. Each package's own list is
 # the source of truth; this only runs them all.

@@ -97,7 +97,7 @@ _EXTRA_DATA = {
         "test/**/*.mjs",
         "test/**/*.ts",
         "tools/**/*",
-    ], exclude = ["test/fake-engine.ts", "test/fake-planner.ts", "test/strict-reporter.mjs"]),
+    ], exclude = ["**/*.md", "test/fake-engine.ts", "test/fake-planner.ts", "test/strict-reporter.mjs"]),
 }
 
 # the tests that write a model from a table's columns ask the compiler (T2): legend-lite's
@@ -167,6 +167,8 @@ test_suite(
         ":typed_values_tokyo_test",
         ":typed_values_new_york_test",
         ":wasm_differential_test",
+        # live against the Bazel-built native warehouse (it builds the native image; not on Windows ARM64)
+        ":live_snap_test",
     ],
 )
 

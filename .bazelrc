@@ -36,6 +36,10 @@ build:windows --shell_executable="C:/Program Files/Git/usr/bin/bash.exe"
 # CI: `--config=ci` — every test's log on failure, and no progress-bar noise.
 common:ci --color=no --curses=no --show_progress_rate_limit=30
 test:ci --test_output=errors --test_summary=terse
+# CI never updates a lock file: MODULE.bazel.lock must already match MODULE.bazel (and each jar
+# pool's maven_*_install.json must match its artifacts: fail_if_repin_required in MODULE.bazel).
+# A dependency edit without its lock fails here instead of resolving silently.
+common:ci --lockfile_mode=error
 # CI's HEAPS. A JVM defaults to a quarter of the machine's RAM: plenty on a desk
 # (which keeps that default, so local loops are not capped), too little on a hosted
 # runner. Pinned here, not on the targets, from Maven's measured peaks (2026-09-09):

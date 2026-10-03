@@ -147,8 +147,8 @@ junit_test(
 # Postgres execution dialect), on a real server this JVM starts from the pinned binaries Bazel unpacked
 # (@embedded_postgres, //testing EmbeddedPostgres): no Docker. Each suite carries Postgres's OWN expected
 # failures (Test_LegendLite_Postgres_*Functions_PCT), legend-engine's shape, as gate 7's H2: a fix, or a
-# failure swapping for another, fails the run. Postgres's JDBC driver is the one the upstream pool already
-# holds (the engine's), so no second copy of any jar.
+# failure swapping for another, fails the run. Postgres's JDBC driver comes as every lane's driver does:
+# //core:drivers, the product's own driver set, so no second copy of any jar.
 _POSTGRES_DATA = [
     "@embedded_postgres//:postgres",
     "@embedded_postgres//:pg/PG_ROOT",
@@ -158,7 +158,7 @@ _POSTGRES_FLAGS = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres/
 
 _POSTGRES_DEPS = [
     ":pct_tests_lib",
-    "@maven_upstream//:org_postgresql_postgresql",
+    "//core:drivers",
 ]
 
 junit_test(

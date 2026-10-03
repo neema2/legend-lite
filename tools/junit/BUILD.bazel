@@ -1,4 +1,5 @@
 load("@rules_java//java:defs.bzl", "java_library")
+load(":defs.bzl", "junit_test")
 
 # The JUnit entry point every test target in the repository runs.
 # See JUnitMain.java for why this is a class rather than BUILD arguments.
@@ -8,4 +9,14 @@ java_library(
     visibility = ["//visibility:public"],
     exports = ["@maven_test//:org_junit_platform_junit_platform_console_standalone"],
     deps = ["@maven_test//:org_junit_platform_junit_platform_console_standalone"],
+)
+
+
+# The pins every junit_test runs under (Bazel workplan P0-10): removing one fails this test.
+junit_test(
+    name = "pins_test",
+    size = "small",
+    srcs = ["pins/PinsTest.java"],
+    select = ["--select-class=com.legend.tools.junit.pins.PinsTest"],
+    deps = ["@maven_test//:org_junit_jupiter_junit_jupiter_api"],
 )

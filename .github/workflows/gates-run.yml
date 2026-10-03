@@ -42,17 +42,17 @@ jobs:
           LOW_MEMORY: ${{ inputs.low-memory }}
           PLATFORM: ${{ inputs.platform }}
         run: |
-          set -eu
+          set -euo pipefail
           if [ "$LOW_MEMORY" = "true" ]; then
             pct6='//pct:pct_duckdb_essential //pct:pct_duckdb_grammar //pct:pct_duckdb_relation //pct:pct_duckdb_standard //pct:pct_duckdb_unclassified //pct:pct_discipline'
-            pct7p='//pct:pct_postgres_essential //pct:pct_postgres_grammar //pct:pct_postgres_relation //pct:pct_postgres_standard //pct:pct_postgres_unclassified'
+            pct7p='//pct:pct_postgres_essential //pct:pct_postgres_grammar //pct:pct_postgres_relation //pct:pct_postgres_standard //pct:pct_postgres_unclassified //core:postgres_arm_test'
           else
             pct6='//pct:pct_duckdb'
-            pct7p='//pct:pct_postgres'
+            pct7p='//pct:pct_postgres //core:postgres_arm_test'
           fi
           all=$(jq -nc --arg pct6 "$pct6" --arg pct7p "$pct7p" '[
             {"key":"1",      "name":"gate 1 core suite",               "targets":"//core:core_tests"},
-            {"key":"checks", "name":"generated files, dependency guards, source checks", "targets":"GENERATED //tools/deps:all //core:guardrails //core:census"},
+            {"key":"checks", "name":"generated files, dependency guards, source checks", "targets":"//:generated //tools/deps:all //core:guardrails //core:census"},
             {"key":"3",      "name":"gate 3 spec parity",              "targets":"//spec:spec_tests"},
             {"key":"4",      "name":"gates 4+11 DuckDB corpus, both judges", "targets":"//spec:corpus_duckdb"},
             {"key":"5",      "name":"gate 5 H2 corpus, both judges",   "targets":"//spec:corpus_h2"},
@@ -63,6 +63,8 @@ jobs:
             {"key":"9",      "name":"gate 9 Channel B dual-verdict",   "targets":"//pct:pct_channel_b"},
             {"key":"10",     "name":"gate 10 stress corpus",           "targets":"//core:stress_suites"},
             {"key":"app",    "name":"DataCube app, WASM planner, warehouse", "targets":"//datacube:tests //wasm:all //warehouse:tests //query-store:lite_test"},
+            {"key":"misc",   "name":"json, pure-protocol, query, query-store", "targets":"//json:tests //pure-protocol:twins_test //query:tests //query-store:local_test //query-store:share_test"},
+            {"key":"build",  "name":"bazel build //... (every target builds)", "targets":"//..."},
             {"key":"native", "name":"warehouse as a native image, and its launcher", "targets":"//warehouse:tests_native //warehouse:launcher_test //datacube:app"},
             {"key":"browser", "name":"DataCube in a real browser, and live against the warehouse", "targets":"//datacube:live_snap_test"}
           ]')
@@ -75,7 +77,7 @@ jobs:
             lanes=$all
           fi
           [ "$(printf '%s' "$lanes" | jq 'length')" -gt 0 ] || {
-            echo "::error ::no lane matches gates='${WANT:-}' — valid keys: 1,checks,3,4,5,6,7,8,9,10,app,native,browser"
+            echo "::error ::no lane matches gates='${WANT:-}' — valid keys: 1,checks,3,4,5,6,7,7p,8,9,10,app,misc,build,native,browser"
             exit 1
           }
           echo "lanes=$lanes" >> "$GITHUB_OUTPUT"
@@ -131,7 +133,7 @@ jobs:
       - name: pyarrow, the warehouse's Arrow test's standard reader (test-only)
         if: matrix.lane.key == 'app' || matrix.lane.key == 'native'
         run: |
-          set -eu
+          set -euo pipefail
           py=python3; command -v python3 >/dev/null 2>&1 || py=python
           "$py" -m pip install --quiet --target "$RUNNER_TEMP/pyarrow" pyarrow==23.0.1
       - name: Chromium for the browser harnesses (Playwright's, at the lock file's version)
@@ -142,33 +144,30 @@ jobs:
           LANE_TARGETS: ${{ matrix.lane.targets }}
           LOW_MEMORY: ${{ inputs.low-memory }}
         run: |
-          set -eu
+          set -euo pipefail
           flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo" --disk_cache="$HOME/.cache/bazel-disk")
           if [ "$LOW_MEMORY" = "true" ]; then flags+=(--config=ci-small --local_test_jobs=1); fi
           # the warehouse's Arrow test finds python with pyarrow, and FAILS (rather than skips) without it
           if [ "${{ matrix.lane.key }}" = app ] || [ "${{ matrix.lane.key }}" = native ]; then
             flags+=(--test_env=PATH --test_env=PYTHONPATH="$RUNNER_TEMP/pyarrow" --test_env=WAREHOUSE_ARROW_CHECK=required)
           fi
-          # GENERATED: every committed generated file's diff test (//:update_generated's)
-          targets=()
-          for t in $LANE_TARGETS; do
-            if [ "$t" = GENERATED ]; then
-              while read -r g; do targets+=("$g"); done < <(bazel query 'attr(name, "update_generated.*_test", tests(//...))' 2>/dev/null)
-            else
-              targets+=("$t")
-            fi
-          done
+          read -r -a targets <<< "$LANE_TARGETS"
           echo "targets: ${targets[*]}"
-          bazel test "${flags[@]}" "${targets[@]}"
-      - name: the browser harnesses (every //datacube and //query target tagged browser-ci)
+          # the build lane builds every target (non-test targets included); every other lane tests
+          if [ "${{ matrix.lane.key }}" = build ]; then cmd="build"; else cmd="test"; fi
+          bazel "$cmd" "${flags[@]}" "${targets[@]}"
+      - name: the browser harnesses (every //datacube, //query and //site target tagged browser-ci)
         if: matrix.lane.key == 'browser'
         run: |
-          set -u
+          set -euo pipefail
           flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo" --disk_cache="$HOME/.cache/bazel-disk")
           mkdir -p harness-logs
           failed=()
+          # the list first, so a failed query fails the step instead of running no harness at all
+          harnesses=$(bazel query --repository_cache="$HOME/.cache/bazel-repo" 'attr(tags, "browser-ci", //datacube:* + //query:* + //site:*)')
+          [ -n "$harnesses" ] || { echo "::error ::no browser-ci harness found"; exit 1; }
           # one at a time: each serves the site and drives its own browser
-          for t in $(bazel query --repository_cache="$HOME/.cache/bazel-repo" 'attr(tags, "browser-ci", //datacube:* + //query:*)'); do
+          for t in $harnesses; do
             name=${t##*:}
             echo "::group::$t"
             if bazel run "${flags[@]}" "$t" 2>&1 | tee "harness-logs/$name.log"; then :; else failed+=("$t"); fi

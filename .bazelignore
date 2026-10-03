@@ -1,2 +1,11 @@
-# Two Bazel prototype workspaces with their own MODULE.bazel — not part of this build
+# Directories that are never packages of this build:
+#   experiments: kept by decision (2026-10-02): prototype workspaces with their own MODULE.bazel,
+#     plus backend probes; not part of this build.
+#   runs: agent worktrees and scratch (gitignored). Without this, a worktree checked out under
+#     runs/ adds its packages to the main checkout's //... .
+#   datacube/node_modules, query/node_modules: pnpm's editor install, which rules_js does not use
+#     (it links packages from the lock file itself).
 experiments
+runs
+datacube/node_modules
+query/node_modules
