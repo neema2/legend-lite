@@ -198,6 +198,25 @@ below), not done here.
 missing platform functions (W2.1 / W4.4a, decision D9), the plan/execution split (W6.2's first cut) — each with its
 measurements in the plan document above.
 
+## A fifth line, 2026-10-03: Studio, SDLC-lite and Depot-lite (the user's ask, rule 5)
+
+Design `docs/STUDIO_DESIGN_2026_10_02.md` (every decision ruled); census `studio/docs/UPSTREAM_STUDIO_CENSUS.md`. The
+user: "write the depot and lite projects/versions/model home as part of studio so we have a real writer of models";
+"i paused compiler rewrite so we can do (2) here". **Owns:** `studio/` (the app), the SDLC-lite and Depot-lite servers
+(their module named when it lands), and the S18 dogfood model.
+
+**The compiler rebuild is paused by the user** while this line builds the core pieces Studio needs (design S11), each
+announced here with its files before it lands, every push through the full chain:
+- (a) name-resolved entity JSON per element (the protocol layer and `NameResolver`'s rules);
+- (b) W1.2 by its written design (`plan-audit-2026-09-26/h4-diagnostics-design-2026-09-29.md`): parser codes, spans
+  and UTF-16 columns first, then the diagnostics sink and stage bridges; moved to the execution plan's §3 when it lands;
+- (c) a WASM compile entry (`wasm/`);
+- (e) the model JSON reader and (f) the model printer (`jsonToGrammar/model`), for opening existing upstream projects
+  (design S19).
+
+Not touched: the stress corpus and the Bazel hermeticity work (another session's; the design takes the stress corpus
+last, S17).
+
 ## Rules between sessions
 
 1. Never force-push; never bare `git stash` (the stash stack is shared by every worktree).
