@@ -134,8 +134,8 @@ Phase 0 is therefore **a, b, c**; the rest arrive with the phase that needs them
 | 6 | aliases matched lowercase only (`latest`, `head`; D §5) | `HEAD`/`LATEST` accepted in any case |
 | 7 | dependency bodies: JSON creator names the key `version`, Studio sends `versionId` | both accepted |
 | 8 | the engine caches `latest`/`head` up to 30 min (E §6.5) | aliases resolved per request; only exact releases cached |
-| 9 | a pointer without `serializer` crashes `compile`, `lambdaReturnType`, `runTests` (E §6.6) | defaults to production |
-| 10 | a combination containing a pointer fails everywhere but `compile` (E §3) | works |
+| 9 | a pointer without `serializer` crashes `compile`, `lambdaReturnType`, `runTests` with a 500 (E §6.6) | a 400 naming the missing `serializer` — not a default (AGENTS invariant 4); upstream clients send it where it is needed |
+| 10 | a combination containing a pointer fails everywhere but `compile` (E §3) | the client version is taken from the pointer's own `serializer` when present, else a 400 naming it |
 | 11 | SDLC stores whatever re-parses (`canSerialize` checks only that re-parsing does not throw) and falls back to `.json` files for elements it cannot print | a JSON save is stored only if JSON → text → JSON gives equal protocol records, else 400; no `.json` fallback (S5) |
 
 **Kind 2 — upstream defects not copied** (no wire change): Depot's sub-package filter over-matching (`a::b` matches `a::bc`, D §7.6); the classifier search skipping one project per 100 (D §7.8); the unsorted versions list (D §7.19); a transitive closure frozen at ingest (D §7.10); excluding a version wiping its dependencies (D §7.9); a state-changing GET `/queue` (D §7.15); the SDLC file-system backend's defects (C §5.2).
