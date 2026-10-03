@@ -6,6 +6,8 @@
 
 ## 1. Header
 
+**Status (2026-10-03, evening).** P0-01 … P0-13 are on `main` (PR #19, `5a44c6554`), with the one-driver-path follow-up (PCT's Postgres lanes take `//core:drivers`). PR #20 (`7bbd1dc04`) is the interim fix for the Windows teardown race P4-18 removes for good. Open in Phase 0: P0-14, P0-15, P0-90. Amended the same day: D11 revised, P1-14b added, P4-07 shrunk (below).
+
 **Purpose.** This turns [`BAZEL_FIRST_CLASS_PLAN_2026_10_02.md`](BAZEL_FIRST_CLASS_PLAN_2026_10_02.md) (the audit-level plan: what and why) into PR-sized work items: files, change, proof command, dependencies, size and acceptance. An engineer or an agent can take an item and execute it without further design. Where the evidence is not enough to specify an item exactly, the item says so, and its first sub-step is an investigation with one stated question.
 
 **Inputs.** These were read in full and are cited by short code:
@@ -298,6 +300,8 @@ What must **not** float, and why (each moves only as a deliberate change with it
 
 **Decided (2026-10-03):** not now.
 
+**Revised (2026-10-03, after PR #19):** yes, for `verify_app`. The "not now" reasoning holds for the DuckDB-WASM harnesses, which do not vary by OS, but not for `verify_app`: it runs the native warehouse against Postgres and stops a Windows process tree, and that is exactly the Windows contributor's daily path. Three hand-run Windows workflows proved it on 2026-10-03 (runs 37149499943, 37152622977, 37157212989), and PR #19's Windows app lane found a teardown race no other platform shows. So `verify_app_test` runs on every platform's CI from P1-14b on; the rest of the browser lane stays Linux-only. USER: "we need that to make sure mads doesnt get mad at us".
+
 ### D12. The repository's Python version (S5 Q5)
 
 - **Recommendation: 3.12** (S5 used CPython 3.12.13, matching the host that minted the files).
@@ -546,7 +550,7 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 2. P0-01, P0-03, P0-04, P0-06, P0-07, P0-09, P0-10, P0-11, P0-12, P0-13, P0-15
 3. P0-02, P0-05, P0-08, P5-09
 4. P0-14 (D17), P1-01, P1-03, P1-07 (D12), P1-09, P1-13, P1-14, P1-15, P1-17, P1-18, P1-19, P1-20, P1-22, P1-23, P1-26, P1-28, P6-00, P6-14, P6-17
-5. P0-90, P1-02, P1-04, P1-05, P1-06, P1-08, P1-10 (D1), P1-11 (D5), P1-12, P1-16, P1-21, P1-24, P1-25, P1-25b, P1-27 (D10), P6-19, P7-10, P7-12
+5. P0-90, P1-02, P1-04, P1-14b, P1-05, P1-06, P1-08, P1-10 (D1), P1-11 (D5), P1-12, P1-16, P1-21, P1-24, P1-25, P1-25b, P1-27 (D10), P6-19, P7-10, P7-12
 6. P6-10, P6-11, P6-16, P2-01 (D13), P2-07, P2-08, P2-11, P2-17, P3-02, P3-03, P3-11, P3-15, P3-24, P3-26, P3-31, P7-06, P7-11, P1-90
 7. P2-02, P2-04 (D3), P2-05, P2-06 (D14), P2-10 (D19), P2-12 (D9), P2-13, P2-19, P3-01, P3-04, P3-07, P3-08, P3-10, P3-12, P3-14, P3-16, P3-17, P3-19, P3-20, P3-21, P3-27, P3-28, P3-29, P4-14, P4-16
 8. P2-03, P2-09, P2-14, P2-16 (D9), P2-18 (D3), P3-05, P3-09 (D2, D6), P3-13, P3-18 (D3), P3-22, P3-23, P3-25 (D18), P3-27b, P3-30, P3-34, P4-01, P4-11 (D3b), P4-12, P4-15 (D21)
@@ -961,6 +965,19 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Size | M (1 d; S4: 1 d for `//tools/browser` plus the image, the image being P5-02) |
 | Risk/rollback | The Playwright CDN path is internal (S4 risk); Google's bucket is the byte-identical second URL. Rollback: the harnesses still run as `js_binary` until P4. |
 | Done when | The pilot runs under `bazel test` with no host browser cache, and the revision guard covers both locks. |
+
+#### P1-14b · `verify_app_test`: the app against Postgres in a real browser, on every platform's CI (D11 revised)
+
+| Field | Content |
+|---|---|
+| ID | P1-14b |
+| Why | D11 revised. `//datacube:verify_app` is a `bazel run` tool that needs a Postgres the user starts and a browser `install_browser` fetched, so no CI lane runs it. On Windows it was proved only by hand-run workflows that loaded the sample with the runner's own `psql`, an undeclared host tool. Pulled forward from P4-07 so the Windows contributor's path is guarded for the whole effort, not from M3. |
+| Change | <ul><li>**The sample's SQL becomes a file:** `datacube/demo/sample-shop.sql` (the `shop` database, `sales.orders`, the `reader` role) from `docs/DATACUBE_ON_POSTGRES.md`. The guide keeps its listing, and a test checks the listing equals the file.</li><li>**`//datacube:app_postgres` (`testonly` `java_binary`):** starts Postgres 16 from `@embedded_postgres` on port 0 through `//testing` `EmbeddedPostgres`, loads the SQL over JDBC (the driver from `//core:drivers`, the one driver path), prints the `postgresql://reader:…` URL on stdout, and exits when its stdin closes (the P4-18 pattern). No `psql`, no host Postgres.</li><li>**`//datacube:verify_app_test`:** a `browser_test` (P1-14), not manual. It starts `:app_postgres` by `rlocationpath`, reads the URL, runs `verify-app.mjs`'s nine checks unchanged, and closes stdin.</li><li>**CI:** it joins the `app` lane, so it runs on Linux, macOS and Windows on every PR and every push to `main`. It needs Chromium's `win64` and `mac` pins, which P1-14 already declares.</li><li>`bazel run //datacube:verify_app` stays as the desk tool against your own Postgres until P4-07.</li></ul> |
+| Proof | **Heavy: H-browser, plus H-native:** `bazel test //datacube:verify_app_test`. **Windows proof (C2)** (§1): the PR's Windows `app` lane runs it green. Mutation check: change the expected wrong-key message, and the test fails on every platform. |
+| Depends on | P1-14 |
+| Size | M (1.5 d) |
+| Risk/rollback | `win64` Chromium has never run under `bazel test` (S4 measured macOS and Linux only). If it fails, that is a finding to fix in this item, not a reason to drop Windows. Rollback: drop the target from the `app` lane. |
+| Done when | `verify_app` runs on Linux, macOS and Windows CI for every PR, with no host Postgres, no `psql` and no host browser cache. |
 
 #### P1-15 · Embedded Postgres: one repository per platform and a hub select
 
@@ -2014,10 +2031,10 @@ These rules apply to every harness item (plan 4.1):
 |---|---|
 | ID | P4-07 |
 | Why | Plan 4.1(b); HN-N8 (`verify-engine-differential.mjs:299-302, 358` count local-plane failures as "skipped"); HN §1 (`verify_app` spawns `warehouse/serve.sh` and does `RUNFILES_DIR` arithmetic, `verify-app.mjs:28-29, 37-39`). |
-| Change | <ul><li>`chaos`, `verify_engine` and `verify_engine_differential` (merged; skips count as failures) and `verify_calc_vocabulary`'s engine half: `browser_test`/`node_test` with `tags = ["manual"]`, the engine from P1-18's `//tools/engine-runner:server` on port 0. If P1-18 found no artifact, these stay `js_binary` dev tools and the deferral is recorded.</li><li>`verify_app`: a `browser_test(tags = ["manual"])` with `@embedded_postgres` and `//warehouse:serve` (P4-12) by `rlocationpath`, with no `RUNFILES_DIR` arithmetic.</li><li>`chaos.mjs:38, 87`: port 0 at 127.0.0.1 (HN-N4).</li></ul> **(G-09)** `chaos` is not an engine harness: it needs only `//core:server`. It becomes `browser_test(name = "chaos_test", tags = ["manual"])` unconditionally, with `startServer(//core:server)` on port 0. `CHAOS_SEED` and `CHAOS_ROUNDS` are fixed per target (seeded variants are separate targets), `ENGINE` goes, and `tolerant()` stops swallowing errors. It leaves the P1-18 condition. The `taskkill` in `verify-app.mjs:155` goes in P4-18. |
+| Change | <ul><li>`chaos`, `verify_engine` and `verify_engine_differential` (merged; skips count as failures) and `verify_calc_vocabulary`'s engine half: `browser_test`/`node_test` with `tags = ["manual"]`, the engine from P1-18's `//tools/engine-runner:server` on port 0. If P1-18 found no artifact, these stay `js_binary` dev tools and the deferral is recorded.</li><li>`verify_app`: already a test since P1-14b. Here it takes `//warehouse:serve` (P4-12) by `rlocationpath`, with no `RUNFILES_DIR` arithmetic, and the `bazel run //datacube:verify_app` desk tool is retired or kept per D3b.</li><li>`chaos.mjs:38, 87`: port 0 at 127.0.0.1 (HN-N4).</li></ul> **(G-09)** `chaos` is not an engine harness: it needs only `//core:server`. It becomes `browser_test(name = "chaos_test", tags = ["manual"])` unconditionally, with `startServer(//core:server)` on port 0. `CHAOS_SEED` and `CHAOS_ROUNDS` are fixed per target (seeded variants are separate targets), `ENGINE` goes, and `tolerant()` stops swallowing errors. It leaves the P1-18 condition. The `taskkill` in `verify-app.mjs:155` goes in P4-18. |
 | Proof | **Heavy: H-browser, plus H-native**: `bazel test //datacube:verify_app_test //datacube:verify_engine_test` (manual targets are named explicitly). `bazel test //datacube:chaos_test` (G-09). |
-| Depends on | P4-12, P1-18, P1-15, P4-01 |
-| Size | M (2 d) |
+| Depends on | P4-12, P1-18, P1-15, P4-01, P1-14b |
+| Size | M (1.5 d; 0.5 d moved to P1-14b) |
 | Risk/rollback | None known. |
 | Done when | No harness probes a fixed host port. |
 
@@ -2156,7 +2173,7 @@ These rules apply to every harness item (plan 4.1):
 | Field | Content |
 |---|---|
 | ID | P4-18 |
-| Why | Ledger G-4 (rows S-14 and S-17): `datacube/demo/verify-app.mjs:155` and `query-store/test/lite.test.ts:57` run `taskkill /t /f`, a host Windows tool, to stop a launcher's process tree. |
+| Why | Ledger G-4 (rows S-14 and S-17): `datacube/demo/verify-app.mjs:155` and `query-store/test/lite.test.ts:57` run `taskkill /t /f`, a host Windows tool, to stop a launcher's process tree. Interim (PR #20, `7bbd1dc04`): both now judge the outcome (the launcher exited, the port is silent), not taskkill's status, after a race failed PR #19's Windows lane; this item still removes `taskkill`. |
 | Change | <ul><li>`//core:server` (`LegendHttpServer`) and the warehouse server gain `--exit-with-parent`: exit when stdin reaches EOF. Only tests set it.</li><li>`harness.mjs` `startServer().close()` and `query-store/test/lite.test.ts` close the child's stdin and await its exit.</li><li>Delete both `taskkill` calls.</li></ul> |
 | Proof | `bazel test //query-store:lite_test //warehouse:serve_test`; `git grep -n taskkill` is empty. **Windows proof (C2)** (§1). |
 | Depends on | P4-01, P1-24, P4-07 |
@@ -3120,15 +3137,15 @@ Day figures come from each item's Size field (summed mechanically on 2026-10-03;
 | Phase | Items | Engineer-days | Grounded in a spike's measurement | Estimate only |
 |---|---|---|---|---|
 | 0 | 16 | 7.75 | — | 7.75 |
-| 1 | 30 | 31.75 | S1 (P1-01/02: 2 d vs S1 "M, 2–3 d"); S2 (P1-03–06, P1-16, P1-17, P1-23/24: 10.25 d vs S2 "3–4 + 2–3 + 1–1.5 + 0.25" = 6.25–8.75 d, plus the macro work S2 did not count); S3 (P1-09–12: 4.75 d vs "2–3 d plus 0.25 d plus upstream"); S4 (P1-14: 1 d vs "1 d"); S5 (P1-07: 0.5 d) | about 13.25 |
+| 1 | 31 | 33.25 | S1 (P1-01/02: 2 d vs S1 "M, 2–3 d"); S2 (P1-03–06, P1-16, P1-17, P1-23/24: 10.25 d vs S2 "3–4 + 2–3 + 1–1.5 + 0.25" = 6.25–8.75 d, plus the macro work S2 did not count); S3 (P1-09–12: 4.75 d vs "2–3 d plus 0.25 d plus upstream"); S4 (P1-14: 1 d vs "1 d"); S5 (P1-07: 0.5 d) | about 13.25 |
 | 2 | 21 | 23.5 | S5 (P2-01–05: 3.5 d vs "2–2.5 d plus 0.5–1 d dedupe") | 20 |
 | 3 | 36 | 64 | S2 (P3-32 part), S1 (P3-09 confirmation) | most: Phase 3 had no spike, and the plan's single "L" for it covered about 30 PR-sized changes |
-| 4 | 19 | 18.5 | S4 (P4-01–05, P4-10: 6 d vs "5–6 d"); S2 (P4-12: 1.5 d vs "1–1.5 d") | 11 |
+| 4 | 19 | 18 | S4 (P4-01–05, P4-10: 6 d vs "5–6 d"); S2 (P4-12: 1.5 d vs "1–1.5 d") | 11 |
 | 5 | 10 | 10 | S4 (CI edits) | 9 |
 | 6 | 22 | 19 | — | 19 |
 | 7 | 16 | 19 | — | 19 |
 | 8 | 1 | 2 | — | 2 |
-| **Total** | **171** | **≈ 195.5 engineer-days** | about 26 d directly spike-measured | about 170 d estimated |
+| **Total** | **172** | **≈ 196.5 engineer-days** | about 26 d directly spike-measured | about 170 d estimated |
 
 **What the 2026-10-03 amendment added: about 29 days.** The earlier total was 166.5 days (150 items in the table, 151 in fact). The additions:
 
@@ -3137,7 +3154,7 @@ Day figures come from each item's Size field (summed mechanically on 2026-10-03;
 - **Resized items, 10.25 d:** P1-09 +0.5, P1-20 +1, P2-10 +1, P2-16 +1, P3-05 +0.5, P3-09 +0.5, P3-13 +1, P3-27 +0.5, P4-01 +0.5, P5-03 +0.5, P5-07 +0.5, P6-05 +0.5, P6-09 +0.5, P6-19 +0.25, P7-03 +1, P7-11 +0.5.
 - Smaller amendments (proof commands, a docs line, a guard pattern) were absorbed into the existing sizes.
 
-**An honest reading.** The spikes confirmed the plan's estimates wherever they measured: S1, S2, S3, S4 and S5 each landed inside or near the plan's M/L. The audit-level plan's *phase-level* figures (7 weeks) did not count Phase 3's and Phase 6's PR-level breadth. At item level the work is now about **39 engineer-weeks** (195.5 days). The open decisions move it: D18 (b) would add about 6–8 days, and D19 (a) would save about 1. The real limit is still the desk's **two heavy slots**, not engineers.
+**An honest reading.** The spikes confirmed the plan's estimates wherever they measured: S1, S2, S3, S4 and S5 each landed inside or near the plan's M/L. The audit-level plan's *phase-level* figures (7 weeks) did not count Phase 3's and Phase 6's PR-level breadth. At item level the work is now about **39 engineer-weeks** (196.5 days). The open decisions move it: D18 (b) would add about 6–8 days, and D19 (a) would save about 1. The real limit is still the desk's **two heavy slots**, not engineers.
 
 ### 7.2 Tracks and the heavy-slot schedule
 
@@ -3146,7 +3163,7 @@ Day figures come from each item's Size field (summed mechanically on 2026-10-03;
 | **J** (JVM test graph) | H-core, H-spec, H-pct, H-pe | P1-01/02/04/05/21, P2-13–16/19, P3-01–09, P3-11–15, P3-17, P3-27/27b/28/30/31/33 |
 | **G** (generators, Python) | H-stress (one core) | P1-07, P2-01–05, P2-18, P2-20, P3-18, P3-25, P7-02/03 |
 | **N** (native, warehouse, toolchains) | H-native, H-docker | P0-13, P1-08–13, P1-15–17, P2-09, P3-19–22, P4-12–14, P6-18 |
-| **W** (web, browser, JS) | H-browser | P1-14, P1-23/24, P3-10, P3-16, P3-29, P3-34, P4-01–11, P4-15–18 |
+| **W** (web, browser, JS) | H-browser | P1-14, P1-14b, P1-23/24, P3-10, P3-16, P3-29, P3-34, P4-01–11, P4-15–18 |
 | **C** (CI, guards, docs, process) | none (CI) | P0-02/03, P0-14/15, P1-25–28, P5-* (P5-08, P5-09 included), P6-* (P6-20 included), P7-*, the audits P0-90 … P7-90, P8-01 |
 
 **Rule: at most two of J, G, N and W run a heavy proof at the same time.** H-pct at 9 GB takes both slots: schedule `pct_duckdb`/`pct_postgres` runs alone, overnight where possible. Light work (code, BUILD edits, light tests) on any track goes on in parallel.
@@ -3156,7 +3173,7 @@ Day figures come from each item's Size field (summed mechanically on 2026-10-03;
 | Milestone | Calendar (2 to 3 engineers or agents, 2 heavy slots) | Contents | Heavy slots used by | Checkpoint (green `bazel test //...` on three platforms, plus) |
 |---|---|---|---|---|
 | **M0: decisions and Phase 0** | week 1 | D1–D16 recorded; **D17–D21 asked**; P0-01–P0-15 (P0-14 once D17 is answered); P5-09; P1-07; P6-00 started | J (P0-07), N (P0-13) | CI runs every test and fails loudly; locks enforced; the PowerShell desk lane runs; P0-90 done |
-| **M1: foundations** | weeks 2–4 | Phase 1 (P1-01–P1-28, P1-25b); P6-10, P6-11, P6-14, P6-16, P6-17, P6-19; P7-10, P7-12 | J (P1-04/05 lanes; P1-02 is CI), N (P1-09 docker, P1-10, P1-16) | runner speaks the protocol (test.xml, filter, shards); hermetic C on macOS and Linux; G10, G11, G14, G16, G17 and G19 on; P1-90 done |
+| **M1: foundations** | weeks 2–4 | Phase 1 (P1-01–P1-28, P1-25b, P1-14b first among the W track); P6-10, P6-11, P6-14, P6-16, P6-17, P6-19; P7-10, P7-12 | J (P1-04/05 lanes; P1-02 is CI), N (P1-09 docker, P1-10, P1-16) | runner speaks the protocol (test.xml, filter, shards); hermetic C on macOS and Linux; G10, G11, G14, G16, G17 and G19 on; P1-90 done |
 | **M2: generators and test graph** | weeks 4–10 | Phase 2 except P2-09 (P2-20 included); Phase 3 except P3-19/21/22/32 (P3-27b, P3-33, P3-34 included) | J (P3-* core, spec, pct lanes), G (P2-01–05 stress) | prerun gone; core split; PCT per suite; stress corpus generated; `Repo.java` and `Upstream.java` deleted (P3-33); G1, G7, G12 and G13 on as their dependencies land; P2-90 done |
 | **M3: browser, app, packaging** | weeks 9–12 (overlaps M2's tail) | Phase 4 (P4-17, P4-18 included); P2-09; P3-19, P3-21, P3-22 | W (P4-02–10), N (P4-12/13, P2-09, P3-21/22) | no bash launcher, no `install_browser`; `//warehouse:dist` tested; no `taskkill`; G6 on; P4-90 done |
 | **M4: CI as labels and the remaining guards** | weeks 12–14 | Phase 5 (P5-08 included); P3-32; P6-01–09, P6-15, P6-18, P6-20; P7-01–P7-09, P7-13 | CI only | workflows are labels only; Windows manifest-only; G2, G3, G5, G8, G9, G15, G18 and G20 on with their exact allowlists; P3-90, P5-90, P6-90 and P7-90 done |
