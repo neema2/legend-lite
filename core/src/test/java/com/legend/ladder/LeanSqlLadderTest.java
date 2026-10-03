@@ -133,8 +133,10 @@ class LeanSqlLadderTest {
                 name: T.NAME,
                 amount: T.AMOUNT }
             )
+            ###Connection
+            RelationalDatabaseConnection l::DBDuckDB { store: l::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime l::RT { mappings: [l::M]; }
+            Runtime l::RT { mappings: [l::M]; connections: [ l::DB: [ c0: l::DBDuckDB ] ]; }
             """;
 
     private static final Path PINS = Repo.module("src/test/resources/ladder");

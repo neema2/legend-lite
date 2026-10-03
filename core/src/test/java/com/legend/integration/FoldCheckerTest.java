@@ -65,12 +65,12 @@ public class FoldCheckerTest extends AbstractDatabaseTest {
         // ("a scalar query has no row scope for $p.lastName"). CLOSED
         // strategy lambdas make the walker's own α-hygiene reach them.
         String model = "Class my::P { firstName: String[1]; lastName: String[1]; }";
-        var r = com.legend.Compiler.execute(model,
+        var r = com.legend.Compiler.execute(com.legend.test.StorelessRuntime.with(model, com.legend.model.ConnectionDefinition.DatabaseType.DuckDB),
                 "{|let people = [^my::P(firstName='Pierre', lastName='Doe'),"
                         + " ^my::P(firstName='Kevin', lastName='RoeDoe')];"
                         + " $people->fold({p, s | $s + '; ' + $p.lastName->at(0)"
                         + " + ', ' + $p.firstName->at(0)}, 'names');}",
-                connection);
+                com.legend.test.StorelessRuntime.RUNTIME, connection);
         assertEquals("names; Doe, Pierre; RoeDoe, Kevin",
                 ((com.legend.exec.ExecutionResult.Scalar) r).value());
     }

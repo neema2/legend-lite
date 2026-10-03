@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.integration;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.test.StorelessRuntime;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.legend.Compiler;
@@ -54,7 +57,7 @@ class MetamodelStoreSubstitutionTest {
     }
 
     private List<Object> values(String query) throws SQLException {
-        ExecutionResult r = Compiler.execute(MODEL, query, connection);
+        ExecutionResult r = Compiler.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, connection);
         if (r instanceof ExecutionResult.Collection c) {
             return c.values();
         }
@@ -87,7 +90,7 @@ class MetamodelStoreSubstitutionTest {
                 """;
         var e = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.LegendCompileException.class,
-                () -> Compiler.execute(cyclic, "ss::c1->meta::pure::mapping::resolveStore(ss::db).name", connection));
+                () -> Compiler.execute(StorelessRuntime.with(cyclic, DatabaseType.DuckDB), "ss::c1->meta::pure::mapping::resolveStore(ss::db).name", StorelessRuntime.RUNTIME, connection));
         org.junit.jupiter.api.Assertions.assertTrue(
                 String.valueOf(e.getMessage()).contains("mapping include cycle")
                         && e.getMessage().contains("ss::c1") && e.getMessage().contains("ss::c2"),

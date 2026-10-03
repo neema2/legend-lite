@@ -61,7 +61,7 @@ public class H2 extends AnsiSqlRenderer {
     }
 
     public H2() {
-        super(Lexicon.H2, TypeNames.H2, Spellings.H2);
+        super("H2", Lexicon.H2, TypeNames.H2, Spellings.H2);
     }
 
     @Override
@@ -167,6 +167,14 @@ public class H2 extends AnsiSqlRenderer {
     @Override
     public boolean rawH2IsNative() {
         return true;
+    }
+
+    /** CAPABILITY BY CONNECTED VERSION: H2 2.3+ has typed-JSON navigation ({@code (j)."f"},
+     *  1-based {@code [i]}), which {@link H2Modern} spells natively; 2.1 and 2.2 -- the engine-parity
+     *  target -- keep this dialect's walls. */
+    @Override
+    public SqlDialect forServer(String version) {
+        return version.startsWith("2.1") || version.startsWith("2.2") ? this : new H2Modern();
     }
 
     /** Native QUALIFY (probed capability note above) — the clause

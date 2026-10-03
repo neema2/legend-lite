@@ -3,6 +3,7 @@
 
 package org.finos.legend.lite.pct.extension;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.testing.EmbeddedPostgres;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -27,16 +28,56 @@ final class PctBackend {
     private PctBackend() {
     }
 
-    static Connection connect() throws SQLException {
+    /** The lanes' databases: each one's declared type (the storeless runtime's connection) and its session. */
+    private enum Lane {
+        DUCKDB(DatabaseType.DuckDB) {
+            @Override
+            Connection open() throws SQLException {
+                return DriverManager.getConnection("jdbc:duckdb:");
+            }
+        },
+        H2(DatabaseType.H2) {
+            @Override
+            Connection open() throws SQLException {
+                return DriverManager.getConnection("jdbc:h2:mem:" + com.legend.exec.H2Settings.SETTINGS, "sa", "");
+            }
+        },
+        POSTGRES(DatabaseType.Postgres) {
+            @Override
+            Connection open() throws SQLException {
+                return DriverManager.getConnection(EmbeddedPostgres.shared().jdbcUrl("postgres"));
+            }
+        };
+
+        final DatabaseType type;
+
+        Lane(DatabaseType type) {
+            this.type = type;
+        }
+
+        abstract Connection open() throws SQLException;
+    }
+
+    private static Lane lane() {
         String backend = System.getenv("LEGENDLITE_PCT_BACKEND");
         if (backend == null) {
-            return DriverManager.getConnection("jdbc:duckdb:");
+            return Lane.DUCKDB;
         }
         return switch (backend) {
-            case "h2" -> DriverManager.getConnection("jdbc:h2:mem:" + com.legend.exec.H2Settings.SETTINGS, "sa", "");
-            case "postgres" -> DriverManager.getConnection(EmbeddedPostgres.shared().jdbcUrl("postgres"));
+            case "h2" -> Lane.H2;
+            case "postgres" -> Lane.POSTGRES;
             default -> throw new IllegalStateException("LEGENDLITE_PCT_BACKEND=" + backend + ": a PCT lane runs on"
                     + " DuckDB (unset), h2 or postgres");
         };
+    }
+
+    /** The database this lane runs on: what its storeless runtime declares. */
+    static DatabaseType databaseType() {
+        return lane().type;
+    }
+
+    /** A session on this lane's database. */
+    static Connection connect() throws SQLException {
+        return lane().open();
     }
 }

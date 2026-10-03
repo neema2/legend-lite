@@ -79,8 +79,10 @@ class ResolveGraphUnionProbeTest {
               g::Address[a1] : Relational { ~mainTable [g::DB] A1 name: A1.NAME }
               g::Address[a2] : Relational { ~mainTable [g::DB] A2 name: A2.NAME }
             )
+            ###Connection
+            RelationalDatabaseConnection g::DBDuckDB { store: g::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime g::RT { mappings: [g::M]; }
+            Runtime g::RT { mappings: [g::M]; connections: [ g::DB: [ c0: g::DBDuckDB ] ]; }
             """).formatted(UNION_FQN, UNION_FQN, UNION_FQN);
 
     private static Connection conn;
@@ -133,8 +135,10 @@ class ResolveGraphUnionProbeTest {
               g::Person[p1] : Relational { ~mainTable [g::DB] P1
                 lastName: P1.NAME }
             )
+            ###Connection
+            RelationalDatabaseConnection g::DBDuckDB { store: g::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime g::RT2 { mappings: [g::M2]; }
+            Runtime g::RT2 { mappings: [g::M2]; connections: [ g::DB: [ c0: g::DBDuckDB ] ]; }
             """).formatted(UNION_FQN);
 
     private static final String MODEL_DIAGONAL = ("""
@@ -168,8 +172,10 @@ class ResolveGraphUnionProbeTest {
                 productId: PR2.productId,
                 productName: PR2.NAME }
             )
+            ###Connection
+            RelationalDatabaseConnection g::DB3DuckDB { store: g::DB3; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime g::RT3 { mappings: [g::M3]; }
+            Runtime g::RT3 { mappings: [g::M3]; connections: [ g::DB3: [ c0: g::DB3DuckDB ] ]; }
             """).formatted(UNION_FQN, UNION_FQN);
 
     private static final String MODEL_EMBEDDED = """
@@ -187,8 +193,10 @@ class ResolveGraphUnionProbeTest {
                 firm ( legalName: PT.FL,
                        employees: [g::DB4] @firmEmployees ) }
             )
+            ###Connection
+            RelationalDatabaseConnection g::DB4DuckDB { store: g::DB4; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime g::RT4 { mappings: [g::M4]; }
+            Runtime g::RT4 { mappings: [g::M4]; connections: [ g::DB4: [ c0: g::DB4DuckDB ] ]; }
             """;
 
     private static final String MODEL_MATRIX = ("""
@@ -223,8 +231,10 @@ class ResolveGraphUnionProbeTest {
               g::MProduct[p2] : Relational { ~mainTable [g::DB5] PT2
                 pname: PT2.pname }
             )
+            ###Connection
+            RelationalDatabaseConnection g::DB5DuckDB { store: g::DB5; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime g::RT5 { mappings: [g::M5]; }
+            Runtime g::RT5 { mappings: [g::M5]; connections: [ g::DB5: [ c0: g::DB5DuckDB ] ]; }
             """).formatted(UNION_FQN, UNION_FQN);
 
     private static final String MODEL_NAMED_SET = ("""
@@ -252,8 +262,10 @@ class ResolveGraphUnionProbeTest {
               g::NProduct[np2] : Relational { ~mainTable [g::DB7] NPT2
                 pname: NPT2.pname }
             )
+            ###Connection
+            RelationalDatabaseConnection g::DB7DuckDB { store: g::DB7; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime g::RT7 { mappings: [g::M7]; }
+            Runtime g::RT7 { mappings: [g::M7]; connections: [ g::DB7: [ c0: g::DB7DuckDB ] ]; }
             """).formatted(UNION_FQN);
 
     @Test
@@ -302,8 +314,10 @@ class ResolveGraphUnionProbeTest {
               g::TProduct[p] : Relational { ~mainTable [g::DB6] TPT
                 pname: TPT.pname }
             )
+            ###Connection
+            RelationalDatabaseConnection g::DB6DuckDB { store: g::DB6; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime g::RT6 { mappings: [g::M6]; }
+            Runtime g::RT6 { mappings: [g::M6]; connections: [ g::DB6: [ c0: g::DB6DuckDB ] ]; }
             """;
 
     @Test

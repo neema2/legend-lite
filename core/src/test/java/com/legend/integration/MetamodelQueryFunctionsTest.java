@@ -1,5 +1,8 @@
 package com.legend.integration;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.test.StorelessRuntime;
+
 import com.legend.Compiler;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterEach;
@@ -94,7 +97,7 @@ class MetamodelQueryFunctionsTest {
     }
 
     private List<Object> values(String query) throws SQLException {
-        ExecutionResult r = Compiler.execute(MODEL, query, connection);
+        ExecutionResult r = Compiler.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, connection);
         if (r instanceof ExecutionResult.Collection c) {
             return c.values();
         }

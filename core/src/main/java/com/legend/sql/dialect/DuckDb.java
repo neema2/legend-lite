@@ -185,7 +185,7 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     public DuckDb() {
-        super(Lexicon.DUCKDB, TypeNames.DUCKDB, Spellings.DUCKDB);
+        super("DuckDB", Lexicon.DUCKDB, TypeNames.DUCKDB, Spellings.DUCKDB);
     }
 
     /** DuckDB DDL: a store FLOAT is DOUBLE (H2's FLOAT is double

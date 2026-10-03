@@ -66,8 +66,10 @@ class ResolveSimpleClassTest {
                 name: P.NAME, firmName: @PF | F.LEGAL,
                 orgName: @PF > @FO | O.ONAME }
             )
+            ###Connection
+            RelationalDatabaseConnection s::DBDuckDB { store: s::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime m::RT { mappings: [m::M]; }
+            Runtime m::RT { mappings: [m::M]; connections: [ s::DB: [ c0: s::DBDuckDB ] ]; }
             """;
 
     private static Connection conn;

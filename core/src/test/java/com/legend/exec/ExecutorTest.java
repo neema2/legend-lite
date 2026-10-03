@@ -34,7 +34,14 @@ class ExecutorTest {
               Table T_PERSON (NAME VARCHAR(100) NOT NULL, AGE INTEGER NOT NULL)
               Table T_TREES (CITY VARCHAR(100) NOT NULL, YR INTEGER NOT NULL, TREES INTEGER NOT NULL)
             )
+            ###Connection
+            RelationalDatabaseConnection test::Conn { store: test::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+            ###Runtime
+            Runtime test::RT { mappings: []; connections: [ test::DB: [ c: test::Conn ] ]; }
             """;
+
+    /** The tables are this session's: its runtime declares the DuckDB it executes on. */
+    private static final String RUNTIME = "test::RT";
 
     private static Connection conn;
 
@@ -59,7 +66,7 @@ class ExecutorTest {
     @Test
     @DisplayName("SCALAR: single value, Pure type on the result")
     void scalarShape() throws SQLException {
-        ExecutionResult r = Compiler.execute(MODEL, "1 + 2 * 3", conn);
+        ExecutionResult r = Compiler.execute(MODEL, "1 + 2 * 3", RUNTIME, conn);
         ExecutionResult.Scalar s = assertInstanceOf(ExecutionResult.Scalar.class, r);
         assertEquals(7L, ((Number) s.value()).longValue());
         assertEquals(Type.Primitive.INTEGER, s.returnType());
@@ -69,7 +76,7 @@ class ExecutorTest {
     @Test
     @DisplayName("COLLECTION: N rows x 1 column, element type on the result")
     void collectionShape() throws SQLException {
-        ExecutionResult r = Compiler.execute(MODEL, "[10, 20, 30]", conn);
+        ExecutionResult r = Compiler.execute(MODEL, "[10, 20, 30]", RUNTIME, conn);
         ExecutionResult.Collection c = assertInstanceOf(ExecutionResult.Collection.class, r);
         assertEquals(List.of(10L, 20L, 30L),
                 c.values().stream().map(v -> ((Number) v).longValue()).toList());
@@ -81,7 +88,7 @@ class ExecutorTest {
     @DisplayName("TABULAR: typed columns from the plan's outputs, raw JDBC cells")
     void tabularShape() throws SQLException {
         ExecutionResult r = Compiler.execute(MODEL,
-                "#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 30)", conn);
+                "#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 30)", RUNTIME, conn);
         ExecutionResult.Tabular t = assertInstanceOf(ExecutionResult.Tabular.class, r);
         assertEquals(List.of("NAME", "AGE"),
                 t.columns().stream().map(Column::name).toList());
@@ -98,7 +105,7 @@ class ExecutorTest {
     void aggregateEmptyInput() throws SQLException {
         ExecutionResult r = Compiler.execute(MODEL,
                 "#>{test::DB.T_PERSON}#->filter(x|$x.AGE > 99)"
-                        + "->aggregate(~m : x|$x.AGE : y|$y->max())", conn);
+                        + "->aggregate(~m : x|$x.AGE : y|$y->max())", RUNTIME, conn);
         ExecutionResult.Tabular t = assertInstanceOf(ExecutionResult.Tabular.class, r);
         assertEquals(1, t.rowCount());
         assertNull(t.rows().get(0).get(0));
@@ -108,7 +115,7 @@ class ExecutorTest {
     @DisplayName("PIVOT: dynamic '<value>__|__<agg>' columns inherit the aggregate template's type")
     void pivotDynamicColumnsInheritTemplateType() throws SQLException {
         ExecutionResult r = Compiler.execute(MODEL,
-                "#>{test::DB.T_TREES}#->pivot(~CITY, ~total : x|$x.TREES : y|$y->sum())", conn);
+                "#>{test::DB.T_TREES}#->pivot(~CITY, ~total : x|$x.TREES : y|$y->sum())", RUNTIME, conn);
         ExecutionResult.Tabular t = assertInstanceOf(ExecutionResult.Tabular.class, r);
         // YR is the static group column; the city columns are data-derived —
         // their NAMES come from the result set, their TYPES from the schema's

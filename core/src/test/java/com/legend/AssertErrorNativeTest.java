@@ -3,6 +3,9 @@
 
 package com.legend;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.test.StorelessRuntime;
+
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -41,7 +44,7 @@ class AssertErrorNativeTest {
     }
 
     private static ExecutionResult run(String query) throws SQLException {
-        return Compiler.execute("", query, conn);
+        return Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, conn);
     }
 
     // assertError.pure:36 testSimpleAssertError, verbatim body

@@ -112,6 +112,11 @@ public final class ChannelB {
                 }
             }
         }
+        // a storeless test executes on a declared runtime, as channel A's does (StorelessRuntime):
+        // channel B runs every test on its DuckDB session
+        sources.add(new Compiler.ModelSource("channelb/storeless-runtime.pure",
+                com.legend.test.StorelessRuntime.declaration(
+                        com.legend.model.ConnectionDefinition.DatabaseType.DuckDB)));
         List<String> parseWalls = wallsOut;
         // ITERATIVE WALL COLLECTION (census-first): the platform tree
         // includes m3-metamodel internals our model does not carry; an
@@ -266,7 +271,7 @@ public final class ChannelB {
             // with CORRECT_SQL_SUBSTRING_INDEXING on, as the engine's own
             // testable runner does — the flag is the lowering's, so channel
             // B's identity adapter carries it the same way
-            Compiler.executeResolved(resolved, ctx, null, conn, null, null,
+            Compiler.executeResolved(resolved, ctx, com.legend.test.StorelessRuntime.RUNTIME, conn, null, null,
                     com.legend.ExecuteOptions.NONE.withFeatures(java.util.Set.of(
                             com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING)));
             return new Outcome(fqn, Status.PASS, "");

@@ -20,6 +20,12 @@ import java.util.List;
  */
 public class H2Modern extends H2 {
 
+    /** Already the 2.3+ profile. */
+    @Override
+    public SqlDialect forServer(String version) {
+        return this;
+    }
+
     /** {@code (x)."key"} / {@code (x)[i+1]} — dynamic keys have no
      * spelling (field access is an identifier) and fall to the wall. */
     @Override

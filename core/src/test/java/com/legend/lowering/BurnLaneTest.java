@@ -3,6 +3,9 @@
 
 package com.legend.lowering;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.test.StorelessRuntime;
+
 import com.legend.Compiler;
 import com.legend.exec.ExecutionResult;
 import com.legend.sql.OutputCol;
@@ -138,7 +141,7 @@ class BurnLaneTest {
                     new P("{|[1,2,3]->isDistinct()}", "true"),
                     new P("{|[1,2,2]->isDistinct()}", "false"),
                     new P("{|[7]->isDistinct()}", "true"))) {
-                ExecutionResult r = Compiler.execute("", p.q(), conn);
+                ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), p.q(), StorelessRuntime.RUNTIME, conn);
                 Object v = r instanceof ExecutionResult.Scalar s ? s.value()
                         : r instanceof ExecutionResult.Collection c
                                 ? c.values() : r;
@@ -162,15 +165,14 @@ class BurnLaneTest {
                     "{|true->cast(@Float)}",
                     "{|%2014-01-01->cast(@Integer)}"}) {
                 var ex = assertThrows(Exception.class,
-                        () -> Compiler.execute("", q, conn));
+                        () -> Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), q, StorelessRuntime.RUNTIME, conn));
                 assertTrue(ex.getMessage().contains("Cast exception"),
                         q + " must raise pure's Cast exception, got: "
                                 + ex.getMessage());
             }
             // widening stays an assertion; same-kind narrowing keeps the
             // standing conversion contract
-            ExecutionResult r = Compiler.execute(
-                    "", "{|1->cast(@Number)}", conn);
+            ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), "{|1->cast(@Number)}", StorelessRuntime.RUNTIME, conn);
             assertEquals(1L, ((Number) ((ExecutionResult.Scalar) r).value())
                     .longValue());
         }

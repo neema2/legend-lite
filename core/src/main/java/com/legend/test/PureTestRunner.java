@@ -99,7 +99,7 @@ public final class PureTestRunner implements AutoCloseable {
     private static final ValueSpecification INERT_SETUP = new CBoolean(true);
 
     private final ModelContext ctx;
-    private final @com.legend.base.Nullable String runtimeFqn;
+    private final String runtimeFqn;
     private final Sessions sessions;
     private final List<String> sharedSetups;
     private final Map<String, List<String>> setupsByPackage;
@@ -120,14 +120,15 @@ public final class PureTestRunner implements AutoCloseable {
 
     /**
      * @param ctx            the compiled model the tests live in (with its execution overlay)
-     * @param runtimeFqn     the runtime the bodies execute against, or null for none
+     * @param runtimeFqn     the runtime the bodies execute against: a test executes on its declared
+     *                       connection, as any query does (a storeless model's: {@link StorelessRuntime})
      * @param sessions       how a package session's connection opens
      * @param sharedSetups   zero-parameter functions every package's session runs first
      *                       (a corpus-wide fixture); may be empty
      * @param setupsByPackage {@code BeforePackage} functions by package ({@link PureTests.Discovery})
      * @param observer       the caller's instruments, or {@link TestObserver#NONE}
      */
-    public PureTestRunner(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn, Sessions sessions,
+    public PureTestRunner(ModelContext ctx, String runtimeFqn, Sessions sessions,
             List<String> sharedSetups, Map<String, List<String>> setupsByPackage, TestObserver observer) {
         this(ctx, runtimeFqn, sessions, sharedSetups, setupsByPackage, observer,
                 ExecuteOptions.JudgeMode.HOST);
@@ -135,7 +136,7 @@ public final class PureTestRunner implements AutoCloseable {
 
     /** @param judgeMode the run's assert judge (one mode per run, on every
      *                   test's options — {@link ExecuteOptions.JudgeMode}) */
-    public PureTestRunner(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn, Sessions sessions,
+    public PureTestRunner(ModelContext ctx, String runtimeFqn, Sessions sessions,
             List<String> sharedSetups, Map<String, List<String>> setupsByPackage, TestObserver observer,
             ExecuteOptions.JudgeMode judgeMode) {
         this.ctx = ctx;

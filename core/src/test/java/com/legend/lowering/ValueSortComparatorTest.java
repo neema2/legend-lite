@@ -3,6 +3,9 @@
 
 package com.legend.lowering;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.test.StorelessRuntime;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import com.legend.Compiler;
@@ -26,7 +29,7 @@ class ValueSortComparatorTest {
 
     private static List<Object> col(String query) throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            return Compiler.execute(MODEL, query, c).rows().stream()
+            return Compiler.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, c).rows().stream()
                     .map(r -> r.get(0)).toList();
         }
     }

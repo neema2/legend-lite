@@ -3,6 +3,9 @@
 
 package com.legend.compiler;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.test.StorelessRuntime;
+
 import com.legend.Compiler;
 import org.junit.jupiter.api.Test;
 
@@ -30,7 +33,7 @@ class LeniencyD6Test {
 
     private static String reject(Connection c, String model, String q) {
         Exception e = assertThrows(Exception.class,
-                () -> Compiler.execute(model, q, c));
+                () -> Compiler.execute(StorelessRuntime.with(model, DatabaseType.DuckDB), q, StorelessRuntime.RUNTIME, c));
         assertNotNull(e.getMessage());
         return e.getMessage().split("\n")[0];
     }
@@ -103,11 +106,11 @@ class LeniencyD6Test {
     @Test
     void validNeighborsStillCompile() throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            Compiler.execute("""
+            Compiler.execute(StorelessRuntime.with("""
                     Class m::B { y: Integer[1]; }
                     Class m::A extends m::B { x: String[0..1]; }
                     Enum m::E { A, B }
-                    """, "{|1}", c);
+                    """, DatabaseType.DuckDB), "{|1}", StorelessRuntime.RUNTIME, c);
         }
     }
 }

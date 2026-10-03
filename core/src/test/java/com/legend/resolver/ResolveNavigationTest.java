@@ -59,8 +59,10 @@ class ResolveNavigationTest {
               m::Emp: Relational { AssociationMapping ( employer: [s::DB] @PF ) }
               m::Mgr: Relational { AssociationMapping ( boss: [s::DB] @PB ) }
             )
+            ###Connection
+            RelationalDatabaseConnection s::DBDuckDB { store: s::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime m::RT { mappings: [m::M]; }
+            Runtime m::RT { mappings: [m::M]; connections: [ s::DB: [ c0: s::DBDuckDB ] ]; }
             """;
 
     private static Connection conn;
@@ -256,8 +258,10 @@ class ResolveNavigationTest {
               *m::P: Relational { ~mainTable [s::DB] P name: P.NAME }
               *m::E: Relational { ~mainTable [s::DB] E orgName: @EO | O.ONAME }
               m::PE: Relational { AssociationMapping ( emp: [s::DB] @PE ) } )
+            ###Connection
+            RelationalDatabaseConnection s::DBDuckDB { store: s::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime m::RT { mappings: [m::M]; }
+            Runtime m::RT { mappings: [m::M]; connections: [ s::DB: [ c0: s::DBDuckDB ] ]; }
             """;
         var ctx = Compiler.compileModel(model);
         SpecCompiler specs = new SpecCompiler(ctx);
@@ -287,8 +291,10 @@ class ResolveNavigationTest {
             Mapping m::M (
               *m::P: Relational { ~mainTable [s::DB] P name: P.NAME, firm: [s::DB] @PF }
               *m::F: Relational { ~mainTable [s::DB] F legal: F.LEGAL } )
+            ###Connection
+            RelationalDatabaseConnection s::DBDuckDB { store: s::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime m::RT { mappings: [m::M]; }
+            Runtime m::RT { mappings: [m::M]; connections: [ s::DB: [ c0: s::DBDuckDB ] ]; }
             """;
 
     private static String sqlOfA7(String query) {

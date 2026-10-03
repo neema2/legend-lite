@@ -43,8 +43,10 @@ class ResolveSerializeTest {
               *m::Firm: Relational { ~mainTable [s::DB] F legal: F.LEGAL }
               m::Emp: Relational { AssociationMapping ( employer: [s::DB] @PF, staff: [s::DB] @PF ) }
             )
+            ###Connection
+            RelationalDatabaseConnection s::DBDuckDB { store: s::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime m::RT { mappings: [m::M]; }
+            Runtime m::RT { mappings: [m::M]; connections: [ s::DB: [ c0: s::DBDuckDB ] ]; }
             """;
 
     private static Connection conn;

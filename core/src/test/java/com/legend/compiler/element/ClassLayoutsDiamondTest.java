@@ -3,6 +3,9 @@
 
 package com.legend.compiler.element;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.test.StorelessRuntime;
+
 import com.legend.Compiler;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.element.type.Type;
@@ -56,8 +59,8 @@ class ClassLayoutsDiamondTest {
             + " reads back as a SCALAR, never a list")
     void diamondInstancePropertyIsScalar() throws Exception {
         try (var conn = DriverManager.getConnection("jdbc:duckdb:")) {
-            ExecutionResult r = Compiler.execute(MODEL,
-                    "{|let d = ^m::D(w=1); $d.w;}", conn);
+            ExecutionResult r = Compiler.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB),
+                    "{|let d = ^m::D(w=1); $d.w;}", StorelessRuntime.RUNTIME, conn);
             Object v = ((ExecutionResult.Scalar) r).value();
             assertTrue(v instanceof Number n && n.longValue() == 1L,
                     "diamond [1] property delivered " + v + " ("

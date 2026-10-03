@@ -83,8 +83,10 @@ class RoutedEquiJoinTest {
             + "  x::OpToTy: Relational { AssociationMapping (\n" + pairs() + "\n  ) }\n"
             + """
             )
+            ###Connection
+            RelationalDatabaseConnection x::DBDuckDB { store: x::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime x::RT { mappings: [x::M]; }
+            Runtime x::RT { mappings: [x::M]; connections: [ x::DB: [ c0: x::DBDuckDB ] ]; }
             """;
 
     private static final String QUERY =

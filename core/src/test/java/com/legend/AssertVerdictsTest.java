@@ -3,6 +3,9 @@
 
 package com.legend;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.test.StorelessRuntime;
+
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -58,7 +61,7 @@ class AssertVerdictsTest {
     }
 
     private static ExecutionResult run(String query) throws SQLException {
-        return Compiler.execute(MODEL, query, conn);
+        return Compiler.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, conn);
     }
 
     @Test

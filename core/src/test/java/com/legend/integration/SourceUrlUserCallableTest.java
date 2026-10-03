@@ -25,9 +25,9 @@ class SourceUrlUserCallableTest {
             RelationalDatabaseConnection store::Conn
             {
                 store: store::Db;
-                type: H2;
-                specification: LocalH2 {};
-                auth: DefaultH2 {};
+                type: DuckDB;
+                specification: DuckDB { };
+                auth: Test;
             }
             ###Runtime
             Runtime test::RT

@@ -54,8 +54,10 @@ class ResolveDerivedLeafProbeTest {
               *q::Classification : Relational { ~mainTable [q::DB] ClassificationTable
                 type: ClassificationTable.type }
             )
+            ###Connection
+            RelationalDatabaseConnection q::DBDuckDB { store: q::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime q::RT { mappings: [q::M]; }
+            Runtime q::RT { mappings: [q::M]; connections: [ q::DB: [ c0: q::DBDuckDB ] ]; }
             """;
 
     private static Connection conn;

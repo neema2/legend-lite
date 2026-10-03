@@ -301,7 +301,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer {
     }
 
     public EngineStyleH2(boolean quoteIdentifiers, @com.legend.base.Nullable String timeZone) {
-        super(Lexicon.ENGINE_STYLE, TypeNames.ANSI, Spellings.DUCKDB);
+        super("H2", Lexicon.ENGINE_STYLE, TypeNames.ANSI, Spellings.DUCKDB);
         this.quoteIdentifiers = quoteIdentifiers;
         this.timeZone = timeZone;
     }

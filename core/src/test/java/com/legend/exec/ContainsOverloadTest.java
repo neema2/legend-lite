@@ -35,7 +35,14 @@ class ContainsOverloadTest {
     private static final String MODEL = """
             ###Relational
             Database m::DB ( Table T ( S VARCHAR(8), I INTEGER ) )
+            ###Connection
+            RelationalDatabaseConnection m::Conn { store: m::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+            ###Runtime
+            Runtime m::RT { mappings: []; connections: [ m::DB: [ c: m::Conn ] ]; }
             """;
+
+    /** The table is this session's: its runtime declares the DuckDB it executes on. */
+    private static final String RUNTIME = "m::RT";
 
     private static Connection conn;
 
@@ -54,7 +61,7 @@ class ContainsOverloadTest {
     }
 
     private List<Object> column(String query) throws SQLException {
-        ExecutionResult.Tabular t = (ExecutionResult.Tabular) Compiler.execute(MODEL, query, conn);
+        ExecutionResult.Tabular t = (ExecutionResult.Tabular) Compiler.execute(MODEL, query, RUNTIME, conn);
         List<Object> out = new ArrayList<>();
         for (Row row : t.rows()) {
             out.add(row.get(0));

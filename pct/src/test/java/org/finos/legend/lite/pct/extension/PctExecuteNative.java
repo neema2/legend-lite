@@ -60,11 +60,11 @@ public class PctExecuteNative extends NativeFunction {
 
     // (The PURE_MODEL scaffold — a fixed Doy model/mapping/connection/
     // runtime — is DELETED, truthfulness burn B1: PCT expressions are
-    // STORELESS, and the platform executes them against a bare
-    // connection with no model and no runtime; the dialect derives
-    // from the CONNECTION's own product metadata (Compiler.dialectOf's
-    // connection seam), which the scaffold's `type: H2;` flip was
-    // shadowing. Probed on both backends before the cut.)
+    // STORELESS. They execute on the lane's declared storeless runtime
+    // (StorelessRuntime, the engine PCT adapter's MyDatabase + its
+    // getTestConnection(DatabaseType.X)): the dialect is the declared
+    // database's, and the session is only checked against it
+    // (Compiler.dialectOf, 2026-10-03).)
 
     // (The five discovery regexes — INSTANCE_CLASS/TYPE_REF/ENUM_REF/
     // PARAM_TYPE/BARE_REF/FQN_TOKEN — are DELETED: R1 differential,
@@ -157,8 +157,10 @@ public class PctExecuteNative extends NativeFunction {
             // Our PCT encodes the corrected (Pure) indexing; the corpus runs
             // the uncorrected default, as the engine's relational tests do —
             // one flag selects between them.
-            ExecutionResult result = new QueryService().execute(model, pureExpression,
-                    null, connection, com.legend.ExecuteOptions.PCT_RENDER.withFeatures(
+            // a storeless expression executes on the lane's declared runtime, as the engine's PCT
+            // adapter gives it one (StorelessRuntime)
+            ExecutionResult result = new QueryService().execute(com.legend.test.StorelessRuntime.with(model,
+                    PctBackend.databaseType()), pureExpression, com.legend.test.StorelessRuntime.RUNTIME, connection, com.legend.ExecuteOptions.PCT_RENDER.withFeatures(
                             java.util.Set.of(com.legend.platform.Feature
                                     .CORRECT_SQL_SUBSTRING_INDEXING)));
             return switch (result) {

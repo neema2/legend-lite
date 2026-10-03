@@ -3,6 +3,9 @@
 
 package com.legend.compiler.spec;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.test.StorelessRuntime;
+
 import com.legend.Compiler;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.Test;
@@ -26,7 +29,7 @@ class CaptureStressTest {
 
     private static List<String> values(String model, String query) throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            ExecutionResult r = Compiler.execute(model, query, c);
+            ExecutionResult r = Compiler.execute(StorelessRuntime.with(model, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, c);
             if (!(r instanceof ExecutionResult.Collection col)) {
                 throw new IllegalStateException("expected a collection frame for " + query + ", got " + r);
             }

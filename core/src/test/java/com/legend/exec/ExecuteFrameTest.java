@@ -41,8 +41,10 @@ class ExecuteFrameTest {
               *m::Person: Relational { ~mainTable [s::DB] T
                 name: T.NAME, age: T.AGE }
             )
+            ###Connection
+            RelationalDatabaseConnection s::DBDuckDB { store: s::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime m::RT { mappings: [m::M]; }
+            Runtime m::RT { mappings: [m::M]; connections: [ s::DB: [ c0: s::DBDuckDB ] ]; }
             """;
 
     private static Connection conn;

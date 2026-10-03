@@ -3,6 +3,9 @@
 
 package com.legend.exec;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.test.StorelessRuntime;
+
 import com.legend.Compiler;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -53,7 +56,7 @@ class VerdictWorld2ConsistencyTest {
 
     /** World 1: the pure expression through the WHOLE pipeline. */
     private static Object world1(String expr) throws Exception {
-        ExecutionResult r = Compiler.execute("", "{|" + expr + "}", conn);
+        ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), "{|" + expr + "}", StorelessRuntime.RUNTIME, conn);
         return r instanceof ExecutionResult.Scalar s ? s.value()
                 : r instanceof ExecutionResult.Collection c ? c.values() : r;
     }

@@ -3,6 +3,9 @@
 
 package com.legend.exec;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.test.StorelessRuntime;
+
 import com.legend.Compiler;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -42,7 +45,7 @@ class EqualityWorldsConformanceTest {
      * verdict may be NULL (SQL three-valued logic) — returned as null. */
     private static @com.legend.base.Nullable Object world2(String a, String b)
             throws Exception {
-        var r = Compiler.execute("", "{|" + a + " == " + b + "}", conn);
+        var r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), "{|" + a + " == " + b + "}", StorelessRuntime.RUNTIME, conn);
         return ((ExecutionResult.Scalar) r).value();
     }
 

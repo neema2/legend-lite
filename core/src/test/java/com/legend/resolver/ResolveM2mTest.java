@@ -49,8 +49,10 @@ class ResolveM2mTest {
                 fullName: $src.firstName + ' ' + $src.lastName,
                 age: $src.age }
             )
+            ###Connection
+            RelationalDatabaseConnection s::DBDuckDB { store: s::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime m::RT { mappings: [m::M]; }
+            Runtime m::RT { mappings: [m::M]; connections: [ s::DB: [ c0: s::DBDuckDB ] ]; }
             """;
 
     private static Connection conn;
@@ -163,9 +165,11 @@ class ResolveM2mTest {
                 Mapping m::BaseA ( *m::Raw: Relational { ~mainTable [s::DB] A name: A.NAME } )
                 Mapping m::BaseB ( *m::Raw: Relational { ~mainTable [s::DB] B name: B.NAME } )
                 Mapping m::M2M ( *m::Person: Pure { ~src m::Raw label: $src.name } )
+                ###Connection
+                RelationalDatabaseConnection s::DBDuckDB { store: s::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
                 ###Runtime
-                Runtime m::RT1 { mappings: [m::M2M, m::BaseA]; }
-                Runtime m::RT2 { mappings: [m::M2M, m::BaseB]; }
+                Runtime m::RT1 { mappings: [m::M2M, m::BaseA]; connections: [ s::DB: [ c0: s::DBDuckDB ] ]; }
+                Runtime m::RT2 { mappings: [m::M2M, m::BaseB]; connections: [ s::DB: [ c0: s::DBDuckDB ] ]; }
                 """;
         try (java.sql.Connection c = java.sql.DriverManager.getConnection("jdbc:duckdb:")) {
             try (Statement st = c.createStatement()) {

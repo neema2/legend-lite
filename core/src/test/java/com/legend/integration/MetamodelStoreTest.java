@@ -1,5 +1,8 @@
 package com.legend.integration;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.test.StorelessRuntime;
+
 import com.legend.Compiler;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterEach;
@@ -48,7 +51,7 @@ class MetamodelStoreTest {
     }
 
     private ExecutionResult run(String query) throws SQLException {
-        return Compiler.execute(MODEL, query, connection);
+        return Compiler.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, connection);
     }
 
     @Test
@@ -91,10 +94,9 @@ class MetamodelStoreTest {
     void userClassWithoutContextStillWalls() {
         var ex = org.junit.jupiter.api.Assertions.assertThrows(
                 com.legend.error.MappingResolutionException.class,
-                () -> run("test::Person.all()->size()"));
-        assertEquals("class query requires an execution context: add"
-                        + " ->from(mapping, runtime) or supply a runtime",
-                ex.getMessage());
+                () -> Compiler.execute(MODEL, "test::Person.all()->size()", connection));
+        // no runtime: where it would execute is undeclared, refused before anything runs
+        assertEquals(Compiler.NO_RUNTIME, ex.getMessage());
     }
 
     @Test
@@ -103,9 +105,8 @@ class MetamodelStoreTest {
         var r1 = run(METACLASS
                 + ".all()->filter(c | $c.name == 'Trade')->size()");
         assertEquals(0L, ((Number) ((ExecutionResult.Scalar) r1).value()).longValue());
-        var r2 = (ExecutionResult.Scalar) Compiler.execute(
-                MODEL + "Class test::Trade { id: Integer[1]; }\n",
-                METACLASS + ".all()->filter(c | $c.name == 'Trade')->size()",
+        var r2 = (ExecutionResult.Scalar) Compiler.execute(StorelessRuntime.with(MODEL + "Class test::Trade { id: Integer[1]; }\n", DatabaseType.DuckDB),
+                METACLASS + ".all()->filter(c | $c.name == 'Trade')->size()", StorelessRuntime.RUNTIME,
                 connection);
         assertEquals(1L, ((Number) r2.value()).longValue(),
                 "the seed derives from the ACTIVE model context");

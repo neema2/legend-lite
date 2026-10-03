@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
 public final class Postgres extends AnsiSqlRenderer {
 
     public Postgres() {
-        super(Lexicon.POSTGRES, TypeNames.POSTGRES, Spellings.POSTGRES);
+        super("PostgreSQL", Lexicon.POSTGRES, TypeNames.POSTGRES, Spellings.POSTGRES);
     }
 
     // ==================================================================

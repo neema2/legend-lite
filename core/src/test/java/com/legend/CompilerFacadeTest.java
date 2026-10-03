@@ -85,8 +85,10 @@ class CompilerFacadeTest {
                   *test::Person: Relational { ~mainTable [test::DB] T_PERSON
                     name: T_PERSON.NAME, age: T_PERSON.AGE }
                 )
+                ###Connection
+                RelationalDatabaseConnection test::DBDuckDB { store: test::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
                 ###Runtime
-                Runtime test::RT { mappings: [test::M]; }
+                Runtime test::RT { mappings: [test::M]; connections: [ test::DB: [ c0: test::DBDuckDB ] ]; }
                 """;
         com.legend.plan.QueryPlan plan = Compiler.plan(planModel,
                 "test::Person.all()->project(~[name: p|$p.name])", "test::RT");

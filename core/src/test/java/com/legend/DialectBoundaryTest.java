@@ -57,8 +57,12 @@ class DialectBoundaryTest {
     // Compiler.java went 1 -> 2 — the JDBC dialectOf's PostgreSQL session requires its
     // runtime to declare Postgres, as the H2 session requires H2 (one shared check,
     // requireDeclared; still dialect resolution, the one seam)
+    // 2 -> 1 (2026-10-03, the one dialect decision): the database a query executes on is its runtime's
+    // DECLARED type (Compiler.executesOn, upstream's createDbConfig(connection.type)); a session is only
+    // checked, against the dialect's own jdbcProduct(). The one name left is the platform rule: a runtime
+    // with no database runs its model data on DuckDB (SEMANTICS_REGISTER S27)
     private static final Map<String, Integer> DATABASE_TYPE_DECISIONS = Map.of(
-            "Compiler.java", 2);            // dialectOf — dialect resolution (H2, Postgres sessions)
+            "Compiler.java", 1);            // executesOn — the platform's engine for model-only runtimes
 
     @Test
     void targetsAreDecidedInsideTheDialect() throws IOException {

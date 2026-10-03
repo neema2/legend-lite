@@ -94,8 +94,10 @@ class AssertVerdictSpliceTest {
                 age: P.AGE,
                 nick: P.NICK }
             )
+            ###Connection
+            RelationalDatabaseConnection e::DBDuckDB { store: e::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime e::RT { mappings: [e::M]; }
+            Runtime e::RT { mappings: [e::M]; connections: [ e::DB: [ c0: e::DBDuckDB ] ]; }
             """;
 
     private static Connection conn;

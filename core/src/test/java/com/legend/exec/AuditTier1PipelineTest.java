@@ -3,6 +3,9 @@
 
 package com.legend.exec;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.test.StorelessRuntime;
+
 import com.legend.Compiler;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -52,10 +55,10 @@ class AuditTier1PipelineTest {
     @Test
     @DisplayName("B: a NULL grid cell through ->toString() is EMPTY, not the text \"null\"")
     void nullCellToStringIsEmpty() throws Exception {
-        ExecutionResult r = Compiler.execute("", CONN_LET
+        ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'select null as X', $c, 0, 1000)"
-                + ".rows->at(0).value('X')->toString();}", conn);
+                + ".rows->at(0).value('X')->toString();}", StorelessRuntime.RUNTIME, conn);
         Object v = ((ExecutionResult.Scalar) r).value();
         assertNull(v, "String.valueOf(null) used to fabricate the text"
                 + " \"null\" here — a NULL cell is a pure EMPTY");
@@ -64,10 +67,10 @@ class AuditTier1PipelineTest {
     @Test
     @DisplayName("B control: a real cell through ->toString() still reads its text")
     void realCellToStringReads() throws Exception {
-        ExecutionResult r = Compiler.execute("", CONN_LET
+        ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'select \\'hi\\' as X', $c, 0, 1000)"
-                + ".rows->at(0).value('X')->toString();}", conn);
+                + ".rows->at(0).value('X')->toString();}", StorelessRuntime.RUNTIME, conn);
         assertEquals("hi", ((ExecutionResult.Scalar) r).value());
     }
 
@@ -78,8 +81,8 @@ class AuditTier1PipelineTest {
         // in the emitted SQL (tenet #1 — the database raises, with
         // pure's own message), replacing the old egress-side wall.
         Exception e = assertThrows(Exception.class,
-                () -> Compiler.execute("",
-                        "{|[1, 2, 3]->filter(x | $x > 10)->toOneMany();}",
+                () -> Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
+                        "{|[1, 2, 3]->filter(x | $x > 10)->toOneMany();}", StorelessRuntime.RUNTIME,
                         conn));
         assertTrue(String.valueOf(e.getMessage())
                         .contains("Cannot cast a collection of size 0"),
@@ -90,8 +93,8 @@ class AuditTier1PipelineTest {
     @Test
     @DisplayName("F control: a satisfied [1..*] collection still flows")
     void satisfiedLowerBoundFlows() throws Exception {
-        ExecutionResult r = Compiler.execute("",
-                "{|[1, 2, 3]->filter(x | $x > 2)->toOneMany();}", conn);
+        ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB),
+                "{|[1, 2, 3]->filter(x | $x > 2)->toOneMany();}", StorelessRuntime.RUNTIME, conn);
         java.util.List<Object> values =
                 ((ExecutionResult.Collection) r).values();
         assertEquals(1, values.size());

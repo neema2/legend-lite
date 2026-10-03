@@ -32,8 +32,10 @@ class UserCallInlinerTest {
             Mapping m::M (
               *m::Person: Relational { ~mainTable [s::DB] P name: P.NAME, age: P.AGE }
             )
+            ###Connection
+            RelationalDatabaseConnection s::DBDuckDB { store: s::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime m::RT { mappings: [m::M]; }
+            Runtime m::RT { mappings: [m::M]; connections: [ s::DB: [ c0: s::DBDuckDB ] ]; }
 
             ###Pure
             function m::isAdult(p: m::Person[1]): Boolean[1] { $p.age >= 18 }

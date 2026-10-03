@@ -43,8 +43,10 @@ class AssociationSetIdTest {
                 AssociationMapping ( b[a, b2]: [db::DB]@AB2 )
               }
             )
+            ###Connection
+            RelationalDatabaseConnection db::DBDuckDB { store: db::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime my::RT { mappings: [my::M]; }
+            Runtime my::RT { mappings: [my::M]; connections: [ db::DB: [ c0: db::DBDuckDB ] ]; }
             """;
 
     @Test

@@ -115,8 +115,8 @@ class RowLoadTest {
                 """;
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
             long before = Census.count(Census.Key.BULK_LOADS);
-            var r = com.legend.Compiler.execute(model,
-                    "|ss::m->meta::pure::mapping::resolveStore(ss::dbInc).name", c);
+            var r = com.legend.Compiler.execute(com.legend.test.StorelessRuntime.with(model, com.legend.model.ConnectionDefinition.DatabaseType.DuckDB),
+                    "|ss::m->meta::pure::mapping::resolveStore(ss::dbInc).name", com.legend.test.StorelessRuntime.RUNTIME, c);
             assertEquals("dbInc", ((ExecutionResult.Scalar) r).value());
             assertTrue(Census.count(Census.Key.BULK_LOADS) > before,
                     "the seed's rows must take DuckDB's Appender");
@@ -124,8 +124,8 @@ class RowLoadTest {
     }
 
     @Test
-    @DisplayName("a connection's declared CSV test data loads through the bulk path, rows exact")
-    void declaredCsvTestDataIsBulk() throws Exception {
+    @DisplayName("a connection's declared CSV test data loads on its own database, rows exact")
+    void declaredCsvTestDataLoadsOnItsDatabase() throws Exception {
         String model = """
                 Class x::Firm { name: String[1]; since: StrictDate[0..1]; size: Integer[0..1]; }
                 ###Relational
@@ -144,14 +144,16 @@ class RowLoadTest {
                 ###Runtime
                 Runtime x::RT { mappings: [x::M]; connections: [ x::DB: [ env: x::Conn ] ]; }
                 """;
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+        // declared test data is a LocalH2 connection's (as legend-engine's): it loads on the H2 session its
+        // runtime declares -- the server opens one for it (ConnectionResolver) -- which takes the insert
+        // text; DuckDB's bulk path is systemSeedIsBulk's
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:declaredcsv" + com.legend.exec.H2Settings.SETTINGS)) {
             long before = Census.count(Census.Key.BULK_LOADS);
             var r = com.legend.Compiler.execute(model, "|x::Firm.all()->project(~[name: f|$f.name,"
                     + " since: f|$f.since, size: f|$f.size])->sort(~name->ascending())", "x::RT", c);
             assertEquals(List.of("Acme|2020-01-02|10", "O'Brien|null|null"), r.rows().stream()
                     .map(row -> row.get(0) + "|" + row.get(1) + "|" + row.get(2)).toList());
-            assertTrue(Census.count(Census.Key.BULK_LOADS) > before,
-                    "declared test data's rows must take DuckDB's Appender");
+            assertEquals(before, Census.count(Census.Key.BULK_LOADS), "H2 has no bulk loader");
         }
     }
 

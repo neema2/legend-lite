@@ -3,6 +3,9 @@
 
 package com.legend.compiler.spec;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.test.StorelessRuntime;
+
 import com.legend.Compiler;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.DisplayName;
@@ -37,8 +40,7 @@ class VarianceD4Test {
     @DisplayName("wrong-accept dies: an Integer[1] lambda cannot fill a Number[1] slot")
     void unsoundDirectionRejected() throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            var ex = assertThrows(Exception.class, () -> Compiler.execute(
-                    FNS, "{|m::relay({i: Integer[1] | ($i + 1)->toString()})}",
+            var ex = assertThrows(Exception.class, () -> Compiler.execute(StorelessRuntime.with(FNS, DatabaseType.DuckDB), "{|m::relay({i: Integer[1] | ($i + 1)->toString()})}", StorelessRuntime.RUNTIME,
                     c));
             assertTrue(ex.getMessage() != null,
                     "expected a type error, got: " + ex);
@@ -51,13 +53,13 @@ class VarianceD4Test {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
             // a Number-taking function in an Integer-taking slot — the
             // USEFUL case the covariant order refused
-            ExecutionResult r = Compiler.execute("""
+            ExecutionResult r = Compiler.execute(StorelessRuntime.with("""
                     function m::callI(f: Function<{Integer[1]->String[1]}>[1]): String[1]
                     { $f->eval(7) }
                     function m::wide(n: Number[1]): String[1]
                     { $n->toString() }
-                    """,
-                    "{|m::callI(m::wide_Number_1__String_1_)}", c);
+                    """, DatabaseType.DuckDB),
+                    "{|m::callI(m::wide_Number_1__String_1_)}", StorelessRuntime.RUNTIME, c);
             assertEquals("7", ((ExecutionResult.Scalar) r).value());
         }
     }
@@ -67,11 +69,11 @@ class VarianceD4Test {
     void inheritanceCycleIsFinite() throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
             try {
-                Compiler.execute("""
+                Compiler.execute(StorelessRuntime.with("""
                         Class m::A extends m::B {}
                         Class m::B extends m::A {}
                         Class m::D {}
-                        """, "{|m::D}", c);
+                        """, DatabaseType.DuckDB), "{|m::D}", StorelessRuntime.RUNTIME, c);
             } catch (StackOverflowError e) {
                 throw new AssertionError(
                         "inheritance cycle still overflows", e);

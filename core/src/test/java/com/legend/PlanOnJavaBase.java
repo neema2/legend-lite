@@ -18,8 +18,10 @@ public final class PlanOnJavaBase {
                 ###Mapping
                 Mapping x::M ( *x::Firm: Relational { ~mainTable [x::DB] FIRM
                     name: [x::DB] FIRM.NAME, size: [x::DB] FIRM.SIZE } )
+                ###Connection
+                RelationalDatabaseConnection x::DBDuckDB { store: x::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
                 ###Runtime
-                Runtime x::RT { mappings: [x::M]; }
+                Runtime x::RT { mappings: [x::M]; connections: [ x::DB: [ c0: x::DBDuckDB ] ]; }
                 """;
         System.out.println("java.sql visible: " + ModuleLayer.boot().findModule("java.sql").isPresent());
         System.out.println(Compiler.plan(model, "x::Firm.all()->filter(f|$f.size > 10)"

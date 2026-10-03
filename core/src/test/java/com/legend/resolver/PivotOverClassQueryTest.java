@@ -30,8 +30,10 @@ class PivotOverClassQueryTest {
             ###Mapping
             Mapping x::M ( *x::Sale: Relational { ~mainTable [x::DB] SALES
                 region: [x::DB] SALES.REGION, year: [x::DB] SALES.YR, amount: [x::DB] SALES.AMOUNT } )
+            ###Connection
+            RelationalDatabaseConnection x::DBDuckDB { store: x::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime x::RT { mappings: [x::M]; }
+            Runtime x::RT { mappings: [x::M]; connections: [ x::DB: [ c0: x::DBDuckDB ] ]; }
             """;
 
     @Test

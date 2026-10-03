@@ -1,5 +1,8 @@
 package com.legend.integration;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.test.StorelessRuntime;
+
 import com.legend.Compiler;
 import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterEach;
@@ -83,7 +86,7 @@ class MetamodelMappingStoreTest {
     }
 
     private ExecutionResult run(String query) throws SQLException {
-        return Compiler.execute(MODEL, query, connection);
+        return Compiler.execute(StorelessRuntime.with(MODEL, DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, connection);
     }
 
     private List<Object> values(String query) throws SQLException {
@@ -255,7 +258,7 @@ class MetamodelMappingStoreTest {
     @DisplayName("a user class with no execution context keeps the loud wall (D1 boundary)")
     void userClassWithoutContextStillWalls() {
         var ex = assertThrows(com.legend.error.MappingResolutionException.class,
-                () -> run("ext::A.all()->size()"));
-        assertTrue(ex.getMessage().contains("execution context"), ex.getMessage());
+                () -> Compiler.execute(MODEL, "ext::A.all()->size()", connection));
+        assertEquals(Compiler.NO_RUNTIME, ex.getMessage());
     }
 }

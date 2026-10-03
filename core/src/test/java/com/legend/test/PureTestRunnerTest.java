@@ -48,7 +48,8 @@ class PureTestRunnerTest {
     @DisplayName("a user's model: discovered, ordered, run — one pass, one named failure, one mark reported")
     void discoversAndRunsAUsersTests() throws Exception {
         Compiler.ParsedModule parsed = Compiler.parseSources(
-                List.of(new Compiler.ModelSource("t.pure", MODEL)));
+                List.of(new Compiler.ModelSource("t.pure", MODEL), new Compiler.ModelSource("storeless.pure",
+                        com.legend.test.StorelessRuntime.declaration(com.legend.model.ConnectionDefinition.DatabaseType.DuckDB))));
         ModelContext ctx = Compiler.buildModule(parsed.model()).context();
         PureTests.Discovery found = PureTests.discover(parsed.model(), Set.of());
         assertEquals(List.of("t::fails", "t::later", "t::passes"),
@@ -57,7 +58,7 @@ class PureTestRunnerTest {
                 found.runnable().stream().map(PureTests.TestCase::fqn).toList(),
                 "ToFix is REPORTED, and the caller (here: the runnable view) skips it");
         assertEquals(Map.of("t", List.of("t::setUp")), found.setupsByPackage());
-        try (PureTestRunner runner = new PureTestRunner(ctx, null,
+        try (PureTestRunner runner = new PureTestRunner(ctx, com.legend.test.StorelessRuntime.RUNTIME,
                 () -> DriverManager.getConnection("jdbc:duckdb:"),
                 List.of(), found.setupsByPackage(), TestObserver.NONE)) {
             PureTestRunner.Result fails = runner.run(found.runnable().get(0));

@@ -71,8 +71,10 @@ class AssocSimpleNameProbeTest {
                 )
               }
             )
+            ###Connection
+            RelationalDatabaseConnection a::DBDuckDB { store: a::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime a::RT { mappings: [a::M]; }
+            Runtime a::RT { mappings: [a::M]; connections: [ a::DB: [ c0: a::DBDuckDB ] ]; }
             """;
 
     @Test

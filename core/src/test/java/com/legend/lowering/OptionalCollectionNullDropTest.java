@@ -41,8 +41,10 @@ class OptionalCollectionNullDropTest {
             ###Mapping
             Mapping m::M ( *m::P: Relational { ~mainTable [s::DB] P
                 id: P.ID, nick: P.NICK } )
+            ###Connection
+            RelationalDatabaseConnection s::DBDuckDB { store: s::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime m::RT { mappings: [m::M]; }
+            Runtime m::RT { mappings: [m::M]; connections: [ s::DB: [ c0: s::DBDuckDB ] ]; }
             """;
 
     private static Connection conn;

@@ -40,9 +40,9 @@ class ConstantPlanParityTest {
             RelationalDatabaseConnection t::Conn
             {
                 store: t::Db;
-                type: H2;
-                specification: LocalH2 {};
-                auth: DefaultH2 {};
+                type: DuckDB;
+                specification: DuckDB { };
+                auth: Test;
             }
             ###Runtime
             Runtime t::RT

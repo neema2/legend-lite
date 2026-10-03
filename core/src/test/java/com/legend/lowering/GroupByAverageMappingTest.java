@@ -35,8 +35,10 @@ class GroupByAverageMappingTest {
                 avgQty: average(T.QTY)
               }
             )
+            ###Connection
+            RelationalDatabaseConnection g::DBDuckDB { store: g::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
             ###Runtime
-            Runtime g::RT { mappings: [g::M]; }
+            Runtime g::RT { mappings: [g::M]; connections: [ g::DB: [ c0: g::DBDuckDB ] ]; }
             """;
 
     @Test

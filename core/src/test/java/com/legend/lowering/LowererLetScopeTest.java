@@ -3,6 +3,9 @@
 
 package com.legend.lowering;
 
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.test.StorelessRuntime;
+
 import com.legend.Compiler;
 import com.legend.compiler.element.ClassLayouts;
 import com.legend.compiler.element.ModelContext;
@@ -31,7 +34,7 @@ class LowererLetScopeTest {
 
     private static List<String> values(String query) throws Exception {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
-            ExecutionResult r = Compiler.execute("", query, c);
+            ExecutionResult r = Compiler.execute(StorelessRuntime.with("", DatabaseType.DuckDB), query, StorelessRuntime.RUNTIME, c);
             if (r instanceof ExecutionResult.Collection col) {
                 return col.values().stream().map(String::valueOf).toList();
             }
