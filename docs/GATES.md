@@ -43,8 +43,8 @@ Beside the gates, in `bazel test //...`:
   against no jar; the drivers are exactly three), `:pools_are_disjoint`,
   `:one_release` (MODULE.bazel and tools/oracle-pins.env name one release).
 
-Suites and manual targets: `//spec:judge_lanes` (all four judge lanes),
-`//spec:corpus_lanes`, `//parser-equivalence:diagnostics` (the measurement
+Suites and manual targets: `//spec:judge_lanes` (all four judge lanes, the full corpus on both backends),
+`//parser-equivalence:diagnostics` (the measurement
 battery), `//core:heavy`, `//docs:draft_own_corpus_ledger` (a DRAFT of the
 own-corpus ledger for a person to finish — never generated).
 

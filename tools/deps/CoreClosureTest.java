@@ -28,7 +28,13 @@ class CoreClosureTest {
      *  surface, and none of it needed to compile or to plan. */
     private static final List<String> DRIVER_JARS = List.of(
             "com_h2database_h2",
+            // 2026-10-03 (Bazel workplan P0-08): the server's Postgres arm (ConnectionResolver opens
+            // jdbc:postgresql://) had no driver, so it failed with "No suitable driver" in the server and
+            // its deploy jar. checker-qual is the driver's own declared dependency: annotations only.
+            // Moved from @maven_upstream, which now excludes it, so the repository holds one copy.
+            "org_checkerframework_checker_qual",
             "org_duckdb_duckdb_jdbc",
+            "org_postgresql_postgresql",
             "org_xerial_sqlite_jdbc");
 
     @Test
@@ -39,7 +45,7 @@ class CoreClosureTest {
     }
 
     @Test
-    void theDriversAreCoresPoolAndOnlyTheNamedThree() throws IOException {
+    void theDriversAreCoresPoolAndOnlyTheNamedOnes() throws IOException {
         List<String> jars = jars("drivers_closure");
         for (String jar : jars) {
             assertTrue(jar.contains("maven_core//:"),

@@ -44,6 +44,7 @@
     "org.junit.platform:junit-platform-commons": 140703530,
     "org.junit.platform:junit-platform-engine": -90822940,
     "org.opentest4j:opentest4j": 1231493808,
+    "org.postgresql:postgresql": 1299920240,
     "org.xerial:sqlite-jdbc": 37212007,
     "repositories": -1949687017
   },
@@ -98,7 +99,6 @@
     "org.apache.tomcat:tomcat-dbcp": 602876043,
     "org.apache.tomcat:tomcat-juli": -735513684,
     "org.bouncycastle:bcprov-jdk15on": 785190895,
-    "org.checkerframework:checker-qual": -1482757721,
     "org.codehaus.janino:commons-compiler": 593994327,
     "org.codehaus.janino:janino": 292023916,
     "org.codehaus.woodstox:stax2-api": 1279791166,
@@ -112,7 +112,7 @@
     "org.finos.legend.engine:legend-engine-executionPlan-execution-authorizer": 1876735728,
     "org.finos.legend.engine:legend-engine-executionPlan-execution-store-inMemory": -368845675,
     "org.finos.legend.engine:legend-engine-executionPlan-generation": 204712921,
-    "org.finos.legend.engine:legend-engine-extensions-collection-generation": -223049565,
+    "org.finos.legend.engine:legend-engine-extensions-collection-generation": -179978168,
     "org.finos.legend.engine:legend-engine-external-format-compiler": 872765203,
     "org.finos.legend.engine:legend-engine-external-format-core": -96669506,
     "org.finos.legend.engine:legend-engine-external-format-generation": 1552792139,
@@ -309,7 +309,7 @@
     "org.finos.legend.engine:legend-engine-xt-persistence-target-relational-grammar": -384665071,
     "org.finos.legend.engine:legend-engine-xt-persistence-target-relational-protocol": 1905637341,
     "org.finos.legend.engine:legend-engine-xt-persistence-target-relational-pure": -174315814,
-    "org.finos.legend.engine:legend-engine-xt-persistence-test-runner": 835997659,
+    "org.finos.legend.engine:legend-engine-xt-persistence-test-runner": -154898448,
     "org.finos.legend.engine:legend-engine-xt-powerbi-generation": -918445973,
     "org.finos.legend.engine:legend-engine-xt-powerbi-pure": 1357417443,
     "org.finos.legend.engine:legend-engine-xt-protobuf": -3409941,
@@ -335,7 +335,7 @@
     "org.finos.legend.engine:legend-engine-xt-relationalStore-duckdb-protocol": -2135284604,
     "org.finos.legend.engine:legend-engine-xt-relationalStore-duckdb-pure": -1612630764,
     "org.finos.legend.engine:legend-engine-xt-relationalStore-duckdb-sqlDialectTranslation-pure": -616237820,
-    "org.finos.legend.engine:legend-engine-xt-relationalStore-executionPlan-connection": -290167249,
+    "org.finos.legend.engine:legend-engine-xt-relationalStore-executionPlan-connection": -2051919187,
     "org.finos.legend.engine:legend-engine-xt-relationalStore-executionPlan-connection-authentication": 1469652359,
     "org.finos.legend.engine:legend-engine-xt-relationalStore-grammar": -1778992472,
     "org.finos.legend.engine:legend-engine-xt-relationalStore-h2-execution-2.1.214": -666249501,
@@ -447,7 +447,6 @@
     "org.pac4j:pac4j-config": -1714147709,
     "org.pac4j:pac4j-core": -50046579,
     "org.pac4j:pac4j-kerberos": 1214060765,
-    "org.postgresql:postgresql": 100869707,
     "org.slf4j:jcl-over-slf4j": -976176259,
     "org.slf4j:jul-to-slf4j": -1066646556,
     "org.slf4j:slf4j-api": -844459515,
@@ -753,12 +752,6 @@
         "jar": "fa0041a36f9f20af3c6b8dbf6eb49a969e2c9cc029049d61acc526ba3247b3ef"
       },
       "version": "1.67"
-    },
-    "org.checkerframework:checker-qual": {
-      "shasums": {
-        "jar": "8b9d9a36eaaf7c0fc26503c83cd97d8c9c0f9e2913cc2a6e92ac26c735d4dcbe"
-      },
-      "version": "3.49.0"
     },
     "org.codehaus.janino:commons-compiler": {
       "shasums": {
@@ -2817,12 +2810,6 @@
         "jar": "a9be94ed72823ae779637cce7cb7747f067b0dfd628459678dec11d189c1b179"
       },
       "version": "4.5.8"
-    },
-    "org.postgresql:postgresql": {
-      "shasums": {
-        "jar": "188976721ead8e8627eb6d8389d500dccc0c9bebd885268a3047180274a6031e"
-      },
-      "version": "42.7.4"
     },
     "org.slf4j:jcl-over-slf4j": {
       "shasums": {
@@ -6416,7 +6403,6 @@
       "org.finos.legend.engine:legend-engine-xt-relationalStore-executionPlan-connection-authentication",
       "org.finos.legend.engine:legend-engine-xt-relationalStore-h2-execution-2.1.214",
       "org.finos.legend.engine:legend-engine-xt-relationalStore-protocol",
-      "org.postgresql:postgresql",
       "org.slf4j:slf4j-api"
     ],
     "org.finos.legend.engine:legend-engine-xt-relationalStore-executionPlan-connection-authentication": [
@@ -7772,9 +7758,6 @@
     ],
     "org.pac4j:pac4j-kerberos": [
       "org.pac4j:pac4j-core"
-    ],
-    "org.postgresql:postgresql": [
-      "org.checkerframework:checker-qual"
     ],
     "org.slf4j:jcl-over-slf4j": [
       "org.slf4j:slf4j-api"
@@ -9878,40 +9861,6 @@
       "org.bouncycastle.x509",
       "org.bouncycastle.x509.extension",
       "org.bouncycastle.x509.util"
-    ],
-    "org.checkerframework:checker-qual": [
-      "org.checkerframework.checker.builder.qual",
-      "org.checkerframework.checker.calledmethods.qual",
-      "org.checkerframework.checker.compilermsgs.qual",
-      "org.checkerframework.checker.fenum.qual",
-      "org.checkerframework.checker.formatter.qual",
-      "org.checkerframework.checker.guieffect.qual",
-      "org.checkerframework.checker.i18n.qual",
-      "org.checkerframework.checker.i18nformatter.qual",
-      "org.checkerframework.checker.index.qual",
-      "org.checkerframework.checker.initialization.qual",
-      "org.checkerframework.checker.interning.qual",
-      "org.checkerframework.checker.lock.qual",
-      "org.checkerframework.checker.mustcall.qual",
-      "org.checkerframework.checker.nonempty.qual",
-      "org.checkerframework.checker.nullness.qual",
-      "org.checkerframework.checker.optional.qual",
-      "org.checkerframework.checker.propkey.qual",
-      "org.checkerframework.checker.regex.qual",
-      "org.checkerframework.checker.signature.qual",
-      "org.checkerframework.checker.signedness.qual",
-      "org.checkerframework.checker.sqlquotes.qual",
-      "org.checkerframework.checker.tainting.qual",
-      "org.checkerframework.checker.units.qual",
-      "org.checkerframework.common.aliasing.qual",
-      "org.checkerframework.common.initializedfields.qual",
-      "org.checkerframework.common.reflection.qual",
-      "org.checkerframework.common.returnsreceiver.qual",
-      "org.checkerframework.common.subtyping.qual",
-      "org.checkerframework.common.util.count.report.qual",
-      "org.checkerframework.common.value.qual",
-      "org.checkerframework.dataflow.qual",
-      "org.checkerframework.framework.qual"
     ],
     "org.codehaus.janino:commons-compiler": [
       "org.codehaus.commons.compiler",
@@ -12570,46 +12519,6 @@
       "org.pac4j.kerberos.credentials.extractor",
       "org.pac4j.kerberos.profile"
     ],
-    "org.postgresql:postgresql": [
-      "org.postgresql",
-      "org.postgresql.copy",
-      "org.postgresql.core",
-      "org.postgresql.core.v3",
-      "org.postgresql.core.v3.adaptivefetch",
-      "org.postgresql.core.v3.replication",
-      "org.postgresql.ds",
-      "org.postgresql.ds.common",
-      "org.postgresql.fastpath",
-      "org.postgresql.geometric",
-      "org.postgresql.gss",
-      "org.postgresql.hostchooser",
-      "org.postgresql.jdbc",
-      "org.postgresql.jdbc2",
-      "org.postgresql.jdbc2.optional",
-      "org.postgresql.jdbc3",
-      "org.postgresql.jdbcurlresolver",
-      "org.postgresql.largeobject",
-      "org.postgresql.osgi",
-      "org.postgresql.plugin",
-      "org.postgresql.replication",
-      "org.postgresql.replication.fluent",
-      "org.postgresql.replication.fluent.logical",
-      "org.postgresql.replication.fluent.physical",
-      "org.postgresql.shaded.com.ongres.saslprep",
-      "org.postgresql.shaded.com.ongres.scram.client",
-      "org.postgresql.shaded.com.ongres.scram.common",
-      "org.postgresql.shaded.com.ongres.scram.common.exception",
-      "org.postgresql.shaded.com.ongres.scram.common.util",
-      "org.postgresql.shaded.com.ongres.stringprep",
-      "org.postgresql.ssl",
-      "org.postgresql.ssl.jdbc4",
-      "org.postgresql.sspi",
-      "org.postgresql.translation",
-      "org.postgresql.util",
-      "org.postgresql.util.internal",
-      "org.postgresql.xa",
-      "org.postgresql.xml"
-    ],
     "org.slf4j:jcl-over-slf4j": [
       "org.apache.commons.logging",
       "org.apache.commons.logging.impl"
@@ -12699,7 +12608,6 @@
       "org.apache.tomcat:tomcat-dbcp",
       "org.apache.tomcat:tomcat-juli",
       "org.bouncycastle:bcprov-jdk15on",
-      "org.checkerframework:checker-qual",
       "org.codehaus.janino:commons-compiler",
       "org.codehaus.janino:janino",
       "org.codehaus.woodstox:stax2-api",
@@ -13048,7 +12956,6 @@
       "org.pac4j:pac4j-config",
       "org.pac4j:pac4j-core",
       "org.pac4j:pac4j-kerberos",
-      "org.postgresql:postgresql",
       "org.slf4j:jcl-over-slf4j",
       "org.slf4j:jul-to-slf4j",
       "org.slf4j:slf4j-api",
@@ -15052,11 +14959,6 @@
     "org.finos.legend.pure:legend-pure-runtime-java-extension-interpreted-dsl-tds": {
       "org.finos.legend.pure.runtime.java.interpreted.extension.InterpretedExtension": [
         "org.finos.legend.pure.runtime.java.extension.dsl.tds.interpreted.TDSExtensionInterpreted"
-      ]
-    },
-    "org.postgresql:postgresql": {
-      "java.sql.Driver": [
-        "org.postgresql.Driver"
       ]
     },
     "org.slf4j:jcl-over-slf4j": {
