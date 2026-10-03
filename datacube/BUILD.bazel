@@ -167,6 +167,8 @@ test_suite(
         ":typed_values_tokyo_test",
         ":typed_values_new_york_test",
         ":wasm_differential_test",
+        # live against the Bazel-built native warehouse (it builds the native image; not on Windows ARM64)
+        ":live_snap_test",
     ],
 )
 

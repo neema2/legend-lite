@@ -45,10 +45,10 @@ jobs:
           set -euo pipefail
           if [ "$LOW_MEMORY" = "true" ]; then
             pct6='//pct:pct_duckdb_essential //pct:pct_duckdb_grammar //pct:pct_duckdb_relation //pct:pct_duckdb_standard //pct:pct_duckdb_unclassified //pct:pct_discipline'
-            pct7p='//pct:pct_postgres_essential //pct:pct_postgres_grammar //pct:pct_postgres_relation //pct:pct_postgres_standard //pct:pct_postgres_unclassified'
+            pct7p='//pct:pct_postgres_essential //pct:pct_postgres_grammar //pct:pct_postgres_relation //pct:pct_postgres_standard //pct:pct_postgres_unclassified //core:postgres_arm_test'
           else
             pct6='//pct:pct_duckdb'
-            pct7p='//pct:pct_postgres'
+            pct7p='//pct:pct_postgres //core:postgres_arm_test'
           fi
           all=$(jq -nc --arg pct6 "$pct6" --arg pct7p "$pct7p" '[
             {"key":"1",      "name":"gate 1 core suite",               "targets":"//core:core_tests"},

@@ -160,17 +160,9 @@ junit_test(
     upstream = True,
 )
 
-# THE MEASURE BEFORE ANY CHAIN (was tools/corpus-both.sh): the full corpus on both
-# backends. `bazel test //spec:corpus_lanes`
-test_suite(
-    name = "corpus_lanes",
-    tests = [
-        ":corpus_duckdb",
-        ":corpus_h2",
-    ],
-)
-
-# THE JUDGE LANES (was tools/judge-lanes.sh; docs/DATABASE_MODE_HOMEWORK_2026_09_18.md):
+# THE CORPUS LANES and THE JUDGE LANES, one suite (was tools/corpus-both.sh and
+# tools/judge-lanes.sh, whose suites held the same two targets; corpus_lanes deleted
+# 2026-10-03, workplan P0-13; docs/DATABASE_MODE_HOMEWORK_2026_09_18.md):
 # DuckDB and H2 under both judges, and the per-assert differential at zero
 # unregistered disagreements. `bazel test //spec:judge_lanes`
 test_suite(

@@ -35,7 +35,9 @@ await page.goto(`http://127.0.0.1:${port}/demo/stress.html`,
 await page.waitForFunction(() => window.__stressDone === true,
   undefined, { timeout: 600_000 });
 const results = await page.evaluate(() => window.__stress ?? []);
-const offeredNames = await page.evaluate(() => window.__stressOffered ?? []);
+// the samples the picker offers: a Set, read below (it was read as `offered` but bound as `offeredNames`,
+// so any non-ok ingest threw a ReferenceError and the invariant never evaluated -- workplan P0-06)
+const offered = new Set(await page.evaluate(() => window.__stressOffered ?? []));
 await browser.close();
 server.close();
 

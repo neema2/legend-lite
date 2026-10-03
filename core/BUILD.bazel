@@ -241,6 +241,7 @@ java_library(
         "@maven_core//:com_h2database_h2",
         "@maven_core//:org_duckdb_duckdb_jdbc",
         "@maven_core//:org_xerial_sqlite_jdbc",
+        "@maven_core//:org_postgresql_postgresql",
     ],
 )
 
@@ -291,7 +292,11 @@ _CENSUS_READS = _CORE_READS + [
 java_library(
     name = "core_tests_lib",
     testonly = True,
-    srcs = glob(["src/test/java/**/*.java"]),
+    # PostgresArmTest is :postgres_arm_test's alone: it needs the embedded Postgres in its runfiles
+    srcs = glob(
+        ["src/test/java/**/*.java"],
+        exclude = ["src/test/java/com/legend/server/PostgresArmTest.java"],
+    ),
     resources = glob(
         ["src/test/resources/**"],
         # the shadow binding rides :shadow_binding, once; prose is never a test input
@@ -345,6 +350,27 @@ junit_test(
     runtime_deps = [
         ":core_tests_lib",
         ":drivers",
+    ],
+)
+
+# THE SERVER'S POSTGRES ARM (Bazel workplan P0-08): a type: Postgres connection resolves through
+# ConnectionResolver and the product's own driver set (:drivers), against the Postgres 16 that
+# gate 7P starts (@embedded_postgres, //testing EmbeddedPostgres). Light: one class, one query.
+junit_test(
+    name = "postgres_arm_test",
+    size = "medium",
+    srcs = ["src/test/java/com/legend/server/PostgresArmTest.java"],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.server.PostgresArmTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
 )
 
