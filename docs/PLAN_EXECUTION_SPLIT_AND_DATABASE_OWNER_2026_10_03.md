@@ -407,6 +407,40 @@ run, and are removed before any commit.
   - stale docs: `DialectBoundaryTest`'s javadoc ("maps … the JDBC product"), AGENTS.md's `SqlDialect` description;
   - `PctExecuteNative`: its call was reflowed to stay under the ledger's 106-line pin — replace with an honest form
     (justify a pin move, or not add the line).
+- **C6. The legend-engine text printers become TEST tools (user direction 2026-10-03, after the measurements below;
+  REVERSES D16 of EXECUTION_PLAN_2026_09_26.md, "a backwards-compatible product dialect", and so W5.6).**
+  - **Why.** `EngineStyleH2`/`EngineStyleDB2`/`EngineStyleComposite` (2,248 lines) were grown one golden at a time to
+    match legend-engine's TEXT; their SQL is never run (a text assert passes on byte equality, else the rows appeal
+    runs our REAL dialect). Measured 2026-10-03 (`runs/gap/gap2.tsv`; probe `runs/gap/probe.patch`, reverted): of
+    1,699 sql-text asserts in the H2 corpus, our engine text replayed on the seeded H2 oracle (legend-engine's
+    `legend_h2_extension_*` functions installed) does not RUN for 273 of the 1,087 whose text differs — 168 "column not
+    found" (alias renames pointing nowhere), 98 DuckDB spellings inherited where no golden pinned an H2 one
+    (`starts_with` 37, `ends_with` 31, `error` 14, `date_part` 12, `regexp_full_match` 2, `HUGEINT` 2), 7 syntax — and
+    gives a different answer for 41 more (13 row counts, e.g. `inner join` where the engine has `left outer join`; 28
+    values). Making them product dialects means fixing all of that for SQL nobody runs, and DB2/Composite have no
+    database to check against. A user's `toSQLString` meanwhile returns that text.
+  - **The verdict, rows first** (measured 2026-10-03, `runs/gap/rowsfirst.tsv`; probe `runs/gap/rowsfirst-probe.patch`,
+    reverted; every assert's rows leg forced, 1,656 asserts / 1,541 tests, H2 corpus, host judge):
+    1. ~~our real H2 text equals the golden~~ — DROPPED: 0 of 1,656 match (our dialect formats differently);
+    2. **rows**: legend-engine's SQL replayed on the oracle vs OUR rows from the real dialect — 1,528 match (1,502 sql,
+       26 plan); 9 diverge;
+    3. **exact engine text, only where rows cannot run** — 119 asserts: legend-engine's SQL cannot replay alone (48),
+       our rows underivable (26), DB2 (33) / Composite (7) goldens, plan parameters unbindable (10). 98 of them pass
+       today on exact text.
+    Versus today (text first, rows as the appeal) this changes ONE verdict:
+    `meta::relational::tests::...::testToSQLStringForTDSStringJoin` passes today on exact text but its rows DIVERGE —
+    a real product bug the text-first order hides (the other 8 divergences already fail on text today).
+  - **Steps.** (a) `toSQLString`, execution-plan text, an `execute()` result's activity SQL and setup DDL text print the
+    declared type's REAL dialect (`Databases.dialect`); DB2/Composite refused by name. (b) The judge
+    (`SqlTextVerdicts`, already test-only — it walls without the harness's oracle) goes rows first; step 3 asks the
+    harness for the engine text through an SPI it registers, the `SqlReplayOracle` pattern. (c) The three printers and
+    the Lowerer's engine-only options (`withEngineText`, `withEngineExistsJoinForm`, `PlanEnumForm`) move to the test
+    harness; `com.legend.EngineText` is deleted; invariant 4d becomes "no engine-style printer in main". (d) The fail
+    roster gains `testToSQLStringForTDSStringJoin` with its reason; the bug is fixed or rostered.
+  - **Not yet measured — before (a)/(c):** the plan-text consumers that do not reach this judge (only 53 plan asserts
+    did), activity-SQL and setup-DDL text asserts, the DuckDB lane (same oracle, expected identical), and whether a
+    test-side printer can reach the Lowerer's engine options without a hook in main.
+  - **Order:** after C3 (C3b, C3c, the guard); `EngineText` stays until then, labelled test-only-to-be.
 
 ## 5. Other open work (recorded so it is not lost; NOT in this plan)
 

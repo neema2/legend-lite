@@ -914,6 +914,12 @@ If C3 chooses "stop the middle rebuild", W5.1c is dropped and W5.2's determinism
   return the native dialect's rows (a lane); every byte difference from an engine golden is a register row (D8
   constants; alias shapes the MIR does not carry). `StatementExecutor`'s `toSQLString`/`planDialect` choice
   (`:473-480`, `:1179-1190`) becomes an explicit option. Gate: the rows lane; goldens pinned; the register. Size 1–2.
+  **Finding 2026-10-03 (the database-owner line, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md C6): D16 is
+  being REVERSED by the user — the engine printers become test tools, not a product dialect.** Measured: their H2 text,
+  replayed on the oracle, does not run for 273 of 1,087 differing asserts (alias renames pointing nowhere; DuckDB
+  spellings inherited where no golden pinned H2) and answers differently for 41; a rows-first verdict with exact engine
+  text only where rows cannot run (119 asserts) changes one verdict versus today. Do not build W5.6's rows lane for
+  these printers; C6 carries the move.
 
 ### W6 — Plan, runner, periphery (catalogue; Phase 5)
 
