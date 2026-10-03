@@ -1,7 +1,3 @@
-# Build output: Bazel's is /bazel-* below; target/ is left by the old Maven build
-# and by experiments/, which keeps its own
-target/
-
 # IDE
 .idea/
 *.iml
