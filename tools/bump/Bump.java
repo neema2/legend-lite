@@ -50,6 +50,9 @@ public final class Bump {
 
     private static final String CENTRAL = "https://repo1.maven.org/maven2";
 
+    /** The jar pools keyed on LEGEND_ENGINE_RELEASE in MODULE.bazel: each is repinned by a bump. */
+    private static final java.util.List<String> RELEASE_POOLS = java.util.List.of("maven_upstream", "maven_runner");
+
     private final Path ws;
 
     private Bump(Path ws) {
@@ -128,8 +131,13 @@ public final class Bump {
         Files.writeString(pinsFile, p, StandardCharsets.UTF_8);
         System.out.println("   tools/oracle-pins.env -> " + release + " / " + pure);
 
-        bazel(Map.of("REPIN", "1"), "the upstream jar pool could not be repinned at " + release,
-                "run", "@maven_upstream//:pin");
+        // every jar pool whose artifacts or BOM name the engine release (MODULE.bazel: maven_upstream,
+        // maven_runner). MODULE.bazel sets fail_if_repin_required on every pool, so a pool left
+        // unpinned here fails the build instead of resolving stale jars silently.
+        for (String pool : RELEASE_POOLS) {
+            bazel(Map.of("REPIN", "1"), "the " + pool + " jar pool could not be repinned at " + release,
+                    "run", "@" + pool + "//:pin");
+        }
         if (pinsOnly) {
             step("pins only — stopping before regeneration");
             git("status", "--short");
