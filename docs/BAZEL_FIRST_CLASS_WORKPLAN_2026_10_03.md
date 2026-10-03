@@ -370,6 +370,8 @@ The four records carry wall-clock timestamps (`createdAt`, `lastUpdatedAt`, `las
 
 P0-14 implements this; no ruleset is applied.
 
+**Amended (2026-10-03): a ruleset with an owner bypass.** USER: "can we add branch protection but me still be able to push directly to main? if yes, then lets do that and then give him write access". `main` gets a ruleset: no deletion, no force push, a PR with one approval, and the single required check `gates green` (a summary job in `gate.yml` that fails unless every lane succeeded). Its bypass list is the repository-admin role: the owner, and so every agent session, still pushes directly under the three guardrails above, kept by convention. The Windows contributor gets write access, so CODEOWNERS can request him, while his own changes need a PR, an approval and `gates green`. A docs-only PR gets no gate run (`paths-ignore`), so the owner merges it by bypass.
+
 ### D18. Python programs that start Java (D3 rows 1, 2 and 5)
 
 D3 kept `scripts/corpus/run.py`, the 15 `probe_*.py` and `scripts/projects/{check,loadtime}.py`. Each starts the JVM through `subprocess` (ledger G-1, rows S-19 to S-22).
