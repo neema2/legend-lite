@@ -118,6 +118,13 @@ Top-level attributes (Docs, COMMITS):
 The whole action list becomes **one commit**, so it is atomic. On success it returns `201` with the new commit `id` and `parent_ids` (Docs, COMMITS).
 
 **Is there a branch-level expected SHA (compare-and-swap)? No, not in the public API.**
+
+> **Re-verified 2026-10-03 against GitLab's current `master` and current docs** (the agent's source line numbers above were not pinned to a version, and GraphQL had not been checked):
+> - REST docs, "Create a commit with multiple files and actions" (https://docs.gitlab.com/api/commits/): the request attributes are `branch`, `commit_message`, `id`, `actions[]`, `allow_empty`, `author_email`, `author_name`, `force`, `start_branch`, `start_project`, `start_sha`, `stats`; the only concurrency field is `actions[].last_commit_id`, per file. No branch-level expected SHA.
+> - GraphQL `commitCreate` (https://gitlab.com/gitlab-org/gitlab/-/raw/master/app/graphql/mutations/commits/create.rb): arguments `projectPath`, `branch`, `startBranch`, `startSha` ("SHA of the commit to start the new branch from"), `startProjectPath`, `message`, `actions`, `allowEmpty`. No expected-head argument — unlike GitHub's `createCommitOnBranch.expectedHeadOid`.
+> - `app/services/commits/create_service.rb` on `master`: `different_branch?` is true whenever `start_sha` is present, and `validate_branch_existence!` refuses an existing branch unless `force` — so `start_sha` on an existing workspace branch is refused, and with `force` overwrites it; it never compares `start_sha` with the branch's current head.
+>
+> Conclusion: as of GitLab `master` on 2026-10-03, neither REST nor GraphQL offers a client-specified expected branch head. A true compare-and-swap needs a git push stating the old value; otherwise per-branch serialization in our server plus a head check (best effort against writers outside it).
 - **`start_sha` is not an expected-head check.**
   - If `start_sha` is given and `branch` already exists, the request is **rejected** unless `force=true`: "A branch called '…' already exists. Switch to that branch in order to make changes" (GitLab source: `app/services/commits/create_service.rb` lines 57-59 `different_branch?` is true when `@start_sha.present?`; lines 102-111 `validate_branch_existence!`).
   - With `force=true` the branch is **overwritten** with a commit whose parent is `start_sha`. Concurrent commits on the branch are discarded silently. That is the opposite of what we want (Docs, COMMITS `force`; Inference).
