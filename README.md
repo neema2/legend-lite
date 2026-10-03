@@ -261,8 +261,10 @@ counterpart that supersedes it. See `AGENTS.md`.
 - **Developer Mode** on (Settings → System → For developers). Bazel makes real symlinks for
   the tests' runfiles (`.bazelrc`), which Windows allows only in Developer Mode or as admin.
 - **[Git for Windows](https://git-scm.com/download/win)** at its default path. Bazel runs its
-  bash (`.bazelrc` names `C:/Program Files/Git/usr/bin/bash.exe`); if yours is elsewhere,
-  repeat those two `.bazelrc` lines with your path in `%USERPROFILE%\.bazelrc`.
+  bash (`.bazelrc` names `C:/Program Files/Git/usr/bin/bash.exe`). If your Git is elsewhere, or
+  you use MSYS2's bash, repeat those two `.bazelrc` lines with your path in
+  `%USERPROFILE%\.bazelrc`. The `.bazelrc` lines take precedence over finding MSYS2 on its own,
+  so without that the first shell action fails, naming the missing `bash.exe`.
 - **Bazelisk** as `bazel`: `winget install Bazel.Bazelisk` installs it as `bazelisk`, then, in
   a new PowerShell,
   `New-Item -ItemType SymbolicLink -Path "$env:LOCALAPPDATA\Microsoft\WinGet\Links\bazel.exe" -Target (Get-Command bazelisk).Source`.

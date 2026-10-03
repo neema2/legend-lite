@@ -170,7 +170,10 @@ published with the Linux build).
    arguments (a `--token-key-file`, an `sslrootcert` in a URL) resolves in the runfiles folder. The
    app's usual arguments (a URL, `--table`, `--port`) are unaffected. `bazel run --run_in_cwd` runs it
    where it was started, per command.
-2. **An argument containing `"` arrives mangled**, and a quoted argument ending in `\` gains a `\`
+2. **An argument containing `"` arrives mangled** (`a "b" c` arrives as `a \`), and one that holds
+   a space and ends in `\` gains a `\` (`a b\` arrives as `a b\\`, `a b\\` as `a b\\\\`; `ab\`, which
+   needs no quotes, arrives intact; measured 2026-10-03 against the server's own echo, with the same
+   arguments passed straight to `server_native-bin.exe` arriving intact)
    (hermetic-launcher 0.0.16's Windows quoting; `bazel run` straight to the `.exe` passes both
    intact). Postgres URLs and libpq DSNs, which quote with `'`, contain neither.
 3. **Windows x64 only.** On Windows ARM64 the native targets are skipped.

@@ -730,11 +730,25 @@ public final class WarehouseServer implements AutoCloseable {
         CommandLine command = commandLine(args);
         Config config = command.config();
         Path temporary = command.temporaryData();
-        if (temporary != null) Runtime.getRuntime().addShutdownHook(new Thread(() -> deleteTree(temporary)));
+        // the single-user app's temporary data: removed on exit, after the server has closed its DuckDB files, so
+        // the removal does not depend on DuckDB opening them with delete sharing (on Windows; review of
+        // neema2/legend-lite#14, 2026-10-03). Registered before the server starts, so a start that fails removes it too.
+        java.util.concurrent.atomic.AtomicReference<WarehouseServer> running = new java.util.concurrent.atomic.AtomicReference<>();
+        if (temporary != null) {
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                WarehouseServer open = running.get();
+                try {
+                    if (open != null) open.close();
+                } finally {
+                    deleteTree(temporary);
+                }
+            }));
+        }
         WarehouseServer s;
         while (true) {
             try {
                 s = new WarehouseServer(config);
+                running.set(s);
                 break;
             } catch (Catalogs.AttachFailed failed) {
                 config = withPasswordAsked(config, failed);

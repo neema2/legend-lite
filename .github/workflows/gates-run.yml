@@ -62,7 +62,7 @@ jobs:
             {"key":"8",      "name":"gate 8 parser equivalence",       "targets":"//parser-equivalence:parser_parity"},
             {"key":"9",      "name":"gate 9 Channel B dual-verdict",   "targets":"//pct:pct_channel_b"},
             {"key":"10",     "name":"gate 10 stress corpus",           "targets":"//core:stress_suites"},
-            {"key":"app",    "name":"DataCube app, WASM planner, warehouse", "targets":"//datacube:tests //wasm:all //warehouse:tests"},
+            {"key":"app",    "name":"DataCube app, WASM planner, warehouse", "targets":"//datacube:tests //wasm:all //warehouse:tests //query-store:lite_test"},
             {"key":"native", "name":"warehouse as a native image, and its launcher", "targets":"//warehouse:tests_native //warehouse:launcher_test //datacube:app"},
             {"key":"browser", "name":"DataCube in a real browser, and live against the warehouse", "targets":"//datacube:live_snap_test"}
           ]')
@@ -118,6 +118,16 @@ jobs:
           restore-keys: |
             bazel-${{ inputs.platform }}-${{ hashFiles('MODULE.bazel.lock', 'maven_*_install.json', '.bazelversion') }}-
             bazel-${{ inputs.platform }}-
+      - name: a zone that is not UTC (the Windows app lane)
+        # The hosted runners are UTC, which hides a test that reads the machine's zone where it should set its
+        # own: on Windows DuckDB reads the system zone and ignores TZ (WarehouseJdbcTest's reference session,
+        # found on an Eastern-time desk, 2026-10-02). This lane runs in Eastern time so that fix is exercised
+        # (review of neema2/legend-lite#14, 2026-10-03).
+        if: inputs.platform == 'windows' && matrix.lane.key == 'app'
+        shell: pwsh
+        run: |
+          tzutil /s "Eastern Standard Time"
+          tzutil /g
       - name: pyarrow, the warehouse's Arrow test's standard reader (test-only)
         if: matrix.lane.key == 'app' || matrix.lane.key == 'native'
         run: |
