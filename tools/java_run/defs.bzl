@@ -22,7 +22,7 @@ def _java_run_impl(ctx):
         fail("java_run needs at least one output")
     dirs = {}
     for target, token in ctx.attr.roots.items():
-        files = target.files.to_list()
+        files = target[DefaultInfo].files.to_list()
         if len(files) != 1:
             fail("a root is named by ONE file at it; %s has %d" % (target.label, len(files)))
         dirs[token] = files[0].dirname
@@ -46,7 +46,19 @@ def _java_run_impl(ctx):
     args = ctx.actions.args()
     args.use_param_file("@%s", use_always = True)
     args.set_param_file_format("multiline")
-    flat = [expand(f) for f in ctx.attr.jvm_flags] + ["-cp"]
+    # One clock, locale and encoding for every action, so an output never depends on the machine that
+    # made it (the remote cache shares it with every other machine). The action's temp directory is
+    # its own declared scratch directory, never the host's /tmp. The target's own flags come after,
+    # so a generator that needs a different setting can still say so.
+    scratch = ctx.actions.declare_directory(ctx.label.name + "_tmp")
+    pinned = [
+        "-Duser.timezone=GMT",
+        "-Duser.language=en",
+        "-Duser.country=US",
+        "-Dfile.encoding=UTF-8",
+        "-Djava.io.tmpdir=" + scratch.path,
+    ]
+    flat = pinned + [expand(f) for f in ctx.attr.jvm_flags] + ["-cp"]
     for a in flat + [ctx.attr.main_class] + [expand(a) for a in ctx.attr.arguments]:
         if " " in a or "\t" in a:
             fail("java_run: an argument with whitespace cannot ride the argument file: %r" % a)
@@ -58,7 +70,7 @@ def _java_run_impl(ctx):
         executable = runtime.java_executable_exec_path,
         arguments = [args],
         inputs = depset(ctx.files.srcs + ctx.files.roots, transitive = [jars, runtime.files]),
-        outputs = ctx.outputs.outs,
+        outputs = ctx.outputs.outs + [scratch],
         mnemonic = ctx.attr.mnemonic,
         progress_message = "%s %%{label}" % ctx.attr.mnemonic,
     )

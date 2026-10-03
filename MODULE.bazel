@@ -349,7 +349,7 @@ http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_
 [http_file(
     name = "duckdb_postgres_extension_" + platform,
     sha256 = sha,
-    urls = ["http://extensions.duckdb.org/v1.5.5/" + platform + "/postgres_scanner.duckdb_extension.gz"],
+    urls = ["https://extensions.duckdb.org/v1.5.5/" + platform + "/postgres_scanner.duckdb_extension.gz"],
 ) for platform, sha in {
     "osx_arm64": "4fb5079e67b00e6643e6ee91545a355010004d1dad50b43f1c060de0cb789c8e",
     "osx_amd64": "b8764ed496be635fbac3e5e6a6c8e3e3c2dbfcaa862ce0422c21cad6fcc6c353",

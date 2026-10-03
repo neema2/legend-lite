@@ -39,7 +39,15 @@ def junit_test(
         "--disable-banner",
         "--disable-ansi-colors",
     ]
-    flags = ["-Duser.timezone=GMT"] + jvm_flags
+    # one clock, one locale, one encoding, everywhere: a test's verdict never depends on the host's.
+    # The temp directory is set by JUnitMain from TEST_TMPDIR (the Windows Java launcher does not
+    # expand environment variables in jvm_flags).
+    flags = [
+        "-Duser.timezone=GMT",
+        "-Duser.language=en",
+        "-Duser.country=US",
+        "-Dfile.encoding=UTF-8",
+    ] + jvm_flags
     inputs = list(data)
     if upstream:
         inputs += ["@legend_engine_src//:tree", "@legend_pure_src//:tree"]
