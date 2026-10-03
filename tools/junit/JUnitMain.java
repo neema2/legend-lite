@@ -22,7 +22,8 @@ import org.junit.platform.console.ConsoleLauncher;
  * need a shell (docs/STANDARD_BUILD_PROGRAM.md rule 5: Windows has none).
  *
  * <p>Arguments are passed through unchanged; the reports directory is added
- * only under Bazel. Outside Bazel this behaves exactly like ConsoleLauncher.
+ * only under Bazel. It runs only under Bazel: it refuses to start without
+ * {@code TEST_TMPDIR}, which it makes the JVM's temp directory (see pinTempDirectory).
  *
  * <p>OUTPUT PATHS. A system property may name {@code ${TEST_UNDECLARED_OUTPUTS_DIR}};
  * it is replaced here, portably, by the directory Bazel collects into
