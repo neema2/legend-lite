@@ -63,6 +63,28 @@
 
 ## 2. Decisions needed from the user
 
+> **All decisions recorded by the user on 2026-10-03.** Each section below ends with its **Decided** line. Summary:
+>
+> | # | Decided |
+> |---|---|
+> | D1 | (b): a local-SDK repository rule with a pinned sha256 |
+> | D2 | (b): one target per PCT suite class, with a `test_suite` keeping today's name; no `shard_by` runner mode |
+> | D3 | The 11 rows as the "Decided" column below. Row 6 (keywords): **keep and repair**. Row 9 (untangle): **wire `move_classes.py` as a `bazel run` tool and delete its dead `pom.xml` handling; no class moves in this effort.** The untangle stays governed by `docs/EXECUTION_PLAN_2026_09_26.md` (D24). |
+> | D3b | Delete or replace as listed |
+> | D4 | (b): the pinned Debian 12 image, defined in Bazel (`rules_oci` plus `rules_distroless`) |
+> | D5 | (a): MSVC declared, and checked at configure time |
+> | D6 | (b): delete the composite lanes once per-suite ceilings exist |
+> | D7 | (b), then (a) as a recorded exception |
+> | D8 | (a): in the default run, plus P2-05 |
+> | D9 | (b): a generated measurement plus a hand-owned, dated ceiling |
+> | D10 | **(c): no mirror; single URLs.** Revisit if a pin breaks. The deliberately pinned versions are listed under D10. |
+> | D11 | Not now |
+> | D12 | Python 3.12 |
+> | D13 | Seed lists in the modules; explicit view-filter names; `queries.pure` as prototyped |
+> | D14 | (a) if P2-06 shows no exec-configuration double compile, else (b) |
+> | D15 | Two locks, exact versions, one revision test |
+> | D16 | `docs/history/<original path>` |
+
 Each decision lists its options, a recommendation, and the items it blocks. An item that depends on a decision cannot start until the decision is recorded. Record a decision in the item's PR description, and in `script-review.md`'s Decision column for D3.
 
 ### D1. The macOS SDK source for the hermetic C toolchain (S3)
@@ -77,6 +99,8 @@ Each decision lists its options, a recommendation, and the items it blocks. An i
 - **Recommendation: (b)**, with (a) as an override (`--repo_env` pointing at an internal mirror) for anyone who has one. It is the only option that is both legal for a public repository and checked.
 - **Blocks:** P1-10, P6-18 (macOS half), P5-03 (the macOS `--config=hermetic-cc`).
 
+**Decided (2026-10-03):** (b).
+
 ### D2. PCT sharding: `shard_by = "class"` or one target per class (S1)
 
 | Option | For | Against |
@@ -87,6 +111,8 @@ Each decision lists its options, a recommendation, and the items it blocks. An i
 - Either option measures something different from today's composite JVM until per-suite counters exist (SP-N9). So both depend on P3-09's per-suite ceilings.
 - **Recommendation: (b).** Do not ship the `shard_by` runner mode unless (a) is chosen: no dead code. S1's overrun guard ships either way.
 - **Blocks:** P3-09. P1-01's `shard_by` parameter is included only if (a) is chosen.
+
+**Decided (2026-10-03):** (b).
 
 ### D3. The script review: the 11 uncertain rows, plus the whole sheet
 
@@ -117,6 +143,8 @@ The user decides every row of `script-review.md` (187 rows); P7-01 records them.
 
 **Blocks:** P7-02, P7-03, P7-04, P7-05, P2-04, P2-18, P3-18, P3-23, P3-25, P4-09, P4-11, P4-15, P7-15.
 
+**Decided (2026-10-03):** every recommendation in the table, except: row 6 **keep and repair** (keyword coverage is still tracked); row 9 **wire the tool, no moves** (the untangle is a compiler-architecture program under `docs/EXECUTION_PLAN_2026_09_26.md`; this effort only keeps its codemod runnable, and P2-08's layering golden makes each untangle step visible). D3b: as listed.
+
 ### D4. Linux system libraries for the pinned Chromium (S4)
 
 | Option | For | Against |
@@ -134,6 +162,8 @@ Sub-choices:
 
 **Blocks:** P5-02, and the Linux half of P4-10.
 
+**Decided (2026-10-03):** (b), Debian 12, `fonts-liberation` later.
+
 ### D5. Windows MSVC as an explicit, declared prerequisite (S3)
 
 | Option | For | Against |
@@ -146,6 +176,8 @@ Sub-choices:
 
 **Blocks:** P1-11.
 
+**Decided (2026-10-03):** (a).
+
 ### D6. Keep the composite `pct_duckdb` / `pct_postgres` lanes?
 
 | Option | For | Against |
@@ -156,6 +188,8 @@ Sub-choices:
 **Recommendation: (b)** (plan 3.3).
 
 **Blocks:** P3-09, P5-01, P5-03.
+
+**Decided (2026-10-03):** (b).
 
 ### D7. `libxml2.so.2` on Linux build hosts (S3)
 
@@ -170,6 +204,8 @@ LLVM's prebuilt `ld.lld` links it dynamically.
 
 **Blocks:** P1-09 (final form), P5-02 (image contents).
 
+**Decided (2026-10-03):** (b), then (a) as a recorded exception.
+
 ### D8. The stress diff tests in the default `bazel test //...` (S5 Q1)
 
 | Option | For | Against |
@@ -180,6 +216,8 @@ LLVM's prebuilt `ld.lld` links it dynamically.
 **Recommendation: (a), plus P2-05** (deduplicate build.py's triple evaluation; S5 estimates a 2–3× win).
 
 **Blocks:** P2-01 (tags), P5-01.
+
+**Decided (2026-10-03):** (a), plus P2-05.
 
 ### D9. Ratchet and policy files: generated, or hand-owned with a dated justification?
 
@@ -193,6 +231,8 @@ Plan 2.8 and 2.9 say ratchet numbers "move from Java constants into the generate
 **Recommendation: (b).**
 
 **Blocks:** P2-12, P2-15, P2-16, P3-30.
+
+**Decided (2026-10-03):** (b).
 
 ### D10. Mirror host for pinned downloads (plan 1.5; S3)
 
@@ -213,11 +253,30 @@ What gets mirrored:
 
 **Blocks:** P1-27 (and the mirror half of P0-12).
 
+**Decided (2026-10-03):** **(c), single URLs.** The user's reasoning: dependencies are kept current as the project goes. A mirror protects pinned bytes, not upgrades; the residual risk is a sha256 break when GitHub regenerates a tag archive, which is fixed by re-pinning. P1-27 shrinks to `https` plus `integrity=`; no release assets.
+
+What must **not** float, and why (each moves only as a deliberate change with its own proof):
+
+| Pin | Version | Reason |
+|---|---|---|
+| legend-engine / legend-pure | 4.145.0 / 5.99.0 | the spec; bumped through `//tools/bump`, with ratchets re-pinned with reasons |
+| DuckDB (core) | 1.4.4.0 | user decision: core upgrades in its own leg |
+| DuckDB (warehouse) + postgres extension | 1.5.5.1 / v1.5.5 | the extension must match the library exactly |
+| H2 | 2.1.214 (core), 2.4.240 (gate 7) | rosters and goldens are minted per version |
+| Postgres (tests) | 16 | the oldest the dialect targets |
+| JDK | bytecode 21, runtime 25 | goldens depend on JDK 25's messages |
+| GraalVM | 25.0.2 | paired with the JDK 25 runtime |
+| Linux sysroot | Debian bullseye (glibc 2.31) | sets the oldest Linux the native binary runs on |
+| Python | 3.12 | the stress generator's output is byte-checked |
+| Playwright / Chromium | 1.63.0 / r1243 | move together, held by `//tools/browser:revision_test` |
+
 ### D11. Windows browser CI in scope? (S4 Q2)
 
 - **Recommendation: not now.** The browser lane is Linux only today, and DuckDB-WASM in Chromium does not vary by OS.
 - The win64 archive stays pinned, so a later run is one `bazel test`.
 - **Blocks:** the Windows half of P4-10.
+
+**Decided (2026-10-03):** not now.
 
 ### D12. The repository's Python version (S5 Q5)
 
@@ -225,12 +284,16 @@ What gets mirrored:
 - A move to 3.13 is a generator change, proven by the diff tests.
 - **Blocks:** P1-07.
 
+**Decided (2026-10-03):** 3.12.
+
 ### D13. Stress-generator details (S5 Q2–Q4)
 
 - **The view-root filter name:** derived `dense_<RootFirstWord>NotNull` (prototyped), or explicit beside `SEED_TABLES`. **Recommendation:** explicit beside `SEED_TABLES`. A hand-chosen name is data, not a guessed rule. Byte-identical either way.
 - **The seed lists:** in the modules (prototyped) or in data files. **Recommendation:** in the modules.
 - **`queries.pure`:** in `scripts/corpus/` (prototyped). It must stay out of the stress `*.pure` glob. **Recommendation:** as prototyped.
 - **Blocks:** P2-01.
+
+**Decided (2026-10-03):** as recommended.
 
 ### D14. Saved-query fixtures: how they are generated (plan 2.2)
 
@@ -245,11 +308,15 @@ The four records carry wall-clock timestamps (`createdAt`, `lastUpdatedAt`, `las
 
 **Blocks:** P2-06.
 
+**Decided (2026-10-03):** as recommended.
+
 ### D15. One Playwright or two locks (plan 1.5; S4 Q6)
 
 - **Recommendation:** keep the two locks, pin **exact** versions in both (datacube has `^1.63.0`), and let `//tools/browser:revision_test` hold them to one revision (S4 E6: both resolve to one package repository today).
 - `site/verify.mjs`'s reach into `../datacube/node_modules` is replaced by a `//tools/browser:playwright` re-export.
 - **Blocks:** P1-26, P4-05.
+
+**Decided (2026-10-03):** as recommended.
 
 ### D16. Where "keep as history" files go (SR option 3)
 
@@ -257,6 +324,8 @@ The four records carry wall-clock timestamps (`createdAt`, `lastUpdatedAt`, `las
 - **Blocks:** P7-04, P7-09.
 
 ---
+
+**Decided (2026-10-03):** as recommended.
 
 ## 3. Dependency graph and topological order
 
