@@ -1,0 +1,29 @@
+# WINDOWS-SENSITIVE PATHS (Bazel workplan P0-14, decision D17's fast loop). A change to any of these goes
+# through a PR with CI green on Linux, macOS and Windows, never a direct push to main (AGENTS.md, "Pushing
+# to main"), and GitHub asks the Windows contributor to review it. Requested, not required. main's ruleset
+# (applied with P0-14) makes everyone but the repository owner use a PR with an approval and `gates green`;
+# the owner, and the agent sessions running as the owner, bypass it and keep this rule by convention. Add a
+# path here when a change to it has broken, or could break, a Windows desk.
+#
+# The build's own settings: shell, line endings, toolchains, pinned downloads
+/.bazelrc                                             @johnnymads
+/.bazelversion                                        @johnnymads
+/.gitattributes                                       @johnnymads
+/MODULE.bazel                                         @johnnymads
+/MODULE.bazel.lock                                    @johnnymads
+/.github/workflows/                                   @johnnymads
+# this file: removing a path from it is itself Windows-sensitive
+/.github/CODEOWNERS                                   @johnnymads
+# The test runners and the actions every JVM test and generator goes through
+/tools/junit/                                         @johnnymads
+/tools/java_run/                                      @johnnymads
+/testing/                                             @johnnymads
+/tools/postgres/                                      @johnnymads
+# The warehouse a Windows desk runs: its launcher, native image and server
+/warehouse/BUILD.bazel                                @johnnymads
+/warehouse/defs.bzl                                   @johnnymads
+/warehouse/src/main/java/com/legend/warehouse/server/ @johnnymads
+/warehouse/src/test/java/com/legend/warehouse/launcher/ @johnnymads
+# The two tests that stop a Windows process tree (until P4-18)
+/datacube/demo/verify-app.mjs                         @johnnymads
+/query-store/test/lite.test.ts                        @johnnymads
