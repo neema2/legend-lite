@@ -154,7 +154,7 @@ jobs:
           read -r -a targets <<< "$LANE_TARGETS"
           echo "targets: ${targets[*]}"
           # the build lane builds every target (non-test targets included); every other lane tests
-          if [ "${{ matrix.lane.key }}" = build ]; then cmd=build; else cmd=test; fi
+          if [ "${{ matrix.lane.key }}" = build ]; then cmd="build"; else cmd="test"; fi
           bazel "$cmd" "${flags[@]}" "${targets[@]}"
       - name: the browser harnesses (every //datacube, //query and //site target tagged browser-ci)
         if: matrix.lane.key == 'browser'
