@@ -194,9 +194,10 @@ class PureLspServerTest {
 
     @Test
     void testHttpRoundTrip() throws Exception {
-        int port = 19876 + new Random().nextInt(100);
-        LegendHttpServer httpServer = new LegendHttpServer(port);
+        // port 0: the OS picks a free port, so parallel runs and other checkouts never collide
+        LegendHttpServer httpServer = new LegendHttpServer(0);
         httpServer.start();
+        int port = httpServer.getPort();
         try {
             // Initialize
             String initResp = httpPost(port, "/lsp", """

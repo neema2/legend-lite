@@ -97,7 +97,7 @@ _EXTRA_DATA = {
         "test/**/*.mjs",
         "test/**/*.ts",
         "tools/**/*",
-    ], exclude = ["test/fake-engine.ts", "test/fake-planner.ts", "test/strict-reporter.mjs"]),
+    ], exclude = ["**/*.md", "test/fake-engine.ts", "test/fake-planner.ts", "test/strict-reporter.mjs"]),
 }
 
 # the tests that write a model from a table's columns ask the compiler (T2): legend-lite's
