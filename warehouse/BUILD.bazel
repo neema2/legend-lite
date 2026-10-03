@@ -1,9 +1,10 @@
 # The warehouse: a DuckDB server behind the HTTP SQL API
 # (docs/SERVER_PROGRAM_2026_09_26.md, docs/WAREHOUSE_W1_DESIGN_2026_09_26.md).
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@rules_graalvm//graalvm:defs.bzl", "native_image")
 load("@rules_java//java:defs.bzl", "java_binary", "java_library")
 load("//tools/junit:defs.bzl", "junit_test")
-load(":defs.bzl", "POSTGRES_EXTENSION", "jar_entry", "warehouse_run")
+load(":defs.bzl", "NOT_ON_WINDOWS_ARM64", "POSTGRES_EXTENSION", "jar_entry", "warehouse_run")
 load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
 
 package(default_visibility = ["//visibility:public"])
@@ -71,7 +72,11 @@ java_binary(
 java_library(
     name = "tests_lib",
     testonly = True,
-    srcs = glob(["src/test/java/**/*.java"]),
+    # launcher/ is :launcher_test's alone: it needs the launcher and a Postgres in its runfiles
+    srcs = glob(
+        ["src/test/java/**/*.java"],
+        exclude = ["src/test/java/com/legend/warehouse/launcher/**"],
+    ),
     deps = [
         ":client",
         ":server_lib",
@@ -96,12 +101,8 @@ junit_test(
 # path, which Bazel supplies -- the same jars `bazel run //warehouse:server` runs. Everything
 # must link when the image is built (--link-at-build-time): a class missing from the class
 # path fails the build, where native-image's default compiles each method that names it into a
-# NoSuchMethodError at run time (the 2026-09-26 break). Not on Windows yet (its toolchain is owed).
-NOT_ON_WINDOWS = select({
-    "@platforms//os:windows": ["@platforms//:incompatible"],
-    "//conditions:default": [],
-})
-
+# NoSuchMethodError at run time (the 2026-09-26 break). On Windows it links with Visual Studio's
+# MSVC, which Bazel's C++ toolchain finds (docs/WINDOWS_APP_DESIGN_2026_10_02.md).
 native_image(
     name = "server_native",
     extra_args = [
@@ -109,7 +110,7 @@ native_image(
         "--enable-native-access=ALL-UNNAMED",
     ],
     main_class = "com.legend.warehouse.server.WarehouseServer",
-    target_compatible_with = NOT_ON_WINDOWS,
+    target_compatible_with = NOT_ON_WINDOWS_ARM64,
     deps = [":server_lib"],
 )
 
@@ -141,7 +142,6 @@ junit_test(
     },
     select = ["--select-class=com.legend.warehouse.WarehousePostgresLiveTest"],
     tags = ["manual"],
-    target_compatible_with = NOT_ON_WINDOWS,
     runtime_deps = [":tests_lib"],
 )
 
@@ -161,6 +161,23 @@ config_setting(
     ],
 )
 
+config_setting(
+    name = "windows_x86_64",
+    constraint_values = [
+        "@platforms//os:windows",
+        "@platforms//cpu:x86_64",
+    ],
+)
+
+# Windows on ARM: no native targets there (NOT_ON_WINDOWS_ARM64, warehouse/defs.bzl).
+config_setting(
+    name = "windows_aarch64",
+    constraint_values = [
+        "@platforms//os:windows",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
 # DuckDB's native library for this platform, out of its JDBC jar: what the image loads.
 jar_entry(
     name = "duckdb_library",
@@ -168,9 +185,10 @@ jar_entry(
         "@platforms//os:macos": "libduckdb_java.so_osx_universal",
         ":linux_x86_64": "libduckdb_java.so_linux_amd64",
         ":linux_aarch64": "libduckdb_java.so_linux_arm64",
+        ":windows_x86_64": "libduckdb_java.so_windows_amd64",
     }),
     jar = "@maven_warehouse//:org_duckdb_duckdb_jdbc",
-    target_compatible_with = NOT_ON_WINDOWS,
+    target_compatible_with = NOT_ON_WINDOWS_ARM64,
 )
 
 # The same suite, judging the native binary instead of an in-process server (TestServer).
@@ -187,19 +205,69 @@ junit_test(
         "WAREHOUSE_DUCKDB_LIBRARY": "$(rootpath :duckdb_library)",
     },
     select = ["--select-package=com.legend.warehouse"],
-    target_compatible_with = NOT_ON_WINDOWS,
     runtime_deps = [":tests_lib"],
 )
 
 # THE WAREHOUSE, BUILT AND RUN IN ONE STEP: the native server, DuckDB's library and DuckDB's postgres
 # extension (pinned per platform in MODULE.bazel), all from Bazel. Flags pass through:
 #   bazel run //warehouse:serve -- --postgres shop='host=db dbname=shop user=reader password=secret'
+# A relative --data, the default `warehouse-data` among them, is where `bazel run` was started, on every
+# platform: the server resolves it against BUILD_WORKING_DIRECTORY (on Windows the launcher starts it in
+# the runfiles folder, which `bazel clean` removes).
 warehouse_run(
     name = "serve",
     library = ":duckdb_library",
     postgres_extension_gz = POSTGRES_EXTENSION,
     server = ":server_native",
-    target_compatible_with = NOT_ON_WINDOWS,
+)
+
+# The launcher as //datacube:app has it -- a site and fixed arguments before the caller's -- without
+# the app's --open (no browser in a test) and without building the DataCube site: :launcher_test's.
+copy_to_directory(
+    name = "launcher_test_site",
+    testonly = True,
+    srcs = ["src/test/launcher-site/index.html"],
+    root_paths = ["warehouse/src/test/launcher-site"],
+)
+
+warehouse_run(
+    name = "launcher_test_serve_site",
+    args_before = ["--single-user"],
+    library = ":duckdb_library",
+    postgres_extension_gz = POSTGRES_EXTENSION,
+    server = ":server_native",
+    site = ":launcher_test_site",
+    testonly = True,
+)
+
+# THE LAUNCHER, JUDGED (docs/WINDOWS_APP_DESIGN_2026_10_02.md, §3): //warehouse:serve as `bazel run`
+# starts it, on every platform -- the caller's arguments intact, the exit code back, and the server and
+# the postgres extension's directory resolved through it, attaching the Postgres 16 that gate 7P starts
+# (@embedded_postgres, //testing EmbeddedPostgres); and :launcher_test_serve_site, the app's shape: the
+# site's directory resolved through the launcher and served, the fixed arguments reaching the server.
+# DuckDB's library is passed too, but the native server would also find it beside itself (DuckLibrary),
+# where Bazel puts it, so this test does not judge that flag on its own.
+junit_test(
+    name = "launcher_test",
+    size = "medium",
+    srcs = ["src/test/java/com/legend/warehouse/launcher/LauncherTest.java"],
+    data = [
+        ":launcher_test_serve_site",
+        ":serve",
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    env = {
+        "WAREHOUSE_SERVE": "$(rootpath :serve)",
+        "WAREHOUSE_SERVE_SITE": "$(rootpath :launcher_test_serve_site)",
+    },
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.warehouse.launcher.LauncherTest"],
+    deps = [
+        "//base",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
 )
 
 config_setting(

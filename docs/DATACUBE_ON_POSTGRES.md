@@ -19,9 +19,10 @@ app actually prints.
 
 | | |
 |---|---|
-| **OS** | macOS (Apple silicon or Intel) or Linux (x86-64 or ARM64). Windows is not supported yet. |
+| **OS** | macOS (Apple silicon or Intel), Linux (x86-64 or ARM64), or Windows 11 (x64). |
 | **Bazelisk** | Installed as `bazel` ([github.com/bazelbuild/bazelisk](https://github.com/bazelbuild/bazelisk)). It runs the Bazel version the repository pins. Bazel fetches everything else: the JDK, GraalVM, DuckDB and its Postgres extension, Node and the web app's packages. |
-| **A C toolchain** | The app is compiled to a native binary by GraalVM's `native-image`, which links with your system's compiler. On macOS: `xcode-select --install`. On Linux: `gcc`, plus the glibc and zlib development headers (Debian/Ubuntu: `sudo apt install build-essential zlib1g-dev`). |
+| **A C toolchain** | The app is compiled to a native binary by GraalVM's `native-image`, which links with your system's compiler. On macOS: `xcode-select --install`. On Linux: `gcc`, plus the glibc and zlib development headers (Debian/Ubuntu: `sudo apt install build-essential zlib1g-dev`). On Windows: Visual Studio 2022 Build Tools with "Desktop development with C++" (`winget install --id Microsoft.VisualStudio.2022.BuildTools --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"`). Install it before your first build; if Bazel ran first, run `bazel fetch --configure --force` once so that it finds the compiler. |
+| **On Windows, also** | Developer Mode on (Settings → System → For developers) and Git for Windows at its default path; see the README's Windows prerequisites. Run the commands below in PowerShell. |
 | **A browser** | Any current one. |
 | **Postgres 16 or newer** | Reachable over TCP from your machine. Older servers are refused at start. See section 3 for a throwaway one in Docker. |
 | **A Postgres login that can read** | `USAGE` on the schemas and `SELECT` on the tables you want to see. Nothing else: DataCube only reads. |
@@ -78,6 +79,40 @@ GRANT SELECT ON ALL TABLES IN SCHEMA sales TO reader;
 SQL
 ```
 
+**In PowerShell** (Windows), the same:
+
+```powershell
+docker run -d --name datacube-pg -e POSTGRES_PASSWORD=admin -p 5432:5432 postgres:16
+do { Start-Sleep 1; docker exec datacube-pg pg_isready -h 127.0.0.1 -U postgres *> $null } until ($LASTEXITCODE -eq 0)
+
+@'
+CREATE DATABASE shop;
+\c shop
+CREATE SCHEMA sales;
+CREATE TABLE sales.orders (
+  id integer PRIMARY KEY,
+  ordered_at timestamptz NOT NULL,
+  channel text NOT NULL,
+  region text NOT NULL,
+  product text NOT NULL,
+  quantity integer NOT NULL,
+  unit_price numeric(10,2) NOT NULL
+);
+INSERT INTO sales.orders
+SELECT g,
+       timestamptz '2026-01-01 00:00:00+00' + g * interval '37 minutes',
+       (ARRAY['web','store','phone'])[1 + g % 3],
+       (ARRAY['north','south','east','west'])[1 + g % 4],
+       (ARRAY['widget','gadget','gizmo','doohickey','sprocket'])[1 + g % 5],
+       1 + g % 7,
+       round((5 + (g % 50) * 1.37)::numeric, 2)
+FROM generate_series(1, 5000) AS g;
+CREATE ROLE reader LOGIN PASSWORD 'secret';
+GRANT USAGE ON SCHEMA sales TO reader;
+GRANT SELECT ON ALL TABLES IN SCHEMA sales TO reader;
+'@ | docker exec -i datacube-pg psql -U postgres
+```
+
 If port 5432 is already taken on your machine, use `-p 5433:5432` and put `5433` in the URL below.
 When you are done with it: `docker rm -f datacube-pg`.
 
@@ -93,6 +128,12 @@ The `--` separates Bazel's own arguments from the app's. Everything after it goe
 - from `~/.pgpass` (a line `127.0.0.1:5432:shop:reader:secret`, file mode `0600`), or
 - from the `PGPASSWORD` environment variable (`PGPASSWORD=secret bazel run //datacube:app -- ...`), or
 - if neither has it, the app asks in the terminal: `Postgres password for shop:`.
+
+On Windows, libpq's password file is `%APPDATA%\postgresql\pgpass.conf` (same line format; no file
+mode to set), and the variable is set in PowerShell with
+`$env:PGPASSWORD = 'secret'; bazel run //datacube:app -- ...`. Unlike bash's one-command form, that
+lasts for the whole PowerShell session, so the password prompt never appears afterwards;
+`Remove-Item Env:PGPASSWORD` clears it.
 
 You *can* write `postgresql://reader:secret@...`, but then the password sits in your shell history.
 
@@ -247,5 +288,38 @@ DATACUBE_APP_TABLE=sales.orders DATACUBE_APP_GROUP=channel \
 bazel run //datacube:verify_app
 ```
 
+In PowerShell:
+
+```powershell
+bazel run //datacube:install_browser
+$env:DATACUBE_APP_PG = 'postgresql://reader:secret@127.0.0.1:5432/shop'
+$env:DATACUBE_APP_TABLE = 'sales.orders'; $env:DATACUBE_APP_GROUP = 'channel'
+bazel run //datacube:verify_app
+```
+
+Unlike bash's one-command form, these variables stay set for the whole PowerShell session (the
+password in `DATACUBE_APP_PG` with them). Clear them with
+`Remove-Item Env:DATACUBE_APP_PG, Env:DATACUBE_APP_TABLE, Env:DATACUBE_APP_GROUP`.
+
 Every line should start with `ok:`. Against the sample database of section 3, the grouping step
 reports `grouped by channel: 3 groups`.
+
+## 11. On Windows
+
+The app on Windows is the same native binary, started by a small native launcher
+([hermetic-launcher](https://github.com/hermeticbuild/hermetic-launcher)) instead of the bash script
+macOS and Linux use. Three differences:
+
+- **The app runs in Bazel's folder, not yours.** A relative path among your arguments (say
+  `?sslrootcert=ca.pem`) is read from Bazel's runfiles folder: give it as an absolute path, or run
+  `bazel run --run_in_cwd //datacube:app -- ...`, which starts the app where you are. A relative
+  `--data` is the exception: it is always where you ran `bazel run`.
+- **An argument containing `"` arrives changed**, and so does one that holds a space and ends in
+  `\` (`a b\` arrives as `a b\\`; `ab\` arrives intact).
+  Postgres URLs and connection strings, which quote with `'`, are unaffected.
+- **x64 only.** Windows on ARM is not supported: there `bazel build //...` skips the app.
+- **Your account name becomes your user name in the app**, with each character a user name cannot
+  hold written as `_`: an account `John Madsen` signs in as `John_Madsen`.
+
+Ctrl+C stops the app as on the other platforms; PowerShell then shows the exit code as `-1073741510`,
+which is `0xC000013A` (stopped by Ctrl+C) and not an error.

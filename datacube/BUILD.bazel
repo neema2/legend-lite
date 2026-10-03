@@ -559,8 +559,7 @@ js_test(
 
 # LIVE VERSUS SNAP over a real warehouse (docs/WAREHOUSE_D1_DESIGN_2026_09_26.md):
 # every cube case live on the Bazel-built native warehouse as a reader, then
-# snapped into DuckDB-WASM, the answers compared. Not on Windows (the native
-# image is not built there yet).
+# snapped into DuckDB-WASM, the answers compared.
 js_test(
     name = "live_snap_test",
     size = "medium",
@@ -589,10 +588,6 @@ js_test(
         "--test-reporter=./test/strict-reporter.mjs",
         "--test-reporter-destination=stderr",
     ],
-    target_compatible_with = select({
-        "@platforms//os:windows": ["@platforms//:incompatible"],
-        "//conditions:default": [],
-    }),
 )
 
 # ── THE DEMO SITE ───────────────────────────────────────────────────────────────
@@ -708,7 +703,8 @@ js_binary(
 )
 
 # THE APP (docs/DATACUBE_APP_PLAN_2026_10_02.md): the native warehouse serving this site, one user,
-# the browser opened on the tables of the databases named:
+# the browser opened on the tables of the databases named (on Windows through hermetic-launcher:
+# warehouse/defs.bzl):
 #   bazel run //datacube:app -- postgresql://bob@db:5432/shop [--table sales.orders]
 warehouse_run(
     name = "app",
@@ -720,10 +716,6 @@ warehouse_run(
     postgres_extension_gz = POSTGRES_EXTENSION,
     server = "//warehouse:server_native",
     site = ":dist",
-    target_compatible_with = select({
-        "@platforms//os:windows": ["@platforms//:incompatible"],
-        "//conditions:default": [],
-    }),
 )
 
 # `bazel build //datacube:dist`: the site as a folder for any static host — no
@@ -825,6 +817,8 @@ js_binary(
         "//warehouse:serve",
     ],
     entry_point = "demo/verify-app.mjs",
+    # this platform's launcher (warehouse/defs.bzl): a script on Linux and macOS, an .exe on Windows
+    env = {"WAREHOUSE_SERVE": "$(rlocationpath //warehouse:serve)"},
     tags = ["manual"],
 )
 

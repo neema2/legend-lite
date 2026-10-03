@@ -256,6 +256,27 @@ counterpart that supersedes it. See `AGENTS.md`.
   sources the tests read as the spec (pinned by sha256).
 - An IDE: IntelliJ with the Bazel plugin opens the BUILD files as the project.
 
+**On Windows**, four more things, once:
+
+- **Developer Mode** on (Settings → System → For developers). Bazel makes real symlinks for
+  the tests' runfiles (`.bazelrc`), which Windows allows only in Developer Mode or as admin.
+- **[Git for Windows](https://git-scm.com/download/win)** at its default path. Bazel runs its
+  bash (`.bazelrc` names `C:/Program Files/Git/usr/bin/bash.exe`). If your Git is elsewhere, or
+  you use MSYS2's bash, repeat those two `.bazelrc` lines with your path in
+  `%USERPROFILE%\.bazelrc`. The `.bazelrc` lines take precedence over finding MSYS2 on its own,
+  so without that the first shell action fails, naming the missing `bash.exe`.
+- **Bazelisk** as `bazel`: `winget install Bazel.Bazelisk` installs it as `bazelisk`, then, in
+  a new PowerShell,
+  `New-Item -ItemType SymbolicLink -Path "$env:LOCALAPPDATA\Microsoft\WinGet\Links\bazel.exe" -Target (Get-Command bazelisk).Source`.
+- **Visual Studio 2022 Build Tools**, "Desktop development with C++": `bazel build //...` builds the
+  native warehouse, which links with MSVC. Install it before Bazel first runs, or run
+  `bazel fetch --configure --force` once after, since Bazel keeps the C++ toolchain it found first.
+
+Line endings need nothing in a fresh clone: `.gitattributes` keeps text files LF in the working
+tree, whatever `core.autocrlf` says, and normalizes an editor's CRLF to LF on commit (the corpus and
+the generated files are compared byte for byte). A clone made with `core.autocrlf=true` before
+`.gitattributes` existed keeps its CRLF files until they are checked out once more.
+
 ### Build & Test
 
 ```bash

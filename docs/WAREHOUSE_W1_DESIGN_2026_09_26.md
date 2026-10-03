@@ -317,7 +317,7 @@ suite with `WAREHOUSE_BINARY` and `WAREHOUSE_DUCKDB_LIBRARY` pointing at those t
 test starts that executable (the tests' `TestServer`) instead of an in-process server, on a free
 port, with the same users and limits, and talks to it over HTTP only. `bazel test //...` builds and
 runs it, so both sessions' local chains judge the binary (~40 s to build, cached until warehouse or
-core changes). Linux and macOS; Windows is owed.
+core changes). Linux, macOS and, since 2026-10-02, Windows (docs/WINDOWS_APP_DESIGN_2026_10_02.md).
 
 - **The break that moved it into Bazel:** a script (`warehouse/tools/build-native.sh`, deleted)
   listed the class path by hand as "the first file of `//core`". When core split into 29 targets,
@@ -339,7 +339,7 @@ core changes). Linux and macOS; Windows is owed.
   the script that did it is gone. Needed only when the server's FFM or reflection use changes.
 - **`GET /sql/v1/history`:** the caller's own statements, newest first (the history test reads it
   through the API, so it judges the binary too; another user's statements are not in yours).
-- **CI:** the `native` lane (Linux, macOS) runs `bazel test //warehouse:tests_native`, with the Arrow
+- **CI:** the `native` lane (Linux, macOS and, since 2026-10-02, Windows) runs `bazel test //warehouse:tests_native //warehouse:launcher_test //datacube:app`, with the Arrow
   check required.
 
 **Measured (this machine, GraalVM CE 25.0.1, a 21.5 MB binary, built in ~23 s):**
@@ -364,7 +364,7 @@ identical), kept as bytes, served as they are, and the first chunk spliced into 
 | native: resident after six results held | 2.7 GB | **745 MB** |
 | JVM: total | 0.73–0.95 s | **0.63–0.72 s** |
 
-**Owed:** Windows native builds (a separate toolchain setup). (Results held for their retention:
+**Windows native builds:** done 2026-10-02 (docs/WINDOWS_APP_DESIGN_2026_10_02.md). (Results held for their retention:
 done, "Results: freed when done" below.)
 
 ## W1f: the JDBC driver reads Arrow by default (2026-09-26)

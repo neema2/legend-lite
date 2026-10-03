@@ -115,6 +115,36 @@ class AppModeTest {
         }
     }
 
+    @Test
+    void underBazelRunARelativeDataDirectoryIsWhereTheCommandWasStarted() throws Exception {
+        Path startedIn = Path.of("work").toAbsolutePath();
+        // the default, and a relative --data: where `bazel run` was started, wherever the launcher put the server
+        assertEquals(startedIn.resolve("warehouse-data"),
+                WarehouseServer.commandLine(new String[] {}, startedIn).config().dataDir());
+        assertEquals(startedIn.resolve("cube"),
+                WarehouseServer.commandLine(new String[] {"--data", "cube"}, startedIn).config().dataDir());
+        // an absolute --data is what it says
+        Path absolute = Path.of("srv", "cube").toAbsolutePath();
+        assertEquals(absolute,
+                WarehouseServer.commandLine(new String[] {"--data", absolute.toString()}, startedIn).config().dataDir());
+        // not under `bazel run`: as given, relative to wherever the server runs
+        assertEquals(Path.of("warehouse-data"), WarehouseServer.commandLine(new String[] {}, null).config().dataDir());
+    }
+
+    @Test
+    void theSingleUserIsTheAccountRunningItWithWhatAPrincipalCannotHoldWrittenAsUnderscores() {
+        assertEquals("neema", Identity.accountPrincipal("neema"));
+        // Windows account names may hold spaces, and a domain account reads DOMAIN\name
+        assertEquals("John_Madsen", Identity.accountPrincipal("John Madsen"));
+        assertEquals("CORP_jo", Identity.accountPrincipal("CORP\\jo"));
+        assertEquals("Jos_", Identity.accountPrincipal("José"));
+        // one underscore per character, a character outside the BMP included
+        assertEquals("a_b", Identity.accountPrincipal("a😀b"));
+        // nothing to keep: refused, by the name
+        assertThrows(IllegalArgumentException.class, () -> Identity.accountPrincipal(""));
+        assertThrows(IllegalArgumentException.class, () -> Identity.accountPrincipal("x".repeat(129)));
+    }
+
     // -- the launch key --------------------------------------------------------------------------
 
     @Test

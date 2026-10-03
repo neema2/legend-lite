@@ -54,6 +54,13 @@ class WarehouseJdbcTest {
         server = TestServer.start(data, List.<String[]>of(new String[] {"alice", "alice-pw"}), new Statements.Limits(2, 50, 1_000_000, Duration.ofMinutes(5)));
         remote = connect();
         local = DriverManager.getConnection("jdbc:duckdb:");
+        // DuckDB's own driver in the session every warehouse connection starts in (Database.SESSION_SETUP):
+        // unset, it takes the machine's zone -- GMT on Linux and macOS, where the tests' TZ=GMT reaches
+        // DuckDB, but on Windows, where DuckDB reads the system zone and not TZ, the desk's own (a nested
+        // TIMESTAMPTZ printed at -05 against the warehouse's +00 on an Eastern-time machine, 2026-10-02)
+        try (Statement s = local.createStatement()) {
+            s.execute("SET SESSION TimeZone = 'UTC'");
+        }
         for (Connection c : List.of(remote, local)) {
             try (Statement s = c.createStatement()) {
                 s.execute("CREATE TYPE mood AS ENUM ('sad', 'ok', 'happy')");

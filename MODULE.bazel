@@ -288,8 +288,8 @@ use_repo(maven, "maven_core", "maven_h2_modern", "maven_warehouse", "maven_runne
 # here by its release archive's digest. GraalVM itself is fetched by Bazel. Only its
 # native-image toolchain is registered: the repository's Java runtime stays rules_java's.
 bazel_dep(name = "rules_graalvm", version = "0.12.0")
-# The OS and CPU constraints the native targets select on (already in the graph at 1.0.0).
-bazel_dep(name = "platforms", version = "1.0.0")
+# The OS and CPU constraints the native targets select on. 1.1.0: what hermetic_launcher requires.
+bazel_dep(name = "platforms", version = "1.1.0")
 archive_override(
     module_name = "rules_graalvm",
     integrity = "sha256-2IktQqVOV09uZKsQztwY3rvJpeRjxWE4Stf1FxH/gCI=",
@@ -311,6 +311,12 @@ gvm.graalvm(
 use_repo(gvm, "graalvm", "graalvm_toolchains")
 
 register_toolchains("@graalvm_toolchains//:toolchain_gvm")
+
+# `bazel run`'s launcher for the native warehouse on Windows (warehouse/defs.bzl, warehouse_run;
+# docs/WINDOWS_APP_DESIGN_2026_10_02.md): a native stub with the server's arguments baked in, which
+# starts the server with the caller's arguments intact -- where a .bat and Bazel's bash launcher
+# split a Postgres URL at '&'. Released stubs: no Rust toolchain.
+bazel_dep(name = "hermetic_launcher", version = "0.0.16")
 
 # ── THE UPSTREAM SOURCES ────────────────────────────────────────────────────────
 # legend-engine / legend-pure at ONE release, pinned by content. Tests read these
@@ -349,4 +355,5 @@ http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_
     "osx_amd64": "b8764ed496be635fbac3e5e6a6c8e3e3c2dbfcaa862ce0422c21cad6fcc6c353",
     "linux_amd64": "e0f631a5535f165468bc8a20501f8bc1490adbc877d38fcdff2f8d05531e1e5b",
     "linux_arm64": "59849e8a4be00fa0ec8c4db0d26707999061d103b902bf32322fa5cde1fc393d",
+    "windows_amd64": "65b31f002c70ac5f812d293b8552b977d1c0e6752d0a1127176454c8184ed001",
 }.items()]

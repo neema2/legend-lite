@@ -8,9 +8,7 @@
 //
 // Manual: it needs a Postgres (16+) that the URL's user can read, as //warehouse:postgres_live does.
 
-import { spawn } from 'node:child_process';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
+import { spawn, spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
@@ -24,19 +22,25 @@ if (!PG || !TABLE || !GROUP) {
   process.exit(2);
 }
 
+// the launcher's runfiles path, named by //datacube:verify_app: a script on Linux and macOS, an .exe on Windows
+const SERVE = process.env.WAREHOUSE_SERVE;
+if (!SERVE) {
+  console.error('run this as `bazel run //datacube:verify_app`: WAREHOUSE_SERVE names the launcher');
+  process.exit(2);
+}
+
 // This file is datacube/demo/verify-app.mjs in the runfiles: the site and the launcher are beside it.
 const DATACUBE = fileURLToPath(new URL('..', import.meta.url));
 const RUNFILES = resolve(DATACUBE, '..', '..');
-const work = await mkdtemp(join(tmpdir(), 'verify-app-'));
 
 let failed = false;
 const bad = (m) => { console.log(`FAIL: ${m}`); failed = true; };
 const ok = (m) => console.log(`ok: ${m}`);
 
 // The warehouse as //datacube:app runs it, without --open: the address is read from what it prints.
-const server = spawn(join(DATACUBE, '..', 'warehouse', 'serve.sh'),
+const server = spawn(join(RUNFILES, SERVE),
   ['--port', '0', '--site', join(DATACUBE, 'dist'), '--single-user', PG],
-  { env: { ...process.env, RUNFILES_DIR: RUNFILES, BUILD_WORKING_DIRECTORY: work }, stdio: ['ignore', 'ignore', 'pipe'] });
+  { env: { ...process.env, RUNFILES_DIR: RUNFILES }, stdio: ['ignore', 'ignore', 'pipe'] });
 let printed = '';
 const address = await new Promise((done, fail) => {
   server.stderr.on('data', (b) => {
@@ -143,7 +147,18 @@ try {
   }
 } finally {
   await browser.close();
-  server.kill('SIGTERM');
-  await rm(work, { recursive: true, force: true });
+  if (process.platform === 'win32') {
+    // On Windows the launcher and the server are two processes, and kill() would stop the launcher alone.
+    // taskkill takes the PID of a child that is still running: once it has exited, Node has released its
+    // handle and Windows may have given the PID to another process, whose tree /t /f would then stop.
+    if (server.exitCode === null && server.signalCode === null) {
+      const r = spawnSync('taskkill', ['/pid', String(server.pid), '/t', '/f'], { encoding: 'utf8' });
+      // a taskkill that failed leaves the server running, still holding its port and its data directory
+      if (r.error) bad(`taskkill did not run: ${r.error.message}`);
+      else if (r.status !== 0) {
+        bad(`taskkill did not stop the warehouse (status ${r.status}): ${r.stdout}${r.stderr}`.trim());
+      }
+    }
+  } else server.kill('SIGTERM');
 }
 process.exit(failed ? 1 : 0);
