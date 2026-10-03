@@ -2,6 +2,8 @@
 
 **Base:** `origin/main` @ `23b441852` (the tree this plan's line numbers were checked against), plus the plan and evidence commits on `docs/bazel-first-class-plan`.
 
+**Amended 2026-10-03** to close every gap found by four independent checks (`coverage-check-01-04.md`, `coverage-check-05-07-spikes.md`, `end-state-ledger.md`, and the lead's C1–C5): new decisions D17–D21 (OPEN), new items, amended items, exact guard allowlists, a gap-by-gap map (§6.4) and the end state (§8).
+
 ## 1. Header
 
 **Purpose.** This turns [`BAZEL_FIRST_CLASS_PLAN_2026_10_02.md`](BAZEL_FIRST_CLASS_PLAN_2026_10_02.md) (the audit-level plan: what and why) into PR-sized work items: files, change, proof command, dependencies, size and acceptance. An engineer or an agent can take an item and execute it without further design. Where the evidence is not enough to specify an item exactly, the item says so, and its first sub-step is an investigation with one stated question.
@@ -14,6 +16,10 @@
 | CT-N*k*, SP-N*k*, WH-N*k*, DC-N*k*, HN-N*k*, SC-§*k*, BZ-N*k* (and K*k* for re-confirmed known items) | the seven audit reports `docs/bazel-audit-2026-10-02/01`–`07` |
 | S1 … S5 | the spikes in `docs/bazel-audit-2026-10-02/spikes/` |
 | SR | `docs/bazel-audit-2026-10-02/script-review.md` |
+| A1 … A30 | proposed fixes in `docs/bazel-audit-2026-10-02/coverage-check-01-04.md` ("CC1") |
+| G-01 … G-33 | gaps in `docs/bazel-audit-2026-10-02/coverage-check-05-07-spikes.md` ("CC2") |
+| L:G-1 … L:G-11, L:P-1 … L:P-6 | gaps and partials in `docs/bazel-audit-2026-10-02/end-state-ledger.md` ("L"); its other row IDs are cited as "ledger S-12" and so on |
+| C1 … C5 | the lead's own gaps, recorded 2026-10-03: branch protection (C1), a PowerShell desk lane (C2), CODEOWNERS (C3), process gates (C4), deleting `Repo` and `Upstream` (C5) |
 
 **Where a spike changed the plan, this workplan follows the spike, and the item says so:**
 
@@ -36,6 +42,15 @@
    - Nothing is deleted before the script review is decided: every script deletion depends on P7-01.
    - Python is first class through `rules_python`.
    - The 59/60 generators are taught their fixes; the files are never edited to match.
+   - `testing/Repo.java` and `testing/Upstream.java` are deleted, not reduced (C5; P3-33).
+   - D17–D21, added 2026-10-03 from the coverage checks, are **OPEN** (§2). Items that depend on them wait for the answer.
+7. **Windows proof (C2).** An item that touches launchers, runfiles, `.bazelrc` shell or platform lines, `testing/**`, `tools/junit/**`, `warehouse/**` or a workflow that runs a Windows job carries a **Windows proof (C2)** mark in its Proof field. Its PR must show the Windows CI jobs green and the PowerShell desk lane (P5-09) green. Until P5-09 lands, the Windows contributor's PowerShell desk run of the item's light targets is recorded in the PR instead.
+
+**Process gates (C4, added 2026-10-03).** These apply to every item, alongside its own Proof:
+
+- **Every PR** gets an independent review, by an agent or a person who did not write it, recorded in the PR (P0-15's template), and CI green on all platforms, every Windows job included. Once D17 is decided, P0-14's ruleset makes the CI half mechanical.
+- **Every phase ends with an audit item** (P0-90 … P7-90). It checks each Done-when of the phase on `main`, and each §6 row that names the phase's items, against the code. The results go into §6.5. A milestone checkpoint (§7.3) closes only when the audits of the phases it completes are done.
+- **The plan ends with P8-01,** a full re-audit against every finding: the seven audits, the spikes, the script review, the two coverage checks, the end-state ledger and C1–C5.
 
 **How to use this document.**
 
@@ -57,13 +72,13 @@
 - Every local proof on the shared desk adds the spikes' `--local_resources=cpu=3 --jobs=3`.
 - Commands are written from the repository root. Labels are literal.
 
-**Size key** (the plan's): **S** ≤ ½ day; **M** 1–3 days; **L** about a week. Each item also gives a day figure, used for the totals in §7.
+**Size key** (the plan's): **S** ≤ ½ day; **M** 1–3½ days; **L** about a week. Each item also gives a day figure, used for the totals in §7.
 
 ---
 
 ## 2. Decisions needed from the user
 
-> **All decisions recorded by the user on 2026-10-03.** Each section below ends with its **Decided** line. Summary:
+> **D1–D16 were recorded by the user on 2026-10-03.** Each of those sections ends with its **Decided** line. **D17–D21 were added on 2026-10-03 from the coverage checks and are OPEN:** each ends with a **Status: OPEN** line and a recommendation. Summary:
 >
 > | # | Decided |
 > |---|---|
@@ -84,6 +99,11 @@
 > | D14 | (a) if P2-06 shows no exec-configuration double compile, else (b) |
 > | D15 | Two locks, exact versions, one revision test |
 > | D16 | `docs/history/<original path>` |
+> | D17 | **OPEN.** Recommended (a): a ruleset on `main` requiring every CI check (Windows included) and PRs for all changes; CODEOWNERS requests the Windows contributor |
+> | D18 | **OPEN.** Recommended (a): the Python probes stay `py_binary`s that run `//tools/engine-runner:testable` from runfiles through one `launch()`, a declared G5 exception |
+> | D19 | **OPEN.** Recommended (b): rework Bump, `move_classes.py` and `upstream-drift.py` so no `bazel run` tool calls a host program |
+> | D20 | **OPEN.** Recommended (a): declare bash as a host prerequisite of third-party rules on all three platforms, and measure it |
+> | D21 | **OPEN.** Recommended (a): `datacube/bench/model/*.py` go to history |
 
 Each decision lists its options, a recommendation, and the items it blocks. An item that depends on a decision cannot start until the decision is recorded. Record a decision in the item's PR description, and in `script-review.md`'s Decision column for D3.
 
@@ -251,7 +271,7 @@ What gets mirrored:
 
 **Recommendation: (a).**
 
-**Blocks:** P1-27 (and the mirror half of P0-12).
+**Blocks:** P1-27 (under (c), only its `https` and `integrity` half).
 
 **Decided (2026-10-03):** **(c), single URLs.** The user's reasoning: dependencies are kept current as the project goes. A mirror protects pinned bytes, not upgrades; the residual risk is a sha256 break when GitHub regenerates a tag archive, which is fixed by re-pinning. P1-27 shrinks to `https` plus `integrity=`; no release assets.
 
@@ -323,9 +343,83 @@ The four records carry wall-clock timestamps (`createdAt`, `lastUpdatedAt`, `las
 - **Recommendation:** `docs/history/<original path>`, exempt from G9 and allowlisted in G2. Not a second bazelignored attic: `experiments/` is the only one, by decision.
 - **Blocks:** P7-04, P7-09.
 
----
-
 **Decided (2026-10-03):** as recommended.
+
+### D17. Branch protection on `main`, and CODEOWNERS (C1, C3)
+
+`main` has no branch protection or ruleset. No check is required to merge, and other sessions push directly to `main`. So Windows CI cannot block a regression: a red Windows job is advisory.
+
+| Option | What it means | For | Against |
+|---|---|---|---|
+| (a) **A ruleset on `main`, plus CODEOWNERS as a request** | PRs required for every change, agent sessions included (no direct push); every CI check required: each lane on Linux, macOS and Windows, actionlint, and the PowerShell desk lane (P5-09) once it exists; no force push or deletion; admins may bypass for an outage. `.github/CODEOWNERS` auto-requests `@johnnymads` on Windows-sensitive paths. | a regression on any platform cannot merge; the Windows contributor sees every change to his surface | **it changes everyone's workflow:** every session and the user work on branches and open PRs, and a docs fix waits for CI; the required check names must follow lane changes (P5-03) |
+| (b) (a), with code-owner review **required** on those paths | as (a) | no Windows-sensitive change merges unseen | blocks on one person's availability; he needs write access |
+| (c) Status quo | no protection | no workflow change | Windows CI cannot block; the plan's Windows criteria (P3-32, P5-09) are unenforced |
+
+- **Recommendation: (a), yes.** Independent review (C4) stays a process gate recorded in the PR, not a required GitHub approval: agent sessions run under the user's own account, and GitHub does not let an account approve its own PR, so a required approval count would block every agent PR.
+- Required checks plus `paths-ignore` would leave a docs-only PR pending forever, so P0-14 removes `paths-ignore` from the `pull_request` trigger in the same change.
+- **Blocks:** P0-14.
+
+**Status: OPEN** (recommended: (a)).
+
+### D18. Python programs that start Java (D3 rows 1, 2 and 5)
+
+D3 kept `scripts/corpus/run.py`, the 15 `probe_*.py` and `scripts/projects/{check,loadtime}.py`. Each starts the JVM through `subprocess` (ledger G-1, rows S-19 to S-22).
+
+| Option | What it means | For | Against |
+|---|---|---|---|
+| (a) **`py_binary`s that run `//tools/engine-runner:testable` from runfiles,** all through one `run.launch(args)` (the rules_python runfiles library) | `run.py` is the one G5 row; `check.py` is the interim `py_test` until P3-23 | smallest change; matches D3; one declared spawn site, from runfiles | Python starting Java remains, as a declared exception (§8) |
+| (b) Convert them into Bazel tests or actions | each probe becomes a `junit_test` or `java_run` over `//tools/engine-runner` with its Pure input as a fixture; `run.py` becomes a `java_run` rows report; `check.py` waits for P3-23 | no Python-to-Java spawn at all; no Python G5 row | rewrites 18 scripts that D3 chose to repair; the probes are interactive tools whose arguments vary per investigation, which actions do not fit; about 6–8 more days |
+
+- **Recommendation: (a).** The probes are developer diagnostics under `bazel run`. The spawn is one function, over a binary from runfiles, and G5 guards it. A probe that later becomes a gate becomes a test at that point.
+- **Blocks:** P3-25, P7-03, P6-05 (its Python row).
+
+**Status: OPEN** (recommended: (a)).
+
+### D19. `bazel run` tools that call host programs
+
+`tools/bump/Bump.java` (host `git ls-remote`, three nested `bazel` runs, `git status`/`diff`); `tools/untangle/move_classes.py` (`git mv`); `tools/upstream-drift.py` (`curl`, `git ls-tree`). Sources: A20, G-16, G-17, L:P-6, ledger rows S-10, S-27, S-28 and O-1.
+
+| Option | What it means | For | Against |
+|---|---|---|---|
+| (a) Allowed exceptions | each stays, with a dated G5 row and a §8 entry; Bump runs `$BAZEL_REAL` | no rework | host `git`/`curl` and nested Bazel remain; three G5 rows |
+| (b) **Rework all three** | Bump resolves the tag SHA through GitHub's REST API with `java.net.http` (its existing `HttpClient`), rewrites a whole `release.MODULE.bazel` segment pulled in by `include()` (no regex), and prints the repin, regenerate and test commands instead of running nested Bazel; `move_classes.py` moves files with `pathlib` (git's rename detection is content-based, so `git mv` adds nothing); `upstream-drift.py` uses `urllib` and reads the pinned trees from `@legend_*_src` runfiles | no tool calls a host program; the three G5 rows disappear | about 2 days; a bump becomes two steps (edit, then run the printed commands, which P0-04's `--lockfile_mode=error` enforces in CI) |
+| (c) Mixed | (b), except that Bump keeps nested `bazel` (through `$BAZEL_REAL`) as one recorded exception | a bump stays one command | nested Bazel remains |
+
+- **Recommendation: (c)** (lead's correction, 2026-10-03). (b)'s plan to print the repin, regenerate and test commands for a person to run turns one command into a hand-run recipe, which the plan removes. Take everything else from (b): tag commits over GitHub's REST API, `release.MODULE.bazel` through `include()` instead of regex, upstream-drift reading the pinned `@legend_*_src`, and file operations instead of `git mv` where the move tool allows. Keep Bump's nested `bazel` through `$BAZEL_REAL` (the pinned version bazelisk exports) as one recorded G5 exception, because a new pin takes effect only in the next Bazel invocation. Original note: Bazel's downloader was considered for Bump's tag lookup (a repository rule doing `rctx.download` of the API URL under `--repo_env=BUMP_TAG=…`), but a repository rule cannot write the source tree, so Bump stays a `bazel run` program either way, and `java.net.http` is simpler.
+- **Blocks:** P2-10, P7-02, P7-03, P6-05 (its rows).
+
+**Status: OPEN** (recommended: (c)).
+
+### D20. `/bin/bash` on macOS and Linux as a declared host prerequisite (ledger G-9)
+
+rules_java's Unix `java_binary`/`java_test` stub, rules_js's launchers, bazel_lib's `write_source_files` and `diff_test`, rules_jvm_external's pin scripts, and possibly rules_python's bootstrap generate bash scripts. This is not our code, and the workplan never declared it.
+
+| Option | What it means | For | Against |
+|---|---|---|---|
+| (a) **Declare and measure** | `README.md`'s Prerequisites lists bash on all three platforms (Unix `/bin/bash`; Windows Git for Windows, `.bazelrc:35-36`), attributed to those rules; P5-07 measures with `aquery` on every platform and records the mnemonic list in a dated `.bazelrc` comment; rules_python's bootstrap is set per that measurement | honest; about 0.5 day more in P5-07 | bash stays a host dependency |
+| (b) Eliminate it | — | — | not possible today for rules_java's Unix stub and rules_js (S2 risks 1–2) |
+| (c) Leave it undeclared | — | nothing to do | a hidden host dependency, against "no host dependence" |
+
+- **Recommendation: (a).**
+- **Blocks:** P5-07 (its Unix half).
+
+**Status: OPEN** (recommended: (a)).
+
+### D21. `datacube/bench/model/*.py`: `py_binary` or history (G-18)
+
+D3b offered two fates for these 8 files, and "as listed" did not pick one.
+
+| Option | For | Against |
+|---|---|---|
+| (a) **History** (P7-04), unless a standing doc cites a benchmark | no new pin; the host `duckdb -c` recipe goes with it | the benchmarks stop being runnable |
+| (b) `py_binary`s on `@pypi//duckdb`, with `bench.sql` run through the Python API | runnable | a new pinned wheel to maintain |
+
+- **Recommendation: (a).** `git grep -n "bench/model"` over the standing docs decides "cited": if one cites it, (b).
+- **Blocks:** P4-15.
+
+**Status: DECIDED (b), 2026-10-03.** The user accepted D3b's "bench models become `py_binary` targets" when recording every recommendation; this records the choice that D3b's "or" left open. P4-15 implements it with `@pypi//duckdb` pinned.
+
+---
 
 ## 3. Dependency graph and topological order
 
@@ -408,25 +502,42 @@ flowchart TD
     P7_01[P7-01 record script decisions] --> P7_x[P7-02..05 apply]
   end
   D3{{D3 script review}} --> P7_01
+  subgraph ADD[Added 2026-10-03 from the coverage checks]
+    P3_27 --> P3_27b[P3-27b walkers outside core] --> P3_33[P3-33 delete Repo and Upstream] --> P3_32
+    P2_18[P2-18 inventory files] --> P2_20[P2-20 keywords.py]
+    P5_01 --> P5_08[P5-08 weekly heavy suite] --> P6_03[P6-03 G3]
+    P0_03[P0-03 interim lanes] --> P5_09[P5-09 PowerShell desk lane]
+    P4_01 --> P4_18[P4-18 no taskkill] --> P6_15[P6-15 G15]
+    P7_14[P7-14 debug switches] --> P6_20[P6-20 G20]
+    AUD[Pn-90 phase audits] --> P8_01[P8-01 final re-audit]
+  end
+  D17{{D17 branch protection}} --> P0_14[P0-14 ruleset and CODEOWNERS]
+  P0_03 --> P0_14
+  D18{{D18 Python probes}} --> P7_x
+  D19{{D19 host-calling tools}} --> P7_x
+  D20{{D20 bash prerequisite}} --> P5_07[P5-07 bash measurement]
+  D21{{D21 bench/model}} --> P4_15[P4-15 one JS workflow]
 ```
 
 ### 3.2 Topological order (every item)
 
-This order respects every *Depends on* field in §4 and §5. Items on one line have no dependencies between them and can run in parallel, subject to the heavy-lane cap. Decisions are listed where they first gate something.
+This order respects every *Depends on* field in §4 and §5 (checked mechanically on 2026-10-03). Items on one line have no dependencies between them and can run in parallel, subject to the heavy-lane cap. Decisions are listed where they first gate something.
 
-1. **Ask all decisions D1–D16** (user time; they do not block step 2).
-2. P0-01, P0-03, P0-04, P0-06, P0-07, P0-09, P0-10, P0-11, P0-12, P0-13
-3. P0-02, P0-05, P0-08
-4. P1-01, P1-03, P1-07 (D12), P1-09, P1-13, P1-14, P1-15, P1-17, P1-18, P1-19, P1-20, P1-22, P1-23, P1-26, P1-28, P6-00, P6-14, P6-17
-5. P1-02, P1-04, P1-05, P1-06, P1-08, P1-10 (D1), P1-11 (D5), P1-12, P1-16, P1-21, P1-24, P1-25, P1-27 (D10), P7-10, P7-12
-6. P6-10, P6-11, P6-16, P6-19, P2-01 (D13), P2-07, P2-08, P2-11, P2-17, P3-02, P3-03, P3-11, P3-15, P3-24, P3-26, P3-31, P7-06, P7-11
-7. P2-02, P2-04 (D3), P2-05, P2-06 (D14), P2-10, P2-12 (D9), P2-13, P2-19, P3-01, P3-04, P3-07, P3-08, P3-10, P3-12, P3-14, P3-16, P3-17, P3-19, P3-20, P3-21, P3-27, P3-28, P3-29, P4-14, P4-16
-8. P2-03, P2-09, P2-14, P2-16 (D9), P2-18 (D3), P3-05, P3-09 (D2, D6), P3-13, P3-18 (D3), P3-22, P3-23, P3-25, P3-30, P4-01, P4-11 (D3b), P4-12, P4-15
-9. P2-15, P3-06, P3-32, P4-02, P4-03, P4-04, P4-05 (D15), P4-06, P4-07, P4-08, P4-13, P6-05, P6-07, P6-12, P6-13
-10. P4-09 (D3b), P5-01, P5-02 (D4, D7), P5-05, P6-04, P6-06, P6-18, P7-01 (D3), P7-14
-11. P4-10 (D11), P5-03, P6-01, P6-03, P6-15, P7-02, P7-03, P7-04 (D16), P7-05, P7-07, P7-09, P7-15
-12. P5-04, P5-06, P5-07, P6-08, P7-08, P7-13
-13. P6-02, P6-09
+1. **Ask all decisions:** D1–D16 are recorded; **D17–D21 are OPEN** (user time; they do not block step 2).
+2. P0-01, P0-03, P0-04, P0-06, P0-07, P0-09, P0-10, P0-11, P0-12, P0-13, P0-15
+3. P0-02, P0-05, P0-08, P0-14 (D17), P5-09
+4. P1-01, P1-03, P1-07 (D12), P1-09, P1-13, P1-14, P1-15, P1-17, P1-18, P1-19, P1-20, P1-22, P1-23, P1-26, P1-28, P6-00, P6-14, P6-17, P0-90
+5. P1-02, P1-04, P1-05, P1-06, P1-08, P1-10 (D1), P1-11 (D5), P1-12, P1-16, P1-21, P1-24, P1-25, P1-25b, P1-27 (D10), P6-19, P7-10, P7-12
+6. P6-10, P6-11, P6-16, P2-01 (D13), P2-07, P2-08, P2-11, P2-17, P3-02, P3-03, P3-11, P3-15, P3-24, P3-26, P3-31, P7-06, P7-11, P1-90
+7. P2-02, P2-04 (D3), P2-05, P2-06 (D14), P2-10 (D19), P2-12 (D9), P2-13, P2-19, P3-01, P3-04, P3-07, P3-08, P3-10, P3-12, P3-14, P3-16, P3-17, P3-19, P3-20, P3-21, P3-27, P3-28, P3-29, P4-14, P4-16
+8. P2-03, P2-09, P2-14, P2-16 (D9), P2-18 (D3), P3-05, P3-09 (D2, D6), P3-13, P3-18 (D3), P3-22, P3-23, P3-25 (D18), P3-27b, P3-30, P3-34, P4-01, P4-11 (D3b), P4-12, P4-15 (D21)
+9. P2-15, P2-20, P3-06, P3-33, P4-02, P4-03, P4-04, P4-05 (D15), P4-06, P4-07, P4-08, P4-13, P4-17, P6-07, P6-12
+10. P3-32, P4-09 (D3b), P4-18, P5-01, P5-02 (D4, D7), P5-05, P6-04, P6-06, P6-13, P6-18, P7-01 (D3), P7-14, P2-90
+11. P4-10 (D11), P5-03, P6-01, P6-15, P6-20, P7-02 (D19), P7-03 (D18, D19), P7-04 (D16), P7-05, P7-07, P7-09, P7-15, P3-90
+12. P5-04, P5-06, P5-07 (D20), P5-08, P6-05, P7-08, P7-13, P4-90
+13. P6-02, P6-03, P6-08, P6-09, P5-90, P7-90
+14. P6-90
+15. P8-01
 
 ---
 
@@ -454,7 +565,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P0-02 |
 | Why | Plan 0.3; SC-§2 ("GENERATED expansion fails silently"); BZ-N17; HN K11 (`set -u` only). At HEAD the query is `bazel query … 2>/dev/null` inside a process substitution, `.github/workflows/gates-run.yml:156`. The browser step has `set -u` only (`:166`). |
 | Change | <ul><li>Root `BUILD.bazel`: `test_suite(name = "generated", tests = ["//core:update_generated_tests", "//datacube:update_generated_tests", "//docs:update_generated_tests", "//parser-equivalence:update_generated_tests"])`. These are the suites bazel_lib's `write_source_files` creates. Later items add their own suites here: P2-01, P2-06, P2-07.</li><li>`gates-run.yml`: lane `checks` names `//:generated` instead of `GENERATED`. Delete the `for t in $LANE_TARGETS … bazel query` block (`:152-160`).</li><li>Every `run:` block starts `set -euo pipefail`, including the browser loop at `:166`.</li></ul> |
-| Proof | `bazel test //:generated` passes. A local negative check: misspell one suite label, and `bazel test //:generated` fails at analysis. CI: the `checks` lane log shows the 4 suites expanded. |
+| Proof | `bazel test //:generated` passes. A local negative check: misspell one suite label, and `bazel test //:generated` fails at analysis. CI: the `checks` lane log shows the 4 suites expanded. **Windows proof (C2)** (§1). |
 | Depends on | — |
 | Size | S (0.5 d) |
 | Risk/rollback | A suite name may differ from bazel_lib's convention. The first build shows it. |
@@ -467,7 +578,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P0-03 |
 | Why | Plan 0.2. Part 0: still in no lane: `//json:tests`, `//query:{build,load,saved_queries,typecheck}_test`, `//query-store:{local,share}_test`, `//pure-protocol:twins_test`. `//site:verify` is never selected (HN-N1). Non-test targets are never built in CI (BZ-N1). SC-§2: `7p` is missing from the valid keys (`gates-run.yml:78`, `gate.yml:33`). |
 | Change | <ul><li>`gates-run.yml`: a new lane `{"key":"misc","targets":"//json:tests //pure-protocol:twins_test //query:tests //query-store:local_test //query-store:share_test"}`. `//query-store:lite_test` is already in `app`; `//query:tests` is the suite at `query/BUILD.bazel:198`.</li><li>A new lane `{"key":"build","targets":"…"}` running `bazel build --config=ci //...`. The test step uses `bazel build` when the key is `build`; this is a one-word branch, deleted in P5-03.</li><li>The browser query at `:171` becomes `//datacube:* + //query:* + //site:*`.</li><li>Add `7p`, `misc` and `build` to the key lists at `gates-run.yml:78` and `gate.yml:33`.</li></ul>This is interim: P5-03 deletes all of it. |
-| Proof | `CI`: the new lanes' logs list the 9 tests and `//site:verify`, all on three platforms except browser, which is Linux. Locally: `bazel test //json:tests //pure-protocol:twins_test //query:tests //query-store:local_test //query-store:share_test` passes. |
+| Proof | `CI`: the new lanes' logs list the 9 tests and `//site:verify`, all on three platforms except browser, which is Linux. Locally: `bazel test //json:tests //pure-protocol:twins_test //query:tests //query-store:local_test //query-store:share_test` passes. **Windows proof (C2)** (§1). |
 | Depends on | — |
 | Size | S (0.5 d) |
 | Risk/rollback | `bazel build //...` on Windows builds the native image with MSVC: already the `native` lane's job, so no new risk. Revert the lanes. |
@@ -480,7 +591,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P0-04 |
 | Why | Plan 0.4; BZ-N2, BZ-N16. All 8 pools set `fail_if_repin_required = False` (`MODULE.bazel:80, 91, 102, 124, 216, 250, 262, 277`), and CI uses the default `--lockfile_mode=update`. |
 | Change | <ul><li>`fail_if_repin_required = True` on all 8 `maven.install`s.</li><li>`.bazelrc`: `common:ci --lockfile_mode=error`.</li><li>If any pool turns out stale, repin it in the same PR (`REPIN=1 bazel run @maven_<pool>//:pin`), and state which pool and why in the PR text.</li></ul> |
-| Proof | `bazel mod deps --lockfile_mode=error` passes. `bazel build --nobuild //...` passes. Negative check: bump one artifact version in `MODULE.bazel` on a scratch branch; `bazel build --nobuild //tools/deps:all` fails, saying a repin is required. |
+| Proof | `bazel mod deps --lockfile_mode=error` passes. `bazel build --nobuild //...` passes. Negative check: bump one artifact version in `MODULE.bazel` on a scratch branch; `bazel build --nobuild //tools/deps:all` fails, saying a repin is required. **Windows proof (C2)** (§1). |
 | Depends on | — |
 | Size | S (0.5 d) |
 | Risk/rollback | A stale lock surfaces now (that is the point). Rollback is one flag per pool. |
@@ -558,11 +669,11 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P0-10 |
 | Why | Plan 0.9; CT-N4, CT-N8; WH-N3, WH-N8; SP-N18, SP-N19; BZ-N10. `tools/junit/defs.bzl:41` pins only `-Duser.timezone=GMT`. `java_run` (`tools/java_run/defs.bzl`) pins nothing, so `jvm_answers`, `cube_jvm_answers`, the spec `gen_*`, the datacube facts and `zone_jvm` run with the host's locale and zone. |
 | Change | <ul><li>`tools/junit/defs.bzl`: `flags = ["-Duser.timezone=GMT", "-Duser.language=en", "-Duser.country=US", "-Dfile.encoding=UTF-8"] + jvm_flags`.</li><li>`tools/junit/JUnitMain.java`: as the first statement of `main`, set `java.io.tmpdir` from `TEST_TMPDIR`, and fail if it is unset, which can only happen outside Bazel. This is done in the runner, not as `$${TEST_TMPDIR}` in `jvm_flags`, because the Windows Java launcher does not expand environment variables. It must run before any class initialises its temp-file helper. P1-01 carries it into the rewrite.</li><li>`tools/java_run/defs.bzl`: always prepend `-Duser.timezone=GMT -Duser.language=en -Duser.country=US -Dfile.encoding=UTF-8`. Declare one scratch directory per action (`ctx.actions.declare_directory(name + "_tmp")`, added to the outputs) and pass `-Djava.io.tmpdir=<its path>`. That covers SP-N18's `FixtureHarvestGenerator.java:33` and `Repo.actionScratch`.</li><li>Node's `LANG=C LC_ALL=C TZ=UTC` lands with the `node_test` macro (P1-23).</li></ul> |
-| Proof | `bazel test //:generated`: every generated file is byte-identical, which proves the pins changed no output. `bazel test //json:tests //core:guardrails //tools/deps:all`. `bazel test //json:tests --test_env=LANG=tr_TR.UTF-8 --test_env=LC_ALL=tr_TR.UTF-8` passes. The CI matrix proof is P5-06. |
+| Proof | `bazel test //:generated`: every generated file is byte-identical, which proves the pins changed no output. `bazel test //json:tests //core:guardrails //tools/deps:all`. `bazel test //json:tests --test_env=LANG=tr_TR.UTF-8 --test_env=LC_ALL=tr_TR.UTF-8` passes. The CI matrix proof is P5-06. **(A12)** A new `//tools/junit:pins_test` (a `junit_test`) asserts `java.io.tmpdir` equals `$TEST_TMPDIR` and `Locale.getDefault()` is `en_US`; a new `//tools/java_run:pins_test`, a `diff_test` of a tiny `java_run` action that prints its tmpdir's parent name, its locale and its encoding, checks the declared scratch directory. Negative: drop the tmpdir line from `JUnitMain`, and `pins_test` fails. **Windows proof (C2)** (§1). |
 | Depends on | — |
 | Size | M (1 d) |
 | Risk/rollback | A test that silently relied on the host locale now runs under en_US, the reference configuration (macOS desk = en_US), so verdicts should not move. If one does, that test had a real locale bug: fix it there. Rollback: revert the three files. |
-| Done when | No JVM test or `java_run` action can see the host's locale, encoding or temp directory. |
+| Done when | No JVM test or `java_run` action can see the host's locale, encoding or temp directory. Removing any pin fails a test (A12). |
 
 #### P0-11 · `java_run` uses `target[DefaultInfo].files`
 
@@ -583,8 +694,8 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P0-12 |
 | Why | Plan 0.11; WH-N16; BZ-N8. `MODULE.bazel:352` uses `http://extensions.duckdb.org`. The selects `POSTGRES_EXTENSION` (`warehouse/defs.bzl:45`), `NOT_ON_WINDOWS_ARM64` (`:57`), the `duckdb_library` entry (`warehouse/BUILD.bazel:183-192`) and the selects in `warehouse_run` (`:164, 193, 200`) have no `no_match_error`. |
-| Change | <ul><li>`https://` in `MODULE.bazel:352`. The mirror URL comes with P1-27 (D10).</li><li>Add `no_match_error = "…: no build pinned for this platform (warehouse/defs.bzl)"` to every `select` in `warehouse/defs.bzl`, `warehouse/BUILD.bazel` and the two re-inlined Windows selects in `datacube/BUILD.bazel` (BZ-N12).</li></ul>P1-19 then moves them into `//tools/platforms`. |
-| Proof | `bazel build --nobuild //...`. `bazel fetch` of the extension repositories over https: run `bazel query 'kind(http_file, //external:*)'` first if the names are unknown. |
+| Change | <ul><li>`https://` in `MODULE.bazel:352`. No mirror (D10 (c)); P1-27 adds `integrity`.</li><li>Add `no_match_error = "…: no build pinned for this platform (warehouse/defs.bzl)"` to every `select` in `warehouse/defs.bzl`, `warehouse/BUILD.bazel` and the two re-inlined Windows selects in `datacube/BUILD.bazel` (BZ-N12).</li></ul>P1-19 then moves them into `//tools/platforms`. |
+| Proof | `bazel build --nobuild //...`. `bazel fetch` of the extension repositories over https: run `bazel query 'kind(http_file, //external:*)'` first if the names are unknown. **Windows proof (C2)** (§1). |
 | Depends on | — |
 | Size | S (0.5 d) |
 | Risk/rollback | None known. |
@@ -603,6 +714,45 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | Risk/rollback | The `app` CI lane on macOS and Linux now builds the native image (about 2–3 min more). P5-03 removes lanes altogether. |
 | Done when | `bazel test //datacube:tests` includes `live_snap_test`, and only one corpus suite exists. |
 
+#### P0-14 · A ruleset on `main` requires every CI check, Windows included; `.github/CODEOWNERS` requests the Windows contributor (D17)
+
+| Field | Content |
+|---|---|
+| ID | P0-14 |
+| Why | C1: `main` has no branch protection or ruleset, so no check is required to merge, and other sessions push directly to `main`. A red Windows job cannot block a regression. C3: the Windows contributor (GitHub `johnnymads`, PR #14) is not asked to review changes to his surface. |
+| Change | Per D17 (OPEN; recommended (a)):<ul><li>A repository ruleset on `main`, applied by the user in the repository settings from a committed `.github/rulesets/main.json` (GitHub's ruleset export format), so the policy is reviewable: require a pull request, with 0 required approvals (C4's independent review is recorded in the PR, because agent sessions run under the user's own account); require status checks: every lane job of `gate.yml` on Linux, macOS and Windows, `lint workflows`, and the PowerShell desk lane (P5-09) once it exists; block force pushes and deletion; bypass for repository admins only.</li><li>`gate.yml`: delete `paths-ignore` from the `pull_request` trigger in the same change. A required check that never runs leaves a docs-only PR pending forever. `push` keeps its filter until P5-04.</li><li>New `.github/CODEOWNERS` with `@johnnymads` on `warehouse/defs.bzl`, `warehouse/BUILD.bazel`, `.bazelrc`, `.gitattributes`, `tools/junit/**`, `testing/**`, the launcher and runfiles code (`warehouse/src/main/java/com/legend/warehouse/server/ServerRunfiles.java`, `warehouse/src/main/java/com/legend/warehouse/launcher/**`, `tools/browser/pinned-chromium.mjs`, `tools/js/defs.bzl`, `tools/platforms/**`) and `.github/workflows/**`. A request only, unless D17 is (b). He needs write access for the request to work.</li><li>The workflow change (every session works on a branch and opens a PR) is stated at the top of `docs/IN_FLIGHT.md`. `AGENTS.md` is not edited, since it is load-bearing.</li></ul> |
+| Proof | A scratch PR with a Windows-only failing test shows the required check red and the merge blocked; a direct `git push` to `main` from a session is rejected; a PR touching `warehouse/defs.bzl` auto-requests `@johnnymads`; a docs-only PR gets every required check. **Windows proof (C2)** (§1). |
+| Depends on | D17, P0-03 |
+| Size | S (0.5 d) |
+| Risk/rollback | Check names change when lanes change (P0-03, P5-03); each such PR updates `.github/rulesets/main.json` and the ruleset. A check that cannot pass blocks every merge; an admin bypasses, and the PR says so. Rollback: disable the ruleset. |
+| Done when | No change reaches `main` without a PR whose CI is green on every platform, and every Windows-sensitive PR requests the Windows contributor. |
+
+#### P0-15 · Process gates: independent review and all-platform CI on every PR (C4)
+
+| Field | Content |
+|---|---|
+| ID | P0-15 |
+| Why | C4: every PR gets an independent review (an agent or person who did not write it) and CI green on all platforms. |
+| Change | <ul><li>New `.github/pull_request_template.md` with: the workplan item IDs and gap IDs the PR closes; the independent reviewer and their verdict; CI green on all platforms, every Windows job included (and P5-09 once it exists); for a **Windows proof (C2)** item, the evidence; the heavy proofs run, with their lane.</li><li>§1's process gates are the policy, and the template makes them visible in every PR. P0-14 makes the CI half mechanical once D17 is decided.</li></ul> |
+| Proof | The next PR after this one shows the filled template, with a reviewer who is not its author. |
+| Depends on | — |
+| Size | S (0.25 d) |
+| Risk/rollback | A template is advisory until P0-14; each phase audit (P0-90 … P7-90) checks that the phase's PRs used it. |
+| Done when | Every PR of this plan names an independent reviewer and shows all-platform CI. |
+
+#### P0-90 · Phase 0 audit: done-criteria checked against the coverage table (C4)
+
+| Field | Content |
+|---|---|
+| ID | P0-90 |
+| Why | C4: every phase ends with an audit of its done-criteria against the coverage table. |
+| Change | A reviewer who wrote none of Phase 0's items checks, on `main` (not on a PR branch): each Phase 0 item's Done-when, with the command that shows it; each §6.1, §6.2 and §6.4 row that names a Phase 0 item, against the code rather than the item text; and that every Phase 0 PR carried P0-15's template with an independent reviewer and all-platform CI (and, for a **Windows proof (C2)** item, its Windows evidence). An unmet Done-when reopens its item. A row the items do not actually close becomes an amendment or a new item, with an ID, before the milestone checkpoint closes. The result is a dated table in §6.5. |
+| Proof | §6.5 has a Phase 0 table: one row per Phase 0 item, with its evidence command and verdict, and no open "no" without a follow-up item ID. |
+| Depends on | P0-01, P0-02, P0-03, P0-04, P0-05, P0-06, P0-07, P0-08, P0-09, P0-10, P0-11, P0-12, P0-13, P0-14, P0-15 |
+| Size | S (0.5 d) |
+| Risk/rollback | An audit finds a gap late. It becomes an item, never a silent pass. |
+| Done when | Every Phase 0 Done-when is verified on `main`, and every gap found has an item. |
+
 ### Phase 1: foundations
 
 **Runner (plan 1.1; S1 option B)**
@@ -614,10 +764,10 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P1-01 |
 | Why | Plan 1.1; SP-N8; BZ K18. S1 decision: B. `tools/junit/JUnitMain.java` (107 lines) delegates to `ConsoleLauncher`; `--test_filter`, `test.xml` testcases and sharding do not work (S1 E0). |
 | Change | <ul><li>Port the spike branch `spike/s1-test-runner` (`3866fc772`, `d530e6436`) as S1's migration recipe, steps 1–4.</li><li>`JUnitMain.java` runs on the Launcher API:<ul><li>an argument parser for the 7 selectors plus `--select-method`; an unknown argument fails;</li><li>the standard class-name default;</li><li>one `BazelFilter` (`TESTBRIDGE_TEST_ONLY` as a regex found in `Class#method`; the round-robin shard split by unique id; the pre-shard count; the excluded-id record);</li><li>`LegacyXmlReportGeneratingListener` merged to `$XML_OUTPUT_FILE` without `<properties>`;</li><li>the overrun guard (fails a sharded run that an engine could not filter: JUnit 3 suites);</li><li>`TEST_PREMATURE_EXIT_FILE`, then an explicit `System.exit`;</li><li>`--fail-if-no-tests` counted before the shard split;</li><li>P0-10's tmpdir line kept.</li></ul></li><li>Also add `--exclude-package` (`PackageNameFilter.excludePackageNames`), needed by P3-05.</li><li>Keep the prerun and `expandOutputs`; P3-01 deletes them.</li><li>`tools/junit/defs.bzl`: drop `--details`, `--disable-banner` and `--disable-ansi-colors`. Add `shard_by` **only if D2 = (a)**.</li><li>`tools/junit/BUILD.bazel`: depend on `junit-platform-launcher`, `junit-platform-reporting` and the jupiter, vintage and suite engines instead of `junit-platform-console-standalone`. Repin `@maven_test`.</li><li>New `//tools/junit:runner_test`, the spike's probes as fixtures: empty selection fails; premature exit fails; a filter that matches nothing fails; the shard union equals the unsharded set on a flat and a nested JUnit 3 suite; the overrun guard fires.</li><li>S1 Q3: a filter that excludes nothing useful on a JUnit 3 suite stays a warning.</li><li>S1 Q5: test.xml without `<properties>`, with engine-level `<testsuite>`s, is accepted.</li></ul> |
-| Proof | <ul><li>`bazel test //tools/junit:runner_test //json:tests //core:guardrails //pct:pct_channel_b`.</li><li>`bazel test //json:tests --test_filter='escapesQuote$'` runs 1 test.</li><li>`bazel test //core:guardrails --test_filter='ArchitectureTest#coreModuleHasNoUtilPackage'` runs 1 test.</li><li>`bazel test //json:tests --test_filter=NoSuchTest` FAILS.</li><li>`grep -c '<testcase' bazel-testlogs/json/tests/test.xml` prints 308.</li><li>`bazel test //json:tests --test_sharding_strategy=forced=3` passes; the union of the shards' testcases is 308, with no duplicates.</li></ul>(S1 E1–E6.) |
+| Proof | <ul><li>`bazel test //tools/junit:runner_test //json:tests //core:guardrails //pct:pct_channel_b`.</li><li>`bazel test //json:tests --test_filter='escapesQuote$'` runs 1 test.</li><li>`bazel test //core:guardrails --test_filter='ArchitectureTest#coreModuleHasNoUtilPackage'` runs 1 test.</li><li>`bazel test //json:tests --test_filter=NoSuchTest` FAILS.</li><li>`grep -c '<testcase' bazel-testlogs/json/tests/test.xml` prints 308.</li><li>`bazel test //json:tests --test_sharding_strategy=forced=3` passes; the union of the shards' testcases is 308, with no duplicates.</li></ul>(S1 E1–E6.) **Windows proof (C2)** (§1). |
 | Depends on | P0-10, P0-04 |
 | Size | M (1 d): S1 measured the runner as written and verified; this is the dependency cleanup plus the fixtures. |
-| Risk/rollback | Selection drift on lanes the spike could not run. P1-02 proves identity before the old runner is gone. Rollback: revert `tools/junit`. |
+| Risk/rollback | Selection drift on lanes the spike could not run. P1-02 proves identity before the old runner is gone. Rollback: revert `tools/junit`. JUnit 6: the Launcher APIs used are stable, and `runner_test` is the upgrade check (G-30). |
 | Done when | The proof holds, and the merge waits for P1-02. |
 
 #### P1-02 · Identity diff: the new runner selects exactly what the old one did, on every non-manual lane
@@ -626,12 +776,12 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P1-02 |
 | Why | S1 migration step 6; S1 open question 0. `parser_parity`, `core_tests`, `spec_tests`, `stress_suites`, the corpus lanes, the PCT lanes and the warehouse lanes were not run in the spike. |
-| Change | <ul><li>A small `java_binary` `//tools/junit:compare_testcases`, kept for future runner changes. It reads two sets of JUnit XML and prints the sorted `classname#name` difference.</li><li>Baseline: the `TEST-*.xml` under `test.outputs/junit/` in the latest main CI run's uploaded artifacts (`gates-run.yml:184-186` already uploads them). No local heavy run is needed for the baseline.</li><li>After: the PR branch's CI artifacts (`test.xml`).</li></ul> |
+| Change | <ul><li>A small `java_binary` `//tools/junit:compare_testcases`, kept for future runner changes. It reads two sets of JUnit XML and prints the sorted `classname#name` difference.</li><li>Baseline: the `TEST-*.xml` under `test.outputs/junit/` in the latest main CI run's uploaded artifacts (`gates-run.yml:184-186` already uploads them). No local heavy run is needed for the baseline.</li><li>After: the PR branch's CI artifacts (`test.xml`).</li></ul> **(G-08)** The manual heavy lanes (`scale_*` until P3-05 removes them, `corpus_warehouse`, `reference_lane`, `diagnostics`, the manual per-suite PCT targets) are compared too: this PR adds a one-off dispatch lane `heavy` that names their labels, runs it on main and on the PR branch, and compares the same way. P5-08 then runs them weekly and deletes the one-off lane. |
 | Proof | **`CI`** (no local heavy run). `bazel run //tools/junit:compare_testcases -- <baseline-dir> <after-dir>` prints nothing for each lane on each platform. Also `bazel test //core:core_tests --test_sharding_strategy=forced=4` in CI: the union equals the unsharded set. |
 | Depends on | P1-01 |
 | Size | M (1 d; mostly CI machine time) |
 | Risk/rollback | A real selection difference: fix the selector mapping in P1-01 before merging. |
-| Done when | Every lane's diff is empty; P1-01 and P1-02 merge together. |
+| Done when | Every lane's diff is empty; P1-01 and P1-02 merge together. This includes the manual heavy lanes (G-08). |
 
 **Runfiles (plan 1.2; S2. The done criterion is S2's, closed by P3-32 and G15)**
 
@@ -642,7 +792,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P1-03 |
 | Why | Plan 1.2; S2 Q2 (GO for code); CT K12; SP K12. |
 | Change | <ul><li>`testing/src/main/java/com/legend/testing/Runfile.java` (about 10 lines): `static Path of(String rlocationpath)` over `Runfiles.preload().unmapped().rlocation(…)`; fails when the path is missing; `static Map<String,String> env()` returns `getEnvVars()` for child processes. `//testing` gains `@rules_java//java/runfiles`.</li><li>Convert `tools/deps/CoreLayeringTest.java` and `tools/deps/BUILD.bazel` as on `spike/s2-runfiles` (`56b4ae329`): `-Dcore.layers=$(rlocationpath core-layers.txt)` and `-Dcore.layer.files=…`.</li></ul> |
-| Proof | `bazel test //tools/deps:core_layering_test`, and `bazel test --noenable_runfiles --strategy=TestRunner=local //tools/deps:core_layering_test` (S2 E5). |
+| Proof | `bazel test //tools/deps:core_layering_test`, and `bazel test --noenable_runfiles --strategy=TestRunner=local //tools/deps:core_layering_test` (S2 E5). **Windows proof (C2)** (§1). |
 | Depends on | — |
 | Size | S (0.5 d) |
 | Risk/rollback | None known. |
@@ -654,11 +804,11 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P1-04 |
 | Why | Plan 1.2 ("`-Dlegend.engine.root=../<repo>` becomes `$(rlocationpath @legend_engine_src//:pom.xml)`"); SP K12; BZ K18. `tools/junit/defs.bzl:20-23, 46-48` computes `"../" + repo_name`. There are 16 files with `Upstream.` uses (`git grep -l "Upstream\." -- '*.java'`). |
-| Change | <ul><li>`junit_test(upstream = True)` passes `-Dlegend.engine.root=$(rlocationpath @legend_engine_src//:pom.xml)` and `-Dlegend.pure.root=$(rlocationpath @legend_pure_src//:pom.xml)`. If `legend-pure`'s root has no `pom.xml`, use its root marker file; check `third_party/legend_pure_src.BUILD`.</li><li>`testing/.../Upstream.java` resolves the property with `Runfile.of(...)` and returns `getParent()`. That is the real external-repository directory in both runfiles modes (S2 effort note).</li><li>Convert the raw `-Dlegend.engine.root` reads (`GrammarKeywordCensusTest:27`, `SurfaceCensusTest:122`, SP-N15) to `Upstream`.</li><li>Rewrite AGENTS.md:39-40's mention of the `-D` properties in P7-06, not here.</li></ul> |
-| Proof | **Heavy: H-spec, then H-pe, then H-pct** (one at a time): `bazel test //spec:spec_tests`, `bazel test //parser-equivalence:parser_parity`, `bazel test //pct:pct_channel_b`, plus `bazel test //tools/deps:all`. |
+| Change | <ul><li>`junit_test(upstream = True)` passes `-Dlegend.engine.root=$(rlocationpath @legend_engine_src//:pom.xml)` and `-Dlegend.pure.root=$(rlocationpath @legend_pure_src//:pom.xml)`. If `legend-pure`'s root has no `pom.xml`, use its root marker file; check `third_party/legend_pure_src.BUILD`.</li><li>`testing/.../Upstream.java` resolves the property with `Runfile.of(...)` and returns `getParent()`. That is the real external-repository directory in both runfiles modes (S2 effort note).</li><li>Convert the raw `-Dlegend.engine.root` reads (`GrammarKeywordCensusTest:27`, `SurfaceCensusTest:122`, SP-N15) to `Upstream`.</li><li>Rewrite AGENTS.md:39-40's mention of the `-D` properties in P7-06, not here.</li></ul> **Amended 2026-10-03 (A2, L:G-3): the P1-04/P3-32 contradiction is resolved here.** `Upstream` keeps two branches while generators still use it. When the property is an rlocationpath (tests), it resolves through `Runfile.of`. When it is an exec path (the `java_run` generators, through `tools/generators/defs.bzl` `program_jvm_flags`), it is read with `Path.of`. P3-33 then moves the generators to explicit arguments and deletes `Upstream`, `Repo` and `-Dlegend.repo.root`. P3-32 no longer deletes them. |
+| Proof | **Heavy: H-spec, then H-pe, then H-pct** (one at a time): `bazel test //spec:spec_tests`, `bazel test //parser-equivalence:parser_parity`, `bazel test //pct:pct_channel_b`, plus `bazel test //tools/deps:all`. Also `bazel test //parser-equivalence:update_generated_tests //:generated`: the generator actions stay byte-identical (A2). **Windows proof (C2)** (§1). |
 | Depends on | P1-03 |
 | Size | M (1 d) |
-| Risk/rollback | Generators also take upstream trees (`tools/generators/defs.bzl:11-16`). They use `roots` in `java_run`, not `junit_test`, so they are unaffected. Rollback: revert the macro. |
+| Risk/rollback | Generators **are** affected (A2): `FixtureHarvestGenerator:55` and both `Corpus` classes call `Upstream.engine()` inside `java_run` actions, where the property holds an exec path, not an rlocationpath. The two-branch `Upstream` above keeps them working until P3-33. Rollback: revert the macro. |
 | Done when | No `"../" + repo_name` remains in `tools/junit/defs.bzl`. |
 
 #### P1-05 · `Repo.path`/`Repo.module` users move to the runfiles library, package by package
@@ -667,12 +817,12 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P1-05 |
 | Why | Plan 1.2; CT K12; WH-N17; SP K12; S2 effort ("72 `Repo` users … mostly mechanical"; 74 files at HEAD). |
-| Change | <ul><li>Three PRs: (a) warehouse plus pct; (b) spec plus parser-equivalence; (c) core, *except* the 29 directory-walking guards of CT-N19, which P3-27 converts to file lists.</li><li>Each `Repo.module("x")` or `Repo.path("x")` becomes a `jvm_flags` `-D<name>=$(rlocationpath <label>)` read through `Runfile.of`.</li><li>`WarehouseArrowTest.java:125`'s `Path.of("warehouse/src/test/python/…")` and `TestServer`'s `$(rootpath …)` env (`warehouse/BUILD.bazel:140-141, 204-205`) become `rlocationpath` plus `Runfile.of` (WH-N17).</li><li>`Repo.out` stays: it is `TEST_UNDECLARED_OUTPUTS_DIR`, not a runfile.</li></ul> |
-| Proof | (a) `bazel test //warehouse:tests //pct:pct_channel_b`, then **Heavy: H-pct** `bazel test //pct:pct_h2`. (b) **Heavy: H-spec, H-pe**: `bazel test //spec:spec_tests //parser-equivalence:parser_parity`. (c) **Heavy: H-core**: `bazel test //core:core_tests //core:census`. |
+| Change | <ul><li>Three PRs: (a) warehouse plus pct; (b) spec plus parser-equivalence; (c) core, *except* the 29 directory-walking guards of CT-N19, which P3-27 converts to file lists.</li><li>Each `Repo.module("x")` or `Repo.path("x")` becomes a `jvm_flags` `-D<name>=$(rlocationpath <label>)` read through `Runfile.of`.</li><li>`WarehouseArrowTest.java:125`'s `Path.of("warehouse/src/test/python/…")` and `TestServer`'s `$(rootpath …)` env (`warehouse/BUILD.bazel:140-141, 204-205`) become `rlocationpath` plus `Runfile.of` (WH-N17).</li><li>`Repo.out` stays for now: it is `TEST_UNDECLARED_OUTPUTS_DIR`, not a runfile. P3-33 moves it to `TestOutputs` and deletes `Repo.java` (C5).</li></ul> |
+| Proof | (a) `bazel test //warehouse:tests //pct:pct_channel_b`, then **Heavy: H-pct** `bazel test //pct:pct_h2`. (b) **Heavy: H-spec, H-pe**: `bazel test //spec:spec_tests //parser-equivalence:parser_parity`. (c) **Heavy: H-core**: `bazel test //core:core_tests //core:census`. **Windows proof (C2)** (§1). |
 | Depends on | P1-03 |
 | Size | M (2.5 d over 3 PRs; S2: 3–4 d including P1-04 and P1-06) |
 | Risk/rollback | A test that walks a directory from a `Repo` root needs a tree. Leave those for P3-27; this item converts only single-file and known-file reads. Each PR reverts on its own. |
-| Done when | `git grep -n "Repo\.\(path\|module\)"` lists only the 29 walker files that P3-27 owns. |
+| Done when | `git grep -n "Repo\.\(path\|module\)"` lists only the walker files that P3-27 or P3-27b own (A3). |
 
 #### P1-06 · `EmbeddedPostgres` uses the official runfiles library
 
@@ -681,7 +831,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P1-06 |
 | Why | Plan 1.2; SP-N7 (a third hand resolver, `EmbeddedPostgres.java:152-167`). |
 | Change | Replace the private resolver with `Runfile.of(System.getProperty("embedded.postgres.root"))`. The callers already pass `$(rlocationpath @embedded_postgres//:pg/PG_ROOT)` (`warehouse/BUILD.bazel:264`). The robustness fixes are P3-20. |
-| Proof | `bazel test //warehouse:launcher_test //core:postgres_arm_test`; **Heavy: H-pct** `bazel test //pct:pct_postgres_essential`. |
+| Proof | `bazel test //warehouse:launcher_test //core:postgres_arm_test`; **Heavy: H-pct** `bazel test //pct:pct_postgres_essential`. **Windows proof (C2)** (§1). |
 | Depends on | P1-03 |
 | Size | S (0.5 d) |
 | Risk/rollback | None known. |
@@ -709,7 +859,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P1-08 |
 | Why | Plan 1.3; WH K14; BZ-N4; Part 0. `WarehouseArrowTest.java:99, 140-152` probes the host `python3` and aborts. CI pip-installs pyarrow (`gates-run.yml:131-136`) and passes `--test_env=PATH --test_env=PYTHONPATH --test_env=WAREHOUSE_ARROW_CHECK=required` (`:150`). |
 | Change | <ul><li>`requirements.in` gains `pyarrow==23.0.1`; relock with `bazel run //tools/python:requirements.update`.</li><li>`warehouse/BUILD.bazel`: `py_binary(name = "arrow_matches_json", srcs = ["src/test/python/arrow_matches_json.py"], deps = ["@pypi//pyarrow"])`. `:tests`, `:tests_native` and `:postgres_live*` take it as `data`, with `env = {"ARROW_CHECK": "$(rlocationpath :arrow_matches_json)"}`.</li><li>`WarehouseArrowTest` runs `Runfile.of(env)` with `Runfile.env()` for the child, and fails if the binary is missing.</li><li>Delete the PATH probe, `Assumptions.abort`, and `WAREHOUSE_ARROW_CHECK`. `WarehousePostgresLiveTest.java:79` reuses the same checker.</li><li>Same PR: delete the CI pip step (`gates-run.yml:131-136`) and the three `--test_env` flags (`:148-151`).</li></ul> |
-| Proof | `bazel test //warehouse:tests` (about 55 s). **Heavy: H-native**: `bazel test //warehouse:tests_native`. Locally, with no host pyarrow, the Arrow test *runs*: check the test log for the comparison line. |
+| Proof | `bazel test //warehouse:tests` (about 55 s). **Heavy: H-native**: `bazel test //warehouse:tests_native`. Locally, with no host pyarrow, the Arrow test *runs*: check the test log for the comparison line. **Windows proof (C2)** (§1). |
 | Depends on | P1-07, P1-03 |
 | Size | M (1 d) |
 | Risk/rollback | A pyarrow wheel for a CI platform may be missing (Windows arm64 is already excluded by `NOT_ON_WINDOWS_ARM64`). Check `@pypi` resolves on all three runners in CI. |
@@ -721,12 +871,12 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P1-09 |
 | Why | Plan 1.3 (the C toolchain row); WH-N15; BZ-N7. S3: Linux aarch64 GO (built in a gcc-less Debian 12 container). **Confirmed on real GitHub hardware, 2026-10-03:** in bare `debian:bookworm-slim` containers with no compiler and no zlib headers, `//warehouse:tests_native` passes on both `ubuntu-24.04` (x86_64) and `ubuntu-24.04-arm`, and the binaries record `Linker: LLD 20.1.8` (run 37139357779, branch `spike/s3-linux-ci` @ `37154181f`; the S3 write-up's CI section). |
-| Change | <ul><li>Port `spike/s3-hermetic-cc` (`d1a4d7deb`), Linux parts.</li><li>`MODULE.bazel`: `bazel_dep` `toolchains_llvm` 1.11.0 and `zlib` 1.3.2.bcr.2; `llvm.toolchain(llvm_version = "20.1.8")`; `llvm.sysroot` for `linux-aarch64` and `linux-x86_64`; `http_archive`s `linux_sysroot_arm64` (sha256 `c7176a4c…86d8`) and `linux_sysroot_amd64` (sha256 `52d61d44…2e1d`) with `type = "tar.xz"`. **Each sysroot declares its own files:** x86_64 adds `lib64/**`, where glibc's `libc.so` linker script names the dynamic loader; arm64 has no `lib64/`, and an empty glob fails analysis. Both failures were hit in CI and fixed; see the S3 write-up's CI section; `register_toolchains` for both.</li><li>`warehouse/BUILD.bazel` `server_native`: `static_zlib = "@zlib"` and `c_compiler_option = ["-fuse-ld=lld"]` (not on Windows, via `//tools/platforms` once P1-19 lands).</li><li>`third_party/rules_graalvm_command_line_tools.patch` gains the sysroot branch, tried first, and is renamed `third_party/rules_graalvm_sysroot.patch`.</li><li>`.bazelrc`: `build:linux --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1`, so a missing hermetic match fails rather than falling back to the host.</li><li>**Investigate first (D7):** an LLVM archive whose `lld` does not need `libxml2.so.2`.</li><li>x86_64 is verified on a real x86_64 runner (S3 Q5 closed).</li></ul> |
-| Proof | **Heavy: H-docker**: in a `debian:bookworm-slim` container with no cc, binutils, headers or zlib-dev, `bazel build //warehouse:server_native` succeeds (S3 E5: 2 min 41 s, 1.49 GB). `readelf -p .comment` shows "LLD 20.1.8", and NEEDED has no `libz.so.1`. **`CI`**: the Linux x86_64 native lane passes `//warehouse:tests_native`. |
+| Change | <ul><li>Port `spike/s3-hermetic-cc` (`d1a4d7deb`), Linux parts.</li><li>`MODULE.bazel`: `bazel_dep` `toolchains_llvm` 1.11.0 and `zlib` 1.3.2.bcr.2; `llvm.toolchain(llvm_version = "20.1.8")`; `llvm.sysroot` for `linux-aarch64` and `linux-x86_64`; `http_archive`s `linux_sysroot_arm64` (sha256 `c7176a4c…86d8`) and `linux_sysroot_amd64` (sha256 `52d61d44…2e1d`) with `type = "tar.xz"`. **Each sysroot declares its own files:** x86_64 adds `lib64/**`, where glibc's `libc.so` linker script names the dynamic loader; arm64 has no `lib64/`, and an empty glob fails analysis. Both failures were hit in CI and fixed; see the S3 write-up's CI section; `register_toolchains` for both.</li><li>`warehouse/BUILD.bazel` `server_native`: `static_zlib = "@zlib"` and `c_compiler_option = ["-fuse-ld=lld"]` (not on Windows, via `//tools/platforms` once P1-19 lands).</li><li>`third_party/rules_graalvm_command_line_tools.patch` gains the sysroot branch, tried first, and is renamed `third_party/rules_graalvm_sysroot.patch`.</li><li>`.bazelrc`: `build:linux --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1`, so a missing hermetic match fails rather than falling back to the host.</li><li>**Investigate first (D7):** an LLVM archive whose `lld` does not need `libxml2.so.2`.</li><li>x86_64 is verified on a real x86_64 runner (S3 Q5 closed).</li></ul> **(G-03)** The sysroot branch must not add a shell. S3's patch runs native-image through `/bin/bash -c '…--sysroot=$PWD/…'` (a `run_shell`). **Investigate first:** which native-image option accepts the sysroot relative to the action's working directory (for example `-H:CCompilerOption=--sysroot=` resolved against `-H:Path`, or an `@argfile` written by `ctx.actions.write`). If none does, a ten-line exec-configuration `java_binary` launcher makes the path absolute. The patch uses `ctx.actions.run`. |
+| Proof | **Heavy: H-docker**: in a `debian:bookworm-slim` container with no cc, binutils, headers or zlib-dev, `bazel build //warehouse:server_native` succeeds (S3 E5: 2 min 41 s, 1.49 GB). `readelf -p .comment` shows "LLD 20.1.8", and NEEDED has no `libz.so.1`. **`CI`**: the Linux x86_64 native lane passes `//warehouse:tests_native`. `bazel aquery` of `//warehouse:server_native`'s native-image action shows no `/bin/bash` in its argv (G-03). **Windows proof (C2)** (§1). |
 | Depends on | D7 (final form only) |
-| Size | M (1.5 d; S3: 0.5 d for MODULE and BUILD, plus CI and x86 validation) |
+| Size | M (2 d; S3: 0.5 d for MODULE and BUILD, plus CI and x86 validation, plus 0.5 d for the shell-free sysroot branch, G-03) |
 | Risk/rollback | `BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN` affects every cc user on Linux. The proof build covers analysis of `//...`. Rollback: unregister the toolchains. The patch's old branch is unchanged. |
-| Done when | Linux builds the native image with no host gcc, zlib-dev or libc headers. |
+| Done when | Linux builds the native image with no host gcc, zlib-dev or libc headers. No native-image action runs a shell (G-03). |
 
 #### P1-10 · Hermetic C toolchain for native-image on macOS (S3; D1)
 
@@ -735,11 +885,11 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P1-10 |
 | Why | Plan 1.3; WH-N15; BZ-N7(b). S3: macOS GO, pending the SDK source. |
 | Change | <ul><li>`llvm.sysroot(label = "@macos_sdk//:sysroot", targets = ["darwin-aarch64"])` and `register_toolchains("@llvm_toolchain//:cc-toolchain-aarch64-darwin")`.</li><li>`@macos_sdk` per D1. Recommended: a Starlark repository rule `tools/cc/macos_sdk.bzl` that copies the installed CLT SDK, pruning `Ruby.framework` (its symlink loop breaks `glob`) and `usr/share/man`, and checks a pinned sha256 of a canonical listing.</li><li>`.bazelrc`: `build:macos --repo_env=BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN=1`, plus `build:hermetic-cc --sandbox_block_path=/Library/Developer/CommandLineTools --sandbox_block_path=/usr/bin/ld --sandbox_block_path=/usr/bin/clang --sandbox_block_path=/usr/bin/xcrun` (S3 E7; guard G18).</li><li>**Investigate:** with the sysroot branch first, drop the patch's original CLT hunk, and check whether `--incompatible_stop_exporting_language_modules` then loads `//warehouse` (BZ-N7(c); Part 4).</li><li>Intel Macs (`cc-toolchain-x86_64-darwin`): only if the user says they matter (S3 Q5).</li></ul> |
-| Proof | **Heavy: H-native**: `bazel test --config=hermetic-cc //warehouse:tests_native` passes (S3 E7: 101 passed, 8 skipped, 0 failed). `otool -l bazel-bin/warehouse/server_native-bin \| grep -A3 LC_BUILD_VERSION` shows `tool 4 (LLD) version 20.1.8`. |
+| Proof | **Heavy: H-native**: `bazel test --config=hermetic-cc //warehouse:tests_native` passes (S3 E7: 101 passed, 8 skipped, 0 failed). `otool -l bazel-bin/warehouse/server_native-bin \| grep -A3 LC_BUILD_VERSION` shows `tool 4 (LLD) version 20.1.8`. **Windows proof (C2)** (§1). |
 | Depends on | P1-09, D1 |
 | Size | M (1.5 d; S3: 0.5–1 d for the SDK work, plus the guard config) |
 | Risk/rollback | lld instead of Apple ld64 for the shipped Mac binary (S3 risk 2). `tests_native` is the check. Rollback: unregister the darwin toolchain. |
-| Done when | A Mac with the CLT compiler blocked builds and passes the native suite. |
+| Done when | A Mac with the CLT compiler blocked builds and passes the native suite. `--incompatible_stop_exporting_language_modules` passes and joins `build:bazel10` (G14), or §6.3 lists it with the rules_graalvm issue (G-21). `docs/DATACUBE_ON_POSTGRES.md:24`'s C-toolchain prerequisite line is rewritten in this PR, since this item makes it false (ledger D-17). |
 
 #### P1-11 · Windows: MSVC declared, and checked before native-image runs (D5)
 
@@ -748,7 +898,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P1-11 |
 | Why | S3 Windows NO-GO ("keep MSVC, but make it explicit"); Part 0 (1.3 grew). |
 | Change | <ul><li>New `tools/cc/msvc.bzl`: a repository rule `msvc_preflight` that on Windows looks for `cl.exe` with `rctx.which`, otherwise runs `vswhere.exe` from `%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\` with `-requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -version [17.6,`. It `fail()`s with "Windows native targets need Visual Studio 2022 Build Tools ≥ 17.6 (README: Prerequisites)". On other OSes it writes an empty package.</li><li>`server_native` gains `select({"@platforms//os:windows": ["@msvc//:present"], "//conditions:default": []})` in its data, so only native targets fetch it.</li><li>`README.md` lists it as the one declared host C toolchain.</li></ul> |
-| Proof | `CI` (Windows native lane) passes. On macOS and Linux, `bazel build --nobuild //...` is unchanged. A manual negative check on a Windows desk without VS: a clear failure at fetch. |
+| Proof | `CI` (Windows native lane) passes. On macOS and Linux, `bazel build --nobuild //...` is unchanged. A manual negative check on a Windows desk without VS: a clear failure at fetch. **Windows proof (C2)** (§1). |
 | Depends on | D5 |
 | Size | S (0.25 d) |
 | Risk/rollback | None known; remove the data edge. |
@@ -760,12 +910,12 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P1-12 |
 | Why | S3 recommendation 3 and Q4; BZ-N7(a): `toolchain_gvm` is registered with empty constraints and is fetched for the host OS. |
-| Change | <ul><li>(a) Open a PR at sgammon/rules_graalvm: "pass `cc_toolchain.sysroot` to native-image", with a test. When it is released, delete `third_party/rules_graalvm_sysroot.patch` and the `single_version_override` patch entry.</li><li>(b) **Investigate first:** does rules_graalvm 0.12.0's extension accept per-platform `graalvm.graalvm(...)` registrations with `exec_compatible_with`? If yes, register one per platform. If no, include it in the upstream PR.</li></ul> |
+| Change | <ul><li>(a) Open a PR at sgammon/rules_graalvm: "pass `cc_toolchain.sysroot` to native-image", with a test. When it is released, delete `third_party/rules_graalvm_sysroot.patch` and the `single_version_override` patch entry.</li><li>(b) **Investigate first:** does rules_graalvm 0.12.0's extension accept per-platform `graalvm.graalvm(...)` registrations with `exec_compatible_with`? If yes, register one per platform. If no, include it in the upstream PR.</li></ul> **(G-03)** The upstream PR carries P1-09's shell-free form. Removal deadline: if it is not released by the next rules_graalvm minor release, §6.3 lists the patch with the PR link. |
 | Proof | (b) `bazel cquery --output=starlark --starlark:expr='providers(target)' @graalvm//:toolchain_gvm`, or the lockfile's toolchain entry, shows constraints. `bazel build --nobuild //...`. |
 | Depends on | P1-09 |
 | Size | M (1 d, plus upstream review latency) |
 | Risk/rollback | Upstream may decline. The patch then stays, documented. |
-| Done when | The patch is gone, or carries a link to the upstream PR; the GraalVM toolchain declares its platform. |
+| Done when | The patch is gone, or §6.3 lists it with the upstream PR link once the deadline has passed (G-03); the GraalVM toolchain declares its platform. |
 
 #### P1-13 · Linux arm64 joins CI permanently (the crash investigation is closed)
 
@@ -786,7 +936,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P1-14 |
 | Why | Plan 1.3 (the Chromium row) and 1.4 (`browser_test`); HN K13, HN-N3, HN-N18; BZ-N5(c). S4: GO with `http_archive`, revision 1243 / CfT 153.0.8010.12. |
-| Change | <ul><li>Port `spike/s4-pinned-chromium` (`fdca09dd8`).</li><li>New `tools/browser/extensions.bzl`: a module extension `chromium.pin(revision = "1243", version = "153.0.8010.12", sha256 = {"mac-arm64": "89d80a6d…59f2", "mac-x64": "5c2eaa1a…f009", "linux64": "a9da0288…9d1d", "linux-arm64": "d433c451…c99", "win64": "7aec872f…6c4c"})`. It creates one lazy `http_archive` per platform: `add_prefix = "chromium_headless_shell-1243"`, two URLs (`cdn.playwright.dev/builds/cft/…` and `storage.googleapis.com/chrome-for-testing-public/…`).</li><li>`tools/browser/BUILD.bazel`: per-platform `config_setting`s; `alias`es `:chromium_headless_shell` and `:chromium_headless_shell_executable` (a select with `no_match_error`); `:pinned_chromium` (`pinned-chromium.mjs`: sets `PLAYWRIGHT_BROWSERS_PATH` from `PINNED_CHROMIUM` through runfiles, `TMPDIR=TEST_TMPDIR` and `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1`; throws under a test without a pin; a no-op under `bazel run`); `:revision_test` (each lock's `browsers.json` revision equals the pin: datacube and query).</li><li>`tools/browser/defs.bzl`: the `browser_test` macro as in S4, including `no_copy_to_bin` for the about 200 MB archive.</li><li>**Investigate:** `node_options = ["--import=…"]` instead of an import line in each harness (S4 Q5); keep the import line if it does not work.</li><li>Convert only `//datacube:verify_smoke` here, as the pilot; the rest is P4.</li></ul> |
+| Change | <ul><li>Port `spike/s4-pinned-chromium` (`fdca09dd8`).</li><li>New `tools/browser/extensions.bzl`: a module extension `chromium.pin(revision = "1243", version = "153.0.8010.12", sha256 = {"mac-arm64": "89d80a6d…59f2", "mac-x64": "5c2eaa1a…f009", "linux64": "a9da0288…9d1d", "linux-arm64": "d433c451…c99", "win64": "7aec872f…6c4c"})`. It creates one lazy `http_archive` per platform: `add_prefix = "chromium_headless_shell-1243"`, two URLs (`cdn.playwright.dev/builds/cft/…` and `storage.googleapis.com/chrome-for-testing-public/…`).</li><li>`tools/browser/BUILD.bazel`: per-platform `config_setting`s; `alias`es `:chromium_headless_shell` and `:chromium_headless_shell_executable` (a select with `no_match_error`); `:pinned_chromium` (`pinned-chromium.mjs`: sets `PLAYWRIGHT_BROWSERS_PATH` from `PINNED_CHROMIUM` through runfiles, `TMPDIR=TEST_TMPDIR` and `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=1`; throws under a test without a pin; a no-op under `bazel run`); `:revision_test` (each lock's `browsers.json` revision equals the pin: datacube and query).</li><li>`tools/browser/defs.bzl`: the `browser_test` macro as in S4, including `no_copy_to_bin` for the about 200 MB archive.</li><li>**Investigate:** `node_options = ["--import=…"]` instead of an import line in each harness (S4 Q5); keep the import line if it does not work.</li><li>Convert only `//datacube:verify_smoke` here, as the pilot; the rest is P4.</li></ul> **(G-26)** The lock list in `revision_test` is explicit here; P6-19 derives it from `@repo_inventory`. |
 | Proof | `bazel test //tools/browser:revision_test`. **Heavy: H-browser**: `bazel test //datacube:verify_smoke_test --sandbox_block_path=$HOME/Library/Caches/ms-playwright` passes 16/16 shapes (S4 E5: 86 s), and the log shows "pinned chromium: …+http_archive+chromium_headless_shell_mac_arm64…". |
 | Depends on | — |
 | Size | M (1 d; S4: 1 d for `//tools/browser` plus the image, the image being P5-02) |
@@ -800,7 +950,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P1-15 |
 | Why | Plan 1.3 (the Postgres row); SP-N6; BZ-N6. `tools/postgres/postgres.bzl` keys on `rctx.os` (`_platform`, `:26-30`) and `fail()`s for unlisted hosts. `//pct:pct_postgres` has no `target_compatible_with`. |
 | Change | <ul><li>`postgres.bzl`: the repository rule takes explicit `suffix`, `archive` and `sha256` attributes and no longer reads `rctx.os`. It keeps the existing `rctx.download` → `rctx.extract` jar → `rctx.extract` txz steps, which are already Bazel-native.</li><li>A module extension creates one lazy repository per row of `_BUILDS` (darwin-arm64, darwin-x86_64, linux-amd64, linux-arm64, windows-amd64), plus a hub repository `@embedded_postgres` whose `BUILD` aliases `:pg/PG_ROOT` and the files through `select` on `@platforms//os` and `@platforms//cpu`, with `no_match_error`.</li><li>`pct/BUILD.bazel` `pct_postgres*`, `//core:postgres_arm_test`, `//warehouse:launcher_test` and the live tests: `target_compatible_with` from the same keys (via `//tools/platforms`, P1-19, when it exists).</li><li>Fix the doc string's non-existent `//testing:embedded_postgres`.</li></ul> |
-| Proof | `bazel build --nobuild //...`. `bazel test //warehouse:launcher_test`. **Heavy: H-pct**: `bazel test //pct:pct_postgres_essential`. `bazel cquery --platforms=@platforms//host … @embedded_postgres//:pg/PG_ROOT` fetches only one platform repository: confirm in `bazel info output_base`/external. |
+| Proof | `bazel build --nobuild //...`. `bazel test //warehouse:launcher_test`. **Heavy: H-pct**: `bazel test //pct:pct_postgres_essential`. `bazel cquery --platforms=@platforms//host … @embedded_postgres//:pg/PG_ROOT` fetches only one platform repository: confirm in `bazel info output_base`/external. **Windows proof (C2)** (§1). |
 | Depends on | — |
 | Size | M (1.5 d) |
 | Risk/rollback | Analysis must not fetch every platform's 30–100 MB jar. The hub's select keeps fetches lazy; verify. Rollback: revert the `.bzl`. |
@@ -813,11 +963,11 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P1-16 |
 | Why | Plan 1.3 (the DuckDB row); WH-N2 (**P0**: a shared host temp cache keyed by size, `DuckLibrary.java:86`); S2 recommended design ("Server changes"). |
 | Change | <ul><li>Port from `spike/s2-runfiles`: the new `warehouse/src/main/java/com/legend/warehouse/server/ServerRunfiles.java` (about 110 lines: environment first, then `<exe>.runfiles_manifest`/`MANIFEST`/tree beside ProcessHandle's command or `/proc/self/cmdline` argv[0], then the working directory; manifest checked first); `server_lib` gains `@rules_java//java/runfiles`; `DuckLibrary.resourceName()` becomes public.</li><li>Defaults: `<repo>/warehouse/<resourceName>` and `<repo>/warehouse/duckdb_extensions/postgres_scanner.duckdb_extension`, with `<repo>` from `@AutoBazelRepository`. A BUILD comment on both targets warns against renaming (S2 risk 5).</li><li>The JVM side: `:tests` gains `data = [":duckdb_library"]` and `env` with its `rlocationpath`. `TestServer` passes it as `Config.duckdbLibrary`. `//warehouse:server` gains `data` plus `args = ["--duckdb-library", "$(rlocationpath :duckdb_library)"]`.</li><li>**Delete** `DuckLibrary.extracted()` (`:77-102`) and the classpath extraction. `PostgresCatalogTest.java:62` (`DuckLibrary.load(null)`) passes the runfile.</li><li>S2 Q6 (a generated defaults resource instead of constants): not now, deferred (§6).</li></ul> |
-| Proof | `bazel test //warehouse:tests`, and `ls ${TMPDIR:-/tmp}/legend-warehouse-duckdb` does not appear afresh. **Heavy: H-native**: `bazel test //warehouse:tests_native`. |
+| Proof | `bazel test //warehouse:tests`, and `ls ${TMPDIR:-/tmp}/legend-warehouse-duckdb` does not appear afresh. **Heavy: H-native**: `bazel test //warehouse:tests_native`. **(A24)** The `ls ${TMPDIR}` check cannot see a regression (after P0-10 the tmpdir is `TEST_TMPDIR`), so: `git grep -n "legend-warehouse-duckdb\|java.io.tmpdir" warehouse/src/main` is empty, and a new `DuckLibraryTest` asserts that `load(null)` fails with a message naming `--duckdb-library` instead of extracting. **Windows proof (C2)** (§1). |
 | Depends on | P1-17 |
 | Size | M (1.5 d; S2: part of its 1–1.5 d) |
 | Risk/rollback | The `--link-at-build-time` image must still link: `ServerRunfiles` uses the runfiles library, which S2 E1 linked without reflection config. Rollback: revert the server files. |
-| Done when | No warehouse code writes into `java.io.tmpdir` to load DuckDB. |
+| Done when | No warehouse code writes into `java.io.tmpdir` to load DuckDB. Reintroducing extraction fails a test (A24). |
 
 #### P1-17 · The DuckDB postgres extension is gunzipped by a `java_run` action
 
@@ -826,7 +976,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P1-17 |
 | Why | Plan 4.3 (moved here as a foundation for P1-16, P3-22 and P4-12); WH K8; BZ K8; S2 E4. `warehouse/defs.bzl:62-80` gunzips with `run_shell` and host `gzip`. |
 | Change | <ul><li>New `tools/gunzip/Gunzip.java` (about 25 lines, `GZIPInputStream.transferTo`) and its `java_library`.</li><li>`warehouse/BUILD.bazel`: `alias(name = "duckdb_extension_gz", actual = POSTGRES_EXTENSION)`; `java_run(name = "duckdb_extensions", srcs = [":duckdb_extension_gz"], outs = ["duckdb_extensions/postgres_scanner.duckdb_extension"], arguments = ["$(execpath :duckdb_extension_gz)", "{OUT}"], main_class = "com.legend.tools.gunzip.Gunzip", mnemonic = "GunzipDuckdbExtension", deps = ["//tools/gunzip"])`.</li><li>The `run_shell` stays in use by `warehouse_run` until P4-12 deletes it.</li></ul> |
-| Proof | `bazel build //warehouse:duckdb_extensions`; the output starts with the extension's magic bytes, not gzip's `1f 8b`. |
+| Proof | `bazel build //warehouse:duckdb_extensions`; the output starts with the extension's magic bytes, not gzip's `1f 8b`. **Windows proof (C2)** (§1). |
 | Depends on | — |
 | Size | S (0.25 d) |
 | Risk/rollback | None known. |
@@ -838,12 +988,12 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P1-18 |
 | Why | Plan 1.3 (the legend-engine row); HN K13 (`verify_engine`, `verify_engine_differential` and `verify_calc_vocabulary` need an engine on :6300, "shaded jar, not fetched by Bazel"). |
-| Change | <ul><li>**Question:** does `@maven_runner` (or the `legend-engine` release) provide an HTTP engine server artifact that a Bazel `java_binary` can start on port 0 and that prints its port? `//tools/engine-runner` has only CLI mains (`testable`, `parse`, `lite_parse`, `token_dump`).</li><li>If yes: `//tools/engine-runner:server` (a `java_binary`, `testonly`) plus a small JS helper `tools/engine-runner/start.mjs` (start, read the port, stop) for the manual harness tests (P4-07).</li><li>If no: record that the engine half of those harnesses stays out of this plan (deferred, with the reason) and the local halves still convert in P4-06.</li></ul> |
+| Change | <ul><li>**Question:** does `@maven_runner` (or the `legend-engine` release) provide an HTTP engine server artifact that a Bazel `java_binary` can start on port 0 and that prints its port? `//tools/engine-runner` has only CLI mains (`testable`, `parse`, `lite_parse`, `token_dump`).</li><li>If yes: `//tools/engine-runner:server` (a `java_binary`, `testonly`) plus a small JS helper `tools/engine-runner/start.mjs` (start, read the port, stop) for the manual harness tests (P4-07).</li><li>If no: record that the engine half of those harnesses stays out of this plan (deferred, with the reason) and the local halves still convert in P4-06.</li></ul> **(G-10)** Before answering no: check Maven Central for a published shaded engine server jar at the pin (for example `legend-engine-server-http-server` with the `shaded` classifier at 4.145.0). If one exists, pin it with `http_file` plus `integrity` and start it through a `java_binary` wrapper over `@bazel_tools//tools/jdk:current_java_runtime`. |
 | Proof | (if yes) `bazel run //tools/engine-runner:server -- --port 0` prints a port, and `curl` on that port answers. |
 | Depends on | — |
 | Size | M (1.5 d, if the artifact exists) |
 | Risk/rollback | Engine server dependencies may conflict with the runner pool. Strict visibility (P1-25) will show it. |
-| Done when | The question is answered, with a target or a recorded deferral. |
+| Done when | Either a pinned target starts the engine on port 0, or §6.3 records that no released artifact exists, with the URLs checked (G-10). |
 
 **Macros and shared definitions (plan 1.4)**
 
@@ -853,12 +1003,12 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P1-19 |
 | Why | Plan 1.4; BZ-N12; WH-N16; Part 0 (1.4 grew: `warehouse_run` has no `**kwargs`). |
-| Change | <ul><li>New `tools/platforms/BUILD.bazel`: move the `config_setting`s `linux_x86_64`, `linux_aarch64`, `windows_x86_64`, `windows_aarch64`, `macos_arm64` and `macos_x86_64` out of `warehouse/BUILD.bazel` (`:149-182, 274-290`).</li><li>New `tools/platforms/defs.bzl`: `INCOMPATIBLE_WINDOWS`, `NOT_ON_WINDOWS_ARM64`, and `platform_select(mapping, what)`, which returns a `select` with `no_match_error` plus the matching `target_compatible_with` (default `@platforms//:incompatible`).</li><li>Rewrite `warehouse/defs.bzl`, `warehouse/BUILD.bazel` and `datacube/BUILD.bazel`'s two re-inlined selects to use it.</li></ul> |
-| Proof | `bazel build --nobuild //...`. `bazel query 'attr(target_compatible_with, ".", //warehouse/... + //datacube/...)' --output=label` gives the same set before and after. |
+| Change | <ul><li>New `tools/platforms/BUILD.bazel`: move the `config_setting`s `linux_x86_64`, `linux_aarch64`, `windows_x86_64`, `windows_aarch64`, `macos_arm64` and `macos_x86_64` out of `warehouse/BUILD.bazel` (`:149-182, 274-290`).</li><li>New `tools/platforms/defs.bzl`: `INCOMPATIBLE_WINDOWS`, `NOT_ON_WINDOWS_ARM64`, and `platform_select(mapping, what)`, which returns a `select` with `no_match_error` plus the matching `target_compatible_with` (default `@platforms//:incompatible`).</li><li>Rewrite `warehouse/defs.bzl`, `warehouse/BUILD.bazel` and `datacube/BUILD.bazel`'s two re-inlined selects to use it.</li></ul> **(A25)** A test-only `platform(name = "unlisted_test", constraint_values = ["@platforms//os:linux", "@platforms//cpu:ppc"])` in `//tools/platforms`. |
+| Proof | `bazel build --nobuild //...`. `bazel query 'attr(target_compatible_with, ".", //warehouse/... + //datacube/...)' --output=label` gives the same set before and after. **(A25)** `bazel build --nobuild --platforms=//tools/platforms:unlisted_test //warehouse/... //pct/... //datacube/...` succeeds, with the native, DuckDB and Postgres targets skipped as incompatible rather than failing with a select error. **Windows proof (C2)** (§1). |
 | Depends on | P0-12 |
 | Size | S (0.5 d) |
 | Risk/rollback | None known. |
-| Done when | No platform `config_setting` lives outside `//tools/platforms`. |
+| Done when | No platform `config_setting` lives outside `//tools/platforms`. WH-N16's open question is answered by that command (A25). |
 
 #### P1-20 · `legend_java_library`: NullAway built in, private by default
 
@@ -866,10 +1016,10 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P1-20 |
 | Why | Plan 1.4; BZ-N13, BZ-N14. 27 `core` libraries repeat `javacopts`, `plugins` and `visibility`. |
-| Change | <ul><li>New `tools/java/defs.bzl`: `legend_java_library(name, visibility = ["//visibility:private"], **kwargs)` adds the NullAway plugin and javacopts from `//tools/nullaway`.</li><li>Convert `core/BUILD.bazel:34-202`. `core` package `default_visibility` becomes private; only `:core`, `:drivers` and `:server` (and whatever `bazel query 'rdeps(//..., //core:X) except //core:*'` shows is used from outside) get explicit visibility.</li><li>The shared javacopts are where P3-28 turns on the Error Prone locale checks.</li></ul> |
-| Proof | `bazel build //core/... //spec/... //pct/... //parser-equivalence/... //warehouse/...`. `bazel aquery 'mnemonic(Javac, //core:all)' --output=text \| grep -c NullAway` is the same as before. |
+| Change | <ul><li>New `tools/java/defs.bzl`: `legend_java_library(name, visibility = ["//visibility:private"], **kwargs)` adds the NullAway plugin and javacopts from `//tools/nullaway`.</li><li>Convert `core/BUILD.bazel:34-202`. `core` package `default_visibility` becomes private; only `:core`, `:drivers` and `:server` (and whatever `bazel query 'rdeps(//..., //core:X) except //core:*'` shows is used from outside) get explicit visibility.</li><li>The shared javacopts are where P3-28 turns on the Error Prone locale checks.</li></ul> **(A19)** The macro is used by every first-party `java_library`, not only core's: `base`, `json`, `warehouse`, `wasm`, `testing`, `tools`, `spec`, `pct` and `parser-equivalence` convert too, one PR per package. P3-28's locale flags then hold everywhere. |
+| Proof | `bazel build //core/... //spec/... //pct/... //parser-equivalence/... //warehouse/...`. `bazel aquery 'mnemonic(Javac, //core:all)' --output=text \| grep -c NullAway` is the same as before. `bazel query 'kind(java_library, //...) except attr(generator_function, legend_java_library, //...)'` lists only targets named, with a reason, in the PR (A19). |
 | Depends on | — |
-| Size | M (1 d) |
+| Size | M (2 d: 1 d for core, 1 d for the other packages, A19) |
 | Risk/rollback | A visibility change breaks an outside user. The build shows it; add that user explicitly. |
 | Done when | `core/BUILD.bazel` has no repeated `javacopts` or `plugins`. |
 
@@ -880,7 +1030,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P1-21 |
 | Why | Plan 1.4; BZ-N15. `.bazelrc` sets `build:ci --jvmopt=-Xmx8g`, `--host_jvmopt=-Xmx3g` and `build:ci-small --jvmopt=-Xmx4g`; the targets carry `resources:memory:<n>` tags. |
 | Change | <ul><li>`tools/junit/defs.bzl`: a mandatory `memory_mb`. It emits `tags = ["resources:memory:%d" % memory_mb]` plus `-Xmx%dm`.</li><li>Convert all 34 `junit_test` targets. Existing tags become the value: 1536 core/spec, 2048 stress, 3072 parser_parity, 9216 pct_duckdb/pct_postgres, 4096 per-suite, 4608 pct_h2, 5120 corpus_h2/diagnostics, 8192 reference_lane, 1024 channel_b. Untagged lanes get a measured value from P1-02's CI logs (peak RSS), never a silent default.</li><li>Delete the three `--jvmopt`/`--host_jvmopt` lines from `.bazelrc`.</li><li>`ci-small` keeps only `--local_resources`/`--local_test_jobs` (P5-03).</li><li>`--host_jvmopt=-Xmx3g` exists for `par_generator`, an exec `java_binary` in a genrule; P1-22 turns that into a `java_run` with its own memory, so remove it there if P1-22 lands later.</li></ul> |
-| Proof | `bazel query --output=build //pct:pct_duckdb` shows both the tag and `-Xmx9216m`. `CI` green on all lanes, including macOS low-memory. |
+| Proof | `bazel query --output=build //pct:pct_duckdb` shows both the tag and `-Xmx9216m`. `CI` green on all lanes, including macOS low-memory. **Windows proof (C2)** (§1). |
 | Depends on | P1-01, P0-10 |
 | Size | M (1 d) |
 | Risk/rollback | A JVM that was given 8g on CI now gets its measured peak plus headroom. If a lane OOMs, its `memory_mb` was set too low: raise that number with a measurement. Rollback: restore the `.bazelrc` lines. |
@@ -893,7 +1043,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P1-22 |
 | Why | Part 6 row "Shell genrules with exec-config java_binary" (P2, SP, BZ); SP K16; BZ K16. `pct/BUILD.bazel:21-29` uses `$$(dirname …)`. `tools/reference/BUILD.bazel:57-65` ends with `2> /dev/null` and uses `-Xmx12g`. |
 | Change | <ul><li>`//pct:adapter_par` becomes a `java_run` over `//tools/par:par_generator`'s library (target configuration), with `roots` for the directory token.</li><li>`//tools/reference:ref_dump` becomes a `java_run` over `ref_resolutions`'s library. Stderr is kept: a failure fails the action.</li><li>`tools/java_run/defs.bzl` gains `memory_mb`, which emits `-Xmx` and a `resource_set` callback, so the 12 GB action is scheduled honestly.</li></ul> |
-| Proof | `bazel build //pct:adapter_par //tools/reference:ref_dump`. Outputs are byte-identical to the genrule's: `cmp` against a copy built at the base commit. `bazel query 'kind(genrule, //...)'` is empty. |
+| Proof | `bazel build //pct:adapter_par //tools/reference:ref_dump`. Outputs are byte-identical to the genrule's: `cmp` against a copy built at the base commit. `bazel query 'kind(genrule, //...)'` is empty. **Windows proof (C2)** (§1). |
 | Depends on | — |
 | Size | S (0.5 d) |
 | Risk/rollback | Byte drift in the PAR output would show in the PCT lanes. The `cmp` check comes first. |
@@ -905,12 +1055,12 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P1-23 |
 | Why | Plan 1.4 and 0.9 (the node half); BZ-N13; DC-N10, DC-N11; HN-N15; S2 (the JS part: "a `node_test` macro … should drop `chdir`"). About 10 copied `node_options` blocks (`datacube/BUILD.bazel:148, 228, 245, 337, 390, 418, 444, 470, 497, 523, 549, 582`); cross-package reporter paths in `pure-protocol/BUILD.bazel` and `query-store/BUILD.bazel`. |
-| Change | <ul><li>New `tools/js/defs.bzl` `node_test(name, entry_point, data = [], wasm = False, env = {}, **kwargs)`: the shared `node_options`; `--test-reporter=spec` plus the strict reporter given by label (move `datacube/test/strict-reporter.mjs` to `tools/js/strict-reporter.mjs`, `//tools/js:strict_reporter`); `wasm = True` adds `//wasm:planner` and `--experimental-wasm-exnref`; `env = {"LANG": "C", "LC_ALL": "C", "TZ": "UTC"} \| env`, which TZ-lane targets override; `@bazel/runfiles` in data.</li><li>Pin `@bazel/runfiles@6.5.0` exactly in both pnpm locks: `bazel run -- @pnpm//:pnpm --dir $PWD/datacube add -D @bazel/runfiles@6.5.0 --lockfile-only`, the same for `query` (S2 E6).</li><li>Convert every JS test target in `datacube`, `pure-protocol`, `query-store` and `query`. Delete `query/test/strict-reporter.mjs` (D3b).</li><li>`chdir` stays here; P1-24 removes it.</li></ul> |
-| Proof | `bazel test //datacube:tests //pure-protocol:twins_test //query:tests //query-store:local_test //query-store:share_test` (light). `bazel test //datacube:tests --test_env=LANG=de_DE.UTF-8` passes: `app.test.ts:1230`'s `1,234` holds under the macro's pinned `LANG=C`. |
+| Change | <ul><li>New `tools/js/defs.bzl` `node_test(name, entry_point, data = [], wasm = False, env = {}, **kwargs)`: the shared `node_options`; `--test-reporter=spec` plus the strict reporter given by label (move `datacube/test/strict-reporter.mjs` to `tools/js/strict-reporter.mjs`, `//tools/js:strict_reporter`); `wasm = True` adds `//wasm:planner` and `--experimental-wasm-exnref`; `env = {"LANG": "C", "LC_ALL": "C", "TZ": "UTC"} \| env`, which TZ-lane targets override; `@bazel/runfiles` in data.</li><li>Pin `@bazel/runfiles@6.5.0` exactly in both pnpm locks: `bazel run -- @pnpm//:pnpm --dir $PWD/datacube add -D @bazel/runfiles@6.5.0 --lockfile-only`, the same for `query` (S2 E6).</li><li>Convert every JS test target in `datacube`, `pure-protocol`, `query-store` and `query`. Delete `query/test/strict-reporter.mjs` (D3b).</li><li>`chdir` stays here; P1-24 removes it.</li></ul> **(A28)** `node_test` asserts one entry point per target, the invariant that makes global DOM mutation safe, and its docstring says so. `//datacube:wasm_flag_test` checks that the `wasm = True` targets are exactly the test files importing `catalog-builder` or `lite-compiler`, read from `$(rlocationpaths)`. **(L:G-10)** `//wasm:differential_test` and `//wasm:zone_test` convert to `node_test` as well. |
+| Proof | `bazel test //datacube:tests //pure-protocol:twins_test //query:tests //query-store:local_test //query-store:share_test` (light). `bazel test //datacube:tests --test_env=LANG=de_DE.UTF-8` passes: `app.test.ts:1230`'s `1,234` holds under the macro's pinned `LANG=C`. `bazel test //datacube:wasm_flag_test //wasm:all --test_env=LANG=tr_TR.UTF-8`; `bazel query 'kind(js_test, //...)'` lists only `node_test`-generated targets (A28, L:G-10). **Windows proof (C2)** (§1). |
 | Depends on | D3b (only the reporter-file deletion) |
 | Size | M (1.5 d) |
 | Risk/rollback | The `TZ=UTC` default differs from today's global `--test_env=TZ=GMT` in name only. The TZ lanes set their own. Rollback per package. |
-| Done when | No JS test target spells `node_options` or a reporter path itself. |
+| Done when | No JS test target spells `node_options` or a reporter path itself. No `js_test` exists outside the macro, and the WASM list cannot drift (A28, L:G-10). |
 
 #### P1-24 · JS tests resolve inputs through `@bazel/runfiles`; no `chdir`
 
@@ -919,7 +1069,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P1-24 |
 | Why | Plan 1.2 (JavaScript); DC-N3; HN-N5; S2 Q3 (51 files use `import.meta.url`; `chdir = package_name()` appears on 18 targets: datacube 11, query 3, query-store 3, pure-protocol 1). S2: the real Windows blockers are `chdir` and the cwd-relative reporter. |
 | Change | <ul><li>Batch 1: the WASM consumers (`test/catalog-builder.ts:5`, `test/saved-queries.test.ts:67`, `pure-protocol/test/lite.ts:13`, the subdirectory tests, `test/wasm-differential/compare.ts:30-31`) take `WASM_PLANNER` and `CUBE_JVM_ANSWERS` from `env` with `$(rlocationpath)`. `//wasm:planner` gains a `copy_to_directory` `planner_dir`, so it is one label (S2 Q4).</li><li>Batch 2: `test/live-snap/live-snap.ts:44, 85-86` (fail fast when unset); `query-store/test/lite.test.ts:13-14` (no `_main`); `test/saved-queries.test.ts:24-28`; `test/bundle-budget.test.ts:12-13`; `query-store/test/share.test.ts:10`.</li><li>Batch 3: drop `chdir` from the 18 targets. The source-scanning tests (`state-guardrail`, `config-readers`, `menu-ids`, `guardrails`, `portability`) move in P3-29.</li><li>The duckdb users (`duckdb`, `snap`, `sorting`, `treeview`, `upload`, `group-derived`, `saved-queries`) declare `:node_modules/@duckdb/duckdb-wasm` (DC-N3.6).</li></ul> |
-| Proof | After each batch: `bazel test //datacube:tests //pure-protocol:twins_test //query:tests //query-store:all`. After batch 3: `git grep -n "chdir = package_name()" -- '*/BUILD.bazel'` lists only the P3-29 scanners. |
+| Proof | After each batch: `bazel test //datacube:tests //pure-protocol:twins_test //query:tests //query-store:all`. After batch 3: `git grep -n "chdir = package_name()" -- '*/BUILD.bazel'` lists only the P3-29 scanners. **Windows proof (C2)** (§1). |
 | Depends on | P1-23 |
 | Size | M (2.5 d; S2: 2–3 d) |
 | Risk/rollback | Each batch reverts on its own. |
@@ -966,18 +1116,18 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | Risk/rollback | None known. |
 | Done when | A `package.json` edit without a relock fails a test. |
 
-#### P1-27 · Mirrors and `integrity` for every pinned download (D10)
+#### P1-27 · `https` and `integrity` for every pinned download (D10 (c): no mirror)
 
 | Field | Content |
 |---|---|
 | ID | P1-27 |
-| Why | Plan 1.5; BZ-N21 (GitHub `archive/refs/tags` churn, `MODULE.bazel:334, 342`); BZ-N8; S3 recommendation 1 (mirror the Chromium sysroots). |
-| Change | <ul><li>Per D10 (a): upload each pinned archive as an asset of a `bazel-mirror` release of this repository. Add it as the second URL for `legend_engine_src`, `legend_pure_src`, the five DuckDB extensions and the two Linux sysroots, and switch to `integrity = "sha256-…"`.</li><li>Bump (P2-10) prints the upload commands for the new release's archives (`gh release upload …`), run once per bump.</li></ul> |
-| Proof | `bazel fetch --repository_cache= @legend_engine_src//:all` with the primary URL blocked (`--experimental_downloader_config` rewriting it to an unroutable host) succeeds from the mirror. |
+| Why | Plan 1.5; BZ-N21 (GitHub `archive/refs/tags` churn, `MODULE.bazel:334, 342`); BZ-N8. **Rewritten 2026-10-03 to match D10 (c) (G-23):** the earlier text still described D10 (a)'s release-asset mirror, which the user rejected. |
+| Change | Per D10 (c): no mirror and no release assets. Every `http_archive`/`http_file`, in `MODULE.bazel` and in every `.bzl` (`legend_engine_src`, `legend_pure_src`, the DuckDB extensions, the two Linux sysroots, the Chromium archives, actionlint, react-icons), uses `https` and `integrity = "sha256-…"` instead of `sha256 =`. When GitHub regenerates a tag archive and a checksum breaks, the fix is a re-pin, made by the item that notices it (D10's reasoning). |
+| Proof | `git grep -n 'sha256 = ' -- MODULE.bazel '*.bzl'` is empty; `git grep -n 'http://' -- MODULE.bazel '*.bzl'` is empty; `bazel fetch //...` passes (G-23). |
 | Depends on | D10 |
 | Size | S (0.5 d) |
 | Risk/rollback | None known. |
-| Done when | Every pinned archive has two URLs and an integrity hash. |
+| Done when | Every pinned download uses `https` and `integrity`, and no item builds a mirror (G-23). |
 
 #### P1-28 · Disk-cache garbage collection; drop `--enable_bzlmod`
 
@@ -986,11 +1136,24 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P1-28 |
 | Why | Plan 1.5; BZ-N16 (`.bazelrc:2`, `:61`). |
 | Change | **Investigate first:** the exact flag name in Bazel 9.2 (`bazel help build \| grep -i disk_cache_gc`). Then add `build --<flag>_max_size=50G` and a minimum age, and delete `common --enable_bzlmod`. |
-| Proof | `bazel build --nobuild //...`. `bazel info` shows no warning. |
+| Proof | `bazel build --nobuild //...`. `bazel info` shows no warning. **Windows proof (C2)** (§1). |
 | Depends on | — |
 | Size | S (0.25 d) |
 | Risk/rollback | None known. |
 | Done when | The disk cache is bounded, and no no-op flag remains. |
+
+#### P1-90 · Phase 1 audit: done-criteria checked against the coverage table (C4)
+
+| Field | Content |
+|---|---|
+| ID | P1-90 |
+| Why | C4: every phase ends with an audit of its done-criteria against the coverage table. |
+| Change | A reviewer who wrote none of Phase 1's items checks, on `main` (not on a PR branch): each Phase 1 item's Done-when, with the command that shows it; each §6.1, §6.2 and §6.4 row that names a Phase 1 item, against the code rather than the item text; and that every Phase 1 PR carried P0-15's template with an independent reviewer and all-platform CI (and, for a **Windows proof (C2)** item, its Windows evidence). An unmet Done-when reopens its item. A row the items do not actually close becomes an amendment or a new item, with an ID, before the milestone checkpoint closes. The result is a dated table in §6.5. |
+| Proof | §6.5 has a Phase 1 table: one row per Phase 1 item, with its evidence command and verdict, and no open "no" without a follow-up item ID. |
+| Depends on | P1-01, P1-02, P1-03, P1-04, P1-05, P1-06, P1-07, P1-08, P1-09, P1-10, P1-11, P1-12, P1-13, P1-14, P1-15, P1-16, P1-17, P1-18, P1-19, P1-20, P1-21, P1-22, P1-23, P1-24, P1-25, P1-25b, P1-26, P1-27, P1-28 |
+| Size | M (1 d) |
+| Risk/rollback | An audit finds a gap late. It becomes an item, never a silent pass. |
+| Done when | Every Phase 1 Done-when is verified on `main`, and every gap found has an item. |
 
 ### Phase 2: every committed derived file gets a producer and a diff test
 
@@ -1026,7 +1189,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P2-03 |
 | Why | S5 productionising (a narrower projects input, root wiring, docs); S5 risk 2 (unsandboxed runs read the stress directory: pass declared files, do not glob the directory). |
-| Change | <ul><li>`gen_stress` srcs: only the linked projects (from `LINKED_PROJECTS`), not `//projects:srcs`. `build.py` takes the declared file list as arguments instead of globbing.</li><li>The generators' header template: "Regenerate with: `bazel run //core:update_stress_corpus`". This is a deliberate generator change: regenerate, review the diff, which is header lines only.</li><li>Optionally, the stale static text in 60's header ("the base model's 210 tables", S5 gaps), also a deliberate generator change.</li><li>`docs/RUNNING_THE_CORPUS.md`'s generator section is rewritten in P7-07.</li></ul> |
+| Change | <ul><li>`gen_stress` srcs: only the linked projects (from `LINKED_PROJECTS`), not `//projects:srcs`. `build.py` takes the declared file list as arguments instead of globbing.</li><li>The generators' header template: "Regenerate with: `bazel run //core:update_stress_corpus`". This is a deliberate generator change: regenerate, review the diff, which is header lines only.</li><li>**Mandatory (G-28):** the stale static text in 60's header ("the base model's 210 tables", "every join … single-column", S5 gaps) is computed by the generator or dropped. This is also a deliberate generator change.</li><li>`docs/RUNNING_THE_CORPUS.md`'s generator section is rewritten in P7-07.</li></ul> |
 | Proof | **Heavy: H-stress**: `bazel run //core:update_stress_corpus`, then `git diff --stat` shows only header lines; then the 10 diff tests pass. |
 | Depends on | P2-02, P0-02 |
 | Size | S (0.5 d) |
@@ -1104,12 +1267,12 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P2-09 |
 | Why | Plan 2.5; WH-N1 ("the script that did it is gone"; locale bundles from the recording host). |
-| Change | <ul><li>(a) A new `java_run` generator `//warehouse:gen_foreign_metadata`. It reads the FFM descriptor table in `server/duck/Duck.java:120-241` and `AuthenticatedUser.java:58-67`, refactored into a `static final List<Descriptor>` if it is not already one, and emits the `foreign` section.</li><li>(b) A `java_run` action `//warehouse:record_metadata` runs the warehouse HTTP suite (P3-21's split) through `JUnitMain` under `-agentlib:native-image-agent=config-output-dir=<tree artifact>` from the `@graalvm` toolchain, locale pinned by P0-10, with the DuckDB library from runfiles (P1-16). It then merges (`native-image-configure` from the same toolchain).</li><li>(c) `write_source_files(name = "update_native_metadata", files = {"src/main/resources/META-INF/native-image/com.legend/warehouse/reachability-metadata.json": ":merged_metadata"})`.</li><li>**Investigate first:** run (b) once and diff it against the committed file. Every difference must be explained by a generator rule (for example, the `icudt76b` resource glob, json:131-133) before (c) turns on.</li></ul> |
-| Proof | **Heavy: H-native** (the recording runs the suite; then the image is rebuilt): `bazel test //warehouse:update_native_metadata_test //warehouse:tests_native`. |
+| Change | <ul><li>(a) A new `java_run` generator `//warehouse:gen_foreign_metadata`. It reads the FFM descriptor table in `server/duck/Duck.java:120-241` and `AuthenticatedUser.java:58-67`, refactored into a `static final List<Descriptor>` if it is not already one, and emits the `foreign` section.</li><li>(b) A `java_run` action `//warehouse:record_metadata` runs the warehouse HTTP suite (P3-21's split) through `JUnitMain` under `-agentlib:native-image-agent=config-output-dir=<tree artifact>` from the `@graalvm` toolchain, locale pinned by P0-10, with the DuckDB library from runfiles (P1-16). It then merges (`native-image-configure` from the same toolchain).</li><li>(c) `write_source_files(name = "update_native_metadata", files = {"src/main/resources/META-INF/native-image/com.legend/warehouse/reachability-metadata.json": ":merged_metadata"})`.</li><li>**Investigate first:** run (b) once and diff it against the committed file. Every difference must be explained by a generator rule (for example, the `icudt76b` resource glob, json:131-133) before (c) turns on.</li></ul> **(A23)** If the fallback is taken, the non-foreign sections are produced by a deterministic `java_run` generator that filters the host-locale resource bundles to a fixed list (`FormatData_en_US`, `icudt76b`, …) and emits the resource patterns. No section stays hand-recorded. `docs/WAREHOUSE_W1_DESIGN_2026_09_26.md:333-338` ("Owed: re-recording as a Bazel target") is updated. |
+| Proof | **Heavy: H-native** (the recording runs the suite; then the image is rebuilt): `bazel test //warehouse:update_native_metadata_test //warehouse:tests_native`. **Windows proof (C2)** (§1). |
 | Depends on | P1-01, P1-16, P0-10 |
 | Size | M (3 d) |
-| Risk/rollback | Agent output can be nondeterministic in ordering. The merge step sorts. If the recording cannot be made byte-stable, ship (a) alone with a diff test, and record (b) as deferred, with the reason. |
-| Done when | A new FFM shape cannot ship without the metadata diff test failing. |
+| Risk/rollback | Agent output can be nondeterministic in ordering. The merge step sorts. If the recording cannot be made byte-stable, ship (a) plus A23's deterministic resource generator, and the deferral of (b) is the row pre-registered in §6.3. |
+| Done when | A new FFM shape cannot ship without the metadata diff test failing. No section of the metadata file is hand-recorded (A23). |
 
 #### P2-10 · `oracle-pins.env` comes from `MODULE.bazel`; Bump edits only `MODULE.bazel`
 
@@ -1117,10 +1280,10 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P2-10 |
 | Why | Plan 2.6; SP K19; SC-§1c; Part 6 row "Bump" (`$BAZEL_REAL`, `release.bzl` instead of regex). `tools/oracle-pins.env` duplicates eight values held equal by `//tools/deps:one_release`. **Correction to the plan:** `MODULE.bazel` cannot `load()` a `.bzl`, so "a `release.bzl` that MODULE.bazel loads" is not possible. |
-| Change | <ul><li>In `MODULE.bazel`, beside `LEGEND_ENGINE_RELEASE`/`LEGEND_PURE_RELEASE`, add constants for the repo, SHA and describe values. Pass them into each upstream `http_archive`'s `build_file_content` as a `write_file(name = "pin", out = "pin.env", content = [...])`, so `@legend_engine_src//:pin` and `@legend_pure_src//:pin` carry them.</li><li>New `//tools:oracle_pins` (a bazel_lib `concat`-style `write_file`) combines the two into `oracle-pins.env` **as a build output**. `OraclePins.java` and the 5 parser-equivalence readers take it as data through `Runfile.of`.</li><li>Delete the committed `tools/oracle-pins.env`, `OneReleaseTest.java` and `//tools/deps:one_release`. `diagnostics.yml:12, 20` triggers on `MODULE.bazel` instead.</li><li>`Bump.java` rewrites only the `MODULE.bazel` constants (the regex for `oracle-pins.env` is deleted), runs `$BAZEL_REAL` when set (bazelisk's variable), otherwise `bazel`, and prints the D10 mirror upload commands.</li></ul> |
-| Proof | `bazel build //tools:oracle_pins`; its content equals today's committed file. **Heavy: H-pe**: `bazel test //parser-equivalence:parser_parity`. `bazel build //tools/bump`. |
-| Depends on | P0-05, P1-04, P1-05 |
-| Size | M (1 d) |
+| Change | <ul><li>In `MODULE.bazel`, beside `LEGEND_ENGINE_RELEASE`/`LEGEND_PURE_RELEASE`, add constants for the repo, SHA and describe values. Pass them into each upstream `http_archive`'s `build_file_content` as a `write_file(name = "pin", out = "pin.env", content = [...])`, so `@legend_engine_src//:pin` and `@legend_pure_src//:pin` carry them.</li><li>New `//tools:oracle_pins` (a bazel_lib `concat`-style `write_file`) combines the two into `oracle-pins.env` **as a build output**. `OraclePins.java` and the 5 parser-equivalence readers take it as data through `Runfile.of`.</li><li>Delete the committed `tools/oracle-pins.env`, `OneReleaseTest.java` and `//tools/deps:one_release`. `diagnostics.yml:12, 20` triggers on `MODULE.bazel` instead.</li><li>`Bump.java` rewrites only the `MODULE.bazel` constants (the regex for `oracle-pins.env` is deleted), runs `$BAZEL_REAL` when set (bazelisk's variable), otherwise `bazel`, and prints no mirror commands (D10 (c), G-23).</li></ul> **(A20, D19)** Per D19 (OPEN; recommended (b)). Under (b): Bump resolves the tag SHA through GitHub's REST API (`GET /repos/{owner}/{repo}/git/ref/tags/{tag}`) with its existing `HttpClient`, not `git ls-remote`; the release constants move into a `release.MODULE.bazel` segment pulled in with `include()` from the root `MODULE.bazel`, and Bump rewrites that whole file, with no regex; Bump prints the repin, regenerate and test commands instead of running nested Bazel, and P0-04's `--lockfile_mode=error` fails CI until they are run. Under (a) or (c), each kept host call gets a dated G5 row and a §8 entry. |
+| Proof | `bazel build //tools:oracle_pins`; its content equals today's committed file. **Heavy: H-pe**: `bazel test //parser-equivalence:parser_parity`. `bazel build //tools/bump`. Under D19 (b), `git grep -n "ls-remote\|ProcessBuilder" tools/bump` is empty; under (a) or (c), it matches only G5-allowlisted lines. |
+| Depends on | P0-05, P1-04, P1-05, D19 |
+| Size | M (2 d: 1 d, plus 1 d for D19 (b)'s API lookup, `include()` segment and printed commands) |
 | Risk/rollback | Tests that read the file by repository path. P1-05 converted them; the build shows any left. |
 | Done when | The pins live once, in `MODULE.bazel`. |
 
@@ -1130,12 +1293,12 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P2-11 |
 | Why | Plan 2.7; SP-N16. `pct/src/test/resources/oracle/*_manifest.duckdb.json` are snapshots of `943d38b3` (2026-08-06), while the pin is 4.145.0. |
-| Change | <ul><li>**Investigate first:** does `@legend_engine_src` at the pin carry equivalent manifests (`pct-manifests/`, per `Test_LegendLite_H2_RelationFunctions_PCT.java:31-32`)? Diff them against the committed copies.</li><li>If they exist: export them in `third_party/legend_engine_src.BUILD`, have the ChannelB tests read them as data, and delete the vendored copies.</li><li>If verdict counts move because the reference moved, the pinned ChannelB counts move **with a dated justification naming P2-11** (AGENTS.md).</li></ul> |
-| Proof | `bazel test //pct:pct_channel_b` (1 GB, about 27 s). |
+| Change | <ul><li>**Investigate first:** does `@legend_engine_src` at the pin carry equivalent manifests (`pct-manifests/`, per `Test_LegendLite_H2_RelationFunctions_PCT.java:31-32`)? Diff them against the committed copies.</li><li>If they exist: export them in `third_party/legend_engine_src.BUILD`, have the ChannelB tests read them as data, and delete the vendored copies.</li><li>If verdict counts move because the reference moved, the pinned ChannelB counts move **with a dated justification naming P2-11** (AGENTS.md).</li></ul> **(A18)** No "recorded reason" exit. If the pinned tree lacks the manifests, they are produced by an action (from the pinned tree's PCT sources, or from the release's `pct-manifests` artifact through `@maven_runner`) and committed through `write_source_files` (`//pct:update_oracle_manifests`). Only if neither source exists does the user decide, and §6.3 records the decision. |
+| Proof | `bazel test //pct:pct_channel_b` (1 GB, about 27 s). `bazel test //pct:update_oracle_manifests_test` when the action route is taken (A18). |
 | Depends on | P1-04 |
 | Size | M (1 d) |
 | Risk/rollback | Count movement. It is evidence, recorded, not hidden. |
-| Done when | No vendored manifest remains, or each one carries a recorded reason. |
+| Done when | Every manifest is either pinned-tree data or a diff-tested action output (A18). |
 
 #### P2-12 · `core-layers.txt`: every core library is covered (policy stays hand-owned; D9)
 
@@ -1195,12 +1358,12 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P2-16 |
 | Why | Plan 2.9 ("roughly 20 ratchet constants in Java"); CT-N17; SP-N12. |
-| Change | <ul><li>(a) Computed, not pinned: `builtin/EngineHandlersTest:59-62`'s 404/836/168 from `engine-handlers.tsv`; `builtin/NativeFunctionTest:634, 1557`'s counts from `Pure.java` (and drop the citations of the missing `tools/m3shape.py` and `tools/shape_sweep.py`).</li><li>(b) For every remaining ratchet family (MinimalCorpusTest `DISCOVERED`/`DECLARED`/`EXCLUDED`/`*_STRENGTH`/`*_TEXT_DECIDED`/`*_LENIENCY`; `OwnCorpusParityTest.MIN_MATCHED`; `CorpusSweepTest` `MIN_*`/`MAX_*`; `ImplementationTableTest:112`; `CatalogUpstreamDiffTest:200-202`; `SubsumedRegistryTest:28`; `DynaFnRegistryTest:50`; `UpstreamPathManifestTest:54`; ChannelB discovery and pass pins; `PctCensusGate`; `PctDisciplineTest:64`; `RejectionParityTest`; `SectionParseSentinelTest`; `MutationFuzzTest:38`; `FixtureAdjudicationTest`; `OwnDialectCensusTest`; `MIN_PASS`/`MIN_PASS_H2`; core's `GuardCoverage` floors): the **measured value** becomes a line of a generated, diff-tested report per package (`spec/ratchets.tsv`, `pct/ratchets.tsv`, …). The **ceiling or floor** stays a dated Java constant, and the test compares the two. This is D9 (b).</li><li>One PR per package.</li></ul> |
-| Proof | Per package, **heavy as its lane**: `bazel test //spec:update_ratchets_test //spec:spec_tests` (H-spec); `//pct:…` (H-pct); `//parser-equivalence:…` (H-pe). |
+| Change | <ul><li>(a) Computed, not pinned: `builtin/EngineHandlersTest:59-62`'s 404/836/168 from `engine-handlers.tsv`; `builtin/NativeFunctionTest:634, 1557`'s counts from `Pure.java` (and drop the citations of the missing `tools/m3shape.py` and `tools/shape_sweep.py`).</li><li>(b) For every remaining ratchet family (MinimalCorpusTest `DISCOVERED`/`DECLARED`/`EXCLUDED`/`*_STRENGTH`/`*_TEXT_DECIDED`/`*_LENIENCY`; `OwnCorpusParityTest.MIN_MATCHED`; `CorpusSweepTest` `MIN_*`/`MAX_*`; `ImplementationTableTest:112`; `CatalogUpstreamDiffTest:200-202`; `SubsumedRegistryTest:28`; `DynaFnRegistryTest:50`; `UpstreamPathManifestTest:54`; ChannelB discovery and pass pins; `PctCensusGate`; `PctDisciplineTest:64`; `RejectionParityTest`; `SectionParseSentinelTest`; `MutationFuzzTest:38`; `FixtureAdjudicationTest`; `OwnDialectCensusTest`; `MIN_PASS`/`MIN_PASS_H2`; core's `GuardCoverage` floors): the **measured value** becomes a line of a generated, diff-tested report per package (`spec/ratchets.tsv`, `pct/ratchets.tsv`, …). The **ceiling or floor** stays a dated Java constant, and the test compares the two. This is D9 (b).</li><li>One PR per package.</li></ul> **(A10)** Core's guardrail and census families are listed explicitly too. Investigate first with `git grep -n "static final int [A-Z_]*\(MAX\|MIN\|CEILING\|FLOOR\|PIN\)" core/src/test`, then enumerate them in the PR (`TenetRatchet`, `SqlTextRatchet`, `JavaEvalLedger`, `CarrierPurity`, …) with `core/ratchets.tsv` and `//core:update_ratchets_test`. **(G-01) First sub-step:** a table of every `Repo.out`/`outDir` writer (`git grep -l "Repo\.out"`), each classed as diagnostic output (it moves to `TestOutputs` in P3-33) or as a golden refreshed by hand from CI outputs (each gets a `java_run` plus `write_source_files`, as P2-13 and P2-14 do). |
+| Proof | Per package, **heavy as its lane**: `bazel test //spec:update_ratchets_test //spec:spec_tests` (H-spec); `//pct:…` (H-pct); `//parser-equivalence:…` (H-pe). **Heavy: H-core:** `bazel test //core:update_ratchets_test //core:guardrails //core:census` (A10). The `Repo.out` classification table is in the first PR (G-01). |
 | Depends on | D9 |
-| Size | M (2 d) |
+| Size | M (3 d: 2 d, plus 1 d for core's families and the `Repo.out` table) |
 | Risk/rollback | None known. Each PR stands alone. |
-| Done when | Every hand number is either computed or a dated policy value beside a generated measurement. |
+| Done when | Every hand number is either computed or a dated policy value beside a generated measurement. Core has no hand-copied measurement (A10), and no committed file is refreshed from test outputs by hand (G-01). |
 
 #### P2-17 · `natives.bootstrap` and `natives.dump` stop writing into the tree
 
@@ -1221,8 +1384,8 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P2-18 |
 | Why | Plan 2.10; SP-N3; SC-§4.4–4.5; SR (rows for `keywords.py`, `mutants.py`, `metamodel-census`, `coverage.py`, `census_gate.py`, `outstanding.py`, `walldepth.py`, `scoreboard.py`, `probe_functions.py`, `golden_shape_survey.py`). |
-| Change | Per file, following the D3 decisions:<ul><li>`tools/engine-runner/vocab.tsv`: if `keywords.py` is kept, a `java_run` of `perf.TokenDump` over a `java_jars` list. It fails when no lexer is found (`TokenDump.java:37, 56-60`) and is diff-tested. If not kept, it moves to `docs/history/` with its scripts.</li><li>`scripts/parser/mutants.tsv`, `tools/metamodel-census/*.json`, `docs/{OUTSTANDING.md, WALL_DEPTH.txt, SCOREBOARD.md}`: history (P7-04). Each loses any "generated" claim.</li><li>`docs/{corpus-coverage.json, census-baseline.json}`: retire with their scripts (SR rec 4) after P7-01.</li><li>`docs/{ENGINE_FUNCTIONS, ENGINE_SURFACE, FUNCTIONS_EXECUTED, SURFACE_BLOCKED}.tsv`: frozen snapshots. Drop the "generated" header text (no generator exists) and take them out of `//docs:ledgers`.</li><li>`//docs:ledgers` becomes an explicit list of the TSVs code reads. **Investigate:** `git grep -n` each `docs/*.tsv` basename in Java and TS sources.</li></ul> |
-| Proof | **Heavy: H-pe**: `bazel test //parser-equivalence:parser_parity //docs:all`. `bazel query 'labels(srcs, //docs:ledgers)'` lists only files a reader names. |
+| Change | Per file, following the D3 decisions:<ul><li>`tools/engine-runner/vocab.tsv`: `keywords.py` is kept (D3 row 6), so a `java_run` of `perf.TokenDump` over a `java_jars` list, with `write_source_files(name = "update_vocab")` in `//tools/engine-runner`. It fails when no lexer is found (`TokenDump.java:37, 56-60`) and is diff-tested. P2-20 wires its consumers.</li><li>`scripts/parser/mutants.tsv`, `tools/metamodel-census/*.json`, `docs/{OUTSTANDING.md, WALL_DEPTH.txt, SCOREBOARD.md}`: history (P7-04). Each loses any "generated" claim.</li><li>`docs/{corpus-coverage.json, census-baseline.json}`: retire with their scripts (SR rec 4) after P7-01.</li><li>`docs/{ENGINE_FUNCTIONS, ENGINE_SURFACE, FUNCTIONS_EXECUTED, SURFACE_BLOCKED}.tsv`: frozen snapshots. Drop the "generated" header text (no generator exists) and take them out of `//docs:ledgers`.</li><li>`//docs:ledgers` becomes an explicit list of the TSVs code reads. **Investigate:** `git grep -n` each `docs/*.tsv` basename in Java and TS sources.</li></ul> **(G-13)** `docs/FUNCTIONS_EXECUTED.tsv` is not generator-less: it is a *draft* refreshed by `bazel run //scripts/corpus:probe_functions -- --record` (P7-03), written under `$BUILD_WORKSPACE_DIRECTORY` (the P2-17 draft pattern). Its header says "refreshed by …", not "generated", G1 carries it as a dated allowlist row, and it leaves the frozen-snapshot list. **(G-20)** Files that `AGENTS.md` links (`docs/OUTSTANDING.md` and any other in its standing-documents table) stay in place. Only their "generated" claim is removed, and P7-04 skips them. |
+| Proof | **Heavy: H-pe**: `bazel test //parser-equivalence:parser_parity //docs:all`. `bazel query 'labels(srcs, //docs:ledgers)'` lists only files a reader names. `test -f docs/OUTSTANDING.md` (G-20). |
 | Depends on | D3, P3-07 |
 | Size | M (1.5 d) |
 | Risk/rollback | None known. |
@@ -1240,6 +1403,32 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | Size | S (0.5 d) |
 | Risk/rollback | None known. The diff tests already guard the same files. |
 | Done when | No test regenerates a file that a diff test guards, and no test reads another test's output. |
+
+#### P2-20 · `scripts/parser/keywords.py` and `tiers.py` are Bazel targets over pinned inputs (D3 row 6)
+
+| Field | Content |
+|---|---|
+| ID | P2-20 |
+| Why | D3 row 6 was decided **keep and repair**, and no item wired it (A15; CC2 G-04; ledger P-3, rows U-14 and D-14). `keywords.py:35` reads `Path.home()/legend/legend-engine`. |
+| Change | <ul><li>`third_party/legend_engine_src.BUILD`: a narrow `filegroup(name = "grammars", srcs = glob(["**/*.g4"]))`.</li><li>`scripts/parser/BUILD.bazel`: `py_library(name = "tiers")` and `py_binary(name = "keywords")`, with data `@legend_engine_src//:grammars`, `//tools/engine-runner:vocab` (P2-18's output), `//projects:srcs` and `//core:stress_sources`, read through the rules_python runfiles library. No `Path.home()`.</li><li>A `run_binary` writes `keyword-coverage.tsv`, a `write_source_files` golden (a measurement, D9); a `py_test` asserts any dated floor (a policy, D9).</li><li>`scripts/parser/README.md` and `HANDOFF.md` are rewritten for the kept part (`HANDOFF.md:84` becomes `bazel run //tools/engine-runner:update_vocab`, G-06); the rest moves to history with P7-04.</li></ul> |
+| Proof | `bazel test //scripts/parser:all`; `bazel run //scripts/parser:keywords -- --help`; `git grep -n "legend/legend-engine\|Path.home" scripts/parser` is empty. |
+| Depends on | P2-18, P1-07, D3 |
+| Size | M (1 d) |
+| Risk/rollback | The metric may move once it reads the pinned grammar instead of a host checkout: record the new value in a dated row naming P2-20. |
+| Done when | The keyword-coverage metric is produced by Bazel from pinned inputs and diff-tested, and no kept parser script reads a host checkout. |
+
+#### P2-90 · Phase 2 audit: done-criteria checked against the coverage table (C4)
+
+| Field | Content |
+|---|---|
+| ID | P2-90 |
+| Why | C4: every phase ends with an audit of its done-criteria against the coverage table. |
+| Change | A reviewer who wrote none of Phase 2's items checks, on `main` (not on a PR branch): each Phase 2 item's Done-when, with the command that shows it; each §6.1, §6.2 and §6.4 row that names a Phase 2 item, against the code rather than the item text; and that every Phase 2 PR carried P0-15's template with an independent reviewer and all-platform CI (and, for a **Windows proof (C2)** item, its Windows evidence). An unmet Done-when reopens its item. A row the items do not actually close becomes an amendment or a new item, with an ID, before the milestone checkpoint closes. The result is a dated table in §6.5. |
+| Proof | §6.5 has a Phase 2 table: one row per Phase 2 item, with its evidence command and verdict, and no open "no" without a follow-up item ID. |
+| Depends on | P2-01, P2-02, P2-03, P2-04, P2-05, P2-06, P2-07, P2-08, P2-09, P2-10, P2-11, P2-12, P2-13, P2-14, P2-15, P2-16, P2-17, P2-18, P2-19, P2-20 |
+| Size | S (0.5 d) |
+| Risk/rollback | An audit finds a gap late. It becomes an item, never a silent pass. |
+| Done when | Every Phase 2 Done-when is verified on `main`, and every gap found has an item. |
 
 ### Phase 3: restructure the test graph (hermetic, granular, independent)
 
@@ -1288,7 +1477,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P3-04 |
 | Why | Plan 3.3; CT-N14. Class-shared connections in `LowerRelationTest:48-75`, `ExecuteInDbTest:37-46` and `ResolveNestedNavTest:160-172`. The `ToySectionGrammar` service file sits in `core_tests_lib`'s resources (`core/src/test/resources/META-INF/services/com.legend.spi.SectionGrammar`). Exact global counts after `reset()` in `V7DualChannelCensusTest:21-80` and `CanonicalFormTest:119, 138`. |
-| Change | <ul><li>One connection per method in the three classes.</li><li>Move the toy grammar and its service file to `java_library(name = "toy_grammar", testonly = True)` with its own `junit_test(name = "section_grammar_registry_test")`, as `:shadow_binding` already is.</li><li>The census tests assert per-test deltas around their own calls, not global totals after `reset()`. `CanonicalDivergence` is unchanged, which avoids a product-code hook.</li></ul> |
+| Change | <ul><li>One connection per method in the three classes.</li><li>Move the toy grammar and its service file to `java_library(name = "toy_grammar", testonly = True)` with its own `junit_test(name = "section_grammar_registry_test")`, as `:shadow_binding` already is.</li><li>The census tests assert per-test deltas around their own calls, not global totals after `reset()`. `CanonicalDivergence` is unchanged, which avoids a product-code hook.</li></ul> **(A9)** `@ResourceLock("process-counters")` on `LiteralChannelTest`, `AssertVerdictsTest`, `InstanceIdentityTest`, `RowLoadTest` and the classes above, so turning on JUnit parallelism cannot break their before/after deltas. G13 (P6-13) gains the matching rule. |
 | Proof | **Heavy: H-core**: `bazel test //core:core_tests //core:section_grammar_registry_test`. With P1-01: `bazel test //core:core_tests --test_sharding_strategy=forced=4` passes. |
 | Depends on | P1-01 |
 | Size | M (2 d) |
@@ -1301,12 +1490,12 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P3-05 |
 | Why | Plan 3.2; CT K15 (one "enormous" `java_test`, `core/BUILD.bazel:318`); CT-N18; S1 Q6. |
-| Change | <ul><li>One `junit_test` per test package under `core/src/test/java/com/legend/` (`architecture`, `builtin`, `cache`, `compiler`, `exec`, `ide`, `integration`, `ladder`, `lexer`, `lineage`, `lowering`, `model`, `normalizer`, `parser`, `platform`, `protocol`, `resolver`, `server`, `sql`, `values`, …; list them with `ls`), each with `memory_mb` from a measurement.</li><li>Root-package behaviour classes go in one target with `--select-package=com.legend` plus `--exclude-package=com.legend.<each subpackage>`. P1-01 adds `--exclude-package`.</li><li>`test_suite(name = "core_tests")` keeps the label.</li><li>Drop `data = _CORE_READS` (`:321, 345`). Each target lists exactly the files it reads; the ladder pins and the stress corpus are read as classpath resources.</li><li>`integration` (the largest) may take `shard_count`, measured first.</li><li>Fix the "50K chaotic" comment on `scale_*` (it is 100K, CT K18).</li></ul> |
-| Proof | **Heavy: H-core**: `bazel test //core:core_tests`. The union of testcases across the new targets equals P1-02's baseline: `bazel run //tools/junit:compare_testcases`. |
-| Depends on | P3-02, P3-03, P3-04, P1-21, P1-01 |
-| Size | M (1.5 d) |
+| Change | <ul><li>One `junit_test` per test package under `core/src/test/java/com/legend/` (`architecture`, `builtin`, `cache`, `compiler`, `exec`, `ide`, `integration`, `ladder`, `lexer`, `lineage`, `lowering`, `model`, `normalizer`, `parser`, `platform`, `protocol`, `resolver`, `server`, `sql`, `values`, …; list them with `ls`), each with `memory_mb` from a measurement.</li><li>Root-package behaviour classes go in one target with `--select-package=com.legend` plus `--exclude-package=com.legend.<each subpackage>`. P1-01 adds `--exclude-package`.</li><li>`test_suite(name = "core_tests")` keeps the label.</li><li>Drop `data = _CORE_READS` (`:321, 345`). Each target lists exactly the files it reads; the ladder pins and the stress corpus are read as classpath resources.</li><li>`integration` (the largest) may take `shard_count`, measured first.</li><li>Fix the "50K chaotic" comment on `scale_*` (it is 100K, CT K18).</li></ul> **(A7)** The `integration` target passes `--exclude-classname=.*CorpusDifferentialTest`, so that class runs only in `//core:corpus_differential_test` (P3-18), where its data is declared. **(A11)** `census`, `stress_suites` and `scale_*` drop `_CENSUS_READS`/`_STRESS_READS` and list what they read (P3-27's lists); `//projects:srcs` leaves `census`. The stress corpus is read one way only: as a classpath resource of `core_tests_lib`, with its runfiles data dropped. `_CORE_READS` and the redundant `"heavy"` exclude-tag are deleted. `scale_*` assert nothing beyond "no failures" and print timings, so they become one `java_binary` benchmark (`bazel run //core:scale -- chaotic`) and leave the test graph. |
+| Proof | **Heavy: H-core**: `bazel test //core:core_tests`. The union of testcases across the new targets equals P1-02's baseline: `bazel run //tools/junit:compare_testcases`. `bazel query 'labels(data, //core:census + //core:stress_suites)'` contains no `//projects:srcs` and no whole-tree glob; `bazel query 'attr(name, "scale_.*", tests(//core:all))'` is empty (A11). |
+| Depends on | P3-02, P3-03, P3-04, P1-21, P1-01, P3-27 |
+| Size | M (2 d: 1.5 d, plus 0.5 d for A7 and A11) |
 | Risk/rollback | Coupling that P3-03/P3-04 missed shows up here as a split failure. Fix the coupling, never re-merge the targets. |
-| Done when | `core_tests` is a suite of targets with exact data, and the union is identical. |
+| Done when | `core_tests` is a suite of targets with exact data, and the union is identical. No core target declares data it does not read, no core test is a manual timing script (A11), and `CorpusDifferentialTest` is selected once (A7). |
 
 #### P3-06 · Core test sources split into per-package libraries
 
@@ -1328,11 +1517,11 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P3-07 |
 | Why | Plan 3.2; SP K15 (`pct/BUILD.bazel:95, 111, 123, 191`; `spec/BUILD.bazel:9-13, 62-65`; parser-equivalence `_INPUTS` pulls `//core:srcs`, `//pct:srcs` and `//spec:srcs`); BZ K15 (`@legend_engine_src//:tree` is 12,900 files, an input of 15 targets). |
 | Change | <ul><li>Replace each `glob(["src/**"])` with the files the lane reads, in the same style as P3-05.</li><li>`//docs:ledgers` becomes an explicit list (P2-18 then removes the snapshots).</li><li>**Investigate:** for each consumer of `@legend_engine_src//:tree`, can a narrower filegroup in `third_party/legend_engine_src.BUILD` serve it (`DynaFnGenerator.java:68` walks the whole tree)? Narrow where yes; record the rest.</li></ul> |
-| Proof | **Heavy, one at a time: H-spec, H-pct, H-pe**: `bazel test //spec:spec_tests //pct:pct_channel_b //parser-equivalence:parser_parity`. |
+| Proof | **Heavy, one at a time: H-spec, H-pct, H-pe**: `bazel test //spec:spec_tests //pct:pct_channel_b //parser-equivalence:parser_parity`. `bazel query 'rdeps(//..., @legend_engine_src//:tree + @legend_pure_src//:tree, 1)'` equals the PR table's unnarrowed rows (A21). |
 | Depends on | P1-05 |
 | Size | M (1.5 d) |
 | Risk/rollback | None known. |
-| Done when | No `glob(["src/**"])` remains as test data. Guard G12 (P6-12) keeps it so. |
+| Done when | No `glob(["src/**"])` remains as test data. Guard G12 (P6-12) keeps it so. **(A21)** The PR carries a table of every `@legend_engine_src//:tree`/`@legend_pure_src//:tree` consumer, with its narrowed filegroup or a dated §6.3 row giving the reason (for example `DynaFnGenerator` scans the whole tree by design). |
 
 #### P3-08 · ChannelB reads sources in a fixed order; corpus statics become instance state
 
@@ -1353,12 +1542,12 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P3-09 |
 | Why | Plan 3.3; SP-N9 (`PctCensusGate.java:16-27, 37-53`: "counters are cumulative per JVM"); S1 E7 and open questions 1–2. |
-| Change | <ul><li>Reset the counters at each suite's start. `PctCensusGate` holds per-suite ceilings, measured once per suite and committed with a dated justification naming P3-09.</li><li>Per D2 (b) and D6 (b): one `junit_test` per suite class (`pct_duckdb_essential` … `_unclassified`, `pct_postgres_*`); no longer `manual`. Each has `memory_mb = 4096`.</li><li>`test_suite(name = "pct_duckdb")` and `test_suite(name = "pct_postgres")` keep the labels. Delete the composite `junit_test`s (`pct/BUILD.bazel:93, 165`).</li><li>Confirm E7 on a real class first: `bazel test //pct:pct_h2 --test_sharding_strategy=forced=2` must fail with the overrun guard's message.</li></ul> |
-| Proof | **Heavy: H-pct** (4.6 GB): the E7 confirmation above, then **two slots**: `bazel test //pct:pct_duckdb` (6 × 4 GB targets; Bazel packs them by `memory_mb`), then `bazel test //pct:pct_postgres`. |
+| Change | <ul><li>Reset the counters at each suite's start. `PctCensusGate` holds per-suite ceilings, measured once per suite and committed with a dated justification naming P3-09.</li><li>Per D2 (b) and D6 (b): one `junit_test` per suite class (`pct_duckdb_essential` … `_unclassified`, `pct_postgres_*`); no longer `manual`. Each has `memory_mb = 4096`.</li><li>`test_suite(name = "pct_duckdb")` and `test_suite(name = "pct_postgres")` keep the labels. Delete the composite `junit_test`s (`pct/BUILD.bazel:93, 165`).</li><li>Confirm E7 on a real class first: `bazel test //pct:pct_h2 --test_sharding_strategy=forced=2` must fail with the overrun guard's message.</li></ul> **(G-02)** `//pct:pct_discipline` drops `manual` and joins `test_suite(name = "pct_duckdb")`, so the load-bearing `PctDisciplineTest` stays in a gate when the composite goes. **(A17)** `pct_channel_b` becomes one `junit_test` per `ChannelB*Test` class (as D2 (b) does for the suites), grouped by a `test_suite` that keeps the label. Any moved pin carries a dated justification naming P3-09. |
+| Proof | **Heavy: H-pct** (4.6 GB): the E7 confirmation above, then **two slots**: `bazel test //pct:pct_duckdb` (6 × 4 GB targets; Bazel packs them by `memory_mb`), then `bazel test //pct:pct_postgres`. `bazel query 'tests(//pct:pct_duckdb)'` lists `//pct:pct_discipline`, and `bazel query 'attr(tags, manual, //pct:pct_discipline)'` is empty (G-02). `bazel test //pct:pct_channel_b` and `bazel test //pct:pct_channel_b --test_filter=ChannelBEssentialTest` give the same verdicts (A17). |
 | Depends on | P3-08, P1-21, D2, D6 |
-| Size | M (3 d, mostly machine time) |
+| Size | M (3.5 d, mostly machine time; 0.5 d for the ChannelB split and `pct_discipline`) |
 | Risk/rollback | The per-suite ceilings are new pins: each one is dated. Rollback: restore the composite targets; the per-suite targets stay as they were. |
-| Done when | A PCT suite's verdict does not depend on which other suites share its JVM. |
+| Done when | A PCT suite's verdict does not depend on which other suites share its JVM. Every class `AGENTS.md` names as a guard is selected by a non-manual target in `//gates:all` (G-02), and a ChannelB verdict does not depend on which classes share its JVM (A17). |
 
 #### P3-10 · JS tests restore what they change; the TZ lanes prove their zone
 
@@ -1405,12 +1594,12 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P3-13 |
 | Why | Plan 3.4; SP-N14 (`our.resolutions`, `manifest.census`, `prelude.census`/`prelude.m3`, `eager.world2`, `rcorpus.test`/`trace`/`warehouse.data`/`detachTrace`, `chb.only`, `legend.corpus.containing`, `LEGEND_LITE_PROGRESS`, `LL_SHADOW`, `LL_PCT_CASES`); SP-N2; CT-N7; SR rows `tools/census/{lanes.sh, render.sh, lanes_diff.py}`. |
-| Change | <ul><li>**Investigate first:** a table of each mode. Who uses it (docs, GATES entries)? Does it change verdicts? Proposed fate: a named target, a `bazel run` binary, or deleted.</li><li>Then: each kept measurement mode becomes a `junit_test` variant with its flags in BUILD, writing only under `TEST_UNDECLARED_OUTPUTS_DIR`.</li><li>`//tools/census:lanes`: a `test_suite` of the 8 lanes' census variants (`env = {"LEGEND_LITE_DUMP_SQL": "1", "LL_PCT_CASES": "1"}`), replacing `lanes.sh`.</li><li>`//tools/census:lanes_diff`: a `py_binary`.</li><li>`//tools/census:render`: a `java_binary` for `RenderCensus.java` over `//core`'s test library, replacing `render.sh` (which is macOS-arm64-only, `:9`).</li><li>Delete `lanes.sh` and `render.sh` after P7-01 records the decision.</li></ul> |
-| Proof | `bazel build //tools/census:all`; **heavy as the lane** for any kept variant. `git grep -n "System.getProperty(\"\(our.resolutions\|chb.only\|eager.world2\)"` is empty or matches named targets only. |
+| Change | <ul><li>**Investigate first:** a table of each mode. Who uses it (docs, GATES entries)? Does it change verdicts? Proposed fate: a named target, a `bazel run` binary, or deleted.</li><li>Then: each kept measurement mode becomes a `junit_test` variant with its flags in BUILD, writing only under `TEST_UNDECLARED_OUTPUTS_DIR`.</li><li>`//tools/census:lanes`: a `test_suite` of the 8 lanes' census variants (`env = {"LEGEND_LITE_DUMP_SQL": "1", "LL_PCT_CASES": "1"}`), replacing `lanes.sh`.</li><li>`//tools/census:lanes_diff`: a `py_binary`.</li><li>`//tools/census:render`: a `java_binary` for `RenderCensus.java` over `//core`'s test library, replacing `render.sh` (which is macOS-arm64-only, `:9`).</li><li>Delete `lanes.sh` and `render.sh` after P7-01 records the decision.</li></ul> **Amended 2026-10-03 (A5; the contradiction with P7-14 is resolved here).** The `env` dictionary above is dropped. The 8 census lanes are `java_run` actions that run `JUnitMain` over each lane's selection (as P2-09(b) does), passing `-Dlegend.diagnostics=dump-sql,pct-cases`. That flag is read once at the runner entry by a `Diagnostics` option object, which this item introduces for those two switches; P7-14 extends it to the rest and removes the env reads. Each action declares its SQL dumps and recorded cases as tree artifacts, and `//tools/census:lanes` is a `filegroup` of them, not a `test_suite`. `//tools/census:report` is a `java_run` of `RenderCensus` over those outputs and the `//core:core_tests` jars (`java_jars`), replacing `render.sh`; a committed report is a `write_source_files` golden. **(G-32)** `//tools/census:lanes_diff` takes two report outputs, or `--baseline <dir>` plus the current report, so the cross-commit comparison needs no copy step. |
+| Proof | `bazel build //tools/census:all`; **heavy as the lane** for any kept variant. `git grep -n "System.getProperty(\"\(our.resolutions\|chb.only\|eager.world2\)"` is empty or matches named targets only. `bazel build //tools/census:report` (heavy as the lanes), then a second build is fully cached; `git grep -n "bazel-testlogs\|bazel info" tools/census` is empty (A5). `bazel run //tools/census:lanes_diff -- --help` (G-32). |
 | Depends on | P1-07, P1-21, D3 (the census rows, for the deletion only) |
-| Size | M (2.5 d) |
+| Size | M (3.5 d: 2.5 d, plus 1 d for the census as actions, A5) |
 | Risk/rollback | A mode someone relies on. The investigation table is reviewed first. |
-| Done when | Every mode a test reads is set by a target, or is gone. Guard G4 (P6-04) keeps it so. |
+| Done when | Every mode a test reads is set by a target, or is gone. Guard G4 (P6-04) keeps it so. The census is produced by `bazel build`, with no testlog scraping and no env switch (A5). |
 
 #### P3-14 · No silent skips, no silent empties, no skipped roots
 
@@ -1444,12 +1633,12 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P3-16 |
 | Why | Plan 3.5; DC-N5. |
-| Change | <ul><li>`tile-layout.test.ts:381-386`: assert operation counts, or move it to a benchmark target.</li><li>`WarehouseEngine` (`src/warehouse.ts:208`) takes an injectable clock and timer; `live-snap.ts:263-267` uses them.</li><li>Debounce tests use `node:test` `mock.timers`: `grid-basics.test.ts:157`, `source-picker.test.ts:219, 240`, `cancel.test.ts:76-94`.</li><li>`query-store/test/conformance.ts:173`: an injected clock.</li><li>`query-store/test/lite.test.ts:16-23, 38, 43`: the server binds 0 and prints its port (as live-snap does); `size = "medium"`.</li><li>`save-dialog.test.ts:44-46`: an injected `now`.</li></ul> |
-| Proof | `bazel test //datacube:tests //query-store:all` (`live_snap`: **Heavy: H-native**). |
+| Change | <ul><li>`tile-layout.test.ts:381-386`: assert operation counts, or move it to a benchmark target.</li><li>`WarehouseEngine` (`src/warehouse.ts:208`) takes an injectable clock and timer; `live-snap.ts:263-267` uses them.</li><li>Debounce tests use `node:test` `mock.timers`: `grid-basics.test.ts:157`, `source-picker.test.ts:219, 240`, `cancel.test.ts:76-94`.</li><li>`query-store/test/conformance.ts:173`: an injected clock.</li><li>`query-store/test/lite.test.ts:16-23, 38, 43`: the server binds 0 and prints its port (as live-snap does); `size = "medium"`.</li><li>`save-dialog.test.ts:44-46`: an injected `now`.</li></ul> **(A27)** `test/pivot-rows/pivot-rows.ts:143-149`, `test/typed-values/typed-values.ts:103-109` and `test/json-read/json-read.ts:125-131` await an app completion promise (expose `app.idle()`); `quiet()`/`until()` are deleted. `query-store/test/conformance.ts:42, 67` use a counter for run IDs instead of `Date.now()`/`Math.random()`. |
+| Proof | `bazel test //datacube:tests //query-store:all` (`live_snap`: **Heavy: H-native**). `git grep -n "quiet()\|until(" datacube/test` is empty (A27). |
 | Depends on | P1-23 |
 | Size | M (1.5 d) |
 | Risk/rollback | None known. |
-| Done when | No JS test asserts elapsed time or sleeps against a timer. |
+| Done when | No JS test asserts elapsed time or sleeps against a timer. No JS test polls with a time budget (A27). |
 
 #### P3-17 · Dead, vacuous and never-selected tests; diagnostics become actions or binaries
 
@@ -1457,7 +1646,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P3-17 |
 | Why | Plan 3.6; CT-N12; SP-N1, SP-N2, SP-N23. |
-| Change | <ul><li>`TypeInferenceIntegrationTest:1920-1928`: add `@Test` and make it pass, or delete it.</li><li>The 15 empty `@Disabled` tests in `RelationalMappingIntegrationTest` (`:2386, 2437, 2445, 3045, 3108, 3337, 5219-5256, 5480, 5486`) and `testXStore:3321`/`testAggregationAware:3329` become `@KnownDefect` with a reason row, or are deleted. If `ParkedWorkLedgerTest` counts them, it moves with a dated justification.</li><li>Print-only probes get assertions or move to a `java_binary`: `ResolveUnionV4ProbeTest:109-114, 162-167`, `ResolveUnionSelfJoinProbeTest:69-74`, `VariantIntegrationTest:548-619`, `DuckDBStructSyntaxTest:25`, `M2MIntegrationTest:762-763, 782`, `ResolveM2mTest:204-206`.</li><li>`EagerCorpusCompileProbe`, `ProbeWireShapes` and `ZFixtureAdjudicationProbe` become `java_binary` diagnostics, or are deleted.</li><li>`FixtureSweep`, `RefImports` (`tools/reference/BUILD.bazel`) and `RenderCensus` (P3-13) become `java_binary` targets.</li><li>`ParseSpeedBenchmarkTest`, `CorpusCensusTest`, `GrammarKeywordCensusTest`, `MigrationSizingTest` and `PmcdReachabilityCensusTest` become `java_run` report actions under `//parser-equivalence:diagnostics_reports`.</li></ul> |
+| Change | <ul><li>`TypeInferenceIntegrationTest:1920-1928`: add `@Test` and make it pass, or delete it.</li><li>The 15 empty `@Disabled` tests in `RelationalMappingIntegrationTest` (`:2386, 2437, 2445, 3045, 3108, 3337, 5219-5256, 5480, 5486`) and `testXStore:3321`/`testAggregationAware:3329` become `@KnownDefect` with a reason row, or are deleted. If `ParkedWorkLedgerTest` counts them, it moves with a dated justification.</li><li>Print-only probes get assertions or move to a `java_binary`: `ResolveUnionV4ProbeTest:109-114, 162-167`, `ResolveUnionSelfJoinProbeTest:69-74`, `VariantIntegrationTest:548-619`, `DuckDBStructSyntaxTest:25`, `M2MIntegrationTest:762-763, 782`, `ResolveM2mTest:204-206`.</li><li>`EagerCorpusCompileProbe`, `ProbeWireShapes` and `ZFixtureAdjudicationProbe` become `java_binary` diagnostics, or are deleted.</li><li>`FixtureSweep`, `RefImports` (`tools/reference/BUILD.bazel`) and `RenderCensus` (P3-13) become `java_binary` targets.</li><li>`ParseSpeedBenchmarkTest`, `CorpusCensusTest`, `GrammarKeywordCensusTest`, `MigrationSizingTest` and `PmcdReachabilityCensusTest` become `java_run` report actions under `//parser-equivalence:diagnostics_reports`.</li></ul> **(A13)** Every kept probe binary takes its inputs as arguments and writes to `--out`. `ZFixtureAdjudicationProbe` takes the fixtures file as an argument instead of reading an earlier run's `Repo.out`, and its javadoc gives the `bazel run` line. The Maven `-Dtest` javadocs (`ProbeWireShapes.java:15`, `EagerCorpusCompileProbe.java:17-18`, `ParseSpeedBenchmarkTest.java:18`) are rewritten here. |
 | Proof | **Heavy: H-core, H-pe**: `bazel test //core:core_tests //parser-equivalence:parser_parity`. `bazel build //parser-equivalence:diagnostics_reports //tools/reference:all`. |
 | Depends on | P1-01 |
 | Size | M (2 d) |
@@ -1470,7 +1659,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P3-18 |
 | Why | Plan 3.6; CT-N2; SC-§4.1; SR row `differential.py`. |
-| Change | <ul><li>If wired (recommended): `//scripts/corpus:differential` (`py_binary` on the `:corpus` library) plus a `run_binary` producing `seed.sql` and `expected/` (a tree artifact).</li><li>`junit_test(name = "corpus_differential_test")` reads them through `$(rlocationpath)`, with `%.6f` formatting under `Locale.ROOT` (`:146`). Delete its `SkipCensusTest` row (`:57-59`), with a dated justification, and the `tools/allgates.sh` javadoc (`:20-21`).</li><li>If retired: delete the test, the row (dated) and the script, after P7-01.</li></ul> |
+| Change | <ul><li>If wired (recommended): `//scripts/corpus:differential` (`py_binary` on the `:corpus` library) plus a `run_binary` producing `seed.sql` and `expected/` (a tree artifact).</li><li>`junit_test(name = "corpus_differential_test")` reads them through `$(rlocationpath)`, with `%.6f` formatting under `Locale.ROOT` (`:146`). Delete its `SkipCensusTest` row (`:57-59`), with a dated justification, and the `tools/allgates.sh` javadoc (`:20-21`).</li><li>If retired: delete the test, the row (dated) and the script, after P7-01.</li></ul> **(A7)** The class is selected by exactly one target: P3-05's `integration` target excludes it. |
 | Proof | `bazel test //core:corpus_differential_test`. |
 | Depends on | D3, P2-01, P1-07 |
 | Size | M (1 d) |
@@ -1483,12 +1672,12 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P3-19 |
 | Why | Plan 3.7; CT-N6 (`PlannerRunsOnJavaBaseTest.java:30-35`); BZ §3 (`corpus_warehouse`: a "child JVM from java.home"). |
-| Change | <ul><li>`java_test(name = "planner_on_java_base_test", main_class = "com.legend.PlanOnJavaBase", jvm_flags = ["--limit-modules=java.base"], use_testrunner = False, runtime_deps = [...])`. `PlanOnJavaBase.main` exits non-zero on failure. Delete `PlannerRunsOnJavaBaseTest`. This target is G16's one allowlisted non-`junit_test`.</li><li>`DuckWorkspaces` starts `//warehouse:server_native` from `$(rlocationpath)` with `--port 0` and reads the "listening on" line, as live-snap does; `Runfile.env()` for the child.</li><li>`rcorpus.warehouse.data`/`detachTrace` per P3-13.</li></ul> |
+| Change | <ul><li>`java_test(name = "planner_on_java_base_test", main_class = "com.legend.PlanOnJavaBase", jvm_flags = ["--limit-modules=java.base"], use_testrunner = False, runtime_deps = [...])`. `PlanOnJavaBase.main` exits non-zero on failure. Delete `PlannerRunsOnJavaBaseTest`. This target is G16's one allowlisted non-`junit_test`.</li><li>`DuckWorkspaces` starts `//warehouse:server_native` from `$(rlocationpath)` with `--port 0` and reads the "listening on" line, as live-snap does; `Runfile.env()` for the child.</li><li>`rcorpus.warehouse.data`/`detachTrace` per P3-13.</li></ul> **(A22)** `corpus_warehouse` stays `manual` (it needs the native binary and the whole corpus) and joins P5-08's weekly `//gates:heavy` suite, which is its recorded runner. |
 | Proof | `bazel test //core:planner_on_java_base_test`. **Heavy: H-native, then H-spec**: `bazel test //spec:corpus_warehouse` (still manual). |
 | Depends on | P1-03 |
 | Size | M (1 d) |
 | Risk/rollback | None known. |
-| Done when | `git grep -n "java.home" -- '*/src/test/**'` is empty. |
+| Done when | `git grep -n "java.home" -- '*/src/test/**'` is empty. `corpus_warehouse` has a runner (P5-08, A22). |
 
 #### P3-20 · `EmbeddedPostgres` is robust
 
@@ -1496,8 +1685,8 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P3-20 |
 | Why | Plan 3.7; SP-N7. |
-| Change | <ul><li>Retry on a bind failure (3 attempts, new port each time).</li><li>The cluster lives under `TEST_TMPDIR`, and there is no fallback to `java.io.tmpdir` (`:88`).</li><li>Stop through a JUnit 5 extension (`EmbeddedPostgresExtension`, `AfterAllCallback`) instead of the shutdown hook (`:58`).</li><li>When `user.name` is `root`, fail with "initdb refuses root: run the CI job as a non-root user" before `initdb`.</li></ul> |
-| Proof | `bazel test //warehouse:launcher_test //core:postgres_arm_test`; **Heavy: H-pct** `bazel test //pct:pct_postgres_essential`. |
+| Change | <ul><li>Retry on a bind failure (3 attempts, new port each time).</li><li>The cluster lives under `TEST_TMPDIR`, and there is no fallback to `java.io.tmpdir` (`:88`).</li><li>Stop through a JUnit 5 extension (`EmbeddedPostgresExtension`, `AfterAllCallback`) instead of the shutdown hook (`:58`).</li><li>When `user.name` is `root`, fail with "initdb refuses root: run the CI job as a non-root user" before `initdb`.</li></ul> **(A16)** `EmbeddedPostgres` starts `postgres -D <cluster>` directly as a child process instead of `pg_ctl start`, which calls `setsid()` and so leaves the test's process group. Bazel's process wrapper then kills it with the test. Stop it with `destroy()` (SIGINT/SIGTERM). This makes the Done-when below reachable. |
+| Proof | `bazel test //warehouse:launcher_test //core:postgres_arm_test`; **Heavy: H-pct** `bazel test //pct:pct_postgres_essential`. **Windows proof (C2)** (§1). |
 | Depends on | P1-06 |
 | Size | M (1 d) |
 | Risk/rollback | None known. |
@@ -1510,7 +1699,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P3-21 |
 | Why | Plan 3.8; WH-N6, WH-N7, WH-N3, WH-N12; Part 0 (`LauncherTest` pins the JDK's `NumberFormatException` text). |
 | Change | <ul><li>Split `tests_lib` (`warehouse/BUILD.bazel:73`) into `http_tests_lib` (`TestServer`-based) and `unit_tests_lib`. `tests_native` selects only the HTTP suite.</li><li>`WarehousePostgresLiveTest` is excluded by build selection (`--exclude-classname`), not by `@EnabledIfEnvironmentVariable`.</li><li>`AppModeTest`: `-Duser.name=tester` in its target's `jvm_flags` (WH-N7).</li><li>`--enable-native-access=ALL-UNNAMED` on `//warehouse:server` and every warehouse `junit_test`.</li><li>`@TempDir` in the 8 classes WH-N3 lists. `CommandLine.temporaryData` gains a `close()` the test calls.</li><li>`LauncherTest` asserts its own message, not the JDK's.</li></ul> |
-| Proof | `bazel test //warehouse:tests`; **Heavy: H-native** `bazel test //warehouse:tests_native`. |
+| Proof | `bazel test //warehouse:tests`; **Heavy: H-native** `bazel test //warehouse:tests_native`. **Windows proof (C2)** (§1). |
 | Depends on | P1-16 |
 | Size | M (1.5 d) |
 | Risk/rollback | None known. |
@@ -1523,7 +1712,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P3-22 |
 | Why | Plan 3.8; WH K18 (`warehouse/BUILD.bazel:118-146`: manual, with a hand DSN; the precondition "until embedded Postgres" is now met). |
 | Change | <ul><li>`postgres_live` and `postgres_live_native`: drop `manual`. Add `-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)`, `data = ["//warehouse:duckdb_extensions"]` and `target_compatible_with` from the Postgres hub (P1-15).</li><li>`WarehousePostgresLiveTest` starts `EmbeddedPostgres` instead of reading `LEGENDLITE_PG_DSN`/`LEGENDLITE_PG_EXTENSIONS`.</li><li>Delete the BUILD comment's recipe (`:118-121`).</li></ul> |
-| Proof | `bazel test //warehouse:postgres_live`; **Heavy: H-native** `bazel test //warehouse:postgres_live_native`. |
+| Proof | `bazel test //warehouse:postgres_live`; **Heavy: H-native** `bazel test //warehouse:postgres_live_native`. **Windows proof (C2)** (§1). |
 | Depends on | P1-17, P1-15, P3-20, P3-21 |
 | Size | M (1 d) |
 | Risk/rollback | None known. |
@@ -1549,7 +1738,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P3-24 |
 | Why | Plan 3.9; WH-N13 (only `tools/deps:warehouse_closure_test` checks it; `wasm/README.md:58-69` says only a real compile catches class-library gaps). |
 | Change | <ul><li>A small entry class `warehouse/src/test/java/com/legend/warehouse/sqlapi/WasmEntry.java` reaching `NativeBinding`, `ApiJson` and `ArrowIpcReader`.</li><li>`teavm_wasm(name = "sqlapi_wasm", …)` from `tools/teavm/defs.bzl`, plus a `build_test`.</li></ul> |
-| Proof | `bazel test //warehouse:sqlapi_wasm_build_test`. |
+| Proof | `bazel test //warehouse:sqlapi_wasm_build_test`. **Windows proof (C2)** (§1). |
 | Depends on | — |
 | Size | M (1 d) |
 | Risk/rollback | A class-library gap fails the compile. That is the finding: fix `sqlapi`. |
@@ -1561,9 +1750,9 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P3-25 |
 | Why | Plan 3.9; SC-§4.2 (only `tools/wrongrows/engine-rows.sh`, macOS-arm64-only, `:24`); SR rows `run.py` (D3 row 1) and `engine-rows.sh` (rec 2). |
-| Change | <ul><li>Per D3 row 1 (recommended Python): `scripts/corpus/run.py` repaired as a `py_binary` whose launcher is `//tools/engine-runner:testable` from runfiles (the `rules_python` runfiles library). It reads `LINKED_PROJECTS` and the stress files from P2-02's layout.</li><li>`py_test(name = "engine_stress", tags = ["manual"], …)` runs the whole corpus in rows mode and adjudicates against `quarantine.py`.</li><li>`tools/wrongrows/compare.py` becomes a `py_binary` (SR rec 1).</li><li>Delete `engine-rows.sh` after P7-01.</li></ul> |
+| Change | <ul><li>Per D3 row 1 (recommended Python): `scripts/corpus/run.py` repaired as a `py_binary` whose launcher is `//tools/engine-runner:testable` from runfiles (the `rules_python` runfiles library). It reads `LINKED_PROJECTS` and the stress files from P2-02's layout.</li><li>`py_test(name = "engine_stress", tags = ["manual"], …)` runs the whole corpus in rows mode and adjudicates against `quarantine.py`.</li><li>`tools/wrongrows/compare.py` becomes a `py_binary` (SR rec 1).</li><li>Delete `engine-rows.sh` after P7-01.</li></ul> **(D18)** The launcher is `run.launch(args)`, the one Python spawn site (D18 (a)); under D18 (b) `engine_stress` becomes a `java_run` rows report plus a `junit_test` adjudicating it against `quarantine.py`'s data. |
 | Proof | `bazel test //scripts/corpus:engine_stress` (**heavy, manual**: the engine runs the whole corpus; schedule alone). |
-| Depends on | P2-02, D3, P1-07 |
+| Depends on | P2-02, D3, P1-07, D18 |
 | Size | M (1.5 d) |
 | Risk/rollback | None known. |
 | Done when | The engine-side run works on any platform through Bazel, and the third `LINKED_PROJECTS` copy is gone. |
@@ -1587,12 +1776,25 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 |---|---|
 | ID | P3-27 |
 | Why | Plan 3.10; CT-N19 (29 files walk `Repo` directories, which is why `build:windows --enable_runfiles` exists); CT-N10 (`src/main/duckdb` is outside the roots); CT-N9 (`NoEagerTypeReferencesTest.java:71-86` lists jars by name; `:136` swallows load failures). |
-| Change | <ul><li>`//testing` gains `SourceFiles.of(String property)`, which reads a `$(rlocationpaths …)` list passed in `jvm_flags`.</li><li>Each of the 29 classes takes its file set from its target (`//core:guardrails`, `//core:census`, the lanes); the BUILD file passes `$(rlocationpaths //core:main_java)` and so on. The roots include `src/main/duckdb`.</li><li>`ArchitectureTest`'s classpath includes `:duckdb_load`.</li><li>`NoEagerTypeReferencesTest` takes the 29 core jars through `java_jars` and fails on a class that does not load.</li><li>`GuardCoverage.java:27`'s floors move only with dated justifications.</li></ul> |
-| Proof | `bazel test //core:guardrails //core:census`; `bazel test --noenable_runfiles --spawn_strategy=local //core:guardrails`. |
+| Change | <ul><li>`//testing` gains `SourceFiles.of(String property)`, which reads a `$(rlocationpaths …)` list passed in `jvm_flags`.</li><li>Each of the 29 classes takes its file set from its target (`//core:guardrails`, `//core:census`, the lanes); the BUILD file passes `$(rlocationpaths //core:main_java)` and so on. The roots include `src/main/duckdb`.</li><li>`ArchitectureTest`'s classpath includes `:duckdb_load`.</li><li>`NoEagerTypeReferencesTest` takes the 29 core jars through `java_jars` and fails on a class that does not load.</li><li>`GuardCoverage.java:27`'s floors move only with dated justifications.</li></ul> **(A4)** No file set goes into `jvm_flags`: the rlocationpaths of 742 core sources exceed Windows' 32,767-character `CreateProcess` limit. Each guard target gets one `$(rlocationpath :<name>_files)`, a small `file_list` rule that writes the rlocationpaths one per line, read by `SourceFiles.of`. `Runfile.listed(String property)` reads such a list, and `tools/jars/defs.bzl` (`exec_paths = False`) writes rlocationpath lines (`<repo>/<path>`) instead of `../<repo>/…` (A1's list-format half, done here because `NoEagerTypeReferencesTest` and `ArchitectureTest` use it first). `ArchitectureTest` imports its classes with `ClassFileImporter().importPaths(...)` from a `java_jars` list, and the code-source workaround at `ArchitectureTest.java:36-104` is deleted. `StressCorpus` reads the corpus as a classpath resource (P3-05, A11). |
+| Proof | `bazel test //core:guardrails //core:census`; `bazel test --noenable_runfiles --spawn_strategy=local //core:guardrails`. `CI` Windows: `bazel test //core:guardrails //core:census` without `--enable_runfiles` (A4). `git grep -n "getCodeSource" core/src/test` is empty. **Windows proof (C2)** (§1). |
 | Depends on | P1-03 |
-| Size | M (2.5 d) |
+| Size | M (3 d: 2.5 d, plus 0.5 d for the list-file rule and `ArchitectureTest`, A4) |
 | Risk/rollback | A guard's file count changes when its input becomes exact. Each floor moves with a dated note. |
-| Done when | `git grep -n "Files.walk\|Files.list" -- core/src/test` shows no walk over a `Repo` root. |
+| Done when | `git grep -n "Files.walk\|Files.list" -- core/src/test` shows no walk over a `Repo` root. No `jvm_flags` value carries a file set, and no guard derives class locations from the classpath (A4). |
+
+#### P3-27b · The walker rule applied outside core: spec, pe and pct read declared lists
+
+| Field | Content |
+|---|---|
+| ID | P3-27b |
+| Why | A3; SP-K12; SP-N21 (`PctDisciplineTest:71` walks `pct/src`). P1-05 leaves every directory walker to P3-27, and P3-27 converts only core's 29. P3-32's Windows manifest-only lane needs the rest converted. |
+| Change | <ul><li>The `Repo`-root walkers read `SourceFiles.of(property)` over declared lists (P3-27's `file_list`): `parser-equivalence/…/Corpus.java`, `FixtureAdjudicationTest`, `FixtureCorpusParityTest`, `MutationFuzzTest`, `SurfaceCensusTest` and `pct/…/PctDisciplineTest`.</li><li>The upstream-tree walkers (`CatalogUpstreamDiffTest`, `ManifestWorldCensusTest`, `OurResolutions`, `SpecBodyCensusTest`, `UpstreamDeclarations`, `EagerCorpusCompileProbe`) take narrowed filegroups from `third_party/legend_engine_src.BUILD`/`legend_pure_src.BUILD`, shared with P3-07's narrowing.</li></ul> |
+| Proof | **Heavy, one at a time:** `bazel test //spec:spec_tests //parser-equivalence:parser_parity //pct:pct_channel_b`. `git grep -n "Files\.\(walk\|list\)" -- spec/src pct/src parser-equivalence/src` shows no walk rooted at a runfiles or upstream directory; each remaining walk (inside a tree artifact) has a dated row in G15's allowlist. **Windows proof (C2)** (§1). |
+| Depends on | P1-03, P1-05, P3-07, P3-27 |
+| Size | M (2 d) |
+| Risk/rollback | Guard counts move when their inputs become exact: each pin moves with a dated note naming P3-27b. Each PR reverts on its own. |
+| Done when | P3-32's Windows manifest-only lane passes on spec, pct and pe with no tree-mode reader. |
 
 #### P3-28 · Locale-explicit product code, enforced by Error Prone
 
@@ -1601,11 +1803,11 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | ID | P3-28 |
 | Why | Plan 3.10; WH-N8; CT-N4; SP-N19. |
 | Change | <ul><li>In `legend_java_library`'s shared javacopts (P1-20): `-Xep:StringCaseLocaleUsage:ERROR -Xep:DefaultLocale:ERROR`.</li><li>Fix every site the compile reports, at least: `JoinType.java:30`, `RelationalDataType.java:123`, `RelOpTranslator.java:308`, `Executor.java:1064`, `PctProbe.java:41`, `CorrelatedSubselects.java:2064, 2073`, `AnsiSqlRenderer.java:1379`, `PureTimeLiteral.java:54, 65, 77`, `PureDateLiteral.java:97-103, 250, 298-350`, `ScanRelations.java:433, 465`, `AsorRef.java:44, 62`, `sql/Json.java:207`, `ReplayOracle.java:197, 461-462` and `H2Verify.java:1242, 1295`. All use `Locale.ROOT`.</li></ul> |
-| Proof | `bazel build //...` (compile). **Heavy: H-core, H-spec**: `bazel test //core:core_tests //spec:spec_tests`. |
+| Proof | `bazel build //...` (compile). **Heavy: H-core, H-spec**: `bazel test //core:core_tests //spec:spec_tests`. Negative: `"x".toUpperCase()` in a scratch warehouse file fails to compile (A19). |
 | Depends on | P1-20 |
 | Size | M (2 d) |
 | Risk/rollback | `Locale.ROOT` equals en_US for ASCII case mapping and `%d`, so no output should change. Any change found is a bug that was latent under `tr`. |
-| Done when | A locale-less case mapping or format no longer compiles. |
+| Done when | A locale-less case mapping or format no longer compiles. This holds repository-wide: `//tools/guards:legend_library_test` (a `genquery` of `kind(java_library, //...)` checked against `generator_function`) fails on a first-party `java_library` outside the macro (A19). |
 
 #### P3-29 · DataCube: explicit locales in product code; source-scanning tests read declared lists
 
@@ -1618,7 +1820,7 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | Depends on | P1-23 |
 | Size | M (1.5 d) |
 | Risk/rollback | None known. |
-| Done when | No JS test walks the working directory. |
+| Done when | No JS test walks the working directory. G12 passes with the scanner rows only (A26). |
 
 #### P3-30 · Censuses over other modules' sources become generated measurements (D9)
 
@@ -1646,18 +1848,57 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | Risk/rollback | None known. |
 | Done when | The harvest fails loudly if the shim is not the class that loads. |
 
-#### P3-32 · Close plan 1.2: `Repo`'s resolver and `Upstream` are gone; Windows runs manifest-only
+#### P3-32 · Close plan 1.2: Windows runs manifest-only (`Repo` and `Upstream` are deleted by P3-33)
 
 | Field | Content |
 |---|---|
 | ID | P3-32 |
 | Why | Plan 1.2's done criterion, **as corrected by S2**: (1) official libraries only; (2) Windows CI without `--enable_runfiles`; (3) an optional Linux manifest lane, deferred (§6). S2 Q3: rules_java issue. |
-| Change | <ul><li>Delete `Repo.java`'s environment parsing (`:44-77`), `listed` (`:109-121`) and `actionScratch` (`:148-157`). `Repo.out` stays, or moves into `Runfile`.</li><li>Delete `Upstream.java`; its users moved to `Runfile` in P1-04.</li><li>`.bazelrc`: remove `build:windows --enable_runfiles`. Keep `--windows_enable_symlinks` only if something still needs it (check in CI).</li><li>File the rules_java issue: the sandbox does not stage `<x>.runfiles/MANIFEST` when runfiles are off (S2 E5). Link it from a `.bazelrc` comment.</li></ul> |
-| Proof | **`CI`**: the Windows lanes pass without `--enable_runfiles`. Locally: `git grep -n "TEST_SRCDIR\|Repo\.\(path\|module\|root\|listed\)"` is empty. |
-| Depends on | P1-04, P1-05, P1-06, P1-24, P3-27 |
+| Change | <ul><li>**Changed 2026-10-03 (A1, G-01, L:G-3, C5; the P1-04/P3-32 contradiction is resolved):** `Repo.java`, `Upstream.java`, `Repo.listed`, `actionScratch` and the generators' `-Dlegend.repo.root` are deleted by P3-33, which this item depends on. Nothing of `Repo` stays.</li><li>`.bazelrc`: remove `build:windows --enable_runfiles`. Keep `--windows_enable_symlinks` only if something still needs it; the Windows CI run decides, and the answer is written in the `.bazelrc` comment (ledger P-08).</li><li>File the rules_java issue: the sandbox does not stage `<x>.runfiles/MANIFEST` when runfiles are off (S2 E5). Link it from a `.bazelrc` comment.</li></ul> |
+| Proof | **`CI`**: the Windows lanes pass without `--enable_runfiles`, spec, pct and pe included (P3-27b). Locally: `git grep -n "TEST_SRCDIR\|com\.legend\.testing\.Repo\|com\.legend\.testing\.Upstream"` is empty. **Windows proof (C2)** (§1). |
+| Depends on | P1-04, P1-05, P1-06, P1-24, P3-27, P3-27b, P3-33 |
 | Size | M (1.5 d) |
 | Risk/rollback | A remaining tree-mode reader on Windows. The CI failure names it. Rollback: re-add the flag. |
 | Done when | Windows runs `bazel test //...` with manifest-only runfiles. Guard G15 (P6-15) keeps it so. |
+
+#### P3-33 · `testing/Repo.java` and `testing/Upstream.java` are deleted; generator actions name their inputs
+
+| Field | Content |
+|---|---|
+| ID | P3-33 |
+| Why | C5: the user expects both files deleted, not reduced. A1; CC2 G-01; ledger G-3 and P-1 (rows R-01, R-03, R-05, R-06): `Repo.out`/`outDir`/`rel` have 82 call sites; `Repo.listed` has 4 callers; `Upstream` has 16 users; `tools/generators/defs.bzl:25-40` passes `-Dlegend.repo.root=.` to `gen_fixtures`, `gen_manifest`, `gen_roster` and `gen_own_corpus_draft`. This item resolves the P1-04/P3-32 contradiction. |
+| Change | <ul><li>`testing/…/TestOutputs.java`: `static Path file(String first, String... more)` and `dir()` resolve under `TEST_UNDECLARED_OUTPUTS_DIR`, fail if it is unset, and create parent directories. Every `Repo.out`/`outDir` caller moves to it (P2-16's table says which writers were goldens). Outputs are not runfiles, so this does not go into `Runfile`.</li><li>`Repo.rel` moves into P3-27's `SourceFiles.rel`.</li><li>The remaining `Repo.listed` readers (`GrammarCoverageCensusTest:650`, `PmcdReachabilityCensusTest:38`) use P3-27's `Runfile.listed`.</li><li>Action mode: `FixtureHarvestGenerator`, `ManifestGenerator`, `RosterGenerator`, `OwnCorpusLedgerDraft`, `OurResolutions`, `UpstreamDeclarations` and both `Corpus` classes' generator paths take each tree and list as an explicit program argument (`java_run` `roots` tokens `{ENGINE_ROOT}`, `{PURE_ROOT}`, plus `{REPO}` for the declared-input root, or `$(execpath)`), read with `Path.of` through a small `//testing:ActionArgs` (no environment, no runfiles). Side reports go to an explicit `--report-dir`, which is P0-10's declared scratch tree. `-Dlegend.repo.root`, `-Dlegend.repo.module` and `-Dlegend.*.root` leave `tools/generators/defs.bzl`'s `program_jvm_flags`.</li><li>`Upstream`'s test callers use `Runfile.dirOf("legend.engine.root")` (`Runfile.of(...).getParent()`); P1-04's two-branch `Upstream` goes.</li><li>`git rm testing/src/main/java/com/legend/testing/Repo.java testing/src/main/java/com/legend/testing/Upstream.java`.</li><li>G15 (P6-15) fails on `com.legend.testing.Repo`, `com.legend.testing.Upstream`, `Repo.` and `legend.repo.root`.</li></ul> |
+| Proof | `git ls-files testing/src/main/java/com/legend/testing/` lists neither `Repo.java` nor `Upstream.java`. `git grep -n "testing\.Repo\|testing\.Upstream\|legend\.repo\.root\|Repo\.\(out\|outDir\|rel\|listed\)"` is empty. `bazel test //parser-equivalence:update_generated_tests //:generated`: the four generators stay byte-identical. **Heavy, one at a time:** `bazel test //core:core_tests //core:census`, then `//spec:spec_tests`, then `//parser-equivalence:parser_parity`. **Windows proof (C2)** (§1). |
+| Depends on | P0-10, P1-04, P1-05, P2-16, P3-27, P3-27b |
+| Size | M (2.5 d) |
+| Risk/rollback | A generator's output drifts when its input moves from an implicit root to an argument; `//:generated` catches it before merge. Rollback per generator. |
+| Done when | Both classes are gone (C5); `testing/` holds no repository-root resolver; every generator action names its inputs; G15 blocks their return. |
+
+#### P3-34 · DataCube tests depend on what they import (investigation first)
+
+| Field | Content |
+|---|---|
+| ID | P3-34 |
+| Why | A30; DC-K15: every DataCube unit test depends on all of `:src` (`datacube/BUILD.bazel:32`), so editing any of about 100 source files re-runs every DataCube test. This is the JS twin of P3-06. |
+| Change | <ul><li>**Question:** can `datacube/src` split into per-directory `ts_project`/`js_library` targets (for example `share`, `ui`, `layout`, `adhoc`) without import cycles?</li><li>If yes: each `node_test` depends only on the libraries it imports.</li><li>If no: a §6.3 row with the cycle evidence.</li></ul> |
+| Proof | Touch one file in `datacube/src/share/`, and `bazel test //datacube:tests` re-runs only that file's dependents. |
+| Depends on | P1-24, P3-29 |
+| Size | M (1.5 d) |
+| Risk/rollback | Import cycles may forbid the split; the investigation answers that before any BUILD change. |
+| Done when | The touch test re-runs a strict subset, or §6.3 records why not. |
+
+#### P3-90 · Phase 3 audit: done-criteria checked against the coverage table (C4)
+
+| Field | Content |
+|---|---|
+| ID | P3-90 |
+| Why | C4: every phase ends with an audit of its done-criteria against the coverage table. |
+| Change | A reviewer who wrote none of Phase 3's items checks, on `main` (not on a PR branch): each Phase 3 item's Done-when, with the command that shows it; each §6.1, §6.2 and §6.4 row that names a Phase 3 item, against the code rather than the item text; and that every Phase 3 PR carried P0-15's template with an independent reviewer and all-platform CI (and, for a **Windows proof (C2)** item, its Windows evidence). An unmet Done-when reopens its item. A row the items do not actually close becomes an amendment or a new item, with an ID, before the milestone checkpoint closes. The result is a dated table in §6.5. |
+| Proof | §6.5 has a Phase 3 table: one row per Phase 3 item, with its evidence command and verdict, and no open "no" without a follow-up item ID. |
+| Depends on | P3-01, P3-02, P3-03, P3-04, P3-05, P3-06, P3-07, P3-08, P3-09, P3-10, P3-11, P3-12, P3-13, P3-14, P3-15, P3-16, P3-17, P3-18, P3-19, P3-20, P3-21, P3-22, P3-23, P3-24, P3-25, P3-26, P3-27, P3-27b, P3-28, P3-29, P3-30, P3-31, P3-32, P3-33, P3-34 |
+| Size | M (1 d) |
+| Risk/rollback | An audit finds a gap late. It becomes an item, never a silent pass. |
+| Done when | Every Phase 3 Done-when is verified on `main`, and every gap found has an item. |
 
 ### Phase 4: the browser, app and packaging layer
 
@@ -1676,12 +1917,12 @@ These rules apply to every harness item (plan 4.1):
 |---|---|
 | ID | P4-01 |
 | Why | Plan 4.1 ("about 15 copy-pasted static servers into one shared module"); HN §1 (duplicates); S4 production additions. |
-| Change | <ul><li>New `datacube/demo/harness.mjs`:<ul><li>`serve(root)`: Range support and one MIME map; listens on `0` at `127.0.0.1` and returns `{port, close}`.</li><li>`outPath(name)`: under `TEST_UNDECLARED_OUTPUTS_DIR`.</li><li>`tmpPath(name)`: under `TEST_TMPDIR`, removed at exit.</li><li>`checks()`: counts checks and fails on zero or on "skipped".</li><li>`startServer(rlocationpath, args)`: starts `//core:server` or the native warehouse on port 0 and parses its port line.</li></ul></li><li>It replaces the copies in every `datacube/demo/*.mjs`, `query/demo/verify.mjs` and `site/verify.mjs`.</li></ul> |
-| Proof | `bazel build //datacube:all //query:all //site:all`; plus the pilot `verify_smoke_test` (**Heavy: H-browser**). |
+| Change | <ul><li>New `datacube/demo/harness.mjs`:<ul><li>`serve(root)`: Range support and one MIME map; listens on `0` at `127.0.0.1` and returns `{port, close}`.</li><li>`outPath(name)`: under `TEST_UNDECLARED_OUTPUTS_DIR`.</li><li>`tmpPath(name)`: under `TEST_TMPDIR`, removed at exit.</li><li>`checks()`: counts checks and fails on zero or on "skipped".</li><li>`startServer(rlocationpath, args)`: starts `//core:server` or the native warehouse on port 0 and parses its port line.</li></ul></li><li>It replaces the copies in every `datacube/demo/*.mjs`, `query/demo/verify.mjs` and `site/verify.mjs`.</li></ul> **(G-07)** `harness.mjs` exports `siteRoot()` and `fixture(name)` over `@bazel/runfiles`, from `env = {"SITE": "$(rlocationpath :site)", "SAVED_QUERIES": "$(rlocationpath //fixtures/saved-queries:records)"}`, which `browser_test` sets. Every harness drops its `ROOT = fileURLToPath(new URL('..', import.meta.url))` (20 harnesses, ledger R-20), and `verify-features.mjs:84`'s `ROOT/../fixtures` goes. |
+| Proof | `bazel build //datacube:all //query:all //site:all`; plus the pilot `verify_smoke_test` (**Heavy: H-browser**). `git grep -n "new URL('\.\." -- datacube/demo query/demo site` is empty (G-07). |
 | Depends on | P1-14 |
-| Size | S (0.5 d) |
+| Size | M (1 d: 0.5 d, plus 0.5 d for `siteRoot()`/`fixture()` in every harness, G-07) |
 | Risk/rollback | None known. |
-| Done when | No harness defines its own static server. |
+| Done when | No harness defines its own static server. No harness computes a path from its own location (G-07). |
 
 #### P4-02 · The mechanical CI harnesses become `browser_test`s
 
@@ -1689,8 +1930,8 @@ These rules apply to every harness item (plan 4.1):
 |---|---|
 | ID | P4-02 |
 | Why | Plan 4.1(a); HN §1 table; BZ-N5; S4 effort ("smoke, wasm_browser, charts, cubes, page, upload, run_stress: 1 to 1.5 days"). |
-| Change | <ul><li>`browser_test` for `verify_smoke` (sharded per sample through `TEST_SHARD_INDEX`), `verify_wasm_browser`, `verify_charts`, `verify_cubes`, `verify_page`, `verify_upload` and `run_stress` (`size = "enormous"`).</li><li>Each target gets only its own data (HN-N14).</li><li>SHOTS output goes to `outPath` (HN-N12). The CSVs from `verify_cubes`, `verify_smoke` and `verify_upload` use `tmpPath` (HN-N11). `run_stress`'s results go to `outPath` (HN K13).</li><li>They join `test_suite(name = "browser")` in `datacube/BUILD.bazel`.</li></ul> |
-| Proof | **Heavy: H-browser** (one target at a time on the desk): `bazel test //datacube:browser`. |
+| Change | <ul><li>`browser_test` for `verify_smoke` (sharded per sample through `TEST_SHARD_INDEX`), `verify_wasm_browser`, `verify_charts`, `verify_cubes`, `verify_page`, `verify_upload` and `run_stress` (`size = "enormous"`).</li><li>Each target gets only its own data (HN-N14).</li><li>SHOTS output goes to `outPath` (HN-N12). The CSVs from `verify_cubes`, `verify_smoke` and `verify_upload` use `tmpPath` (HN-N11). `run_stress`'s results go to `outPath` (HN K13).</li><li>They join `test_suite(name = "browser")` in `datacube/BUILD.bazel`.</li></ul> **(G-11)** Every `waitForTimeout(n)` and fixed `setTimeout` sleep becomes an awaited condition (`waitForFunction`, `locator.waitFor`), including `verify_page`'s 300 ms and `verify_charts`' 400 ms windows. This is done up front, not after a flake. |
+| Proof | **Heavy: H-browser** (one target at a time on the desk): `bazel test //datacube:browser`. `git grep -c waitForTimeout -- datacube/demo query/demo site` prints 0 for the converted harnesses (G-11). |
 | Depends on | P4-01 |
 | Size | M (1.5 d) |
 | Risk/rollback | Flakes from fixed sleeps (HN-N10). Replace them with awaited conditions where they flake; P4-10 soaks. |
@@ -1715,7 +1956,7 @@ These rules apply to every harness item (plan 4.1):
 |---|---|
 | ID | P4-04 |
 | Why | Plan 4.1; HN-N9 (118 order-dependent checks on one page; `freshCube()` exists at `:599`); HN-N8 (`ONLY=` can run zero checks); HN-N11 (fixed temp name, `:54`). |
-| Change | <ul><li>Group the checks by section, each starting from `freshCube()`. `browser_test` with `shard_count` dealing sections.</li><li>Delete the env knobs `DATA`, `ONLY`, `PORT`, `PLANNER`, `NO_WASM`, `CPU_THROTTLE`, `DEBUG`, `SHOTS`, `TIMINGS` and `WAREHOUSE*`.</li><li>The warehouse and engine variants become separate manual targets (`verify_features_warehouse`, `verify_features_engine`, P4-07).</li><li>Use `tmpPath`.</li></ul> |
+| Change | <ul><li>Group the checks by section, each starting from `freshCube()`. `browser_test` with `shard_count` dealing sections.</li><li>Delete the env knobs `DATA`, `ONLY`, `PORT`, `PLANNER`, `NO_WASM`, `CPU_THROTTLE`, `DEBUG`, `SHOTS`, `TIMINGS` and `WAREHOUSE*`.</li><li>The warehouse and engine variants become separate manual targets (`verify_features_warehouse`, `verify_features_engine`, P4-07).</li><li>Use `tmpPath`.</li></ul> **(G-11)** `verify-features.mjs:76`'s 30 s per-check deadline and its 74 `waitForTimeout` calls go: awaited conditions instead, and Bazel's `timeout` bounds the run. |
 | Proof | **Heavy: H-browser**: `bazel test //datacube:verify_features_test`; the union of checks across shards equals 118. |
 | Depends on | P4-01 |
 | Size | M (1 d) |
@@ -1741,12 +1982,12 @@ These rules apply to every harness item (plan 4.1):
 |---|---|
 | ID | P4-06 |
 | Why | Plan 4.1(a); HN §1 (`torture` has no browser but gets Playwright; its `ms < 1000` assertion is at `:385`); `verify_calc_vocabulary`'s local half; HN-N17 (`verify-picker.mjs:34` probes `localhost:8000`). |
-| Change | <ul><li>`torture`: a `node_test` with no browser. The server comes from `startServer(//core:server)`. Delete the `<1 s` assertion (plan 3.5). It joins `//datacube:tests`.</li><li>`verify_calc_vocabulary`: the local half becomes a `node_test`; the engine half moves to P4-07.</li><li>`verify_picker`: a `browser_test` that serves the site itself, with no `:8000` probe.</li></ul> |
+| Change | <ul><li>`torture`: a `node_test` with no browser. The server comes from `startServer(//core:server)`. Delete the `<1 s` assertion (plan 3.5). It joins `//datacube:tests`.</li><li>`verify_calc_vocabulary`: the local half becomes a `node_test`; the engine half moves to P4-07.</li><li>`verify_picker`: a `browser_test` that serves the site itself, with no `:8000` probe.</li></ul> **(G-12)** An overlap table in the PR: `verify_upload` against `verify_features`/`verify_smoke`, `verify_picker` against `verify_cubes`/`verify_features`, and `verify_calc_vocabulary`'s local half against `calc.test.ts:166-168`. Unique checks stay and duplicates are deleted; the calc local half folds into `calc.test.ts` if it is fully duplicated. |
 | Proof | `bazel test //datacube:torture_test //datacube:calc_vocabulary_test`; **Heavy: H-browser** `bazel test //datacube:verify_picker_test`. |
 | Depends on | P4-01, P1-23 |
 | Size | M (1 d) |
 | Risk/rollback | None known. |
-| Done when | No harness depends on a server started by hand. |
+| Done when | No harness depends on a server started by hand. Each overlap is merged or justified in a BUILD comment (G-12). |
 
 #### P4-07 · Manual tests for the harnesses that need a real engine or Postgres
 
@@ -1754,8 +1995,8 @@ These rules apply to every harness item (plan 4.1):
 |---|---|
 | ID | P4-07 |
 | Why | Plan 4.1(b); HN-N8 (`verify-engine-differential.mjs:299-302, 358` count local-plane failures as "skipped"); HN §1 (`verify_app` spawns `warehouse/serve.sh` and does `RUNFILES_DIR` arithmetic, `verify-app.mjs:28-29, 37-39`). |
-| Change | <ul><li>`chaos`, `verify_engine` and `verify_engine_differential` (merged; skips count as failures) and `verify_calc_vocabulary`'s engine half: `browser_test`/`node_test` with `tags = ["manual"]`, the engine from P1-18's `//tools/engine-runner:server` on port 0. If P1-18 found no artifact, these stay `js_binary` dev tools and the deferral is recorded.</li><li>`verify_app`: a `browser_test(tags = ["manual"])` with `@embedded_postgres` and `//warehouse:serve` (P4-12) by `rlocationpath`, with no `RUNFILES_DIR` arithmetic.</li><li>`chaos.mjs:38, 87`: port 0 at 127.0.0.1 (HN-N4).</li></ul> |
-| Proof | **Heavy: H-browser, plus H-native**: `bazel test //datacube:verify_app_test //datacube:verify_engine_test` (manual targets are named explicitly). |
+| Change | <ul><li>`chaos`, `verify_engine` and `verify_engine_differential` (merged; skips count as failures) and `verify_calc_vocabulary`'s engine half: `browser_test`/`node_test` with `tags = ["manual"]`, the engine from P1-18's `//tools/engine-runner:server` on port 0. If P1-18 found no artifact, these stay `js_binary` dev tools and the deferral is recorded.</li><li>`verify_app`: a `browser_test(tags = ["manual"])` with `@embedded_postgres` and `//warehouse:serve` (P4-12) by `rlocationpath`, with no `RUNFILES_DIR` arithmetic.</li><li>`chaos.mjs:38, 87`: port 0 at 127.0.0.1 (HN-N4).</li></ul> **(G-09)** `chaos` is not an engine harness: it needs only `//core:server`. It becomes `browser_test(name = "chaos_test", tags = ["manual"])` unconditionally, with `startServer(//core:server)` on port 0. `CHAOS_SEED` and `CHAOS_ROUNDS` are fixed per target (seeded variants are separate targets), `ENGINE` goes, and `tolerant()` stops swallowing errors. It leaves the P1-18 condition. The `taskkill` in `verify-app.mjs:155` goes in P4-18. |
+| Proof | **Heavy: H-browser, plus H-native**: `bazel test //datacube:verify_app_test //datacube:verify_engine_test` (manual targets are named explicitly). `bazel test //datacube:chaos_test` (G-09). |
 | Depends on | P4-12, P1-18, P1-15, P4-01 |
 | Size | M (2 d) |
 | Risk/rollback | None known. |
@@ -1767,7 +2008,7 @@ These rules apply to every harness item (plan 4.1):
 |---|---|
 | ID | P4-08 |
 | Why | Plan 4.1(c); HN §1 (`shots` uses fixed `:8732` on all interfaces; `make_sample` builds the whole site to write a CSV; `serve.mjs:141` prints `:0` for `--port 0`); HN-N13 (outputs land in the repo root, untracked). |
-| Change | <ul><li>`shots`, `measure_startup` and `make_sample` stay `js_binary`. Each gets only its data (`make_sample`: `:src`). They serve on port 0 and write to an explicit `--out` (default `$BUILD_WORKING_DIRECTORY/<name>`, printed).</li><li>`serve.mjs` prints the bound port.</li><li>Delete the litter entries from `datacube/.gitignore:4-11`, because no harness writes there any more.</li></ul> |
+| Change | <ul><li>`shots`, `measure_startup` and `make_sample` stay `js_binary`. Each gets only its data (`make_sample`: `:src`). They serve on port 0 and write to an explicit `--out` (default `$BUILD_WORKING_DIRECTORY/<name>`, printed).</li><li>`serve.mjs` prints the bound port.</li><li>Delete the litter entries from `datacube/.gitignore:4-11`, because no harness writes there any more.</li></ul> **(L:G-8)** The three dev servers (`datacube/demo/serve.mjs:26`, `query/demo/serve.mjs:11`, `site/serve.mjs:9`) find their roots through `@bazel/runfiles` instead of `resolve(…import.meta.url…, '..')`, so G15 needs no row for them. `serve.mjs --open` calls `execFileSync('start')`, which fails on Windows because `start` is a `cmd` builtin: use `cmd /c start` there (ledger S-12). |
 | Proof | `bazel build //datacube:shots //datacube:make_sample //datacube:measure_startup`. `bazel run //datacube:serve -- --port 0` prints a real port. |
 | Depends on | P4-01 |
 | Size | S (0.5 d) |
@@ -1819,8 +2060,8 @@ These rules apply to every harness item (plan 4.1):
 |---|---|
 | ID | P4-12 |
 | Why | Plan 4.3; Part 0 (4.3 changed: three targets behind an alias; `hermetic_launcher` 0.0.16); WH K8; BZ K8; S2 decision 1 (GO) and its recommended design. |
-| Change | <ul><li>Port `spike/s2-runfiles` (`56b4ae329`).</li><li>`warehouse/defs.bzl`: the `_warehouse_binary` rule (a symlink to the server, plus runfiles), and `warehouse_run(name, server, data = [], args = [], testonly = False, **kwargs)` with `data` defaulting to `//warehouse:duckdb_library` and `//warehouse:duckdb_extensions`.</li><li>Delete `_duckdb_extensions` (the `run_shell`), `_posix_launcher`, `shell_quote`, the `launcher_binary` call, the 10-argument guard and the `_posix`/`_windows` alias. Drop the `hermetic_launcher` load.</li><li>`MODULE.bazel`: delete `bazel_dep(name = "hermetic_launcher")` and its comment, fix the `platforms` comment (`:291`), and update the lock.</li><li>`WarehouseServer.commandLine`: `named(value, startedIn)` for `--site`, `--duckdb-library` and `--duckdb-extensions`; `--duckdb-extensions` accepts a file; `--token-key-file` is caller-relative.</li><li>`datacube/BUILD.bazel`: `warehouse_run(name = "app", server = "//warehouse:server_native", data = [":dist"], args = ["--site", "$(rlocationpath :dist)", "--single-user", "--open"])`.</li><li>Rename `LauncherTest` to `ServeTest` (`$(rlocationpath)`, `Runfile.env()`).</li><li>Unit tests for `named()` and `ServerRunfiles` with a fake manifest.</li><li>Docs: `docs/WINDOWS_APP_DESIGN_2026_10_02.md` and the `DATACUBE_ON_POSTGRES` doc. State "use absolute paths in DSN file parameters" (S2 Q5).</li><li>**Windows desk run** (S2 Q1): does the symlinked `serve.exe` locate itself? If not, copy instead of symlinking on Windows (S2 remedy).</li></ul> |
-| Proof | <ul><li>**Heavy: H-native**: `bazel test //warehouse:serve_test //warehouse:tests`.</li><li>`bazel test --noenable_runfiles --spawn_strategy=local //warehouse:serve_test`.</li><li>`bazel run //warehouse:serve -- --port 'x&y z"q'` prints `For input string: "x&y z"q"`, exit 2.</li><li>`bazel run //datacube:app -- --port 'a&b c"d'`.</li><li>`CI`: Windows native lane.</li><li>Desk: S2 E3's commands on Windows.</li></ul> |
+| Change | <ul><li>Port `spike/s2-runfiles` (`56b4ae329`).</li><li>`warehouse/defs.bzl`: the `_warehouse_binary` rule (a symlink to the server, plus runfiles), and `warehouse_run(name, server, data = [], args = [], testonly = False, **kwargs)` with `data` defaulting to `//warehouse:duckdb_library` and `//warehouse:duckdb_extensions`.</li><li>Delete `_duckdb_extensions` (the `run_shell`), `_posix_launcher`, `shell_quote`, the `launcher_binary` call, the 10-argument guard and the `_posix`/`_windows` alias. Drop the `hermetic_launcher` load.</li><li>`MODULE.bazel`: delete `bazel_dep(name = "hermetic_launcher")` and its comment, fix the `platforms` comment (`:291`), and update the lock.</li><li>`WarehouseServer.commandLine`: `named(value, startedIn)` for `--site`, `--duckdb-library` and `--duckdb-extensions`; `--duckdb-extensions` accepts a file; `--token-key-file` is caller-relative.</li><li>`datacube/BUILD.bazel`: `warehouse_run(name = "app", server = "//warehouse:server_native", data = [":dist"], args = ["--site", "$(rlocationpath :dist)", "--single-user", "--open"])`.</li><li>Rename `LauncherTest` to `ServeTest` (`$(rlocationpath)`, `Runfile.env()`).</li><li>Unit tests for `named()` and `ServerRunfiles` with a fake manifest.</li><li>Docs: `docs/WINDOWS_APP_DESIGN_2026_10_02.md` and the `DATACUBE_ON_POSTGRES` doc. State "use absolute paths in DSN file parameters" (S2 Q5).</li><li>**Windows desk run** (S2 Q1): does the symlinked `serve.exe` locate itself? If not, copy instead of symlinking on Windows (S2 remedy).</li></ul> **(G-27)** `docs/WINDOWS_APP_DESIGN_2026_10_02.md` gains the ANSI-argv note (S2 risk 7), and `warehouse_run`'s docstring states that `args` reach only `bazel run`/`bazel test` callers, so fixed defaults belong in `ServerRunfiles` (S2 risk 6). P5-09's `--self-test` keeps working through the new executable. |
+| Proof | <ul><li>**Heavy: H-native**: `bazel test //warehouse:serve_test //warehouse:tests`.</li><li>`bazel test --noenable_runfiles --spawn_strategy=local //warehouse:serve_test`.</li><li>`bazel run //warehouse:serve -- --port 'x&y z"q'` prints `For input string: "x&y z"q"`, exit 2.</li><li>`bazel run //datacube:app -- --port 'a&b c"d'`.</li><li>`CI`: Windows native lane.</li><li>Desk: S2 E3's commands on Windows.</li></ul> **Windows proof (C2)** (§1). |
 | Depends on | P1-16, P1-17, P1-19 |
 | Size | M (1.5 d; S2: 1–1.5 d) |
 | Risk/rollback | Windows self-location of a symlinked `.exe` (S2 risk 4): the copy remedy. Rollback: revert `defs.bzl`; `hermetic_launcher` comes back with it. |
@@ -1833,7 +2074,7 @@ These rules apply to every harness item (plan 4.1):
 | ID | P4-13 |
 | Why | Plan 4.3; WH-N4 (no packaging rule; the "beside the executable" mode is untested, `DuckLibrary.java:37-59`, `WarehouseServer.java:878-884`). |
 | Change | <ul><li>`MODULE.bazel`: `bazel_dep(name = "rules_pkg", …)`.</li><li>`warehouse/BUILD.bazel`: `pkg_tar` (macOS, Linux) and `pkg_zip` (Windows), via `//tools/platforms`. Contents: `server_native` renamed `warehouse`, the DuckDB library under its `resourceName()`, and the unpacked extension, laid out beside the executable.</li><li>New `junit_test(name = "dist_test")`: extract into `TEST_TMPDIR`, run with `--port 0` and no other flags, read the listening line, stop.</li></ul> |
-| Proof | **Heavy: H-native**: `bazel test //warehouse:dist_test`. |
+| Proof | **Heavy: H-native**: `bazel test //warehouse:dist_test`. **Windows proof (C2)** (§1). |
 | Depends on | P4-12 |
 | Size | M (1.5 d) |
 | Risk/rollback | None known. |
@@ -1846,7 +2087,7 @@ These rules apply to every harness item (plan 4.1):
 | ID | P4-14 |
 | Why | WH-N11; BZ-N11. `server_lib` globs `src/main/resources/**` (`warehouse/BUILD.bazel:62`), so it ships `META-INF/services/java.sql.Driver` without `WhDriver`. |
 | Change | `server_lib` resources become `glob(["src/main/resources/META-INF/native-image/**"])`. `:client` already names the service file (`:35`). |
-| Proof | **Heavy: H-native**: `bazel test //warehouse:tests //warehouse:tests_native`. `unzip -l bazel-bin/warehouse/libserver_lib.jar \| grep java.sql.Driver` is empty. |
+| Proof | **Heavy: H-native**: `bazel test //warehouse:tests //warehouse:tests_native`. `unzip -l bazel-bin/warehouse/libserver_lib.jar \| grep java.sql.Driver` is empty. **Windows proof (C2)** (§1). |
 | Depends on | — |
 | Size | S (0.5 d) |
 | Risk/rollback | None known. |
@@ -1858,9 +2099,9 @@ These rules apply to every harness item (plan 4.1):
 |---|---|
 | ID | P4-15 |
 | Why | Plan 4.4; DC-N4, DC-N7, DC-N10; HN-N16; D3b (`bench/model/*.py`). |
-| Change | <ul><li>Delete `scripts` from `datacube/package.json` (its `test` script already breaks the 22 WASM tests) and the "pnpm editor loop" notes in `datacube/.gitignore:1-3`.</li><li>`datacube/demo/README-realdata.md`: Bazel only (no `npm install`, `npx serve` or host `duckdb`). **Investigate:** how `EXPECT` is produced today (`:141`, the host `duckdb -c`). The replacement is a `bazel run //datacube:make_sample -- --expect` mode, or the test computes it.</li><li>`emit_cube_queries` and `emit_offer_queries` get their helpers in `data` (`cases.ts`), so `bazel run` works (DC-N10).</li><li>`datacube/bench/*.mjs`: `js_binary` with `tags = ["manual"]`.</li><li>`bench/model/*.py` per D3b: `py_binary`s with `duckdb` added to `tools/python/requirements.in`, or history.</li><li>Document `bazel test //datacube:tests` and `ibazel` in `datacube/README.md`.</li></ul> |
+| Change | <ul><li>Delete `scripts` from `datacube/package.json` (its `test` script already breaks the 22 WASM tests) and the "pnpm editor loop" notes in `datacube/.gitignore:1-3`.</li><li>`datacube/demo/README-realdata.md`: Bazel only (no `npm install`, `npx serve` or host `duckdb`). **Investigate:** how `EXPECT` is produced today (`:141`, the host `duckdb -c`). The replacement is a `bazel run //datacube:make_sample -- --expect` mode, or the test computes it.</li><li>`emit_cube_queries` and `emit_offer_queries` get their helpers in `data` (`cases.ts`), so `bazel run` works (DC-N10).</li><li>`datacube/bench/*.mjs`: `js_binary` with `tags = ["manual"]`.</li><li>`bench/model/*.py` per D21 (OPEN; recommended: history through P7-04): history, or `py_binary`s on `@pypi//duckdb` with `bench.sql` run through the Python API, not the `duckdb` CLI (G-18).</li><li>Document `bazel test //datacube:tests` and `ibazel` in `datacube/README.md`.</li></ul> |
 | Proof | `bazel build //datacube:all`; `bazel run //datacube:emit_cube_queries -- --help`; `bazel test //tools/python:requirements_test`. |
-| Depends on | P1-23, D3b |
+| Depends on | P1-23, D3b, D21 |
 | Size | M (1 d) |
 | Risk/rollback | None known. |
 | Done when | No document tells anyone to run `npm`, `npx`, `node` or `python3` for DataCube. Guard G9 (P6-09) keeps it so. |
@@ -1877,6 +2118,45 @@ These rules apply to every harness item (plan 4.1):
 | Size | S (0.5 d) |
 | Risk/rollback | None known. |
 | Done when | The question is answered and the test is fixed or documented. |
+
+#### P4-17 · `.mjs` files are typechecked
+
+| Field | Content |
+|---|---|
+| ID | P4-17 |
+| Why | A29; DC-N10: `datacube/demo/*.mjs` (the harnesses Phase 4 rewrites), `datacube/bench/*.mjs`, the strict reporter and `fixtures/saved-queries/make.mjs` are never typechecked. |
+| Change | A `tsconfig.mjs.json` with `allowJs` and `checkJs` over `datacube/demo/*.mjs`, `datacube/bench/*.mjs`, `tools/js/strict-reporter.mjs`, `fixtures/saved-queries/make.mjs`, `query/demo/*.mjs` and `site/*.mjs`, and a `typecheck_mjs_test` beside `typecheck_test`. It lands after P4-01, so `harness.mjs` is typechecked from the start. |
+| Proof | `bazel test //datacube:typecheck_mjs_test`. Negative: a type error in a scratch `.mjs` fails. |
+| Depends on | P4-01, P2-06, P1-23 |
+| Size | M (1 d) |
+| Risk/rollback | Existing type errors in the harnesses: fix them in the PR, never with a blanket `// @ts-nocheck`. |
+| Done when | No first-party JS file escapes typechecking. |
+
+#### P4-18 · No test kills a process tree with a host tool (`taskkill`)
+
+| Field | Content |
+|---|---|
+| ID | P4-18 |
+| Why | Ledger G-4 (rows S-14 and S-17): `datacube/demo/verify-app.mjs:155` and `query-store/test/lite.test.ts:57` run `taskkill /t /f`, a host Windows tool, to stop a launcher's process tree. |
+| Change | <ul><li>`//core:server` (`LegendHttpServer`) and the warehouse server gain `--exit-with-parent`: exit when stdin reaches EOF. Only tests set it.</li><li>`harness.mjs` `startServer().close()` and `query-store/test/lite.test.ts` close the child's stdin and await its exit.</li><li>Delete both `taskkill` calls.</li></ul> |
+| Proof | `bazel test //query-store:lite_test //warehouse:serve_test`; `git grep -n taskkill` is empty. **Windows proof (C2)** (§1). |
+| Depends on | P4-01, P1-24, P4-07 |
+| Size | S (0.5 d) |
+| Risk/rollback | A child that ignores stdin EOF behind a launcher stub: the Windows run shows it. Rollback per caller. |
+| Done when | No test kills a process with a host tool, on any platform. |
+
+#### P4-90 · Phase 4 audit: done-criteria checked against the coverage table (C4)
+
+| Field | Content |
+|---|---|
+| ID | P4-90 |
+| Why | C4: every phase ends with an audit of its done-criteria against the coverage table. |
+| Change | A reviewer who wrote none of Phase 4's items checks, on `main` (not on a PR branch): each Phase 4 item's Done-when, with the command that shows it; each §6.1, §6.2 and §6.4 row that names a Phase 4 item, against the code rather than the item text; and that every Phase 4 PR carried P0-15's template with an independent reviewer and all-platform CI (and, for a **Windows proof (C2)** item, its Windows evidence). An unmet Done-when reopens its item. A row the items do not actually close becomes an amendment or a new item, with an ID, before the milestone checkpoint closes. The result is a dated table in §6.5. |
+| Proof | §6.5 has a Phase 4 table: one row per Phase 4 item, with its evidence command and verdict, and no open "no" without a follow-up item ID. |
+| Depends on | P4-01, P4-02, P4-03, P4-04, P4-05, P4-06, P4-07, P4-08, P4-09, P4-10, P4-11, P4-12, P4-13, P4-14, P4-15, P4-16, P4-17, P4-18 |
+| Size | S (0.5 d) |
+| Risk/rollback | An audit finds a gap late. It becomes an item, never a silent pass. |
+| Done when | Every Phase 4 Done-when is verified on `main`, and every gap found has an item. |
 
 ### Phase 5: CI is a list of labels
 
@@ -1899,12 +2179,12 @@ These rules apply to every harness item (plan 4.1):
 |---|---|
 | ID | P5-02 |
 | Why | Plan 5 ("run in a pinned container image on Linux"); S4 (the 17 Chromium packages); S3 (libxml2, if D7 accepts it). |
-| Change | <ul><li>Per D4 (b): `ci/image/BUILD.bazel` with `rules_oci` and `rules_distroless`. The base is `debian:12` by digest; the packages are the 17 from S4, plus `git`, `ca-certificates`, and `libxml2` only if D7 (a), pinned to a `snapshot.debian.org` date in a lock file.</li><li>`bazel run //ci/image:push` publishes to `ghcr.io/<owner>/legend-lite-ci`. The workflows reference the image by digest.</li><li>If D4 = (a): `ci/image/Dockerfile` instead.</li></ul> |
-| Proof | `bazel build //ci/image:image`. **Heavy: H-docker**: inside the image, `bazel test //datacube:verify_smoke_test` passes with no other setup. |
+| Change | <ul><li>Per D4 (b): `ci/image/BUILD.bazel` with `rules_oci` and `rules_distroless`. The base is `debian:12` by digest; the packages are the 17 from S4, plus `git`, `ca-certificates`, and `libxml2` only if D7 (a), pinned to a `snapshot.debian.org` date in a lock file.</li><li>`bazel run //ci/image:push` publishes to `ghcr.io/<owner>/legend-lite-ci`. The workflows reference the image by digest.</li><li>If D4 = (a): `ci/image/Dockerfile` instead.</li></ul> **(A16, G-24)** The image adds a pinned bazelisk (an `http_file` plus `integrity`, as a `pkg_tar` layer) and a non-root user `ci` (uid 1001) set as the image `user`, so `initdb` never runs as root. If D7 lands on (a), `libxml2` is added, and the exception is recorded in `README.md`'s Prerequisites (P5-07) and in a dated `.bazelrc` comment naming D7. |
+| Proof | `bazel build //ci/image:image`. **Heavy: H-docker**: inside the image, `bazel test //datacube:verify_smoke_test` passes with no other setup. **(G-24, A16) H-docker:** `docker run --rm <image> id -u` is not 0; inside the image, `bazel test //pct:pct_postgres_essential //core:postgres_arm_test //datacube:verify_smoke_test` passes. |
 | Depends on | D4, D7, P1-14 |
 | Size | M (2 d with (b); 0.5 d with (a)) |
 | Risk/rollback | None known. Rollback: hosted `ubuntu-latest`, with the 17 packages documented. |
-| Done when | The Linux CI jobs need no `apt` step. |
+| Done when | The Linux CI jobs need no `apt` step. The image runs the gates as a non-root user with no setup step (G-24). |
 
 #### P5-03 · The workflows contain only checkout, cache and `bazel` on literal labels
 
@@ -1912,10 +2192,10 @@ These rules apply to every harness item (plan 4.1):
 |---|---|
 | ID | P5-03 |
 | Why | Plan 5 (Workflows; done criterion); SC-§2; BZ-N1, BZ-N5; WH K11; Part 0 (the rest of the lane logic is still jq and shell). |
-| Change | <ul><li>`gates-run.yml`: delete the `setup` job (the jq matrix, `:33-82`), the low-memory split (`:46-52`; gone with D6), the platform filter (`:71`), the TZ PowerShell step (replaced by a Windows `--config=windows-eastern` that sets `TZ`, or kept as the one documented non-bazel step if Windows DuckDB must see the system zone; **investigate**), the pip step (P1-08), the install step and the loop (P4-09), and the MSYS comment if it is no longer needed.</li><li>The matrix is literal: `lane: [core, checks, spec, corpus_duckdb, corpus_h2, pct, pct_h2, pct_postgres, parser, channel_b, stress, app, native, browser, misc]`. The step is `bazel test --config=ci //gates:${{ matrix.lane }}`, plus a final job `bazel test --config=ci //...` and `bazel build --config=ci //...` (cached, cheap).</li><li>Platform skipping comes only from `target_compatible_with`.</li><li>macOS: `--config=ci-small` (only `--local_resources` and `--local_test_jobs=1`) and `--config=hermetic-cc` (P1-10).</li><li>Linux jobs run in P5-02's image.</li></ul> |
-| Proof | `bazel run //tools:actionlint` (P5-05). Guard G8 (P6-08) passes. `CI`: green on three platforms. |
+| Change | <ul><li>`gates-run.yml`: delete the `setup` job (the jq matrix, `:33-82`), the low-memory split (`:46-52`; gone with D6), the platform filter (`:71`), the TZ PowerShell step (replaced by a Windows `--config=windows-eastern` that sets `TZ`, or kept as the one documented non-bazel step if Windows DuckDB must see the system zone; **investigate**), the pip step (P1-08), the install step and the loop (P4-09), and the MSYS comment if it is no longer needed.</li><li>The matrix is literal: `lane: [core, checks, spec, corpus_duckdb, corpus_h2, pct, pct_h2, pct_postgres, parser, channel_b, stress, app, native, browser, misc]`. The step is `bazel test --config=ci //gates:${{ matrix.lane }}`, plus a final job `bazel test --config=ci //...` and `bazel build --config=ci //...` (cached, cheap).</li><li>Platform skipping comes only from `target_compatible_with`.</li><li>macOS: `--config=ci-small` (only `--local_resources` and `--local_test_jobs=1`) and `--config=hermetic-cc` (P1-10).</li><li>Linux jobs run in P5-02's image.</li></ul> **Amended 2026-10-03.** <ul><li>(L:G-11) Delete the `git config` step (`gates-run.yml:105-109`): `.gitattributes` forces `eol=lf`, and the upstream trees arrive by `http_archive`, not git. If the Windows checkout still needs `core.longpaths`, it is the one G8 row.</li><li>(L:P-2) Every step is one `bazel` line, so the runner's default shell is used (pwsh on Windows, which does not mangle `//`): delete `defaults.run.shell: bash` and `MSYS2_ARG_CONV_EXCL`.</li><li>(L:P-4) The TZ question is decided: a JVM test runs `WarehouseJdbcTest`'s reference session under an explicit non-UTC DuckDB `SET TimeZone` on every platform, and the `tzutil` step is deleted. Only if that test cannot prove the fix does the step stay, as one dated G8 row.</li><li>(L:P-5) Delete the `gates` dispatch input and its description from `gate.yml`; `platforms` stays as a job-level `if:`.</li><li>(G-25) `.bazelrc`: `common:ci --repository_cache=~/.cache/bazel-repo` (and the disk cache path), so the literal steps keep the repository cache; `diagnostics.yml` drops its own `--repository_cache`/`--disk_cache` flags.</li><li>(C1) If P0-14 has landed, `.github/rulesets/main.json` and the ruleset's required checks are renamed to the new lane jobs in the same PR.</li></ul> |
+| Proof | `bazel run //tools:actionlint` (P5-05). Guard G8 (P6-08) passes. `CI`: green on three platforms. A second CI run's log shows no `Downloading … chrome-headless-shell` (G-25). **Windows proof (C2)** (§1). |
 | Depends on | P5-01, P5-02, P1-08, P4-09, P1-21, P1-10 (macOS config) |
-| Size | M (2 d) |
+| Size | M (2.5 d: 2 d, plus the five ledger sub-steps and the repository cache) |
 | Risk/rollback | None known. Rollback: the previous workflow file. |
 | Done when | Adding a test never needs a CI edit. |
 
@@ -1925,8 +2205,8 @@ These rules apply to every harness item (plan 4.1):
 |---|---|
 | ID | P5-04 |
 | Why | Plan 5 (Caching and pinning); BZ-N16 (the cache key is frozen at its first save, `gates-run.yml:117-120`); SC-§2 (actions pinned by tag); plan 0.8 ("remove `paths-ignore` once caching makes doc pushes cheap"). |
-| Change | <ul><li>Cache key `bazel-${platform}-${lane}-${{ github.sha }}`, with restore-keys by lock hash, then by platform.</li><li>Every `uses:` pinned by a full SHA, with the tag in a comment.</li><li>Delete `paths-ignore` from `gate.yml:23-29`. Decide on a remote cache separately; it is not needed for correctness.</li></ul> |
-| Proof | `bazel test //tools/guards:workflows_test` (G8). `CI`: a docs-only push runs, and finishes fast on cache hits. |
+| Change | <ul><li>Cache key `bazel-${platform}-${lane}-${{ github.sha }}`, with restore-keys by lock hash, then by platform.</li><li>Every `uses:` pinned by a full SHA, with the tag in a comment.</li><li>Delete `paths-ignore` from `gate.yml:23-29`. Decide on a remote cache separately; it is not needed for correctness.</li></ul> **(G-25)** `actions/cache` paths include `~/.cache/bazel-repo`. |
+| Proof | `bazel test //tools/guards:workflows_test` (G8). `CI`: a docs-only push runs, and finishes fast on cache hits. **Windows proof (C2)** (§1). |
 | Depends on | P5-03, P0-09 |
 | Size | S (0.5 d) |
 | Risk/rollback | None known. |
@@ -1939,7 +2219,7 @@ These rules apply to every harness item (plan 4.1):
 | ID | P5-05 |
 | Why | Plan 5; SC-§2 (`gate.yml:57-60` uses `curl` with no checksum). |
 | Change | <ul><li>`MODULE.bazel`: `http_archive` per platform for actionlint 1.7.7, with sha256.</li><li>`tools/BUILD.bazel`: an `alias` `actionlint` (selected per platform) and a `sh`-free test, `native_test` or a `java_test` wrapper, `//tools:actionlint_test`, running it over `.github/workflows/*.yml` as data.</li><li>`gate.yml`'s lint job runs `bazel test //tools:actionlint_test`.</li></ul> |
-| Proof | `bazel test //tools:actionlint_test`; `bazel run //tools:actionlint -- -color`. |
+| Proof | `bazel test //tools:actionlint_test`; `bazel run //tools:actionlint -- -color`. **Windows proof (C2)** (§1). |
 | Depends on | — |
 | Size | S (0.5 d) |
 | Risk/rollback | None known. |
@@ -1952,24 +2232,63 @@ These rules apply to every harness item (plan 4.1):
 | ID | P5-06 |
 | Why | Plan 0.9 ("a CI matrix entry") and plan 5 (`LANG=tr_TR`). |
 | Change | <ul><li>`.bazelrc`: `test:locale-tr --test_env=LANG=tr_TR.UTF-8 --test_env=LC_ALL=tr_TR.UTF-8` and `build:locale-tr --action_env=LANG=tr_TR.UTF-8`. A named config: policy in a Bazel file.</li><li>One Linux matrix job runs `bazel test --config=ci --config=locale-tr //gates:core //gates:app //:generated`.</li></ul> |
-| Proof | `CI`: that job is green, with the same verdicts as the default job. |
+| Proof | `CI`: that job is green, with the same verdicts as the default job. **Windows proof (C2)** (§1). |
 | Depends on | P0-10, P1-23, P5-03 |
 | Size | S (0.5 d) |
 | Risk/rollback | None known. |
 | Done when | A Turkish-locale host gives the same answers. |
 
-#### P5-07 · What still needs bash on Windows? (investigation)
+#### P5-07 · What still needs bash, on every platform? (measurement; D20)
 
 | Field | Content |
 |---|---|
 | ID | P5-07 |
 | Why | Part 0 (new host dependency: `--repo_env=BAZEL_SH` and `--shell_executable` name Git for Windows' bash; "revisit after Phases 2–4 remove ours"). |
-| Change | <ul><li>**Question:** after P1-22 (no genrules), P4-12 (no `run_shell`) and P1-17, which actions on Windows still run a shell? Candidates: rules_js launchers and rules_jvm_external's fetch.</li><li>Answer with `bazel aquery --output=text 'mnemonic(".*", //...)' \| grep -c bash.exe` on Windows CI.</li><li>If only third-party rules remain, keep the two lines and update their comment with the measured list. If none remain, delete them.</li></ul> |
-| Proof | `CI` (Windows), with the aquery count recorded in the `.bazelrc` comment. |
-| Depends on | P4-12, P1-22 |
-| Size | S (0.5 d) |
+| Change | <ul><li>**Question:** after P1-22 (no genrules), P4-12 (no `run_shell`) and P1-17, which actions on Windows still run a shell? Candidates: rules_js launchers and rules_jvm_external's fetch.</li><li>Answer with `bazel aquery --output=text 'mnemonic(".*", //...)' \| grep -c bash.exe` on Windows CI.</li><li>If only third-party rules remain, keep the two lines and update their comment with the measured list. If none remain, delete them.</li></ul> **(L:G-9, D20)** The measurement covers all three platforms, not only Windows: `bazel aquery` lists the mnemonics whose argv starts with a shell, recorded per platform in a dated `.bazelrc` comment. If rules_python's script bootstrap is in use, set `bootstrap_impl=system_python` or record it. `README.md` gains a **Prerequisites** section listing every declared host dependency (§8): bash (Unix `/bin/bash`; Windows Git for Windows), attributed to rules_java, rules_js and bazel_lib (per D20); the macOS CLT SDK files (D1); MSVC (D5); `libxml2` if D7 lands on (a); and Chromium's 17 Linux system libraries on a Linux desk outside the CI image (ledger P-12). |
+| Proof | `CI` (Windows), with the aquery count recorded in the `.bazelrc` comment. **Windows proof (C2)** (§1). |
+| Depends on | P4-12, P1-22, D20 |
+| Size | M (1 d: three platforms plus the README section) |
 | Risk/rollback | None known. |
-| Done when | The `.bazelrc` lines are either gone or justified by a measured list. |
+| Done when | The `.bazelrc` lines are either gone or justified by a measured list. `README.md` lists every declared host prerequisite, each with its reason. |
+
+#### P5-08 · The manual heavy targets run weekly, in a `//gates:heavy` suite
+
+| Field | Content |
+|---|---|
+| ID | P5-08 |
+| Why | CC2 G-08; A22; CT-K18, SP-K18; S1 Q0. `corpus_warehouse`, `reference_lane`, `update_reference_lane_test` (P2-14), `engine_stress` (P3-25) and `diagnostics` are manual, and nothing runs them, so they can rot silently. |
+| Change | <ul><li>`gates/BUILD.bazel`: `test_suite(name = "heavy", tests = ["//spec:corpus_warehouse", "//spec:reference_lane", "//spec:update_reference_lane_test", "//scripts/corpus:engine_stress", "//parser-equivalence:diagnostics", …], tags = ["manual"])`, listing every manual test; G3 (P6-03) keeps the list complete.</li><li>New `.github/workflows/heavy.yml`: `on: schedule` (weekly) plus `workflow_dispatch`; its one step is `bazel test --config=ci //gates:heavy` (G8-shaped), on Linux in P5-02's image.</li><li>Delete P1-02's one-off `heavy` dispatch lane.</li></ul> |
+| Proof | The first scheduled run's log. `bazel query 'attr(tags, manual, tests(//...)) except tests(//gates:heavy)'` is empty, or each result has a §6.3 row. |
+| Depends on | P5-01, P5-03, P2-14, P3-19, P3-25 |
+| Size | S (0.5 d) |
+| Risk/rollback | A heavy lane that is red after months unrun: fix it, or record a dated row. Scheduled runs do not block merges. |
+| Done when | Every manual target has a runner, or a dated reason why it has none. |
+
+#### P5-09 · A Windows PowerShell "desk" lane: light tests and a `bazel run //warehouse:serve` smoke
+
+| Field | Content |
+|---|---|
+| ID | P5-09 |
+| Why | C2. CI's Windows jobs run their steps in Git Bash (`gates-run.yml:89-91`), so they never see the Windows contributor's setup (PR #14): PowerShell, with no bash on PATH, where `BAZEL_SH` matters. A regression in launchers, runfiles or `.bazelrc` shell lines can be green in CI and broken at that desk. |
+| Change | <ul><li>`WarehouseServer` gains `--self-test`: after binding, it sends one HTTP GET to its own health endpoint on `127.0.0.1`, prints the status line, and exits 0 on 200, otherwise 1. `LauncherTest` (P4-12's `ServeTest`) asserts it on every platform.</li><li>New `.github/workflows/windows-desk.yml`, on `pull_request` and on `push` to `main`: one `windows-2022` job with `defaults.run.shell: pwsh` and a job-level literal `PATH` that excludes every Git `bin` and `usr\bin` directory (**investigate first:** the minimal PATH that still finds bazelisk on the runner image). Steps: checkout; `bazel test --config=ci //json:tests //warehouse:tests //tools/deps:all //core:guardrails //tools/junit:all` (the light set, widened as items land); `bazel run --config=ci //warehouse:serve -- --port 0 --self-test` (start on port 0, check that it answers, stop).</li><li>Every step is one `bazel` line, so G8 needs no row.</li><li>Its job becomes one of D17's required checks (P0-14).</li></ul> |
+| Proof | `CI`: the lane is green on `main`; a scratch PR that breaks `--self-test`, or hard-codes a `/`-separated path in the server's runfiles lookup, turns it red. **Windows proof (C2):** this lane is the proof. |
+| Depends on | P0-03 |
+| Size | M (1 d) |
+| Risk/rollback | The minimal PATH may break bazelisk's own download; the investigation finds the right value first. Rollback: delete the workflow. |
+| Done when | Every PR runs the PowerShell lane, and a break that only shows at a PowerShell desk fails it. |
+
+#### P5-90 · Phase 5 audit: done-criteria checked against the coverage table (C4)
+
+| Field | Content |
+|---|---|
+| ID | P5-90 |
+| Why | C4: every phase ends with an audit of its done-criteria against the coverage table. |
+| Change | A reviewer who wrote none of Phase 5's items checks, on `main` (not on a PR branch): each Phase 5 item's Done-when, with the command that shows it; each §6.1, §6.2 and §6.4 row that names a Phase 5 item, against the code rather than the item text; and that every Phase 5 PR carried P0-15's template with an independent reviewer and all-platform CI (and, for a **Windows proof (C2)** item, its Windows evidence). An unmet Done-when reopens its item. A row the items do not actually close becomes an amendment or a new item, with an ID, before the milestone checkpoint closes. The result is a dated table in §6.5. |
+| Proof | §6.5 has a Phase 5 table: one row per Phase 5 item, with its evidence command and verdict, and no open "no" without a follow-up item ID. |
+| Depends on | P5-01, P5-02, P5-03, P5-04, P5-05, P5-06, P5-07, P5-08, P5-09 |
+| Size | S (0.5 d) |
+| Risk/rollback | An audit finds a gap late. It becomes an item, never a silent pass. |
+| Done when | Every Phase 5 Done-when is verified on `main`, and every gap found has an item. |
 
 ### Phase 6: guards
 
@@ -1984,7 +2303,7 @@ The guard items P6-00 to P6-19 are in §5.
 | ID | P7-01 |
 | Why | Part 5 (decision status); the user's decision that nothing is deleted before review; D3, D3b. |
 | Change | Fill in the **Decision** column of `docs/bazel-audit-2026-10-02/script-review.md`, all 187 rows plus the D3b list, from the user's answers. One commit, no other change. |
-| Proof | `grep -c '|  |$' docs/bazel-audit-2026-10-02/script-review.md` (empty decision cells) is 0. |
+| Proof | `grep -c '\|  \|$' docs/bazel-audit-2026-10-02/script-review.md` (empty decision cells) is 0. |
 | Depends on | D3 |
 | Size | S (0.5 d, mostly user time) |
 | Risk/rollback | None known. |
@@ -1996,9 +2315,9 @@ The guard items P6-00 to P6-19 are in §5.
 |---|---|
 | ID | P7-02 |
 | Why | SR rec 1 (9 rows). |
-| Change | <ul><li>A `BUILD.bazel` per directory: `py_binary` for `scripts/corpus/functions.py`, `tools/census/lanes_diff.py` (if not already done in P3-13), `tools/wrongrows/{compare,damage}.py`, `tools/untangle/{bare_tiers,probe_counts}.py` and `move_classes.py` (per D3 row 9).</li><li>`py_library` for `scripts/projects/spec.py`.</li><li>`scoreboard.py` is P2-04.</li><li>Each README line becomes `bazel run //<pkg>:<tool> -- …`.</li></ul> |
-| Proof | `bazel build //scripts/... //tools/...`; `bazel run //tools/wrongrows:compare -- --help`. |
-| Depends on | P7-01, P1-07 |
+| Change | <ul><li>A `BUILD.bazel` per directory: `py_binary` for `scripts/corpus/functions.py`, `tools/census/lanes_diff.py` (if not already done in P3-13), `tools/wrongrows/{compare,damage}.py`, `tools/untangle/{bare_tiers,probe_counts}.py` and `move_classes.py` (per D3 row 9).</li><li>`py_library` for `scripts/projects/spec.py`.</li><li>`scoreboard.py` is P2-04.</li><li>Each README line becomes `bazel run //<pkg>:<tool> -- …`.</li></ul> **(G-17, D19)** `move_classes.py`: delete its dead `pom.xml` handling (D3 row 9). Under D19 (b) it moves files with `pathlib` renames, with no `git mv` (git's rename detection is content-based); under (a) it keeps `git mv`, says so in its header, and has a dated G5 row. |
+| Proof | `bazel build //scripts/... //tools/...`; `bazel run //tools/wrongrows:compare -- --help`. `git grep -n "pom.xml" tools/untangle` is empty (G-17). |
+| Depends on | P7-01, P1-07, D19 |
 | Size | M (1 d) |
 | Risk/rollback | None known. |
 | Done when | Each wire-as-is script is a target and documented as one. |
@@ -2009,10 +2328,10 @@ The guard items P6-00 to P6-19 are in §5.
 |---|---|
 | ID | P7-03 |
 | Why | SR rec 2 (55 rows, of which 27 are P2-01's closure and 3 are P2-01/P3-18; the rest are here). |
-| Change | <ul><li>`scripts/corpus/run.py`'s launcher, if not done in P3-25.</li><li>The 16 `probe_*.py` as `py_binary`s over the repaired launcher (D3 row 2).</li><li>`scripts/projects/{check,loadtime}.py` (D3 row 5; `check.py` interim until P3-23).</li><li>`tools/upstream-drift.py`: reads the pinned side from `@legend_*_src` as runfiles data; host checkouts optional through an argument; it cites P2-10's pins, not the missing `oracle-roots.sh`/`version-report.sh`.</li><li>`tools/native-axes.py` (D3 row 8), on `@legend_*_src`.</li></ul> |
-| Proof | `bazel build //scripts/... //tools/...`; `bazel run //scripts/corpus:probe_tds -- --help`. |
-| Depends on | P7-01, P1-07 |
-| Size | M (2 d) |
+| Change | <ul><li>`scripts/corpus/run.py`'s launcher, if not done in P3-25.</li><li>The 16 `probe_*.py` as `py_binary`s over the repaired launcher (D3 row 2).</li><li>`scripts/projects/{check,loadtime}.py` (D3 row 5; `check.py` interim until P3-23).</li><li>`tools/upstream-drift.py`: reads the pinned side from `@legend_*_src` as runfiles data; host checkouts optional through an argument; it cites P2-10's pins, not the missing `oracle-roots.sh`/`version-report.sh`.</li><li>`tools/native-axes.py` (D3 row 8), on `@legend_*_src`.</li></ul> **Amended 2026-10-03.** <ul><li>(L:G-1, D18) The 15 probes, `check.py` and `loadtime.py` start Java only through one `launch(args)` in `run.py` (they already `import run as runner`), which runs `//tools/engine-runner:testable` from runfiles. G5 then has one Python row under D18 (a), or none if D18 (b) converts them.</li><li>(G-14) `py_test(name = "projects_check", srcs = ["check.py"], data = ["//tools/engine-runner:testable", "//projects:srcs"])` in `//scripts/projects`: the decided interim gate, in `//...` until P3-23 deletes it.</li><li>(G-13) `probe_functions.py --record` writes the `docs/FUNCTIONS_EXECUTED.tsv` draft under `$BUILD_WORKSPACE_DIRECTORY` (P2-18).</li><li>(G-15) `native-axes.py`'s `core/target/lowering-coverage-probe.txt` input becomes a `java_run` `//core:lowering_coverage_probe`, passed as data; the `core/target` default goes.</li><li>(G-16, L:P-6, D19) `upstream-drift.py`: under D19 (b), `curl` becomes `urllib` (with `certifi` from `@pypi`) and `git ls-tree` becomes reads of the `@legend_*_src` trees; under (a), both stay with a dated G5 row.</li><li>(A15) `keywords.py` and `tiers.py` are P2-20.</li></ul> |
+| Proof | `bazel build //scripts/... //tools/...`; `bazel run //scripts/corpus:probe_tds -- --help`. `bazel test //scripts/projects:projects_check` (G-14); `git grep -n "core/target" tools/native-axes.py` is empty (G-15); under D19 (b), `git grep -n "subprocess\|curl\|git " tools/upstream-drift.py` is empty (G-16). |
+| Depends on | P7-01, P1-07, D18, D19 |
+| Size | M (3 d: 2 d, plus the shared `launch()`, the interim gate and the probe action) |
 | Risk/rollback | None known. |
 | Done when | No kept script needs `cp.txt`, `~/jdk` or a host checkout. |
 
@@ -2061,8 +2380,8 @@ The guard items P6-00 to P6-19 are in §5.
 |---|---|
 | ID | P7-07 |
 | Why | Plan 7; SC-§3. |
-| Change | <ul><li>`docs/GATES.md:1, 86-150`: date-stamp and move the undated present-tense sections to `docs/history/GATES_MAVEN_ERA.md`; the head states the Bazel chain (`//gates:*`).</li><li>`docs/ENGINEERING_LOG.md:25, 55-67, 222-226`.</li><li>`docs/RUNNING_THE_CORPUS.md:14-25, 40-41, 147, 169-172`: the Bazel generator (P2-01..03) and the engine run (P3-25).</li><li>`docs/UPSTREAM_FINDINGS.md:11-12, 23, 219`.</li><li>`docs/UPSTREAM_BOUNDARY_PROGRAM.md:13, 185, 199, 209, 423, 434, 467, 480, 539`.</li></ul> |
-| Proof | As P7-06. |
+| Change | <ul><li>`docs/GATES.md:1, 86-150`: date-stamp and move the undated present-tense sections to `docs/history/GATES_MAVEN_ERA.md`; the head states the Bazel chain (`//gates:*`).</li><li>`docs/ENGINEERING_LOG.md:25, 55-67, 222-226`.</li><li>`docs/RUNNING_THE_CORPUS.md:14-25, 40-41, 147, 169-172`: the Bazel generator (P2-01..03) and the engine run (P3-25).</li><li>`docs/UPSTREAM_FINDINGS.md:11-12, 23, 219`.</li><li>`docs/UPSTREAM_BOUNDARY_PROGRAM.md:13, 185, 199, 209, 423, 434, 467, 480, 539`.</li></ul> **(G-29)** Also `docs/GATES.md:28` (`browser-ci`) and `:47` (P0-13). |
+| Proof | As P7-06. `git grep -n "browser-ci" docs/GATES.md` is empty (G-29). |
 | Depends on | P2-03, P3-25 |
 | Size | M (1.5 d) |
 | Risk/rollback | None known. |
@@ -2074,9 +2393,9 @@ The guard items P6-00 to P6-19 are in §5.
 |---|---|
 | ID | P7-08 |
 | Why | Plan 7; SC-§3 (`tools/engine-runner/README.md:36-46`, `tools/census/README.md:10-12, 24-26`, `tools/wrongrows/README.md:13-14, 27-28, 38`, `tools/reference/README.md:29-42`, `scripts/parser/README.md:28-33, 135-136`, `projects/CONTRACT.md:3, 72`, 14 `repro/*/README.md`, `scripts/corpus/repro/README.md:6-72`). |
-| Change | Each instruction becomes `bazel run //<pkg>:<target> -- …` (the probes per D3 row 2), `bazel test //projects/...` (P3-23), or moves to history with its script. |
-| Proof | As P7-06. |
-| Depends on | P7-03, P3-13 |
+| Change | Each instruction becomes `bazel run //<pkg>:<target> -- …` (the probes per D3 row 2), `bazel test //projects/...` (P3-23), or moves to history with its script. **Amended 2026-10-03.** Also: `tools/reference/README.md:94-96`, the `javac`/`java -cp` recipe (A14); `scripts/parser/HANDOFF.md:84`, which becomes `bazel run //tools/engine-runner:update_vocab` (G-06, with P2-20); the 26 `projects/*/MANIFEST.md` lines `python3 scripts/projects/check.py <p>`, which become `bazel test //scripts/projects:projects_check`, then `bazel test //projects/<p>:all` after P3-23 (L:G-5); `scripts/corpus/verified/*.md` and `scripts/corpus/repro/persistence-npe/README.md` (L:G-5). **(G-19)** `scripts/corpus/repro/**` moves under `repro/`, with one README convention (`bazel run //scripts/corpus:probe_* -- …`). |
+| Proof | As P7-06. `ls scripts/corpus/repro` fails (G-19). |
+| Depends on | P7-03, P3-13, P2-20 |
 | Size | M (1 d) |
 | Risk/rollback | None known. |
 | Done when | As P7-07. |
@@ -2087,12 +2406,12 @@ The guard items P6-00 to P6-19 are in §5.
 |---|---|
 | ID | P7-09 |
 | Why | Plan 7 (Move); G9's exemption. |
-| Change | <ul><li>**Investigate first:** list the docs G9 flags that are dated history (filename date, and not listed as a standing document in AGENTS.md).</li><li>Move only those, fixing inbound links.</li><li>`BAZEL_DEPENDENCY_PROPOSAL.md`/`BAZEL_IMPLEMENTATION_PLAN.md`: their "SUPERSEDED" banner points at a history doc as current work (SC-§3). Point it at this plan.</li></ul> |
+| Change | <ul><li>**Investigate first:** list the docs that are history: every doc AGENTS.md does not list as standing **and** G9 flags, whether or not its filename carries a date (L:G-5). That adds the 22 undated history docs (ledger D-20) and the two superseded Bazel proposals (ledger D-18).</li><li>Move only those, fixing inbound links.</li><li>`BAZEL_DEPENDENCY_PROPOSAL.md`/`BAZEL_IMPLEMENTATION_PLAN.md`: their "SUPERSEDED" banner points at a history doc as current work (SC-§3). Point it at this plan, and move both to `docs/history/` (ledger D-18).</li><li>**(L:G-6)** The active plan and its evidence (`docs/BAZEL_FIRST_CLASS_*.md`, `docs/bazel-audit-2026-10-02/**`) stay in place until P8-01 closes the effort; G9 carries rows for them.</li></ul> |
 | Proof | `bazel test //tools/guards:docs_test`. |
 | Depends on | D16 |
 | Size | M (1 d) |
 | Risk/rollback | Link churn. Move only what G9 flags. |
-| Done when | G9 passes without a large allowlist. |
+| Done when | G9 passes with only its exact allowlist rows (P6-09). |
 
 #### P7-10 · Dead references removed
 
@@ -2100,8 +2419,8 @@ The guard items P6-00 to P6-19 are in §5.
 |---|---|
 | ID | P7-10 |
 | Why | Plan 7 (Remove dead references); SC-§3 (the table of missing scripts); WH-N14; SP-N20. |
-| Change | <ul><li>The `MODULE.bazel` comments that cite poms (SC: `:97, :137, :150, :178, :196`, re-located at HEAD).</li><li>"Maven gate 1/10" (`core/BUILD.bazel:314, 393`).</li><li>`tools/par/BUILD.bazel:4`; `tools/teavm/TeaVmCompile.java:31`; `base/.../Nullable.java:13`; `wasm/README.md:80`.</li><li>`parser-equivalence/BUILD.bazel:92, 104` (`tools/diagnostics.sh`, `tools/allgates.sh`).</li><li>The `Sectionize.java` javadoc (`ZSectionNormalizeRewrite`).</li><li>`RosterGenerator.java:10`'s JUnit import.</li></ul> |
-| Proof | `bazel build //...`; `git grep -n "allgates.sh\|diagnostics.sh\|oracle-roots.sh\|version-report.sh\|pom.xml" -- ':!docs/history' ':!experiments'` is empty, or names only history. |
+| Change | <ul><li>The `MODULE.bazel` comments that cite poms (SC: `:97, :137, :150, :178, :196`, re-located at HEAD).</li><li>"Maven gate 1/10" (`core/BUILD.bazel:314, 393`).</li><li>`tools/par/BUILD.bazel:4`; `tools/teavm/TeaVmCompile.java:31`; `base/.../Nullable.java:13`; `wasm/README.md:80`.</li><li>`parser-equivalence/BUILD.bazel:92, 104` (`tools/diagnostics.sh`, `tools/allgates.sh`).</li><li>The `Sectionize.java` javadoc (`ZSectionNormalizeRewrite`).</li><li>`RosterGenerator.java:10`'s JUnit import.</li></ul> **(A13)** Also the Maven-era text in sources: `NoEagerTypeReferencesTest.java:33, 64`, `CorpusDifferentialTest.java:28`, `PctCensusGate.java:17`, `pct/BUILD.bazel:89`, `core/BUILD.bazel:368` and `tools/junit/defs.bzl:7` (the probe javadocs are P3-17's). |
+| Proof | `bazel build //...`; `git grep -n "allgates.sh\|diagnostics.sh\|oracle-roots.sh\|version-report.sh\|pom.xml" -- ':!docs/history' ':!experiments'` is empty, or names only history. The grep also covers `\bmvn\b`, `-Dtest=`, `surefire`, `target/classes`, `core/target` (A13), `classpath-convergence.sh` and `gate-env` (G-33); `bump.sh` and `cp.txt` are added to it once P7-03 removes the last script use, and P7-90 re-runs it. |
 | Depends on | — |
 | Size | M (1 d) |
 | Risk/rollback | None known. |
@@ -2113,12 +2432,12 @@ The guard items P6-00 to P6-19 are in §5.
 |---|---|
 | ID | P7-11 |
 | Why | Plan 7 (Smaller fixes); BZ-N14. |
-| Change | <ul><li>`package(default_visibility = ["//visibility:private"])` in `base`, `json`, `core`, `warehouse` (after P1-20 for core), with explicit `__pkg__` lists.</li><li>`testonly = True` on `//tools/junit:junit`, `//tools/par:par_generator`, the `@maven_upstream`-using binaries, `core_next_prelude` and `main_java`.</li></ul> |
-| Proof | `bazel build --nobuild //...`. |
+| Change | <ul><li>`package(default_visibility = ["//visibility:private"])` in `base`, `json`, `core`, `warehouse` (after P1-20 for core), with explicit `__pkg__` lists.</li><li>`testonly = True` on `//tools/junit:junit`, `//tools/par:par_generator`, the `@maven_upstream`-using binaries, `core_next_prelude` and `main_java`.</li></ul> **(G-22)** Every audit-07 N14 site too: `tools/nullaway`, `third_party/*.BUILD`, `wasm`, `tools/teavm`, `parser-equivalence/BUILD.bazel:252` and `docs`. New `//tools/guards:visibility_test`: a `genquery` of `attr(visibility, "//visibility:public", //...)`, checked against a dated allowlist. |
+| Proof | `bazel build --nobuild //...`. `bazel test //tools/guards:visibility_test` (G-22). **Windows proof (C2)** (§1). |
 | Depends on | P1-20 |
-| Size | M (1.5 d) |
+| Size | M (2 d) |
 | Risk/rollback | None known. |
-| Done when | Nothing is public that no outside package uses. |
+| Done when | Every public target is allowlisted with a reason (G-22). |
 
 #### P7-12 · Generator sources leave the test tree; labels, not paths
 
@@ -2152,7 +2471,7 @@ The guard items P6-00 to P6-19 are in §5.
 |---|---|
 | ID | P7-14 |
 | Why | Plan 7; WH-N10 (`probe/Shadow.java:88-99` reads `TEST_UNDECLARED_OUTPUTS_DIR`; `PrepTrace.java:18, 57-63`; about 20 counters and trace prints; `legend.spec.trace`, `legend.mapping.trace`); CT (`ObservabilityGuardrailTest:58` allowlists `TEST_UNDECLARED_OUTPUTS_DIR`). |
-| Change | <ul><li>**Investigate first:** classify each site (WH-N10 lists them) as a diagnostic that must stay switchable, or dead. Respect the AGENTS.md invariants: the observability guard's allowlist entry is removed with a dated justification.</li><li>Then a `Diagnostics` option object, passed at the entry points (`Compiler.execute`/`plan`), replaces the env reads.</li><li>The census targets (P3-13) set it through their own `main`, not env.</li><li>`Shadow` writes to a path given by its option, never to `TEST_UNDECLARED_OUTPUTS_DIR`.</li></ul> |
+| Change | <ul><li>**Investigate first:** classify each site (WH-N10 lists them) as a diagnostic that must stay switchable, or dead. Respect the AGENTS.md invariants: the observability guard's allowlist entry is removed with a dated justification.</li><li>Then a `Diagnostics` option object, passed at the entry points (`Compiler.execute`/`plan`), replaces the env reads.</li><li>The census targets (P3-13) set it through their own `main`, not env.</li><li>`Shadow` writes to a path given by its option, never to `TEST_UNDECLARED_OUTPUTS_DIR`.</li></ul> **(A5)** The `Diagnostics` object starts from P3-13's `legend.diagnostics` entry, so the census actions keep working: they pass that flag, not env. **(A6)** The narrow grep below is replaced by G20 (P6-20). |
 | Proof | **Heavy: H-core, H-spec**: `bazel test //core:core_tests //core:guardrails //spec:spec_tests`. `git grep -n "getenv(\"\(LL_\|LEGEND_LITE_\)" -- core/src/main` is empty. |
 | Depends on | P3-13 |
 | Size | M (3 d) |
@@ -2171,6 +2490,34 @@ The guard items P6-00 to P6-19 are in §5.
 | Size | S (0.25 d) |
 | Risk/rollback | None known. |
 | Done when | None of the three remains in place. |
+
+#### P7-90 · Phase 7 audit: done-criteria checked against the coverage table (C4)
+
+| Field | Content |
+|---|---|
+| ID | P7-90 |
+| Why | C4: every phase ends with an audit of its done-criteria against the coverage table. |
+| Change | A reviewer who wrote none of Phase 7's items checks, on `main` (not on a PR branch): each Phase 7 item's Done-when, with the command that shows it; each §6.1, §6.2 and §6.4 row that names a Phase 7 item, against the code rather than the item text; and that every Phase 7 PR carried P0-15's template with an independent reviewer and all-platform CI (and, for a **Windows proof (C2)** item, its Windows evidence). An unmet Done-when reopens its item. A row the items do not actually close becomes an amendment or a new item, with an ID, before the milestone checkpoint closes. The result is a dated table in §6.5. |
+| Proof | §6.5 has a Phase 7 table: one row per Phase 7 item, with its evidence command and verdict, and no open "no" without a follow-up item ID. |
+| Depends on | P7-01, P7-02, P7-03, P7-04, P7-05, P7-06, P7-07, P7-08, P7-09, P7-10, P7-11, P7-12, P7-13, P7-14, P7-15 |
+| Size | S (0.5 d) |
+| Risk/rollback | An audit finds a gap late. It becomes an item, never a silent pass. |
+| Done when | Every Phase 7 Done-when is verified on `main`, and every gap found has an item. |
+
+### Phase 8: close-out
+
+#### P8-01 · Final re-audit against every finding (C4)
+
+| Field | Content |
+|---|---|
+| ID | P8-01 |
+| Why | C4: the plan ends with a full re-audit against all findings. |
+| Change | <ul><li>Auditors who wrote none of the items (agents or people) re-run the coverage checks' method on the final tree: every finding of audits 01–07, every spike follow-up (S1–S5), every `script-review.md` row, every row of `coverage-check-01-04.md`, `coverage-check-05-07-spikes.md` and `end-state-ledger.md` (sections 2–4), and C1–C5. Each is marked COVERED, PARTIAL, MISSING or DEFERRED-OK against the code, not the item text.</li><li>The ledger's section 5 inventory greps are re-run, read-only, to confirm that §8 lists every remaining non-Bazel orchestration exactly, and that the G2, G5 and G8 allowlists equal §8's rows.</li><li>Output: `docs/bazel-audit-<date>/final-reaudit.md`.</li><li>With the effort closed, `docs/BAZEL_FIRST_CLASS_*.md` and `docs/bazel-audit-2026-10-02/**` move to `docs/history/`, and G9's rows for them go (L:G-6).</li></ul> |
+| Proof | The report exists. Its PARTIAL and MISSING counts are zero, or each has a new item, or a §6.3 row the user agreed to. `bazel test //tools/guards:all` passes. |
+| Depends on | P0-90, P1-90, P2-90, P3-90, P4-90, P5-90, P6-90, P7-90 |
+| Size | M (2 d) |
+| Risk/rollback | Late findings get items; the effort is not declared done with an open PARTIAL. |
+| Done when | The re-audit reports no unowned gap, and §8 matches the tree. |
 
 ---
 
@@ -2213,12 +2560,12 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 |---|---|
 | ID | P6-02 |
 | Why | Plan G2; R7; SR. |
-| Change | <ul><li>Every inventory file matching `\.(py\|sh\|mjs\|js\|cjs\|ts)$` outside `docs/history/**` must appear in `tools/guards/scripts.bzl`'s registry `{path: label}`.</li><li>A `genquery` over the registry's labels (a finite, explicit scope) with `kind("source file", deps(<label>))` must contain the path.</li><li>The `datacube/src/**`, `query/src/**` and similar trees, wired by globs, register by directory.</li></ul> |
+| Change | <ul><li>Every inventory file matching `\.(py\|sh\|mjs\|js\|cjs\|ts)$` outside `docs/history/**` must appear in `tools/guards/scripts.bzl`'s registry `{path: label}`.</li><li>A `genquery` over the registry's labels (a finite, explicit scope) with `kind("source file", deps(<label>))` must contain the path.</li><li>The `datacube/src/**`, `query/src/**` and similar trees, wired by globs, register by directory.</li></ul> **Exact allowlist (ledger §4; 2026-10-03):** `tools/guards/scripts.allow` has **no rows**. The only exemptions are structural: `docs/history/**` (D16), and `experiments/**`, which is not in the inventory because it is bazelignored. The extension list widens to `\.(py\|sh\|bash\|ps1\|bat\|cmd\|mjs\|js\|cjs\|ts)$`, plus `*.java` under `docs/` outside `docs/history/**`. |
 | Proof | `bazel test //tools/guards:scripts_test`. Negative: add `scripts/foo.py`, and it fails, naming it. |
 | Depends on | P6-00, P7-02, P7-03, P7-04, P7-05 |
 | Size | M (1 d) |
 | Risk/rollback | None known. |
-| Done when | It passes, with no unregistered script. |
+| Done when | It passes, with no unregistered script. The allowlist is empty. |
 
 #### P6-03 · G3: every `@Test` class is selected by a `junit_test`
 
@@ -2226,9 +2573,9 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 |---|---|
 | ID | P6-03 |
 | Why | Plan G3; SP-N1. |
-| Change | `//tools/guards:selection_test` (java). It reads (a) every `*.java` under `*/src/test/**` from the inventory that has `@Test`/`@ParameterizedTest`/`@TestFactory`, or extends `TestCase`; and (b) `genquery(expression = "kind(java_test, tests(//gates:all))", opts = ["--output=build"], scope = ["//gates:all"])` (**investigate:** `--output=build` in genquery; the fallback is `label_kind` plus a macro-emitted selection manifest per `junit_test`). It applies each target's `select`/`exclude` arguments with the runner's own matching code (reused from `//tools/junit`), and fails on any class matched by none. Allowlist: `.allow`. |
+| Change | `//tools/guards:selection_test` (java). It reads (a) every `*.java` under `*/src/test/**` from the inventory that has `@Test`/`@ParameterizedTest`/`@TestFactory`, or extends `TestCase`; and (b) `genquery(expression = "kind(java_test, tests(//gates:all))", opts = ["--output=build"], scope = ["//gates:all"])` (**investigate:** `--output=build` in genquery; the fallback is `label_kind` plus a macro-emitted selection manifest per `junit_test`). It applies each target's `select`/`exclude` arguments with the runner's own matching code (reused from `//tools/junit`), and fails on any class matched by none. Allowlist: `.allow`. **(A7)** It also flags a class selected by two non-manual targets. **(G-08)** It fails on a `manual` test that is neither in `//gates:heavy` (P5-08) nor covered by a dated §6.3 row. |
 | Proof | `bazel test //tools/guards:selection_test`. Negative: rename a test class to `FooProbe`, and it fails. |
-| Depends on | P5-01, P3-17 |
+| Depends on | P5-01, P3-17, P5-08 |
 | Size | M (1.5 d) |
 | Risk/rollback | None known. |
 | Done when | No test class is silently unselected. |
@@ -2252,12 +2599,12 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 |---|---|
 | ID | P6-05 |
 | Why | Plan G5; R5. |
-| Change | Inventory scan for `ProcessBuilder`, `Runtime.getRuntime().exec`, `child_process` and `spawn(`/`execFile(`. Allowlist: `testing/.../EmbeddedPostgres.java`, `datacube/demo/harness.mjs` (`startServer`), `WarehouseArrowTest` (the `py_binary`), `DuckWorkspaces` (the native warehouse), the live-snap fixture, and `tools/bump/Bump.java` (a release tool). |
-| Proof | `bazel test //tools/guards:process_spawn_test`. |
-| Depends on | P3-19 |
-| Size | S (0.5 d) |
+| Change | Inventory scan of Java, JS/TS and Python sources for `ProcessBuilder`, `Runtime.getRuntime().exec`, `Desktop.`, `child_process`, `spawn(`, `spawnSync(`, `execFile(`, `execFileSync(`, `execSync(`, and **(L:G-1)** Python `subprocess.`, `os.system(`, `os.popen(`, `Popen(`, `check_output(` and `check_call(`, ignoring matches inside string literals. Starlark `rctx.execute` is outside its scope; the one use (P1-11's vswhere) is listed in §8. **Exact allowlist (L:G-2):** `tools/guards/process_spawn.allow`, the ledger's §4 list adjusted on 2026-10-03 by the resolved decisions; every row is dated and names its item. Rows marked *(if …)* exist only under that branch of an OPEN decision or an investigation, and the PR that lands the guard keeps exactly the rows its branch needs: <ul><li>`testing/src/main/java/com/legend/testing/EmbeddedPostgres.java` (P1-06, P3-20: `initdb` and `postgres` from `@embedded_postgres`)</li><li>`warehouse/src/test/java/com/legend/warehouse/TestServer.java` (P1-05: `//warehouse:server_native` by rlocationpath)</li><li>`warehouse/src/test/java/com/legend/warehouse/serve/ServeTest.java` (P4-12: `//warehouse:serve`)</li><li>`warehouse/src/test/java/com/legend/warehouse/DistTest.java` (P4-13: the extracted `//warehouse:dist`)</li><li>`warehouse/src/test/java/com/legend/warehouse/WarehouseArrowTest.java` (P1-08: `//warehouse:arrow_matches_json`)</li><li>`spec/src/test/java/com/legend/rcorpus/DuckWorkspaces.java` (P3-19: `//warehouse:server_native`)</li><li>`warehouse/src/main/java/com/legend/warehouse/server/WarehouseServer.java` (product `--open`: the user's browser, `openBrowser` only)</li><li>`datacube/demo/harness.mjs` (P4-01: `startServer`, every harness's server by rlocationpath)</li><li>`datacube/test/live-snap/live-snap.ts` (P3-10: the native warehouse)</li><li>`query-store/test/lite.test.ts` (P3-16: `//core:server`)</li><li>`datacube/demo/serve.mjs` (P4-08: dev tool `--open`)</li><li>`scripts/corpus/run.py` (P3-25, P7-03: `launch()` of `//tools/engine-runner:testable`) *(if D18 (a))*</li><li>`tools/bump/Bump.java` *(if D19 (a) or (c))*</li><li>`tools/untangle/move_classes.py` *(if D19 (a))*</li><li>`tools/upstream-drift.py` *(if D19 (a))*</li><li>`fixtures/saved-queries/make.mjs` (P2-06) *(if D14 resolves to (a))*</li><li>`tools/engine-runner/start.mjs` (P1-18) *(if the engine server artifact exists)*</li><li>`core/src/test/java/com/legend/ErrorShapeGuardrailTest.java` (pattern text, not a spawn)</li><li>`datacube/test/portability.test.ts` (pattern text, not a spawn)</li></ul>No `taskkill` row: P4-18 deletes both calls. |
+| Proof | `bazel test //tools/guards:process_spawn_test`. Removing any row makes the guard fail. Negative: a scratch `scripts/x.py` with `subprocess.run(["ls"])` fails, naming it (L:G-1). |
+| Depends on | P3-19, P4-12, P4-13, P4-18, P2-06, P7-03, D18, D19 |
+| Size | M (1 d: the Python patterns and the exact list) |
 | Risk/rollback | None known. |
-| Done when | A new spawn site needs a dated allowlist row. |
+| Done when | Every spawn site is one exact, dated row, and a new spawn site in any language fails the test. |
 
 #### P6-06 · G6: no literal ports; loopback only
 
@@ -2291,12 +2638,12 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 |---|---|
 | ID | P6-08 |
 | Why | Plan G8; R2. |
-| Change | `//tools/guards:workflows_test`, a `py_test` with a pinned `pyyaml` (added to `requirements.in`) over `.github/workflows/*.yml`. Every `run:` is one line matching `^bazel (test\|build\|run) (--[a-z_=-]+[^ ]* )*(//[^ ]+ ?)+$`; `uses:` is pinned by SHA (P5-04). It runs alongside `//tools:actionlint_test` (P5-05). |
+| Change | `//tools/guards:workflows_test`, a `py_test` with a pinned `pyyaml` (added to `requirements.in`) over `.github/workflows/*.yml`. Every `run:` is one line matching `^bazel (test\|build\|run) (--[a-z_=-]+[^ ]* )*(//[^ ]+ ?)+( -- .*)?$`, where the ` -- <args>` tail is allowed for `bazel run` only (P5-09's smoke step); `uses:` is pinned by SHA (P5-04). It runs alongside `//tools:actionlint_test` (P5-05). **Exact allowlist (`tools/guards/workflows.allow`; ledger §4, adjusted 2026-10-03):** empty. At most two dated rows exist, and only if P5-03's sub-steps keep them: `gates-run.yml`'s `git config --global core.longpaths true` *(only if proven needed, L:G-11)*, and `tzutil /s "Eastern Standard Time"` *(only if the JVM zone test cannot prove the fix, L:P-4)*. Every `uses:` is SHA-pinned; the local reusable-workflow form `uses: ./.github/workflows/…` is allowed. |
 | Proof | `bazel test //tools/guards:workflows_test //tools:actionlint_test`. |
-| Depends on | P5-03, P5-05 |
+| Depends on | P5-03, P5-05, P5-08, P5-09 |
 | Size | M (1 d) |
 | Risk/rollback | None known. |
-| Done when | It passes, with documented exceptions only (a checkout-config step, if P5-03 keeps one). |
+| Done when | It passes with an empty allowlist, or with at most the two dated rows above. |
 
 #### P6-09 · G9: documents give only Bazel commands, and name only scripts that exist
 
@@ -2304,12 +2651,12 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 |---|---|
 | ID | P6-09 |
 | Why | Plan G9; R1; SC-§3. |
-| Change | `//tools/guards:docs_test`, a `py_test` over every `*.md` in the inventory outside `docs/history/**` and `experiments/**`. It fails on a line matching `\b(mvn\|npx\|npm install\|java -jar\|python3? [^ ]+\.py\|node [^ ]+\.m?js)\b` or `[^ ]+\.sh\b` inside a code span or block, and on a path-like mention of a script that is not in the inventory. Allowlist: `.allow`. |
-| Proof | `bazel test //tools/guards:docs_test`. |
-| Depends on | P6-00, P7-06, P7-07, P7-08, P7-09 |
-| Size | M (1 d) |
+| Change | `//tools/guards:docs_test`, a `py_test` over (1) every `*.md` in the inventory outside `docs/history/**` and `experiments/**`, and **(A13, L:G-7)** (2) comment lines in `*.java`, `*.bzl`, `BUILD.bazel`, `*.ts`, `*.mjs`, `*.py` and `.bazelrc` outside the same trees. **(G-05, A14)** It fails on a match inside a code span or block (docs) or a comment (sources) of: `\b(mvn\|npx\|npm (install\|run\|test\|ci)\|pnpm (install\|run\|test)\|pip3? install\|java (-jar\|-cp)\|javac\|python3? \S+\.py\|node \S+\.m?[jt]s\|duckdb -c\|curl\|wget\|git switch\|gh (run\|release\|pr)\|surefire)\b`; `-Dtest=`; `target/classes` and `core/target`; `^\s*cd \S+ &&`; a `bazel-bin/\S+` path used as a command; `--sandbox_writable_path`; and `[^ ]+\.sh\b`. It also fails on a path-like mention of a script that is not in the inventory. A fixture file holds one sample line per recipe class of audit 06 §3, and each must fail. **(L:G-5)** History is not chosen by a date in the filename: every doc that AGENTS.md does not list as standing and that G9 flags is history, and P7-09 moves it. **Exact allowlist (`tools/guards/docs.allow`; L:G-6; 2026-10-03):** `docs/BAZEL_FIRST_CLASS_PLAN_2026_10_02.md`, `docs/BAZEL_FIRST_CLASS_WORKPLAN_2026_10_03.md` and `docs/bazel-audit-2026-10-02/**` (evidence quoting the commands they remove, until P8-01 closes the effort and moves them to history); `AGENTS.md:372` (the retired common mistake 11; AGENTS.md is load-bearing); `docs/CLOUD_BACKENDS.md:204` (a quotation of Spark's script, not an instruction). |
+| Proof | `bazel test //tools/guards:docs_test`. Every fixture line fails, and HEAD passes with only the rows above. |
+| Depends on | P6-00, P7-06, P7-07, P7-08, P7-09, P7-10, P3-17 |
+| Size | M (1.5 d: the source-comment scan and the recipe fixtures) |
 | Risk/rollback | None known. |
-| Done when | It passes. |
+| Done when | It passes with exactly the allowlist above, and every recipe class of audit 06 §3 has a failing fixture (G-05). |
 
 #### P6-10 · G10: locks enforced and every Maven label declared
 
@@ -2343,12 +2690,12 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 |---|---|
 | ID | P6-12 |
 | Why | Plan G12; CT K15; SP K15. |
-| Change | `//tools/guards:data_globs_test` scans every `BUILD.bazel` in the inventory for `glob(["src/**"])`, or any `glob([...**...])` passed to a test's `data`. |
+| Change | `//tools/guards:data_globs_test` scans every `BUILD.bazel` in the inventory for `glob(["src/**"])`, or any `glob([...**...])` passed to a test's `data`. **(A26; the contradiction with P3-29 is resolved here)** A `**` glob in a test's `data` is allowed only when the same set is passed as the test's argv (the scanner pattern), each with a dated `.allow` row naming the scanner (`portability`, `guardrails`, `state-guardrail`, `config-readers`, `menu-ids`). **(A11)** It also fails on any test whose `data` names a whole-package `:srcs`-style filegroup (for example `//projects:srcs`) without such a row. |
 | Proof | `bazel test //tools/guards:data_globs_test`. |
-| Depends on | P3-05, P3-07 |
+| Depends on | P3-05, P3-07, P3-29 |
 | Size | S (0.25 d) |
 | Risk/rollback | None known. |
-| Done when | It passes. |
+| Done when | It passes with the scanner rows only (A26). |
 
 #### P6-13 · G13: no skips, no reasonless `@Disabled`, no assertion-free tests
 
@@ -2356,9 +2703,9 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 |---|---|
 | ID | P6-13 |
 | Why | Plan G13; CT-N12; SP-N15. |
-| Change | <ul><li>An ArchUnit test in `//tools/guards:test_discipline_test` over every test library's classes: no call to `Assumptions.assume*`/`abort` (the allowlist mirrors `SkipCensusTest`'s dated rows); `@Disabled` only with a reason string that matches a row in `ParkedWorkLedgerTest`'s ledger; every `@Test` method calls some method of `org.junit.jupiter.api.Assertions`, AssertJ, or a local helper annotated `@AssertionHelper`, directly or through same-class private methods.</li><li>JS: no `it.skip`/`todo`/`.only` (an inventory scan).</li></ul> |
-| Proof | `bazel test //tools/guards:test_discipline_test`. |
-| Depends on | P3-14, P3-17 |
+| Change | <ul><li>An ArchUnit test in `//tools/guards:test_discipline_test` over every test library's classes: no call to `Assumptions.assume*`/`abort` (the allowlist mirrors `SkipCensusTest`'s dated rows); `@Disabled` only with a reason string that matches a row in `ParkedWorkLedgerTest`'s ledger; every `@Test` method calls some method of `org.junit.jupiter.api.Assertions`, AssertJ, or a local helper annotated `@AssertionHelper`, directly or through same-class private methods.</li><li>JS: no `it.skip`/`todo`/`.only` (an inventory scan).</li></ul> **(A8)** In a test class, a parameterless `void test*()` method with no JUnit annotation fails, unless it has a dated allowlist row. **(A9)** No `junit-platform.properties` enables parallel execution without a dated row. **(G-11)** No `waitForTimeout(` in `datacube/demo/**`, `query/demo/**` or `site/**`, outside a dated allowlist. |
+| Proof | `bazel test //tools/guards:test_discipline_test`. Negative checks: remove `@Test` from a scratch method; add `waitForTimeout(100)` to a scratch harness. Each fails. |
+| Depends on | P3-14, P3-17, P4-02, P4-04 |
 | Size | M (1.5 d) |
 | Risk/rollback | None known. |
 | Done when | It passes. |
@@ -2370,7 +2717,7 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 | ID | P6-14 |
 | Why | Plan G14; Part 4; BZ-N22. |
 | Change | <ul><li>`.bazelrc`: `build:bazel10 --incompatible_auto_exec_groups --incompatible_check_testonly_for_output_files --incompatible_config_setting_private_default_visibility --incompatible_no_implicit_file_export --incompatible_resolve_select_keys_eagerly --incompatible_disable_starlark_host_transitions --incompatible_check_external_repo_source_dir_package_boundary --incompatible_disable_non_executable_java_binary`: the eight that pass today.</li><li>Add each further flag when it passes after an upstream upgrade.</li><li>One CI job runs `bazel build --nobuild --config=bazel10 //...`. A test cannot run Bazel, so this guard is a CI label job; G8 permits it.</li></ul> |
-| Proof | `bazel build --nobuild --config=bazel10 //...`. |
+| Proof | `bazel build --nobuild --config=bazel10 //...`. **Windows proof (C2)** (§1). |
 | Depends on | P0-11 |
 | Size | S (0.5 d) |
 | Risk/rollback | None known. |
@@ -2382,9 +2729,9 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 |---|---|
 | ID | P6-15 |
 | Why | S2's corrected criterion 1 (a grep guard: no `Repo.path`/`Repo.module`, no `import.meta.url` path arithmetic, no `TEST_SRCDIR`). |
-| Change | `//tools/guards:runfiles_test` scans the inventory: no `TEST_SRCDIR`, `RUNFILES_DIR` (outside `ServerRunfiles.java` and `pinned-chromium.mjs`), `Repo.path`, `Repo.module`, `"_main"` literal, or `new URL\('\.\./` in test and harness sources. |
-| Proof | `bazel test //tools/guards:runfiles_test`. |
-| Depends on | P3-32 |
+| Change | `//tools/guards:runfiles_test` scans the inventory's test, harness and dev-tool sources. It fails on: `TEST_SRCDIR`; `RUNFILES_DIR` (outside `ServerRunfiles.java` and `pinned-chromium.mjs`); a `\"_main\"` literal; **(G-07, L:G-8)** `new URL\(\s*['\"]\.\.?(/\|['\"])`, which matches both `new URL('../` and `new URL('..'`; `fileURLToPath\(new URL`; and `resolve\([^)]*import\.meta\.url[^)]*\)\s*,\s*['\"]\.\.`, which matches `resolve(…import.meta.url…, '..')`; **(A1, C5)** `com\.legend\.testing\.Repo`, `com\.legend\.testing\.Upstream`, `\bRepo\.` and `legend\.repo\.root`. A fixture file holds one line of each form, and each must fail. The dev servers use `@bazel/runfiles` (P4-08), so they need no row; walks inside tree artifacts get dated rows (P3-27b). |
+| Proof | `bazel test //tools/guards:runfiles_test`. Every fixture line fails; the guard would fail on today's `verify-smoke.mjs:33`. |
+| Depends on | P3-32, P3-33, P3-27b, P4-01, P4-02, P4-03, P4-04, P4-05, P4-06, P4-07, P4-08, P4-18 |
 | Size | S (0.5 d) |
 | Risk/rollback | None known. |
 | Done when | It passes. |
@@ -2434,12 +2781,38 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 |---|---|
 | ID | P6-19 |
 | Why | S4 (`revision_test`); plan 1.3 (a diff test of the pinned revision against `browsers.json`). |
-| Change | Already built in P1-14 as `//tools/browser:revision_test`. Here it is only added to `//tools/guards:all` (an alias) and to `//gates:checks`. |
-| Proof | `bazel test //tools/guards:all`. |
-| Depends on | P1-14 |
-| Size | S (0 d: included in P1-14) |
+| Change | Already built in P1-14 as `//tools/browser:revision_test`. Here it is only added to `//tools/guards:all` (an alias) and to `//gates:checks`. **(G-26)** `revision_test` takes every `pnpm-lock.yaml` from `@repo_inventory` (P6-00) and fails on any lock that resolves `playwright-core` but is not checked, so the lock list is derived, not hand-kept. |
+| Proof | `bazel test //tools/guards:all`. A scratch lock in a test fixture that resolves `playwright-core` makes `revision_test` fail (G-26). |
+| Depends on | P1-14, P6-00 |
+| Size | S (0.25 d: the derived lock list) |
 | Risk/rollback | None known. |
 | Done when | It is part of the checks gate. |
+
+#### P6-20 · G20: product code reads only declared environment and properties
+
+| Field | Content |
+|---|---|
+| ID | P6-20 |
+| Why | A6; WH-N10. P7-14's grep sees only `getenv("LL_` and `getenv("LEGEND_LITE_` in `core/src/main`. It misses `System.getProperty("legend.spec.trace")`, `legend.mapping.trace`, `TEST_UNDECLARED_OUTPUTS_DIR` and every other module. G4 scans only tests. |
+| Change | `//tools/guards:product_env_test` scans `*/src/main/**`, `datacube/src/**` and `query/src/**` (inventory) for `System.getenv`, `System.getProperty`, `Boolean.getBoolean`, `Integer.getInteger`, `Long.getLong` and `process.env`. Allowed: a dated `.allow` list (for example `LegendHttpServer`'s `PORT`, the warehouse `Config` flags, the `legend.diagnostics` entry of P3-13 and P7-14, and `BUILD_WORKING_DIRECTORY` under `bazel run`). `TEST_*` names are never allowed. It replaces P7-14's narrow grep. |
+| Proof | `bazel test //tools/guards:product_env_test`. Negative: `System.getProperty("legend.x.trace")` in a scratch product file fails. |
+| Depends on | P6-00, P7-14 |
+| Size | S (0.5 d) |
+| Risk/rollback | None known. |
+| Done when | A new product debug switch needs a dated allowlist row. |
+
+#### P6-90 · Phase 6 audit: done-criteria checked against the coverage table (C4)
+
+| Field | Content |
+|---|---|
+| ID | P6-90 |
+| Why | C4: every phase ends with an audit of its done-criteria against the coverage table. |
+| Change | A reviewer who wrote none of Phase 6's items checks, on `main` (not on a PR branch): each Phase 6 item's Done-when, with the command that shows it; each §6.1, §6.2 and §6.4 row that names a Phase 6 item, against the code rather than the item text; and that every Phase 6 PR carried P0-15's template with an independent reviewer and all-platform CI (and, for a **Windows proof (C2)** item, its Windows evidence). An unmet Done-when reopens its item. A row the items do not actually close becomes an amendment or a new item, with an ID, before the milestone checkpoint closes. The result is a dated table in §6.5. |
+| Proof | §6.5 has a Phase 6 table: one row per Phase 6 item, with its evidence command and verdict, and no open "no" without a follow-up item ID. |
+| Depends on | P6-00, P6-01, P6-02, P6-03, P6-04, P6-05, P6-06, P6-07, P6-08, P6-09, P6-10, P6-11, P6-12, P6-13, P6-14, P6-15, P6-16, P6-17, P6-18, P6-19, P6-20 |
+| Size | M (1 d) |
+| Risk/rollback | An audit finds a gap late. It becomes an item, never a silent pass. |
+| Done when | Every Phase 6 Done-when is verified on `main`, and every gap found has an item. |
 
 ---
 
@@ -2462,7 +2835,7 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 | 11 | CI lane logic in jq/shell, browser loop, pip | P5-03, P1-08, P4-09 |
 | 12 | GENERATED query silent | P0-02 |
 | 13 | 9 tests in no lane; site:verify never run | P0-03, P4-05, P5-01, P5-03 |
-| 14 | Repo / Upstream / EmbeddedPostgres hand-rolled runfiles; `../repo`; JS URL arithmetic | P1-03, P1-04, P1-05, P1-06, P1-24, P3-27, P3-32, P6-15 |
+| 14 | Repo / Upstream / EmbeddedPostgres hand-rolled runfiles; `../repo`; JS URL arithmetic | P1-03, P1-04, P1-05, P1-06, P1-24, P3-27, P3-27b, P3-33, P3-32, P4-01, P6-15 |
 | 15 | Harnesses: js_binary, Chromium in $HOME, fixed ports, env knobs, cwd writes, silent passes, 5k-line suite, duplicates, two Playwrights | P1-14, P1-26, P4-01–P4-10 |
 | 16 | run-stress undefined variable | P0-06 |
 | 17 | pyarrow / host python, silent skip, `--test_env=PATH` | P1-07, P1-08, P3-14 |
@@ -2518,8 +2891,8 @@ Every guard is a test in `//tools/guards`, part of `//...` and of `//gates:check
 | 67 | Heap policy split across .bazelrc and tags | P1-21 |
 | 68 | Disk cache without GC; enable_bzlmod no-op; cache key frozen | P1-28, P5-04 |
 | 69 | http:// extension; selects without default; platform settings local to warehouse | P0-12, P1-19 |
-| 70 | GitHub archive checksum churn | P1-27 (D10) |
-| 71 | Bazel 10 flags failing | P0-11, P1-10 (the patch's `apple_common`), P1-12, P6-14; **deferred:** the bazel_lib, rules_java and rules_license failures are upstream (tracked, see §6.3) |
+| 70 | GitHub archive checksum churn | P1-27 (D10 (c): `https` and `integrity`, no mirror) |
+| 71 | Bazel 10 flags failing | P0-11, P1-10 (the patch's `apple_common`; `--incompatible_stop_exporting_language_modules`, G-21), P1-12, P6-14; **deferred:** the bazel_lib, rules_java and rules_license failures are upstream (tracked, see §6.3) |
 | 72 | `paths-ignore` `.md` false | P0-09, P5-04, P6-17 |
 | 73 | 7p lane missing from valid keys; actions pinned by tag; actionlint curl | P0-03, P5-04, P5-05 |
 | 74 | ~135 unbuilt scripts; docs/ scripts; experiments | P7-01–P7-05, P6-02, P0-01 (the experiments comment) |
@@ -2566,7 +2939,7 @@ All 81 rows are covered. None is dropped.
 | S3 | Windows clang-cl plus xwin (Q6) | **Deferred** per D5 (b): licence click and GraalVM support; L and needs a Windows machine |
 | S3 | Upstream the sysroot passthrough (Q4); GraalVM toolchain constraints (BZ-N7a) | P1-12 |
 | S3 | `BAZEL_DO_NOT_DETECT_CPP_TOOLCHAIN` on macOS and Linux | P1-09, P1-10 |
-| S3 | Mirror the Linux sysroots | P1-27 |
+| S3 | Mirror the Linux sysroots | **Deferred: D10 (c), no mirror.** P1-27 adds `https` and `integrity` only (G-23). |
 | S3 | CI changes (drop gcc, zlib-dev and Xcode selection) | P5-02, P5-03 |
 | S3 | The blocked-CLT guard config | P1-10 (config), P6-18 (guard) |
 | S3 | libxml2 (Q3) | D7 → P1-09, P5-02 |
@@ -2607,6 +2980,115 @@ All 81 rows are covered. None is dropped.
 | Upstream Bazel 10 failures in bazel_lib (`disable_target_default_provider_fields`, `stop_exporting_build_file_path`), rules_java (`no_rule_outputs_param`) and rules_license (`noincompatible_enable_deprecated_label_apis`) | Not our code. G14 adds each flag to `--config=bazel10` as upgrades land. |
 | P3-06 (the core test library split), **if the user chooses** | L-sized. If deferred, plan 3.2's criterion is restated as "editing one test package reruns only that package's target" (met by P3-05). |
 | A remote cache (plan 5 "or better, use a remote cache") | Not needed for correctness. P5-04's SHA-keyed cache meets the plan's done criterion. |
+| *Pre-registered 2026-10-03; each row is added only if its item takes the fallback:* | |
+| P2-09 (b): the agent recording, if it cannot be made byte-stable (A23) | The foreign section (a) and the deterministic resource-section generator still ship, so no section is hand-recorded. |
+| P2-11: manifests that neither the pinned tree nor the release provides (A18) | Only by the user's decision, recorded here with it. |
+| P1-12: `third_party/rules_graalvm_sysroot.patch`, if upstream has not released by the next rules_graalvm minor (G-03) | Listed with the upstream PR link; the patch carries no shell (P1-09). |
+| `--incompatible_stop_exporting_language_modules`, if it still fails after P1-10 (G-21) | Listed with the rules_graalvm issue; joins `build:bazel10` when it passes. |
+| The engine halves of `verify_engine`, `verify_engine_differential` and `verify_calc_vocabulary`, if no released engine server artifact exists (G-10) | They stay `js_binary` dev tools; the URLs checked are recorded. |
+| Whole-tree `@legend_*_src//:tree` consumers that P3-07 keeps by design (A21) | One row per consumer, with its reason (for example `DynaFnGenerator`). |
+| P3-34, if `datacube/src` has import cycles (A30) | The cycle evidence. |
+| A `manual` test outside `//gates:heavy` (G-08) | Its cost and why it cannot run weekly. |
+
+### 6.4 Every gap from the 2026-10-03 coverage checks
+
+Sources: **CC1** = `coverage-check-01-04.md` (A1–A30); **CC2** = `coverage-check-05-07-spikes.md` (G-01–G-33); **L** = `end-state-ledger.md` (G-1–G-11 and P-1–P-6, written L:G-n and L:P-n here so they do not collide with CC2's IDs); **C** = the lead's gaps (C1–C5). Every ID maps to the item(s) or decision(s) that close it.
+
+| Gap | Source | Finding | Closed by |
+|---|---|---|---|
+| A1 | CC1 | `Repo.out`/`outDir`/`rel`, action mode, `actionScratch` and `listed` keep `Repo.java`; `Upstream` survives | P3-33 (new), P3-27 (list format), P3-32, P6-15 |
+| A2 | CC1 | P1-04 breaks the generator actions in transit | P1-04, P3-33 |
+| A3 | CC1 | Directory walkers outside core have no item | P3-27b (new), P1-05 |
+| A4 | CC1 | `$(rlocationpaths)` over Windows' command-line limit; `ArchitectureTest`'s code-source workaround | P3-27 |
+| A5 | CC1 | The census is still orchestrated by hand; P3-13 contradicts P7-14 | P3-13, P7-14 |
+| A6 | CC1 | No guard on product env and property reads | P6-20 (new), P7-14 |
+| A7 | CC1 | `CorpusDifferentialTest` selected by two targets | P3-05, P3-18, P6-03 |
+| A8 | CC1 | Unannotated `void test*` methods | P6-13 |
+| A9 | CC1 | Delta assertions under JUnit parallelism | P3-04, P6-13 |
+| A10 | CC1 | Core's ratchet families are not listed | P2-16 |
+| A11 | CC1 | Core stress and census data; the `heavy` tag; `scale_*` timing scripts | P3-05, P6-12, P5-08 |
+| A12 | CC1 | P0-10's proof cannot catch a tmpdir regression | P0-10 |
+| A13 | CC1 | Maven-era text in sources; probes without declared inputs | P3-17, P7-10, P6-09 |
+| A14 | CC1 | `javac`/`java -cp` recipes | P7-08, P6-09 |
+| A15 | CC1 | `keywords.py` repair (D3 row 6) | P2-20 (new), P7-03 |
+| A16 | CC1 | `initdb` as root; orphaned `postgres` | P3-20, P5-02 |
+| A17 | CC1 | ChannelB cumulative counters | P3-09 |
+| A18 | CC1 | P2-11's "recorded reason" exit | P2-11 |
+| A19 | CC1 | Locale enforcement outside core | P1-20, P3-28 |
+| A20 | CC1 | Bump: `git ls-remote`, nested `bazel`, regex edits | D19 (new), P2-10 |
+| A21 | CC1 | Whole upstream trees kept without a record | P3-07 |
+| A22 | CC1 | `corpus_warehouse` manual with no runner | P3-19, P5-08 |
+| A23 | CC1 | P2-09's fallback leaves sections hand-recorded | P2-09 |
+| A24 | CC1 | P1-16's proof cannot catch extraction | P1-16 |
+| A25 | CC1 | P1-19 never analyses an unlisted platform | P1-19 |
+| A26 | CC1 | G12 contradicts P3-29 | P6-12, P3-29 |
+| A27 | CC1 | Polling heuristics; `Date.now()` run IDs | P3-16 |
+| A28 | CC1 | One-entry-point invariant; the WASM flag can drift | P1-23 |
+| A29 | CC1 | `.mjs` files never typechecked | P4-17 (new) |
+| A30 | CC1 | Every DataCube test depends on all of `:src` | P3-34 (new) |
+| G-01 | CC2 | `Repo.java` survives; `Repo.out` writers unclassified | P3-33, P2-16, P3-32 |
+| G-02 | CC2 | `PctDisciplineTest` drops out of every gate | P3-09 |
+| G-03 | CC2 | The rules_graalvm patch adds a shell and may stay for good | P1-09, P1-12 |
+| G-04 | CC2 | `keywords.py` has no item | P2-20 |
+| G-05 | CC2 | G9's regex misses most recipe forms | P6-09 |
+| G-06 | CC2 | `scripts/parser/HANDOFF.md:84` recipe | P7-08, P2-20 |
+| G-07 | CC2 | Harnesses use `import.meta.url` arithmetic; G15 misses `'..'` | P4-01, P6-15 |
+| G-08 | CC2 | Manual targets are run by nothing | P5-08 (new), P1-02, P6-03 |
+| G-09 | CC2 | `chaos` filed as an engine harness | P4-07 |
+| G-10 | CC2 | Engine harnesses fall back to a hand-started engine | P1-18 |
+| G-11 | CC2 | Fixed sleeps and wall-clock deadlines in harnesses | P4-02, P4-04, P6-13 |
+| G-12 | CC2 | Three undecided harness overlaps | P4-06 |
+| G-13 | CC2 | `FUNCTIONS_EXECUTED.tsv` writer vs "no generator" | P2-18, P7-03 |
+| G-14 | CC2 | The decided interim `check.py` gate is missing | P7-03 |
+| G-15 | CC2 | `native-axes.py` reads `core/target` | P7-03 |
+| G-16 | CC2 | `upstream-drift.py` runs `curl` and `git` | P7-03, D19 |
+| G-17 | CC2 | `move_classes.py`'s dead `pom.xml` code; `git mv` | P7-02, D19 |
+| G-18 | CC2 | `bench/model/*.py` fate undecided | D21 (new), P4-15 |
+| G-19 | CC2 | Two repro trees | P7-08 |
+| G-20 | CC2 | Moving AGENTS-linked files breaks AGENTS.md | P2-18 |
+| G-21 | CC2 | `--incompatible_stop_exporting_language_modules` untracked | P1-10 |
+| G-22 | CC2 | Public visibility beyond four packages; no check | P7-11 |
+| G-23 | CC2 | D10 (c) contradicts P1-27, P2-10 and §6.2 | P1-27, P2-10, D10 |
+| G-24 | CC2 | The CI image is not runnable as specified | P5-02 |
+| G-25 | CC2 | The repository cache is dropped from CI | P5-03, P5-04 |
+| G-26 | CC2 | `revision_test`'s lock list is hand-kept | P1-14, P6-19 |
+| G-27 | CC2 | ANSI argv and `args` behaviour undocumented | P4-12 |
+| G-28 | CC2 | Stale facts in 60's header are optional to fix | P2-03 |
+| G-29 | CC2 | `docs/GATES.md:28` not named | P7-07 |
+| G-30 | CC2 | JUnit 6 upgrade untracked | P1-01 |
+| G-31 | CC2 | One Playwright or two locks (DEFERRED-OK) | D15, P1-26, P6-19 |
+| G-32 | CC2 | Cross-commit census comparison needs a copy step | P3-13 |
+| G-33 | CC2 | P7-10's grep misses two missing scripts | P7-10 |
+| L:G-1 | L | G5 cannot see Python spawns | P6-05, P7-03, D18 (new) |
+| L:G-2 | L | G5's allowlist misses 9 real sites | P6-05 |
+| L:G-3 | L | Generator actions lose `Repo` and `Upstream`; P1-04 contradicts P3-32 | P3-33, P1-04, P3-32 |
+| L:G-4 | L | `taskkill` in tests | P4-18 (new) |
+| L:G-5 | L | Current-doc recipes outside P7-06..P7-09; undated history docs | P7-08, P7-09, P6-09 |
+| L:G-6 | L | G9 and P7-09 would hit the plan's own documents | P6-09, P7-09, P8-01 |
+| L:G-7 | L | G9 scans only `.md` | P6-09 |
+| L:G-8 | L | G15 misses `new URL('..'` and `resolve(…, '..')` | P6-15, P4-08 |
+| L:G-9 | L | Third-party shell (`/bin/bash`) undeclared | D20 (new), P5-07 |
+| L:G-10 | L | `//wasm`'s JS tests are outside `node_test` | P1-23 |
+| L:G-11 | L | The CI `git config` step has no owner | P5-03, P6-08 |
+| L:P-1 | L | `Repo.java` survives P3-32 | P3-33 |
+| L:P-2 | L | CI steps under Git Bash on Windows | P5-03 |
+| L:P-3 | L | D3 row 6 has no implementing item | P2-20 |
+| L:P-4 | L | `tzutil` in CI | P5-03, P6-08 |
+| L:P-5 | L | Free-text lane selection in `gate.yml` | P5-03 |
+| L:P-6 | L | `upstream-drift.py` still runs `curl` and `git` | P7-03, D19 |
+| C1 | C | No branch protection; Windows CI cannot block | D17 (new), P0-14 (new) |
+| C2 | C | No PowerShell desk lane; Windows-sensitive items lack a Windows proof | P5-09 (new); the **Windows proof (C2)** mark (§1 rule 7) on P0-02, P0-03, P0-04, P0-10, P0-12, P0-14, P1-01, P1-03 … P1-06, P1-08 … P1-11, P1-15 … P1-17, P1-19, P1-21 … P1-24, P1-28, P2-09, P3-20 … P3-22, P3-24, P3-27, P3-27b, P3-32, P3-33, P4-12 … P4-14, P4-18, P5-03 … P5-07, P6-14, P7-11 |
+| C3 | C | No CODEOWNERS for the Windows contributor | D17, P0-14 |
+| C4 | C | Process gates: independent review, all-platform CI, phase audits, final re-audit | P0-15 (new), P0-90 … P7-90 (new), P8-01 (new), §1 process gates |
+| C5 | C | `testing/Repo.java` and `Upstream.java` must be deleted, not reduced | P3-33 |
+
+All 85 IDs are mapped. The ledger's proposed G2, G5 and G8 allowlists are adopted, adjusted by the decisions, in P6-02, P6-05 and P6-08, and summarised in §8.
+
+### 6.5 Audit log (filled by P0-90 … P7-90 and P8-01)
+
+| Phase | Date | Auditor | Items checked | Done-when met | Gaps found → items |
+|---|---|---|---|---|---|
+| — | — | — | — | — | — |
 
 ---
 
@@ -2614,31 +3096,39 @@ All 81 rows are covered. None is dropped.
 
 ### 7.1 Effort totals
 
-Day figures come from each item's Size field.
+Day figures come from each item's Size field (summed mechanically on 2026-10-03; the earlier table missed P1-25b's 0.5 d).
 
 | Phase | Items | Engineer-days | Grounded in a spike's measurement | Estimate only |
 |---|---|---|---|---|
-| 0 | 13 | 6.5 | — | 6.5 |
-| 1 | 28 | 28.75 | S1 (P1-01/02: 2 d vs S1 "M, 2–3 d"); S2 (P1-03–06, P1-16, P1-17, P1-23/24: 10.25 d vs S2 "3–4 + 2–3 + 1–1.5 + 0.25" = 6.25–8.75 d, plus the macro work S2 did not count); S3 (P1-09–12: 4.25 d vs "2–3 d plus 0.25 d plus upstream"); S4 (P1-14: 1 d vs "1 d"); S5 (P1-07: 0.5 d) | the rest (about 10.75 d) |
-| 2 | 19 | 20 | S5 (P2-01–05: 3.5 d vs "2–2.5 d plus 0.5–1 d dedupe") | 16.5 |
-| 3 | 32 | 54.5 | S2 (P3-32 part), S1 (P3-09 confirmation) | most: Phase 3 had no spike, and the plan's single "L" for it covered about 30 PR-sized changes |
-| 4 | 16 | 16 | S4 (P4-01–05, P4-10: 5.5 d vs "5–6 d"); S2 (P4-12: 1.5 d vs "1–1.5 d") | 9 |
-| 5 | 7 | 7 | S4 (CI edits) | 6 |
-| 6 | 20 | 16.25 | — | 16.25 |
-| 7 | 15 | 17 | — | 17 |
-| **Total** | **150** | **≈ 166 engineer-days** | about 25 d directly spike-measured | about 140 d estimated |
+| 0 | 16 | 7.75 | — | 7.75 |
+| 1 | 30 | 31.75 | S1 (P1-01/02: 2 d vs S1 "M, 2–3 d"); S2 (P1-03–06, P1-16, P1-17, P1-23/24: 10.25 d vs S2 "3–4 + 2–3 + 1–1.5 + 0.25" = 6.25–8.75 d, plus the macro work S2 did not count); S3 (P1-09–12: 4.75 d vs "2–3 d plus 0.25 d plus upstream"); S4 (P1-14: 1 d vs "1 d"); S5 (P1-07: 0.5 d) | about 13.25 |
+| 2 | 21 | 23.5 | S5 (P2-01–05: 3.5 d vs "2–2.5 d plus 0.5–1 d dedupe") | 20 |
+| 3 | 36 | 64 | S2 (P3-32 part), S1 (P3-09 confirmation) | most: Phase 3 had no spike, and the plan's single "L" for it covered about 30 PR-sized changes |
+| 4 | 19 | 18.5 | S4 (P4-01–05, P4-10: 6 d vs "5–6 d"); S2 (P4-12: 1.5 d vs "1–1.5 d") | 11 |
+| 5 | 10 | 10 | S4 (CI edits) | 9 |
+| 6 | 22 | 19 | — | 19 |
+| 7 | 16 | 19 | — | 19 |
+| 8 | 1 | 2 | — | 2 |
+| **Total** | **171** | **≈ 195.5 engineer-days** | about 26 d directly spike-measured | about 170 d estimated |
 
-**An honest reading.** The spikes confirmed the plan's estimates wherever they measured: S1, S2, S3, S4 and S5 each landed inside or near the plan's M/L. The audit-level plan's *phase-level* figures (7 weeks) did not count Phase 3's and Phase 6's PR-level breadth. At item level, the work is about **33 engineer-weeks** (166 days). The real limit is the desk's **two heavy slots**, not engineers.
+**What the 2026-10-03 amendment added: about 29 days.** The earlier total was 166.5 days (150 items in the table, 151 in fact). The additions:
+
+- **New items, 11.25 d:** P0-14 0.5, P0-15 0.25, P2-20 1, P3-27b 2, P3-33 2.5, P3-34 1.5, P4-17 1, P4-18 0.5, P5-08 0.5, P5-09 1, P6-20 0.5.
+- **Process gates (C4), 7.5 d:** the eight phase audits P0-90 … P7-90 (5.5 d) and the final re-audit P8-01 (2 d).
+- **Resized items, 10.25 d:** P1-09 +0.5, P1-20 +1, P2-10 +1, P2-16 +1, P3-05 +0.5, P3-09 +0.5, P3-13 +1, P3-27 +0.5, P4-01 +0.5, P5-03 +0.5, P5-07 +0.5, P6-05 +0.5, P6-09 +0.5, P6-19 +0.25, P7-03 +1, P7-11 +0.5.
+- Smaller amendments (proof commands, a docs line, a guard pattern) were absorbed into the existing sizes.
+
+**An honest reading.** The spikes confirmed the plan's estimates wherever they measured: S1, S2, S3, S4 and S5 each landed inside or near the plan's M/L. The audit-level plan's *phase-level* figures (7 weeks) did not count Phase 3's and Phase 6's PR-level breadth. At item level the work is now about **39 engineer-weeks** (195.5 days). The open decisions move it: D18 (b) would add about 6–8 days, and D19 (a) would save about 1. The real limit is still the desk's **two heavy slots**, not engineers.
 
 ### 7.2 Tracks and the heavy-slot schedule
 
 | Track | Mostly heavy on | Items |
 |---|---|---|
-| **J** (JVM test graph) | H-core, H-spec, H-pct, H-pe | P1-01/02/04/05/21, P2-13–16/19, P3-01–09, P3-11–15, P3-17, P3-27/28/30/31 |
-| **G** (generators, Python) | H-stress (one core) | P1-07, P2-01–05, P2-18, P3-18, P3-25, P7-02/03 |
+| **J** (JVM test graph) | H-core, H-spec, H-pct, H-pe | P1-01/02/04/05/21, P2-13–16/19, P3-01–09, P3-11–15, P3-17, P3-27/27b/28/30/31/33 |
+| **G** (generators, Python) | H-stress (one core) | P1-07, P2-01–05, P2-18, P2-20, P3-18, P3-25, P7-02/03 |
 | **N** (native, warehouse, toolchains) | H-native, H-docker | P0-13, P1-08–13, P1-15–17, P2-09, P3-19–22, P4-12–14, P6-18 |
-| **W** (web, browser, JS) | H-browser | P1-14, P1-23/24, P3-10, P3-16, P3-29, P4-01–11, P4-15/16 |
-| **C** (CI, guards, docs) | none (CI) | P0-02/03, P1-25–28, P5-*, P6-*, P7-* |
+| **W** (web, browser, JS) | H-browser | P1-14, P1-23/24, P3-10, P3-16, P3-29, P3-34, P4-01–11, P4-15–18 |
+| **C** (CI, guards, docs, process) | none (CI) | P0-02/03, P0-14/15, P1-25–28, P5-* (P5-08, P5-09 included), P6-* (P6-20 included), P7-*, the audits P0-90 … P7-90, P8-01 |
 
 **Rule: at most two of J, G, N and W run a heavy proof at the same time.** H-pct at 9 GB takes both slots: schedule `pct_duckdb`/`pct_postgres` runs alone, overnight where possible. Light work (code, BUILD edits, light tests) on any track goes on in parallel.
 
@@ -2646,14 +3136,15 @@ Day figures come from each item's Size field.
 
 | Milestone | Calendar (2 to 3 engineers or agents, 2 heavy slots) | Contents | Heavy slots used by | Checkpoint (green `bazel test //...` on three platforms, plus) |
 |---|---|---|---|---|
-| **M0: decisions and Phase 0** | week 1 | D1–D16 asked; P0-01–P0-13; P1-07; P6-00 started | J (P0-07), N (P0-13) | CI runs every test and fails loudly; locks enforced |
-| **M1: foundations** | weeks 2–4 | Phase 1 (P1-01–P1-28); P6-10, P6-11, P6-14, P6-16, P6-17, P6-19; P7-10, P7-12 | J (P1-04/05 lanes; P1-02 is CI), N (P1-09 docker, P1-10, P1-16) | runner speaks the protocol (test.xml, filter, shards); hermetic C on macOS and Linux; G10, G11, G14, G16 and G17 on |
-| **M2: generators and test graph** | weeks 4–9 | Phase 2 except P2-09; Phase 3 except P3-19/21/22 | J (P3-* core, spec, pct lanes), G (P2-01–05 stress) | prerun gone; core split; PCT per suite; stress corpus generated; G1, G3, G7, G12 and G13 on as their dependencies land |
-| **M3: browser, app, packaging** | weeks 8–11 (overlaps M2's tail) | Phase 4; P2-09; P3-19, P3-21, P3-22 | W (P4-02–10), N (P4-12/13, P2-09, P3-21/22) | no bash launcher, no `install_browser`; `//warehouse:dist` tested; G5 and G6 on |
-| **M4: CI as labels and the remaining guards** | weeks 11–12 | Phase 5; P3-32; P6-01–09, P6-15, P6-18; P7-01–P7-09, P7-13 | CI only | workflows are labels only; Windows manifest-only; G2, G8, G9, G15 and G18 on |
+| **M0: decisions and Phase 0** | week 1 | D1–D16 recorded; **D17–D21 asked**; P0-01–P0-15 (P0-14 once D17 is answered); P5-09; P1-07; P6-00 started | J (P0-07), N (P0-13) | CI runs every test and fails loudly; locks enforced; the PowerShell desk lane runs; P0-90 done |
+| **M1: foundations** | weeks 2–4 | Phase 1 (P1-01–P1-28, P1-25b); P6-10, P6-11, P6-14, P6-16, P6-17, P6-19; P7-10, P7-12 | J (P1-04/05 lanes; P1-02 is CI), N (P1-09 docker, P1-10, P1-16) | runner speaks the protocol (test.xml, filter, shards); hermetic C on macOS and Linux; G10, G11, G14, G16, G17 and G19 on; P1-90 done |
+| **M2: generators and test graph** | weeks 4–10 | Phase 2 except P2-09 (P2-20 included); Phase 3 except P3-19/21/22/32 (P3-27b, P3-33, P3-34 included) | J (P3-* core, spec, pct lanes), G (P2-01–05 stress) | prerun gone; core split; PCT per suite; stress corpus generated; `Repo.java` and `Upstream.java` deleted (P3-33); G1, G7, G12 and G13 on as their dependencies land; P2-90 done |
+| **M3: browser, app, packaging** | weeks 9–12 (overlaps M2's tail) | Phase 4 (P4-17, P4-18 included); P2-09; P3-19, P3-21, P3-22 | W (P4-02–10), N (P4-12/13, P2-09, P3-21/22) | no bash launcher, no `install_browser`; `//warehouse:dist` tested; no `taskkill`; G6 on; P4-90 done |
+| **M4: CI as labels and the remaining guards** | weeks 12–14 | Phase 5 (P5-08 included); P3-32; P6-01–09, P6-15, P6-18, P6-20; P7-01–P7-09, P7-13 | CI only | workflows are labels only; Windows manifest-only; G2, G3, G5, G8, G9, G15, G18 and G20 on with their exact allowlists; P3-90, P5-90, P6-90 and P7-90 done |
+| **M5: close-out** | week 15 | P8-01 | none (read-only re-audit) | the final re-audit reports no unowned gap; §8 matches the tree; the plan and its evidence move to `docs/history/` |
 | *Throughout* | | Phase 7 items as their dependencies clear; P7-14 (product debug switches) late in M3 or M4 | | |
 
-**Calendar estimate:** about **11–13 weeks** with 2–3 parallel workers. That figure depends on the user answering D1–D16 within M0. D9 alone gates five items, and D3 gates eleven.
+**Calendar estimate:** about **13–15 weeks** with 2–3 parallel workers (the amendment's 29 days add about two weeks). That figure depends on the user answering D17–D21 within M0, as D1–D16 were. D18 and D19 gate P6-05 and P7-03; D17 gates P0-14, without which a Windows regression can still merge.
 
 ### 7.4 Critical path
 
@@ -2661,16 +3152,16 @@ The longest dependency chain runs through the JVM test graph. Every link on it n
 
 ```
 D2, D6 ─┐
-P0-10 → P1-01 → P1-02 (CI) → P1-21 → P3-04 → P3-05 → [P3-08 → P3-09] → P5-01 → P5-03 → P6-03 / P6-08
+P0-10 → P1-01 → P1-02 (CI) → P1-21 → P3-04 → P3-05 → [P3-08 → P3-09] → P5-01 → P5-03 → P5-08 → P6-03 / P6-08 → P6-90 → P8-01
               └→ P3-01 → P2-15 (with D9)
 ```
 
-- Chain length: about **16 engineer-days** on the main chain (P0-10 1, P1-01 1, P1-02 1, P1-21 1, P3-04 2, P3-05 1.5, P3-08 1, P3-09 3, P5-01 1, P5-03 2, P6-03 1.5), and about **20** counting the P3-01 → P2-15 branch.
+- Chain length: about **21 engineer-days** on the main chain (P0-10 1, P1-01 1, P1-02 1, P1-21 1, P3-04 2, P3-05 2, P3-08 1, P3-09 3.5, P5-01 1, P5-03 2.5, P5-08 0.5, P6-03 1.5, P6-90 1, P8-01 2), and about **25** counting the P3-01 → P2-15 branch.
 - Under the two-slot cap the PCT steps (9 GB) serialise. Expect **about 5–6 calendar weeks** for this chain alone.
 
 Secondary chains, each shorter:
 
-- **Runfiles:** P1-03 → P1-05 → P3-27 → P3-32 → P6-15. About 7 days.
+- **Runfiles:** P1-03 → P1-05 → P3-27 → P3-27b → P3-33 → P3-32 → P6-15. About 12.5 days (P3-27b and P3-33 add 4.5 days, so that `Repo` and `Upstream` are deleted, C5).
 - **Browser:** P1-14 → P4-01 → P4-02–06 → P4-09 → P5-03. About 6 days of heavy browser time.
 - **macOS hermetic C:** D1 → P1-10 → P6-18 → P5-03 (macOS config). Gated by the legal answer to D1. S3: "1 day is gated on the SDK decision".
 
@@ -2680,3 +3171,33 @@ Secondary chains, each shorter:
 2. Run P1-02's identity diff entirely on CI artifacts, as specified, so it costs no local heavy slot.
 3. Run the PCT re-measurements (P3-09) overnight, alone on the desk.
 4. Land P2-05 (build.py dedupe) before the many P2-0x re-runs of `gen_stress`.
+5. Answer D17 early and land P0-14 and P5-09 in M0, so Windows regressions are blocked for the whole effort, not only at the end.
+
+---
+
+## 8. End state
+
+When every item has landed, with D17–D21 decided as recommended, **all of our own shell is gone:** no genrule, no `run_shell`, no bash launcher, no `.sh` file outside `docs/history/` and `experiments/`, no `jq`/`pip`/`curl`/`bazel query` loop and no shell logic in CI, no test that starts a JVM of itself, no hand-rolled `TEST_SRCDIR` parsing, no `testing/Repo.java` or `testing/Upstream.java`, no `taskkill`, no host checkout read, and no document or code comment that gives a non-Bazel recipe. **But "no non-Bazel orchestration at all" is not the end state.** This is what remains, each with its reason and its guard entry. It is the ledger's answer (its section 1), amended by the resolved contradictions and by the recommended branches of the open decisions.
+
+| # | What remains | Why it stays | Guard entry |
+|---|---|---|---|
+| 1 | **Tests that start a Bazel-built binary from runfiles:** `EmbeddedPostgres` (`initdb`, `postgres`), `TestServer` and `DuckWorkspaces` (the native warehouse), `ServeTest` (`//warehouse:serve`), `DistTest` (`//warehouse:dist`), `WarehouseArrowTest` (a `py_binary`), `harness.mjs startServer`, `live-snap.ts`, `query-store/test/lite.test.ts` | A test must run the real binary it judges. Each binary is a declared runfile, started on port 0 and stopped by closing stdin (P4-18), not by a host tool. | G5: 9 rows (P6-05) |
+| 2 | **Python starting Java:** `scripts/corpus/run.py`'s one `launch()`, which runs `//tools/engine-runner:testable` from runfiles for the 15 probes, `loadtime.py`, the manual `engine_stress` test and, until P3-23, the interim `projects_check` test | D18 (a): developer diagnostics that D3 kept; one function, over a runfile. Under D18 (b) this row disappears. | G5: 1 row *(if D18 (a))* |
+| 3 | **Product code that opens the user's browser:** `WarehouseServer --open` (`open`, `rundll32`, `xdg-open`) and the dev server `datacube/demo/serve.mjs --open` | Product behaviour for a person, not orchestration of the build. | G5: 2 rows |
+| 4 | **`bazel run` tools that call host programs:** none under D19 (b). Under D19 (a) or (c): Bump (`git ls-remote`, nested `bazel` through `$BAZEL_REAL`), `move_classes.py` (`git mv`), `upstream-drift.py` (`curl`, `git ls-tree`) | D19 (OPEN). | G5: 0 rows under (b); up to 3 *(if D19 (a) or (c))* |
+| 5 | **Conditional spawns:** `fixtures/saved-queries/make.mjs` starting the server JVM inside its `js_run_binary` action (only if P2-06's investigation chooses D14 (a)); `tools/engine-runner/start.mjs` (only if P1-18 finds a released engine server) | Each is the generator's or harness's own server, from a declared input. | G5: up to 2 rows *(conditional)* |
+| 6 | **Host prerequisites forced by a licence or by third-party rules:** the macOS CLT **SDK files**, copied and sha256-checked (D1); Windows **MSVC**, checked by P1-11's `vswhere` preflight through Starlark `rctx.execute` (D5); **`libxml2.so.2`** on Linux build hosts, only if no clean `lld` exists (D7 (a)); **bash**: `/bin/bash` on macOS and Linux and Git for Windows' bash (`.bazelrc:35-36`), required by rules_java, rules_js, bazel_lib and rules_jvm_external, not by our code (D20); Windows symlink privilege, only if P3-32's CI run proves `--windows_enable_symlinks` is still needed; Chromium's 17 system libraries on a **Linux desk** (CI uses the pinned image); `git` for checkout; GitHub's hosted macOS and Windows runner images | None of these can be fetched by Bazel today (licence, GraalVM support, or third-party launchers). Each is declared, not hidden. | `README.md` Prerequisites and dated `.bazelrc` comments with the measured shell mnemonics (P5-07, P5-02). Starlark is outside G5's scope; P1-11's single `rctx.execute` is this row. |
+| 7 | **CI:** every workflow step is one `bazel test`/`build`/`run` line on literal labels, run in the runner's default shell; `uses:` steps (checkout, cache) are SHA-pinned; the weekly `//gates:heavy` run (P5-08) and the PowerShell desk lane (P5-09) are `bazel` lines too | GitHub needs checkout and cache steps. At most two shell steps survive, and only if proven necessary: `git config core.longpaths` (L:G-11) and `tzutil` (L:P-4). | G8: empty, or at most those 2 dated rows (P6-08) |
+| 8 | **History, kept inert:** `docs/history/**` (the scripts the review kept as history, including 3 `.sh` files and 14 Java probes, plus the 22 undated history docs and, after P8-01, this plan and its evidence); `experiments/**`, bazelignored by decision (17 unbuilt scripts, 4 of them `.sh`) | D16 and the user's decision on `experiments/`. | G2: no rows, structural exemptions only (P6-02); G9 skips both trees (P6-09) |
+| 9 | **Bazel's own caches in `$HOME`:** the disk cache (`.bazelrc:62`, garbage-collected by P1-28) and the repository cache (`common:ci`, P5-03) | Bazel infrastructure, not orchestration. | none needed |
+| 10 | **Two harmless pattern hits:** `ErrorShapeGuardrailTest.java:279` and `portability.test.ts:85-86` contain spawn patterns as guard text, not spawns | False positives of a text scan. | G5: 2 rows |
+| 11 | **Engine-backed harness halves,** only if P1-18 finds no released engine server: `verify_engine`, `verify_engine_differential` and `verify_calc_vocabulary`'s engine half stay `js_binary` dev tools that need a hand-started engine on :6300 | No artifact to fetch; `chaos` no longer depends on it (G-09). | §6.3 row with the URLs checked (G-10) |
+
+**Exact allowlists at the end** (P8-01 checks the tree against them):
+
+| Guard | Allowlist | Rows |
+|---|---|---|
+| G2 (P6-02) | `tools/guards/scripts.allow` | none; exemptions `docs/history/**` and the bazelignored `experiments/**` |
+| G5 (P6-05) | `tools/guards/process_spawn.allow` | 14 with the recommended decisions (rows 1, 2, 3 and 10 above); up to 19 if D19 (a) and both conditional rows apply; 13 under D18 (b) |
+| G8 (P6-08) | `tools/guards/workflows.allow` | none; at most 2 dated rows, only if proven needed |
+| G9 (P6-09) | `tools/guards/docs.allow` | the active plan and its evidence until P8-01, `AGENTS.md:372`, `docs/CLOUD_BACKENDS.md:204` |
