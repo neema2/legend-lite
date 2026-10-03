@@ -940,6 +940,19 @@ This order respects every *Depends on* field in §4 and §5. Items on one line h
 | Risk/rollback | Declaring an artifact can change resolution, and so a version. The lock diff shows it, and the PR text names each change. Rollback per pool. |
 | Done when | Every Maven label used in BUILD files is declared in its pool. Guard G10 (P6-10) keeps it so. |
 
+#### P1-25b · Repinning reads no host Maven state
+
+| Field | Content |
+|---|---|
+| ID | P1-25b |
+| Why | Found while executing P0-08 (2026-10-03): `REPIN=1 bazel run @maven_upstream//:pin` (rules_jvm_external's `resolver = "maven"`, used by `maven_upstream`, `maven_runner` and `maven_test`) consulted `~/.m2/repository` as a local repository ("present in the local repository … verifying that is downloadable from file:///…/.m2/repository/"). The resulting lock is still checked by sha256, so builds stay deterministic. But **resolution** reads a host folder, so two machines could resolve differently. |
+| Change | **Investigate first:** which rules_jvm_external 7.1 option or environment setting points the Maven resolver at a repository-local, empty or Bazel-owned local repository (or disables it), and whether `settings.xml` from `~/.m2` is read too. Then set it for every `resolver = "maven"` pool, or route repins through the coursier resolver where the BOM import allows. |
+| Proof | With `~/.m2` moved aside (or `HOME` pointed at an empty directory), `REPIN=1 bazel run @maven_upstream//:pin` produces a byte-identical `maven_upstream_install.json`. |
+| Depends on | P0-04 |
+| Size | S (0.5 d), after the investigation |
+| Risk/rollback | Resolution may get slower without the local cache. Bazel's repository cache still holds the jars. |
+| Done when | No pin action reads `~/.m2`. |
+
 #### P1-26 · pnpm locks checked against `package.json`; exact versions
 
 | Field | Content |
