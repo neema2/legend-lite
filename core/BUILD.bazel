@@ -347,7 +347,11 @@ junit_test(
         "--select-package=com.legend",
         "--include-tag=guardrail",
     ],
-    runtime_deps = [":core_tests_lib"],
+    # :duckdb_load too: ArchitectureTest judges every product library (theImportIsEveryProductLibrary)
+    runtime_deps = [
+        ":core_tests_lib",
+        ":duckdb_load",
+    ],
 )
 
 junit_test(

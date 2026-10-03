@@ -265,7 +265,7 @@ run, and are removed before any commit.
 
 ### Phase B — fix the blind spots
 
-- **B1. The guards see exactly the product.**
+- **B1. The guards see exactly the product — DONE 2026-10-03.** `ArchitectureTest.theImportIsEveryProductLibrary` (one class per product library; proven by a negative run without `:duckdb_load`: it fails naming it); `DuckDbAppenderLoad` now judged by every rule and satisfies them (F1.11 included, no baseline moved); test support out of `CORE_PROD_CLASSES`; F1.3b documents what it measures.
   - `//core:guardrails` (and any target running `ArchitectureTest`) loads `:duckdb_load`, so
     `DuckDbAppenderLoad` is checked; F1.11's driver-native funnel re-measured with it (its true baseline, dated).
   - `CORE_PROD_CLASSES` excludes test support (`com.legend.testing..`, `com.legend.tools..`) by name, so the set is

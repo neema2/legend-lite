@@ -91,14 +91,68 @@ final class ArchitectureTest {
     }
 
     /**
-     * Imports only production classes (excludes {@code src/test/}). All
-     * structural rules apply to production code; tests may use whatever
-     * helpers they need without piercing the production import boundary.
+     * Imports exactly the production classes: not this test tree, and not the test SUPPORT
+     * on the classpath under {@code com.legend} ({@code //testing}'s {@code com.legend.testing}, the
+     * JUnit launcher's {@code com.legend.tools}) — measured 2026-10-03, those four classes were checked
+     * as product. All structural rules apply to production code; tests may use whatever helpers they
+     * need without piercing the production import boundary. {@link #theImportIsEveryProductLibrary}
+     * pins that every product library is in it (the guardrail target loads {@code :duckdb_load} for
+     * that: its {@code DuckDbAppenderLoad} was invisible to every rule until then).
      */
     private static final JavaClasses CORE_PROD_CLASSES = new ClassFileImporter()
             .withImportOption(ImportOption.Predefined.DO_NOT_INCLUDE_TESTS)
             .withImportOption(ArchitectureTest::notThisTestTree)
-            .importPackages("com.legend");
+            .importPackages("com.legend")
+            .that(com.tngtech.archunit.core.domain.JavaClass.Predicates.resideOutsideOfPackages(
+                    "com.legend.testing..", "com.legend.tools.."));
+
+    /** One class of every product library (`tools/deps/core-layers.txt`, plus `:duckdb_load`), by library. */
+    private static final java.util.Map<String, String> PRODUCT_LIBRARIES = java.util.Map.ofEntries(
+            java.util.Map.entry("spi", "com.legend.spi.ElementSink"),
+            java.util.Map.entry("cache", "com.legend.cache.ContentStore"),
+            java.util.Map.entry("values", "com.legend.values.LiteralText"),
+            java.util.Map.entry("error", "com.legend.error.LegendCompileException"),
+            java.util.Map.entry("lexer", "com.legend.lexer.Lexer"),
+            java.util.Map.entry("sql", "com.legend.sql.SqlQuery"),
+            java.util.Map.entry("protocol", "com.legend.protocol.Protocol"),
+            java.util.Map.entry("model", "com.legend.model.ConnectionDefinition"),
+            java.util.Map.entry("parser", "com.legend.parser.ElementParser"),
+            java.util.Map.entry("builtin", "com.legend.builtin.Pure"),
+            java.util.Map.entry("platform", "com.legend.platform.WalledBodies"),
+            java.util.Map.entry("compiler_element_type", "com.legend.compiler.element.type.ExprType"),
+            java.util.Map.entry("sql_dialect", "com.legend.sql.dialect.SqlDialect"),
+            java.util.Map.entry("compiler", "com.legend.compiler.NameResolver"),
+            java.util.Map.entry("normalizer", "com.legend.normalizer.ModelNormalizer"),
+            java.util.Map.entry("lineage", "com.legend.lineage.ColumnLineageRows"),
+            java.util.Map.entry("validation", "com.legend.validation.ValidateDesugar"),
+            java.util.Map.entry("lowering", "com.legend.lowering.Lowerer"),
+            java.util.Map.entry("plan", "com.legend.plan.QueryPlan"),
+            java.util.Map.entry("resolver", "com.legend.resolver.StoreResolver"),
+            java.util.Map.entry("exec", "com.legend.exec.Executor"),
+            java.util.Map.entry("probe", "com.legend.probe.Shadow"),
+            java.util.Map.entry("testdatagen", "com.legend.testdatagen.TestDataGenerationNatives"),
+            java.util.Map.entry("driver", "com.legend.Compiler"),
+            java.util.Map.entry("ide", "com.legend.ide.ModelIndex"),
+            java.util.Map.entry("test", "com.legend.test.PureTestRunner"),
+            java.util.Map.entry("server_lib", "com.legend.server.QueryService"),
+            java.util.Map.entry("duckdb_load", "com.legend.exec.DuckDbAppenderLoad"));
+
+    /**
+     * Every rule here judges {@link #CORE_PROD_CLASSES}; a product library missing from it is a library
+     * no rule sees (2026-10-03: {@code :duckdb_load} was). So the import must hold a class of every
+     * product library, and nothing of the test support.
+     */
+    @Test
+    void theImportIsEveryProductLibrary() {
+        java.util.List<String> missing = PRODUCT_LIBRARIES.entrySet().stream()
+                .filter(e -> !CORE_PROD_CLASSES.contain(e.getValue()))
+                .map(e -> e.getKey() + " (" + e.getValue() + ")").sorted().toList();
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), missing,
+                "product libraries no ArchitectureTest rule sees — put them on //core:guardrails's classpath");
+        java.util.List<String> support = CORE_PROD_CLASSES.stream().map(com.tngtech.archunit.core.domain.JavaClass::getName)
+                .filter(n -> n.startsWith("com.legend.testing.") || n.startsWith("com.legend.tools.")).sorted().toList();
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), support, "test support judged as product");
+    }
 
 
     /**
@@ -762,7 +816,15 @@ final class ArchitectureTest {
 
     /**
      * <strong>F1.3b — the root package's {@code java.sql} class-list
-     * pin.</strong> The funnel licenses {@code com.legend} ROOT, which
+     * pin.</strong> WHAT IT MEASURES (2026-10-03): a class DEPENDING on a
+     * {@code java.sql} type the way ArchUnit counts it — a field, a
+     * signature, a call into JDBC. A class that only PASSES a connection
+     * along through another class's method ({@code BodyCompiler},
+     * {@code DatabaseJudge}, {@code SqlTextVerdicts}: {@code
+     * env.withConnection(side.connection())}) depends on that class, not on
+     * {@code java.sql}, and is not counted; "who handles a connection" is a
+     * different property (docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md
+     * §3.3). The funnel licenses {@code com.legend} ROOT, which
      * contains StatementExecutor — the audit's S1 dispatcher. Until the
      * orchestration/exec-seam split (backlogged), root's JDBC surface is
      * pinned to an ENUMERATED, shrink-only set: a NEW root class touching
