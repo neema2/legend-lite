@@ -29,4 +29,19 @@ junit_test(
     ],
 )
 
+# G10: every jar pool is locked (fail_if_repin_required) and strict (strict_visibility) (Bazel workplan P6-10)
+junit_test(
+    name = "locks_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["LocksTest.java"],
+    data = ["//:MODULE.bazel"],
+    jvm_flags = ["-Dmodule.bazel=$(rlocationpath //:MODULE.bazel)"],
+    select = ["--select-class=com.legend.tools.guards.LocksTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
 guards_package()
