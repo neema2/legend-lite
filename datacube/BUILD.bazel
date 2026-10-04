@@ -20,6 +20,12 @@ load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 
 npm_link_all_packages(name = "node_modules")
 
+# for //tools/js:lock_matches_package_json_test (Bazel workplan P1-26)
+exports_files(
+    ["package.json", "pnpm-lock.yaml"],
+    visibility = ["//tools/js:__pkg__"],
+)
+
 
 # the app's sources as the tests read them; package.json carries
 # "type": "module" (the sources are ES modules)

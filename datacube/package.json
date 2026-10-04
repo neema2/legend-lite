@@ -1,7 +1,6 @@
 {
   "name": "@legend/datacube",
   "version": "1.0.0",
-  "main": "index.js",
   "scripts": {
     "test": "node --experimental-strip-types --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=../tools/js/strict-reporter.mjs --test-reporter-destination=stderr test/*.test.ts",
     "typecheck": "tsc --noEmit"
@@ -11,9 +10,9 @@
   "license": "ISC",
   "description": "",
   "type": "module",
-  "private": "true",
+  "private": true,
   "dependencies": {
-    "@duckdb/duckdb-wasm": "^1.33.1-dev57.0",
+    "@duckdb/duckdb-wasm": "1.33.1-dev57.0",
     "@fontsource/roboto": "5.3.0",
     "apache-arrow": "17.0.0",
     "echarts": "6.1.0",
@@ -21,12 +20,12 @@
   },
   "devDependencies": {
     "@bazel/runfiles": "6.5.0",
-    "@types/jsdom": "^30.0.0",
-    "@types/node": "^26.6.2",
-    "esbuild": "^0.28.2",
-    "jsdom": "^29.1.1",
-    "playwright": "^1.63.0",
-    "typescript": "^7.0.2"
+    "@types/jsdom": "30.0.0",
+    "@types/node": "26.6.2",
+    "esbuild": "0.28.2",
+    "jsdom": "29.1.1",
+    "playwright": "1.63.0",
+    "typescript": "7.0.2"
   },
   "pnpm": {
     "onlyBuiltDependencies": []

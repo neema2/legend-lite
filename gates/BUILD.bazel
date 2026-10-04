@@ -23,6 +23,7 @@ test_suite(
         "//tools/browser:revision_test",
         "//tools/bump:bump_test",
         "//tools/java_run:pins_test",
+        "//tools/js:lock_matches_package_json_test",
         "//tools/junit:pins_test",
         "//tools/junit:runner_test",
         "//tools/python:lock_matches_requirements",
