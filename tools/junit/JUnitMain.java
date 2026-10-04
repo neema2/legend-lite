@@ -57,7 +57,6 @@ import org.junit.platform.launcher.listeners.TestExecutionSummary;
 import org.junit.platform.reporting.legacy.xml.LegacyXmlReportGeneratingListener;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import org.w3c.dom.Node;
 
 /**
  * The entry point every Bazel test target runs: the JUnit Platform Launcher, driven by
@@ -93,6 +92,10 @@ import org.w3c.dom.Node;
  *   <li>{@code TEST_TMPDIR}: the JVM's temp directory (see pinTempDirectory).</li>
  * </ul>
  *
+ * <p>EXIT CODES. 0 all selected tests passed; 1 a test, container or engine failed; 2 nothing was selected
+ * ({@code --fail-if-no-tests}, or a {@code --test_filter} that matched nothing); 3 a sharded run whose engine
+ * ignored the split; 4 the runner itself failed (a bad argument, a bad filter, an unwritable test.xml).
+ *
  * <p>JUNIT 3 SUITES. The vintage engine cannot filter inside a nested or {@code TestSetup}-wrapped
  * suite (the PCT classes), so a test it was told to skip runs anyway. Sharded, that would run the
  * whole class in every shard: the run FAILS instead (the overrun guard). Such a lane is split into
@@ -127,11 +130,19 @@ public final class JUnitMain {
                 System.exit(code);
             }
         }
-        int code = protocol(args, System::getenv);
-        System.out.flush();
-        System.err.flush();
-        // Exit explicitly: a test that leaves a non-daemon thread must not hang the run.
-        System.exit(code);
+        int code = 4;
+        try {
+            code = protocol(args, System::getenv);
+        } catch (Exception | Error e) {
+            // a bad argument, a bad --test_filter regex, an unwritable test.xml: reported, and the JVM still
+            // exits, so a test's non-daemon thread cannot hold it open until the timeout
+            e.printStackTrace();
+        } finally {
+            System.out.flush();
+            System.err.flush();
+            // Exit explicitly: a test that leaves a non-daemon thread must not hang the run.
+            System.exit(code);
+        }
     }
 
     /** One run under Bazel's protocol, its environment read through {@code env} (the runner's own tests
@@ -139,11 +150,15 @@ public final class JUnitMain {
      *  {@code System.exit} leaves it behind and Bazel fails the target. */
     static int protocol(String[] args, Function<String, String> env) throws Exception {
         Path exitFile = touch(env.apply("TEST_PREMATURE_EXIT_FILE"));
-        int code = run(args, env);
-        if (exitFile != null) {
-            Files.deleteIfExists(exitFile);
+        try {
+            return run(args, env);
+        } finally {
+            // removed on every way out of the run that is not System.exit, so a runner error is not
+            // reported as a premature exit
+            if (exitFile != null) {
+                Files.deleteIfExists(exitFile);
+            }
         }
-        return code;
     }
 
     // ── selection ────────────────────────────────────────────────────────────────
@@ -193,8 +208,8 @@ public final class JUnitMain {
             request.filters(PackageNameFilter.excludePackageNames(excludePackages));
         }
         // The Vintage engine runs JUnit 3/4 tests and refuses to start without JUnit 4. Only the targets
-        // that run such tests carry JUnit 4 (pct, parser-equivalence, spec:reference_lane take the upstream
-        // pool's; a JUnit 4 test cannot compile without it), so on every other target the engine has
+        // that run such tests carry JUnit 4 (pct, parser-equivalence and //tools/junit:runner_test take the upstream pool's; a
+        // JUnit 4 test cannot compile without it), so on every other target the engine has
         // nothing it could select: left out, not failed. The console launcher's fat jar bundled its own
         // JUnit 4 instead, a second copy beside the upstream one (Bazel workplan P1-01).
         if (!onClasspath("junit.runner.Version")) {
@@ -333,7 +348,12 @@ public final class JUnitMain {
                 }
                 Integer ordinal = ordinals.computeIfAbsent(root, this::number).get(d.getUniqueId());
                 int offset = Math.floorMod(root.getUniqueId().toString().hashCode(), total);
-                if (ordinal == null || (ordinal + offset) % total != index) {
+                if (ordinal == null) {
+                    // every selected unit was numbered before any was removed: a missing one is a runner bug,
+                    // and excluding it would run it in no shard
+                    throw new IllegalStateException("[bazel] no shard ordinal for " + d.getUniqueId());
+                }
+                if ((ordinal + offset) % total != index) {
                     excluded.add(d.getUniqueId());
                     return FilterResult.excluded("another shard");
                 }
@@ -382,15 +402,14 @@ public final class JUnitMain {
         try (Stream<Path> files = Files.list(dir)) {
             for (Path f : files.sorted().toList()) {
                 Element suite = builder.parse(f.toFile()).getDocumentElement();
-                if (suite.getElementsByTagName("testcase").getLength() > 0) {
-                    // the JVM's whole system-property table: noise, and it names the machine
-                    var props = suite.getElementsByTagName("properties");
-                    while (props.getLength() > 0) {
-                        props.item(0).getParentNode().removeChild(props.item(0));
-                    }
-                    Node copy = merged.importNode(suite, true);
-                    root.appendChild(copy);
+                // every engine's suite, an empty one included: an engine whose root failed (a discovery
+                // error) writes no testcase and zero counts, and leaving it out would hide it
+                // the JVM's whole system-property table: noise, and it names the machine
+                var props = suite.getElementsByTagName("properties");
+                while (props.getLength() > 0) {
+                    props.item(0).getParentNode().removeChild(props.item(0));
                 }
+                root.appendChild(merged.importNode(suite, true));
             }
         }
         Files.createDirectories(out.toAbsolutePath().getParent());

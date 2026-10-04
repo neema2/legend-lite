@@ -118,7 +118,7 @@ embedded_postgres(name = "embedded_postgres")
 # Platform Launcher itself (Bazel workplan P1-01): the launcher, the legacy XML
 # reporter and the engines the console launcher's fat jar bundled (Jupiter, Vintage,
 # Suite). The Vintage engine's JUnit 4 is excluded: the targets that run JUnit 3/4
-# tests (pct, parser-equivalence, spec:reference_lane) take the upstream pool's, and
+# tests (pct, //tools/junit:runner_test) take the upstream pool's, and
 # JUnitMain leaves the engine out where no JUnit 4 is on the classpath. One copy: the
 # fat jar bundled a second (4.13.2) beside the upstream 4.13.1.
 maven.install(

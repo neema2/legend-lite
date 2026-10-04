@@ -126,9 +126,11 @@ junit_test(
 # prerun, writing its ledger), then under the DATABASE judge, joined per assert —
 # :corpus_duckdb's shape. The database pass was its own target until 2026-09-23,
 # which ran the H2 database judge but never the join.
+# memory_mb 4096, not the rule's 4864 (live peak 3235 MB, measured 2026-10-04): CI's 7 GB macOS runner runs this
+# lane, and ran it green at -Xmx4g from 2026-09-23 to 2026-10-04 (Bazel workplan P1-21).
 junit_test(
     name = "corpus_h2",
-    memory_mb = 4864,
+    memory_mb = 4096,
     data = _INPUTS,
     jvm_flags = [
         "-Drcorpus.backend=h2",
@@ -144,8 +146,8 @@ junit_test(
 
 # THE REFERENCE LANE (execution plan W1.1): legend-pure's own compiler, from the pinned jars, against ours, call by
 # call, over core_relational's closure. The reference side is a cached build output (//tools/reference:ref_dump); the
-# test types our side, joins, and compares the whole report to its committed golden. Manual (about 8 GB): not in CI's
-# 7 GB runners; every front-end slice's GATES entry cites a run.
+# test types our side, joins, and compares the whole report to its committed golden. Manual: in no CI
+# lane; every front-end slice's GATES entry cites a run.
 junit_test(
     name = "reference_lane",
     memory_mb = 2048,

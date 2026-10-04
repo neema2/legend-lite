@@ -14,7 +14,8 @@ file) with the same settings, so no target sets them on its own:
     `resources:memory:<n>` tag and the JVM's -Xmx<n>m, so Bazel packs tests by what
     each JVM may actually use, and CI and the desk run the same command line (and
     share cache keys). Set from a measured peak plus headroom: each run prints its
-    peak heap ("[bazel] peak heap ...").
+    live heap ("[bazel] heap: live peak ..."). The rule: the live peak plus half again, at least
+    512 MB, rounded up to 256 MB; a lane sized otherwise says why beside it.
 
 `select` is selectors in the JUnit console launcher's vocabulary, e.g.
 ["--select-package=com.legend"] or ["--select-class=com.legend.rcorpus.MinimalCorpusTest"];
