@@ -78,13 +78,46 @@ None of these is in `docs/SEMANTICS_REGISTER.md` (no row on function matching ti
   alone (platform short name → as written; otherwise exactly one import → full path), so (a) needs no type
   information once lite follows it.
 
+## How upstream avoids the question: two compilers
+
+legend-engine's own Pure libraries (relational, relation functions, …) and their tests are compiled by
+**legend-pure's** compiler at build time (`legend-pure-maven-compiler`, goals `build-pure-jar` /
+`build-pure-compiled-jar`, e.g. the relational core module's `pom.xml`) and their tests run on legend-pure's runtime
+(`PureTestBuilderCompiled.buildSuite(... "meta::relational::tests::connEquality" ...)`). Only user code reaches the
+engine's protocol compiler and its handler registry. lite has one compiler for both, so it must carry the
+difference as a **context** passed in by the caller.
+
+## Impact measurement (2026-10-04)
+
+A scratch probe in `NameResolver` (reverted, never committed) classified every call against the engine's rule, with
+the compiling entry point, over `bazel test //...` (150 targets) and then the 9 suites with hits.
+
+- **J: 1** — `NameResolutionContractTest.java:161`, a test asserting lite's union ("the prelude native joins the
+  candidate set instead of being shadowed").
+- **P: 0. Q/R: 0. X (a different single function chosen): 0** — anywhere: corpus, PCT, specs, stress, lite's tests.
+- **L: 56,544** calls to platform functions the engine does not expose to user code, after asking the engine
+  itself about each of the 1,058 distinct names (`compile` of `name()`: "Function does not exist" = unreachable,
+  1,038; a handler error = registered, 20 — the relation quantifier family `equalAll`, `greaterThanAny`, … which
+  the engine registers through a list, `Handlers.java:292`, and a source scan of `h(...)`/`register(...)` missed —
+  so the registry must come from the engine's answers, not from scanning its source). By caller:
+
+  | Caller | L | Context it belongs to |
+  |---|---|---|
+  | `com.legend.test.PureTestRunner` (reference corpus and PCT) | 47,747 | platform (upstream: legend-pure's runtime) |
+  | `normalizer.ModelNormalizer` (compiler-generated bodies) | 8,377 | platform (lite's own synthesized code) |
+  | `server.QueryService` reached from the PCT lanes and `core_tests` | 42 | platform when PCT runs through it; user when `pure/v1` does |
+  | lite's own unit tests compiling directly | ~380 | per test |
+
+Conclusions:
+1. J, P, Q and R can follow the engine for user code at the cost of one contract test.
+2. L is the real context question, and the entry point cannot decide it: `Compiler.resolveQuery` and
+   `QueryService` serve both the reference harness and `pure/v1`. The caller must pass the context.
+3. The engine's set of user-reachable platform functions must be taken from the engine (its answers), recorded as
+   data with a test that re-asks it.
+
 ## Open questions for the fix
 
-- **Scope by dialect.** lite already parses at levels (`Dialect.LEGEND_ENGINE`, `LEGEND_LITE`, the platform's own).
-  The platform prelude is written in legend-pure's semantics (union, imports), so the engine's tiering applies to
-  user code, not to lite's own platform files.
-- **"Platform" must mean the engine's handler registry.** lite needs the exact set of short names the engine
-  registers (its Java handlers and every extension's), as data verified against the reference
-  (spec by verification, AGENTS.md), and must refuse platform functions outside it in user code (L).
-- **Impact.** The corpus, PCT and lite's own tests may rely on J/P/Q/R/L; each reliance found is either a
-  divergence closed or a SEMANTICS_REGISTER row to decide.
+- **Scope by context, passed by the caller.** Platform context (lite's prelude, compiler-synthesized bodies, the
+  reference harness) keeps legend-pure's rules; user context (`pure/v1`, Studio, published projects) gets the
+  engine's.
+- **"Platform" for user code = the engine's reachable set,** from the engine's answers (above), not a source scan.
