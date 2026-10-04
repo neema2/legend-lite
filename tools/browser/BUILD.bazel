@@ -1,0 +1,61 @@
+# THE PINNED BROWSER (Bazel workplan P1-14, spike S4): this platform's chromium-headless-shell, fetched by
+# Bazel (tools/browser/extensions.bzl, pinned in MODULE.bazel), and browser_test (defs.bzl), which runs a
+# Playwright harness as a hermetic test against it.
+load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
+
+package(default_visibility = ["//visibility:public"])
+
+_PLATS = {
+    "mac-arm64": ["@platforms//os:macos", "@platforms//cpu:arm64"],
+    "mac-x64": ["@platforms//os:macos", "@platforms//cpu:x86_64"],
+    "linux64": ["@platforms//os:linux", "@platforms//cpu:x86_64"],
+    "linux-arm64": ["@platforms//os:linux", "@platforms//cpu:arm64"],
+    "win64": ["@platforms//os:windows", "@platforms//cpu:x86_64"],
+}
+
+[config_setting(
+    name = p,
+    constraint_values = c,
+) for p, c in _PLATS.items()]
+
+_NO_MATCH = "no pinned chromium-headless-shell for this platform: Chrome for Testing builds mac-arm64, mac-x64, linux64, linux-arm64 and win64 (tools/browser/extensions.bzl)"
+
+# every file of the shell (its .pak, ICU data and, on Linux, its bundled libs)
+alias(
+    name = "chromium_headless_shell",
+    actual = select(
+        {":" + p: "@chromium_headless_shell_%s//:files" % p.replace("-", "_") for p in _PLATS},
+        no_match_error = _NO_MATCH,
+    ),
+)
+
+# the executable alone: its rlocation is what pinned-chromium.mjs resolves
+alias(
+    name = "chromium_headless_shell_executable",
+    actual = select(
+        {":" + p: "@chromium_headless_shell_%s//:executable" % p.replace("-", "_") for p in _PLATS},
+        no_match_error = _NO_MATCH,
+    ),
+)
+
+js_library(
+    name = "pinned_chromium",
+    srcs = ["pinned-chromium.mjs"],
+)
+
+# Every locked Playwright expects the pinned revision: a Playwright bump that moves it fails here, without
+# launching anything. A new lock with Playwright is added to LOCKS and data.
+js_test(
+    name = "revision_test",
+    data = [
+        ":chromium_headless_shell_executable",
+        "//datacube:node_modules/playwright",
+        "//query:node_modules/playwright",
+    ],
+    entry_point = "revision_test.mjs",
+    env = {
+        "LOCKS": "datacube query",
+        "PINNED_CHROMIUM": "$(rlocationpath :chromium_headless_shell_executable)",
+    },
+    no_copy_to_bin = [":chromium_headless_shell_executable"],
+)

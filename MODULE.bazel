@@ -361,3 +361,28 @@ http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_
     "linux_arm64": "59849e8a4be00fa0ec8c4db0d26707999061d103b902bf32322fa5cde1fc393d",
     "windows_amd64": "65b31f002c70ac5f812d293b8552b977d1c0e6752d0a1127176454c8184ed001",
 }.items()]
+
+# THE BROWSER the harnesses drive (Bazel workplan P1-14, spike S4): Playwright 1.63.0's
+# chromium-headless-shell, revision 1243 = Chrome for Testing 153.0.8010.12 (the locked playwright-core's
+# browsers.json; //tools/browser:revision_test holds them equal). One archive per platform, fetched by
+# Bazel (tools/browser/extensions.bzl): nothing installed, nothing in $HOME.
+chromium = use_extension("//tools/browser:extensions.bzl", "chromium")
+chromium.pin(
+    revision = "1243",
+    sha256 = {
+        "linux-arm64": "d433c45172c7836e38124fe545f767b02210bfb43a6262f08a297473a8e91c99",
+        "linux64": "a9da028861a0cf789ff25c2fed45f5f1aaf969ed9247835b6a7821a4f7af9d1d",
+        "mac-arm64": "89d80a6d26ccd0ccfd51e22d9e1297283862af2b0cd91dce07459b35ca0059f2",
+        "mac-x64": "5c2eaa1aad62111bb5a70dd0889dd3093f3142277b8f78957a238257ee85f009",
+        "win64": "7aec872f3090e639c4237467624ea863c20fe2878914c93a6556bdbb52aa6c4c",
+    },
+    version = "153.0.8010.12",
+)
+use_repo(
+    chromium,
+    "chromium_headless_shell_linux64",
+    "chromium_headless_shell_linux_arm64",
+    "chromium_headless_shell_mac_arm64",
+    "chromium_headless_shell_mac_x64",
+    "chromium_headless_shell_win64",
+)

@@ -6,16 +6,54 @@
 //   DATACUBE_APP_PG=postgresql://reader:secret@127.0.0.1:5432/shop \
 //   DATACUBE_APP_TABLE=sales.orders DATACUBE_APP_GROUP=channel bazel run //datacube:verify_app
 //
-// Manual: it needs a Postgres (16+) that the URL's user can read, as //warehouse:postgres_live does.
+// Under `bazel run` it needs a Postgres (16+) that the URL's user can read, as //warehouse:postgres_live does.
+// As //datacube:verify_app_test (Bazel workplan P1-14b) it starts its own: :app_postgres, the pinned Postgres
+// 16 loaded with demo/sample-shop.sql.
 
+// first: points Playwright at the Chromium Bazel fetched (as a browser_test; a no-op under bazel run)
+import '../../tools/browser/pinned-chromium.mjs';
 import { spawn, spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
-const PG = process.env.DATACUBE_APP_PG;
-const TABLE = process.env.DATACUBE_APP_TABLE;
-const GROUP = process.env.DATACUBE_APP_GROUP;
+// This file is datacube/demo/verify-app.mjs in the runfiles: the site and the launcher are beside it.
+const DATACUBE = fileURLToPath(new URL('..', import.meta.url));
+const RUNFILES = resolve(DATACUBE, '..', '..');
+
+let PG = process.env.DATACUBE_APP_PG;
+let TABLE = process.env.DATACUBE_APP_TABLE;
+let GROUP = process.env.DATACUBE_APP_GROUP;
+
+// THE TEST'S OWN POSTGRES (verify_app_test): APP_POSTGRES names :app_postgres's files, its launcher and its jar
+let postgres;
+if (process.env.APP_POSTGRES) {
+  const launcher = process.env.APP_POSTGRES.split(' ').find((f) => !f.endsWith('.jar'));
+  postgres = spawn(join(RUNFILES, launcher), [join(RUNFILES, process.env.SAMPLE_SQL)], {
+    env: { ...process.env, RUNFILES_DIR: RUNFILES, JAVA_RUNFILES: RUNFILES },
+    stdio: ['pipe', 'pipe', 'inherit'],
+  });
+  const port = await new Promise((done, fail) => {
+    let said = '';
+    postgres.stdout.on('data', (b) => {
+      said += b.toString();
+      const m = /postgres port (\d+)/.exec(said);
+      if (m) done(m[1]);
+    });
+    postgres.on('exit', (code) => fail(new Error(`the test's Postgres exited (${code}) before it was ready:
+${said}`)));
+    setTimeout(() => fail(new Error(`the test's Postgres was not ready in 180s:
+${said}`)), 180_000);
+  });
+  // the sample's database, login and table (demo/sample-shop.sql)
+  PG = `postgresql://reader:secret@127.0.0.1:${port}/shop`;
+  TABLE ??= 'sales.orders';
+  GROUP ??= 'channel';
+  console.log(`ok: the test's Postgres 16 is up on port ${port}, the sample loaded`);
+}
+// a test that fails part-way leaves no Postgres behind: its stdin closes with this process
+process.on('exit', () => postgres?.stdin.end());
+
 if (!PG || !TABLE || !GROUP) {
   console.error('set DATACUBE_APP_PG (a postgresql:// URL with its password), DATACUBE_APP_TABLE (schema.name)'
     + ' and DATACUBE_APP_GROUP (a text column of that table to group by)');
@@ -28,10 +66,6 @@ if (!SERVE) {
   console.error('run this as `bazel run //datacube:verify_app`: WAREHOUSE_SERVE names the launcher');
   process.exit(2);
 }
-
-// This file is datacube/demo/verify-app.mjs in the runfiles: the site and the launcher are beside it.
-const DATACUBE = fileURLToPath(new URL('..', import.meta.url));
-const RUNFILES = resolve(DATACUBE, '..', '..');
 
 let failed = false;
 const bad = (m) => { console.log(`FAIL: ${m}`); failed = true; };
@@ -172,5 +206,15 @@ try {
       }
     }
   } else server.kill('SIGTERM');
+}
+if (postgres) {
+  // closing its stdin stops it, and Postgres with it
+  postgres.stdin.end();
+  const code = await new Promise((done) => {
+    if (postgres.exitCode !== null) done(postgres.exitCode);
+    postgres.on('exit', done);
+    setTimeout(() => done('still running after 60 s'), 60_000);
+  });
+  if (code !== 0) bad(`the test's Postgres did not stop cleanly: ${code}`);
 }
 process.exit(failed ? 1 : 0);

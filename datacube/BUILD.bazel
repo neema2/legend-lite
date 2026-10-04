@@ -6,9 +6,10 @@
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary", "js_test")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("//tools/browser:defs.bzl", "browser_test")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//warehouse:defs.bzl", "POSTGRES_EXTENSION", "warehouse_run")
-load("@rules_java//java:defs.bzl", "java_library")
+load("@rules_java//java:defs.bzl", "java_binary", "java_library")
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@npm//datacube:esbuild/package_json.bzl", esbuild = "bin")
 load("@npm//datacube:typescript/package_json.bzl", typescript = "bin")
@@ -788,7 +789,7 @@ _CI_HARNESSES = [
     # not verify-picker: it drives a site already served on :8000 (`bazel run //datacube:serve`)
     "verify-real-data",
     "verify-remote",
-    "verify-smoke",
+    # not verify-smoke: it is a test, :verify_smoke_test (Bazel workplan P1-14's pilot)
     "verify-upload",
     "verify-wasm-browser",
 ]
@@ -799,7 +800,10 @@ _CI_HARNESSES = [
         ":node_modules/playwright",
         ":site",
         ":src",
-    ] + (["//fixtures/saved-queries:records"] if h == "verify-features" else []),
+    ] + (["//fixtures/saved-queries:records"] if h == "verify-features" else []) + (
+        # it imports pinned-chromium.mjs first, a no-op under bazel run
+        ["//tools/browser:pinned_chromium"] if h == "verify-smoke" else []
+    ),
     entry_point = "demo/" + h + ".mjs",
     node_options = [
         "--experimental-strip-types",
@@ -809,6 +813,25 @@ _CI_HARNESSES = [
     tags = ["browser-ci"] if h in _CI_HARNESSES else [],
 ) for h in _HARNESSES]
 
+# THE SMOKE HARNESS AS A TEST (Bazel workplan P1-14, the pilot): against the Chromium Bazel fetched
+# (//tools/browser), with no install step and nothing in $HOME. .
+# The other harnesses follow in P4.
+browser_test(
+    name = "verify_smoke_test",
+    size = "large",
+    data = _HARNESS_HELPERS + [
+        ":node_modules/playwright",
+        ":site",
+        ":src",
+    ],
+    entry_point = "demo/verify-smoke.mjs",
+    node_options = [
+        "--experimental-strip-types",
+        "--experimental-wasm-exnref",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
 # `bazel run //datacube:verify_app` (manual; see demo/verify-app.mjs for its Postgres): the single-user app
 # end to end -- the native warehouse serving :dist, started from the launch key.
 js_binary(
@@ -816,12 +839,53 @@ js_binary(
     data = [
         ":dist",
         ":node_modules/playwright",
+        # it imports pinned-chromium.mjs first, a no-op under bazel run
+        "//tools/browser:pinned_chromium",
         "//warehouse:serve",
     ],
     entry_point = "demo/verify-app.mjs",
     # this platform's launcher (warehouse/defs.bzl): a script on Linux and macOS, an .exe on Windows
     env = {"WAREHOUSE_SERVE": "$(rlocationpath //warehouse:serve)"},
     tags = ["manual"],
+)
+
+# THE APP AGAINST POSTGRES, AS A TEST ON EVERY PLATFORM (Bazel workplan P1-14b, D11 revised): verify-app.mjs's
+# checks with the Postgres it needs started inside the test -- :app_postgres, Postgres 16 from the pinned
+# binaries loaded with the guide's sample over JDBC -- and the pinned Chromium. No psql, no host Postgres,
+# no host browser. CI's app lane runs it on Linux, macOS and Windows: the Windows desk's own path.
+browser_test(
+    name = "verify_app_test",
+    size = "large",
+    data = [
+        ":app_postgres",
+        ":dist",
+        ":node_modules/playwright",
+        "demo/sample-shop.sql",
+        "//warehouse:serve",
+    ],
+    entry_point = "demo/verify-app.mjs",
+    env = {
+        # the binary's files: its launcher (a script, or an .exe on Windows) and its jar
+        "APP_POSTGRES": "$(rlocationpaths :app_postgres)",
+        "SAMPLE_SQL": "$(rlocationpath demo/sample-shop.sql)",
+        "WAREHOUSE_SERVE": "$(rlocationpath //warehouse:serve)",
+    },
+)
+
+# the test's Postgres (tools/apppostgres/AppPostgres.java): prints its port once the sample is in, and runs
+# until its stdin closes
+java_binary(
+    name = "app_postgres",
+    testonly = True,
+    srcs = ["tools/apppostgres/AppPostgres.java"],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    main_class = "apppostgres.AppPostgres",
+    runtime_deps = ["//core:drivers"],
+    deps = ["//testing"],
 )
 
 # `bazel run //datacube:install_browser [-- --with-deps]`: the Chromium the harnesses drive, at
