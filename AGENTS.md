@@ -363,9 +363,11 @@ by GitHub:
    fails here, not in CI); push only if it passes. Say so in the commit message ("local gate: //gates:local
    green"). It is lighter than CI: the heavy lanes and `bazel build //...` run there only, and
    `WarehouseArrowTest` skips without a local pyarrow.
-2. **Windows-sensitive changes go through a PR.** A change to any path in `.github/CODEOWNERS` is opened as a
-   PR and merged only when CI is green on Linux, macOS and Windows. So is any change large enough to need an
-   independent review (`.github/pull_request_template.md`).
+2. **Windows-sensitive changes go through a PR: SUSPENDED until the Bazel program ends** (USER, 2026-10-04:
+   most of its items touch `.github/CODEOWNERS` paths, and the rule would put each one behind a CI wait;
+   restored by P8-01). Until then a change to those paths may be pushed like any other, and `main`'s CI on
+   Windows plus rule 3 are the Windows guard. A change large enough to need an independent review still
+   goes through a PR (`.github/pull_request_template.md`).
 3. **Revert on red.** After a push, watch `main`'s CI. If it goes red, revert your own commit at once, then fix
    it in a PR. Tell the user either way.
 

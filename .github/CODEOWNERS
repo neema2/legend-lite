@@ -1,6 +1,7 @@
-# WINDOWS-SENSITIVE PATHS (Bazel workplan P0-14, decision D17's fast loop). A change to any of these goes
-# through a PR with CI green on Linux, macOS and Windows, never a direct push to main (AGENTS.md, "Pushing
-# to main"), and GitHub asks the owner and the Windows contributor to review it (never a PR's own author).
+# WINDOWS-SENSITIVE PATHS (Bazel workplan P0-14, decision D17's fast loop). On a PR touching any of these,
+# GitHub asks the owner and the Windows contributor to review it (never a PR's own author). The rule that
+# these paths go through a PR, never a direct push, is suspended until the Bazel program ends (AGENTS.md,
+# "Pushing to main", rule 2; restored by P8-01).
 # Requested, not required. main's ruleset (applied with P0-14) makes everyone but the repository owner use
 # a PR with an approval and `gates green`; the owner, and the agent sessions running as the owner, bypass
 # it and keep this rule by convention. Add a path here when a change to it has broken, or could break, a
