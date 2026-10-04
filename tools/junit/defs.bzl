@@ -1,8 +1,8 @@
 """junit_test: the ONE way a test target is declared in this repository.
 
-Every JUnit suite runs through tools/junit/JUnitMain (JUnit's console launcher,
-told where Bazel wants its reports) with the same settings, so no target sets
-them on its own:
+Every JUnit suite runs through tools/junit/JUnitMain (the JUnit Platform Launcher,
+speaking Bazel's test protocol: test.xml, --test_filter, sharding, the premature-exit
+file) with the same settings, so no target sets them on its own:
 
   * the engine's test clock, -Duser.timezone=GMT (the root pom's surefire argLine:
     legend-engine minted its goldens in GMT);
@@ -11,8 +11,9 @@ them on its own:
   * the upstream source trees, when asked for, as declared inputs with the
     legend.engine.root / legend.pure.root properties pointing at them.
 
-`select` is JUnit console-launcher selectors, e.g. ["--select-package=com.legend"]
-or ["--select-class=com.legend.rcorpus.MinimalCorpusTest"].
+`select` is selectors in the JUnit console launcher's vocabulary, e.g.
+["--select-package=com.legend"] or ["--select-class=com.legend.rcorpus.MinimalCorpusTest"];
+JUnitMain lists every one it accepts, and any other argument fails the run.
 """
 
 load("@rules_java//java:defs.bzl", "java_test")
@@ -33,12 +34,7 @@ def junit_test(
         runtime_deps = [],
         size = "large",
         **kwargs):
-    args = select + ["--exclude-tag=" + t for t in exclude_tags] + [
-        "--details=summary",
-        "--fail-if-no-tests",
-        "--disable-banner",
-        "--disable-ansi-colors",
-    ]
+    args = select + ["--exclude-tag=" + t for t in exclude_tags] + ["--fail-if-no-tests"]
     # one clock, one locale, one encoding, everywhere: a test's verdict never depends on the host's.
     # The temp directory is set by JUnitMain from TEST_TMPDIR (the Windows Java launcher does not
     # expand environment variables in jvm_flags).
