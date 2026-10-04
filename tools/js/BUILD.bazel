@@ -1,0 +1,8 @@
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+
+# node_test's exit-code reporter (defs.bzl): every JavaScript test target runs it beside `spec`.
+js_library(
+    name = "strict_reporter",
+    srcs = ["strict-reporter.mjs"],
+    visibility = ["//visibility:public"],
+)

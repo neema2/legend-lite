@@ -1,7 +1,8 @@
 # THE PINNED BROWSER (Bazel workplan P1-14, spike S4): this platform's chromium-headless-shell, fetched by
 # Bazel (tools/browser/extensions.bzl, pinned in MODULE.bazel), and browser_test (defs.bzl), which runs a
 # Playwright harness as a hermetic test against it.
-load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
+load("@aspect_rules_js//js:defs.bzl", "js_library")
+load("//tools/js:defs.bzl", "node_test")
 load("//tools/platforms:defs.bzl", "platform_select")
 load(":defs.bzl", "CHROMIUM_COMPATIBLE", "CHROMIUM_PLATFORMS")
 
@@ -41,7 +42,7 @@ js_library(
 # Every locked Playwright expects the pinned revision and version: a Playwright bump that moves either fails
 # here, without launching or downloading anything (it reads the pin, @chromium_pin//:pin.json). A new lock
 # with Playwright is added to LOCKS and data.
-js_test(
+node_test(
     name = "revision_test",
     data = [
         "//datacube:node_modules/playwright",

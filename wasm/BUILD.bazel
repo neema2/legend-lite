@@ -1,6 +1,7 @@
 # legend-lite's planner, compiled ahead of time to WebAssembly (TeaVM), and the
 # differential that holds it to the JVM. See README.md.
-load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_test")
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library")
+load("//tools/js:defs.bzl", "node_test")
 load("//tools/java:defs.bzl", "legend_java_library")
 
 load("//tools/java_run:defs.bzl", "java_run")
@@ -97,17 +98,16 @@ java_run(
     deps = [":jvm_main"],
 )
 
-js_test(
+node_test(
     name = "differential_test",
+    wasm = True,
     size = "small",
     data = [
         "corpus/model.pure",
         "corpus/queries.tsv",
         ":jvm_answers",
-        ":planner",
     ],
     entry_point = ":differential",
-    node_options = ["--experimental-wasm-exnref"],
 )
 
 # THE TIMEZONE DIFFERENTIAL: a tz database is a resource, not code, so only the
@@ -120,15 +120,14 @@ java_run(
     deps = [":zone_main"],
 )
 
-js_test(
+node_test(
     name = "zone_test",
+    wasm = True,
     size = "small",
     data = [
-        ":planner",
         ":zone_jvm",
     ],
     entry_point = "zoneprobe.mjs",
-    node_options = ["--experimental-wasm-exnref"],
 )
 
 # `bazel run //wasm:startup`: where the module's cold start goes, phase by phase.
