@@ -115,3 +115,11 @@ without a **done** entry.
 - **6b on main** (ff2dcf107; P1-20, P1-25). Local gate 150/150. Main CI green (run 37230570535, 53/53). Open: the Studio
   line's announced sdlc-server/depot-server need grants (core/json visibility, TeaVM pool); a rules_jvm_external
   pool-wide testonly option would let Bazel enforce layer 2 itself (research, then upstream PR).
+- **Test pools testonly as a whole** (93cc6085b; main CI green, run 37236951591): rules_jvm_external #350's fix as
+  third_party/rules_jvm_external_testonly_closure.patch (USER: no upstream PR); maven_test/upstream/runner amended
+  testonly. The re-audit showed Bazel does not check generated files (a filegroup over a testonly deploy jar passes), so
+  product_closure_test stays and pools_list_test keeps the pools testonly as a whole. USER: stop accommodating other
+  sessions (the Studio line adapts when it rebases).
+- **6c built** (local): P1-23 node_test (every JS test; wasm_flag_test), P1-24 runfiles lookup (tools/js/runfiles.mts,
+  chdir only on the six scanners), P1-26 lock check (datacube exact versions). Full proof 184/184. Audit and a Windows
+  throwaway (37238983590): running.

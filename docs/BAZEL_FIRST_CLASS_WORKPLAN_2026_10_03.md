@@ -1126,6 +1126,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | The `TZ=UTC` default differs from today's global `--test_env=TZ=GMT` in name only. The TZ lanes set their own. Rollback per package. |
 | Done when | No JS test target spells `node_options` or a reporter path itself. No `js_test` exists outside the macro, and the WASM list cannot drift (A28, L:G-10). |
 
+**Amended 2026-10-04 (execution).** `@bazel/runfiles` is not added to node_test: P1-24 found it cannot be imported from pure-protocol, query-store or tools/js (no npm dependencies), and rules_js always runs inside a runfiles tree, so its manifest mode is never needed; `//tools/js:runfiles` (runfiles.mts) does the lookup instead and every node_test has it. The A28 coverage query lists, besides node_test's targets, browser_test's two (built on node_test) and the two `tsc_test` typechecks (tsc, not node:test).
+
 #### P1-24 · JS tests resolve inputs through `@bazel/runfiles`; no `chdir`
 
 | Field | Content |
@@ -1140,6 +1142,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Done when | No JS test does `new URL('../..', import.meta.url)` arithmetic or hard-codes `_main`. |
 
 **Dependency hygiene (plan 1.5)**
+
+**Amended 2026-10-04 (execution).** Lookup is `tools/js/runfiles.mts` over rules_js's `JS_BINARY__RUNFILES` (see P1-23's amendment), with each input named in `env` by `$(rlocationpath)`/`$(rlocationpaths)`. query-store's server is named through `executable_of` (the launcher on every platform). The scanners keeping `chdir` until P3-29 are six: the five named plus `//datacube:wasm_flag_test` (P1-23's A28 guard, which reads BUILD.bazel and the test files). The typechecks pass `-p <package>/tsconfig.json` instead of `chdir`. The esbuild bundling actions keep `chdir` (build actions, not tests).
 
 #### P1-25 · `strict_visibility` on every pool; undeclared artifacts declared; one pool list
 
@@ -1183,6 +1187,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Size | S (0.5 d) |
 | Risk/rollback | None known. |
 | Done when | A `package.json` edit without a relock fails a test. |
+
+**Amended 2026-10-04 (execution).** Every datacube version is exact (D15), not only Playwright. `//tools/browser:playwright` lands with P4-05, its only user.
 
 #### P1-27 · `https` and `integrity` for every pinned download (D10 (c): no mirror)
 
