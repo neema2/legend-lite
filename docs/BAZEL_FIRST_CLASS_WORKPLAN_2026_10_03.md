@@ -941,6 +941,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | None known; remove the data edge. |
 | Done when | A missing MSVC fails at fetch, naming the prerequisite. |
 
+**As built (2026-10-04, with P1-10):** one repository rule for both, `tools/cc/host_cc.bzl` (`@host_cc`), not `@msvc` behind a Windows-only `select`: it is fetched on every OS (on Linux it writes a constant file and runs nothing). It RECORDS the toolchain's exact versions in `@host_cc//:toolchain.txt`, which `server_native` takes as data, an input of the native-image action, so the cache key follows the toolchain (USER: "Is that the best way? If yes let's do it"); versions are recorded, never pinned, with floors (MSVC 17.6, Apple clang 15). macOS uses `xcrun --find`, not `xcode-select -p`. The native-image action's key therefore changed once on every platform.
+
 #### P1-12 · rules_graalvm: upstream the sysroot passthrough; per-platform GraalVM toolchains
 
 | Field | Content |
