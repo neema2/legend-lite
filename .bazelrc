@@ -49,6 +49,14 @@ test:ci --test_output=errors --test_summary=terse
 # pool's maven_*_install.json must match its artifacts: fail_if_repin_required in MODULE.bazel).
 # A dependency edit without its lock fails here instead of resolving silently.
 common:ci --lockfile_mode=error
+# REPINNING READS NO HOST MAVEN REPOSITORY (Bazel workplan P1-25b). `bazel run @<pool>//:pin` on a
+# `resolver = "maven"` pool (maven_test, maven_upstream, maven_runner) otherwise resolves through
+# ~/.m2/repository, as its first repository and its cache (rules_jvm_external 7.1's ResolverConfig sets the
+# "unsafe shared cache" on unless RJE_UNSAFE_CACHE is 0), so a stale or hand-installed jar there could be
+# what gets pinned. With it off the resolver starts in a fresh temporary home. The coursier pools never use
+# a shared cache (use_unsafe_shared_cache defaults to False). ~/.m2/settings.xml and ~/.netrc are still read,
+# for repository credentials only (RemoteRepositoryFactory): neither adds a repository or a mirror.
+run --run_env=RJE_UNSAFE_CACHE=0
 # HEAPS. Each test's heap is its own `junit_test(memory_mb = …)`, the live peak each run prints
 # plus headroom, which is also its scheduling tag, so CI and the desk run the same command line
 # (Bazel workplan P1-21, 2026-10-04; it replaced CI-only -Xmx8g/-Xmx4g here). The build actions' own heaps
