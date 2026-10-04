@@ -223,6 +223,18 @@ the page; they depend on `//core`'s public API, never the reverse), and the dogf
 `compilation/compile` does (`Compiler.compileModel` then `Compiler.compileAllBodies`), answered as `"OK\n" + [every
 body error]` or the folded refusal, like the module's other exports. Nothing else in `wasm/` changes.
 
+**2026-10-04, announced before landing: a cross-area edit in `datacube/` and `query/`** (the user: "let's also pull
+out stuff that query is using from datacube"; "should we call it engine-client"). No behaviour changes, moves only:
+- **New `engine-client/`** (TypeScript): where a query runs, shared by DataCube, Query and Studio. MOVED from
+  `datacube/src/`: `engine.ts`, `relation-type.ts`, `result.ts`, `receipt.ts`, `values.ts`, `types.ts`, `pure-v1.ts`,
+  `duckdb.ts`, `warehouse.ts`, `engine-remote.ts` (and whatever they alone import). Every importer in `datacube/`
+  (about 50 files, one line each) and `query/` points at the new paths; BUILD and typecheck targets follow.
+- **New `datacube/src/embed.ts`**: DataCube's one public entry for an app embedding the cube (`CubeApp`, `CubeView`,
+  `RemoteRun`, the snapshot type, `sourceColumns`); Query imports only from it, no longer from DataCube's internals.
+- Later in the same line: legend-art's tokens and the icon generator shared by Query, Studio and DataCube.
+Gated by DataCube's own suites (its tests, `//wasm:all`, the browser lane) and Query's. A DataCube session working
+on `datacube/` should rebase after this lands.
+
 The compiler rebuild is paused by the user while this line works (design S11). Core pieces it will need later, each
 announced here with its files before it lands: the model JSON reader and printer (opening existing upstream projects),
 W1.2 diagnostics, and (v1) name-resolved entity JSON with the function-resolution fix
