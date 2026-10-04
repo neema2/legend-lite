@@ -18,6 +18,7 @@ test_suite(
         "//tools/deps:one_release",
         "//tools/deps:pools_are_disjoint",
         "//tools/deps:warehouse_closure_test",
+        "//tools/browser:revision_test",
         "//tools/java_run:pins_test",
         "//tools/junit:pins_test",
         # gate 1, gate 3
@@ -27,6 +28,7 @@ test_suite(
         "//core:postgres_arm_test",
         # app
         "//datacube:tests",
+        "//datacube:verify_app_test",
         "//query-store:lite_test",
         "//wasm:differential_test",
         "//wasm:zone_test",
