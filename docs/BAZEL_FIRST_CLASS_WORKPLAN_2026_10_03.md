@@ -1036,6 +1036,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | None known. |
 | Done when | One target produces the unpacked extension without a shell. |
 
+**Amended 2026-10-04 (USER review: "why is a Java unzip better than gzip?"): superseded by fetch-time unpacking.** Bazel's `http_archive` unpacks a plain `.gz` as it fetches it, into the file without the `.gz` (verified on Bazel 9.2), so no build action needs to: the five pins are `http_archive`; `//warehouse:duckdb_extensions` is bazel_lib's `copy_file` (pinned coreutils `cp`); `warehouse_run`'s `<name>_extensions` is bazel_lib's `copy_to_directory`, which also removed the `run_shell` `gzip -dc` P4-12 had scheduled (the build's last shell action); `tools/gunzip` is deleted. Every copy hashes as `gzip -dc` of the download. Lesson recorded for every later item: check Bazel's built-ins and bazel_lib before writing a tool.
+
 #### P1-18 · A legend-engine server started inside the test (investigation first)
 
 | Field | Content |
@@ -1107,6 +1109,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | Byte drift in the PAR output would show in the PCT lanes. The `cmp` check comes first. |
 | Done when | No genrule and no exec-configuration `java_binary` tool remains. |
 
+**Amended 2026-10-04 (execution and the audit of batch 6a).** (1) The byte-identity proof is impossible: the PAR generator and the reference dump are not reproducible (P2-11, P2-14), so their consumers are the proof. (2) Two exec-configuration `java_binary` tools remain by design, each inside a rule that needs `cfg = "exec"` and links no product code, so the double compile this item removes does not arise: `//tools/teavm:compile` (`teavm_wasm`) and `//tools/graalvm:sysroot_native_image` (the rules_graalvm patch, gone with upstream #602). (3) Removing `--host_jvmopt=-Xmx3g` changed every exec-configuration Java tool's heap, not only the PAR genrule's: TeaVM states `-Xmx2g` and a matching `resource_set` (889 MB live peak). (4) Every heap is measured (`-Xlog:gc`, macOS arm64): PAR 2,099 MB live (`memory_mb = 4096`), reference dump 3,072 MB (`memory_mb = 8192`, not the genrule's unmeasured 12 GB). `java_run` refuses a `jvm_flags` `-Xmx` beside `memory_mb`. **Done when (amended):** no genrule; every remaining exec tool is one of the two above; every Java action's heap is stated and measured.
+
 #### P1-23 · `node_test`: one macro for every JS test
 
 | Field | Content |
@@ -1161,7 +1165,7 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | Resolution may get slower without the local cache. Bazel's repository cache still holds the jars. |
 | Done when | No pin action reads `~/.m2`. |
 
-**Investigated (2026-10-04): no change needed.** rules_jvm_external 7.1's Maven resolver (`ResolutionRequest.getUserHome`) resolves into a fresh temporary `resolver-home` on every repin unless a pool sets `use_unsafe_shared_cache`, which none does: `~/.m2/repository` is never read or written. It does read `~/.m2/settings.xml` when one exists (`RemoteRepositoryFactory`), but only for server credentials and a proxy for the repositories the pool names: it adds no repository and no mirror, so it cannot change WHICH artifacts resolve, and the lock pins every artifact by sha256. Accepted as network-access configuration, like Bazel's own `.netrc`.
+**Corrected 2026-10-04 (audit of batch 6a): the earlier "no change needed" was wrong.** rules_jvm_external 7.1's `ResolverConfig` turns the "unsafe shared cache" ON for the Maven resolver unless `RJE_UNSAFE_CACHE` is `0`/`false` (the `use_unsafe_shared_cache` attribute governs only the coursier pools, where it defaults to False). With it on, `ResolutionRequest.getUserHome` is the real home and `MavenResolver` adds `~/.m2/repository` as the FIRST repository and the cache: exactly the finding above. **Done:** `.bazelrc` `run --run_env=RJE_UNSAFE_CACHE=0`; the resolver starts in a fresh temporary home. **Proof run:** the three pools repinned with `JAVA_TOOL_OPTIONS=-Duser.home=<an empty directory>`: every lock byte-identical, nothing under `~/.m2` newer than a marker, the empty home still empty. `~/.m2/settings.xml` is still read (`RemoteRepositoryFactory`): server credentials and a proxy only, no repository and no mirror, so it cannot change which artifacts resolve; accepted as network-access configuration, like Bazel's own `.netrc`. A fresh resolve logs one spurious "Could not validate integrity" warning per POM (an upstream quirk; the locks are identical).
 
 #### P1-26 · pnpm locks checked against `package.json`; exact versions
 
@@ -1301,7 +1305,7 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 |---|---|
 | ID | P2-07 |
 | Why | Plan 2.3; HN K3; BZ-N18; SR row `query/tools/icons.mjs` (MUST). |
-| Change | <ul><li>`MODULE.bazel`: `http_archive(name = "react_icons", urls = ["https://registry.npmjs.org/react-icons/-/react-icons-5.5.0.tgz"], sha256 = …, strip_prefix = "package")`.</li><li>`query/BUILD.bazel`: `js_run_binary(name = "icons_gen", tool = ":icons_tool", srcs = ["@react_icons//:all"], args = ["$(rootpath @react_icons//:package.json)"], stdout = "icons.gen.ts")`; `write_source_files(name = "update_generated", files = {"src/ui/icons.ts": ":icons_gen"})` added to root.</li><li>**Byte-identical first.** Only the header's "Regenerate:" text changes, a deliberate generator edit.</li></ul> |
+| Change | <ul><li>`MODULE.bazel`: `http_archive(name = "react_icons", urls = ["https://registry.npmjs.org/react-icons/-/react-icons-5.5.0.tgz"], integrity = "sha256-…", strip_prefix = "package")` (P1-27: every pin by `integrity`).</li><li>`query/BUILD.bazel`: `js_run_binary(name = "icons_gen", tool = ":icons_tool", srcs = ["@react_icons//:all"], args = ["$(rootpath @react_icons//:package.json)"], stdout = "icons.gen.ts")`; `write_source_files(name = "update_generated", files = {"src/ui/icons.ts": ":icons_gen"})` added to root.</li><li>**Byte-identical first.** Only the header's "Regenerate:" text changes, a deliberate generator edit.</li></ul> |
 | Proof | `bazel test //query:update_generated_test //query:tests`. |
 | Depends on | P0-02 |
 | Size | S (0.5 d) |
@@ -2135,6 +2139,8 @@ These rules apply to every harness item (plan 4.1):
 | Risk/rollback | Windows self-location of a symlinked `.exe` (S2 risk 4): the copy remedy. Rollback: revert `defs.bzl`; `hermetic_launcher` comes back with it. |
 | Done when | No launcher script and no `hermetic_launcher` remain; serve and app run directly on all three platforms. |
 
+**Amended 2026-10-04:** `_duckdb_extensions` (the `run_shell`) is already gone: `<name>_extensions` is bazel_lib's `copy_to_directory` over the fetch-time-unpacked extension (P1-17's amendment). The rest of this item stands.
+
 #### P4-13 · `//warehouse:dist`: a packaged warehouse, tested by running it
 
 | Field | Content |
@@ -2286,7 +2292,7 @@ These rules apply to every harness item (plan 4.1):
 |---|---|
 | ID | P5-05 |
 | Why | Plan 5; SC-§2 (`gate.yml:57-60` uses `curl` with no checksum). |
-| Change | <ul><li>`MODULE.bazel`: `http_archive` per platform for actionlint 1.7.7, with sha256.</li><li>`tools/BUILD.bazel`: an `alias` `actionlint` (selected per platform) and a `sh`-free test, `native_test` or a `java_test` wrapper, `//tools:actionlint_test`, running it over `.github/workflows/*.yml` as data.</li><li>`gate.yml`'s lint job runs `bazel test //tools:actionlint_test`.</li></ul> |
+| Change | <ul><li>`MODULE.bazel`: `http_archive` per platform for actionlint 1.7.7, pinned by `integrity` (P1-27).</li><li>`tools/BUILD.bazel`: an `alias` `actionlint` (selected per platform) and a `sh`-free test, `native_test` or a `java_test` wrapper, `//tools:actionlint_test`, running it over `.github/workflows/*.yml` as data.</li><li>`gate.yml`'s lint job runs `bazel test //tools:actionlint_test`.</li></ul> |
 | Proof | `bazel test //tools:actionlint_test`; `bazel run //tools:actionlint -- -color`. **Windows proof (C2)** (§1). |
 | Depends on | — |
 | Size | S (0.5 d) |
