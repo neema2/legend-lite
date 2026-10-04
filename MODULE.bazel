@@ -46,6 +46,15 @@ npm.npm_translate_lock(
 )
 use_repo(npm, "npm_query")
 
+# The Studio app's own lock (docs/STUDIO_DESIGN_2026_10_02.md S2, S3): Monaco plus Query's tools at
+# Query's versions. Updated with: bazel run -- @pnpm//:pnpm --dir $PWD/studio install --lockfile-only
+npm.npm_translate_lock(
+    name = "npm_studio",
+    pnpm_lock = "//studio:pnpm-lock.yaml",
+    data = ["//studio:package.json"],
+)
+use_repo(npm, "npm_studio")
+
 # pnpm itself, pinned by rules_js: the lock file is updated through Bazel, never a machine's pnpm:
 #   bazel run -- @pnpm//:pnpm --dir $PWD/datacube install --lockfile-only
 pnpm = use_extension("@aspect_rules_js//npm:extensions.bzl", "pnpm")

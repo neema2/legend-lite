@@ -1,0 +1,40 @@
+# Legend Studio, rebuilt light (docs/STUDIO_DESIGN_2026_10_02.md): plain TypeScript and DOM with Monaco,
+# bundled by esbuild, tested with node's own runner. Its npm packages are its own lock (MODULE.bazel
+# `npm_studio`). The SDLC and the compiler run in the page as WebAssembly (level 0) or on servers.
+load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
+load("@npm_studio//:defs.bzl", "npm_link_all_packages")
+
+npm_link_all_packages(name = "node_modules")
+
+exports_files(["pnpm-lock.yaml", "package.json"])
+
+js_library(
+    name = "src",
+    srcs = glob(["src/**/*.ts"]) + ["package.json"],
+    deps = ["//sdlc-client:sdlc_client"],
+)
+
+_NODE_OPTIONS = [
+    "--experimental-strip-types",
+    "--experimental-wasm-exnref",
+    "--disable-warning=ExperimentalWarning",
+    "--test-reporter=spec",
+    "--test-reporter-destination=stdout",
+]
+
+# Studio's model over the real WebAssembly modules: the compiler (//wasm:planner) and the SDLC
+# (//sdlc-server:page).
+[js_test(
+    name = t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test",
+    size = "small",
+    chdir = package_name(),
+    data = [
+        ":src",
+        "test/modules.ts",
+        t,
+        "//sdlc-server:page",
+        "//wasm:planner",
+    ],
+    entry_point = t,
+    node_options = _NODE_OPTIONS,
+) for t in glob(["test/*.test.ts"])]

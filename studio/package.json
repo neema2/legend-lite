@@ -1,0 +1,22 @@
+{
+  "name": "@legend/studio",
+  "version": "0.1.0",
+  "description": "Legend Studio, rebuilt light: write models as text with live compile errors, save, review, version -- on legend-lite's SDLC and Depot (in the page or as servers), speaking only upstream APIs and lite's text routes.",
+  "type": "module",
+  "private": true,
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@fontsource/roboto": "5.3.0",
+    "@fontsource/roboto-mono": "5.3.0",
+    "monaco-editor": "0.57.0"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.2",
+    "esbuild": "0.28.2",
+    "playwright": "1.63.0",
+    "typescript": "7.0.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": []
+  }
+}
