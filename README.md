@@ -251,9 +251,13 @@ counterpart that supersedes it. See `AGENTS.md`.
 ### Prerequisites
 
 - **[Bazelisk](https://github.com/bazelbuild/bazelisk)** (as `bazel`) — it runs the
-  Bazel release `.bazelversion` pins. Nothing else: Bazel fetches the JDK, every jar
+  Bazel release `.bazelversion` pins. Bazel fetches the JDK, every jar
   (MODULE.bazel, pinned by lock files) and the legend-engine / legend-pure release
   sources the tests read as the spec (pinned by sha256).
+- **For the native warehouse, the platform's C toolchain on macOS and Windows** (on Linux Bazel fetches
+  LLVM, a C library and zlib; its linker needs only the host's `libxml2`): on macOS Apple's Command Line Tools (`xcode-select
+  --install`), on Windows Visual Studio 2022 Build Tools 17.6+ (below). A native build checks for it
+  first and names what is missing (`tools/cc/host_cc.bzl`).
 - An IDE: IntelliJ with the Bazel plugin opens the BUILD files as the project.
 
 **On Windows**, four more things, once:
@@ -271,6 +275,10 @@ counterpart that supersedes it. See `AGENTS.md`.
 - **Visual Studio 2022 Build Tools**, "Desktop development with C++": `bazel build //...` builds the
   native warehouse, which links with MSVC. Install it before Bazel first runs, or run
   `bazel fetch --configure --force` once after, since Bazel keeps the C++ toolchain it found first.
+
+Bazel keeps its outputs in `C:\bzl` on Windows (`.bazelrc`, `startup:windows --output_user_root`), not under
+your profile: the default path is long enough to push some test files past Windows' path limit. It needs
+permission to create `C:\bzl` once.
 
 Line endings need nothing in a fresh clone: `.gitattributes` keeps text files LF in the working
 tree, whatever `core.autocrlf` says, and normalizes an editor's CRLF to LF on commit (the corpus and

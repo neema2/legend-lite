@@ -331,10 +331,18 @@ use_repo(gvm, "graalvm", "graalvm_toolchains")
 
 register_toolchains("@graalvm_toolchains//:toolchain_gvm")
 
+# THE HOST C TOOLCHAIN, macOS and Windows (Bazel workplan P1-10, P1-11; D1 revised, D5): Apple's Command Line
+# Tools and Visual Studio's MSVC stay prerequisites of the machine, checked when a native target first needs
+# one, failing with what to install. Linux needs none (the hermetic LLVM below).
+host_c_toolchain = use_repo_rule("//tools/cc:host_cc.bzl", "host_c_toolchain")
+
+host_c_toolchain(name = "host_cc")
+
 # THE C TOOLCHAIN, LINUX (Bazel workplan P1-09; spike S3): native-image links with a HERMETIC C toolchain -- LLVM's own
 # clang and lld from toolchains_llvm, against Chromium's published Debian bullseye sysroots that Bazel
 # fetches, and zlib built from source. Nothing from the host's compiler, libc headers or zlib headers
-# reaches the link (third_party/rules_graalvm_sysroot.patch). macOS: P1-10. Windows keeps MSVC (D5, P1-11).
+# reaches the link (third_party/rules_graalvm_sysroot.patch). macOS keeps the Command Line Tools and
+# Windows MSVC (D1 revised, D5), declared and checked by @host_cc (above).
 bazel_dep(name = "toolchains_llvm", version = "1.11.0")
 bazel_dep(name = "zlib", version = "1.3.2.bcr.2")
 
