@@ -41,4 +41,12 @@ without a **done** entry.
 - Pushed `deccc0596` (77b4d1684, b9d978f05, e1e1f55da, b2d02bf89, f04d08f23, cd3fbd559, deccc0596). Full proof 178/178;
   after the audit's fixes 28/28 on the affected targets, `//gates:local` 146/146. Independent audit: approve with nits,
   all fixed (path filters within the tree, Corpus's snapshot, Runfile holder, the skip pin moved for bisect); P1-05
-  amended in the workplan with every residual Repo use's owner. `main`'s CI: running.
+  amended in the workplan with every residual Repo use's owner. `main`'s CI run 37208204540: 51/51. **Done.**
+
+## Batch 3: Python foundation (P1-07, P1-08)
+
+- Pushed `af4607953`. rules_python 2.3.4, CPython 3.12, the @pypi hub; Python binaries start from a bash stub (no host
+  python3); the gate's lock check is offline (`//tools/python:lock_matches_requirements`), the PyPI re-resolution manual.
+  The Arrow check is a py_binary on the locked pyarrow and RUNS with no host pyarrow ("25000 rows, 0 differences");
+  CI's pip step and --test_env flags are gone; taskkill by its full Windows path. Full proof 179/179; after the audit's
+  fixes 149/149. Independent audit: one HIGH (the host-python3 stub), fixed. `main`'s CI: running.
