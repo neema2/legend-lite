@@ -87,11 +87,13 @@ published with the Linux build).
 ### 2. The launcher
 
 `warehouse_run` becomes a macro with the same attributes (`server`, `library`,
-`postgres_extension_gz`, `site`, `args_before`) and four targets:
+`site`, `args_before`) and four targets:
 
-- **`<name>_extensions`**: a directory holding `postgres_scanner.duckdb_extension`, gunzipped from the
-  pinned download as today (a directory, so that a launcher can name it: `--duckdb-extensions` takes a
-  directory, and a runfiles manifest lists a directory output where it does not list a file's parent).
+- **`<name>_extensions`**: a directory holding `postgres_scanner.duckdb_extension`, bazel_lib's
+  `copy_to_directory` of `//warehouse:duckdb_extensions` (the extension gunzipped once, by a Java action;
+  until 2026-10-04 each launcher gunzipped its own copy with a shell `gzip -dc`, Bazel workplan P1-17). A
+  directory, so that a launcher can name it: `--duckdb-extensions` takes a directory, and a runfiles
+  manifest lists a directory output where it does not list a file's parent.
 - **`<name>_posix`**: today's rule and script, `target_compatible_with` everything but Windows. Its one
   change: the script names the extension directory instead of taking the extension file's `dirname`.
 - **`<name>_windows`**: a `launcher_binary` whose `entrypoint` is the server and whose

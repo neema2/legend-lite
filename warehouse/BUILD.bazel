@@ -267,7 +267,6 @@ junit_test(
 warehouse_run(
     name = "serve",
     library = ":duckdb_library",
-    postgres_extension_gz = POSTGRES_EXTENSION,
     server = ":server_native",
 )
 
@@ -284,7 +283,6 @@ warehouse_run(
     name = "launcher_test_serve_site",
     args_before = ["--single-user"],
     library = ":duckdb_library",
-    postgres_extension_gz = POSTGRES_EXTENSION,
     server = ":server_native",
     site = ":launcher_test_site",
     testonly = True,
@@ -323,8 +321,11 @@ junit_test(
     ],
 )
 
-# DuckDB's postgres extension, gunzipped by a Java action (Bazel workplan P1-17): no shell, no host gzip.
-# warehouse_run still unpacks its own copy until P4-12 replaces it.
+# DuckDB's postgres extension, gunzipped by a Java action (Bazel workplan P1-17): no shell, no host gzip. Bazel's own
+# fetch-time unpacking of a .gz (http_archive) would be simpler, but Bazel 9.2 sets the unpacked file's modification
+# time 1000x too far in the future (GzFunction multiplies milliseconds by 1000), which Windows refuses: the fetch
+# fails "(Permission denied)" (throwaway CI run 37224856941, 2026-10-04). Revisit once a Bazel release fixes it.
+# warehouse_run's launchers copy this one file into their extension directories.
 alias(
     name = "duckdb_extension_gz",
     actual = POSTGRES_EXTENSION,

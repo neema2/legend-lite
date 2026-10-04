@@ -9,7 +9,7 @@ load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/browser:defs.bzl", "browser_test")
 load("//tools/runfiles:defs.bzl", "executable_of")
 load("//tools/java_run:defs.bzl", "java_run")
-load("//warehouse:defs.bzl", "POSTGRES_EXTENSION", "warehouse_run")
+load("//warehouse:defs.bzl", "warehouse_run")
 load("@rules_java//java:defs.bzl", "java_binary", "java_library")
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@npm//datacube:esbuild/package_json.bzl", esbuild = "bin")
@@ -722,7 +722,6 @@ warehouse_run(
         "--open",
     ],
     library = "//warehouse:duckdb_library",
-    postgres_extension_gz = POSTGRES_EXTENSION,
     server = "//warehouse:server_native",
     site = ":dist",
 )
