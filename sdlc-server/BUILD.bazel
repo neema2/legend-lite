@@ -1,0 +1,55 @@
+# SDLC-lite (design S1, S21): legend-sdlc's REST API and lite's text routes, its RULES written once in
+# Java (com.legend.sdlc.Sdlc over a Storage) and run two ways -- by the server (to come: HTTP over a git
+# backend) and in the page, compiled to WebAssembly (:page). One conformance suite holds both
+# (project-store/test/conformance.ts). Depends on //core's public API, never the reverse.
+load("@rules_java//java:defs.bzl", "java_library")
+load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
+load("//tools/teavm:defs.bzl", "teavm_wasm")
+
+package(default_visibility = ["//visibility:public"])
+
+# THE RULES: TeaVM-safe by rule (no files, sockets, threads, reflection, java.security), so the same
+# classes compile into the page's module.
+java_library(
+    name = "rules",
+    srcs = glob(["src/main/java/com/legend/sdlc/*.java"]),
+    javacopts = NULLAWAY_OPTS,
+    plugins = [NULLAWAY_PLUGIN],
+    deps = [
+        "//base",
+        "//core",
+        "//json",
+    ],
+)
+
+# TeaVM's annotations, at compile time only (as //wasm:teavm_api).
+java_library(
+    name = "teavm_api",
+    neverlink = True,
+    visibility = ["//visibility:private"],
+    exports = [
+        "@maven_teavm//:org_teavm_teavm_core",
+        "@maven_teavm//:org_teavm_teavm_jso",
+    ],
+)
+
+java_library(
+    name = "page_boundary",
+    srcs = glob(["src/main/java/com/legend/sdlc/page/*.java"]),
+    deps = [
+        ":rules",
+        ":teavm_api",
+        "//json",
+    ],
+)
+
+# The page's SDLC: the rules and all they reach, compiled to WebAssembly.
+teavm_wasm(
+    name = "page",
+    main_class = "com.legend.sdlc.page.SdlcPage",
+    deps = [
+        ":page_boundary",
+        "@maven_teavm//:org_teavm_teavm_classlib",
+        "@maven_teavm//:org_teavm_teavm_jso",
+    ],
+)

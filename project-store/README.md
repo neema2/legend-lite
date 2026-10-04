@@ -10,21 +10,25 @@ arrives when Query (by GAV) or Studio (dependencies) needs one.
   `ProjectConfiguration`, …) and the text routes' `PureFile` / `PureChange`.
 - `src/client.ts`: **the one client**, `SdlcClient(api, fetch)`. It is typed, and refusals come back
   as `SdlcError(message, status)`.
-- `src/local-server.ts`: **the SDLC in the page** (level 0: no server). It answers upstream's routes
-  and the text routes from the page's own records. Rules, statuses and messages follow legend-sdlc's
-  GitLab backend (`studio/docs/SDLC_CONTRACT_SLICE1.md`).
-  - What it stores is text, one `.pure` file per element (S5).
-  - Imports are refused at save, as upstream SDLC refuses them (S20, v0).
-  - Entities are derived on read by the page's grammar (the WASM planner's `modelJsonOrError`, i.e.
-    the engine's `grammarToJson`), never stored.
+- `src/wasm-server.ts`: **the SDLC in the page** (level 0: no server). It is not written here: it is
+  `sdlc-server/`'s Java rules (`com.legend.sdlc.Sdlc`) compiled to WebAssembly (`//sdlc-server:page`),
+  so the page and the server answer from one implementation (decided by the spike of 2026-10-04,
+  design S21). This file is only the adapter:
+  - it turns each `fetch` into one `handle` call;
+  - it writes what each call changed to IndexedDB before answering;
+  - it loads those records back when the page opens.
+  The rules follow legend-sdlc's GitLab backend (`studio/docs/SDLC_CONTRACT_SLICE1.md`):
+  - text is stored, one `.pure` file per element (S5);
+  - imports are refused at save, as upstream SDLC refuses them (S20, v0);
+  - entities are derived on read by lite's `grammarToJson`, never stored;
+  - revisions are real git commits (ids checked against `git hash-object`), so a page's project can
+    be pushed into a repository as it is.
 - `src/records.ts`: where the page keeps them: IndexedDB (`legend-projects`), or memory in a test.
-- `src/classifiers.ts` + `data/classifier-paths.json`: an element's `_type` → its `classifierPath`.
-  The data is legend-engine 4.145.0's own answer, plus the four core types its route omits.
 
 **One suite, every SDLC** (`test/conformance.ts`). It sends raw HTTP and checks the JSON field
 orders, the statuses and the refusals word for word, then repeats through the client.
-- `//project-store:local_test` runs it on the page's SDLC with the real WASM grammar.
-- `sdlc-server/` joins it when it lands.
+- `//project-store:wasm_test` runs it on the page's SDLC (the Java rules in WebAssembly).
+- `sdlc-server/` over HTTP joins it when it lands.
 
 ## What the page's SDLC does not have
 

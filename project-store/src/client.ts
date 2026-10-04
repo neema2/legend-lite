@@ -1,6 +1,6 @@
 // THE ONE CLIENT of an SDLC: upstream legend-sdlc's REST API and lite's text routes (design S15),
-// typed. Studio talks to its projects through this and nothing else; WHERE the SDLC is -- the model
-// home's server, a real legend-sdlc, or this page (local-server.ts) -- is only the `fetch` and root
+// typed. Studio talks to its projects through this and nothing else; WHERE the SDLC is -- sdlc-server,
+// a real legend-sdlc, or this page (wasm-server.ts) -- is only the `fetch` and root
 // it is handed, never a branch in an app (design S21).
 
 import type {
@@ -69,7 +69,7 @@ function query(params: Readonly<Record<string, string | number | boolean | reado
 
 /**
  * The SDLC at `api` -- its API root, `http://host:port/sdlc/api` -- through `fetcher`: the network,
- * or the page's own store (`localSdlcServer(...).fetch`).
+ * or the page's own SDLC (`(await wasmSdlcServer(...)).fetch`).
  */
 export class SdlcClient {
   readonly #api: string;

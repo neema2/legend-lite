@@ -1,7 +1,6 @@
-// Where the page's own SDLC keeps its projects: plain keyed records -- a project, its refs (the
-// project line and each workspace), and revisions, which are immutable and named by their content
-// hash. IndexedDB in a browser, a Map in a test. The layout is local-server.ts's; this file only
-// stores and reads it.
+// Where the page's own SDLC keeps its projects: plain keyed records -- git objects, refs and project
+// records, as sdlc-server's rules write them (`com.legend.sdlc.Storage`). IndexedDB in a browser, a
+// Map in a test. The layout is the rules'; this file only stores and reads it (wasm-server.ts).
 
 /** Keyed JSON records. `list(prefix)` answers every record whose key starts with it, in key order. */
 export interface Records {

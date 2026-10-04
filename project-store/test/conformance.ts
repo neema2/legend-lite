@@ -1,7 +1,8 @@
 // ONE SUITE, every SDLC here: upstream legend-sdlc's routes and lite's text routes asked over raw HTTP --
 // the paths, the JSON and its field order, the statuses, the refusals word for word -- and through the
-// client. It runs against the page's own SDLC (local.test.ts) and, when it lands, against the model
-// home's server, so the two cannot answer differently without one of them failing here. The rules:
+// client. It runs against the page's SDLC (wasm.test.ts: sdlc-server's rules in WebAssembly) and, when
+// it lands, against sdlc-server over HTTP, so the two cannot answer differently without one of them
+// failing here. The rules:
 // studio/docs/SDLC_CONTRACT_SLICE1.md; lite's departures: README.md.
 
 import assert from 'node:assert/strict';
