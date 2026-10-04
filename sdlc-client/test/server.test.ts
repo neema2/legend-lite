@@ -110,7 +110,7 @@ describe('sdlc-server: who may call it (review findings 1, 2)', () => {
 
 /** git itself, over the server's repository: its output, or the failure in full (one that never ran, too). */
 function git(...args: string[]): string {
-  const r = spawnSync(process.env['GIT'] ?? 'git', ['--git-dir', repo, ...args], { encoding: 'utf8' });
+  const r = spawnSync('git', ['--git-dir', repo, ...args], { encoding: 'utf8' });
   if (r.error) throw new Error(`git ${args[0]} did not run: ${r.error.message}`);
   assert.equal(r.status, 0, `git ${args.join(' ')}:\n${r.stdout}${r.stderr}`);
   return r.stdout;
