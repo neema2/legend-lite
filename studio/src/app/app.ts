@@ -17,7 +17,7 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
   };
   registerPure(monaco);
   root.append(h('div', { class: 'loading' }, 'Loading Legend Studio…'));
-  const { client, where } = await connect(config);
+  const { client, depot, where } = await connect(config);
   const compiler = new Compiler(new WorkerPort(workerUrl, `${config.vendor}planner/`));
   let dispose: (() => void) | undefined;
 
@@ -34,7 +34,7 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
       if (edit) {
         const project = edit[1]!;
         dispose = await renderEditor(root, {
-          client, compiler, monaco, project, workspace: edit[2]!,
+          client, depot, compiler, monaco, project, workspace: edit[2]!,
           back: () => { globalThis.location.hash = `#/project/${encodeURIComponent(project)}`; },
         });
       } else {

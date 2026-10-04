@@ -14,7 +14,10 @@ exports_files(["pnpm-lock.yaml", "package.json"])
 js_library(
     name = "src",
     srcs = glob(["src/**/*.ts", "src/**/*.css"]) + ["package.json", "tsconfig.json"],
-    deps = ["//sdlc-client:sdlc_client"],
+    deps = [
+        "//depot-client:depot_client",
+        "//sdlc-client:sdlc_client",
+    ],
 )
 
 # the page and its two workers: Studio (with Monaco and its stylesheet), legend-lite's compiler, Monaco's
@@ -135,6 +138,7 @@ typescript.tsc_test(
     ]) + [
         "package.json",
         "tsconfig.json",
+        "//depot-client:depot_client",
         "//sdlc-client:sdlc_client",
         ":node_modules/@types/node",
         ":node_modules/monaco-editor",

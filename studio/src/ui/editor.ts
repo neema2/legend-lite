@@ -4,6 +4,7 @@
 
 import type * as Monaco from 'monaco-editor/editor/editor.api';
 
+import type { DepotClient } from '../../../depot-client/src/client.ts';
 import type { SdlcClient } from '../../../sdlc-client/src/client.ts';
 import { SdlcError } from '../../../sdlc-client/src/client.ts';
 import type { Compiler } from '../backend/planner.ts';
@@ -16,6 +17,7 @@ import { renderProject, renderReview } from './sdlc-panels.ts';
 
 export interface EditorContext {
   readonly client: SdlcClient;
+  readonly depot: DepotClient;
   readonly compiler: Compiler;
   readonly monaco: typeof Monaco;
   readonly project: string;
@@ -35,7 +37,7 @@ export function fileLabel(f: OpenFile): string {
 
 export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promise<() => void> {
   const { monaco } = ctx;
-  const ws = new Workspace(ctx.client, ctx.compiler, ctx.project, ctx.workspace);
+  const ws = new Workspace(ctx.client, ctx.compiler, ctx.project, ctx.workspace, ctx.depot);
   await ws.load();
 
   const models = new Map<string, Monaco.editor.ITextModel>();
@@ -183,8 +185,14 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
     clear(sideBar);
     if (activity === 'explorer') renderExplorer();
     else if (activity === 'changes') void renderChanges();
-    else if (activity === 'review') void renderReview(sideBar, { client: ctx.client, project: ctx.project, workspace: ctx.workspace, hasChanges: () => ws.hasChanges(), reload });
-    else void renderProject(sideBar, { client: ctx.client, project: ctx.project, workspace: ctx.workspace });
+    else {
+      const panel = {
+        client: ctx.client, depot: ctx.depot, project: ctx.project, workspace: ctx.workspace, ws, reload,
+        gone: (message: string) => { toast(message); ctx.back(); },
+      };
+      const render = activity === 'review' ? renderReview : renderProject;
+      render(sideBar, panel).catch((e: unknown) => toast(e instanceof Error ? e.message : String(e), 'error'));
+    }
   };
 
   const renderExplorer = (): void => {

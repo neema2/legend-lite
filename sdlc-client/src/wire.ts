@@ -99,6 +99,66 @@ export interface ProjectConfiguration {
   readonly produceShadedServiceJar?: boolean | null;
 }
 
+export type ReviewState = 'OPEN' | 'COMMITTED' | 'CLOSED' | 'UNKNOWN';
+
+/** `Review`: a workspace's way onto the project line. */
+export interface Review {
+  readonly id: string;
+  readonly projectId: string;
+  readonly workspaceId: string;
+  readonly workspaceType: 'USER' | 'GROUP';
+  readonly title: string;
+  readonly description: string;
+  readonly createdAt: string;
+  readonly lastUpdatedAt: string | null;
+  readonly closedAt: string | null;
+  readonly committedAt: string | null;
+  readonly state: ReviewState;
+  readonly author: User;
+  readonly commitRevisionId: string | null;
+  readonly webURL: string | null;
+  readonly labels: readonly string[];
+}
+
+export interface CreateReviewCommand {
+  readonly workspaceId: string;
+  readonly workspaceType?: 'USER' | 'GROUP';
+  readonly title: string;
+  readonly description: string;
+  readonly labels?: readonly string[];
+}
+
+/** `VersionId`: an object on the wire, not a string. */
+export interface VersionId {
+  readonly majorVersion: number;
+  readonly minorVersion: number;
+  readonly patchVersion: number;
+}
+
+export interface Version {
+  readonly id: VersionId;
+  readonly projectId: string;
+  readonly revisionId: string;
+  readonly notes: string | null;
+}
+
+export type NewVersionType = 'MAJOR' | 'MINOR' | 'PATCH';
+
+export interface CreateVersionCommand {
+  readonly versionType: NewVersionType;
+  readonly revisionId?: string | null;
+  readonly notes?: string | null;
+}
+
+/** `UpdateProjectConfigurationCommand`, the dependency part (what lite serves). */
+export interface UpdateProjectConfigurationCommand {
+  readonly message: string;
+  readonly projectDependenciesToAdd?: readonly ProjectDependency[];
+  readonly projectDependenciesToRemove?: readonly ProjectDependency[];
+}
+
+export const versionText = (v: VersionId): string => `${v.majorVersion}.${v.minorVersion}.${v.patchVersion}`;
+
 /** `ExtendedErrorMessage`: what every refusal answers. */
 export interface ErrorMessage {
   readonly code: number;

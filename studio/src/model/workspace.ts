@@ -7,8 +7,9 @@
 // from its text at save time (the compiler's grammarToJson), so renaming an element in its text is a
 // delete of the old path and a create of the new one -- the text is the truth, not a form field.
 
+import type { DepotClient } from '../../../depot-client/src/client.ts';
 import type { SdlcClient } from '../../../sdlc-client/src/client.ts';
-import type { PureChange, Revision } from '../../../sdlc-client/src/wire.ts';
+import type { ProjectConfiguration, PureChange, Revision } from '../../../sdlc-client/src/wire.ts';
 import type { Compiler } from '../backend/planner.ts';
 
 /** One file in the editor. */
@@ -45,21 +46,30 @@ export class Workspace {
   /** key → file being edited (deleted files are absent). */
   #files = new Map<string, OpenFile>();
   #next = 1;
-  /** Model text of the dependencies, compiled with the workspace (design S8; from Depot). */
+  readonly #depot: DepotClient | undefined;
+  /** Model text of the dependencies, compiled with the workspace (their files from Depot, nearest wins). */
   dependencies = '';
+  /** Why the dependencies could not be read, when they could not (shown as a problem). */
+  dependencyProblem: string | undefined;
+  #configuration: ProjectConfiguration | undefined;
 
-  constructor(client: SdlcClient, compiler: Compiler, project: string, workspace: string) {
+  constructor(client: SdlcClient, compiler: Compiler, project: string, workspace: string, depot?: DepotClient) {
     this.#client = client;
     this.#compiler = compiler;
     this.project = project;
     this.workspace = workspace;
+    this.#depot = depot;
   }
 
   get revision(): Revision | undefined {
     return this.#revision;
   }
 
-  /** Reads the workspace's current revision: every file, as saved. Local edits are dropped. */
+  get configuration(): ProjectConfiguration | undefined {
+    return this.#configuration;
+  }
+
+  /** Reads the workspace's current revision: every file, as saved, and its dependencies. Local edits are dropped. */
   async load(): Promise<void> {
     const where = { project: this.project, workspace: this.workspace };
     const revision = await this.#client.revision(where);
@@ -67,6 +77,25 @@ export class Workspace {
     this.#revision = revision;
     this.#saved = new Map(files.map((f) => [f.path, f.pureCode]));
     this.#files = new Map(files.map((f) => [f.path, { key: f.path, savedPath: f.path, text: f.pureCode }]));
+    this.#configuration = await this.#client.configuration({ ...where, revision: revision.id });
+    await this.#loadDependencies();
+  }
+
+  /** The dependencies' files, as Depot resolves them (the same closure the SDLC's gates compile with). */
+  async #loadDependencies(): Promise<void> {
+    this.dependencies = '';
+    this.dependencyProblem = undefined;
+    const declared = this.#configuration?.projectDependencies ?? [];
+    if (declared.length === 0 || !this.#depot) return;
+    try {
+      const versions = await this.#depot.dependencyFiles(declared.map((d) => {
+        const [groupId = '', artifactId = ''] = d.projectId.split(':');
+        return { groupId, artifactId, versionId: d.versionId };
+      }));
+      this.dependencies = versions.flatMap((v) => v.files.map((f) => `###Pure\n${f.pureCode}`)).join('\n');
+    } catch (e) {
+      this.dependencyProblem = `the dependencies could not be read: ${e instanceof Error ? e.message : String(e)}`;
+    }
   }
 
   files(): OpenFile[] {
@@ -178,7 +207,8 @@ export class Workspace {
   async compile(): Promise<Problem[]> {
     const { text, starts } = this.model();
     const errors = await this.#compiler.compile(text);
-    return errors.map((message) => this.#attach(message, starts));
+    const problems = errors.map((message) => this.#attach(message, starts));
+    return this.dependencyProblem ? [{ message: this.dependencyProblem }, ...problems] : problems;
   }
 
   #attach(message: string, starts: { key: string; line: number; lines: number }[]): Problem {

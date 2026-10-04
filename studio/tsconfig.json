@@ -23,5 +23,5 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["src", "test", "demo", "../sdlc-client/src"]
+  "include": ["src", "test", "demo", "../sdlc-client/src", "../depot-client/src"]
 }

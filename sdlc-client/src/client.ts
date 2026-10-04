@@ -4,8 +4,9 @@
 // it is handed, never a branch in an app (design S21).
 
 import type {
-  CreateProjectCommand, Entity, ErrorMessage, PerformChangesCommand, PerformPureChangesCommand, Project,
-  ProjectConfiguration, PureFile, Revision, User, Workspace,
+  CreateProjectCommand, CreateReviewCommand, CreateVersionCommand, Entity, ErrorMessage, PerformChangesCommand,
+  PerformPureChangesCommand, Project, ProjectConfiguration, PureFile, Review, ReviewState, Revision,
+  UpdateProjectConfigurationCommand, User, Version, Workspace,
 } from './wire.ts';
 
 /** An SDLC's refusal, as it said it: its status and its own words. */
@@ -140,6 +141,56 @@ export class SdlcClient {
   /** The revision at `where.revision` (default `CURRENT`). */
   revision(where: Where): Promise<Revision> {
     return this.#json('GET', base({ ...where, revision: where.revision ?? 'CURRENT' }));
+  }
+
+  /** A history, newest first (`since`/`until` ISO instants). */
+  revisions(where: Where, params: { since?: string; until?: string; limit?: number } = {}): Promise<Revision[]> {
+    return this.#json('GET', `${base(where)}/revisions${query({ ...params })}`);
+  }
+
+  /** `POST …/{w}/configuration`: dependencies added and removed, as one revision. */
+  updateConfiguration(project: string, workspace: string, command: UpdateProjectConfigurationCommand): Promise<Revision> {
+    return this.#json('POST', `${base({ project, workspace })}/configuration`, command);
+  }
+
+  // ---- reviews ----
+
+  reviews(project: string, params: { state?: ReviewState; revisionIds?: readonly string[]; workspaceIdRegex?: string; since?: string; until?: string; limit?: number } = {}): Promise<Review[]> {
+    return this.#json('GET', `/projects/${enc(project)}/reviews${query({ ...params })}`);
+  }
+
+  review(project: string, id: string): Promise<Review> {
+    return this.#json('GET', `/projects/${enc(project)}/reviews/${enc(id)}`);
+  }
+
+  createReview(project: string, command: CreateReviewCommand): Promise<Review> {
+    return this.#json('POST', `/projects/${enc(project)}/reviews`, command);
+  }
+
+  /** `close`, `reject`, `reopen`, `approve`, `revokeApproval`: the review after it. */
+  reviewAction(project: string, id: string, action: 'close' | 'reject' | 'reopen' | 'approve' | 'revokeApproval'): Promise<Review> {
+    return this.#json('POST', `/projects/${enc(project)}/reviews/${enc(id)}/${action}`);
+  }
+
+  /** Lands the review on the project line (and deletes its workspace). */
+  commitReview(project: string, id: string, message: string): Promise<Review> {
+    return this.#json('POST', `/projects/${enc(project)}/reviews/${enc(id)}/commit`, { message });
+  }
+
+  // ---- versions ----
+
+  versions(project: string): Promise<Version[]> {
+    return this.#json('GET', `/projects/${enc(project)}/versions`);
+  }
+
+  /** The latest version, or undefined (upstream's 204). */
+  async latestVersion(project: string): Promise<Version | undefined> {
+    const res = await this.#call('GET', `/projects/${enc(project)}/versions/latest`);
+    return res.status === 204 ? undefined : res.json() as Promise<Version>;
+  }
+
+  createVersion(project: string, command: CreateVersionCommand): Promise<Version> {
+    return this.#json('POST', `/projects/${enc(project)}/versions`, command);
   }
 
   // ---- entities (upstream's JSON, derived from the stored text) ----
