@@ -1,0 +1,8 @@
+load("@rules_java//java:defs.bzl", "java_library")
+
+# A gunzip for build actions (java_run), on the JDK alone: no shell, no host gzip (Bazel workplan P1-17).
+java_library(
+    name = "gunzip",
+    srcs = ["Gunzip.java"],
+    visibility = ["//visibility:public"],
+)

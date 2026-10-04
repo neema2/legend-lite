@@ -5,6 +5,7 @@ load("@rules_graalvm//graalvm:defs.bzl", "native_image")
 load("@rules_java//java:defs.bzl", "java_binary", "java_library")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("//tools/runfiles:defs.bzl", "executable_of")
+load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
 load(":defs.bzl", "NOT_ON_WINDOWS_ARM64", "POSTGRES_EXTENSION", "jar_entry", "warehouse_run")
 load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
@@ -335,4 +336,25 @@ config_setting(
         "@platforms//os:macos",
         "@platforms//cpu:x86_64",
     ],
+)
+
+# DuckDB's postgres extension, gunzipped by a Java action (Bazel workplan P1-17): no shell, no host gzip.
+# warehouse_run still unpacks its own copy until P4-12 replaces it.
+alias(
+    name = "duckdb_extension_gz",
+    actual = POSTGRES_EXTENSION,
+)
+
+java_run(
+    name = "duckdb_extensions",
+    srcs = [":duckdb_extension_gz"],
+    outs = ["duckdb_extensions/postgres_scanner.duckdb_extension"],
+    arguments = [
+        "$(execpath :duckdb_extension_gz)",
+        "{OUT}",
+    ],
+    main_class = "com.legend.tools.gunzip.Gunzip",
+    mnemonic = "GunzipDuckdbExtension",
+    target_compatible_with = NOT_ON_WINDOWS_ARM64,
+    deps = ["//tools/gunzip"],
 )
