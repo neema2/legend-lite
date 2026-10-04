@@ -7,6 +7,8 @@ load(":defs.bzl", "junit_test")
 # launcher's fat jar bundled: Jupiter, Vintage (pct's JUnit 3 suites) and Suite.
 legend_java_library(
     name = "junit",
+    # the test runner: on every test's classpath and nothing else's (its jars are @maven_test's, a testonly pool)
+    testonly = True,
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     srcs = ["JUnitMain.java"],

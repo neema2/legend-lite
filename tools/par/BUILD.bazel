@@ -9,7 +9,7 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     srcs = ["ParGenerator.java"],
-    # legend-engine/pure jars: test-only, and for //pct's adapter PAR alone (tools/deps/pools.bzl, Bazel workplan P1-25)
+    # legend-engine/pure jars are testonly (MODULE.bazel), so this is; and for //pct's adapter PAR alone (Bazel workplan P1-25)
     testonly = True,
     visibility = ["//pct:__pkg__"],
     runtime_deps = [

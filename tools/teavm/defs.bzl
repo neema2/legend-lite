@@ -49,7 +49,7 @@ _teavm_wasm = rule(
     doc = "Compiles main_class, over deps' runtime jars, to <name>/classes.wasm with TeaVM.",
 )
 
-def teavm_wasm(name, deps, testonly = False, **kwargs):
+def teavm_wasm(name, deps, **kwargs):
     """The teavm_wasm rule, after checking the package may use every Maven pool `deps` names (tools/deps/pools.bzl)."""
-    check_pool_use(name, testonly, deps)
-    _teavm_wasm(name = name, deps = deps, testonly = testonly, **kwargs)
+    check_pool_use(name, deps)
+    _teavm_wasm(name = name, deps = deps, **kwargs)

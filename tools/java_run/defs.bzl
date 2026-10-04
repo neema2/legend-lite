@@ -141,8 +141,8 @@ _java_run = rule(
     doc = "Runs main_class over deps' target-configuration jars on the exec Java runtime.",
 )
 
-def java_run(name, deps, testonly = False, **kwargs):
+def java_run(name, deps, **kwargs):
     """The java_run rule, after checking the package may use every Maven pool `deps` names (tools/deps/pools.bzl),
     when the BUILD file loads, so a manual or incompatible target is checked too."""
-    check_pool_use(name, testonly, deps)
-    _java_run(name = name, deps = deps, testonly = testonly, **kwargs)
+    check_pool_use(name, deps)
+    _java_run(name = name, deps = deps, **kwargs)

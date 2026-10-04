@@ -25,7 +25,7 @@ def legend_java_library(name, nullaway = True, visibility = ["//visibility:priva
         plugins: added after NullAway's.
         **kwargs: everything else java_library takes.
     """
-    check_pool_use(name, kwargs.get("testonly", False), kwargs.get("deps", []), kwargs.get("runtime_deps", []), kwargs.get("exports", []))
+    check_pool_use(name, kwargs.get("deps", []), kwargs.get("runtime_deps", []), kwargs.get("exports", []))
     java_library(
         name = name,
         javacopts = LEGEND_JAVACOPTS + (NULLAWAY_OPTS if nullaway else []) + javacopts,
@@ -43,7 +43,7 @@ def legend_java_binary(name, javacopts = [], **kwargs):
         javacopts: added after the shared options.
         **kwargs: everything else java_binary takes.
     """
-    check_pool_use(name, kwargs.get("testonly", False), kwargs.get("deps", []), kwargs.get("runtime_deps", []))
+    check_pool_use(name, kwargs.get("deps", []), kwargs.get("runtime_deps", []))
     java_binary(
         name = name,
         javacopts = LEGEND_JAVACOPTS + javacopts,

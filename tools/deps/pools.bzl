@@ -1,20 +1,18 @@
 """THE JAR POOLS and WHO MAY USE EACH (Bazel workplan P1-25): one list, read by every place that names the pools.
 
-Three layers keep legend-engine / legend-pure (and the other test-only jars) out of what ships:
+What may never SHIP: @maven_upstream (legend-engine, legend-pure), @maven_runner and @maven_test are testonly as a
+whole (TESTONLY_POOLS; MODULE.bazel amends every listed jar testonly, and
+third_party/rules_jvm_external_testonly_closure.patch marks whatever only they reach), so Bazel refuses any non-test
+RULE that depends on one of their jars, directly or transitively. Bazel does not check generated files (a filegroup
+over a testonly binary's deploy jar passes), so //tools/deps:product_closure_test holds every shipped root clear of
+those pools by any path; //tools/deps:pools_list_test keeps each of them testonly as a whole.
 
-  1. Direct use. POOL_USERS names, for each rules_jvm_external pool in MODULE.bazel, the packages (or single
-     targets, "package:name") that may depend on its jars. check_pool_use enforces it when a BUILD file loads, in
-     the macros that make first-party Java targets: legend_java_library, legend_java_binary, junit_test, java_run,
-     teavm_wasm. rules_jvm_external makes every LISTED jar public under strict_visibility, so Bazel's own
-     visibility cannot say this. Other rule kinds (a raw java_library, java_import, a filegroup) are not checked
-     here: layer 3 covers what ships, whatever the rule.
-  2. Test-only by construction. A target made by those macros that uses a TESTONLY_POOLS pool directly must be
-     testonly, so Bazel itself refuses every non-test target that depends on it, transitively and in every package (a pool cannot be marked
-     testonly as a whole: its unlisted jars depend on its listed ones).
-  3. What ships. //tools/deps:product_closure_test: every shipped root (the server jar, the warehouse server and
-     its native image, the launchers, the wasm planner; a new one is added to its list) reaches no jar of a
-     TESTONLY_POOLS pool or of @maven_test, through every explicit dependency of any rule kind; core_closure_test:
-     core reaches no outside jar at all. A graph-wide layer 1 over every package comes with P6-00's inventory.
+What this file adds is which TEST code may use which pool: POOL_USERS names, for each pool, the packages (or single
+targets, "package:name") that may depend on its jars, so, for example, core's own tests never use legend-engine
+(the reference-checkout tenet). check_pool_use enforces it when a BUILD file loads, in the macros that make
+first-party Java targets: legend_java_library, legend_java_binary, junit_test, java_run, teavm_wasm. Raw rules
+outside them are not checked here; a graph-wide check over every package comes with P6-00's inventory. Core
+itself reaches no outside jar at all: //tools/deps:core_closure_test.
 
 Adding a user is a reviewed edit here, with the reason.
 """
@@ -42,8 +40,9 @@ POOL_USERS = {
 
 POOLS = sorted(POOL_USERS.keys())
 
-# Pools whose direct users must be testonly (layer 2), and whose jars no shipped root may reach (layer 3).
-TESTONLY_POOLS = ["maven_runner", "maven_upstream"]
+# The pools that are testonly as a whole (MODULE.bazel: every listed jar amended testonly, and the closure patch).
+# //tools/deps:pools_list_test holds MODULE.bazel to it; //tools/deps:product_closure_test keeps them out of what ships.
+TESTONLY_POOLS = ["maven_runner", "maven_test", "maven_upstream"]
 
 def _pool_of_label(label):
     # canonical repository names: rules_jvm_external++maven+maven_upstream
@@ -52,12 +51,11 @@ def _pool_of_label(label):
         return None
     return repo.split("++maven+")[-1]
 
-def check_pool_use(name, testonly, *label_lists):
+def check_pool_use(name, *label_lists):
     """In a macro: fails if this target may not use a pool one of the labels names.
 
     Args:
         name: the target.
-        testonly: the target's testonly (a junit_test is always testonly).
         *label_lists: lists of labels (deps, runtime_deps, exports, ...); a select() is refused.
     """
     package = native.package_name()
@@ -77,6 +75,3 @@ def check_pool_use(name, testonly, *label_lists):
             if package not in users and "%s:%s" % (package, name) not in users:
                 fail(("%s depends on @%s, which only %s may use (tools/deps/pools.bzl, Bazel workplan P1-25): add " +
                       "it there, with the reason, if it really needs those jars") % (what, pool, ", ".join(["//" + u for u in users])))
-            if pool in TESTONLY_POOLS and not testonly:
-                fail(("%s depends on @%s and must be testonly = True: that pool's jars are test inputs, and a testonly " +
-                      "target is one nothing that ships can depend on (tools/deps/pools.bzl)") % (what, pool))

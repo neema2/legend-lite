@@ -148,7 +148,7 @@ junit_test(
     ],
 )
 
-# tools/deps/pools.bzl's pools are exactly MODULE.bazel's (Bazel workplan P1-25)
+# tools/deps/pools.bzl's pools are exactly MODULE.bazel's, and its testonly pools are testonly as a whole (Bazel workplan P1-25)
 junit_test(
     name = "pools_list_test",
     memory_mb = 768,
@@ -158,6 +158,7 @@ junit_test(
     jvm_flags = [
         "-Dmodule.bazel=$(rlocationpath //:MODULE.bazel)",
         "-Dpools=" + ",".join(POOLS),
+        "-Dtestonly.pools=" + ",".join(TESTONLY_POOLS),
     ],
     select = ["--select-class=com.legend.tools.deps.PoolsListTest"],
     deps = [
@@ -166,8 +167,10 @@ junit_test(
     ],
 )
 
-# WHAT SHIPS (Bazel workplan P1-25, tools/deps/pools.bzl layer 3): every jar the shipped roots reach, through every
-# attribute and every select() branch. A new shipped binary is added here.
+# WHAT SHIPS (Bazel workplan P1-25): every jar the shipped roots reach, through every explicit attribute and every
+# select() branch, and through generated files back to the rules that make them. Bazel's testonly rule keeps a
+# non-test RULE off the testonly pools, but not a generated file (a filegroup over a testonly binary's deploy jar
+# passes): this test is what covers that, for everything that ships. A new shipped binary is added here.
 _SHIPPED = [
     "//core:core",
     "//core:drivers",
@@ -196,7 +199,7 @@ junit_test(
     data = [":product_closure"],
     jvm_flags = [
         "-Dclosure.product_closure=$(rlocationpath :product_closure)",
-        "-Dforbidden.pools=" + ",".join(TESTONLY_POOLS + ["maven_test"]),
+        "-Dforbidden.pools=" + ",".join(TESTONLY_POOLS),
     ],
     select = ["--select-class=com.legend.tools.deps.ProductClosureTest"],
     deps = [

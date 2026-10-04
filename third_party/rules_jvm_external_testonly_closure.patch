@@ -1,0 +1,73 @@
+diff --git a/private/dependency_tree_parser.bzl b/private/dependency_tree_parser.bzl
+index 76d9cf6..fa78b04 100644
+--- a/private/dependency_tree_parser.bzl
++++ b/private/dependency_tree_parser.bzl
+@@ -434,12 +434,59 @@ processor_class = "{processor_class}",
+ 
+     return to_return
+ 
++def _reachable(graph, roots):
++    seen = {root: True for root in roots}
++    queue = list(seen.keys())
++
++    # Each artifact enters the queue once, and every artifact the graph names is one of its keys (roots aside),
++    # so the queue never outgrows the graph plus the roots.
++    for i in range(len(graph) + len(queue)):
++        if i >= len(queue):
++            break
++        for dep in graph.get(queue[i], []):
++            if dep not in seen:
++                seen[dep] = True
++                queue.append(dep)
++    return seen
++
++def _testonly_closure(dependencies, explicit_artifacts, testonly_artifacts, exclusions):
++    """Extends `testonly_artifacts` to the artifacts that only testonly artifacts reach.
++
++    An artifact in the transitive closure of a testonly explicit artifact, and in the closure of no explicit
++    artifact that is not testonly, is marked testonly too. Otherwise its generated target is not testonly but
++    depends on a testonly one, which Bazel refuses, and every such intermediate artifact would have to be listed
++    and marked by hand (https://github.com/bazel-contrib/rules_jvm_external/issues/350).
++    """
++    if not testonly_artifacts:
++        return testonly_artifacts
++    # keyed as the generated targets are: `group:artifact[:classifier]`, the form explicit_artifacts uses too
++    graph = {}
++    for artifact in dependencies:
++        coordinates = strip_packaging_and_classifier_and_version(artifact["coordinates"])
++        artifact_exclusions = exclusions.get(coordinates, [])
++        deps = graph.setdefault(coordinates, [])
++        for dep in artifact.get("deps", []):
++            if not _is_excluded_dependency(dep, artifact_exclusions):
++                dep_coordinates = strip_packaging_and_classifier_and_version(dep)
++                deps.append(dep_coordinates)
++                graph.setdefault(dep_coordinates, [])
++    testonly_roots = [a for a in explicit_artifacts if testonly_artifacts.get(a)]
++    other_roots = [a for a in explicit_artifacts if not testonly_artifacts.get(a)]
++    reached_by_others = _reachable(graph, other_roots)
++    closure = dict(testonly_artifacts)
++    for coordinates in _reachable(graph, testonly_roots):
++        if coordinates not in reached_by_others:
++            closure[coordinates] = True
++    return closure
++
+ # Generate BUILD file with jvm_import and aar_import for each artifact in
+ # the transitive closure, with their respective deps mapped to the resolved
+ # tree.
+ #
+ # Made function public for testing.
+ def _generate_imports(repository_ctx, dependencies, explicit_artifacts, neverlink_artifacts, testonly_artifacts, exclusions, override_targets, override_target_visibilities, skip_maven_local_dependencies):
++    testonly_artifacts = _testonly_closure(dependencies, explicit_artifacts, testonly_artifacts, exclusions)
++
+     repository_urls = [json.decode(repository)["repo_url"] for repository in repository_ctx.attr.repositories]
+ 
+     # The list of java_import/aar_import declaration strings to be joined at the end
+@@ -590,6 +637,8 @@ def _generate_imports(repository_ctx, dependencies, explicit_artifacts, neverlin
+             seen_imports[target_label] = True
+             target_import_string = ["java_library("]
+             target_import_string.append("\tname = \"%s\"," % target_label)
++            if testonly_artifacts.get(simple_coord):
++                target_import_string.append("\ttestonly = True,")
+             target_import_string.append("\texports = [")
+ 
+             target_import_labels = []

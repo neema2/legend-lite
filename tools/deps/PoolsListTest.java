@@ -1,6 +1,8 @@
 package com.legend.tools.deps;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.testing.Runfile;
 import java.io.IOException;
@@ -28,5 +30,24 @@ class PoolsListTest {
         List<String> listed = Arrays.asList(System.getProperty("pools").split(","));
         assertEquals(List.copyOf(module), listed.stream().sorted().toList(),
                 "MODULE.bazel's maven.install pools and tools/deps/pools.bzl's POOL_USERS differ");
+    }
+
+    /** A testonly pool stays testonly as a whole: its maven.install lists exactly one variable, every entry of which
+     *  is amended testonly, and no other tag adds a root to it (a root that is not testonly would make whatever only
+     *  it reaches usable outside tests). */
+    @Test
+    void testonlyPoolsAreTestonlyAsAWhole() throws IOException {
+        String module = Files.readString(Runfile.property("module.bazel"));
+        for (String pool : System.getProperty("testonly.pools").split(",")) {
+            Matcher install = Pattern.compile("(?m)^maven\\.install\\(\\n    name = \"" + Pattern.quote(pool)
+                    + "\",\\n    artifacts = (_[A-Z]+_ARTIFACTS),\\n").matcher(module);
+            assertTrue(install.find(), pool + ": its maven.install must list one _..._ARTIFACTS variable");
+            String variable = install.group(1);
+            String amend = "[maven.amend_artifact(\n    name = \"" + pool + "\",\n    coordinates = coordinates,\n"
+                    + "    testonly = \"true\",\n) for coordinates in " + variable + "]";
+            assertTrue(module.contains(amend), pool + ": every entry of " + variable + " must be amended testonly");
+            assertFalse(Pattern.compile("maven\\.artifact\\(\\s*name = \"" + Pattern.quote(pool) + "\"").matcher(module).find(),
+                    pool + ": a maven.artifact tag adds a root that is not testonly");
+        }
     }
 }
