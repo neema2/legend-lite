@@ -49,4 +49,9 @@ without a **done** entry.
   python3); the gate's lock check is offline (`//tools/python:lock_matches_requirements`), the PyPI re-resolution manual.
   The Arrow check is a py_binary on the locked pyarrow and RUNS with no host pyarrow ("25000 rows, 0 differences");
   CI's pip step and --test_env flags are gone; taskkill by its full Windows path. Full proof 179/179; after the audit's
-  fixes 149/149. Independent audit: one HIGH (the host-python3 stub), fixed. `main`'s CI: running.
+  fixes 149/149. Independent audit: one HIGH (the host-python3 stub), fixed.
+- **Red on main, reverted** (run 37209395985): Windows' `//warehouse:tests_native` could not load pyarrow's DLLs
+  from the test's runfiles: past Windows' path limit (252-259 characters). Reverted at once (`5cc648148`, its tree
+  identical to batch 2's proven-green one). Re-landed as `822cfeb47` with `startup:windows --output_user_root=C:/bzl`
+  in .bazelrc (checked to apply per host OS): the longest path drops to about 226, on CI and on a Windows desk.
+  `main`'s CI on the re-land: running.
