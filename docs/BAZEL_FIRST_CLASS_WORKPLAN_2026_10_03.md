@@ -1049,6 +1049,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | Engine server dependencies may conflict with the runner pool. Strict visibility (P1-25) will show it. |
 | Done when | Either a pinned target starts the engine on port 0, or §6.3 records that no released artifact exists, with the URLs checked (G-10). |
 
+**Investigated (2026-10-04): yes.** Maven Central has `org.finos.legend.engine:legend-engine-server-http-server:4.145.0` (the pin): a thin jar (126 KB) whose `org.finos.legend.engine.server.Server` is the engine's Dropwizard HTTP server, with a bundled `docker/config/config.json`, and 252 direct dependencies in its POM (no `shaded` classifier exists; `legend-engine-server-shared` and `legend-engine-xt-relationalStore-server` do not exist at the pin). So the engine halves of the harnesses are NOT deferred: `//tools/engine-runner:server` is a `java_binary` over `@maven_runner` (the artifact added there, its tree resolved under the engine BOM) with a port-0 config and `start.mjs`. **Sequencing:** it lands with P4-07, its only consumer, so a ~250-jar dependency does not sit unused through Phases 2 and 3.
+
 **Macros and shared definitions (plan 1.4)**
 
 #### P1-19 · `//tools/platforms`: one place for platform policy
