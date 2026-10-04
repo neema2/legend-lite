@@ -24,15 +24,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterAll;
-import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 
 /**
  * The warehouse's Arrow chunks (W1d): the same statement as JSON and as Arrow, every Arrow chunk read
  * by pyarrow (a standard Arrow reader, test-only) and every value compared with the JSON API's
- * (src/test/python/arrow_matches_json.py). Where pyarrow is missing the test is skipped, loudly; CI's
- * app lane installs it and sets WAREHOUSE_ARROW_CHECK=required, which turns a skip into a failure.
+ * (src/test/python/arrow_matches_json.py, the py_binary //warehouse:arrow_matches_json on the hermetic
+ * interpreter with the locked pyarrow). It runs everywhere and never skips (Bazel workplan P1-08).
  */
 class WarehouseArrowTest {
 
@@ -98,7 +97,6 @@ class WarehouseArrowTest {
 
     /** {@link #check(String, int)} on any server and catalog. */
     static Path check(TestServer server, String token, String catalog, String sql, int rowsPerChunk) throws Exception {
-        String python = python();
         Path dir = Files.createTempDirectory("arrow-vs-json");
         StatementRequest json = new StatementRequest(sql, catalog, 60_000, 30_000, rowsPerChunk);
         SqlApiBinding.Done jd = done(WarehouseServerTest.runOn(server, token, json));
@@ -124,8 +122,11 @@ class WarehouseArrowTest {
             assertEquals("application/vnd.apache.arrow.stream", r.headers().firstValue("Content-Type").orElse(""));
             Files.write(dir.resolve("arrow-" + i + ".arrows"), r.body());
         }
-        Process p = new ProcessBuilder(python, Runfile.property("warehouse.arrow.comparator").toString(), dir.toString())
-                .redirectErrorStream(true).start();
+        // the comparator: a py_binary on the hermetic interpreter with the locked pyarrow (Bazel workplan P1-08)
+        ProcessBuilder comparator = new ProcessBuilder(Runfile.property("warehouse.arrow.comparator").toString(),
+                dir.toString()).redirectErrorStream(true);
+        comparator.environment().putAll(Runfile.env());
+        Process p = comparator.start();
         String out = new String(p.getInputStream().readAllBytes());
         assertTrue(p.waitFor(120, TimeUnit.SECONDS), "the comparator did not finish");
         System.out.println(out);
@@ -136,21 +137,5 @@ class WarehouseArrowTest {
     static SqlApiBinding.Done done(SqlApiBinding.Step step) {
         if (step instanceof SqlApiBinding.Failed f) throw new AssertionError(f.error().code() + ": " + f.error().message());
         return (SqlApiBinding.Done) step;
-    }
-
-    /** A Python with pyarrow: skipped where there is none, unless the lane requires it. */
-    static String python() throws Exception {
-        for (String candidate : List.of("python3", "python")) {
-            try {
-                Process p = new ProcessBuilder(candidate, "-c", "import pyarrow").redirectErrorStream(true).start();
-                if (p.waitFor(60, TimeUnit.SECONDS) && p.exitValue() == 0) return candidate;
-            } catch (java.io.IOException notHere) {
-                // try the next name
-            }
-        }
-        boolean required = "required".equals(System.getenv("WAREHOUSE_ARROW_CHECK"));
-        assertTrue(!required, "WAREHOUSE_ARROW_CHECK=required, but no python with pyarrow is on the PATH");
-        Assumptions.abort("no python with pyarrow: the Arrow check is SKIPPED here (CI's app lane requires it)");
-        throw new IllegalStateException("unreachable");
     }
 }

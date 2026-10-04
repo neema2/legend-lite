@@ -10,6 +10,14 @@ import { after, before } from 'node:test';
 
 import { conformance } from './conformance.ts';
 
+// Windows' own taskkill by its full path: a test's PATH is Bazel's, not the desk's (Bazel workplan P1-08
+// removed CI's --test_env=PATH). SystemRoot is set on every Windows process.
+const taskkill = (): string => {
+  const root = process.env['SystemRoot'] ?? process.env['SYSTEMROOT'];
+  if (!root) throw new Error('SystemRoot is not set: cannot find taskkill.exe');
+  return join(root, 'System32', 'taskkill.exe');
+};
+
 const RUNFILES = process.env['RUNFILES_DIR'] ?? process.env['TEST_SRCDIR'] ?? '';
 const SERVER = join(RUNFILES, '_main', 'core', 'server');
 
@@ -56,7 +64,7 @@ after(async () => {
     // taskkill takes the PID of a launcher that is still running: once it has exited, Node has released
     // its handle and Windows may have given the PID to another process, whose tree /t /f would then stop.
     if (server.exitCode === null && server.signalCode === null) {
-      const r = spawnSync('taskkill', ['/pid', String(server.pid), '/t', '/f'], { encoding: 'utf8' });
+      const r = spawnSync(taskkill(), ['/pid', String(server.pid), '/t', '/f'], { encoding: 'utf8' });
       if (r.error) throw new Error(`taskkill did not run: ${r.error.message}`);
       // taskkill's status is not the verdict: it stops the JVM first, the launcher may then exit on its own
       // before taskkill reaches it, and taskkill reports 255 for a tree it did stop (CI, 2026-10-03). The

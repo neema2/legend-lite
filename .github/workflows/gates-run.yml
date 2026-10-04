@@ -52,7 +52,7 @@ jobs:
           fi
           all=$(jq -nc --arg pct6 "$pct6" --arg pct7p "$pct7p" '[
             {"key":"1",      "name":"gate 1 core suite",               "targets":"//core:core_tests"},
-            {"key":"checks", "name":"generated files, dependency guards, source checks", "targets":"//:generated //tools/deps:all //tools/junit:pins_test //tools/junit:runner_test //tools/java_run:pins_test //tools/browser:revision_test //core:guardrails //core:census"},
+            {"key":"checks", "name":"generated files, dependency guards, source checks", "targets":"//:generated //tools/deps:all //tools/junit:pins_test //tools/junit:runner_test //tools/java_run:pins_test //tools/python:lock_matches_requirements //tools/browser:revision_test //core:guardrails //core:census"},
             {"key":"3",      "name":"gate 3 spec parity",              "targets":"//spec:spec_tests"},
             {"key":"4",      "name":"gates 4+11 DuckDB corpus, both judges", "targets":"//spec:corpus_duckdb"},
             {"key":"5",      "name":"gate 5 H2 corpus, both judges",   "targets":"//spec:corpus_h2"},
@@ -130,12 +130,6 @@ jobs:
         run: |
           tzutil /s "Eastern Standard Time"
           tzutil /g
-      - name: pyarrow, the warehouse's Arrow test's standard reader (test-only)
-        if: matrix.lane.key == 'app' || matrix.lane.key == 'native'
-        run: |
-          set -euo pipefail
-          py=python3; command -v python3 >/dev/null 2>&1 || py=python
-          "$py" -m pip install --quiet --target "$RUNNER_TEMP/pyarrow" pyarrow==23.0.1
       - name: Chromium for the browser harnesses (Playwright's, at the lock file's version)
         if: matrix.lane.key == 'browser'
         run: bazel run --config=ci --repository_cache="$HOME/.cache/bazel-repo" --disk_cache="$HOME/.cache/bazel-disk" //datacube:install_browser -- --with-deps
@@ -147,10 +141,6 @@ jobs:
           set -euo pipefail
           flags=(--config=ci --repository_cache="$HOME/.cache/bazel-repo" --disk_cache="$HOME/.cache/bazel-disk")
           if [ "$LOW_MEMORY" = "true" ]; then flags+=(--config=ci-small); fi
-          # the warehouse's Arrow test finds python with pyarrow, and FAILS (rather than skips) without it
-          if [ "${{ matrix.lane.key }}" = app ] || [ "${{ matrix.lane.key }}" = native ]; then
-            flags+=(--test_env=PATH --test_env=PYTHONPATH="$RUNNER_TEMP/pyarrow" --test_env=WAREHOUSE_ARROW_CHECK=required)
-          fi
           read -r -a targets <<< "$LANE_TARGETS"
           echo "targets: ${targets[*]}"
           # the build lane builds every target (non-test targets included); every other lane tests

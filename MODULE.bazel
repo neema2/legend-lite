@@ -400,3 +400,27 @@ use_repo(
     "chromium_headless_shell_win64",
     "chromium_pin",
 )
+
+# PYTHON (Bazel workplan P1-07; decision D12: 3.12): one hermetic interpreter, never the machine's python3
+# (binaries start from a bash stub: .bazelrc bootstrap_impl),
+# and one locked pip hub. The lock changes only by `bazel run //tools/python:requirements.update`, and
+# //tools/python:lock_matches_requirements checks it offline.
+bazel_dep(name = "rules_python", version = "2.3.4")
+
+# no implicit __init__.py: a module is a package only when it says so
+rules_python_config = use_extension("@rules_python//python/extensions:config.bzl", "config")
+rules_python_config.explicit_init_py(default = True)
+
+python = use_extension("@rules_python//python/extensions:python.bzl", "python")
+python.toolchain(
+    is_default = True,
+    python_version = "3.12",
+)
+
+pip = use_extension("@rules_python//python/extensions:pip.bzl", "pip")
+pip.parse(
+    hub_name = "pypi",
+    python_version = "3.12",
+    requirements_lock = "//tools/python:requirements_lock.txt",
+)
+use_repo(pip, "pypi")

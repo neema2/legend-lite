@@ -65,6 +65,11 @@ test --local_resources=memory=HOST_RAM*.6
 # compile; CI passes the same path explicitly (gates-run.yml).
 build --disk_cache=~/.cache/bazel-disk
 
+# Python binaries start from a bash stub, not `#!/usr/bin/env python3`: rules_python's default bootstrap
+# runs the host's python3 before the hermetic interpreter (Bazel workplan P1-07). Windows uses its own
+# .exe launcher, which starts the hermetic interpreter directly.
+common --@rules_python//python/config_settings:bootstrap_impl=script
+
 # rules_js depends on aspect_tools_telemetry, which reports ruleset usage from
 # every build unless told not to. This repository's builds send nothing.
 common --repo_env=ASPECT_TOOLS_TELEMETRY=-all

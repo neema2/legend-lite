@@ -22,6 +22,7 @@ test_suite(
         "//tools/java_run:pins_test",
         "//tools/junit:pins_test",
         "//tools/junit:runner_test",
+        "//tools/python:lock_matches_requirements",
         # gate 1, gate 3
         "//core:core_tests",
         "//spec:spec_tests",
