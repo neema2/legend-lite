@@ -222,16 +222,26 @@ protocol vs. Studio/engine-client). M5's features are built once and work on bot
 
 ---
 
-## 5. Decisions to make (recommendations given)
+## 5. Decisions
 
-1. **Where tests' rows live in the browser** — upstream runs mapping tests on H2 engine-side; we run them on DuckDB in
-   the tab. Recommend: DuckDB, recorded as a departure, with the real engine as the oracle on the showcase projects (A4).
-2. **Engine-dialect compile in the tab** when the session targets a real engine (B4) — recommend yes: live errors must
-   match the engine the user deploys to.
-3. **Merging the page modules** (planner + SDLC/Depot rules in one WebAssembly module, so the grammar downloads once) —
-   recommend at M1, when the in-tab engine joins Studio and size starts to matter.
-4. **Forms edit text surgically** (a parser that keeps comments and whitespace as data, design §3 d) rather than
-   reprinting — recommend yes, so a form edit never loses a comment; it is the one large core piece in M5.
+1. **Tests run anywhere; the browser first** (ruled 2026-10-04, the user: "yes on tests running in browser as v1, but
+   they really should be able to be run anywhere"). The test runner -- the engine's assertion and embedded-data
+   semantics -- is written ONCE in core, like the SDLC rules, and runs in the tab (WebAssembly, rows in DuckDB-WASM),
+   on lite's server (`testable/runTests`), and Studio can send the same tests to a real engine's `runTests`. The browser
+   is v1; the server route follows in the same milestone. Upstream runs mapping tests on H2 engine-side; lite runs them on
+   DuckDB -- a recorded departure, with the real engine as the oracle on the showcase projects.
+2. **Engine rules by default; a "full Pure" mode as a per-project choice** (the user: "engine rules in the tab for sure as
+   default, but maybe a special tab to run in full pure mode as well"). lite compiles two dialects: `LEGEND_ENGINE` (what
+   legend-engine accepts) and `LEGEND_LITE` (more of legend-pure's language). Recommended refinement: the mode belongs to
+   the PROJECT (in its configuration), not to an editor tab -- whether saved text is valid must not depend on which tab it
+   was typed in, and the release gate must use the same rules as the editor. Engine mode is the default and is forced
+   when the project lives on a real deployment (D2); full-Pure projects show a badge, and their releases say so.
+3. **One WebAssembly module per app** (the user: "def a single wasm for studio, maybe stripped for datacube and query").
+   TeaVM compiles only what an entry class reaches, so each app gets its own build from one source: Studio's (compiler,
+   planner, SDLC and Depot rules, test runner), Query's and DataCube's (planner and grammar only, as today). At M1.
+4. **Forms edit the text, never reprint it** -- see the recommendation in the answer of 2026-10-04: start with
+   position-based splices (the parser's source positions, which exist today), move to a lossless syntax tree (design §3 d)
+   when forms need it.
 
 ## 6. Risks
 
