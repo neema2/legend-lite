@@ -4,7 +4,7 @@
 
 import { buildCube } from '../src/adhoc/outline.ts';
 import { AdHocSession, type Run } from '../src/adhoc/session.ts';
-import type { ResultTable, Scalar } from '../src/result.ts';
+import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import type { CubeSnapshot, FilterNode } from '../src/snapshot.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 

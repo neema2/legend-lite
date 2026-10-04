@@ -34,7 +34,7 @@ function chartSvg(drawing: ChartDrawing, width = 640, height = 400): string {
     chart.dispose();
   }
 }
-import type { ResultTable } from '../src/result.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 
 const CUBE: CubeSnapshot = {

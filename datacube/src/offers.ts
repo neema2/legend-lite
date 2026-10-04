@@ -5,7 +5,7 @@
 
 import { OFFER_FACTS, type OfferFact } from './generated/offer-facts.ts';
 import type { AggregateFn, FilterOperator } from './snapshot.ts';
-import { familyOf, plainType } from './types.ts';
+import { familyOf, plainType } from '../../engine-client/src/types.ts';
 
 function factsOf(type: string): OfferFact | undefined {
   return OFFER_FACTS[plainType(type)];

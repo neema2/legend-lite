@@ -1,7 +1,7 @@
 // What every screen of the app shares: the engine and query store, the loaded project and its
 // model graph, the current user, recently viewed things.
 
-import type { QueryEngine } from '../../../datacube/src/engine.ts';
+import type { QueryEngine } from '../../../engine-client/src/engine.ts';
 import type { Engine, QueryStore } from '../backend/engine.ts';
 import type { WasmGrammar } from '../backend/wasm-grammar.ts';
 import type { PureModelContextText } from '../backend/wire.ts';

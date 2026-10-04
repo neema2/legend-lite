@@ -30,12 +30,12 @@ import path from 'node:path';
 import { after, before, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { DuckDbEngine, type ArrowishConnection } from '../../src/duckdb.ts';
+import { DuckDbEngine, type ArrowishConnection } from '../../../engine-client/src/duckdb.ts';
 import { inferModel } from '../../src/infer.ts';
-import type { ResultTable } from '../../src/result.ts';
+import type { ResultTable } from '../../../engine-client/src/result.ts';
 import { PlanThenRun } from '../../src/runner.ts';
 import { SnapManager } from '../../src/snap.ts';
-import { listObjects, SessionExpired, sessionExpired, signIn, WarehouseEngine } from '../../src/warehouse.ts';
+import { listObjects, SessionExpired, sessionExpired, signIn, WarehouseEngine } from '../../../engine-client/src/warehouse.ts';
 import { WasmPlanner } from '../../src/wasm-planner.ts';
 import { levelLambda } from '../../src/query.ts';
 import { accessor, from } from '../../../pure-protocol/src/index.ts';

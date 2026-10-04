@@ -10,7 +10,7 @@ import { describe, it } from 'node:test';
 import { toPdf, toPlainText, winAnsiByte } from '../src/export-doc.ts';
 import { exportTable, type ExportTable } from '../src/export-model.ts';
 import { buildColumnModel } from '../src/grid/columns.ts';
-import type { ResultTable } from '../src/result.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 
 function result(rows: number, region = (i: number) => `Region ${i}`): ResultTable {
   const r: (string | null)[] = [];

@@ -26,7 +26,7 @@
 // the scope is computed per stage rather than from one flat list of
 // "all columns" -- the completion has to be as honest as the query.
 
-import { PIVOT_SEPARATOR } from './generated/lite-facts.ts';
+import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { CALC_FACTS } from './generated/offer-facts.ts';
 import { pivotLabel, type PivotColumn } from './query.ts';
 import { rowColumns, type CubeSnapshot } from './snapshot.ts';

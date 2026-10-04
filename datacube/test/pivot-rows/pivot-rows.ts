@@ -17,11 +17,11 @@ import { JSDOM } from 'jsdom';
 
 import { CubeApp } from '../../src/app.ts';
 import { DEFAULT_CONFIGURATION } from '../../src/config.ts';
-import { DuckDbEngine, type ArrowishConnection } from '../../src/duckdb.ts';
-import type { QueryEngine, RawTable } from '../../src/engine.ts';
-import type { Plan } from '../../src/relation-type.ts';
+import { DuckDbEngine, type ArrowishConnection } from '../../../engine-client/src/duckdb.ts';
+import type { QueryEngine, RawTable } from '../../../engine-client/src/engine.ts';
+import type { Plan } from '../../../engine-client/src/relation-type.ts';
 import type { CubeView } from '../../src/cube.ts';
-import type { ResultTable } from '../../src/result.ts';
+import type { ResultTable } from '../../../engine-client/src/result.ts';
 import type { CubeSnapshot } from '../../src/snapshot.ts';
 import { WasmPlanner } from '../../src/wasm-planner.ts';
 import { MODEL, RUNTIME } from '../wasm-differential/cases.ts';

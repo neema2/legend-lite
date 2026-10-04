@@ -36,7 +36,7 @@ import {
 } from '../ui/pivot-panel.ts';
 import type { ColumnFormat, FormatterCache } from '../format.ts';
 import { DEFAULT_FORMAT } from '../format.ts';
-import type { ResultTable, Scalar } from '../result.ts';
+import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import {
   bounds,
   contains,

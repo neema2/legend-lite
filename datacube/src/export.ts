@@ -15,7 +15,7 @@
 
 import type { FormatterCache, ColumnFormat } from './format.ts';
 import { flatHeader, type ExportTable } from './export-model.ts';
-import type { ResultTable, Scalar } from './result.ts';
+import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 
 export interface ExportOptions {
   /** ',' for CSV, '\t' for TSV. */

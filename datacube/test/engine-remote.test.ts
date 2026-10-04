@@ -5,8 +5,8 @@ import {
   LegendEngineExecutor,
   RemoteExecutionError,
   toResultTable,
-} from '../src/engine-remote.ts';
-import { pureType } from '../src/relation-type.ts';
+} from '../../engine-client/src/engine-remote.ts';
+import { pureType } from '../../engine-client/src/relation-type.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { element, fn, fromElement, lambda, toJson } from '../../pure-protocol/src/index.ts';
 import { accessor } from '../../pure-protocol/src/index.ts';
@@ -145,21 +145,21 @@ describe('the engine executor', () => {
   it('receipts only what the engine sent: where it answered from, the SQL and note its activities report', async () => {
     // The pure/v1 API issues no statement id and keeps no history: the receipt has neither,
     // and nothing is added to what the engine returns.
-    const out = await executor([ANSWER]).execute(QUERY, SNAPSHOT);
+    const out = await executor([ANSWER]).execute(QUERY, SNAPSHOT.epoch);
     assert.deepEqual(out.rows.receipt, {
       plane: 'engine',
       where: 'the engine at engine:6300',
       serverSql: 'select "trades_0".region as "region" from TRADES as "trades_0"',
       serverNote: '-- "executionTraceID" : "abc"',
     });
-    const bare = await executor([{ ...ANSWER, activities: [] }]).execute(QUERY, SNAPSHOT);
+    const bare = await executor([{ ...ANSWER, activities: [] }]).execute(QUERY, SNAPSHOT.epoch);
     assert.deepEqual(bare.rows.receipt, { plane: 'engine', where: 'the engine at engine:6300' });
   });
 
   it('names the runtime in the query, sends the model as text, and asks the one endpoint', async () => {
     const { calls, fetchStub } = stub([ANSWER]);
     const out = await executor([], fetchStub)
-      .execute(QUERY, SNAPSHOT);
+      .execute(QUERY, SNAPSHOT.epoch);
 
     // The query is already protocol: nothing to parse first.
     assert.deepEqual(calls.map((c) => new URL(c.url).pathname), [
@@ -200,7 +200,7 @@ describe('the engine executor', () => {
     const fetchStub = (async () =>
       new Response(body, { status: 500 })) as unknown as typeof fetch;
     await assert.rejects(
-      () => executor([], fetchStub).execute(QUERY, SNAPSHOT),
+      () => executor([], fetchStub).execute(QUERY, SNAPSHOT.epoch),
       (err: Error) => {
         assert.ok(err instanceof RemoteExecutionError);
         assert.match(err.message, /Can't find a match for function/);
@@ -216,7 +216,7 @@ describe('the engine executor', () => {
       throw new TypeError('fetch failed');
     }) as unknown as typeof fetch;
     await assert.rejects(
-      () => executor([], fetchStub).execute(QUERY, SNAPSHOT),
+      () => executor([], fetchStub).execute(QUERY, SNAPSHOT.epoch),
       (err: Error) => err instanceof RemoteExecutionError
         && /could not reach the server at http:\/\/engine:6300/.test(
           err.message),
@@ -234,7 +234,7 @@ describe('the engine executor', () => {
     }) as unknown as typeof fetch;
     await assert.rejects(
       () => executor([], fetchStub)
-        .execute(QUERY, SNAPSHOT, controller.signal),
+        .execute(QUERY, SNAPSHOT.epoch, controller.signal),
       (err: Error) => err === reason,
     );
   });

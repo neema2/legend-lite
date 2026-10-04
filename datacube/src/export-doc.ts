@@ -20,9 +20,9 @@
 
 import type { ColumnFormat, FormatterCache } from './format.ts';
 import { cased, flatHeader, type ExportPage, type ExportStyle, type ExportTable } from './export-model.ts';
-import type { Scalar } from './result.ts';
+import type { Scalar } from '../../engine-client/src/result.ts';
 import { fontStack } from './style.ts';
-import { isNumeric } from './types.ts';
+import { isNumeric } from '../../engine-client/src/types.ts';
 
 export interface DocExportOptions {
   readonly formatters?: FormatterCache;

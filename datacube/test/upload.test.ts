@@ -9,10 +9,10 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
-import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
+import { DuckDbEngine, type ArrowishConnection } from '../../engine-client/src/duckdb.ts';
 import { sampleById, sampleFileName } from '../src/samples.ts';
 import { forgetUpload, ingestFile, type DuckDbFiles } from '../src/upload.ts';
-import type { QueryEngine } from '../src/engine.ts';
+import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { plannerFor } from './catalog-builder.ts';
 import {
   asc, col as column, derive, fn, from, lambda, lit, to, toMany, type, type ValueSpecification,

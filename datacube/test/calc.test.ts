@@ -17,7 +17,7 @@ import {
   completionsFor,
   nameProblem,
 } from '../src/calc.ts';
-import { PIVOT_SEPARATOR } from '../src/generated/lite-facts.ts';
+import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { CALC_FACTS } from '../src/generated/offer-facts.ts';
 import { pivotColumns } from '../src/query.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';

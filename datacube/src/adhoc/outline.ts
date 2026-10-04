@@ -12,7 +12,7 @@
 // outline does not change with the point of view).
 
 import type { Dimension } from '../dimensions.ts';
-import type { ResultTable } from '../result.ts';
+import type { ResultTable } from '../../../engine-client/src/result.ts';
 import { memberConditions, type LevelScope } from '../query.ts';
 import {
   rowColumns,

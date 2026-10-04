@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { typeColumns } from '../src/plan.ts';
-import type { PlanColumn } from '../src/relation-type.ts';
+import type { PlanColumn } from '../../engine-client/src/relation-type.ts';
 import type { QueryRunner } from '../src/runner.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { liteParse, litePrint } from './lite-compiler.ts';

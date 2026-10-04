@@ -32,8 +32,8 @@
 // header height instead of leaving holes above the data. Getting that
 // wrong is the classic misaligned-pivot-header bug.
 
-import { PIVOT_SEPARATOR } from '../generated/lite-facts.ts';
-import type { ResultTable } from '../result.ts';
+import { PIVOT_SEPARATOR } from '../../../engine-client/src/generated/lite-facts.ts';
+import type { ResultTable } from '../../../engine-client/src/result.ts';
 import { PIVOT_TOTAL_KEY } from '../snapshot.ts';
 import { TREE_COLUMN } from '../treeview.ts';
 

@@ -2,12 +2,12 @@ import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
 import { CubeController, type Planner } from '../src/cube.ts';
-import type { Plan, PlanColumn } from '../src/relation-type.ts';
+import type { Plan, PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { PlanThenRun, RemoteRun } from '../src/runner.ts';
-import type { ResultTable } from '../src/result.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState } from '../src/tree.ts';
-import type { RemoteExecutor, RemoteResult } from '../src/engine-remote.ts';
+import type { RemoteExecutor, RemoteResult } from '../../engine-client/src/engine-remote.ts';
 import { isStale } from '../src/epoch.ts';
 import { TOTAL_ROWS_COLUMN } from '../src/query.ts';
 import { FakeEngine } from './fake-engine.ts';
@@ -70,11 +70,11 @@ class StubExecutor implements RemoteExecutor {
   readonly queries: Lambda[] = [];
   async execute(
     query: Lambda,
-    snapshot: CubeSnapshot,
+    epoch: number,
   ): Promise<RemoteResult> {
     this.queries.push(query);
     return {
-      rows: table(snapshot.epoch),
+      rows: table(epoch),
       sql: 'select region from TRADES -- as the engine reports it',
     };
   }
@@ -168,13 +168,13 @@ describe('Row Limit on a FLAT cube', () => {
   // Limit said: only tree levels were capped (2026-09-25 sweep).
   class ManyRows implements RemoteExecutor {
     readonly queries: Lambda[] = [];
-    async execute(query: Lambda, snapshot: CubeSnapshot): Promise<RemoteResult> {
+    async execute(query: Lambda, epoch: number): Promise<RemoteResult> {
       this.queries.push(query);
       const n = 5;
       // the flat cube's count, asked when the cap cut it (query.ts countLambda)
       if (JSON.stringify(query).includes(TOTAL_ROWS_COLUMN)) {
         return {
-          rows: { columns: [{ name: TOTAL_ROWS_COLUMN, type: 'Integer', values: [n] }], rowCount: 1, epoch: snapshot.epoch, elapsedMs: 0 },
+          rows: { columns: [{ name: TOTAL_ROWS_COLUMN, type: 'Integer', values: [n] }], rowCount: 1, epoch, elapsedMs: 0 },
           sql: 'select count',
         };
       }
@@ -185,7 +185,7 @@ describe('Row Limit on a FLAT cube', () => {
             { name: 'notional', type: 'Float', values: Array.from({ length: n }, (_, i) => i) },
           ],
           rowCount: n,
-          epoch: snapshot.epoch,
+          epoch,
           elapsedMs: 0,
         },
         sql: 'select',

@@ -3,9 +3,9 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { after, before, describe, it } from 'node:test';
 
-import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
-import type { RawTable } from '../src/engine.ts';
-import type { ResultTable } from '../src/result.ts';
+import { DuckDbEngine, type ArrowishConnection } from '../../engine-client/src/duckdb.ts';
+import type { RawTable } from '../../engine-client/src/engine.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 import { LEAF_COUNT_COLUMN, type CubeSnapshot } from '../src/snapshot.ts';
 import { TreeState, flattenTree, requestKey } from '../src/tree.ts';
 import type { LevelData } from '../src/treeview.ts';

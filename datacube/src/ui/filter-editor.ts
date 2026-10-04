@@ -33,7 +33,7 @@ import {
   type FilterOperator,
   type FilterValue,
 } from '../snapshot.ts';
-import { hasTimeOfDay, isBoolean, isNumeric, isTemporal, isTimeOfDay, isVariant } from '../types.ts';
+import { hasTimeOfDay, isBoolean, isNumeric, isTemporal, isTimeOfDay, isVariant } from '../../../engine-client/src/types.ts';
 import { takesOperator } from '../offers.ts';
 
 /** What kind of value input an operator needs. */

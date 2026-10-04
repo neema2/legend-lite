@@ -7,9 +7,9 @@
 // result; so do legend-lite's server and the tab's engine), and DataCube reads primitives only.
 
 import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
-import type { Planner } from '../../../datacube/src/cube.ts';
-import type { PrintStyle } from '../../../datacube/src/pure-v1.ts';
-import { relationColumns, type Plan, type PlanColumn } from '../../../datacube/src/relation-type.ts';
+import type { Planner } from '../../../datacube/src/embed.ts';
+import type { PrintStyle } from '../../../engine-client/src/pure-v1.ts';
+import { relationColumns, type Plan, type PlanColumn } from '../../../engine-client/src/relation-type.ts';
 import type { WasmGrammar } from './wasm-grammar.ts';
 import type { PureModelContext } from './wire.ts';
 

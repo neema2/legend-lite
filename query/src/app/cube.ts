@@ -8,12 +8,8 @@
 // results panel shows those as JSON.
 
 import { findAll, functionsCalled, isFunction, isLambda, transform, type Lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
-import { CubeApp, type CubeAppOptions } from '../../../datacube/src/app.ts';
-import type { CubeView } from '../../../datacube/src/cube.ts';
-import { LegendEngineExecutor } from '../../../datacube/src/engine-remote.ts';
-import { RemoteRun } from '../../../datacube/src/runner.ts';
-import type { CubeSnapshot } from '../../../datacube/src/snapshot.ts';
-import { sourceColumns } from '../../../datacube/src/source-columns.ts';
+import { CubeApp, RemoteRun, sourceColumns, type CubeAppOptions, type CubeSnapshot, type CubeView } from '../../../datacube/src/embed.ts';
+import { LegendEngineExecutor } from '../../../engine-client/src/engine-remote.ts';
 import { runtimeOf } from '../backend/browser-engine.ts';
 import { CubePlanner } from '../backend/cube-planner.ts';
 import type { ParameterValue } from '../backend/wire.ts';

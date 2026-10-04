@@ -10,7 +10,7 @@ import { JSDOM } from 'jsdom';
 import { buildColumnModel } from '../src/grid/columns.ts';
 import { DataGrid, valueTitle } from '../src/grid/grid.ts';
 import { FormatterCache } from '../src/format.ts';
-import type { ResultTable } from '../src/result.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 
 let dom: JSDOM;
 let container: HTMLElement;

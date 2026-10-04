@@ -12,8 +12,8 @@
 // compiles them like any other cube query, and a shape the planner
 // refuses is refused the same way.
 
-import { PIVOT_SEPARATOR } from '../generated/lite-facts.ts';
-import type { ResultColumn, ResultTable, Scalar } from '../result.ts';
+import { PIVOT_SEPARATOR } from '../../../engine-client/src/generated/lite-facts.ts';
+import type { ResultColumn, ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import {
   memberConditions,
   type LevelScope,
@@ -30,8 +30,8 @@ import {
   type Outline,
   type OutlineDimension,
 } from './state.ts';
-import { isNumeric } from '../types.ts';
-import { numberOf } from '../values.ts';
+import { isNumeric } from '../../../engine-client/src/types.ts';
+import { numberOf } from '../../../engine-client/src/values.ts';
 
 /** What the mode queries: the cube's source and measures, and its outline. */
 export interface AdHocCube {

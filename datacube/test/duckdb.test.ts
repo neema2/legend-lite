@@ -13,10 +13,10 @@ import {
   DuckDbEngine,
   decimalToScalar,
   toScalar,
-} from '../src/duckdb.ts';
-import type { ArrowishConnection } from '../src/duckdb.ts';
+} from '../../engine-client/src/duckdb.ts';
+import type { ArrowishConnection } from '../../engine-client/src/duckdb.ts';
 import { EpochGuard, STALE } from '../src/epoch.ts';
-import { columnIndex } from '../src/result.ts';
+import { columnIndex } from '../../engine-client/src/result.ts';
 
 const require = createRequire(import.meta.url);
 

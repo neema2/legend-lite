@@ -10,8 +10,8 @@
 // grid renders a selection rather than owning one.
 
 import type { LeafColumn } from './grid/columns.ts';
-import type { ResultTable, Scalar } from './result.ts';
-import { asDecimal, exactSum, numberOf } from './values.ts';
+import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
+import { asDecimal, exactSum, numberOf } from '../../engine-client/src/values.ts';
 
 /**
  * The columns a selection's positions name: the grid's VISIBLE leaves, in

@@ -6,7 +6,7 @@ import { describe, it } from 'node:test';
 
 import {
   dayText, decimalText, exactInteger, exactSum, parseExact, timeText, timestampFromText, timestampText,
-} from '../src/values.ts';
+} from '../../engine-client/src/values.ts';
 
 describe('calendar days and timestamps, exactly', () => {
   it('a day is its calendar day: year 45 stays year 45, and before the epoch is fine', () => {

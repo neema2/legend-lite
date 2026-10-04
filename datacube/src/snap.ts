@@ -30,8 +30,8 @@
 
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { Planner } from './cube.ts';
-import type { QueryEngine } from './engine.ts';
-import type { Receipt } from './receipt.ts';
+import type { QueryEngine } from '../../engine-client/src/engine.ts';
+import type { Receipt } from '../../engine-client/src/receipt.ts';
 
 /**
  * A LIVE plane on another machine (the warehouse): where a snap's rows come

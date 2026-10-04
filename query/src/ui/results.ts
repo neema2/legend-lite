@@ -4,7 +4,7 @@
 // limit (an overflow says so). A query the cube cannot take as its source (one with `let`s) runs
 // on the engine into a plain grid that sorts, copies, and filters by (or out) a cell's value.
 
-import type { CubeApp } from '../../../datacube/src/app.ts';
+import type { CubeApp } from '../../../datacube/src/embed.ts';
 import { openCube } from '../app/cube.ts';
 import { DEFAULT_PREVIEW, executeInput, executionLambda, run, sqlOf } from '../app/run.ts';
 import type { AppContext } from '../app/context.ts';

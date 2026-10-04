@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import type { ResultTable } from '../src/result.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { QueryRunner } from '../src/runner.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 

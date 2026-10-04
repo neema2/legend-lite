@@ -21,7 +21,7 @@ import {
   type Measure,
   type RowColumn,
 } from './snapshot.ts';
-import { isFractional, isNumeric, isTemporal } from './types.ts';
+import { isFractional, isNumeric, isTemporal } from '../../engine-client/src/types.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 
 export type ChartMark = 'bar' | 'line' | 'area' | 'scatter' | 'pie' | 'heatmap' | 'treemap';

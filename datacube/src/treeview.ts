@@ -21,14 +21,14 @@ import {
   type LevelScope,
   type PivotFacts,
 } from './query.ts';
-import type { ResultColumn, ResultTable, Scalar } from './result.ts';
+import type { ResultColumn, ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import {
   columnType,
   LEAF_COUNT_COLUMN,
   type CubeSnapshot,
 } from './snapshot.ts';
 import { prettyJson } from './json-shape.ts';
-import { isVariant } from './types.ts';
+import { isVariant } from '../../engine-client/src/types.ts';
 import {
   DETAIL_ROW,
   type LevelRequest,

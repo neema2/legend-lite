@@ -45,15 +45,15 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 
-import { DuckDbEngine } from '../src/duckdb.ts';
-import { LegendEngineExecutor } from '../src/engine-remote.ts';
+import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
+import { LegendEngineExecutor } from '../../engine-client/src/engine-remote.ts';
 import { levelWithValues } from '../src/plan.ts';
 import { accessor } from '../../pure-protocol/src/index.ts';
 import { WasmPlanner } from '../src/wasm-planner.ts';
 import { TRADES_KINDS, casesFor, typeDifference } from './engine-cases.mjs';
 import { sourceColumns } from '../src/source-columns.ts';
-import { isFractional, isNumeric, plainType } from '../src/types.ts';
-import { asDecimal, decimalText } from '../src/values.ts';
+import { isFractional, isNumeric, plainType } from '../../engine-client/src/types.ts';
+import { asDecimal, decimalText } from '../../engine-client/src/values.ts';
 
 const ENGINE = (process.env.ENGINE ?? 'http://127.0.0.1:6300')
   .replace(/\/$/, '');

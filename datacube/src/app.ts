@@ -15,8 +15,8 @@
 // decision it makes is about WHEN to call them, never about what
 // they mean.
 
-import { hostOf, receiptLabel, receiptLines } from './receipt.ts';
-import { sessionExpired, WarehouseEngine } from './warehouse.ts';
+import { hostOf, receiptLabel, receiptLines } from '../../engine-client/src/receipt.ts';
+import { sessionExpired, WarehouseEngine } from '../../engine-client/src/warehouse.ts';
 import { isQueryFailure, type QueryRunner } from './runner.ts';
 import {
   CubeController,
@@ -52,7 +52,7 @@ import { drillLambda, levelLambda } from './query.ts';
 import { findAll, type AppliedProperty, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { isPivotTotalColumn } from './snapshot.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
-import type { QueryEngine } from './engine.ts';
+import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import type { RemoteSource, SnapTarget } from './snap.ts';
 import { exportCsv, exportFileName, toCsv, toEml } from './export.ts';
 import {
@@ -84,7 +84,7 @@ import {
 } from './grid/columns.ts';
 import { writeCube, type CubeDocument, type CubeSource } from './cube-document.ts';
 import { selectionStats, selectionTable, type CellRange } from './selection.ts';
-import type { ResultTable, Scalar } from './result.ts';
+import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
 import type { JsonColumnReader } from './ui/json-fields.ts';
 import {
   renameColumnReferences,
@@ -133,7 +133,7 @@ import {
   ColumnsToolPanel,
   type ColumnsPanelChild,
 } from './ui/columns-panel.ts';
-import { isVariant } from './types.ts';
+import { isVariant } from '../../engine-client/src/types.ts';
 
 
 /** Rows sampled to infer what a JSON column holds. */

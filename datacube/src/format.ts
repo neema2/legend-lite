@@ -18,9 +18,9 @@
 // cube between currency, percent and basis points changes the column's
 // format, while the measure underneath stays one numeric value.
 
-import type { Scalar } from './result.ts';
+import type { Scalar } from '../../engine-client/src/result.ts';
 import { prettyJson } from './json-shape.ts';
-import { hasTimeOfDay, isNumeric, isTemporal, isTimeOfDay, isVariant } from './types.ts';
+import { hasTimeOfDay, isNumeric, isTemporal, isTimeOfDay, isVariant } from '../../engine-client/src/types.ts';
 
 export type FormatKind =
   | 'auto'

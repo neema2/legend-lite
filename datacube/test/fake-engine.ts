@@ -3,9 +3,9 @@
 // the real engines do through engine.ts `typedByPlan`. A planned query arrives as its
 // plan; the double answers its SQL.
 
-import type { QueryEngine, RawTable } from '../src/engine.ts';
-import type { Plan } from '../src/relation-type.ts';
-import type { ResultTable } from '../src/result.ts';
+import type { QueryEngine, RawTable } from '../../engine-client/src/engine.ts';
+import type { Plan } from '../../engine-client/src/relation-type.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 
 export abstract class FakeEngine implements QueryEngine {
   abstract readonly name: string;

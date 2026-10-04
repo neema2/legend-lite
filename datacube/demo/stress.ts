@@ -17,9 +17,9 @@
 // "broke" is what this exists to find. A large "refused" count is
 // expected and its messages are worth reading.
 
-import * as duckdb from '@duckdb/duckdb-wasm';
+import * as duckdb from '../../engine-client/src/duckdb-wasm.ts';
 
-import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
+import { DuckDbEngine, type ArrowishConnection } from '../../engine-client/src/duckdb.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { levelWithValues } from '../src/plan.ts';
 import { col, lambda, lit, times, type ValueSpecification } from '../../pure-protocol/src/index.ts';
@@ -32,8 +32,8 @@ import type { Planner } from '../src/cube.ts';
 import { chosenPlane } from './boot.ts';
 import { plannerFor } from './planners.ts';
 import { CORPUS } from './stress-corpus.ts';
-import { familyOf, isNumeric } from '../src/types.ts';
-import type { Plan } from '../src/relation-type.ts';
+import { familyOf, isNumeric } from '../../engine-client/src/types.ts';
+import type { Plan } from '../../engine-client/src/relation-type.ts';
 import { sourceColumns } from '../src/source-columns.ts';
 import { kindOf } from '../src/snapshot.ts';
 

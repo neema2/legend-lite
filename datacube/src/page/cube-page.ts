@@ -21,7 +21,7 @@ import type { GridShown, MarkKey } from '../chart-option.ts';
 import type { ExportPage, ExportTile } from '../export-model.ts';
 import { PAGE_CUBE, type ChartView, type PageView, type PageViews } from '../page-document.ts';
 import type { CubeSnapshot, FilterNode, Measure } from '../snapshot.ts';
-import type { ResultTable, Scalar } from '../result.ts';
+import type { ResultTable, Scalar } from '../../../engine-client/src/result.ts';
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 
 /** The board's rows on one screen (each row a share of the height), and its tiles' least height. */

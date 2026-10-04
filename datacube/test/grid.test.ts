@@ -14,7 +14,7 @@ import {
   isCovered,
   sliceFor,
 } from '../src/grid/viewport.ts';
-import type { ResultTable } from '../src/result.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 
 function table(names: string[]): ResultTable {
   return {

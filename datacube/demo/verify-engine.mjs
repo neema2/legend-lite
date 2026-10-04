@@ -17,7 +17,7 @@
 
 import { readFile } from 'node:fs/promises';
 
-import { LegendEngineExecutor } from '../src/engine-remote.ts';
+import { LegendEngineExecutor } from '../../engine-client/src/engine-remote.ts';
 import { levelLambda, pivotValuesLambda } from '../src/query.ts';
 import { accessor, element, fn, lambda, toJson } from '../../pure-protocol/src/index.ts';
 

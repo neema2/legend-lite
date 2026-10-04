@@ -26,7 +26,7 @@ import { TEMPORAL_TYPES, gridInvariants } from './grid-invariants.mjs';
 import {
   closeTyped, compareTyped, isNegative, orderBreak, readColumn, readView, sameTyped, stamp, sumTyped,
 } from './typed-view.mjs';
-import { isNumeric } from '../src/types.ts';
+import { isNumeric } from '../../engine-client/src/types.ts';
 import { sampleCsv } from '../src/samples.ts';
 import { fileURLToPath } from 'node:url';
 import { servedPath } from './static-files.ts';

@@ -65,6 +65,16 @@ npm.npm_translate_lock(
 )
 use_repo(npm, "npm_studio")
 
+# The engine client's own lock (engine-client/: where a query runs, shared by DataCube, Query and Studio):
+# Apache Arrow, at DataCube's version. Updated with:
+#   bazel run -- @pnpm//:pnpm --dir $PWD/engine-client install --lockfile-only
+npm.npm_translate_lock(
+    name = "npm_engine_client",
+    pnpm_lock = "//engine-client:pnpm-lock.yaml",
+    data = ["//engine-client:package.json"],
+)
+use_repo(npm, "npm_engine_client")
+
 # pnpm itself, pinned by rules_js: the lock file is updated through Bazel, never a machine's pnpm:
 #   bazel run -- @pnpm//:pnpm --dir $PWD/datacube install --lockfile-only
 pnpm = use_extension("@aspect_rules_js//npm:extensions.bzl", "pnpm")

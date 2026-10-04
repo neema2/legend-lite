@@ -13,7 +13,7 @@
 // calculated columns, one compile-only ask, so the aggregate each column
 // defaults to is right on the first query and nothing is learned from a result.
 
-import type { ResultTable } from './result.ts';
+import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { QueryRunner } from './runner.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import {

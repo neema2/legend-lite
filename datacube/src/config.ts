@@ -28,7 +28,7 @@ import type {
 } from './snapshot.ts';
 import { rowColumns } from './snapshot.ts';
 import type { CellAppearance, GridAppearance, HeatmapSpec } from './style.ts';
-import { isFractional, isNumeric } from './types.ts';
+import { isFractional, isNumeric } from '../../engine-client/src/types.ts';
 
 /**
  * A change to some settings.
