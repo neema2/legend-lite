@@ -1,5 +1,4 @@
-load("@rules_java//java:defs.bzl", "java_binary")
-load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 
 # The engine runner (README.md): the real legend-engine over .pure sources, beside
 # legend-lite's core. Its jars are its own pool, @maven_runner (MODULE.bazel).
@@ -8,6 +7,8 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     srcs = glob(["src/main/java/**/*.java"]),
+    # legend-engine's jars: a test tool, never shipped (tools/deps/pools.bzl, Bazel workplan P1-25); `bazel run` still works
+    testonly = True,
     runtime_deps = [
         "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_grammar",
         "@maven_runner//:org_finos_legend_engine_legend_engine_language_pure_compiler",
@@ -39,8 +40,9 @@ legend_java_library(
     ],
 )
 
-[java_binary(
+[legend_java_binary(
     name = name,
+    testonly = True,
     main_class = "perf." + main,
     runtime_deps = [":runner"],
 ) for (name, main) in [

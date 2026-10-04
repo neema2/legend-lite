@@ -1,5 +1,4 @@
-load("@rules_java//java:defs.bzl", "java_binary")
-load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load(":defs.bzl", "junit_test")
 
 # The JUnit entry point every test target in the repository runs: the Platform Launcher,
@@ -53,7 +52,7 @@ junit_test(
 # Do two runs select the same tests? Per target, the testcases only one side has (Bazel workplan P1-02):
 # `bazel run //tools/junit:compare_testcases -- <baseline-testlogs> <after-testlogs>`. Kept for every
 # future runner change.
-java_binary(
+legend_java_binary(
     name = "compare_testcases",
     srcs = ["compare/CompareTestcases.java"],
     main_class = "com.legend.tools.junit.compare.CompareTestcases",

@@ -1,11 +1,11 @@
-load("@rules_java//java:defs.bzl", "java_binary")
+load("//tools/java:defs.bzl", "legend_java_binary")
 
 # TeaVM as a build action (defs.bzl, teavm_wasm). The compiler's jars come from
 # @maven_teavm, build tooling that runs here and nowhere else.
 # HEAP: compiling //wasm:planner peaks at 889 MB live (-Xlog:gc, macOS arm64, 2026-10-04); 2 GB is its heap
 # here and its scheduling memory in defs.bzl (_teavm_memory), the same on every machine (Bazel workplan
 # P1-22: it ran under the global --host_jvmopt=-Xmx3g before; the JVM default is a quarter of the RAM).
-java_binary(
+legend_java_binary(
     name = "compile",
     srcs = ["TeaVmCompile.java"],
     jvm_flags = ["-Xmx2g"],

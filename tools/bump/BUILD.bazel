@@ -1,5 +1,4 @@
-load("@rules_java//java:defs.bzl", "java_binary")
-load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("//tools/junit:defs.bzl", "junit_test")
 
 legend_java_library(
@@ -12,7 +11,7 @@ legend_java_library(
 # `bazel run //tools/bump -- <engine release> [--pins]` — see Bump.java. It calls
 # Bazel again (repin, //:update_generated, `bazel test //...`): a pin change takes
 # effect only in the next Bazel invocation, never inside the one that made it.
-java_binary(
+legend_java_binary(
     name = "bump",
     main_class = "com.legend.tools.bump.Bump",
     runtime_deps = [":bump_lib"],

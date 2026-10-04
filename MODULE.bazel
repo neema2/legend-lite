@@ -56,16 +56,30 @@ maven = use_extension("@rules_jvm_external//:extensions.bzl", "maven")
 # ── THE JAR POOLS ───────────────────────────────────────────────────────────────
 # One pool per OWNER, never one pool for the repository. A pool is resolved on its
 # own, so nothing in one can move a version in another: the engine's BOM cannot
-# touch core, and a compiler plugin cannot touch a test classpath. Every artifact
-# belongs to exactly ONE pool (//tools/deps:pools_are_disjoint checks it), and
-# core's closure may reach @maven_core alone (//tools/deps:core_closure_test).
+# touch core, and a compiler plugin cannot touch a test classpath.
 #
-#   @maven_core      core's own jars — the product's whole external surface
+# WHO MAY USE EACH POOL is tools/deps/pools.bzl (Bazel workplan P1-25), in three
+# layers: the first-party Java macros refuse a pool to a package not listed for it;
+# a direct user of @maven_upstream or @maven_runner must be testonly, so nothing
+# that ships can depend on it; and //tools/deps:product_closure_test holds every
+# shipped root clear of those pools and @maven_test, through every explicit
+# dependency (core reaches no
+# outside jar at all: //tools/deps:core_closure_test). Every pool has
+# strict_visibility, so a BUILD file may name only the jars its pool LISTS below;
+# a transitive jar is invisible until it is listed. Pools may share coordinates (each
+# resolves its own versions); //tools/deps:pools_are_disjoint holds core, h2_modern,
+# test and upstream apart, with two named overlaps (P6-11 replaces it with a check
+# per runtime classpath).
+#
+#   @maven_core      core's JDBC drivers (the warehouse adds @maven_warehouse, the planner TeaVM's classlib)
+#   @maven_warehouse DuckDB's JDBC driver, for the warehouse and the app on it
 #   @maven_h2_modern H2 2.4.240, the alternative H2 one pct lane runs on
 #   @maven_test      the test tooling every module's tests share
 #   @maven_upstream  legend-engine / legend-pure, for the modules that referee
 #                    lite against them (parser-equivalence, pct) — TEST ONLY
+#   @maven_runner    legend-engine's execution stack, for tools/engine-runner only
 #   @maven_tools     build tooling: compiler plugins, never on a classpath
+#   @maven_teavm     the WebAssembly compiler and the class library it compiles against
 
 # core's runtime jars: the JDBC drivers the SQL renderer targets, and nothing
 # else. The planner needs none of them (java.base alone); they belong to the
@@ -81,6 +95,7 @@ maven.install(
         "org.postgresql:postgresql:42.7.4",
     ],
     fail_if_repin_required = True,
+    strict_visibility = True,
     lock_file = "//:maven_core_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -92,6 +107,7 @@ maven.install(
     name = "maven_warehouse",
     artifacts = ["org.duckdb:duckdb_jdbc:1.5.5.1"],
     fail_if_repin_required = True,
+    strict_visibility = True,
     lock_file = "//:maven_warehouse_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -103,6 +119,7 @@ maven.install(
     name = "maven_h2_modern",
     artifacts = ["com.h2database:h2:2.4.240"],
     fail_if_repin_required = True,
+    strict_visibility = True,
     lock_file = "//:maven_h2_modern_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -130,6 +147,14 @@ maven.install(
         "org.junit.platform:junit-platform-suite-engine:1.11.3",
         "org.junit.vintage:junit-vintage-engine:5.11.3",
         "com.tngtech.archunit:archunit-junit5:1.3.0",
+
+        # USED DIRECTLY by BUILD files, so declared: strict_visibility (Bazel workplan P1-25) makes an
+        # undeclared transitive artifact invisible.
+        "com.tngtech.archunit:archunit:1.3.0",
+        "org.junit.jupiter:junit-jupiter-api:5.11.3",
+        "org.junit.jupiter:junit-jupiter-engine:5.11.3",
+        "org.junit.jupiter:junit-jupiter-params:5.11.3",
+        "org.junit.platform:junit-platform-engine:1.11.3",
     ],
     boms = ["org.junit:junit-bom:5.11.3"],
     excluded_artifacts = [
@@ -138,6 +163,7 @@ maven.install(
     ],
     resolver = "maven",
     fail_if_repin_required = True,
+    strict_visibility = True,
     lock_file = "//:maven_test_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -204,6 +230,43 @@ maven.install(
         # (Maven: 2.36.0 / 3.0.0) — annotation-only jars the engine does not
         # manage, which a JVM ignores at runtime.
         "com.google.guava:guava:33.4.6-jre",
+
+        # USED DIRECTLY by BUILD files, so declared: strict_visibility (Bazel workplan P1-25) makes an
+        # undeclared transitive artifact invisible. Versionless ones take the engine BOM's version.
+        "com.fasterxml.jackson.core:jackson-annotations",
+        "com.fasterxml.jackson.core:jackson-databind",
+        "org.antlr:antlr4-runtime",
+        "org.finos.legend.engine:legend-engine-language-pure-compiler:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-language-pure-dsl-generation-pure:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-language-pure-dsl-service-pure:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-protocol-pure:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-pure-functions-json-pure:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-pure-functions-variant-pure:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-shared-core:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-xt-data-space-pure-metamodel:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-xt-diagram-pure-metamodel:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-xt-json-pure:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-core-pure:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-h2-sqlDialectTranslation-pure:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSqlModel-extensions-pure:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSqlModel-pure:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-postgresSqlParser-pure:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-sqlDialectTranslation-pure:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-xt-relationalStore-sqlPlanning-pure:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.pure:legend-pure-m2-dsl-diagram-grammar:" + LEGEND_PURE_RELEASE,
+        "org.finos.legend.pure:legend-pure-m2-dsl-diagram-pure:" + LEGEND_PURE_RELEASE,
+        "org.finos.legend.pure:legend-pure-m2-dsl-graph-grammar:" + LEGEND_PURE_RELEASE,
+        "org.finos.legend.pure:legend-pure-m2-dsl-graph-pure:" + LEGEND_PURE_RELEASE,
+        "org.finos.legend.pure:legend-pure-m2-dsl-mapping-grammar:" + LEGEND_PURE_RELEASE,
+        "org.finos.legend.pure:legend-pure-m2-dsl-mapping-pure:" + LEGEND_PURE_RELEASE,
+        "org.finos.legend.pure:legend-pure-m2-dsl-path-grammar:" + LEGEND_PURE_RELEASE,
+        "org.finos.legend.pure:legend-pure-m2-dsl-path-pure:" + LEGEND_PURE_RELEASE,
+        "org.finos.legend.pure:legend-pure-m2-dsl-store-grammar:" + LEGEND_PURE_RELEASE,
+        "org.finos.legend.pure:legend-pure-m2-dsl-store-pure:" + LEGEND_PURE_RELEASE,
+        "org.finos.legend.pure:legend-pure-m2-dsl-tds-grammar:" + LEGEND_PURE_RELEASE,
+        "org.finos.legend.pure:legend-pure-m2-store-relational-grammar:" + LEGEND_PURE_RELEASE,
+        "org.finos.legend.pure:legend-pure-m2-store-relational-pure:" + LEGEND_PURE_RELEASE,
+        "org.finos.legend.pure:legend-pure-m3-precisePrimitives:" + LEGEND_PURE_RELEASE,
     ],
     # THE ENGINE RELEASE'S OWN VERSIONS for everything it manages: its root pom is
     # imported as a BOM, so a third-party artifact here (guava, slf4j, snakeyaml,
@@ -231,6 +294,7 @@ maven.install(
     # one version of every artifact across this pool; listed versions win
     version_conflict_policy = "pinned",
     fail_if_repin_required = True,
+    strict_visibility = True,
     lock_file = "//:maven_upstream_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -261,10 +325,19 @@ maven.install(
         "org.finos.legend.engine:legend-engine-xt-relationalStore-oracle-grammar:" + LEGEND_ENGINE_RELEASE,
         "org.finos.legend.engine:legend-engine-xt-relationalStore-aurora-grammar:" + LEGEND_ENGINE_RELEASE,
         "org.finos.legend.engine:legend-engine-xt-relationalStore-memsql-grammar:" + LEGEND_ENGINE_RELEASE,
+
+        # USED DIRECTLY by BUILD files, so declared: strict_visibility (Bazel workplan P1-25) makes an
+        # undeclared transitive artifact invisible. Versionless ones take the engine BOM's version.
+        "org.antlr:antlr4-runtime",
+        "org.finos.legend.engine:legend-engine-language-pure-dsl-service:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-protocol-pure:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-shared-core:" + LEGEND_ENGINE_RELEASE,
+        "org.finos.legend.engine:legend-engine-testable:" + LEGEND_ENGINE_RELEASE,
     ],
     boms = ["org.finos.legend.engine:legend-engine:" + LEGEND_ENGINE_RELEASE],
     resolver = "maven",
     fail_if_repin_required = True,
+    strict_visibility = True,
     lock_file = "//:maven_runner_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -277,6 +350,7 @@ maven.install(
     name = "maven_tools",
     artifacts = ["com.uber.nullaway:nullaway:0.13.8"],
     fail_if_repin_required = True,
+    strict_visibility = True,
     lock_file = "//:maven_tools_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )
@@ -290,8 +364,13 @@ maven.install(
         "org.teavm:teavm-tooling:0.15.0",
         "org.teavm:teavm-classlib:0.15.0",
         "org.teavm:teavm-jso:0.15.0",
+
+        # USED DIRECTLY by BUILD files, so declared: strict_visibility (Bazel workplan P1-25) makes an
+        # undeclared transitive artifact invisible.
+        "org.teavm:teavm-core:0.15.0",
     ],
     fail_if_repin_required = True,
+    strict_visibility = True,
     lock_file = "//:maven_teavm_install.json",
     repositories = ["https://repo1.maven.org/maven2"],
 )

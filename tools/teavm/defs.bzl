@@ -7,6 +7,7 @@ runtime `<name>/wasm-gc-module-runtime.js`, side by side, as a loader wants them
 """
 
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
+load("//tools/deps:pools.bzl", "check_pool_use")
 
 # The compiler's heap, as the scheduler sees it: //tools/teavm:compile's -Xmx2g (BUILD.bazel, measured there).
 def _teavm_memory(os, inputs):
@@ -34,7 +35,7 @@ def _teavm_wasm_impl(ctx):
     )
     return [DefaultInfo(files = depset([wasm, runtime]))]
 
-teavm_wasm = rule(
+_teavm_wasm = rule(
     implementation = _teavm_wasm_impl,
     attrs = {
         "deps": attr.label_list(providers = [JavaInfo], mandatory = True),
@@ -47,3 +48,8 @@ teavm_wasm = rule(
     },
     doc = "Compiles main_class, over deps' runtime jars, to <name>/classes.wasm with TeaVM.",
 )
+
+def teavm_wasm(name, deps, testonly = False, **kwargs):
+    """The teavm_wasm rule, after checking the package may use every Maven pool `deps` names (tools/deps/pools.bzl)."""
+    check_pool_use(name, testonly, deps)
+    _teavm_wasm(name = name, deps = deps, testonly = testonly, **kwargs)

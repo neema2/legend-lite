@@ -3,8 +3,8 @@
 # on 2026-09-26 (execution plan step 0c) it became one target per package group
 # — see "CORE AS TARGETS" below — with `:core` kept as the umbrella consumers
 # depend on. Bazel now refuses a back-edge at compile time.
-load("@rules_java//java:defs.bzl", "java_binary")
-load("//tools/java:defs.bzl", "legend_java_library")
+
+load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
@@ -210,7 +210,7 @@ legend_java_library(
 # THE PRODUCT, runnable: the HTTP server (LSP, query execution, SQL, diagrams) with
 # the JDBC drivers. `bazel run //core:server` (port 8080, or $PORT);
 # `bazel build //core:server_deploy.jar` is the one self-contained jar to ship.
-java_binary(
+legend_java_binary(
     name = "server",
     main_class = "com.legend.server.LegendHttpServer",
     runtime_deps = [

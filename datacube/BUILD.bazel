@@ -4,14 +4,14 @@
 # Node pinned there. Every test file is its own target — cached and run in
 # parallel on its own, and `bazel test //datacube:<name>_test` runs one.
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_run_binary", "js_test")
-load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/browser:defs.bzl", "browser_test")
 load("//tools/runfiles:defs.bzl", "executable_of")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//warehouse:defs.bzl", "warehouse_run")
-load("@rules_java//java:defs.bzl", "java_binary")
+
 load("@npm//:defs.bzl", "npm_link_all_packages")
 load("@npm//datacube:esbuild/package_json.bzl", esbuild = "bin")
 load("@npm//datacube:typescript/package_json.bzl", typescript = "bin")
@@ -893,7 +893,7 @@ executable_of(
 
 # the test's Postgres (tools/apppostgres/AppPostgres.java): prints its port once the sample is in, and runs
 # until its stdin closes
-java_binary(
+legend_java_binary(
     name = "app_postgres",
     # starts the embedded Postgres: skipped where no build is pinned (P1-15)
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,

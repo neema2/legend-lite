@@ -23,6 +23,7 @@ JUnitMain lists every one it accepts, and any other argument fails the run.
 """
 
 load("@rules_java//java:defs.bzl", "java_test")
+load("//tools/deps:pools.bzl", "check_pool_use")
 
 def junit_test(
         name,
@@ -37,6 +38,7 @@ def junit_test(
         size = "large",
         tags = [],
         **kwargs):
+    check_pool_use(name, True, deps, runtime_deps, data)  # the package may use each Maven pool named (tools/deps/pools.bzl)
     args = select + ["--exclude-tag=" + t for t in exclude_tags] + ["--fail-if-no-tests"]
     # one clock, one locale, one encoding, everywhere: a test's verdict never depends on the host's.
     # The temp directory is set by JUnitMain from TEST_TMPDIR (the Windows Java launcher does not

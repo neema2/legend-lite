@@ -60,8 +60,8 @@ class CoreClosureTest {
         List<String> jars = jars("spec_closure");
         assertTrue(!jars.isEmpty(), "the spec closure query returned nothing — the guard is not looking");
         for (String jar : jars) {
-            assertTrue(!jar.contains("maven_upstream//:"),
-                    () -> "spec reaches an upstream jar: " + jar
+            assertTrue(!jar.contains("maven_upstream//:") && !jar.contains("maven_runner//:"),
+                    () -> "spec reaches an upstream or engine-runner jar: " + jar
                             + " — spec reads the pinned checkouts as files, never their Java");
         }
     }

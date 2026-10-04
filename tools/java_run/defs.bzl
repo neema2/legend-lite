@@ -14,6 +14,7 @@ of its file (a tree's root, named by a file that sits at it).
 
 load("@rules_java//java/common:java_common.bzl", "java_common")
 load("@rules_java//java/common:java_info.bzl", "JavaInfo")
+load("//tools/deps:pools.bzl", "check_pool_use")
 
 # The scheduler's memory for an action that sets memory_mb (Bazel workplan P1-22): a resource_set is a top-level
 # function, so memory_mb is one of these sizes.
@@ -109,7 +110,7 @@ def _java_run_impl(ctx):
     )
     return [DefaultInfo(files = depset(ctx.outputs.outs))]
 
-java_run = rule(
+_java_run = rule(
     implementation = _java_run_impl,
     attrs = {
         "main_class": attr.string(mandatory = True),
@@ -139,3 +140,9 @@ java_run = rule(
     },
     doc = "Runs main_class over deps' target-configuration jars on the exec Java runtime.",
 )
+
+def java_run(name, deps, testonly = False, **kwargs):
+    """The java_run rule, after checking the package may use every Maven pool `deps` names (tools/deps/pools.bzl),
+    when the BUILD file loads, so a manual or incompatible target is checked too."""
+    check_pool_use(name, testonly, deps)
+    _java_run(name = name, deps = deps, testonly = testonly, **kwargs)

@@ -1,18 +1,10 @@
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("//tools/deps:pools.bzl", "POOLS")
 
 # Root package. Exists so the jar pools' lock files are labels rules_jvm_external
-# can read (MODULE.bazel says which pool is whose), and as the home for
-# workspace-wide targets later.
-exports_files([
-    "MODULE.bazel",
-    "maven_core_install.json",
-    "maven_h2_modern_install.json",
-    "maven_runner_install.json",
-    "maven_teavm_install.json",
-    "maven_test_install.json",
-    "maven_tools_install.json",
-    "maven_upstream_install.json",
-])
+# can read (MODULE.bazel says which pool is whose; tools/deps/pools.bzl lists them),
+# and as the home for workspace-wide targets later.
+exports_files(["MODULE.bazel"] + ["%s_install.json" % pool for pool in POOLS])
 
 
 # EVERY committed generated file's diff test, in one suite: what CI's checks lane runs

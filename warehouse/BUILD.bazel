@@ -1,9 +1,9 @@
 # The warehouse: a DuckDB server behind the HTTP SQL API
 # (docs/SERVER_PROGRAM_2026_09_26.md, docs/WAREHOUSE_W1_DESIGN_2026_09_26.md).
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
-load("//tools/java:defs.bzl", "legend_java_library")
+load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@rules_graalvm//graalvm:defs.bzl", "native_image")
-load("@rules_java//java:defs.bzl", "java_binary")
+
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("//tools/runfiles:defs.bzl", "executable_of")
 load("//tools/java_run:defs.bzl", "java_run")
@@ -73,7 +73,7 @@ legend_java_library(
 )
 
 # `bazel run //warehouse:server -- --user alice:secret --data /tmp/wh`
-java_binary(
+legend_java_binary(
     name = "server",
     # DuckDB's library and the postgres extension, found in the server's runfiles by their paths
     # (<repo>/warehouse/<library>, <repo>/warehouse/duckdb_extensions/...; ServerRunfiles, Bazel workplan P1-16)
