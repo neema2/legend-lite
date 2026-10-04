@@ -851,6 +851,14 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | A test that walks a directory from a `Repo` root needs a tree. Leave those for P3-27; this item converts only single-file and known-file reads. Each PR reverts on its own. |
 | Done when | `git grep -n "Repo\.\(path\|module\)"` lists only the walker files that P3-27 or P3-27b own (A3). |
 
+**Amended (2026-10-04, batch 2's audit): the residual `Repo.path`/`Repo.module` uses and their owners.** P1-05 converted every test-only known-file read. What remains is owned elsewhere:
+- **P3-27** (core's directory-walking guards and ratchets, CT-N19): CarrierPurityRatchetTest, CodeShapeGuardrailTest, DanglingStateGuardTest, DialectBoundaryTest, ErrorShapeGuardrailTest, FallbackLedgerTest, HarnessDisciplineTest, IdentityGuardrailTest, JavaEvalLedgerTest, JdbcSurfaceCensusTest, LegacyReachbackCensusTest, ObservabilityGuardrailTest, ParkedWorkLedgerTest, PlatformNamesGuardrailTest, RawSqlLedgerTest, ShadowWalkerCensusTest, SkipCensusTest, SqlTextRatchetTest, TenetRatchetTest, TestLaneOrderGuardrailTest (its walks), VerdictChannelRegisterTest, ParserBoundaryArchTest, DropInSurfaceTextRuleTest, PlatformSurfaceGuardrailTest.
+- **P3-27b** (walks outside core): PctDisciplineTest; parser-equivalence's FixtureAdjudicationTest, OwnCorpusConformanceTest, FixtureCorpusParityTest and MutationFuzzTest (directory listings); spec's CoreTree, including NativeSignatureGeneratorTest's reads through it (`membershipIsTheCatalog`, which P2-19 does not delete).
+- **P3-33** (read inside generator actions): RosterGenerator; OwnCorpusParityTest.LEDGER (initialised by OwnCorpusLedgerDraft in `gen_own_corpus_draft`).
+- **P2-10**: OraclePins (with the oracle pins' move into `MODULE.bazel`).
+- **P3-02**: StressCorpus. **P2-13**: LeanSqlLadderTest's pins. **P3-17**: ZFixtureAdjudicationProbe (selected by no target).
+
+
 #### P1-06 · `EmbeddedPostgres` uses the official runfiles library
 
 | Field | Content |
