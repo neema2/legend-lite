@@ -1,12 +1,15 @@
-load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+load("@rules_java//java:defs.bzl", "java_binary")
+load("//tools/java:defs.bzl", "legend_java_library")
 load(":defs.bzl", "junit_test")
 
 # The JUnit entry point every test target in the repository runs: the Platform Launcher,
 # speaking Bazel's test protocol (Bazel workplan P1-01). It compiles against the launcher
 # and the legacy XML reporter; the engines are runtime choices, the ones the console
 # launcher's fat jar bundled: Jupiter, Vintage (pct's JUnit 3 suites) and Suite.
-java_library(
+legend_java_library(
     name = "junit",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     srcs = ["JUnitMain.java"],
     visibility = ["//visibility:public"],
     runtime_deps = [
@@ -20,7 +23,6 @@ java_library(
         "@maven_test//:org_junit_platform_junit_platform_reporting",
     ],
 )
-
 
 # The pins every junit_test runs under (Bazel workplan P0-10): removing one fails this test.
 junit_test(

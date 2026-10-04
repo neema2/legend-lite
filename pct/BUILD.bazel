@@ -2,8 +2,9 @@
 # own function tests (Pure) through legend-lite, via an adapter written in Pure
 # (src/main/resources) and a native bridge in Java (src/test/java/.../extension).
 # Every upstream jar is a TEST input from @maven_upstream: core never sees one.
-load("@rules_java//java:defs.bzl", "java_library")
+
 load("//tools/junit:defs.bzl", "junit_test")
+load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 load("//tools/java_run:defs.bzl", "java_run")
 
@@ -41,22 +42,24 @@ java_run(
 
 # the adapter on the classpath: its Pure source and definition, and its PAR at
 # the classpath root, where the runtime looks it up by name
-java_library(
+legend_java_library(
     name = "adapter",
     testonly = True,
     resources = glob(["src/main/resources/**"]),
     runtime_deps = [":adapter_par_jar"],
 )
 
-java_library(
+legend_java_library(
     name = "adapter_par_jar",
     testonly = True,
     resources = [":adapter_par"],
     resource_strip_prefix = package_name(),
 )
 
-java_library(
+legend_java_library(
     name = "pct_tests_lib",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     testonly = True,
     srcs = glob(["src/test/java/**/*.java"]),
     resources = glob(["src/test/resources/**"]),

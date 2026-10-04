@@ -1,8 +1,11 @@
-load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+load("@rules_java//java:defs.bzl", "java_binary")
+load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/junit:defs.bzl", "junit_test")
 
-java_library(
+legend_java_library(
     name = "bump_lib",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     srcs = ["Bump.java"],
 )
 

@@ -1,12 +1,15 @@
 # java_run (defs.bzl): JVM programs as build actions over target-configuration jars.
 load("@bazel_lib//lib:diff_test.bzl", "diff_test")
-load("@rules_java//java:defs.bzl", "java_library")
+load("//tools/java:defs.bzl", "legend_java_library")
+
 load(":defs.bzl", "java_run")
 
 # What a java_run action sees, held to pins.expected (Bazel workplan P0-10): removing a pin from
 # defs.bzl changes the output, and the diff test fails.
-java_library(
+legend_java_library(
     name = "print_pins",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     srcs = ["pins/PrintPins.java"],
 )
 

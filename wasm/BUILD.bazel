@@ -1,7 +1,8 @@
 # legend-lite's planner, compiled ahead of time to WebAssembly (TeaVM), and the
 # differential that holds it to the JVM. See README.md.
 load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_test")
-load("@rules_java//java:defs.bzl", "java_library")
+load("//tools/java:defs.bzl", "legend_java_library")
+
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/teavm:defs.bzl", "teavm_wasm")
 
@@ -15,7 +16,7 @@ js_library(
 # The TeaVM surface the boundary class names at COMPILE time only: @JSExport
 # (jso) and the ResourceSupplier SPI (core, the compiler's). neverlink — on a JVM the
 # annotation is inert and nothing loads the SPI, so no JVM classpath carries them.
-java_library(
+legend_java_library(
     name = "teavm_api",
     neverlink = True,
     exports = [
@@ -26,8 +27,10 @@ java_library(
 
 # THE BOUNDARY: one class both targets run — TeaVM compiles it, JvmMain calls it —
 # so the differential compares two builds of one source.
-java_library(
+legend_java_library(
     name = "boundary",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     srcs = [
         "src/main/java/planner/PreludeResources.java",
         "src/main/java/planner/Wasm.java",
@@ -57,15 +60,19 @@ teavm_wasm(
 # The JVM halves of the differentials: the corpus, and the timezone probe. Target-
 # configuration libraries run by java_run (//tools/java_run), so core is compiled
 # once for them and for the module.
-java_library(
+legend_java_library(
     name = "jvm_main",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     srcs = ["src/main/java/planner/JvmMain.java"],
     visibility = ["//visibility:public"],
     deps = [":boundary"],
 )
 
-java_library(
+legend_java_library(
     name = "zone_main",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     srcs = ["src/main/java/planner/ZoneMain.java"],
     deps = [":boundary"],
 )

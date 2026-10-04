@@ -1,15 +1,15 @@
 # The warehouse: a DuckDB server behind the HTTP SQL API
 # (docs/SERVER_PROGRAM_2026_09_26.md, docs/WAREHOUSE_W1_DESIGN_2026_09_26.md).
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
+load("//tools/java:defs.bzl", "legend_java_library")
 load("@rules_graalvm//graalvm:defs.bzl", "native_image")
-load("@rules_java//java:defs.bzl", "java_binary", "java_library")
+load("@rules_java//java:defs.bzl", "java_binary")
 load("@rules_python//python:py_binary.bzl", "py_binary")
 load("//tools/runfiles:defs.bzl", "executable_of")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/platforms:defs.bzl", "compatible_with", "platform_select")
 load(":defs.bzl", "POSTGRES_EXTENSION", "POSTGRES_EXTENSION_COMPATIBLE", "jar_entry", "warehouse_run")
-load("//tools/nullaway:defs.bzl", "NULLAWAY_OPTS", "NULLAWAY_PLUGIN")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 
 # DuckDB's native library for this platform, out of its JDBC jar (//tools/platforms; Bazel workplan P1-19)
@@ -27,11 +27,9 @@ package(default_visibility = ["//visibility:public"])
 # compile into the WebAssembly module beside the planner (program ruling 7), so
 # it names no java.sql, no java.net, no JDK server. It depends on //base and //json only:
 # nothing in the warehouse reaches core (//tools/deps:warehouse_closure_test).
-java_library(
+legend_java_library(
     name = "sqlapi",
     srcs = glob(["src/main/java/com/legend/warehouse/sqlapi/**/*.java"]),
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
     deps = [
         "//base",
         "//json",
@@ -41,11 +39,9 @@ java_library(
 # The JVM client: the java.net.http driver for a binding, and a JDBC driver over
 # it (jdbc:warehouse:http://host:port/catalog) whose values are the SAME Java
 # objects DuckDB's own driver returns -- legend-lite's executor runs unchanged.
-java_library(
+legend_java_library(
     name = "client",
     srcs = glob(["src/main/java/com/legend/warehouse/client/**/*.java"]),
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
     resources = ["src/main/resources/META-INF/services/java.sql.Driver"],
     resource_strip_prefix = "warehouse/src/main/resources",
     deps = [
@@ -53,14 +49,13 @@ java_library(
         "//base",
         "//json",
     ],
+    visibility = ["//spec:__pkg__"],
 )
 
 # The process: the JDK's HTTP server, DuckDB 1.5.5.1 (its own Maven set).
-java_library(
+legend_java_library(
     name = "server_lib",
     srcs = glob(["src/main/java/com/legend/warehouse/server/**/*.java"]),
-    javacopts = NULLAWAY_OPTS,
-    plugins = [NULLAWAY_PLUGIN],
     deps = [
         "@rules_java//java/runfiles",
         ":sqlapi",
@@ -90,8 +85,10 @@ java_binary(
     runtime_deps = [":server_lib"],
 )
 
-java_library(
+legend_java_library(
     name = "tests_lib",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     testonly = True,
     # launcher/ is :launcher_test's alone: it needs the launcher and a Postgres in its runfiles
     srcs = glob(

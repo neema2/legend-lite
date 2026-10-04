@@ -1,8 +1,9 @@
 # parser-equivalence — legend-lite's parser and legend-engine's over the same input,
 # compared byte for byte (Maven gate 8). The upstream jars are TEST inputs only and
 # live only here: core must never see org.finos.legend.
-load("@rules_java//java:defs.bzl", "java_library")
+
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("//tools/java:defs.bzl", "legend_java_library")
 load("//tools/generators:defs.bzl", "UPSTREAM_ROOTS", "UPSTREAM_TREES", "program_jvm_flags")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/junit:defs.bzl", "junit_test")
@@ -15,8 +16,10 @@ filegroup(
     visibility = ["//core:__pkg__"],
 )
 
-java_library(
+legend_java_library(
     name = "pe_tests_lib",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     testonly = True,
     srcs = glob(["src/test/java/**/*.java"]),
     resources = glob(["src/test/resources/**"]),
@@ -165,7 +168,7 @@ junit_test(
 # engine's grammar and compiler tests-jars (grammar before compiler — the order
 # the snapshot's dedup is minted in) and json-unit. QUARANTINED: nothing else
 # depends on these jars, whose test-scoped registrations would alter the oracle.
-java_library(
+legend_java_library(
     name = "harvest_lib",
     testonly = True,
     runtime_deps = [

@@ -1,11 +1,13 @@
-load("@rules_java//java:defs.bzl", "java_library")
+load("//tools/java:defs.bzl", "legend_java_library")
 
 # Compiles a Pure code repository to its PAR — see ParGenerator.java. The classpath
 # is the one the Maven goal ran with in pct/pom.xml: the engine's compiled core
 # and the TDS DSL, which hold the repositories a PAR may depend on.
 # A library, run by java_run actions in the target configuration (Bazel workplan P1-22): no genrule, no shell.
-java_library(
+legend_java_library(
     name = "par_generator",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     srcs = ["ParGenerator.java"],
     visibility = ["//visibility:public"],
     runtime_deps = [

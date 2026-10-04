@@ -1,8 +1,10 @@
-load("@rules_java//java:defs.bzl", "java_library")
+load("//tools/java:defs.bzl", "legend_java_library")
 
 # A gunzip for build actions (java_run), on the JDK alone: no shell, no host gzip (Bazel workplan P1-17).
-java_library(
+legend_java_library(
     name = "gunzip",
+    # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
+    nullaway = False,
     srcs = ["Gunzip.java"],
     visibility = ["//visibility:public"],
 )
