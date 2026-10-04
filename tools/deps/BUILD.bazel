@@ -129,6 +129,10 @@ junit_test(
     size = "small",
     srcs = ["CoreLayeringTest.java"],
     data = ["core-layers.txt"] + [":layer_" + t for t in _CORE_LAYERS],
+    jvm_flags = [
+        "-Dcore.layers=$(rlocationpath core-layers.txt)",
+        "-Dcore.layer.files=" + ",".join(["$(rlocationpath :layer_%s)" % t for t in _CORE_LAYERS]),
+    ],
     select = ["--select-class=com.legend.tools.deps.CoreLayeringTest"],
     deps = [
         "//testing",

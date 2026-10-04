@@ -3,11 +3,12 @@
 
 package com.legend.tools.deps;
 
-import com.legend.testing.Repo;
+import com.legend.testing.Runfile;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -32,7 +33,7 @@ class CoreLayeringTest {
     @Test
     void everyCoreLibraryDependsOnExactlyItsListedLayers() throws IOException {
         Map<String, String> expected = new LinkedHashMap<>();
-        for (String line : Files.readAllLines(Repo.module("core-layers.txt"))) {
+        for (String line : Files.readAllLines(Runfile.property("core.layers"))) {
             if (line.isBlank() || line.startsWith("#")) {
                 continue;
             }
@@ -40,10 +41,20 @@ class CoreLayeringTest {
             expected.put(parts[0], parts.length > 1 ? normalise(List.of(parts[1].split(" "))) : "");
         }
         assertTrue(expected.size() >= 20, "core-layers.txt lists " + expected.size() + " targets — the guard is not looking");
+        // each layer_<target> genquery output, by its runfiles path
+        Map<String, Path> layerFiles = new LinkedHashMap<>();
+        for (String rlocationpath : System.getProperty("core.layer.files").split(",")) {
+            layerFiles.put(rlocationpath.substring(rlocationpath.lastIndexOf("/layer_") + "/layer_".length()),
+                    Runfile.of(rlocationpath));
+        }
         List<String> drift = new ArrayList<>();
         for (Map.Entry<String, String> e : expected.entrySet()) {
             String target = e.getKey();
-            String actual = normalise(Files.readAllLines(Repo.module("layer_" + target)));
+            Path layer = layerFiles.get(target);
+            if (layer == null) {
+                throw new IllegalStateException("tools/deps/BUILD.bazel passes no layer_" + target);
+            }
+            String actual = normalise(Files.readAllLines(layer));
             if (!actual.equals(e.getValue())) {
                 TreeSet<String> added = new TreeSet<>(List.of(actual.split(" ")));
                 added.removeAll(List.of(e.getValue().split(" ")));
