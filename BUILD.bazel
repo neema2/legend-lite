@@ -15,6 +15,7 @@ test_suite(
     name = "generated",
     tests = [
         "//core:update_generated_tests",
+        "//core:update_stress_corpus_tests",
         "//datacube:update_generated_tests",
         "//engine-client:update_generated_tests",
         "//docs:update_generated_tests",
@@ -30,6 +31,7 @@ write_source_files(
     testonly = True,
     additional_update_targets = [
         "//core:update_generated",
+        "//core:update_stress_corpus",
         "//datacube:update_generated",
         "//engine-client:update_generated",
         "//docs:update_generated",

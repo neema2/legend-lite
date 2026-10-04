@@ -6,7 +6,10 @@ load("//tools/guards:defs.bzl", "guards_package")
 filegroup(
     name = "srcs",
     srcs = glob(["**/*.pure"]),
-    visibility = ["//core:__pkg__"],
+    visibility = [
+        "//core:__pkg__",
+        "//scripts/corpus:__pkg__",
+    ],
 )
 
 guards_package()

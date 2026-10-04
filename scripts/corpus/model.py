@@ -23,14 +23,59 @@ a signal to extend this deliberately rather than a reason to make the parser len
 """
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import rhs
 
-STRESS = Path(__file__).resolve().parents[2] / "core/src/test/resources/stress"
-PROJECTS = Path(__file__).resolve().parents[2] / "projects"
+# The repository root. Under Bazel the generator runs as an action whose inputs are DECLARED,
+# so the root is given (CORPUS_ROOT, the action's execroot) rather than found by resolving
+# __file__ -- which follows the runfiles symlink back into the real checkout and would let the
+# generator read files nobody declared.
+ROOT = Path(os.environ["CORPUS_ROOT"]) if os.environ.get("CORPUS_ROOT") \
+    else Path(__file__).resolve().parents[2]
+STRESS = ROOT / "core/src/test/resources/stress"
+PROJECTS = ROOT / "projects"
+# The hand-written queries 92-services.pure is generated FROM. They used to be read back out
+# of 92 itself, which made the file both the generator's input and its output.
+QUERIES = ROOT / "scripts/corpus/queries.pure"
+
+# The files scripts/corpus/build.py WRITES. They are outputs, never inputs: every reader of
+# "the corpus" below reads stress_sources(), so the generator's answer cannot depend on what
+# it wrote last time.
+GENERATED = frozenset({
+    "92-services.pure", "93-testdata.pure", "94-fanout-services.pure",
+    "95-function-tests.pure", "96-external-data.pure", "97-hier-execution.pure",
+    "98-combination-execution.pure",
+})
+
+
+# Files OTHER generators write (dense_mapping.py, dense_store.py, combos.py). They are inputs
+# to build.py but never to the generator that writes them.
+DENSE_GENERATED = frozenset({"59-dense-mapping.pure", "60-dense-store.pure",
+                             "64-combinations.pure"})
+
+# Set by a generator to leave more files out of "the corpus" -- its own outputs.
+EXCLUDE: set[str] = set()
+
+
+# Where DENSE_GENERATED files are read from when not the checkout: under Bazel, build.py reads
+# the dense generator's OUTPUTS (dense_build.py --out), so one update writes all ten files.
+DENSE_DIR: Path | None = None
+
+
+def stress_sources() -> list[Path]:
+    """The hand-written (and other-generator) stress files, in file-name order: the generator's
+    inputs. Order is by NAME, never by directory, because a headerless file inherits the
+    section of the file before it."""
+    files = {p.name: p for p in STRESS.glob("*.pure")
+             if p.name not in GENERATED and p.name not in EXCLUDE}
+    if DENSE_DIR is not None:
+        for name in DENSE_GENERATED - EXCLUDE:
+            files[name] = DENSE_DIR / name
+    return [files[n] for n in sorted(files)]
 
 # Projects from the dependency graph that the EXECUTABLE corpus depends on.
 #
@@ -1886,7 +1931,7 @@ def load() -> Corpus:
     # Linked projects FIRST: a corpus store includes a project store and a corpus mapping
     # includes a project mapping, so the project's tables and sets must already exist when
     # the corpus's own files are read.
-    files = linked_files() + sorted(STRESS.glob("*.pure"))
+    files = linked_files() + stress_sources()
     parsed = [(f, sections(f.read_text())) for f in files]
     # Three passes: stores define the tables mappings point at, and mappings bind
     # associations that must already exist.
@@ -1947,7 +1992,7 @@ def check(c: Corpus) -> list[str]:
     # from whatever the runner happens to concatenate ahead of it, which used to be nothing
     # and is now a linked project. A default that holds only while a file is first is not a
     # default, it is an accident waiting for something to be put in front of it.
-    first = (linked_files() + sorted(STRESS.glob("*.pure")))[0]
+    first = (linked_files() + stress_sources())[0]
     if not first.read_text().lstrip().startswith("###"):
         bad.append(f"{first.name} is parsed first and declares no ###Section; it would "
                    f"inherit from whatever is concatenated ahead of it")
@@ -1978,7 +2023,7 @@ def check(c: Corpus) -> list[str]:
     # one, and every property mapped to a column of the other reports as missing from a file
     # where it is plainly present.
     seen_tables: dict[tuple, list[str]] = {}
-    for f in sorted(STRESS.glob("*.pure")):
+    for f in stress_sources():
         db = None
         for line in f.read_text().splitlines():
             m = re.match(r"^\s*Database\s+([\w:]+)", line)
@@ -2018,7 +2063,7 @@ def check(c: Corpus) -> list[str]:
                        f"silently drops the other")
 
     prev = "###Pure"
-    for f in sorted(STRESS.glob("*.pure")):
+    for f in stress_sources():
         txt = f.read_text()
         first = next((ln for ln in txt.splitlines()
                       if ln.strip() and not ln.lstrip().startswith("//")), "")

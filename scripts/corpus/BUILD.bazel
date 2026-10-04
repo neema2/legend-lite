@@ -1,0 +1,125 @@
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("@rules_python//python:py_library.bzl", "py_library")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# THE STRESS-CORPUS GENERATORS (spike S5). Ten committed files in
+# core/src/test/resources/stress are their outputs; //core:update_stress_corpus writes them
+# back and diff-tests them. Every input is declared: the hand-written stress sources
+# (//core:stress_sources -- the generated ten excluded), the linked projects, and the
+# hand-written queries 92 is generated from.
+
+# build.py's import closure plus the dense generators. Stdlib only, except zoneinfo's data.
+py_library(
+    name = "corpus",
+    srcs = [
+        "aggregate.py",
+        "aggregates.py",
+        "battery.py",
+        "combos.py",
+        "deepstack.py",
+        "dense_mapping.py",
+        "dense_store.py",
+        "density.py",
+        "emit.py",
+        "executed.py",
+        "expand.py",
+        "flat.py",
+        "functest.py",
+        "graphs.py",
+        "hier.py",
+        "model.py",
+        "oracle.py",
+        "partition.py",
+        "quarantine.py",
+        "query.py",
+        "rhs.py",
+        "seed.py",
+        "spread.py",
+        "stacking.py",
+        "stacks.py",
+        "taxonomy.py",
+        "tomany.py",
+        "views.py",
+    ],
+    # the modules import each other by bare name (`import model`)
+    imports = ["."],
+    # oracle's convertTimeZone reads zoneinfo; the action empties PYTHONTZPATH so the zone
+    # data is this pinned package, never the machine's /usr/share/zoneinfo
+    deps = ["@pypi//tzdata"],
+)
+
+py_binary(
+    name = "build",
+    srcs = ["build.py"],
+    deps = [":corpus"],
+)
+
+py_binary(
+    name = "dense_build",
+    srcs = ["dense_build.py"],
+    deps = [":corpus"],
+)
+
+# The action environment: the root is the execroot (declared inputs only), zone data from the
+# pinned tzdata package, and a fixed hash seed so no set order can reach the output.
+_ENV = {
+    "CORPUS_ROOT": ".",
+    "PYTHONHASHSEED": "0",
+    "PYTHONTZPATH": "",
+    "LC_ALL": "C.UTF-8",
+}
+
+_INPUTS = [
+    "queries.pure",
+    "//core:stress_sources",
+    "//projects:srcs",
+]
+
+DENSE = [
+    "59-dense-mapping.pure",
+    "60-dense-store.pure",
+    "64-combinations.pure",
+]
+
+STRESS = [
+    "92-services.pure",
+    "93-testdata.pure",
+    "94-fanout-services.pure",
+    "95-function-tests.pure",
+    "96-external-data.pure",
+    "97-hier-execution.pure",
+    "98-combination-execution.pure",
+]
+
+run_binary(
+    name = "gen_dense",
+    srcs = _INPUTS,
+    outs = ["dense/" + f for f in DENSE],
+    args = [
+        "--out",
+        "$(RULEDIR)/dense",
+    ],
+    env = _ENV,
+    tool = ":dense_build",
+    visibility = ["//core:__pkg__"],
+)
+
+# build.py reads the dense generator's OUTPUTS, not the committed 59/60/64, so a dense change
+# reaches 92-98 in the same update.
+run_binary(
+    name = "gen_stress",
+    srcs = _INPUTS + [":gen_dense"],
+    outs = ["stress/" + f for f in STRESS],
+    args = [
+        "--dense",
+        "$(RULEDIR)/dense",
+        "--out",
+        "$(RULEDIR)/stress",
+    ],
+    env = _ENV,
+    tool = ":build",
+    visibility = ["//core:__pkg__"],
+)
+
+guards_package()
