@@ -1358,6 +1358,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Risk/rollback | Count movement. It is evidence, recorded, not hidden. |
 | Done when | Every manifest is either pinned-tree data or a diff-tested action output (A18). |
 
+**Found 2026-10-04 (P1-22): not reproducible.** legend-pure's PAR generator (`//pct:adapter_par`) and the reference dump (`//tools/reference:ref_dump`) give different bytes on every run with identical inputs: the old genrule tools run twice differ in anonymous ids (`@_0018480` vs `@_001848e`) and in the order of the lines around them; the line count is the same. A non-reproducible action defeats the remote cache downstream (every consumer re-runs when it re-runs) and makes a byte diff test impossible. Fix here: make the output canonical (sort; renumber anonymous ids in first-use order, or drop them where the consumer does not read them), or record why it cannot be.
+
 #### P2-12 · `core-layers.txt`: every core library is covered (policy stays hand-owned; D9)
 
 | Field | Content |
@@ -1396,6 +1398,8 @@ This order respects every *Depends on* field in §4 and §5 (checked mechanicall
 | Size | M (1 d) |
 | Risk/rollback | None known. |
 | Done when | The golden changes only through `bazel run //spec:update_reference_lane`. |
+
+**Found 2026-10-04 (P1-22): not reproducible.** legend-pure's PAR generator (`//pct:adapter_par`) and the reference dump (`//tools/reference:ref_dump`) give different bytes on every run with identical inputs: the old genrule tools run twice differ in anonymous ids (`@_0018480` vs `@_001848e`) and in the order of the lines around them; the line count is the same. A non-reproducible action defeats the remote cache downstream (every consumer re-runs when it re-runs) and makes a byte diff test impossible. Fix here: make the output canonical (sort; renumber anonymous ids in first-use order, or drop them where the consumer does not read them), or record why it cannot be.
 
 #### P2-15 · The relational-corpus rosters and registers: action outputs, diff-tested (D9)
 
