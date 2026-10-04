@@ -1,0 +1,6 @@
+/* Upstream Legend Studio's type (legend-art: @fontsource Roboto, Roboto Mono), served with the site from
+ * the same @fontsource packages (OFL-1.1): no request leaves for a font CDN. */
+@font-face { font-family: 'Roboto'; font-style: normal; font-display: swap; font-weight: 400; src: url(vendor/fonts/roboto-latin-400-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Roboto'; font-style: normal; font-display: swap; font-weight: 500; src: url(vendor/fonts/roboto-latin-500-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Roboto'; font-style: normal; font-display: swap; font-weight: 700; src: url(vendor/fonts/roboto-latin-700-normal.woff2) format('woff2'); }
+@font-face { font-family: 'Roboto Mono'; font-style: normal; font-display: swap; font-weight: 400; src: url(vendor/fonts/roboto-mono-latin-400-normal.woff2) format('woff2'); }

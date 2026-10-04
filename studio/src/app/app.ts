@@ -1,0 +1,52 @@
+// Studio's app: where projects live (connect), the compiler in a worker, Monaco, and two screens --
+// workspace setup (`#/`, `#/project/<id>`) and the editor (`#/edit/<project>/<workspace>`).
+
+import * as monaco from 'monaco-editor/editor/editor.api';
+import 'monaco-editor/features/register.all';
+
+import { Compiler, WorkerPort } from '../backend/planner.ts';
+import { connect, type StudioConfig } from '../backend/sdlc.ts';
+import { clear, h } from '../ui/dom.ts';
+import { renderEditor } from '../ui/editor.ts';
+import { registerPure } from '../ui/pure-language.ts';
+import { renderSetup } from '../ui/setup.ts';
+
+export async function start(root: HTMLElement, config: StudioConfig, workerUrl: string): Promise<void> {
+  (globalThis as unknown as { MonacoEnvironment: unknown }).MonacoEnvironment = {
+    getWorker: () => new Worker(new URL('./editor.worker.js', globalThis.location.href), { type: 'module' }),
+  };
+  registerPure(monaco);
+  root.append(h('div', { class: 'loading' }, 'Loading Legend Studio…'));
+  const { client, where } = await connect(config);
+  const compiler = new Compiler(new WorkerPort(workerUrl, `${config.vendor}planner/`));
+  let dispose: (() => void) | undefined;
+
+  const route = async (): Promise<void> => {
+    dispose?.();
+    dispose = undefined;
+    clear(root);
+    const hash = decodeURIComponent(globalThis.location.hash.slice(1));
+    const edit = /^\/edit\/([^/]+)\/([^/]+)$/.exec(hash);
+    const open = (project: string, workspace: string): void => {
+      globalThis.location.hash = `#/edit/${encodeURIComponent(project)}/${encodeURIComponent(workspace)}`;
+    };
+    try {
+      if (edit) {
+        const project = edit[1]!;
+        dispose = await renderEditor(root, {
+          client, compiler, monaco, project, workspace: edit[2]!,
+          back: () => { globalThis.location.hash = `#/project/${encodeURIComponent(project)}`; },
+        });
+      } else {
+        const selected = /^\/project\/([^/]+)$/.exec(hash)?.[1];
+        await renderSetup(root, { client, where, open }, selected);
+      }
+    } catch (e) {
+      root.append(h('div', { class: 'fatal' }, h('div', { class: 'fatal-title' }, 'Studio could not open this'),
+        h('div', {}, e instanceof Error ? e.message : String(e)),
+        h('button', { class: 'btn', onclick: () => { globalThis.location.hash = '#/'; } }, 'Back to projects')));
+    }
+  };
+  globalThis.addEventListener('hashchange', () => void route());
+  await route();
+}

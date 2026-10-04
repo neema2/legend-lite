@@ -1,8 +1,11 @@
 # Legend Studio, rebuilt light (docs/STUDIO_DESIGN_2026_10_02.md): plain TypeScript and DOM with Monaco,
 # bundled by esbuild, tested with node's own runner. Its npm packages are its own lock (MODULE.bazel
 # `npm_studio`). The SDLC and the compiler run in the page as WebAssembly (level 0) or on servers.
-load("@aspect_rules_js//js:defs.bzl", "js_library", "js_test")
+load("@aspect_rules_js//js:defs.bzl", "js_binary", "js_library", "js_test")
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@npm_studio//:defs.bzl", "npm_link_all_packages")
+load("@npm_studio//studio:esbuild/package_json.bzl", esbuild = "bin")
+load("@npm_studio//studio:typescript/package_json.bzl", typescript = "bin")
 
 npm_link_all_packages(name = "node_modules")
 
@@ -10,8 +13,89 @@ exports_files(["pnpm-lock.yaml", "package.json"])
 
 js_library(
     name = "src",
-    srcs = glob(["src/**/*.ts"]) + ["package.json"],
+    srcs = glob(["src/**/*.ts", "src/**/*.css"]) + ["package.json", "tsconfig.json"],
     deps = ["//sdlc-client:sdlc_client"],
+)
+
+# the page and its two workers: Studio (with Monaco and its stylesheet), legend-lite's compiler, Monaco's
+esbuild.esbuild(
+    name = "bundle",
+    srcs = glob(["demo/**/*.ts"]) + [":src", ":node_modules/monaco-editor"],
+    outs = ["demo/bundle.js", "demo/bundle.css"],
+    args = [
+        "demo/main.ts",
+        "--bundle",
+        "--format=esm",
+        "--target=es2022",
+        "--loader:.ttf=dataurl",
+        "--log-level=warning",
+        "--outfile=demo/bundle.js",
+    ],
+    chdir = package_name(),
+)
+
+[esbuild.esbuild(
+    name = "bundle_" + name,
+    srcs = [":src", ":node_modules/monaco-editor"],
+    outs = ["demo/" + out],
+    args = [
+        entry,
+        "--bundle",
+        "--format=esm",
+        "--target=es2022",
+        "--log-level=warning",
+        "--outfile=demo/" + out,
+    ],
+    chdir = package_name(),
+) for name, entry, out in [
+    ("planner_worker", "src/backend/planner-worker.ts", "planner-worker.js"),
+    ("editor_worker", "src/backend/editor-worker.ts", "editor.worker.js"),
+]]
+
+# The WebAssembly modules the page loads from ./vendor/: the compiler (vendor/planner/) and the SDLC
+# (vendor/sdlc/), and the fonts.
+copy_to_directory(
+    name = "vendor",
+    srcs = [
+        ":node_modules/@fontsource/roboto",
+        ":node_modules/@fontsource/roboto-mono",
+        "//sdlc-server:page",
+        "//wasm:planner",
+    ],
+    out = "demo/vendor",
+    include_srcs_patterns = [
+        "wasm/planner/classes.wasm",
+        "wasm/planner/wasm-gc-module-runtime.js",
+        "sdlc-server/page/classes.wasm",
+        "sdlc-server/page/wasm-gc-module-runtime.js",
+        "**/files/roboto-latin-400-normal.woff2",
+        "**/files/roboto-latin-500-normal.woff2",
+        "**/files/roboto-latin-700-normal.woff2",
+        "**/files/roboto-mono-latin-400-normal.woff2",
+    ],
+    replace_prefixes = {
+        "wasm/planner/": "planner/",
+        "sdlc-server/page/": "sdlc/",
+        "**/files/": "fonts/",
+    },
+)
+
+# Everything a browser fetches.
+filegroup(
+    name = "site",
+    srcs = glob([
+        "demo/*.html",
+        "demo/*.json",
+        "demo/*.css",
+        "src/**/*.css",
+    ]) + [":bundle", ":bundle_planner_worker", ":bundle_editor_worker", ":vendor"],
+)
+
+# `bazel run //studio:serve [-- --port 8200]`: the site, on loopback.
+js_binary(
+    name = "serve",
+    data = [":site"],
+    entry_point = "demo/serve.mjs",
 )
 
 _NODE_OPTIONS = [
@@ -38,3 +122,21 @@ _NODE_OPTIONS = [
     entry_point = t,
     node_options = _NODE_OPTIONS,
 ) for t in glob(["test/*.test.ts"])]
+
+typescript.tsc_test(
+    name = "typecheck_test",
+    size = "small",
+    args = ["-p", "tsconfig.json"],
+    chdir = package_name(),
+    data = glob([
+        "src/**/*.ts",
+        "test/**/*.ts",
+        "demo/**/*.ts",
+    ]) + [
+        "package.json",
+        "tsconfig.json",
+        "//sdlc-client:sdlc_client",
+        ":node_modules/@types/node",
+        ":node_modules/monaco-editor",
+    ],
+)
